@@ -98,6 +98,7 @@ mod span;
 mod transaction;
 pub use span::extract_transaction_span;
 
+mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -1553,6 +1554,8 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
         });
+        // TODO: Would probably either want to "expand here" (guard with some flag)
+        playstation::expand(managed_envelope, &self.inner.config)?;
 
         let extraction_result = event::extract(
             managed_envelope,
@@ -1565,6 +1568,12 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             if let Some(inner_event_fully_normalized) =
                 unreal::process(managed_envelope, &mut event)?
+            {
+                event_fully_normalized = inner_event_fully_normalized;
+            }
+            // TODO: Process
+            if let Some(inner_event_fully_normalized) =
+                playstation::process(managed_envelope, &mut event)?
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }

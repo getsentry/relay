@@ -193,6 +193,56 @@ where
     Ok(items)
 }
 
+// FIXME: Maybe we want to tweak this value pub type Items = SmallVec<[Item; 3]>;
+pub async fn multipart_items_by_extension<F>(
+    mut multipart: Multipart<'_>,
+    mut infer_type: F,
+) -> Result<Items, multer::Error>
+where
+    F: FnMut(Option<&str>) -> AttachmentType,
+{
+    let mut items = Items::new();
+    let mut form_data = FormDataWriter::new();
+
+    while let Some(field) = multipart.next_field().await? {
+        if let Some(file_name) = field.file_name() {
+            // TODO: Do we want this to be it own ItemType for Prosperodumps rather than Attachment(Prosperodump?)
+            let mut item = Item::new(ItemType::Attachment);
+
+            // Obtain the file extension and use that to infer the attachment type
+            // TODO: Decide on if the to_lowercase here is necessary and if we want to keep the type signature of: Option<&str>
+            let extension = file_name.rsplit('.').next().map(|ext| ext.to_lowercase());
+            item.set_attachment_type(infer_type(extension.as_deref()));
+            item.set_filename(file_name);
+            // Extract the body after the immutable borrow on `file_name` is gone.
+            if let Some(content_type) = field.content_type() {
+                item.set_payload(content_type.as_ref().into(), field.bytes().await?);
+            } else {
+                item.set_payload_without_content_type(field.bytes().await?);
+            }
+            items.push(item);
+        } else if let Some(field_name) = field.name().map(str::to_owned) {
+            // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
+            // process sentry event payloads even if they contain invalid encoding.
+            let string = field.text().await?;
+            form_data.append(&field_name, &string);
+        } else {
+            relay_log::trace!("multipart content without name or file_name");
+        }
+    }
+
+    let form_data = form_data.into_inner();
+    if !form_data.is_empty() {
+        let mut item = Item::new(ItemType::FormData);
+        // Content type is `Text` (since it is not a json object but multiple
+        // json arrays serialized one after the other).
+        item.set_payload(ContentType::Text, form_data);
+        items.push(item);
+    }
+
+    Ok(items)
+}
+
 pub fn multipart_from_request(
     request: Request,
     config: &Config,
