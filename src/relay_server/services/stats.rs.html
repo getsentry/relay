@@ -425,7 +425,7 @@
 
         <span class="macro">metric!</span>(
             gauge(RelayGauges::AsyncPoolQueueSize) = metrics.queue_size(),
-            pool_name = async_pool.name()
+            pool = async_pool.name()
         );
         <span class="macro">metric!</span>(
             gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() <span class="kw">as </span>f64,

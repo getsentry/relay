@@ -1038,7 +1038,13 @@
 <a href="#1037" id="1037">1037</a>
 <a href="#1038" id="1038">1038</a>
 <a href="#1039" id="1039">1039</a>
-<a href="#1040" id="1040">1040</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1047,11 +1053,17 @@
     <span class="doccomment">/// Tracks the number of futures waiting to be executed in the pool's queue.
     ///
     /// Useful for understanding the backlog of work and identifying potential bottlenecks.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
     </span>AsyncPoolQueueSize,
     <span class="doccomment">/// Tracks the utilization of the async pool.
     ///
-    /// The utilization is a value between 0.0 and 1.0 which determines how busy is the pool
+    /// The utilization is a value between 0.0 and 100.0 which determines how busy is the pool
     /// w.r.t. to its provisioned capacity.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
     </span>AsyncPoolUtilization,
     <span class="doccomment">/// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.

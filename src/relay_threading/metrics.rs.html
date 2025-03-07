@@ -71,7 +71,7 @@
             .map(|m| m.active_tasks.load(Ordering::Relaxed))
             .sum();
 
-        (total_polled_futures <span class="kw">as </span>f32 / <span class="self">self</span>.max_tasks <span class="kw">as </span>f32).clamp(<span class="number">0.0</span>, <span class="number">1.0</span>)
-    }
+        (total_polled_futures <span class="kw">as </span>f32 / <span class="self">self</span>.max_tasks <span class="kw">as </span>f32).clamp(<span class="number">0.0</span>, <span class="number">1.0</span>) * <span class="number">100.0
+    </span>}
 }
 </code></pre></div></section></main></body></html>
