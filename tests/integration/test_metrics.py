@@ -293,7 +293,7 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
         mini_sentry.captured_events.get(timeout=1)
 
 
-@pytest.mark.parametrize("ns", [None, "custom", "transactions"])
+@pytest.mark.parametrize("ns", [None, "spans", "transactions"])
 def test_metrics_rate_limits_namespace(mini_sentry, relay, ns):
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -453,11 +453,10 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     metrics_consumer = metrics_consumer()
 
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:custom-metrics"]
+    mini_sentry.add_full_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    metrics_payload = f"transactions/foo:42|c\nspans/bar@second:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_name(metrics_consumer, 2)
@@ -477,12 +476,12 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "received_at": time_after(timestamp),
     }
 
-    assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
-    assert metrics["c:custom/bar@second"] == {
+    assert metrics["headers"]["c:spans/bar@second"] == [("namespace", b"spans")]
+    assert metrics["c:spans/bar@second"] == {
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
-        "name": "c:custom/bar@second",
+        "name": "c:spans/bar@second",
         "tags": {},
         "value": 17.0,
         "type": "c",
@@ -504,12 +503,11 @@ def test_global_metrics_with_processing(
     metrics_consumer = metrics_consumer()
 
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:custom-metrics"]
+    mini_sentry.add_full_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     metrics_payload = (
-        f"transactions/foo:42|c|T{timestamp}\nbar@second:17|c|T{timestamp}"
+        f"transactions/foo:42|c|T{timestamp}\nspans/bar@second:17|c|T{timestamp}"
     )
     relay.send_metrics(project_id, metrics_payload)
 
@@ -530,12 +528,12 @@ def test_global_metrics_with_processing(
         "received_at": time_after(timestamp),
     }
 
-    assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
-    assert metrics["c:custom/bar@second"] == {
+    assert metrics["headers"]["c:spans/bar@second"] == [("namespace", b"spans")]
+    assert metrics["c:spans/bar@second"] == {
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
-        "name": "c:custom/bar@second",
+        "name": "c:spans/bar@second",
         "tags": {},
         "value": 17.0,
         "type": "c",
@@ -1724,24 +1722,6 @@ def test_span_metrics_secondary_aggregator(
     ]
 
 
-def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_consumer):
-    relay = relay_with_processing(options=TEST_CONFIG)
-    metrics_consumer = metrics_consumer()
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    # NOTE: "organizations:custom-metrics" missing from features
-
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
-    relay.send_metrics(project_id, metrics_payload)
-
-    metrics = metrics_by_name(metrics_consumer, 1)
-
-    assert "c:transactions/foo@none" in metrics
-    assert "c:custom/bar@second" not in metrics
-
-
 @pytest.mark.parametrize("is_processing_relay", (False, True))
 @pytest.mark.parametrize(
     "global_generic_filters",
@@ -1935,19 +1915,16 @@ def test_metrics_received_at(
         )
 
     project_id = 42
-    project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:custom-metrics",
-    ]
+    mini_sentry.add_full_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    relay.send_metrics(project_id, "custom/foo:1337|d")
+    relay.send_metrics(project_id, "spans/foo:1337|d")
 
     metric, _ = metrics_consumer.get_metric()
     assert metric == {
         "org_id": 0,
-        "project_id": 42,
-        "name": "d:custom/foo@none",
+        "project_id": project_id,
+        "name": "d:spans/foo@none",
         "type": "d",
         "value": [1337.0],
         "timestamp": time_after(timestamp),

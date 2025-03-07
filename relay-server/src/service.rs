@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::metrics::MetricOutcomes;
 use crate::services::autoscaling::{AutoscalingMetricService, AutoscalingMetrics};
 use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
@@ -219,13 +219,7 @@ impl ServiceState {
         let aggregator_handle = aggregator.handle();
         let aggregator = services.start(aggregator);
 
-        let metric_stats = MetricStats::new(
-            config.clone(),
-            global_config_handle.clone(),
-            aggregator.clone(),
-        );
-
-        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
+        let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
 
         #[cfg(feature = "processing")]
         let store_pool = create_store_pool(&config)?;

@@ -26,13 +26,13 @@ impl MetricName {
     ///
     /// let name = MetricName::from("cfoo");
     /// assert!(name.try_type().is_none());
-    /// let name = MetricName::from("c:custom/foo@none");
+    /// let name = MetricName::from("c:spans/foo@none");
     /// assert_eq!(name.try_type(), Some(MetricType::Counter));
-    /// let name = MetricName::from("d:custom/foo@none");
+    /// let name = MetricName::from("d:spans/foo@none");
     /// assert_eq!(name.try_type(), Some(MetricType::Distribution));
-    /// let name = MetricName::from("s:custom/foo@none");
+    /// let name = MetricName::from("s:spans/foo@none");
     /// assert_eq!(name.try_type(), Some(MetricType::Set));
-    /// let name = MetricName::from("g:custom/foo@none");
+    /// let name = MetricName::from("g:spans/foo@none");
     /// assert_eq!(name.try_type(), Some(MetricType::Gauge));
     /// ```
     pub fn try_type(&self) -> Option<MetricType> {
@@ -56,11 +56,11 @@ impl MetricName {
     ///
     /// let name = MetricName::from("foo");
     /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
-    /// let name = MetricName::from("c:custom_oops/foo@none");
+    /// let name = MetricName::from("c:spans_oops/foo@none");
     /// assert_eq!(name.namespace(), MetricNamespace::Unsupported);
     ///
-    /// let name = MetricName::from("c:custom/foo@none");
-    /// assert_eq!(name.namespace(), MetricNamespace::Custom);
+    /// let name = MetricName::from("c:spans/foo@none");
+    /// assert_eq!(name.namespace(), MetricNamespace::Spans);
     /// ```
     pub fn namespace(&self) -> MetricNamespace {
         self.try_namespace().unwrap_or(MetricNamespace::Unsupported)
@@ -77,11 +77,11 @@ impl MetricName {
     ///
     /// let name = MetricName::from("foo");
     /// assert!(name.try_namespace().is_none());
-    /// let name = MetricName::from("c:custom_oops/foo@none");
+    /// let name = MetricName::from("c:spans_oops/foo@none");
     /// assert!(name.try_namespace().is_none());
     ///
-    /// let name = MetricName::from("c:custom/foo@none");
-    /// assert_eq!(name.try_namespace(), Some(MetricNamespace::Custom));
+    /// let name = MetricName::from("c:spans/foo@none");
+    /// assert_eq!(name.try_namespace(), Some(MetricNamespace::Spans));
     /// ```
     pub fn try_namespace(&self) -> Option<MetricNamespace> {
         // A well formed MRI is always in the format `<type>:<namespace>/<name>[@<unit>]`,
