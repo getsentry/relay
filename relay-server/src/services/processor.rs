@@ -1560,7 +1560,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
-            nnswitch::expand(managed_envelope, &self.inner.config)?;
+            nnswitch::expand(managed_envelope)?;
         });
 
         let extraction_result = event::extract(
@@ -1574,11 +1574,6 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             if let Some(inner_event_fully_normalized) =
                 unreal::process(managed_envelope, &mut event)?
-            {
-                event_fully_normalized = inner_event_fully_normalized;
-            }
-            if let Some(inner_event_fully_normalized) =
-                nnswitch::process(managed_envelope, &mut event)?
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }

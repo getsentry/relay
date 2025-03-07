@@ -2,16 +2,11 @@
 //!
 //! These functions are included only in the processing mode.
 
-use std::f32::consts::E;
-
-use crate::envelope::ItemType;
-use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
-use crate::utils::TypedEnvelope;
+use crate::envelope::{ContentType, ItemType};
+use crate::services::processor::{ErrorGroup, ProcessingError};
+use crate::utils::{self, TypedEnvelope};
 use crate::Envelope;
 use bytes::Bytes;
-use relay_config::Config;
-use relay_event_schema::protocol::Event;
-use relay_protocol::Annotated;
 
 /// Expands Nintendo Switch DyingMessage attachment.
 ///
@@ -28,14 +23,15 @@ use relay_protocol::Annotated;
 /// the envelope the same way it processes any other envelopes.
 ///
 /// Note: in case of an error, we don't fail but leave the envelope as is.
-pub fn expand(
-    managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-    config: &Config,
-) -> Result<(), ProcessingError> {
+pub fn expand(managed_envelope: &mut TypedEnvelope<ErrorGroup>) -> Result<(), ProcessingError> {
     let envelope: &mut &mut crate::Envelope = &mut managed_envelope.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(is_dying_message) {
-        expand_dying_message(item.payload(), envelope, config);
+        if let Err(e) = expand_dying_message(item.payload(), envelope) {
+            // If we fail to process the dying message, we leave the envelope as is.
+            envelope.add_item(item);
+            return Err(e);
+        }
     }
 
     Ok(())
@@ -55,31 +51,9 @@ fn is_dying_message(item: &crate::envelope::Item) -> bool {
     item.payload().starts_with(SENTRY_MAGIC)
 }
 
-// TODO
-/// Extracts event information from an unreal context.
-///
-/// If the event does not contain an unreal context, this function does not perform any action.
-/// If there was no event payload prior to this function, it is created.
-pub fn process(
-    managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-    event: &mut Annotated<Event>,
-) -> Result<Option<EventFullyNormalized>, ProcessingError> {
-    // if utils::process_unreal_envelope(event, managed_envelope.envelope_mut())
-    //     .map_err(ProcessingError::InvalidUnrealReport)?
-    // {
-    //     return Ok(Some(EventFullyNormalized(false)));
-    // }
-
-    Ok(None)
-}
-
 /// Parses dying_message.dat contents and updates the envelope.
 /// See https://github.com/getsentry/sentry-switch/blob/main/docs/protocol/README.md
-fn expand_dying_message(
-    payload: Bytes,
-    envelope: &mut Envelope,
-    config: &Config,
-) -> Result<(), ProcessingError> {
+fn expand_dying_message(payload: Bytes, envelope: &mut Envelope) -> Result<(), ProcessingError> {
     let mut offset = SENTRY_MAGIC.len();
 
     // lead byte consists of two uint4 values - header version (v0 - v15) & header data length (0-15 bytes)
@@ -91,7 +65,7 @@ fn expand_dying_message(
     offset += 1;
 
     match version {
-        0 => expand_dying_message_v0(payload, offset, envelope, config),
+        0 => expand_dying_message_v0(payload, offset, envelope),
         _ => Err(ProcessingError::InvalidNintendoDyingMessage),
     }
 }
@@ -103,7 +77,6 @@ fn expand_dying_message_v0(
     payload: Bytes,
     mut offset: usize,
     envelope: &mut Envelope,
-    _config: &Config,
 ) -> Result<(), ProcessingError> {
     // The payload encoding is stored as a single byte but stores multiple components by splitting bits to groups:
     // - 2 bits (uint2) - format (after decompression), possible values:
@@ -131,11 +104,21 @@ fn expand_dying_message_v0(
             // Merge envelope items with the ones contained in the DyingMessage
             if let Ok(items) = Envelope::parse_items_bytes(data) {
                 for item in items {
-                    // If it's an event type, merge it with the existing one already in the envelope.
+                    // If it's an event type, merge it with the main event one already in the envelope.
                     if item.ty() == &ItemType::Event {
-                        if let Some(event) = envelope.get_item_by(|it| it.ty() == &ItemType::Event)
+                        if let Some(event) =
+                            envelope.get_item_by_mut(|it| it.ty() == &ItemType::Event)
                         {
-                            // TODO implement merging
+                            // TODO is it OK to merge this way, without updating headers?
+                            let mut event_json =
+                                serde_json::from_slice::<serde_json::Value>(&event.payload())
+                                    .map_err(ProcessingError::InvalidJson)?;
+                            let update_json = serde_json::from_slice(&item.payload())
+                                .map_err(ProcessingError::InvalidJson)?;
+                            utils::merge_values(&mut event_json, update_json);
+                            let new_payload = serde_json::to_vec(&event_json)
+                                .map_err(ProcessingError::InvalidJson)?;
+                            event.set_payload(ContentType::Json, new_payload);
 
                             // Don't add this item as a new envelope item now that it's merged.
                             continue;
@@ -168,5 +151,5 @@ fn decompress_data(
             _ => {}
         };
     }
-    return Err(ProcessingError::InvalidNintendoDyingMessage);
+    Err(ProcessingError::InvalidNintendoDyingMessage)
 }
