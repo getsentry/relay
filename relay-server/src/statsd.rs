@@ -14,7 +14,7 @@ pub enum RelayGauges {
     /// w.r.t. to its provisioned capacity.
     AsyncPoolUtilization,
     /// The state of Relay with respect to the upstream connection.
-    /// Possible values are `0` for normal operations and `1` for a network outage.
+    /// Possible values are `0` for normal operations and `100` for a network outage.
     NetworkOutage,
     /// The number of individual stacks in the priority queue.
     ///
