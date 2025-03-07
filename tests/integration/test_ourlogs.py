@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .asserts.time import time_within_delta
+
 
 TEST_CONFIG = {
     "aggregator": {
@@ -77,6 +79,9 @@ def test_ourlog_extraction(
         "project_id": 42,
         "retention_days": 90,
         "timestamp_nanos": int(start.timestamp() * 1e9),
+        "observed_timestamp_nanos": time_within_delta(
+            start.timestamp(), expect_resolution="ns"
+        ),
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "body": "Example log record",
         "trace_flags": 0,
