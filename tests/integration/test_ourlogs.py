@@ -97,7 +97,6 @@ def test_ourlog_extraction(
     }
 
     del ourlogs[0]["received"]
-    del ourlogs[0]["observed_timestamp_nanos"]
     assert ourlogs[0] == expected
 
     ourlogs_consumer.assert_empty()
