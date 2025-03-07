@@ -1162,6 +1162,13 @@ impl Envelope {
         Ok(Box::new(Envelope { headers, items }))
     }
 
+    /// Parse envelope items from bytes buffet that doesn't contain a complete envelope.
+    /// Note: the envelope header must not be present in the data. Use `parse_bytes()` instead.
+    #[allow(dead_code)]
+    pub fn parse_items_bytes(bytes: Bytes) -> Result<Items, EnvelopeError> {
+        Self::parse_items(&bytes, 0)
+    }
+
     /// Parses an envelope taking into account a request.
     ///
     /// This method is intended to be used when parsing an envelope that was sent as part of a web
@@ -1964,6 +1971,33 @@ mod tests {
             items[0].attachment_type(),
             Some(&AttachmentType::ViewHierarchy)
         );
+    }
+
+    #[test]
+    fn test_parse_empty_items() {
+        // Without terminating newline after header
+        let items = Envelope::parse_items_bytes(Bytes::from("")).unwrap();
+        assert_eq!(items.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_multiple_items() {
+        let bytes = Bytes::from(
+            "\
+             {\"type\":\"attachment\"}\n\
+             helloworld\n\
+             {\"type\":\"replay_recording\"}\n\
+             helloworld\
+             ",
+        );
+
+        // Without terminating newline after header
+        let items = Envelope::parse_items_bytes(bytes).unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(items[1].len(), 10);
+        assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
     }
 
     #[test]
