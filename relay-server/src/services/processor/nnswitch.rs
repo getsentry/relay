@@ -28,7 +28,7 @@ pub fn expand(managed_envelope: &mut TypedEnvelope<ErrorGroup>) -> Result<(), Pr
 
     if let Some(item) = envelope.take_item_by(is_dying_message) {
         if let Err(e) = expand_dying_message(item.payload(), envelope) {
-            // If we fail to process the dying message, we leave the envelope as is.
+            // If we fail to process the dying message, we need to add back the original attachment.
             envelope.add_item(item);
             return Err(e);
         }
@@ -41,14 +41,9 @@ pub fn expand(managed_envelope: &mut TypedEnvelope<ErrorGroup>) -> Result<(), Pr
 const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
 
 fn is_dying_message(item: &crate::envelope::Item) -> bool {
-    if item.ty() != &ItemType::Attachment {
-        return false;
-    }
-    if item.filename() != Some("dying_message.dat") {
-        return false;
-    }
-    // Check if the attachment payload starts with magic number 0x736E7472 ('sntr')
-    item.payload().starts_with(SENTRY_MAGIC)
+    item.ty() == &ItemType::Attachment
+        && item.payload().starts_with(SENTRY_MAGIC)
+        && item.filename() == Some("dying_message.dat")
 }
 
 /// Parses dying_message.dat contents and updates the envelope.
