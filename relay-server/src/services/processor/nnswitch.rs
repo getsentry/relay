@@ -40,32 +40,32 @@ pub fn expand(managed_envelope: &mut TypedEnvelope<ErrorGroup>) -> Result<(), Pr
 /// Magic number indicating the dying message file is encoded by sentry-switch SDK.
 const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
 
+/// The file name that Nintendo uses to in the events they forward.
+const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
+
 fn is_dying_message(item: &crate::envelope::Item) -> bool {
     item.ty() == &ItemType::Attachment
         && item.payload().starts_with(SENTRY_MAGIC)
-        && item.filename() == Some("dying_message.dat")
+        && item.filename() == Some(DYING_MESSAGE_FILENAME)
 }
 
-/// Parses dying_message.dat contents and updates the envelope.
+/// Parses DyingMessage contents and updates the envelope.
 /// See https://github.com/getsentry/sentry-switch/blob/main/docs/protocol/README.md
 fn expand_dying_message(payload: Bytes, envelope: &mut Envelope) -> Result<(), ProcessingError> {
     let mut offset = SENTRY_MAGIC.len();
-
-    // lead byte consists of two uint4 values - header version (v0 - v15) & header data length (0-15 bytes)
-    let lead_byte = payload
+    let version = payload
         .get(offset)
-        .ok_or(ProcessingError::InvalidNintendoDyingMessage)?;
-    let version = lead_byte >> 4;
-    let _header_length = lead_byte & 0b0000_1111;
+        .ok_or(anyhow::anyhow!("expected version, got EOF"))
+        .map_err(ProcessingError::InvalidNintendoDyingMessage)?;
     offset += 1;
-
     match version {
         0 => expand_dying_message_v0(payload, offset, envelope),
-        _ => Err(ProcessingError::InvalidNintendoDyingMessage),
+        _ => Err(anyhow::anyhow!("unknown version").into()),
     }
 }
 
 /// DyingMessage protocol v0 parser.
+/// Header format:
 /// 1 byte - payload encoding
 /// 2 bytes - payload size (compressed payload size if compression is used) (0-65535)
 fn expand_dying_message_v0(
@@ -79,72 +79,153 @@ fn expand_dying_message_v0(
     // - 2 bits (uint2) - compression algorithm, possible values:
     //   - `0` = none
     //   - `1` = Zstandard
-    // - remaining 4 bits are currently unused
+    // - 4 bits (uint4) - compression algorithm specific argument, e.g. dictionary identifier
     let encoding_byte = payload
         .get(offset)
-        .ok_or(ProcessingError::InvalidNintendoDyingMessage)?;
+        .ok_or(anyhow::anyhow!("expected encoding, got EOF"))
+        .map_err(ProcessingError::InvalidNintendoDyingMessage)?;
     let format = (encoding_byte >> 6) & 0b0000_0011;
     let compression = (encoding_byte >> 4) & 0b0000_0011;
+    let compression_arg = encoding_byte & 0b0000_1111;
     offset += 1;
 
     if payload.len() < offset + 2 {
-        return Err(ProcessingError::InvalidNintendoDyingMessage);
+        return Err(anyhow::anyhow!("expected data length, got EOF").into());
     }
-    let data_length = u16::from_le_bytes([payload[offset], payload[offset + 1]]);
+    let compressed_length = u16::from_le_bytes([payload[offset], payload[offset + 1]]);
     offset += 2;
-    let data = decompress_data(payload, offset, data_length as usize, compression)?;
+    let data = decompress_data(
+        payload,
+        offset,
+        compressed_length,
+        compression,
+        compression_arg,
+    )?;
 
     match format {
-        0 => {
-            // Merge envelope items with the ones contained in the DyingMessage
-            if let Ok(items) = Envelope::parse_items_bytes(data) {
-                for item in items {
-                    // If it's an event type, merge it with the main event one already in the envelope.
-                    if item.ty() == &ItemType::Event {
-                        if let Some(event) =
-                            envelope.get_item_by_mut(|it| it.ty() == &ItemType::Event)
-                        {
-                            // TODO is it OK to merge this way, without updating headers?
-                            let mut event_json =
-                                serde_json::from_slice::<serde_json::Value>(&event.payload())
-                                    .map_err(ProcessingError::InvalidJson)?;
-                            let update_json = serde_json::from_slice(&item.payload())
-                                .map_err(ProcessingError::InvalidJson)?;
-                            utils::merge_values(&mut event_json, update_json);
-                            let new_payload = serde_json::to_vec(&event_json)
-                                .map_err(ProcessingError::InvalidJson)?;
-                            event.set_payload(ContentType::Json, new_payload);
-
-                            // Don't add this item as a new envelope item now that it's merged.
-                            continue;
-                        }
-                    }
-                    envelope.add_item(item);
-                }
-            }
-            Ok(())
-        }
-        _ => Err(ProcessingError::InvalidNintendoDyingMessage),
+        0 => expand_dying_message_from_envelope_items(data, envelope),
+        _ => Err(anyhow::anyhow!("unknown payload format").into()),
     }
+}
+
+/// Merges envelope items with the ones contained in the DyingMessage
+fn expand_dying_message_from_envelope_items(
+    data: Bytes,
+    envelope: &mut Envelope,
+) -> Result<(), ProcessingError> {
+    let items = Envelope::parse_items_bytes(data).map_err(|e| {
+        ProcessingError::InvalidNintendoDyingMessage(
+            anyhow::anyhow!("inner envelope items parsing failed").context(e),
+        )
+    })?;
+    for item in items {
+        // If it's an event type, merge it with the main event one already in the envelope.
+        if item.ty() == &ItemType::Event {
+            if let Some(event) = envelope.get_item_by_mut(|it| it.ty() == &ItemType::Event) {
+                // TODO is it OK to merge events this way, without updating envelope item headers?
+                let mut event_json = serde_json::from_slice::<serde_json::Value>(&event.payload())
+                    .map_err(ProcessingError::InvalidJson)?;
+                let update_json = serde_json::from_slice(&item.payload())
+                    .map_err(ProcessingError::InvalidJson)?;
+                utils::merge_values(&mut event_json, update_json);
+                let new_payload =
+                    serde_json::to_vec(&event_json).map_err(ProcessingError::InvalidJson)?;
+                event.set_payload(ContentType::Json, new_payload);
+
+                // Don't add this item as a new envelope item now that it's merged.
+                continue;
+            }
+        }
+        envelope.add_item(item);
+    }
+    Ok(())
 }
 
 fn decompress_data(
     payload: Bytes,
     offset: usize,
-    compressed_length: usize,
+    compressed_length: u16,
     compression: u8,
+    compression_arg: u8,
 ) -> Result<Bytes, ProcessingError> {
-    if payload.len() >= offset + compressed_length {
-        let data = payload.slice(offset..(offset + compressed_length));
-        match compression {
-            0 => return Ok(data),
-            1 => {
-                if let Ok(decompressed) = zstd::decode_all(data.as_ref()) {
-                    return Ok(Bytes::from(decompressed));
-                }
-            }
-            _ => {}
-        };
+    let data_end_offset = offset + compressed_length as usize;
+    if payload.len() < data_end_offset {
+        return Err(anyhow::anyhow!("invalid compressed data length").into());
     }
-    Err(ProcessingError::InvalidNintendoDyingMessage)
+
+    let data = payload.slice(offset..data_end_offset);
+    match compression {
+        // No compression
+        0 => Ok(data),
+        // Zstandard
+        1 => {
+            // TODO compression_arg is dictionary ID, currently not implemented so must be 0
+            if compression_arg != 0 {
+                return Err(anyhow::anyhow!("Zstandard - unknown compression dictionary").into());
+            }
+            zstd::decode_all(data.as_ref())
+                .map(Bytes::from)
+                .map_err(|e| {
+                    ProcessingError::InvalidNintendoDyingMessage(
+                        anyhow::anyhow!("Zstandard - decompression failed").context(e),
+                    )
+                })
+        }
+        _ => Err(anyhow::anyhow!("unknown compression").into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_system::Addr;
+
+    use super::*;
+    use crate::envelope::Item;
+    use crate::services::processor::ProcessingGroup;
+    use crate::utils::ManagedEnvelope;
+
+    #[test]
+    fn test_is_dying_message() {
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_filename("any");
+        item.set_payload(ContentType::OctetStream, Bytes::from("sntrASDF"));
+        assert!(!is_dying_message(&item));
+        item.set_filename(DYING_MESSAGE_FILENAME);
+        assert!(is_dying_message(&item));
+        item.set_payload(ContentType::OctetStream, Bytes::from("FOO"));
+        assert!(!is_dying_message(&item));
+    }
+
+    fn parse_envelope(bytes: Bytes) -> TypedEnvelope<ErrorGroup> {
+        ManagedEnvelope::new(
+            Envelope::parse_bytes(bytes).unwrap(),
+            Addr::dummy(),
+            Addr::dummy(),
+            ProcessingGroup::Error,
+        )
+        .try_into()
+        .unwrap()
+    }
+
+    #[test]
+    fn test_expand_updates_envelope() {
+        // Note: the attachment content is as follows:
+        // - 4 bytes magic = sntr
+        // - 1 byte version = 0
+        // - 1 byte encoding = 0b0000_0000 - i.e. envelope items, uncompressed
+        // - 2 bytes data length = - 0x002E = 46 bytes - \x2E\0 in little endian representation
+        // - 46 bytes of content: {"type":"event"}\n{"foo":"bar","level":"info"}\n
+        // Note 2: the attachment length specified in the "outer" envelope attachment is very important.
+        //         Otherwise parsing would fail because the inner one can contain line breaks.
+        let mut envelope = parse_envelope(Bytes::from(
+            "\
+            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+            {\"type\":\"event\"}\n\
+            {\"message\":\"hello world\",\"level\":\"error\"}\n\
+            {\"type\":\"attachment\",\"filename\":\"dying_message.dat\",\"length\":54}\n\
+            sntr\0\0\x2E\0{\"type\":\"event\"}\n{\"foo\":\"bar\",\"level\":\"info\"}\n\
+            ",
+        ));
+        expand(&mut envelope).unwrap();
+    }
 }

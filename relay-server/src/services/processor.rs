@@ -531,8 +531,9 @@ pub enum ProcessingError {
     #[error("replay filtered with reason: {0:?}")]
     ReplayFiltered(FilterStatKey),
 
+    #[cfg(feature = "processing")]
     #[error("nintendo switch dying message has invalid format")]
-    InvalidNintendoDyingMessage,
+    InvalidNintendoDyingMessage(#[from] anyhow::Error),
 }
 
 impl ProcessingError {
@@ -553,7 +554,7 @@ impl ProcessingError {
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
             // TODO should we ignore this error and leave the attachment in the event?
-            Self::InvalidNintendoDyingMessage => None,
+            Self::InvalidNintendoDyingMessage(_) => None,
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
