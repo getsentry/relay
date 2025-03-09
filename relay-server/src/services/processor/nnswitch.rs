@@ -92,7 +92,7 @@ fn expand_dying_message_v0(
     if payload.len() < offset + 2 {
         return Err(anyhow::anyhow!("expected data length, got EOF").into());
     }
-    let compressed_length = u16::from_le_bytes([payload[offset], payload[offset + 1]]);
+    let compressed_length = u16::from_be_bytes([payload[offset], payload[offset + 1]]);
     offset += 2;
     let data = decompress_data(
         payload,
@@ -123,13 +123,13 @@ fn expand_dying_message_from_envelope_items(
         if item.ty() == &ItemType::Event {
             if let Some(event) = envelope.get_item_by_mut(|it| it.ty() == &ItemType::Event) {
                 // TODO is it OK to merge events this way, without updating envelope item headers?
-                let mut event_json = serde_json::from_slice::<serde_json::Value>(&event.payload())
+                let original_json = serde_json::from_slice::<serde_json::Value>(&event.payload())
                     .map_err(ProcessingError::InvalidJson)?;
-                let update_json = serde_json::from_slice(&item.payload())
+                let mut new_json = serde_json::from_slice(&item.payload())
                     .map_err(ProcessingError::InvalidJson)?;
-                utils::merge_values(&mut event_json, update_json);
+                utils::merge_values(&mut new_json, original_json);
                 let new_payload =
-                    serde_json::to_vec(&event_json).map_err(ProcessingError::InvalidJson)?;
+                    serde_json::to_vec(&new_json).map_err(ProcessingError::InvalidJson)?;
                 event.set_payload(ContentType::Json, new_payload);
 
                 // Don't add this item as a new envelope item now that it's merged.
@@ -209,23 +209,50 @@ mod tests {
 
     #[test]
     fn test_expand_updates_envelope() {
-        // Note: the attachment content is as follows:
+        // The attachment content is as follows:
         // - 4 bytes magic = sntr
         // - 1 byte version = 0
         // - 1 byte encoding = 0b0000_0000 - i.e. envelope items, uncompressed
-        // - 2 bytes data length = - 0x002E = 46 bytes - \x2E\0 in little endian representation
-        // - 46 bytes of content: {"type":"event"}\n{"foo":"bar","level":"info"}\n
-        // Note 2: the attachment length specified in the "outer" envelope attachment is very important.
-        //         Otherwise parsing would fail because the inner one can contain line breaks.
+        // - 2 bytes data length = 98 bytes - 0x0062 in big endian representation
+        // - 82 bytes of content: {"type":"event"}\n{"foo":"bar","level":"info"}\n
+        // Note: the attachment length specified in the "outer" envelope attachment is very important.
+        //       Otherwise parsing would fail because the inner one can contain line-breaks.
         let mut envelope = parse_envelope(Bytes::from(
             "\
             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
             {\"type\":\"event\"}\n\
-            {\"message\":\"hello world\",\"level\":\"error\"}\n\
-            {\"type\":\"attachment\",\"filename\":\"dying_message.dat\",\"length\":54}\n\
-            sntr\0\0\x2E\0{\"type\":\"event\"}\n{\"foo\":\"bar\",\"level\":\"info\"}\n\
+            {\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}\n\
+            {\"type\":\"attachment\",\"filename\":\"dying_message.dat\",\"length\":106}\n\
+            sntr\0\0\0\x62\
+            {\"type\":\"event\"}\n\
+            {\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"b\":\"c\"}}\n\
+            {\"type\":\"attachment\",\"length\":2}\n\
+            Hi\n\
             ",
         ));
+
+        let items: Vec<_> = envelope.envelope().items().collect();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].ty(), &ItemType::Event);
+        assert_eq!(
+            items[0].payload(),
+            "{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
+        );
+        assert_eq!(items[1].ty(), &ItemType::Attachment);
+        assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
+        assert_eq!(items[1].payload().len(), 106);
+
         expand(&mut envelope).unwrap();
+
+        let items: Vec<_> = envelope.envelope().items().collect();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].ty(), &ItemType::Event);
+        assert_eq!(
+            items[0].payload(),
+            "{\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"a\":\"val\",\"b\":\"c\"},\"message\":\"hello world\"}"
+        );
+        assert_eq!(items[1].ty(), &ItemType::Attachment);
+        assert_eq!(items[1].filename(), None);
+        assert_eq!(items[1].payload(), "Hi".as_bytes());
     }
 }
