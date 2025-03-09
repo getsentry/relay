@@ -265,7 +265,7 @@ mod tests {
         // The attachment content is as follows:
         // - 4 bytes magic = sntr
         // - 1 byte version = 0
-        // - 1 byte encoding = 0b0000_0001 - i.e. envelope items, Zstandard compressed
+        // - 1 byte encoding = 0b0001_0000 - 0x10 - i.e. envelope items, Zstandard compressed
         // - 2 bytes data length = N bytes - in big endian representation
         // - N bytes of compressed content (Zstandard)
         let compressed_data = zstd::encode_all(
@@ -280,13 +280,14 @@ mod tests {
             3,
         )
         .unwrap();
-        let mut buf: Vec<u8> = Vec::new();
-        buf.write_all(b"sntr\0\x01").unwrap();
-        buf.write_all(&(compressed_data.len() as u16).to_be_bytes())
+        let mut dying_message: Vec<u8> = Vec::new();
+        dying_message.write_all(b"sntr\0\x10").unwrap();
+        dying_message
+            .write_all(&(compressed_data.len() as u16).to_be_bytes())
             .unwrap();
-        buf.write_all(&compressed_data).unwrap();
+        dying_message.write_all(&compressed_data).unwrap();
 
-        let mut envelope = create_envelope(buf.into());
+        let mut envelope = create_envelope(dying_message.into());
 
         let items: Vec<_> = envelope.envelope().items().collect();
         assert_eq!(items.len(), 2);
