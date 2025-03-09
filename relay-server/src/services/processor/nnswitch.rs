@@ -163,7 +163,6 @@ fn decompress_data(
             if compression_arg != 0 {
                 return Err(anyhow::anyhow!("Zstandard - unknown compression dictionary").into());
             }
-            // TODO use block format instead of frame format to reduce size.
             zstd::decode_all(data.as_ref())
                 .map(Bytes::from)
                 .map_err(|e| {
