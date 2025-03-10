@@ -1,7 +1,7 @@
-use std::time::Duration;
-
+use async_trait::async_trait;
 use relay_redis::{AsyncRedisClient, AsyncRedisConnection};
 use relay_statsd::metric;
+use std::time::Duration;
 
 use crate::{
     limiter::{CardinalityReport, Entry, Limiter, Reporter, Scoping},
@@ -100,6 +100,7 @@ impl RedisSetLimiter {
     }
 }
 
+#[async_trait]
 impl Limiter for RedisSetLimiter {
     async fn check_cardinality_limits<'a, 'b, E, R>(
         &self,

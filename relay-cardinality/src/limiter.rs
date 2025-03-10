@@ -1,14 +1,15 @@
 //! Relay Cardinality Limiter
 
+use std::cmp::Reverse;
+use std::collections::BTreeMap;
+
+use async_trait::async_trait;
 use hashbrown::{HashMap, HashSet};
 use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
-use std::cmp::Reverse;
-use std::collections::BTreeMap;
-use std::future::Future;
 
 use crate::statsd::CardinalityLimiterTimers;
 use crate::{CardinalityLimit, Error, Result};
@@ -74,17 +75,18 @@ pub trait Reporter<'a> {
 }
 
 /// Limiter responsible to enforce limits.
+#[async_trait]
 pub trait Limiter {
     /// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    fn check_cardinality_limits<'a, 'b, E, R>(
+    async fn check_cardinality_limits<'a, 'b, E, R>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
         entries: E,
         reporter: &mut R,
-    ) -> impl Future<Output = Result<()>> + Send
+    ) -> Result<()>
     where
         E: IntoIterator<Item = Entry<'b>> + Send,
         R: Reporter<'a> + Send;
@@ -481,6 +483,7 @@ mod tests {
     async fn test_limiter_reject_all() {
         struct RejectAllLimiter;
 
+        #[async_trait]
         impl Limiter for RejectAllLimiter {
             async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
@@ -528,6 +531,7 @@ mod tests {
     async fn test_limiter_accept_all() {
         struct AcceptAllLimiter;
 
+        #[async_trait]
         impl Limiter for AcceptAllLimiter {
             async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
@@ -565,6 +569,7 @@ mod tests {
     async fn test_limiter_accept_odd_reject_even() {
         struct RejectEvenLimiter;
 
+        #[async_trait]
         impl Limiter for RejectEvenLimiter {
             async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
@@ -574,8 +579,8 @@ mod tests {
                 reporter: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry<'b>>,
-                T: Reporter<'a>,
+                I: IntoIterator<Item = Entry<'b>> + Send,
+                T: Reporter<'a> + Send,
             {
                 assert_eq!(scoping, build_scoping());
                 assert_eq!(limits, &build_limits());
@@ -631,6 +636,7 @@ mod tests {
     async fn test_limiter_passive() {
         struct RejectLimits;
 
+        #[async_trait]
         impl Limiter for RejectLimits {
             async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
@@ -717,6 +723,7 @@ mod tests {
     async fn test_cardinality_report() {
         struct CreateReports;
 
+        #[async_trait]
         impl Limiter for CreateReports {
             async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,

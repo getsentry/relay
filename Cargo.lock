@@ -3497,6 +3497,7 @@ dependencies = [
 name = "relay-cardinality"
 version = "25.2.0"
 dependencies = [
+ "async-trait",
  "criterion",
  "hash32",
  "hashbrown 0.14.5",
