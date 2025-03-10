@@ -7,6 +7,8 @@ use crate::services::processor::{ErrorGroup, ProcessingError};
 use crate::utils::{self, TypedEnvelope};
 use crate::Envelope;
 use bytes::Bytes;
+use std::sync::OnceLock;
+use zstd::bulk::Decompressor as ZstdDecompressor;
 
 type Result<T> = std::result::Result<T, SwitchProcessingError>;
 
@@ -60,6 +62,8 @@ const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
 
 /// The file name that Nintendo uses to in the events they forward.
 const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
+
+const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
 
 fn is_dying_message(item: &crate::envelope::Item) -> bool {
     item.ty() == &ItemType::Attachment
@@ -181,32 +185,45 @@ fn decompress_data(
         // No compression
         0 => Ok(data),
         // Zstandard
-        1 => {
-            // TODO compression_arg is dictionary ID, currently not implemented so must be 0
-            if compression_arg != 0 {
-                return Err(SwitchProcessingError::InvalidValue(
-                    "Zstandard dictionary ID".into(),
-                ));
-            }
-            zstd::decode_all(data.as_ref())
-                .map(Bytes::from)
-                .map_err(SwitchProcessingError::Zstandard)
-        }
+        1 => decompress_data_zstd(data, compression_arg)
+            .map(Bytes::from)
+            .map_err(SwitchProcessingError::Zstandard),
         _ => Err(SwitchProcessingError::InvalidValue(
             "compression format".into(),
         )),
     }
 }
 
+static ZSTD_DDICTIONARIES: OnceLock<[zstd::dict::DecoderDictionary; 1]> = OnceLock::new();
+fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u8>> {
+    let dictionaries = ZSTD_DDICTIONARIES.get_or_init(|| {
+        [
+            // index 0 = empty dictionary
+            zstd::dict::DecoderDictionary::new(&[]),
+        ]
+    });
+    let dictionary = dictionaries
+        .get(dictionary_id as usize)
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Unknown compression dictionary",
+        ))?;
+
+    let mut decompressor = ZstdDecompressor::with_prepared_dictionary(dictionary)?;
+    decompressor.include_magicbytes(false)?;
+    decompressor.decompress(data.as_ref(), MAX_DECOMPRESSED_SIZE)
+}
+
 #[cfg(test)]
 mod tests {
     use relay_system::Addr;
-    use std::io::{Cursor, Write};
+    use std::io::Write;
 
     use super::*;
     use crate::envelope::Item;
     use crate::services::processor::ProcessingGroup;
     use crate::utils::ManagedEnvelope;
+    use zstd::bulk::Compressor as ZstdCompressor;
 
     #[test]
     fn test_is_dying_message() {
@@ -290,18 +307,19 @@ mod tests {
         // - 1 byte encoding = 0b0001_0000 - 0x10 - i.e. envelope items, Zstandard compressed
         // - 2 bytes data length = N bytes - in big endian representation
         // - N bytes of compressed content (Zstandard)
-        let compressed_data = zstd::encode_all(
-            Cursor::new(Bytes::from(
-                "\
+        let mut compressor = ZstdCompressor::new(3).unwrap();
+        compressor.include_magicbytes(false).unwrap();
+        compressor.include_dictid(false).unwrap();
+        let compressed_data = compressor
+            .compress(
+                b"\
                 {\"type\":\"event\"}\n\
                 {\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"b\":\"c\"}}\n\
                 {\"type\":\"attachment\",\"length\":2}\n\
                 Hi\n\
                 ",
-            )),
-            3,
-        )
-        .unwrap();
+            )
+            .unwrap();
         let mut dying_message: Vec<u8> = Vec::new();
         dying_message.write_all(b"sntr\0\x10").unwrap();
         dying_message
@@ -320,7 +338,7 @@ mod tests {
         );
         assert_eq!(items[1].ty(), &ItemType::Attachment);
         assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
-        assert_eq!(items[1].payload().len(), 97);
+        assert_eq!(items[1].payload().len(), 94);
 
         expand(&mut envelope).unwrap();
 
@@ -335,6 +353,8 @@ mod tests {
         assert_eq!(items[1].filename(), None);
         assert_eq!(items[1].payload(), "Hi".as_bytes());
     }
+
+    // TODO test dictionaries
 
     #[test]
     fn test_expand_fails_on_invalid_data() {
