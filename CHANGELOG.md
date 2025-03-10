@@ -10,6 +10,11 @@
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
+- Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
+
+**Bug Fixes**:
+
+- Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
 
 **Internal**:
 
@@ -22,6 +27,8 @@
 - Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
 - Expose metrics for the `AsyncPool`. ([#4538](https://github.com/getsentry/relay/pull/4538))
 - Infer span `description` for spans with `category` set to `db` from query attribute. ([#4541](https://github.com/getsentry/relay/pull/4541))
+- Expose service utilization metrics through the internal relay metric endpoint. ([#4543](https://github.com/getsentry/relay/pull/4543))
+- Always set observed time for OTel logs in Relay. ([#4559](https://github.com/getsentry/relay/pull/4559))
 
 ## 25.2.0
 

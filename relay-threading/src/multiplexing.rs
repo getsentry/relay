@@ -153,9 +153,17 @@ where
         let mut this = self.project();
 
         loop {
+            // We report before polling since we might have only blocking tasks meaning that the
+            // measure after the `poll_tasks_until_pending` will return 0, since all futures will
+            // be completed.
+            this.metrics
+                .active_tasks
+                .store(this.tasks.len() as u64, Ordering::Relaxed);
+
             this.tasks.as_mut().poll_tasks_until_pending(cx);
 
-            // We report how many tasks are being concurrently polled in this future.
+            // We also want to report after polling since we might have finished polling some futures
+            // and some not.
             this.metrics
                 .active_tasks
                 .store(this.tasks.len() as u64, Ordering::Relaxed);

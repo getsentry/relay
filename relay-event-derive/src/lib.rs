@@ -44,7 +44,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
             let field_attrs = parse_field_attributes(0, bi.ast(), &mut true)?;
-            let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
+            let field_attrs_tokens = field_attrs.as_tokens(&type_attrs, Some(quote!(parent_attrs)));
 
             Ok(quote! {
                 let parent_attrs = __state.attrs();
@@ -99,7 +99,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
             let field_attrs_name = Ident::new(&format!("FIELD_ATTRS_{index}"), Span::call_site());
             let field_name = field_attrs.field_name.clone();
 
-            let field_attrs_tokens = field_attrs.as_tokens(None);
+            let field_attrs_tokens = field_attrs.as_tokens(&type_attrs, None);
 
             (quote! {
                 static #field_attrs_name: crate::processor::FieldAttrs = #field_attrs_tokens;
@@ -223,6 +223,11 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
 struct TypeAttrs {
     process_func: Option<String>,
     value_type: Vec<String>,
+    /// The default trim value for the container.
+    ///
+    /// If `trim` is specified on the container all fields of the container,
+    /// will default to this value for `trim`.
+    trim: Option<bool>,
 }
 
 impl TypeAttrs {
@@ -257,6 +262,9 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAtt
             } else if ident == "value_type" {
                 let s = meta.value()?.parse::<LitStr>()?;
                 rv.value_type.push(s.value());
+            } else if ident == "trim" {
+                let s = meta.value()?.parse::<LitBool>()?;
+                rv.trim = Some(s.value());
             } else {
                 // Ignore other attributes used by `relay-protocol-derive`.
                 if !meta.input.peek(syn::Token![,]) {
@@ -307,7 +315,11 @@ struct FieldAttrs {
 }
 
 impl FieldAttrs {
-    fn as_tokens(&self, inherit_from_field_attrs: Option<TokenStream>) -> TokenStream {
+    fn as_tokens(
+        &self,
+        type_attrs: &TypeAttrs,
+        inherit_from_field_attrs: Option<TokenStream>,
+    ) -> TokenStream {
         let field_name = &self.field_name;
 
         if self.required.is_none() && self.nonempty.is_some() {
@@ -347,7 +359,7 @@ impl FieldAttrs {
             quote!(crate::processor::Pii::False)
         };
 
-        let trim = if let Some(trim) = self.trim {
+        let trim = if let Some(trim) = self.trim.or(type_attrs.trim) {
             quote!(#trim)
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.trim)
