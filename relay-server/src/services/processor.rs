@@ -3234,6 +3234,7 @@ impl EnforcementResult {
 }
 
 #[cfg(feature = "processing")]
+#[derive(Clone)]
 enum RateLimiter {
     Cached,
     Consistent(Arc<RedisRateLimiter>),
@@ -3263,27 +3264,24 @@ impl RateLimiter {
 
         // We extract the rate limiters, in case we perform consistent rate limiting, since we will
         // need Redis access.
-        let rate_limiter = match self {
-            RateLimiter::Cached => None,
-            RateLimiter::Consistent(rate_limiter) => Some(rate_limiter.clone()),
-        };
-        let rate_limits_clone = rate_limits.clone();
-
+        //
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
+        let this = self.clone();
+        let rate_limits_clone = rate_limits.clone();
         let mut envelope_limiter =
             EnvelopeLimiter::new(CheckLimits::All, move |item_scope, quantity| {
-                let rate_limiter = rate_limiter.clone();
+                let this = this.clone();
                 let rate_limits_clone = rate_limits_clone.clone();
 
                 async move {
-                    match rate_limiter {
-                        Some(rate_limiter) => Ok::<_, ProcessingError>(
+                    match this {
+                        RateLimiter::Consistent(rate_limiter) => Ok::<_, ProcessingError>(
                             rate_limiter
                                 .is_rate_limited(quotas, item_scope, quantity, false)
                                 .await?,
                         ),
-                        None => Ok(rate_limits_clone.check_with_quotas(quotas, item_scope)),
+                        _ => Ok(rate_limits_clone.check_with_quotas(quotas, item_scope)),
                     }
                 }
             });
