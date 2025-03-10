@@ -54,6 +54,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
+use crate::services::processor::nnswitch::SwitchProcessingError;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -532,8 +533,8 @@ pub enum ProcessingError {
     ReplayFiltered(FilterStatKey),
 
     #[cfg(feature = "processing")]
-    #[error("nintendo switch dying message has invalid format")]
-    InvalidNintendoDyingMessage(#[from] anyhow::Error),
+    #[error("nintendo switch dying message processing failed")]
+    InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 }
 
 impl ProcessingError {
