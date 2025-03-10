@@ -32,7 +32,7 @@ pub enum RedisError {
     MultiWriteNotSupported(&'static str),
 }
 
-/// The various [`AsyncRedisClient`](s) used by Relay.
+/// The various [`AsyncRedisClient`]s used by Relay.
 #[derive(Debug, Clone)]
 pub struct RedisClients {
     /// The pool used for project configurations
