@@ -87,7 +87,7 @@ pub enum DataCategory {
     /// Replay Video
     ///
     /// This is the data category for Session Replays produced via a video recording.
-    #[warn(deprecated)]
+    #[deprecated]
     DoNotUseReplayVideo = 20,
     /// This is the data category for Uptime monitors.
     Uptime = 21,
@@ -147,6 +147,7 @@ impl DataCategory {
             "profile_duration_ui" => Self::ProfileDurationUi,
             "profile_chunk" => Self::ProfileChunk,
             "metric_second" => Self::MetricSecond,
+            "replay_video" => Self::DoNotUseReplayVideo,
             "uptime" => Self::Uptime,
             "attachment_item" => Self::AttachmentItem,
             _ => Self::Unknown,
@@ -166,7 +167,7 @@ impl DataCategory {
             Self::Profile => "profile",
             Self::ProfileIndexed => "profile_indexed",
             Self::Replay => "replay",
-            Self::DoNotUseReplayVideo => "do_not_use_replay_video",
+            Self::DoNotUseReplayVideo => "replay_video",
             Self::TransactionProcessed => "transaction_processed",
             Self::TransactionIndexed => "transaction_indexed",
             Self::Monitor => "monitor",
