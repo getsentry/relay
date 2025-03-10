@@ -587,7 +587,7 @@ where
 /// Items violating the rate limit are removed from the envelope. This follows a set of rules:
 ///  - If the event is removed, all items depending on the event are removed (e.g. attachments).
 ///  - Attachments are not removed if they create events (e.g. minidumps).
-///  - Sessions are handled separate to all of the above.
+///  - Sessions are handled separately from all of the above.
 pub struct EnvelopeLimiter<F, E, R> {
     check: Check<F, E, R>,
     event_category: Option<DataCategory>,

@@ -299,7 +299,7 @@ mod tests {
         ];
 
         for (expected_category, expected_quantity) in expected {
-            let outcome = outcome_aggregator_rx.blocking_recv().unwrap();
+            let outcome = outcome_aggregator_rx.recv().await.unwrap();
             assert_eq!(outcome.category, expected_category);
             assert_eq!(outcome.quantity, expected_quantity);
         }
