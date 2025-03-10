@@ -39,7 +39,7 @@ use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
 #[cfg(feature = "processing")]
-use relay_redis::{RedisError, RedisPool, RedisPools, RedisScripts};
+use relay_redis::{RedisError, RedisPools, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt as _};
 
 /// Indicates the type of failure of the server.
@@ -402,26 +402,6 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
-    }
-}
-
-#[cfg(feature = "processing")]
-fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisError> {
-    match redis_config {
-        RedisConfigRef::Cluster {
-            cluster_nodes,
-            options,
-        } => RedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options),
-        RedisConfigRef::MultiWrite { configs } => {
-            let mut configs = configs.into_iter();
-            let primary = create_redis_pool(configs.next().ok_or(RedisError::Configuration)?)?;
-            let secondaries = configs
-                .map(|s| create_redis_pool(s).map_err(|_| RedisError::Configuration))
-                .collect::<Result<Vec<_>, _>>()?;
-
-            RedisPool::multi_write(primary, secondaries)
-        }
-        RedisConfigRef::Single { server, options } => RedisPool::single(server, options),
     }
 }
 
