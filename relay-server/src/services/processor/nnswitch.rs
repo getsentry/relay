@@ -194,14 +194,24 @@ fn decompress_data(
     }
 }
 
-static ZSTD_DDICTIONARIES: OnceLock<[zstd::dict::DecoderDictionary; 1]> = OnceLock::new();
+static ZSTD_DICTIONARIES: &[&[u8]] = &[
+    // index 0 = empty dictionary (a.k.a "none")
+    b"",
+];
+
+static ZSTD_DEC_DICTIONARIES: OnceLock<[zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()]> =
+    OnceLock::new();
 fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u8>> {
-    let dictionaries = ZSTD_DDICTIONARIES.get_or_init(|| {
-        [
-            // index 0 = empty dictionary
-            zstd::dict::DecoderDictionary::new(&[]),
-        ]
+    // We initialize dictionaries only once and reuse them when decompressing.
+    let dictionaries = ZSTD_DEC_DICTIONARIES.get_or_init(|| {
+        let mut dictionaries: [zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()] =
+            [zstd::dict::DecoderDictionary::new(ZSTD_DICTIONARIES[0])];
+        for i in 0..ZSTD_DICTIONARIES.len() {
+            dictionaries[i] = zstd::dict::DecoderDictionary::new(ZSTD_DICTIONARIES[i]);
+        }
+        dictionaries
     });
+
     let dictionary = dictionaries
         .get(dictionary_id as usize)
         .ok_or(std::io::Error::new(
