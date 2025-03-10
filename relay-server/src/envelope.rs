@@ -1154,7 +1154,6 @@ impl Envelope {
     }
 
     /// Parses an envelope from bytes.
-    #[allow(dead_code)]
     pub fn parse_bytes(bytes: Bytes) -> Result<Box<Self>, EnvelopeError> {
         let (headers, offset) = Self::parse_headers(&bytes)?;
         let items = Self::parse_items(&bytes, offset)?;
@@ -1164,7 +1163,6 @@ impl Envelope {
 
     /// Parse envelope items from bytes buffet that doesn't contain a complete envelope.
     /// Note: the envelope header must not be present in the data. Use `parse_bytes()` instead.
-    #[allow(dead_code)]
     pub fn parse_items_bytes(bytes: Bytes) -> Result<Items, EnvelopeError> {
         Self::parse_items(&bytes, 0)
     }
@@ -1206,13 +1204,11 @@ impl Envelope {
     }
 
     /// Returns the number of items in this envelope.
-    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
     /// Returns `true` if this envelope does not contain any items.
-    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
