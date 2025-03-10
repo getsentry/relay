@@ -438,8 +438,8 @@ mod tests {
 
     use chrono::DateTime;
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, SpanId, TagEntry, Tags,
-        Timestamp, TraceId, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, SentryTags, Span, SpanId,
+        TagEntry, Tags, Timestamp, TraceId, Values,
     };
     use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
@@ -1004,7 +1004,11 @@ mod tests {
     #[test]
     fn test_too_many_spans_trimmed() {
         let span = Span {
-            platform: Annotated::new("a".repeat(1024 * 100)),
+            platform: Annotated::new("a".repeat(1024 * 90)),
+            sentry_tags: Annotated::new(SentryTags {
+                release: Annotated::new("b".repeat(1024 * 100)),
+                ..Default::default()
+            }),
             ..Default::default()
         };
         let spans: Vec<_> = std::iter::repeat_with(|| Annotated::new(span.clone()))
@@ -1020,10 +1024,10 @@ mod tests {
         processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let trimmed_spans = event.0.unwrap().spans.0.unwrap();
-        assert_eq!(trimmed_spans.len(), 8);
+        assert_eq!(trimmed_spans.len(), 5);
 
         // The actual spans were not touched:
-        assert_eq!(trimmed_spans.as_slice(), &spans[0..8]);
+        assert_eq!(trimmed_spans.as_slice(), &spans[0..5]);
     }
 
     #[test]

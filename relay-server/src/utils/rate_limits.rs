@@ -163,9 +163,6 @@ pub struct EnvelopeSummary {
     /// The number of replays.
     pub replay_quantity: usize,
 
-    /// The number of replay videos.
-    pub replay_video_quantity: usize,
-
     /// The number of monitor check-ins.
     pub monitor_quantity: usize,
 
@@ -248,7 +245,7 @@ impl EnvelopeSummary {
             DataCategory::Session => &mut self.session_quantity,
             DataCategory::Profile => &mut self.profile_quantity,
             DataCategory::Replay => &mut self.replay_quantity,
-            DataCategory::ReplayVideo => &mut self.replay_video_quantity,
+            DataCategory::ReplayVideo => &mut self.replay_quantity,
             DataCategory::Monitor => &mut self.monitor_quantity,
             DataCategory::Span => &mut self.span_quantity,
             DataCategory::LogItem => &mut self.log_item_quantity,
@@ -356,8 +353,6 @@ pub struct Enforcement {
     pub profiles_indexed: CategoryLimit,
     /// The combined replay item rate limit.
     pub replays: CategoryLimit,
-    /// The combined replay video item rate limit.
-    pub replay_videos: CategoryLimit,
     /// The combined check-in item rate limit.
     pub check_ins: CategoryLimit,
     /// The combined logs (our product logs) rate limit.
@@ -404,7 +399,6 @@ impl Enforcement {
             profiles,
             profiles_indexed,
             replays,
-            replay_videos,
             check_ins,
             log_items,
             log_bytes,
@@ -422,7 +416,6 @@ impl Enforcement {
             profiles,
             profiles_indexed,
             replays,
-            replay_videos,
             check_ins,
             log_items,
             log_bytes,
@@ -511,7 +504,7 @@ impl Enforcement {
             ItemType::Session => !self.sessions.is_active(),
             ItemType::Profile => !self.profiles_indexed.is_active(),
             ItemType::ReplayEvent => !self.replays.is_active(),
-            ItemType::ReplayVideo => !self.replay_videos.is_active(),
+            ItemType::ReplayVideo => !self.replays.is_active(),
             ItemType::ReplayRecording => !self.replays.is_active(),
             ItemType::CheckIn => !self.check_ins.is_active(),
             ItemType::OtelLog | ItemType::Log => {
@@ -834,22 +827,6 @@ where
             enforcement.replays = CategoryLimit::new(
                 DataCategory::Replay,
                 summary.replay_quantity,
-                replay_limits.longest(),
-            );
-            rate_limits.merge(replay_limits);
-        }
-
-        // Handle replay video.
-        // Remove: 2025-04-06
-        if summary.replay_video_quantity > 0 {
-            let item_scoping = scoping.item(DataCategory::ReplayVideo);
-            let replay_limits = self
-                .check
-                .apply(item_scoping, summary.replay_video_quantity)
-                .await?;
-            enforcement.replay_videos = CategoryLimit::new(
-                DataCategory::ReplayVideo,
-                summary.replay_video_quantity,
                 replay_limits.longest(),
             );
             rate_limits.merge(replay_limits);
@@ -1393,36 +1370,18 @@ mod tests {
     }
 
     /// Limit replays.
-    #[tokio::test]
-    async fn test_enforce_limit_replays() {
-        let mut envelope = envelope![ReplayEvent, ReplayRecording];
+    #[test]
+    fn test_enforce_limit_replays() {
+        let mut envelope = envelope![ReplayEvent, ReplayRecording, ReplayVideo];
 
         let mock = mock_limiter(Some(DataCategory::Replay));
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::Replay, 2);
+        mock.assert_call(DataCategory::Replay, 3);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Replay, 2),]);
-    }
-
-    /// Limit replays.
-    #[tokio::test]
-    async fn test_enforce_limit_replay_video() {
-        let mut envelope = envelope![ReplayVideo];
-
-        let mock = mock_limiter(Some(DataCategory::ReplayVideo));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
-
-        assert!(limits.is_limited());
-        assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::ReplayVideo, 1);
-
-        assert_eq!(
-            get_outcomes(enforcement),
-            vec![(DataCategory::ReplayVideo, 1),]
-        );
+        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Replay, 3),]);
     }
 
     /// Limit monitor checkins.
