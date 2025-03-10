@@ -77,7 +77,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
-    relay_redis::{AsyncRedisClient, RedisPools},
+    relay_redis::{AsyncRedisClient, RedisClients},
     std::iter::Chain,
     std::slice::Iter,
     std::time::Instant,
@@ -1140,7 +1140,7 @@ impl EnvelopeProcessorService {
         global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
         cogs: Cogs,
-        #[cfg(feature = "processing")] redis: Option<RedisPools>,
+        #[cfg(feature = "processing")] redis: Option<RedisClients>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
@@ -1156,7 +1156,7 @@ impl EnvelopeProcessorService {
 
         #[cfg(feature = "processing")]
         let (cardinality, quotas) = match redis {
-            Some(RedisPools {
+            Some(RedisClients {
                 cardinality,
                 quotas,
                 ..

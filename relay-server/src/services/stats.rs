@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::{AsyncRedisClient, RedisPools, Stats};
+use relay_redis::{AsyncRedisClient, RedisClientStats, RedisClients};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
 use relay_threading::AsyncPool;
@@ -23,7 +23,7 @@ pub struct RelayStats {
     rt_metrics: RuntimeMetrics,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    redis_pools: Option<RedisPools>,
+    redis_pools: Option<RedisClients>,
     processor_pool: EnvelopeProcessorServicePool,
     #[cfg(feature = "processing")]
     store_pool: StoreServicePool,
@@ -34,7 +34,7 @@ impl RelayStats {
         config: Arc<Config>,
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
+        #[cfg(feature = "processing")] redis_pools: Option<RedisClients>,
         processor_pool: EnvelopeProcessorServicePool,
         #[cfg(feature = "processing")] store_pool: StoreServicePool,
     ) -> Self {
@@ -156,7 +156,7 @@ impl RelayStats {
     }
 
     #[cfg(feature = "processing")]
-    fn stats_metrics(stats: Stats, name: &str) {
+    fn stats_metrics(stats: RedisClientStats, name: &str) {
         metric!(
             gauge(RelayGauges::RedisPoolConnections) = u64::from(stats.connections),
             pool = name
@@ -172,7 +172,7 @@ impl RelayStats {
 
     #[cfg(feature = "processing")]
     async fn redis_pools(&self) {
-        if let Some(RedisPools {
+        if let Some(RedisClients {
             project_configs,
             cardinality,
             quotas,

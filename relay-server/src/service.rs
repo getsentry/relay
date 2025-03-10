@@ -39,7 +39,7 @@ use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
 #[cfg(feature = "processing")]
-use relay_redis::{RedisError, RedisPools, RedisScripts};
+use relay_redis::{RedisClients, RedisError, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt as _};
 
 /// Indicates the type of failure of the server.
@@ -160,7 +160,7 @@ impl ServiceState {
 
         #[cfg(feature = "processing")]
         let redis_pools = match config.redis().filter(|_| config.processing_enabled()) {
-            Some(config) => Some(create_redis_pools(config).await),
+            Some(config) => Some(create_redis_clients(config).await),
             None => None,
         }
         .transpose()
@@ -406,7 +406,7 @@ impl ServiceState {
     }
 }
 
-/// Creates Redis pools from the given `configs`.
+/// Creates Redis clients from the given `configs`.
 ///
 /// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
 /// for cardinality and quotas, meaning that they really use the same pool.
@@ -415,11 +415,13 @@ impl ServiceState {
 /// If it is [`Individual`](RedisPoolConfigs::Individual), an actual separate pool
 /// is created for each use case.
 #[cfg(feature = "processing")]
-pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPools, RedisError> {
+pub async fn create_redis_clients(
+    configs: RedisPoolConfigs<'_>,
+) -> Result<RedisClients, RedisError> {
     match configs {
-        RedisPoolConfigs::Unified(pool) => {
-            let pool = create_async_connection(&pool).await?;
-            Ok(RedisPools {
+        RedisPoolConfigs::Unified(unified) => {
+            let pool = create_async_connection(&unified).await?;
+            Ok(RedisClients {
                 project_configs: pool.clone(),
                 cardinality: pool.clone(),
                 quotas: pool,
@@ -434,7 +436,7 @@ pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPo
             let cardinality = create_async_connection(&cardinality).await?;
             let quotas = create_async_connection(&quotas).await?;
 
-            Ok(RedisPools {
+            Ok(RedisClients {
                 project_configs,
                 cardinality,
                 quotas,
@@ -462,7 +464,7 @@ async fn create_async_connection(
 }
 
 #[cfg(feature = "processing")]
-async fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
+async fn initialize_redis_scripts_for_pools(redis_pools: &RedisClients) -> Result<(), RedisError> {
     let scripts = RedisScripts::all();
 
     let pools = [&redis_pools.cardinality, &redis_pools.quotas];
