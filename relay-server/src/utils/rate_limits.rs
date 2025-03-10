@@ -1,13 +1,15 @@
-use crate::envelope::{CountFor, Envelope, Item, ItemType};
-use crate::services::outcome::Outcome;
-use crate::utils::ManagedEnvelope;
+use std::fmt::{self, Write};
+use std::future::Future;
+use std::marker::PhantomData;
+
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
 };
-use std::fmt::{self, Write};
-use std::future::Future;
-use std::marker::PhantomData;
+
+use crate::envelope::{CountFor, Envelope, Item, ItemType};
+use crate::services::outcome::Outcome;
+use crate::utils::ManagedEnvelope;
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";

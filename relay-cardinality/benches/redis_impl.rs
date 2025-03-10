@@ -1,3 +1,8 @@
+use std::{
+    sync::atomic::{AtomicU32, Ordering},
+    time::Duration,
+};
+
 use criterion::{BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::{
     metrics::{MetricName, MetricNamespace},
@@ -10,10 +15,6 @@ use relay_cardinality::{
     SlidingWindow,
 };
 use relay_redis::{AsyncRedisClient, RedisConfigOptions};
-use std::{
-    sync::atomic::{AtomicU32, Ordering},
-    time::Duration,
-};
 
 // Async helper functions remain unchanged
 async fn build_redis_client() -> AsyncRedisClient {

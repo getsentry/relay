@@ -1121,7 +1121,7 @@ struct InnerProcessor {
     project_cache: ProjectCacheHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
-    quotas_pool: Option<AsyncRedisClient>,
+    quotas_client: Option<AsyncRedisClient>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<Arc<RedisRateLimiter>>,
@@ -1170,7 +1170,7 @@ impl EnvelopeProcessorService {
             project_cache,
             cogs,
             #[cfg(feature = "processing")]
-            quotas_pool: quotas.clone(),
+            quotas_client: quotas.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: quotas.map(|quotas| {
                 Arc::new(RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit()))
@@ -3188,8 +3188,8 @@ impl EnvelopeProcessorService {
         #[allow(unused_mut)]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
         #[cfg(feature = "processing")]
-        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
-            reservoir.set_redis(organization_id, quotas_pool);
+        if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
+            reservoir.set_redis(organization_id, quotas_client);
         }
 
         reservoir
