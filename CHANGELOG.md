@@ -10,6 +10,11 @@
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
+- Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
+
+**Bug Fixes**:
+
+- Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
 
 **Internal**:
 
@@ -17,8 +22,13 @@
 - Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
 - Expose additional metrics through the internal relay metric endpoint. ([#4511](https://github.com/getsentry/relay/pull/4511))
 - Write resource and instrumentation scope attributes as span attributes during OTLP ingestion. ([#4533](https://github.com/getsentry/relay/pull/4533))
+- Remove unused capability to block metric names and tags. ([#4536](https://github.com/getsentry/relay/pull/4536))
 - Adopt new `AsyncPool` for the `EnvelopeProcessorService` and `StoreService`. ([#4520](https://github.com/getsentry/relay/pull/4520))
 - Write OTLP span kind to a new `kind` field on spans. ([#4540](https://github.com/getsentry/relay/pull/4540))
+- Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
+- Expose metrics for the `AsyncPool`. ([#4538](https://github.com/getsentry/relay/pull/4538))
+- Expose service utilization metrics through the internal relay metric endpoint. ([#4543](https://github.com/getsentry/relay/pull/4543))
+- Always set observed time for OTel logs in Relay. ([#4559](https://github.com/getsentry/relay/pull/4559))
 
 ## 25.2.0
 

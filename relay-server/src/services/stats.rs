@@ -1,15 +1,18 @@
 use std::sync::Arc;
 
-use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
-use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::AsyncRedisClient;
-#[cfg(feature = "processing")]
-use relay_redis::{RedisPool, RedisPools, Stats};
+use relay_redis::{AsyncRedisClient, RedisPool, RedisPools, Stats};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
+use relay_threading::AsyncPool;
 use tokio::time::interval;
+
+use crate::services::processor::EnvelopeProcessorServicePool;
+#[cfg(feature = "processing")]
+use crate::services::store::StoreServicePool;
+use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
+use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 
 /// Relay Stats Service.
 ///
@@ -21,6 +24,9 @@ pub struct RelayStats {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     redis_pools: Option<RedisPools>,
+    processor_pool: EnvelopeProcessorServicePool,
+    #[cfg(feature = "processing")]
+    store_pool: StoreServicePool,
 }
 
 impl RelayStats {
@@ -29,6 +35,8 @@ impl RelayStats {
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
+        processor_pool: EnvelopeProcessorServicePool,
+        #[cfg(feature = "processing")] store_pool: StoreServicePool,
     ) -> Self {
         Self {
             config,
@@ -37,6 +45,9 @@ impl RelayStats {
             runtime,
             #[cfg(feature = "processing")]
             redis_pools,
+            processor_pool,
+            #[cfg(feature = "processing")]
+            store_pool,
         }
     }
 
@@ -177,6 +188,25 @@ impl RelayStats {
             Self::redis_pool(quotas, "quotas");
         }
     }
+
+    fn emit_async_pool_metrics<T>(async_pool: &AsyncPool<T>) {
+        let metrics = async_pool.metrics();
+
+        metric!(
+            gauge(RelayGauges::AsyncPoolQueueSize) = metrics.queue_size(),
+            pool = async_pool.name()
+        );
+        metric!(
+            gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() as f64,
+            pool = async_pool.name()
+        );
+    }
+
+    async fn async_pools_metrics(&self) {
+        Self::emit_async_pool_metrics(&self.processor_pool);
+        #[cfg(feature = "processing")]
+        Self::emit_async_pool_metrics(&self.store_pool);
+    }
 }
 
 impl Service for RelayStats {
@@ -193,6 +223,7 @@ impl Service for RelayStats {
                 self.service_metrics(),
                 self.tokio_metrics(),
                 self.redis_pools(),
+                self.async_pools_metrics()
             );
             ticker.tick().await;
         }

@@ -228,11 +228,13 @@ impl ServiceState {
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
 
         #[cfg(feature = "processing")]
+        let store_pool = create_store_pool(&config)?;
+        #[cfg(feature = "processing")]
         let store = config
             .processing_enabled()
             .then(|| {
                 StoreService::create(
-                    create_store_pool(&config)?,
+                    store_pool.clone(),
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
@@ -245,9 +247,10 @@ impl ServiceState {
         let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
 
+        let processor_pool = create_processor_pool(&config)?;
         services.start_with(
             EnvelopeProcessorService::new(
-                create_processor_pool(&config)?,
+                processor_pool.clone(),
                 config.clone(),
                 global_config_handle,
                 project_cache_handle.clone(),
@@ -290,6 +293,7 @@ impl ServiceState {
         let autoscaling = services.start(AutoscalingMetricService::new(
             memory_stat.clone(),
             envelope_buffer.clone(),
+            handle.clone(),
         ));
 
         services.start(RelayStats::new(
@@ -298,6 +302,9 @@ impl ServiceState {
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
             redis_pools.clone(),
+            processor_pool,
+            #[cfg(feature = "processing")]
+            store_pool,
         ));
 
         let relay_cache = services.start(RelayCacheService::new(
