@@ -1370,8 +1370,8 @@ mod tests {
     }
 
     /// Limit replays.
-    #[test]
-    fn test_enforce_limit_replays() {
+    #[tokio::test]
+    async fn test_enforce_limit_replays() {
         let mut envelope = envelope![ReplayEvent, ReplayRecording, ReplayVideo];
 
         let mock = mock_limiter(Some(DataCategory::Replay));
@@ -1379,7 +1379,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.assert_call(DataCategory::Replay, 3);
+        mock.lock().await.assert_call(DataCategory::Replay, 3);
 
         assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Replay, 3),]);
     }
