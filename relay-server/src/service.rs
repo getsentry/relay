@@ -409,7 +409,7 @@ impl ServiceState {
 /// Creates Redis clients from the given `configs`.
 ///
 /// If `configs` is [`Unified`](RedisConfigsRef::Unified), one client is created and then cloned
-/// for cardinality and quotas, meaning that they really use the same client.
+/// for project configs, cardinality, and quotas, meaning that they really use the same client.
 ///
 /// If it is [`Individual`](RedisConfigsRef::Individual), an actual separate client
 /// is created for each use case.
