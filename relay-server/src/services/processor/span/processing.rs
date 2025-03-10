@@ -644,6 +644,8 @@ fn normalize(
     );
     span.sentry_tags = Annotated::new(tags);
 
+    // This inference depends on `sentry_tags.category`, which is set during tag
+    // extraction above. Please be careful if trying to reorder this operation.
     if span.description.value().is_empty() {
         span.description = infer_span_description(span).into();
     }
@@ -807,6 +809,9 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     Ok(())
 }
 
+// Infer a span's `description` based on its attributes. Note that tag
+// extraction must have already run before this is called, as it relies on the
+// values of `span.sentry_tags`.
 fn infer_span_description(span: &Span) -> Option<String> {
     let category = span.sentry_tags.value()?.category.value()?;
     match category.as_str() {
