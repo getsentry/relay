@@ -69,14 +69,13 @@ pub fn validate_and_set_dsc(
 }
 
 /// Computes the sampling decision on the incoming event
-#[allow(clippy::needless_lifetimes)]
-pub async fn run<'a, Group>(
+pub async fn run<Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
-    reservoir: &ReservoirEvaluator<'a>,
+    reservoir: &ReservoirEvaluator<'_>,
 ) -> SamplingResult
 where
     Group: Sampling,
@@ -146,10 +145,9 @@ pub fn drop_unsampled_items(
 }
 
 /// Computes the sampling decision on the incoming envelope.
-#[allow(clippy::needless_lifetimes)]
-async fn compute_sampling_decision<'a>(
+async fn compute_sampling_decision(
     processing_enabled: bool,
-    reservoir: Option<&ReservoirEvaluator<'a>>,
+    reservoir: Option<&ReservoirEvaluator<'_>>,
     sampling_config: Option<&SamplingConfig>,
     event: Option<&Event>,
     root_sampling_config: Option<&SamplingConfig>,

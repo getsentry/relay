@@ -46,8 +46,7 @@ use thiserror::Error;
 struct ValidationError(#[from] anyhow::Error);
 
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::needless_lifetimes)]
-pub async fn process<'a>(
+pub async fn process(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
@@ -57,7 +56,7 @@ pub async fn process<'a>(
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
     geo_lookup: Option<&GeoIpLookup>,
-    reservoir_counters: &ReservoirEvaluator<'a>,
+    reservoir_counters: &ReservoirEvaluator<'_>,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 

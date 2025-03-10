@@ -157,11 +157,10 @@ impl GlobalRateLimit {
     }
 
     /// Returns `true` if quota should be ratelimited.
-    #[allow(clippy::needless_lifetimes)]
-    pub async fn is_rate_limited<'a>(
+    pub async fn is_rate_limited(
         &mut self,
         client: &AsyncRedisClient,
-        quota: &RedisQuota<'a>,
+        quota: &RedisQuota<'_>,
         key: KeyRef<'_>,
         quantity: u64,
     ) -> Result<bool, RedisError> {
@@ -192,12 +191,11 @@ impl GlobalRateLimit {
         Ok(self.budget < quantity)
     }
 
-    #[allow(clippy::needless_lifetimes)]
-    async fn try_reserve<'a>(
+    async fn try_reserve(
         &mut self,
         client: &AsyncRedisClient,
         quantity: u64,
-        quota: &RedisQuota<'a>,
+        quota: &RedisQuota<'_>,
         redis_key: RedisKey,
     ) -> Result<u64, RedisError> {
         let min_required_budget = quantity.saturating_sub(self.budget);
