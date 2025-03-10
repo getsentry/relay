@@ -554,8 +554,7 @@ impl ProcessingError {
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
-            // TODO should we ignore this error and leave the attachment in the event?
-            Self::InvalidNintendoDyingMessage(_) => None,
+            Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
