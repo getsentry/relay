@@ -119,6 +119,13 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty", trim = false)]
     pub was_transaction: Annotated<bool>,
 
+    // Used to clarify the relationship between parents and children, or to distinguish between
+    // spans, e.g. a `server` and `client` span with the same name.
+    //
+    // See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
+    #[metastructure(skip_serialization = "empty", trim = false)]
+    pub kind: Annotated<String>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe", trim = false)]
@@ -676,9 +683,6 @@ pub struct SpanData {
     // The url of the largest contentful paint element.
     #[metastructure(field = "lcp.url")]
     pub lcp_url: Annotated<String>,
-
-    #[metastructure(field = "span.kind")]
-    pub span_kind: Annotated<String>,
 
     /// Other fields in `span.data`.
     #[metastructure(

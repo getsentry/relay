@@ -568,7 +568,6 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
-                "span.kind": "internal",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -578,6 +577,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
+            "kind": "internal",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -655,7 +655,6 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
-                "span.kind": "producer",
                 "user_agent.original": "python-requests/2.32.2",
             },
             "description": "my 2nd OTel span",
@@ -663,6 +662,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
+            "kind": "producer",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -708,7 +708,6 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
-                "span.kind": "consumer",
                 "ui.component_name": "MyComponent",
                 "user_agent.original": "python-requests/2.32.2",
             },
@@ -717,6 +716,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": False,
             "is_remote": False,
+            "kind": "consumer",
             "organization_id": 1,
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,

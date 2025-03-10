@@ -202,11 +202,6 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         description = Some(format!("{http_method} {http_route}"));
     }
 
-    data.insert(
-        "span.kind".to_owned(),
-        Annotated::new(kind_int_to_string(kind).into()),
-    );
-
     EventSpan {
         op: op.into(),
         description: description.into(),
@@ -229,6 +224,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
+        kind: kind_int_to_string(kind).into(),
         ..Default::default()
     }
 }
@@ -570,7 +566,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let span_from_otel = otel_to_sentry_span(otel_span);
 
-        insta::assert_debug_snapshot!(span_from_otel, @r#"
+        insta::assert_debug_snapshot!(span_from_otel, @r###"
         Span {
             timestamp: Timestamp(
                 1970-01-01T00:02:03.500Z,
@@ -681,9 +677,10 @@ mod tests {
             measurements: ~,
             platform: "php",
             was_transaction: ~,
+            kind: "internal",
             other: {},
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -717,7 +714,7 @@ mod tests {
     }
 
     #[test]
-    fn write_span_kind_to_data() {
+    fn extract_span_kind() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -728,14 +725,8 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
-        let kind_in_data = event_span
-            .data
-            .value()
-            .expect("span should have data")
-            .span_kind
-            .value()
-            .expect("span kind should be set");
-        assert_eq!(kind_in_data, "client");
+        let kind = event_span.kind.value().expect("kind should be set");
+        assert_eq!(kind, "client");
     }
 
     #[test]
