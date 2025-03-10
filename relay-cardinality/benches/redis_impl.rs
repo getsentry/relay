@@ -93,7 +93,7 @@ impl Params {
     async fn run<'a>(
         &self,
         limiter: &RedisSetLimiter,
-        entries: impl IntoIterator<Item = Entry<'a>>,
+        entries: impl IntoIterator<Item = Entry<'a>> + Send,
     ) {
         limiter
             .check_cardinality_limits(self.scoping, &self.limits, entries, &mut NoopReporter)

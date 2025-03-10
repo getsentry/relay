@@ -2143,7 +2143,8 @@ impl EnvelopeProcessorService {
                 sampling_project_info,
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
-            );
+            )
+            .await;
 
             self.enforce_quotas(
                 managed_envelope,
@@ -3826,7 +3827,7 @@ mod tests {
         let processor = create_test_processor(config).await;
         assert!(processor.redis_rate_limiter_enabled());
 
-        processor.encode_metrics_processing(message, &store);
+        processor.encode_metrics_processing(message, &store).await;
 
         drop(store);
         let orgs_not_ratelimited = handle.await.unwrap();

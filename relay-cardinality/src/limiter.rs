@@ -109,9 +109,8 @@ pub trait CardinalityItem {
 /// A single entry to check cardinality for.
 #[derive(Clone, Copy, Debug)]
 pub struct Entry<'a> {
-    /// Opaque entry Id, used to keep track of indices and buckets.
+    /// Opaque entry id, used to keep track of indices and buckets.
     pub id: EntryId,
-
     /// Metric namespace to which the cardinality limit can be scoped.
     pub namespace: MetricNamespace,
     /// Name to which the cardinality limit can be scoped.

@@ -46,6 +46,7 @@ use thiserror::Error;
 struct ValidationError(#[from] anyhow::Error);
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::needless_lifetimes)]
 pub async fn process<'a>(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
     event: &mut Annotated<Event>,
