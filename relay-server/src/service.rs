@@ -33,7 +33,7 @@ use axum::http::request::Parts;
 use relay_cogs::Cogs;
 use relay_config::Config;
 #[cfg(feature = "processing")]
-use relay_config::{RedisConfigRef, RedisPoolConfigs};
+use relay_config::{RedisConfigRef, RedisConfigsRef};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
@@ -159,7 +159,7 @@ impl ServiceState {
         let test_store = services.start(TestStoreService::new(config.clone()));
 
         #[cfg(feature = "processing")]
-        let redis_pools = match config.redis().filter(|_| config.processing_enabled()) {
+        let redis_clients = match config.redis().filter(|_| config.processing_enabled()) {
             Some(config) => Some(create_redis_clients(config).await),
             None => None,
         }
@@ -171,8 +171,8 @@ impl ServiceState {
         // initialization to work properly since it assumes that scripts are loaded across all Redis
         // instances.
         #[cfg(feature = "processing")]
-        if let Some(redis_pools) = &redis_pools {
-            initialize_redis_scripts_for_pools(redis_pools)
+        if let Some(redis_clients) = &redis_clients {
+            initialize_redis_scripts_for_clients(redis_clients)
                 .await
                 .context(ServiceError::Redis)?;
         }
@@ -205,7 +205,7 @@ impl ServiceState {
             Arc::clone(&config),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
-            redis_pools.clone(),
+            redis_clients.clone(),
         )
         .await;
         let project_cache_handle =
@@ -258,7 +258,7 @@ impl ServiceState {
                 project_cache_handle.clone(),
                 cogs,
                 #[cfg(feature = "processing")]
-                redis_pools.clone(),
+                redis_clients.clone(),
                 processor::Addrs {
                     outcome_aggregator: outcome_aggregator.clone(),
                     upstream_relay: upstream_relay.clone(),
@@ -303,7 +303,7 @@ impl ServiceState {
             handle.clone(),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
-            redis_pools.clone(),
+            redis_clients.clone(),
             processor_pool,
             #[cfg(feature = "processing")]
             store_pool,
@@ -408,33 +408,32 @@ impl ServiceState {
 
 /// Creates Redis clients from the given `configs`.
 ///
-/// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
-/// for cardinality and quotas, meaning that they really use the same pool.
-/// `project_config` uses an async pool so it cannot be shared with the other two.
+/// If `configs` is [`Unified`](RedisConfigsRef::Unified), one client is created and then cloned
+/// for cardinality and quotas, meaning that they really use the same client.
 ///
-/// If it is [`Individual`](RedisPoolConfigs::Individual), an actual separate pool
+/// If it is [`Individual`](RedisConfigsRef::Individual), an actual separate client
 /// is created for each use case.
 #[cfg(feature = "processing")]
 pub async fn create_redis_clients(
-    configs: RedisPoolConfigs<'_>,
+    configs: RedisConfigsRef<'_>,
 ) -> Result<RedisClients, RedisError> {
     match configs {
-        RedisPoolConfigs::Unified(unified) => {
-            let pool = create_async_connection(&unified).await?;
+        RedisConfigsRef::Unified(unified) => {
+            let client = create_async_redis_client(&unified).await?;
             Ok(RedisClients {
-                project_configs: pool.clone(),
-                cardinality: pool.clone(),
-                quotas: pool,
+                project_configs: client.clone(),
+                cardinality: client.clone(),
+                quotas: client,
             })
         }
-        RedisPoolConfigs::Individual {
+        RedisConfigsRef::Individual {
             project_configs,
             cardinality,
             quotas,
         } => {
-            let project_configs = create_async_connection(&project_configs).await?;
-            let cardinality = create_async_connection(&cardinality).await?;
-            let quotas = create_async_connection(&quotas).await?;
+            let project_configs = create_async_redis_client(&project_configs).await?;
+            let cardinality = create_async_redis_client(&cardinality).await?;
+            let quotas = create_async_redis_client(&quotas).await?;
 
             Ok(RedisClients {
                 project_configs,
@@ -446,7 +445,7 @@ pub async fn create_redis_clients(
 }
 
 #[cfg(feature = "processing")]
-async fn create_async_connection(
+async fn create_async_redis_client(
     config: &RedisConfigRef<'_>,
 ) -> Result<AsyncRedisClient, RedisError> {
     match config {
@@ -464,12 +463,14 @@ async fn create_async_connection(
 }
 
 #[cfg(feature = "processing")]
-async fn initialize_redis_scripts_for_pools(redis_pools: &RedisClients) -> Result<(), RedisError> {
+async fn initialize_redis_scripts_for_clients(
+    redis_clients: &RedisClients,
+) -> Result<(), RedisError> {
     let scripts = RedisScripts::all();
 
-    let pools = [&redis_pools.cardinality, &redis_pools.quotas];
-    for pool in pools {
-        initialize_redis_scripts(pool, &scripts).await?;
+    let clients = [&redis_clients.cardinality, &redis_clients.quotas];
+    for client in clients {
+        initialize_redis_scripts(client, &scripts).await?;
     }
 
     Ok(())

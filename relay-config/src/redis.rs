@@ -208,7 +208,7 @@ pub enum RedisConfigRef<'a> {
 /// Helper struct bundling connections and options for the various Redis pools.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
-pub enum RedisPoolConfigs<'a> {
+pub enum RedisConfigsRef<'a> {
     /// Use one pool for everything.
     Unified(RedisConfigRef<'a>),
     /// Use an individual pool for each use case.
@@ -222,6 +222,7 @@ pub enum RedisPoolConfigs<'a> {
     },
 }
 
+/// Builds [`RedisConfigOptions`] given [`PartialRedisConfigOptions`].
 fn build_redis_config_options(
     options: &PartialRedisConfigOptions,
     default_connections: u32,
@@ -242,7 +243,10 @@ fn build_redis_config_options(
     }
 }
 
-pub(super) fn create_redis_pool(
+/// Builds a [`RedisConfigsRef`] given a [`RedisConfig`].
+///
+/// The returned config contains more options for setting up Redis.
+pub(super) fn build_redis_config(
     config: &RedisConfig,
     default_connections: u32,
 ) -> RedisConfigRef<'_> {
@@ -257,7 +261,7 @@ pub(super) fn create_redis_pool(
         RedisConfig::MultiWrite { configs } => RedisConfigRef::MultiWrite {
             configs: configs
                 .iter()
-                .map(|c| create_redis_pool(c, default_connections))
+                .map(|c| build_redis_config(c, default_connections))
                 .collect(),
         },
         RedisConfig::Single(SingleRedisConfig::Detailed { server, options }) => {
@@ -273,7 +277,13 @@ pub(super) fn create_redis_pool(
     }
 }
 
-pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -> RedisPoolConfigs {
+/// Builds a [`RedisConfigsRef`] given a [`RedisConfigs`].
+///
+/// The returned configs contain more options for setting up Redis.
+pub(super) fn build_redis_configs(
+    configs: &RedisConfigs,
+    cpu_concurrency: u32,
+) -> RedisConfigsRef<'_> {
     // Default `max_connections` for the `project_configs` pool.
     // In a unified config, this is used for all pools.
     let project_configs_default_connections =
@@ -281,8 +291,8 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
 
     match configs {
         RedisConfigs::Unified(cfg) => {
-            let pool = create_redis_pool(cfg, project_configs_default_connections);
-            RedisPoolConfigs::Unified(pool)
+            let pool = build_redis_config(cfg, project_configs_default_connections);
+            RedisConfigsRef::Unified(pool)
         }
         RedisConfigs::Individual {
             project_configs,
@@ -290,10 +300,10 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
             quotas,
         } => {
             let project_configs =
-                create_redis_pool(project_configs, project_configs_default_connections);
-            let cardinality = create_redis_pool(cardinality, cpu_concurrency);
-            let quotas = create_redis_pool(quotas, cpu_concurrency);
-            RedisPoolConfigs::Individual {
+                build_redis_config(project_configs, project_configs_default_connections);
+            let cardinality = build_redis_config(cardinality, cpu_concurrency);
+            let quotas = build_redis_config(quotas, cpu_concurrency);
+            RedisConfigsRef::Individual {
                 project_configs,
                 cardinality,
                 quotas,
