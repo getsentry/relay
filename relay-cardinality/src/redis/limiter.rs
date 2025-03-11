@@ -162,12 +162,11 @@ impl Limiter for RedisSetLimiter {
             let id = &state.id().to_string();
             let scopes = num_scopes_tag(&state);
             let results = metric!(
-                timer(CardinalityLimiterTimers::Redis),
+                async_timer(CardinalityLimiterTimers::Redis),
                 id = id,
                 scopes = scopes,
-                { self.check_limits(&mut connection, &mut state, timestamp) }
-            )
-            .await?;
+                { self.check_limits(&mut connection, &mut state, timestamp).await }
+            )?;
 
             for result in results {
                 reporter.report_cardinality(state.cardinality_limit(), result.to_report(timestamp));

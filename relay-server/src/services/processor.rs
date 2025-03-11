@@ -2412,10 +2412,9 @@ impl EnvelopeProcessorService {
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         let group = message.envelope.group().variant();
-        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
-            self.process(cogs, message)
-        })
-        .await;
+        let result = metric!(async_timer(RelayTimers::EnvelopeProcessingTime), group = group, {
+            self.process(cogs, message).await
+        });
         match result {
             Ok(response) => {
                 if let Some(envelope) = response.envelope {
@@ -3294,11 +3293,11 @@ impl RateLimiter {
 
         let scoping = managed_envelope.scoping();
         let (enforcement, rate_limits) =
-            metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+            metric!(async_timer(RelayTimers::EventProcessingRateLimiting), {
                 envelope_limiter
                     .compute(managed_envelope.envelope_mut(), &scoping)
-                    .await?
-            });
+                    .await
+            })?;
         let event_active = enforcement.is_event_active();
 
         // Use the same rate limits as used for the envelope on the metrics.
