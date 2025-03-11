@@ -15,6 +15,7 @@
 **Bug Fixes**:
 
 - Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
+- Check `client_ip` for localhost filter if user has no ip address. ([#4570](https://github.com/getsentry/relay/pull/4570))
 
 **Internal**:
 
