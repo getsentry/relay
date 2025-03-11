@@ -2344,20 +2344,31 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let _client = managed_envelope
+        let client = managed_envelope
             .envelope()
             .meta()
             .client()
             .map(str::to_owned);
 
-        let _user_agent = managed_envelope
+        let user_agent = managed_envelope
             .envelope()
             .meta()
             .user_agent()
             .map(str::to_owned);
 
-        // TODO: figure out how to add sentry context back in.
-        match self
+        // We set additional information on the scope, which will be removed after processing the
+        // envelope.
+        relay_log::configure_scope(|scope| {
+            scope.set_tag("project", project_id);
+            if let Some(client) = client {
+                scope.set_tag("sdk", client);
+            }
+            if let Some(user_agent) = user_agent {
+                scope.set_extra("user_agent", user_agent.into());
+            }
+        });
+
+        let result = match self
             .process_envelope(
                 cogs,
                 managed_envelope,
@@ -2403,7 +2414,15 @@ impl EnvelopeProcessorService {
                 })
             }
             Err(err) => Err(err),
-        }
+        };
+
+        relay_log::configure_scope(|scope| {
+            scope.remove_tag("project");
+            scope.remove_tag("sdk");
+            scope.remove_tag("user_agent");
+        });
+
+        result
     }
 
     async fn handle_process_envelope(&self, cogs: &mut Token, message: ProcessEnvelope) {
