@@ -69,6 +69,7 @@ mod types;
 mod utils;
 
 const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
+const MAX_PROFILE_CHUNK_DURATION: Duration = Duration::from_secs(66);
 
 /// Unique identifier for a profile.
 ///

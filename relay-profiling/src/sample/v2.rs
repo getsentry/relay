@@ -21,7 +21,9 @@ use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::types::ClientSdk;
 use crate::utils::default_client_sdk;
+use crate::MAX_PROFILE_CHUNK_DURATION;
 
+const MAX_PROFILE_CHUNK_DURATION_SECS: f64 = MAX_PROFILE_CHUNK_DURATION.as_secs_f64();
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
     /// Random UUID identifying a chunk
@@ -99,6 +101,12 @@ pub struct ProfileData {
 }
 
 impl ProfileData {
+    fn is_above_max_duration(&self) -> bool {
+        self.samples.last().is_some_and(|last_sample| {
+            let duration = last_sample.timestamp - self.samples[0].timestamp;
+            duration.is_some_and(|d| d.to_f64() > MAX_PROFILE_CHUNK_DURATION_SECS)
+        })
+    }
     /// Ensures valid profile chunk or returns an error.
     ///
     /// Mutates the profile chunk. Removes invalid samples and threads.
@@ -117,6 +125,10 @@ impl ProfileData {
 
         if !self.all_frames_referenced_by_stacks_exist() {
             return Err(ProfileError::MalformedStacks);
+        }
+
+        if self.is_above_max_duration() {
+            return Err(ProfileError::DurationIsTooLong);
         }
 
         self.strip_pointer_authentication_code(platform);
@@ -191,12 +203,12 @@ mod tests {
                 Sample {
                     stack_id: 0,
                     thread_id: "1".into(),
-                    timestamp: FiniteF64::new(2000.0).unwrap(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
                     stack_id: 0,
                     thread_id: "1".to_string(),
-                    timestamp: FiniteF64::new(1000.0).unwrap(),
+                    timestamp: FiniteF64::new(30.0).unwrap(),
                 },
             ],
             stacks: vec![vec![0]],
@@ -210,10 +222,7 @@ mod tests {
 
         assert_eq!(
             timestamps,
-            vec![
-                FiniteF64::new(1000.0).unwrap(),
-                FiniteF64::new(2000.0).unwrap(),
-            ]
+            vec![FiniteF64::new(30.0).unwrap(), FiniteF64::new(60.0).unwrap(),]
         );
     }
 }
