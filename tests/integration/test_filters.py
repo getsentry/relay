@@ -318,6 +318,67 @@ def test_client_ip_filters_are_applied(
     assert mini_sentry.captured_events.empty()
 
 
+@pytest.mark.parametrize("forwarded_for", ["127.0.0.1", "::1"])
+def test_localhost_filter_applied_without_user(mini_sentry, relay, forwarded_for):
+    relay = relay(mini_sentry)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["localhost"] = {"isEnabled": True}
+
+    relay.send_event(
+        project_id, {"user": None}, headers={"X-Forwarded-For": forwarded_for}
+    )
+
+    report = mini_sentry.get_client_report()
+    assert report["filtered_events"] == [
+        {"reason": "localhost", "category": "error", "quantity": 1}
+    ]
+
+    assert mini_sentry.captured_events.empty()
+
+
+@pytest.mark.parametrize("localhost_ip_address", ["127.0.0.1", "::1"])
+def test_localhost_filter_with_user_ip(mini_sentry, relay, localhost_ip_address):
+    relay = relay(mini_sentry)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["localhost"] = {"isEnabled": True}
+
+    relay.send_event(
+        project_id,
+        {"user": {"ip_address": "83.14.81.145"}},
+        headers={"X-Forwarded-For": localhost_ip_address},
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    assert event["user"]["ip_address"] == "83.14.81.145"
+
+
+@pytest.mark.parametrize("localhost_ip_address", ["127.0.0.1", "::1"])
+def test_localhost_filter_user_is_localhost(mini_sentry, relay, localhost_ip_address):
+    relay = relay(mini_sentry)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["localhost"] = {"isEnabled": True}
+
+    relay.send_event(project_id, {"user": {"ip_address": localhost_ip_address}})
+
+    report = mini_sentry.get_client_report()
+    assert report["filtered_events"] == [
+        {"reason": "localhost", "category": "error", "quantity": 1}
+    ]
+
+    assert mini_sentry.captured_events.empty()
+
+
 def test_global_filters_drop_events(
     mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
 ):

@@ -61,7 +61,7 @@ pub fn should_filter<F: Filterable + Getter>(
     client_ips::should_filter(client_ip, &config.client_ips)?;
     releases::should_filter(item, &config.releases)?;
     error_messages::should_filter(item, &config.error_messages)?;
-    localhost::should_filter(item, &config.localhost)?;
+    localhost::should_filter(item, client_ip, &config.localhost)?;
     browser_extensions::should_filter(item, &config.browser_extensions)?;
     legacy_browsers::should_filter(item, &config.legacy_browsers)?;
     web_crawlers::should_filter(item, &config.web_crawlers)?;
