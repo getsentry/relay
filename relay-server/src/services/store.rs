@@ -961,7 +961,8 @@ impl StoreService {
 
         let d = &mut Deserializer::from_slice(&payload);
 
-        let mut log: LogKafkaMessage = match serde_path_to_error::deserialize(d) {
+        let mut log: IncomingOurLogKafkaMessage = match serde_path_to_error::deserialize(d) {
+            // TODO: Update this to switch from `IncomingOurLogKafkaMessage` -> `OutgoingOurLogKafkaMessage`
             Ok(log) => log,
             Err(error) => {
                 relay_log::error!(
@@ -1391,7 +1392,36 @@ struct SpanKafkaMessage<'a> {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct LogKafkaMessage<'a> {
+struct IncomingOurLogKafkaMessage<'a> {
+    #[serde(default)]
+    organization_id: u64,
+    #[serde(default)]
+    project_id: u64,
+    #[serde(default)]
+    timestamp: u64,
+    #[serde(default)]
+    observed_timestamp: u64,
+    #[serde(default)]
+    retention_days: u16,
+    #[serde(default)]
+    received: u64,
+    body: &'a RawValue,
+
+    trace_id: EventId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    span_id: Option<&'a str>,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
+    severity_text: Option<Cow<'a, str>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    severity_number: Option<i32>,
+    #[serde(default, skip_serializing_if = "none_or_empty_object")]
+    attributes: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trace_flags: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct OutgoingOurLogKafkaMessage<'a> {
     #[serde(default)]
     organization_id: u64,
     #[serde(default)]
@@ -1464,7 +1494,7 @@ enum KafkaMessage<'a> {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
-        message: LogKafkaMessage<'a>,
+        message: OutgoingOurLogKafkaMessage<'a>,
     },
     ProfileChunk(ProfileChunkKafkaMessage),
 }

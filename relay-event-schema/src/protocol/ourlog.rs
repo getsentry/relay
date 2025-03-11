@@ -5,24 +5,24 @@ use relay_protocol::{
 use serde::ser::SerializeMap;
 
 use crate::processor::ProcessValue;
-use crate::protocol::{SpanId, TraceId};
+use crate::protocol::{SpanId, Timestamp, TraceId};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[metastructure(process_func = "process_ourlog", value_type = "OurLog")]
 pub struct OurLog {
     /// Time when the event occurred.
     #[metastructure(required = true, trim = false)]
-    pub timestamp_nanos: Annotated<u64>,
+    pub timestamp: Annotated<Timestamp>,
 
     /// Time when the event was observed.
-    #[metastructure(required = true, trim = false)]
-    pub observed_timestamp_nanos: Annotated<u64>,
+    #[metastructure(required = false, trim = false)]
+    pub observed_timestamp: Annotated<Timestamp>,
 
     /// The ID of the trace the log belongs to.
     #[metastructure(required = false, trim = false)]
     pub trace_id: Annotated<TraceId>,
+
     /// The Span id.
-    ///
     #[metastructure(required = false, trim = false)]
     pub span_id: Annotated<SpanId>,
 
@@ -180,13 +180,15 @@ impl FromValue for AttributeValue {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{TimeZone, Utc};
+
     use super::*;
 
     #[test]
     fn test_ourlog_serialization() {
         let json = r#"{
-  "timestamp_nanos": 1544712660300000000,
-  "observed_timestamp_nanos": 1544712660300000000,
+  "timestamp": 1694732408.0,
+  "observed_timestamp": 1694732342.0,
   "trace_id": "5b8efff798038103d269b633813fc60c",
   "span_id": "eee19b7ec3c1b174",
   "severity_text": "Information",
@@ -227,8 +229,10 @@ mod tests {
         );
 
         let log = Annotated::new(OurLog {
-            timestamp_nanos: Annotated::new(1544712660300000000),
-            observed_timestamp_nanos: Annotated::new(1544712660300000000),
+            timestamp: Annotated::new(Timestamp(Utc.timestamp_opt(1694732408, 0).unwrap())),
+            observed_timestamp: Annotated::new(Timestamp(
+                Utc.timestamp_opt(1694732342, 0).unwrap(),
+            )),
             severity_number: Annotated::new(10),
             severity_text: Annotated::new("Information".to_string()),
             trace_id: Annotated::new(TraceId("5b8efff798038103d269b633813fc60c".into())),
