@@ -165,9 +165,11 @@ impl Limiter for RedisSetLimiter {
                 timer(CardinalityLimiterTimers::Redis),
                 id = id,
                 scopes = scopes,
-                { self.check_limits(&mut connection, &mut state, timestamp) }
-            )
-            .await?;
+                {
+                    self.check_limits(&mut connection, &mut state, timestamp)
+                        .await
+                }
+            )?;
 
             for result in results {
                 reporter.report_cardinality(state.cardinality_limit(), result.to_report(timestamp));
