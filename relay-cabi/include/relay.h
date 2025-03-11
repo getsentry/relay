@@ -133,7 +133,7 @@ enum RelayDataCategory {
    *
    * This is the data category for Session Replays produced via a video recording.
    */
-  RELAY_DATA_CATEGORY_REPLAY_VIDEO = 20,
+  RELAY_DATA_CATEGORY_DO_NOT_USE_REPLAY_VIDEO = 20,
   /**
    * This is the data category for Uptime monitors.
    */

@@ -247,7 +247,7 @@ impl EnvelopeSummary {
             DataCategory::Session => &mut self.session_quantity,
             DataCategory::Profile => &mut self.profile_quantity,
             DataCategory::Replay => &mut self.replay_quantity,
-            DataCategory::ReplayVideo => &mut self.replay_quantity,
+            DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
             DataCategory::Monitor => &mut self.monitor_quantity,
             DataCategory::Span => &mut self.span_quantity,
             DataCategory::LogItem => &mut self.log_item_quantity,
