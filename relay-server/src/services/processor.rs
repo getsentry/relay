@@ -2412,9 +2412,11 @@ impl EnvelopeProcessorService {
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         let group = message.envelope.group().variant();
-        let result = metric!(async_timer(RelayTimers::EnvelopeProcessingTime), group = group, {
-            self.process(cogs, message).await
-        });
+        let result = metric!(
+            async_timer(RelayTimers::EnvelopeProcessingTime),
+            group = group,
+            { self.process(cogs, message).await }
+        );
         match result {
             Ok(response) => {
                 if let Some(envelope) = response.envelope {
