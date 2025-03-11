@@ -301,32 +301,8 @@ mod tests {
 
     #[test]
     fn test_expand_compressed_envelope_items() {
-        // The attachment content is as follows:
-        // - 4 bytes magic = sntr
-        // - 1 byte version = 0
-        // - 1 byte encoding = 0b0001_0000 - 0x10 - i.e. envelope items, Zstandard compressed
-        // - 2 bytes data length = N bytes - in big endian representation
-        // - N bytes of compressed content (Zstandard)
-        let mut compressor = ZstdCompressor::new(3).unwrap();
-        compressor.include_magicbytes(false).unwrap();
-        compressor.include_dictid(false).unwrap();
-        let compressed_data = compressor
-            .compress(
-                b"\
-                {\"type\":\"event\"}\n\
-                {\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"b\":\"c\"}}\n\
-                {\"type\":\"attachment\",\"length\":2}\n\
-                Hi\n\
-                ",
-            )
-            .unwrap();
-        let mut dying_message: Vec<u8> = Vec::new();
-        dying_message.write_all(b"sntr\0\x10").unwrap();
-        dying_message
-            .write_all(&(compressed_data.len() as u16).to_be_bytes())
-            .unwrap();
-        dying_message.write_all(&compressed_data).unwrap();
-
+        // encoding 0x10 - i.e. envelope items, Zstandard compressed, no dictionary
+        let dying_message = create_compressed_dying_message(0x10);
         let mut envelope = create_envelope(dying_message.into());
 
         let items: Vec<_> = envelope.envelope().items().collect();
@@ -354,7 +330,44 @@ mod tests {
         assert_eq!(items[1].payload(), "Hi".as_bytes());
     }
 
-    // TODO test dictionaries
+    fn create_compressed_dying_message(encoding: u8) -> Vec<u8> {
+        // The attachment content is as follows:
+        // - 4 bytes magic = sntr
+        // - 1 byte version = 0
+        // - 1 byte encoding
+        // - 2 bytes data length = N bytes - in big endian representation
+        // - N bytes of compressed content (Zstandard)
+        let mut compressor = ZstdCompressor::new(3).unwrap();
+        compressor.include_magicbytes(false).unwrap();
+        compressor.include_dictid(false).unwrap();
+        let compressed_data = compressor
+            .compress(
+                b"\
+                {\"type\":\"event\"}\n\
+                {\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"b\":\"c\"}}\n\
+                {\"type\":\"attachment\",\"length\":2}\n\
+                Hi\n\
+                ",
+            )
+            .unwrap();
+        let mut dying_message: Vec<u8> = Vec::new();
+        dying_message.write_all(b"sntr\0").unwrap();
+        dying_message.write_all(&[encoding]).unwrap();
+        dying_message
+            .write_all(&(compressed_data.len() as u16).to_be_bytes())
+            .unwrap();
+        dying_message.write_all(&compressed_data).unwrap();
+        dying_message
+    }
+
+    #[test]
+    fn test_expand_fails_with_unknown_dictioary() {
+        // encoding 0x10 - i.e. envelope items, Zstandard compressed, dictionary ID 1
+        let dying_message = create_compressed_dying_message(0b0001_0001);
+        let mut envelope = create_envelope(dying_message.into());
+
+        assert!(expand(&mut envelope).is_err());
+    }
 
     #[test]
     fn test_expand_fails_on_invalid_data() {
