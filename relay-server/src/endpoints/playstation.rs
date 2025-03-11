@@ -6,6 +6,7 @@ use bytes::Bytes;
 use lz4_flex::frame::FrameDecoder as lz4Decoder;
 use multer::Multipart;
 use relay_config::Config;
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
 use std::io::Cursor;
 use std::io::Read;
@@ -130,7 +131,8 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     // The crash dumps are transmitted as `...` in a multipart form-data/ request.
     let Remote(multipart) = request.extract_with_state(&state).await?;
-    let envelope = extract_multipart(multipart, meta).await?;
+    let mut envelope = extract_multipart(multipart, meta).await?;
+    envelope.require_feature(Feature::PlaystationEndpoint);
 
     let id = envelope.event_id();
 

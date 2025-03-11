@@ -1554,6 +1554,19 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
         });
+
+        // TODO: Check if this is the correct way of doing this. Or if we should go via
+        // should_filter.
+        if managed_envelope
+            .envelope()
+            .required_features()
+            .contains(&Feature::PlaystationEndpoint)
+            && !project_info.has_feature(Feature::PlaystationEndpoint)
+        {
+            managed_envelope.drop_items_silently();
+            return Ok(None);
+        }
+
         // TODO: Would probably either want to "expand here" (guard with some flag)
         playstation::expand(managed_envelope, &self.inner.config)?;
 
