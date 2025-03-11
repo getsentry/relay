@@ -335,7 +335,7 @@
     <span class="doccomment">/// Replay Video
     ///
     /// This is the data category for Session Replays produced via a video recording.
-    </span>ReplayVideo = <span class="number">20</span>,
+    </span>DoNotUseReplayVideo = <span class="number">20</span>,
     <span class="doccomment">/// This is the data category for Uptime monitors.
     </span>Uptime = <span class="number">21</span>,
     <span class="doccomment">/// Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
@@ -394,7 +394,7 @@
             <span class="string">"profile_duration_ui" </span>=&gt; <span class="self">Self</span>::ProfileDurationUi,
             <span class="string">"profile_chunk" </span>=&gt; <span class="self">Self</span>::ProfileChunk,
             <span class="string">"metric_second" </span>=&gt; <span class="self">Self</span>::MetricSecond,
-            <span class="string">"replay_video" </span>=&gt; <span class="self">Self</span>::ReplayVideo,
+            <span class="string">"replay_video" </span>=&gt; <span class="self">Self</span>::DoNotUseReplayVideo,
             <span class="string">"uptime" </span>=&gt; <span class="self">Self</span>::Uptime,
             <span class="string">"attachment_item" </span>=&gt; <span class="self">Self</span>::AttachmentItem,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
@@ -414,6 +414,7 @@
             <span class="self">Self</span>::Profile =&gt; <span class="string">"profile"</span>,
             <span class="self">Self</span>::ProfileIndexed =&gt; <span class="string">"profile_indexed"</span>,
             <span class="self">Self</span>::Replay =&gt; <span class="string">"replay"</span>,
+            <span class="self">Self</span>::DoNotUseReplayVideo =&gt; <span class="string">"replay_video"</span>,
             <span class="self">Self</span>::TransactionProcessed =&gt; <span class="string">"transaction_processed"</span>,
             <span class="self">Self</span>::TransactionIndexed =&gt; <span class="string">"transaction_indexed"</span>,
             <span class="self">Self</span>::Monitor =&gt; <span class="string">"monitor"</span>,
@@ -428,7 +429,6 @@
             <span class="self">Self</span>::ProfileDurationUi =&gt; <span class="string">"profile_duration_ui"</span>,
             <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
             <span class="self">Self</span>::MetricSecond =&gt; <span class="string">"metric_second"</span>,
-            <span class="self">Self</span>::ReplayVideo =&gt; <span class="string">"replay_video"</span>,
             <span class="self">Self</span>::Uptime =&gt; <span class="string">"uptime"</span>,
             <span class="self">Self</span>::AttachmentItem =&gt; <span class="string">"attachment_item"</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">"unknown"</span>,
