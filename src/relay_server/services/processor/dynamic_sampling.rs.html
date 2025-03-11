@@ -793,7 +793,21 @@
 <a href="#792" id="792">792</a>
 <a href="#793" id="793">793</a>
 <a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -864,13 +878,13 @@
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming event
-</span><span class="kw">pub fn </span>run&lt;Group&gt;(
+</span><span class="kw">pub async fn </span>run&lt;Group&gt;(
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
     config: Arc&lt;Config&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
-    reservoir: <span class="kw-2">&amp;</span>ReservoirEvaluator,
+    reservoir: <span class="kw-2">&amp;</span>ReservoirEvaluator&lt;<span class="lifetime">'_</span>&gt;,
 ) -&gt; SamplingResult
 <span class="kw">where
     </span>Group: Sampling,
@@ -900,7 +914,8 @@
         root_config,
         managed_envelope.envelope().dsc(),
     )
-}
+    .<span class="kw">await
+</span>}
 
 <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
 </span><span class="kw">pub fn </span>drop_unsampled_items(
@@ -939,9 +954,9 @@
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming envelope.
-</span><span class="kw">fn </span>compute_sampling_decision(
+</span><span class="kw">async fn </span>compute_sampling_decision(
     processing_enabled: bool,
-    reservoir: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ReservoirEvaluator&gt;,
+    reservoir: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ReservoirEvaluator&lt;<span class="lifetime">'_</span>&gt;&gt;,
     sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
     event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
     root_sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
@@ -971,7 +986,7 @@
     <span class="kw">if let </span>(<span class="prelude-val">Some</span>(event), <span class="prelude-val">Some</span>(sampling_state)) = (event, sampling_config) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(seed) = event.id.value().map(|id| id.<span class="number">0</span>) {
             <span class="kw">let </span>rules = sampling_state.filter_rules(RuleType::Transaction);
-            evaluator = <span class="kw">match </span>evaluator.match_rules(seed, event, rules) {
+            evaluator = <span class="kw">match </span>evaluator.match_rules(seed, event, rules).<span class="kw">await </span>{
                 ControlFlow::Continue(evaluator) =&gt; evaluator,
                 ControlFlow::Break(sampling_match) =&gt; {
                     <span class="kw">return </span>SamplingResult::Match(sampling_match);
@@ -982,7 +997,7 @@
 
     <span class="kw">if let </span>(<span class="prelude-val">Some</span>(dsc), <span class="prelude-val">Some</span>(sampling_state)) = (dsc, root_sampling_config) {
         <span class="kw">let </span>rules = sampling_state.filter_rules(RuleType::Trace);
-        <span class="kw">return </span>evaluator.match_rules(dsc.trace_id, dsc, rules).into();
+        <span class="kw">return </span>evaluator.match_rules(dsc.trace_id, dsc, rules).<span class="kw">await</span>.into();
     }
 
     SamplingResult::NoMatch
@@ -993,7 +1008,7 @@
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-</span><span class="kw">pub fn </span>tag_error_with_sampling_decision&lt;Group: EventProcessing&gt;(
+</span><span class="kw">pub async fn </span>tag_error_with_sampling_decision&lt;Group: EventProcessing&gt;(
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
@@ -1017,7 +1032,7 @@
         <span class="kw">return</span>;
     }
 
-    <span class="kw">let </span><span class="prelude-val">Some</span>(sampled) = utils::is_trace_fully_sampled(sampling_config, dsc) <span class="kw">else </span>{
+    <span class="kw">let </span><span class="prelude-val">Some</span>(sampled) = utils::is_trace_fully_sampled(sampling_config, dsc).<span class="kw">await else </span>{
         <span class="kw">return</span>;
     };
 
@@ -1109,7 +1124,10 @@
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        <span class="kw">let </span>envelope_response = processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).unwrap();
+        <span class="kw">let </span>envelope_response = processor
+            .process(<span class="kw-2">&amp;mut </span>Token::noop(), message)
+            .<span class="kw">await
+            </span>.unwrap();
         <span class="kw">let </span>ctx = envelope_response.envelope.unwrap();
         ctx.envelope().clone()
     }
@@ -1160,8 +1178,8 @@
         <span class="macro">assert!</span>(event.contexts.value().is_none());
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_it_keeps_or_drops_transactions() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_it_keeps_or_drops_transactions() {
         <span class="kw">let </span>event = Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(EventType::Transaction),
@@ -1192,7 +1210,8 @@
                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
                 <span class="prelude-val">None</span>,
                 <span class="prelude-val">None</span>,
-            );
+            )
+            .<span class="kw">await</span>;
             <span class="macro">assert_eq!</span>(res.decision().is_keep(), should_keep);
         }
     }
@@ -1263,7 +1282,8 @@
             project_info,
             <span class="prelude-val">None</span>,
             <span class="kw-2">&amp;</span>reservoir,
-        );
+        )
+        .<span class="kw">await</span>;
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Current version is 3, so it won't run DS if it's outdated
@@ -1275,7 +1295,8 @@
             project_info,
             <span class="prelude-val">None</span>,
             <span class="kw-2">&amp;</span>reservoir,
-        );
+        )
+        .<span class="kw">await</span>;
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Dynamic sampling is run, as the transaction metrics version is up to date.
@@ -1287,7 +1308,8 @@
             project_info,
             <span class="prelude-val">None</span>,
             <span class="kw-2">&amp;</span>reservoir,
-        );
+        )
+        .<span class="kw">await</span>;
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -1401,8 +1423,8 @@
     }
 
     <span class="doccomment">/// Happy path test for compute_sampling_decision.
-    </span><span class="attr">#[test]
-    </span><span class="kw">fn </span>test_compute_sampling_decision_matching() {
+    </span><span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_compute_sampling_decision_matching() {
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">"foo"</span>, <span class="string">"bar"</span>);
         <span class="kw">let </span>rule = SamplingRule {
             condition: RuleCondition::all(),
@@ -1425,12 +1447,13 @@
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
-        );
+        )
+        .<span class="kw">await</span>;
         <span class="macro">assert!</span>(res.is_match());
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_matching_with_unsupported_rule() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_matching_with_unsupported_rule() {
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">"foo"</span>, <span class="string">"bar"</span>);
         <span class="kw">let </span>rule = SamplingRule {
             condition: RuleCondition::all(),
@@ -1463,17 +1486,19 @@
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
-        );
+        )
+        .<span class="kw">await</span>;
         <span class="macro">assert!</span>(res.is_no_match());
 
         <span class="comment">// Match if processing is enabled.
         </span><span class="kw">let </span>res =
-            compute_sampling_decision(<span class="bool-val">true</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
+            compute_sampling_decision(<span class="bool-val">true</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
+                .<span class="kw">await</span>;
         <span class="macro">assert!</span>(res.is_match());
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_client_sample_rate() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_client_sample_rate() {
         <span class="kw">let </span>dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse(<span class="string">"abd0f232775f45feab79864e580d160b"</span>).unwrap(),
@@ -1502,12 +1527,13 @@
         };
 
         <span class="kw">let </span>res =
-            compute_sampling_decision(<span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc));
+            compute_sampling_decision(<span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc))
+                .<span class="kw">await</span>;
 
         <span class="macro">assert_eq!</span>(get_sampling_match(res).sample_rate(), <span class="number">0.2</span>);
     }
 
-    <span class="kw">fn </span>run_with_reservoir_rule&lt;Group&gt;(processing_group: ProcessingGroup) -&gt; SamplingResult
+    <span class="kw">async fn </span>run_with_reservoir_rule&lt;Group&gt;(processing_group: ProcessingGroup) -&gt; SamplingResult
     <span class="kw">where
         </span>Group: Sampling + TryFrom&lt;ProcessingGroup&gt;,
     {
@@ -1572,18 +1598,20 @@
             sampling_project_info,
             <span class="kw-2">&amp;</span>reservoir,
         )
-    }
+        .<span class="kw">await
+    </span>}
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_reservoir_applied_for_transactions() {
-        <span class="kw">let </span>result = run_with_reservoir_rule::&lt;TransactionGroup&gt;(ProcessingGroup::Transaction);
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_reservoir_applied_for_transactions() {
+        <span class="kw">let </span>result =
+            run_with_reservoir_rule::&lt;TransactionGroup&gt;(ProcessingGroup::Transaction).<span class="kw">await</span>;
         <span class="comment">// Default sampling rate is 0.0, but transaction is retained because of reservoir:
         </span><span class="macro">assert_eq!</span>(result.decision(), SamplingDecision::Keep);
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_reservoir_not_applied_for_spans() {
-        <span class="kw">let </span>result = run_with_reservoir_rule::&lt;SpanGroup&gt;(ProcessingGroup::Span);
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_reservoir_not_applied_for_spans() {
+        <span class="kw">let </span>result = run_with_reservoir_rule::&lt;SpanGroup&gt;(ProcessingGroup::Span).<span class="kw">await</span>;
         <span class="comment">// Default sampling rate is 0.0, and the reservoir does not apply to spans:
         </span><span class="macro">assert_eq!</span>(result.decision(), SamplingDecision::Drop);
     }

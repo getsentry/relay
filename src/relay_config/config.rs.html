@@ -2599,7 +2599,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 <span class="kw">use </span><span class="kw">crate</span>::byte_size::ByteSize;
 <span class="kw">use </span><span class="kw">crate</span>::upstream::UpstreamDescriptor;
-<span class="kw">use crate</span>::{create_redis_pools, RedisConfig, RedisConfigs, RedisPoolConfigs};
+<span class="kw">use crate</span>::{build_redis_configs, RedisConfig, RedisConfigs, RedisConfigsRef};
 
 <span class="kw">const </span>DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = <span class="number">10</span>;
 
@@ -4995,10 +4995,10 @@
 
     <span class="doccomment">/// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
-    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;RedisPoolConfigs&gt; {
+    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;RedisConfigsRef&gt; {
         <span class="kw">let </span>redis_configs = <span class="self">self</span>.values.processing.redis.as_ref()<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Some</span>(create_redis_pools(
+        <span class="prelude-val">Some</span>(build_redis_configs(
             redis_configs,
             <span class="self">self</span>.cpu_concurrency() <span class="kw">as </span>u32,
         ))

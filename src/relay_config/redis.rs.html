@@ -743,14 +743,25 @@
 <a href="#742" id="742">742</a>
 <a href="#743" id="743">743</a>
 <a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::RedisConfigOptions;
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::RedisConfigOptions;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
 /// In this case, we fall back to the old default.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>DEFAULT_MIN_MAX_CONNECTIONS: u32 = <span class="number">24</span>;
 
-<span class="doccomment">/// By default, the `min_idle` count of the Redis pool is set to the calculated
+<span class="doccomment">/// By default, the `min_idle` count of the Redis client is set to the calculated
 /// amount of max connections divided by this value and rounded up.
 ///
 /// To express this value as a percentage of max connections,
@@ -761,23 +772,24 @@
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
 </span><span class="kw">pub struct </span>PartialRedisConfigOptions {
-    <span class="doccomment">/// Maximum number of connections managed by the pool.
+    <span class="doccomment">/// Maximum number of connections managed by the client.
     ///
     /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>max_connections: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="doccomment">/// Minimum amount of idle connections kept alive in the pool.
+    <span class="doccomment">/// Minimum amount of idle connections kept alive in the client.
     ///
     /// If not set it will default to 20% of [`Self::max_connections`].
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>min_idle: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="doccomment">/// Sets the connection timeout used by the pool, in seconds.
+    <span class="doccomment">/// Sets the connection timeout used by the client, in seconds.
     ///
-    /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
+    /// Calls to `ConnectionManager::new_with_config` will wait this long for a connection to
+    /// become available before returning an error.
     </span><span class="kw">pub </span>connection_timeout: u64,
-    <span class="doccomment">/// Sets the maximum lifetime of connections in the pool, in seconds.
+    <span class="doccomment">/// Sets the maximum lifetime of connections in the client, in seconds.
     </span><span class="kw">pub </span>max_lifetime: u64,
-    <span class="doccomment">/// Sets the idle timeout used by the pool, in seconds.
+    <span class="doccomment">/// Sets the idle timeout used by the client, in seconds.
     </span><span class="kw">pub </span>idle_timeout: u64,
     <span class="doccomment">/// Sets the read timeout out on the connection, in seconds.
     </span><span class="kw">pub </span>read_timeout: u64,
@@ -810,7 +822,7 @@
         /// This can also be a single node which is configured in cluster mode.
         </span>cluster_nodes: Vec&lt;String&gt;,
 
-        <span class="doccomment">/// Additional configuration options for the redis client and a connections pool.
+        <span class="doccomment">/// Additional configuration options for the redis client.
         </span><span class="attr">#[serde(flatten)]
         </span>options: PartialRedisConfigOptions,
     },
@@ -830,7 +842,7 @@
         <span class="doccomment">/// Contains the `redis://` url to the node.
         </span>server: String,
 
-        <span class="doccomment">/// Additional configuration options for the redis client and a connections pool.
+        <span class="doccomment">/// Additional configuration options for the redis client.
         </span><span class="attr">#[serde(flatten)]
         </span>options: PartialRedisConfigOptions,
     },
@@ -909,19 +921,19 @@
     }
 }
 
-<span class="doccomment">/// Configurations for the various Redis pools used by Relay.
+<span class="doccomment">/// Configurations for the various Redis clients used by Relay.
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(untagged)]
 </span><span class="kw">pub enum </span>RedisConfigs {
-    <span class="doccomment">/// All pools should be configured the same way.
+    <span class="doccomment">/// All clients should be configured the same way.
     </span>Unified(RedisConfig),
-    <span class="doccomment">/// Individual configurations for each pool.
+    <span class="doccomment">/// Individual configurations for each client.
     </span>Individual {
-        <span class="doccomment">/// Configuration for the `project_configs` pool.
+        <span class="doccomment">/// Configuration for `project_configs`.
         </span>project_configs: Box&lt;RedisConfig&gt;,
-        <span class="doccomment">/// Configuration for the `cardinality` pool.
+        <span class="doccomment">/// Configuration for `cardinality`.
         </span>cardinality: Box&lt;RedisConfig&gt;,
-        <span class="doccomment">/// Configuration for the `quotas` pool.
+        <span class="doccomment">/// Configuration for `quotas`.
         </span>quotas: Box&lt;RedisConfig&gt;,
     },
 }
@@ -950,24 +962,25 @@
     },
 }
 
-<span class="doccomment">/// Helper struct bundling connections and options for the various Redis pools.
+<span class="doccomment">/// Helper struct bundling connections and options for the various Redis clients.
 </span><span class="attr">#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
-</span><span class="kw">pub enum </span>RedisPoolConfigs&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="doccomment">/// Use one pool for everything.
+</span><span class="kw">pub enum </span>RedisConfigsRef&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="doccomment">/// Use one client for everything.
     </span>Unified(RedisConfigRef&lt;<span class="lifetime">'a</span>&gt;),
-    <span class="doccomment">/// Use an individual pool for each use case.
+    <span class="doccomment">/// Use an individual client for each use case.
     </span>Individual {
-        <span class="doccomment">/// Configuration for the `project_configs` pool.
+        <span class="doccomment">/// Configuration for `project_configs`.
         </span>project_configs: RedisConfigRef&lt;<span class="lifetime">'a</span>&gt;,
-        <span class="doccomment">/// Configuration for the `cardinality` pool.
+        <span class="doccomment">/// Configuration for `cardinality`.
         </span>cardinality: RedisConfigRef&lt;<span class="lifetime">'a</span>&gt;,
-        <span class="doccomment">/// Configuration for the `quotas` pool.
+        <span class="doccomment">/// Configuration for `quotas`.
         </span>quotas: RedisConfigRef&lt;<span class="lifetime">'a</span>&gt;,
     },
 }
 
-<span class="kw">fn </span>build_redis_config_options(
+<span class="doccomment">/// Builds [`RedisConfigOptions`] given [`PartialRedisConfigOptions`].
+</span><span class="kw">fn </span>build_redis_config_options(
     options: <span class="kw-2">&amp;</span>PartialRedisConfigOptions,
     default_connections: u32,
 ) -&gt; RedisConfigOptions {
@@ -987,7 +1000,10 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>create_redis_pool(
+<span class="doccomment">/// Builds a [`RedisConfigsRef`] given a [`RedisConfig`].
+///
+/// The returned config contains more options for setting up Redis.
+</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>build_redis_config(
     config: <span class="kw-2">&amp;</span>RedisConfig,
     default_connections: u32,
 ) -&gt; RedisConfigRef&lt;<span class="lifetime">'_</span>&gt; {
@@ -1002,7 +1018,7 @@
         RedisConfig::MultiWrite { configs } =&gt; RedisConfigRef::MultiWrite {
             configs: configs
                 .iter()
-                .map(|c| create_redis_pool(c, default_connections))
+                .map(|c| build_redis_config(c, default_connections))
                 .collect(),
         },
         RedisConfig::Single(SingleRedisConfig::Detailed { server, options }) =&gt; {
@@ -1018,16 +1034,22 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>create_redis_pools(configs: <span class="kw-2">&amp;</span>RedisConfigs, cpu_concurrency: u32) -&gt; RedisPoolConfigs {
-    <span class="comment">// Default `max_connections` for the `project_configs` pool.
-    // In a unified config, this is used for all pools.
+<span class="doccomment">/// Builds a [`RedisConfigsRef`] given a [`RedisConfigs`].
+///
+/// The returned configs contain more options for setting up Redis.
+</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>build_redis_configs(
+    configs: <span class="kw-2">&amp;</span>RedisConfigs,
+    cpu_concurrency: u32,
+) -&gt; RedisConfigsRef&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="comment">// Default `max_connections` for the `project_configs` client.
+    // In a unified config, this is used for all clients.
     </span><span class="kw">let </span>project_configs_default_connections =
         std::cmp::max(cpu_concurrency * <span class="number">2</span>, DEFAULT_MIN_MAX_CONNECTIONS);
 
     <span class="kw">match </span>configs {
         RedisConfigs::Unified(cfg) =&gt; {
-            <span class="kw">let </span>pool = create_redis_pool(cfg, project_configs_default_connections);
-            RedisPoolConfigs::Unified(pool)
+            <span class="kw">let </span>config = build_redis_config(cfg, project_configs_default_connections);
+            RedisConfigsRef::Unified(config)
         }
         RedisConfigs::Individual {
             project_configs,
@@ -1035,10 +1057,10 @@
             quotas,
         } =&gt; {
             <span class="kw">let </span>project_configs =
-                create_redis_pool(project_configs, project_configs_default_connections);
-            <span class="kw">let </span>cardinality = create_redis_pool(cardinality, cpu_concurrency);
-            <span class="kw">let </span>quotas = create_redis_pool(quotas, cpu_concurrency);
-            RedisPoolConfigs::Individual {
+                build_redis_config(project_configs, project_configs_default_connections);
+            <span class="kw">let </span>cardinality = build_redis_config(cardinality, cpu_concurrency);
+            <span class="kw">let </span>quotas = build_redis_config(quotas, cpu_concurrency);
+            RedisConfigsRef::Individual {
                 project_configs,
                 cardinality,
                 quotas,

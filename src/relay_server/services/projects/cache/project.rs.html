@@ -300,7 +300,12 @@
 <a href="#299" id="299">299</a>
 <a href="#300" id="300">300</a>
 <a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::Feature;
@@ -349,7 +354,7 @@
     ///  - Validate origins and public keys
     ///  - Quotas with a limit of `0`
     ///  - Cached rate limits
-    </span><span class="kw">pub fn </span>check_envelope(
+    </span><span class="kw">pub async fn </span>check_envelope(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut </span>envelope: ManagedEnvelope,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt; {
@@ -379,12 +384,17 @@
         <span class="kw">let </span>current_limits = <span class="self">self</span>.rate_limits().current_limits();
 
         <span class="kw">let </span>quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(<span class="kw-2">&amp;</span>[]);
-        <span class="kw">let </span>envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, <span class="kw">_</span>| {
-            <span class="prelude-val">Ok</span>(current_limits.check_with_quotas(quotas, item_scoping))
-        });
+        <span class="kw">let </span>current_limits_clone = current_limits.clone();
+        <span class="kw">let </span>envelope_limiter =
+            EnvelopeLimiter::new(CheckLimits::NonIndexed, <span class="kw">move </span>|item_scoping, <span class="kw">_</span>| {
+                <span class="kw">let </span>current_limits_clone = current_limits_clone.clone();
 
-        <span class="kw">let </span>(<span class="kw-2">mut </span>enforcement, <span class="kw-2">mut </span>rate_limits) =
-            envelope_limiter.compute(envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?</span>;
+                <span class="kw">async move </span>{ <span class="prelude-val">Ok</span>(current_limits_clone.check_with_quotas(quotas, item_scoping)) }
+            });
+
+        <span class="kw">let </span>(<span class="kw-2">mut </span>enforcement, <span class="kw-2">mut </span>rate_limits) = envelope_limiter
+            .compute(envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)
+            .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="kw">let </span>check_nested_spans = state
             .as_ref()
@@ -520,8 +530,8 @@
         RequestMeta::new(dsn)
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_track_nested_spans_outcomes() {
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_track_nested_spans_outcomes() {
         <span class="kw">let </span>config = Default::default();
         <span class="kw">let </span>project = create_project(
             <span class="kw-2">&amp;</span>config,
@@ -585,7 +595,7 @@
             ProcessingGroup::Transaction,
         );
 
-        project.check_envelope(managed_envelope).unwrap();
+        project.check_envelope(managed_envelope).<span class="kw">await</span>.unwrap();
         drop(outcome_aggregator);
 
         <span class="kw">let </span>expected = [
@@ -596,7 +606,7 @@
         ];
 
         <span class="kw">for </span>(expected_category, expected_quantity) <span class="kw">in </span>expected {
-            <span class="kw">let </span>outcome = outcome_aggregator_rx.blocking_recv().unwrap();
+            <span class="kw">let </span>outcome = outcome_aggregator_rx.recv().<span class="kw">await</span>.unwrap();
             <span class="macro">assert_eq!</span>(outcome.category, expected_category);
             <span class="macro">assert_eq!</span>(outcome.quantity, expected_quantity);
         }
