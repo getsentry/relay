@@ -15,6 +15,7 @@
 **Bug Fixes**:
 
 - Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
+- Emit filtered/sampled outcomes for spans attached to a dropped transaction. ([#4569](https://github.com/getsentry/relay/pull/4569))
 
 **Internal**:
 
