@@ -87,7 +87,6 @@ pub enum DataCategory {
     /// Replay Video
     ///
     /// This is the data category for Session Replays produced via a video recording.
-    #[deprecated]
     DoNotUseReplayVideo = 20,
     /// This is the data category for Uptime monitors.
     Uptime = 21,
