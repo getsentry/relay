@@ -1179,7 +1179,9 @@
 <a href="#1178" id="1178">1178</a>
 <a href="#1179" id="1179">1179</a>
 <a href="#1180" id="1180">1180</a>
-<a href="#1181" id="1181">1181</a></pre></div><pre class="rust"><code><span class="kw">use </span>async_trait::async_trait;
+<a href="#1181" id="1181">1181</a>
+<a href="#1182" id="1182">1182</a>
+<a href="#1183" id="1183">1183</a></pre></div><pre class="rust"><code><span class="kw">use </span>async_trait::async_trait;
 <span class="kw">use </span>relay_redis::{AsyncRedisClient, AsyncRedisConnection};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>std::time::Duration;
@@ -1346,9 +1348,11 @@
                 timer(CardinalityLimiterTimers::Redis),
                 id = id,
                 scopes = scopes,
-                { <span class="self">self</span>.check_limits(<span class="kw-2">&amp;mut </span>connection, <span class="kw-2">&amp;mut </span>state, timestamp) }
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
+                {
+                    <span class="self">self</span>.check_limits(<span class="kw-2">&amp;mut </span>connection, <span class="kw-2">&amp;mut </span>state, timestamp)
+                        .<span class="kw">await
+                </span>}
+            )<span class="question-mark">?</span>;
 
             <span class="kw">for </span>result <span class="kw">in </span>results {
                 reporter.report_cardinality(state.cardinality_limit(), result.to_report(timestamp));

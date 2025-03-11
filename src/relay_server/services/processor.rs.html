@@ -4305,7 +4305,25 @@
 <a href="#4304" id="4304">4304</a>
 <a href="#4305" id="4305">4305</a>
 <a href="#4306" id="4306">4306</a>
-<a href="#4307" id="4307">4307</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4307" id="4307">4307</a>
+<a href="#4308" id="4308">4308</a>
+<a href="#4309" id="4309">4309</a>
+<a href="#4310" id="4310">4310</a>
+<a href="#4311" id="4311">4311</a>
+<a href="#4312" id="4312">4312</a>
+<a href="#4313" id="4313">4313</a>
+<a href="#4314" id="4314">4314</a>
+<a href="#4315" id="4315">4315</a>
+<a href="#4316" id="4316">4316</a>
+<a href="#4317" id="4317">4317</a>
+<a href="#4318" id="4318">4318</a>
+<a href="#4319" id="4319">4319</a>
+<a href="#4320" id="4320">4320</a>
+<a href="#4321" id="4321">4321</a>
+<a href="#4322" id="4322">4322</a>
+<a href="#4323" id="4323">4323</a>
+<a href="#4324" id="4324">4324</a>
+<a href="#4325" id="4325">4325</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -6651,20 +6669,31 @@
             }
         };
 
-        <span class="kw">let </span>_client = managed_envelope
+        <span class="kw">let </span>client = managed_envelope
             .envelope()
             .meta()
             .client()
             .map(str::to_owned);
 
-        <span class="kw">let </span>_user_agent = managed_envelope
+        <span class="kw">let </span>user_agent = managed_envelope
             .envelope()
             .meta()
             .user_agent()
             .map(str::to_owned);
 
-        <span class="comment">// TODO: figure out how to add sentry context back in.
-        </span><span class="kw">match </span><span class="self">self
+        <span class="comment">// We set additional information on the scope, which will be removed after processing the
+        // envelope.
+        </span>relay_log::configure_scope(|scope| {
+            scope.set_tag(<span class="string">"project"</span>, project_id);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = client {
+                scope.set_tag(<span class="string">"sdk"</span>, client);
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent) = user_agent {
+                scope.set_extra(<span class="string">"user_agent"</span>, user_agent.into());
+            }
+        });
+
+        <span class="kw">let </span>result = <span class="kw">match </span><span class="self">self
             </span>.process_envelope(
                 cogs,
                 managed_envelope,
@@ -6710,7 +6739,15 @@
                 })
             }
             <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(err),
-        }
+        };
+
+        relay_log::configure_scope(|scope| {
+            scope.remove_tag(<span class="string">"project"</span>);
+            scope.remove_tag(<span class="string">"sdk"</span>);
+            scope.remove_tag(<span class="string">"user_agent"</span>);
+        });
+
+        result
     }
 
     <span class="kw">async fn </span>handle_process_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessEnvelope) {
@@ -6720,9 +6757,8 @@
 
         <span class="kw">let </span>group = message.envelope.group().variant();
         <span class="kw">let </span>result = <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
-            <span class="self">self</span>.process(cogs, message)
-        })
-        .<span class="kw">await</span>;
+            <span class="self">self</span>.process(cogs, message).<span class="kw">await
+        </span>});
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(response) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope) = response.envelope {
@@ -7604,8 +7640,8 @@
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingRateLimiting), {
                 envelope_limiter
                     .compute(managed_envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)
-                    .<span class="kw">await</span><span class="question-mark">?
-            </span>});
+                    .<span class="kw">await
+            </span>})<span class="question-mark">?</span>;
         <span class="kw">let </span>event_active = enforcement.is_event_active();
 
         <span class="comment">// Use the same rate limits as used for the envelope on the metrics.
