@@ -2431,11 +2431,9 @@ impl EnvelopeProcessorService {
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         let group = message.envelope.group().variant();
-        let result = metric!(
-            async_timer(RelayTimers::EnvelopeProcessingTime),
-            group = group,
-            { self.process(cogs, message).await }
-        );
+        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
+            self.process(cogs, message).await
+        });
         match result {
             Ok(response) => {
                 if let Some(envelope) = response.envelope {
@@ -3314,7 +3312,7 @@ impl RateLimiter {
 
         let scoping = managed_envelope.scoping();
         let (enforcement, rate_limits) =
-            metric!(async_timer(RelayTimers::EventProcessingRateLimiting), {
+            metric!(timer(RelayTimers::EventProcessingRateLimiting), {
                 envelope_limiter
                     .compute(managed_envelope.envelope_mut(), &scoping)
                     .await

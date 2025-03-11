@@ -162,7 +162,7 @@ impl Limiter for RedisSetLimiter {
             let id = &state.id().to_string();
             let scopes = num_scopes_tag(&state);
             let results = metric!(
-                async_timer(CardinalityLimiterTimers::Redis),
+                timer(CardinalityLimiterTimers::Redis),
                 id = id,
                 scopes = scopes,
                 {

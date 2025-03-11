@@ -619,14 +619,6 @@ macro_rules! metric {
         $crate::metric!(timer($id) = now.elapsed() $(, $k = $v)*);
         rv
     }};
-
-    // timed async block
-    (async_timer($id:expr), $($k:ident = $v:expr,)* $block:block) => {{
-        let now = std::time::Instant::now();
-        let rv = async {$block}.await;
-        $crate::metric!(timer($id) = now.elapsed() $(, $k = $v)*);
-        rv
-    }};
 }
 
 #[cfg(test)]
