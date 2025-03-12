@@ -23,7 +23,7 @@ use uuid::Uuid;
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
-use crate::{build_redis_configs, RedisConfig, RedisConfigs, RedisConfigsRef};
+use crate::{create_redis_pools, RedisConfig, RedisConfigs, RedisPoolConfigs};
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
@@ -2419,10 +2419,10 @@ impl Config {
 
     /// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
-    pub fn redis(&self) -> Option<RedisConfigsRef> {
+    pub fn redis(&self) -> Option<RedisPoolConfigs> {
         let redis_configs = self.values.processing.redis.as_ref()?;
 
-        Some(build_redis_configs(
+        Some(create_redis_pools(
             redis_configs,
             self.cpu_concurrency() as u32,
         ))

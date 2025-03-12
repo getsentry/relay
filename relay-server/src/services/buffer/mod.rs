@@ -526,7 +526,7 @@ impl EnvelopeBufferService {
             let Ok(CheckedEnvelope {
                 envelope: Some(managed_envelope),
                 ..
-            }) = own_project.check_envelope(managed_envelope).await
+            }) = own_project.check_envelope(managed_envelope)
             else {
                 continue; // Outcomes are emitted by `check_envelope`.
             };

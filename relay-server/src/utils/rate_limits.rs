@@ -1,6 +1,4 @@
 use std::fmt::{self, Write};
-use std::future::Future;
-use std::marker::PhantomData;
 
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
@@ -558,24 +556,21 @@ pub enum CheckLimits {
     All,
 }
 
-struct Check<F, E, R> {
+struct Check<F> {
     limits: CheckLimits,
     check: F,
-    _1: PhantomData<E>,
-    _2: PhantomData<R>,
 }
 
-impl<'a, F, E, R> Check<F, E, R>
+impl<F, E> Check<F>
 where
-    F: FnMut(ItemScoping<'a>, usize) -> R,
-    R: Future<Output = Result<RateLimits, E>>,
+    F: FnMut(ItemScoping<'_>, usize) -> Result<RateLimits, E>,
 {
-    async fn apply(&mut self, scoping: ItemScoping<'a>, quantity: usize) -> Result<RateLimits, E> {
+    fn apply(&mut self, scoping: ItemScoping<'_>, quantity: usize) -> Result<RateLimits, E> {
         if matches!(self.limits, CheckLimits::NonIndexed) && scoping.category.is_indexed() {
             return Ok(RateLimits::default());
         }
 
-        (self.check)(scoping, quantity).await
+        (self.check)(scoping, quantity)
     }
 }
 
@@ -589,26 +584,20 @@ where
 /// Items violating the rate limit are removed from the envelope. This follows a set of rules:
 ///  - If the event is removed, all items depending on the event are removed (e.g. attachments).
 ///  - Attachments are not removed if they create events (e.g. minidumps).
-///  - Sessions are handled separately from all of the above.
-pub struct EnvelopeLimiter<F, E, R> {
-    check: Check<F, E, R>,
+///  - Sessions are handled separate to all of the above.
+pub struct EnvelopeLimiter<F> {
+    check: Check<F>,
     event_category: Option<DataCategory>,
 }
 
-impl<'a, F, E, R> EnvelopeLimiter<F, E, R>
+impl<E, F> EnvelopeLimiter<F>
 where
-    F: FnMut(ItemScoping<'a>, usize) -> R,
-    R: Future<Output = Result<RateLimits, E>>,
+    F: FnMut(ItemScoping<'_>, usize) -> Result<RateLimits, E>,
 {
     /// Create a new `EnvelopeLimiter` with the given `check` function.
     pub fn new(limits: CheckLimits, check: F) -> Self {
         Self {
-            check: Check {
-                check,
-                limits,
-                _1: PhantomData,
-                _2: PhantomData,
-            },
+            check: Check { check, limits },
             event_category: None,
         }
     }
@@ -633,22 +622,22 @@ where
     /// - Rate limits declare all active rate limits, regardless of whether they have been applied
     ///   to items in the envelope. This excludes rate limits applied to required attachments, since
     ///   clients are allowed to continue sending them.
-    pub async fn compute(
+    pub fn compute(
         mut self,
         envelope: &mut Envelope,
-        scoping: &'a Scoping,
+        scoping: &Scoping,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope);
         summary.event_category = self.event_category.or(summary.event_category);
 
-        let (enforcement, rate_limits) = self.execute(&summary, scoping).await?;
+        let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
         Ok((enforcement, rate_limits))
     }
 
-    async fn execute(
+    fn execute(
         &mut self,
         summary: &EnvelopeSummary,
-        scoping: &'a Scoping,
+        scoping: &Scoping,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut rate_limits = RateLimits::new();
         let mut enforcement = Enforcement::default();
@@ -656,14 +645,14 @@ where
         // Handle event.
         if let Some(category) = summary.event_category {
             // Check the broad category for limits.
-            let mut event_limits = self.check.apply(scoping.item(category), 1).await?;
+            let mut event_limits = self.check.apply(scoping.item(category), 1)?;
             enforcement.event = CategoryLimit::new(category, 1, event_limits.longest());
 
             if let Some(index_category) = category.index_category() {
                 // Check the specific/indexed category for limits only if the specific one has not already
                 // an enforced limit.
                 if event_limits.is_empty() {
-                    event_limits.merge(self.check.apply(scoping.item(index_category), 1).await?);
+                    event_limits.merge(self.check.apply(scoping.item(index_category), 1)?);
                 }
 
                 enforcement.event_indexed =
@@ -689,8 +678,7 @@ where
 
                 let attachment_byte_limits = self
                     .check
-                    .apply(item_scoping, summary.attachment_quantity)
-                    .await?;
+                    .apply(item_scoping, summary.attachment_quantity)?;
 
                 enforcement.attachments = CategoryLimit::new(
                     DataCategory::Attachment,
@@ -704,8 +692,7 @@ where
 
                 let attachment_item_limits = self
                     .check
-                    .apply(item_scoping, summary.attachment_item_quantity)
-                    .await?;
+                    .apply(item_scoping, summary.attachment_item_quantity)?;
 
                 enforcement.attachment_items = CategoryLimit::new(
                     DataCategory::AttachmentItem,
@@ -726,10 +713,7 @@ where
         // Handle sessions.
         if summary.session_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Session);
-            let session_limits = self
-                .check
-                .apply(item_scoping, summary.session_quantity)
-                .await?;
+            let session_limits = self.check.apply(item_scoping, summary.session_quantity)?;
             enforcement.sessions = CategoryLimit::new(
                 DataCategory::Session,
                 summary.session_quantity,
@@ -741,10 +725,7 @@ where
         // Handle logs.
         if summary.log_item_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogItem);
-            let log_limits = self
-                .check
-                .apply(item_scoping, summary.log_item_quantity)
-                .await?;
+            let log_limits = self.check.apply(item_scoping, summary.log_item_quantity)?;
             enforcement.log_items = CategoryLimit::new(
                 DataCategory::LogItem,
                 summary.log_item_quantity,
@@ -754,10 +735,7 @@ where
         }
         if summary.log_byte_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogByte);
-            let log_limits = self
-                .check
-                .apply(item_scoping, summary.log_byte_quantity)
-                .await?;
+            let log_limits = self.check.apply(item_scoping, summary.log_byte_quantity)?;
             enforcement.log_bytes = CategoryLimit::new(
                 DataCategory::LogByte,
                 summary.log_byte_quantity,
@@ -776,21 +754,17 @@ where
                 .event_indexed
                 .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity)
         } else if summary.profile_quantity > 0 {
-            let mut profile_limits = self
-                .check
-                .apply(
-                    scoping.item(DataCategory::Profile),
-                    summary.profile_quantity,
-                )
-                .await?;
+            let mut profile_limits = self.check.apply(
+                scoping.item(DataCategory::Profile),
+                summary.profile_quantity,
+            )?;
 
             // Profiles can persist in envelopes without transaction if the transaction item
             // was dropped by dynamic sampling.
             if profile_limits.is_empty() && summary.event_category.is_none() {
                 profile_limits = self
                     .check
-                    .apply(scoping.item(DataCategory::Transaction), 0)
-                    .await?;
+                    .apply(scoping.item(DataCategory::Transaction), 0)?;
             }
 
             enforcement.profiles = CategoryLimit::new(
@@ -800,14 +774,10 @@ where
             );
 
             if profile_limits.is_empty() {
-                profile_limits.merge(
-                    self.check
-                        .apply(
-                            scoping.item(DataCategory::ProfileIndexed),
-                            summary.profile_quantity,
-                        )
-                        .await?,
-                );
+                profile_limits.merge(self.check.apply(
+                    scoping.item(DataCategory::ProfileIndexed),
+                    summary.profile_quantity,
+                )?);
             }
 
             enforcement.profiles_indexed = CategoryLimit::new(
@@ -822,10 +792,7 @@ where
         // Handle replays.
         if summary.replay_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Replay);
-            let replay_limits = self
-                .check
-                .apply(item_scoping, summary.replay_quantity)
-                .await?;
+            let replay_limits = self.check.apply(item_scoping, summary.replay_quantity)?;
             enforcement.replays = CategoryLimit::new(
                 DataCategory::Replay,
                 summary.replay_quantity,
@@ -837,10 +804,7 @@ where
         // Handle monitor checkins.
         if summary.monitor_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Monitor);
-            let checkin_limits = self
-                .check
-                .apply(item_scoping, summary.monitor_quantity)
-                .await?;
+            let checkin_limits = self.check.apply(item_scoping, summary.monitor_quantity)?;
             enforcement.check_ins = CategoryLimit::new(
                 DataCategory::Monitor,
                 summary.monitor_quantity,
@@ -861,8 +825,7 @@ where
         } else if summary.span_quantity > 0 {
             let mut span_limits = self
                 .check
-                .apply(scoping.item(DataCategory::Span), summary.span_quantity)
-                .await?;
+                .apply(scoping.item(DataCategory::Span), summary.span_quantity)?;
             enforcement.spans = CategoryLimit::new(
                 DataCategory::Span,
                 summary.span_quantity,
@@ -870,14 +833,10 @@ where
             );
 
             if span_limits.is_empty() {
-                span_limits.merge(
-                    self.check
-                        .apply(
-                            scoping.item(DataCategory::SpanIndexed),
-                            summary.span_quantity,
-                        )
-                        .await?,
-                );
+                span_limits.merge(self.check.apply(
+                    scoping.item(DataCategory::SpanIndexed),
+                    summary.span_quantity,
+                )?);
             }
 
             enforcement.spans_indexed = CategoryLimit::new(
@@ -894,8 +853,7 @@ where
             let item_scoping = scoping.item(DataCategory::ProfileChunk);
             let profile_chunk_limits = self
                 .check
-                .apply(item_scoping, summary.profile_chunk_quantity)
-                .await?;
+                .apply(item_scoping, summary.profile_chunk_quantity)?;
             enforcement.profile_chunks = CategoryLimit::new(
                 DataCategory::ProfileChunk,
                 summary.profile_chunk_quantity,
@@ -908,7 +866,7 @@ where
     }
 }
 
-impl<F, E, R> fmt::Debug for EnvelopeLimiter<F, E, R> {
+impl<F> fmt::Debug for EnvelopeLimiter<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EnvelopeLimiter")
             .field("event_category", &self.event_category)
@@ -918,24 +876,24 @@ impl<F, E, R> fmt::Debug for EnvelopeLimiter<F, E, R> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::services::processor::ProcessingGroup;
-    use crate::{
-        envelope::{AttachmentType, ContentType, SourceQuantities},
-        extractors::RequestMeta,
-    };
+    use std::collections::{BTreeMap, BTreeSet};
+
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::MetricNamespace;
     use relay_quotas::RetryAfter;
     use relay_system::Addr;
     use smallvec::smallvec;
-    use std::collections::{BTreeMap, BTreeSet};
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
 
-    #[tokio::test]
-    async fn test_format_rate_limits() {
+    use super::*;
+    use crate::services::processor::ProcessingGroup;
+    use crate::{
+        envelope::{AttachmentType, ContentType, SourceQuantities},
+        extractors::RequestMeta,
+    };
+
+    #[test]
+    fn test_format_rate_limits() {
         let mut rate_limits = RateLimits::new();
 
         // Add a generic rate limit for all categories.
@@ -961,8 +919,8 @@ mod tests {
         assert_eq!(formatted, expected);
     }
 
-    #[tokio::test]
-    async fn test_format_rate_limits_namespace() {
+    #[test]
+    fn test_format_rate_limits_namespace() {
         let mut rate_limits = RateLimits::new();
 
         // Rate limit with reason code and namespace.
@@ -989,8 +947,8 @@ mod tests {
         assert_eq!(formatted, expected);
     }
 
-    #[tokio::test]
-    async fn test_parse_invalid_rate_limits() {
+    #[test]
+    fn test_parse_invalid_rate_limits() {
         let scoping = Scoping {
             organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
@@ -1003,8 +961,8 @@ mod tests {
         assert!(parse_rate_limits(&scoping, ",,,").is_ok());
     }
 
-    #[tokio::test]
-    async fn test_parse_rate_limits() {
+    #[test]
+    fn test_parse_rate_limits() {
         let scoping = Scoping {
             organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
@@ -1046,8 +1004,8 @@ mod tests {
         assert_eq!(4711, rate_limits[1].retry_after.remaining_seconds());
     }
 
-    #[tokio::test]
-    async fn test_parse_rate_limits_namespace() {
+    #[test]
+    fn test_parse_rate_limits_namespace() {
         let scoping = Scoping {
             organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
@@ -1071,8 +1029,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_parse_rate_limits_empty_namespace() {
+    #[test]
+    fn test_parse_rate_limits_empty_namespace() {
         let scoping = Scoping {
             organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
@@ -1097,8 +1055,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_parse_rate_limits_only_unknown() {
+    #[test]
+    fn test_parse_rate_limits_only_unknown() {
         let scoping = Scoping {
             organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
@@ -1230,30 +1188,21 @@ mod tests {
         }
     }
 
-    async fn enforce_and_apply(
-        mock: Arc<Mutex<MockLimiter>>,
+    fn enforce_and_apply(
+        mock: &mut MockLimiter,
         envelope: &mut ManagedEnvelope,
         #[allow(unused_variables)] assume_event: Option<DataCategory>,
     ) -> (Enforcement, RateLimits) {
         let scoping = envelope.scoping();
 
         #[allow(unused_mut)]
-        let mut limiter = EnvelopeLimiter::new(CheckLimits::All, move |s, q| {
-            let mock = mock.clone();
-            async move {
-                let mut mock = mock.lock().await;
-                mock.check(s, q)
-            }
-        });
+        let mut limiter = EnvelopeLimiter::new(CheckLimits::All, |s, q| mock.check(s, q));
         #[cfg(feature = "processing")]
         if let Some(assume_event) = assume_event {
             limiter.assume_event(assume_event);
         }
 
-        let (enforcement, limits) = limiter
-            .compute(envelope.envelope_mut(), &scoping)
-            .await
-            .unwrap();
+        let (enforcement, limits) = limiter.compute(envelope.envelope_mut(), &scoping).unwrap();
 
         // We implemented `clone` only for tests because we don't want to make `apply_with_outcomes`
         // &self because we want move semantics to prevent double tracking.
@@ -1262,87 +1211,78 @@ mod tests {
         (enforcement, limits)
     }
 
-    fn mock_limiter(category: Option<DataCategory>) -> Arc<Mutex<MockLimiter>> {
-        let mut mock = MockLimiter::default();
-        if let Some(category) = category {
-            mock = mock.deny(category);
-        }
-
-        Arc::new(Mutex::new(mock))
-    }
-
-    #[tokio::test]
-    async fn test_enforce_pass_empty() {
+    #[test]
+    fn test_enforce_pass_empty() {
         let mut envelope = envelope![];
 
-        let mock = mock_limiter(None);
-        let (_, limits) = enforce_and_apply(mock, &mut envelope, None).await;
+        let mut mock = MockLimiter::default();
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(!limits.is_limited());
         assert!(envelope.envelope().is_empty());
     }
 
-    #[tokio::test]
-    async fn test_enforce_limit_error_event() {
+    #[test]
+    fn test_enforce_limit_error_event() {
         let mut envelope = envelope![Event];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
-        let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert!(envelope.envelope().is_empty());
-        mock.lock().await.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Error, 1);
     }
 
-    #[tokio::test]
-    async fn test_enforce_limit_error_with_attachments() {
+    #[test]
+    fn test_enforce_limit_error_with_attachments() {
         let mut envelope = envelope![Event, Attachment];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
-        let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert!(envelope.envelope().is_empty());
-        mock.lock().await.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Error, 1);
     }
 
-    #[tokio::test]
-    async fn test_enforce_limit_minidump() {
+    #[test]
+    fn test_enforce_limit_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
-        let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert!(envelope.envelope().is_empty());
-        mock.lock().await.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Error, 1);
     }
 
-    #[tokio::test]
-    async fn test_enforce_limit_attachments() {
+    #[test]
+    fn test_enforce_limit_attachments() {
         let mut envelope = envelope![Attachment::Minidump, Attachment];
 
-        let mock = mock_limiter(Some(DataCategory::Attachment));
-        let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         // Attachments would be limited, but crash reports create events and are thus allowed.
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 1);
-        mock.lock().await.assert_call(DataCategory::Error, 1);
-        mock.lock().await.assert_call(DataCategory::Attachment, 20);
+        mock.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Attachment, 20);
     }
 
     /// Limit stand-alone profiles.
-    #[tokio::test]
-    async fn test_enforce_limit_profiles() {
+    #[test]
+    fn test_enforce_limit_profiles() {
         let mut envelope = envelope![Profile, Profile];
 
-        let mock = mock_limiter(Some(DataCategory::Profile));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Profile);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::Profile, 2);
+        mock.assert_call(DataCategory::Profile, 2);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1354,16 +1294,16 @@ mod tests {
     }
 
     /// Limit profile chunks.
-    #[tokio::test]
-    async fn test_enforce_limit_profile_chunks() {
+    #[test]
+    fn test_enforce_limit_profile_chunks() {
         let mut envelope = envelope![ProfileChunk, ProfileChunk];
 
-        let mock = mock_limiter(Some(DataCategory::ProfileChunk));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::ProfileChunk);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::ProfileChunk, 2);
+        mock.assert_call(DataCategory::ProfileChunk, 2);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1372,51 +1312,51 @@ mod tests {
     }
 
     /// Limit replays.
-    #[tokio::test]
-    async fn test_enforce_limit_replays() {
+    #[test]
+    fn test_enforce_limit_replays() {
         let mut envelope = envelope![ReplayEvent, ReplayRecording, ReplayVideo];
 
-        let mock = mock_limiter(Some(DataCategory::Replay));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Replay);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::Replay, 3);
+        mock.assert_call(DataCategory::Replay, 3);
 
         assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Replay, 3),]);
     }
 
     /// Limit monitor checkins.
-    #[tokio::test]
-    async fn test_enforce_limit_monitor_checkins() {
+    #[test]
+    fn test_enforce_limit_monitor_checkins() {
         let mut envelope = envelope![CheckIn];
 
-        let mock = mock_limiter(Some(DataCategory::Monitor));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Monitor);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::Monitor, 1);
+        mock.assert_call(DataCategory::Monitor, 1);
 
         assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Monitor, 1)])
     }
 
-    #[tokio::test]
-    async fn test_enforce_pass_minidump() {
+    #[test]
+    fn test_enforce_pass_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
 
-        let mock = mock_limiter(Some(DataCategory::Attachment));
-        let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
         assert_eq!(envelope.envelope().len(), 1);
-        mock.lock().await.assert_call(DataCategory::Error, 1);
-        mock.lock().await.assert_call(DataCategory::Attachment, 10);
+        mock.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Attachment, 10);
     }
 
-    #[tokio::test]
-    async fn test_enforce_skip_rate_limited() {
+    #[test]
+    fn test_enforce_skip_rate_limited() {
         let mut envelope = envelope![];
 
         let mut item = Item::new(ItemType::Attachment);
@@ -1424,79 +1364,78 @@ mod tests {
         item.set_rate_limited(true);
         envelope.envelope_mut().add_item(item);
 
-        let mock = mock_limiter(Some(DataCategory::Error));
-        let (_, limits) = enforce_and_apply(mock, &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(!limits.is_limited()); // No new rate limits applied.
         assert_eq!(envelope.envelope().len(), 1); // The item was retained
     }
 
-    #[tokio::test]
-    async fn test_enforce_pass_sessions() {
+    #[test]
+    fn test_enforce_pass_sessions() {
         let mut envelope = envelope![Session, Session, Session];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
-        let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
         assert_eq!(envelope.envelope().len(), 3);
-        mock.lock().await.assert_call(DataCategory::Session, 3);
+        mock.assert_call(DataCategory::Session, 3);
     }
 
-    #[tokio::test]
-    async fn test_enforce_limit_sessions() {
+    #[test]
+    fn test_enforce_limit_sessions() {
         let mut envelope = envelope![Session, Session, Event];
 
-        let mock = mock_limiter(Some(DataCategory::Session));
-        let (_, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Session);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 1);
-        mock.lock().await.assert_call(DataCategory::Error, 1);
-        mock.lock().await.assert_call(DataCategory::Session, 2);
+        mock.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Session, 2);
     }
 
-    #[tokio::test]
+    #[test]
     #[cfg(feature = "processing")]
-    async fn test_enforce_limit_assumed_event() {
+    fn test_enforce_limit_assumed_event() {
         let mut envelope = envelope![];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
         let (_, limits) =
-            enforce_and_apply(mock.clone(), &mut envelope, Some(DataCategory::Transaction)).await;
+            enforce_and_apply(&mut mock, &mut envelope, Some(DataCategory::Transaction));
 
         assert!(limits.is_limited());
         assert!(envelope.envelope().is_empty()); // obviously
-        mock.lock().await.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::Transaction, 1);
     }
 
-    #[tokio::test]
+    #[test]
     #[cfg(feature = "processing")]
-    async fn test_enforce_limit_assumed_attachments() {
+    fn test_enforce_limit_assumed_attachments() {
         let mut envelope = envelope![Attachment, Attachment];
 
-        let mock = mock_limiter(Some(DataCategory::Error));
-        let (_, limits) =
-            enforce_and_apply(mock.clone(), &mut envelope, Some(DataCategory::Error)).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let (_, limits) = enforce_and_apply(&mut mock, &mut envelope, Some(DataCategory::Error));
 
         assert!(limits.is_limited());
         assert!(envelope.envelope().is_empty());
-        mock.lock().await.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Error, 1);
     }
 
-    #[tokio::test]
-    async fn test_enforce_transaction() {
+    #[test]
+    fn test_enforce_transaction() {
         let mut envelope = envelope![Transaction];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert!(enforcement.event_indexed.is_active());
         assert!(enforcement.event.is_active());
-        mock.lock().await.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::Transaction, 1);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1507,25 +1446,15 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_enforce_transaction_non_indexed() {
+    #[test]
+    fn test_enforce_transaction_non_indexed() {
         let mut envelope = envelope![Transaction, Profile];
         let scoping = envelope.scoping();
 
-        let mock = mock_limiter(Some(DataCategory::TransactionIndexed));
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
 
-        let mock_clone = mock.clone();
-        let limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, move |s, q| {
-            let mock_clone = mock_clone.clone();
-            async move {
-                let mut mock = mock_clone.lock().await;
-                mock.check(s, q)
-            }
-        });
-        let (enforcement, limits) = limiter
-            .compute(envelope.envelope_mut(), &scoping)
-            .await
-            .unwrap();
+        let limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.compute(envelope.envelope_mut(), &scoping).unwrap();
         enforcement.clone().apply_with_outcomes(&mut envelope);
 
         assert!(!limits.is_limited());
@@ -1533,36 +1462,34 @@ mod tests {
         assert!(!enforcement.event.is_active());
         assert!(!enforcement.profiles_indexed.is_active());
         assert!(!enforcement.profiles.is_active());
-        mock.lock().await.assert_call(DataCategory::Transaction, 1);
-        mock.lock().await.assert_call(DataCategory::Profile, 1);
+        mock.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::Profile, 1);
     }
 
-    #[tokio::test]
-    async fn test_enforce_transaction_no_indexing_quota() {
+    #[test]
+    fn test_enforce_transaction_no_indexing_quota() {
         let mut envelope = envelope![Transaction];
 
-        let mock = mock_limiter(Some(DataCategory::TransactionIndexed));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert!(enforcement.event_indexed.is_active());
         assert!(!enforcement.event.is_active());
-        mock.lock().await.assert_call(DataCategory::Transaction, 1);
-        mock.lock()
-            .await
-            .assert_call(DataCategory::TransactionIndexed, 1);
+        mock.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::TransactionIndexed, 1);
     }
 
-    #[tokio::test]
-    async fn test_enforce_transaction_attachment_enforced() {
+    #[test]
+    fn test_enforce_transaction_attachment_enforced() {
         let mut envelope = envelope![Transaction, Attachment];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
-        let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let (enforcement, _) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.attachments.is_active());
-        mock.lock().await.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::Transaction, 1);
     }
 
     fn get_outcomes(enforcement: Enforcement) -> Vec<(DataCategory, usize)> {
@@ -1572,16 +1499,16 @@ mod tests {
             .collect::<Vec<_>>()
     }
 
-    #[tokio::test]
-    async fn test_enforce_transaction_profile_enforced() {
+    #[test]
+    fn test_enforce_transaction_profile_enforced() {
         let mut envelope = envelope![Transaction, Profile];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
-        let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let (enforcement, _) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.profiles.is_active());
-        mock.lock().await.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::Transaction, 1);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1594,17 +1521,17 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_enforce_transaction_standalone_profile_enforced() {
+    #[test]
+    fn test_enforce_transaction_standalone_profile_enforced() {
         // When the transaction is sampled, the profile survives as standalone.
         let mut envelope = envelope![Profile];
 
-        let mock = mock_limiter(Some(DataCategory::Transaction));
-        let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let (enforcement, _) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(enforcement.profiles.is_active());
-        mock.lock().await.assert_call(DataCategory::Profile, 1);
-        mock.lock().await.assert_call(DataCategory::Transaction, 0);
+        mock.assert_call(DataCategory::Profile, 1);
+        mock.assert_call(DataCategory::Transaction, 0);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1615,22 +1542,20 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_enforce_transaction_attachment_enforced_indexing_quota() {
+    #[test]
+    fn test_enforce_transaction_attachment_enforced_indexing_quota() {
         let mut envelope = envelope![Transaction, Attachment];
         set_extracted(envelope.envelope_mut(), ItemType::Transaction);
 
-        let mock = mock_limiter(Some(DataCategory::TransactionIndexed));
-        let (enforcement, _) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
+        let (enforcement, _) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(!enforcement.event.is_active());
         assert!(enforcement.event_indexed.is_active());
         assert!(enforcement.attachments.is_active());
         assert!(enforcement.attachment_items.is_active());
-        mock.lock().await.assert_call(DataCategory::Transaction, 1);
-        mock.lock()
-            .await
-            .assert_call(DataCategory::TransactionIndexed, 1);
+        mock.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::TransactionIndexed, 1);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1642,17 +1567,17 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_enforce_span() {
+    #[test]
+    fn test_enforce_span() {
         let mut envelope = envelope![Span, OtelSpan];
 
-        let mock = mock_limiter(Some(DataCategory::Span));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::Span);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
         assert!(enforcement.spans.is_active());
-        mock.lock().await.assert_call(DataCategory::Span, 2);
+        mock.assert_call(DataCategory::Span, 2);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1660,18 +1585,18 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_enforce_span_no_indexing_quota() {
+    #[test]
+    fn test_enforce_span_no_indexing_quota() {
         let mut envelope = envelope![OtelSpan, Span];
 
-        let mock = mock_limiter(Some(DataCategory::SpanIndexed));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::SpanIndexed);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
         assert!(!enforcement.spans.is_active());
-        mock.lock().await.assert_call(DataCategory::Span, 2);
-        mock.lock().await.assert_call(DataCategory::SpanIndexed, 2);
+        mock.assert_call(DataCategory::Span, 2);
+        mock.assert_call(DataCategory::SpanIndexed, 2);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1679,19 +1604,19 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_enforce_span_metrics_extracted_no_indexing_quota() {
+    #[test]
+    fn test_enforce_span_metrics_extracted_no_indexing_quota() {
         let mut envelope = envelope![Span, OtelSpan];
         set_extracted(envelope.envelope_mut(), ItemType::Span);
 
-        let mock = mock_limiter(Some(DataCategory::SpanIndexed));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::SpanIndexed);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
         assert!(!enforcement.spans.is_active());
-        mock.lock().await.assert_call(DataCategory::Span, 2);
-        mock.lock().await.assert_call(DataCategory::SpanIndexed, 2);
+        mock.assert_call(DataCategory::Span, 2);
+        mock.assert_call(DataCategory::SpanIndexed, 2);
 
         assert_eq!(
             get_outcomes(enforcement),
@@ -1732,32 +1657,32 @@ mod tests {
         assert_eq!(summary.secondary_transaction_quantity, 7);
     }
 
-    #[tokio::test]
-    async fn test_enforce_limit_logs_count() {
+    #[test]
+    fn test_enforce_limit_logs_count() {
         let mut envelope = envelope![Log, Log];
 
-        let mock = mock_limiter(Some(DataCategory::LogItem));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::LogItem);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::LogItem, 2);
-        mock.lock().await.assert_call(DataCategory::LogByte, 20);
+        mock.assert_call(DataCategory::LogItem, 2);
+        mock.assert_call(DataCategory::LogByte, 20);
 
         assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogItem, 2)]);
     }
 
-    #[tokio::test]
-    async fn test_enforce_limit_logs_bytes() {
+    #[test]
+    fn test_enforce_limit_logs_bytes() {
         let mut envelope = envelope![Log, Log];
 
-        let mock = mock_limiter(Some(DataCategory::LogByte));
-        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        let mut mock = MockLimiter::default().deny(DataCategory::LogByte);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::LogItem, 2);
-        mock.lock().await.assert_call(DataCategory::LogByte, 20);
+        mock.assert_call(DataCategory::LogItem, 2);
+        mock.assert_call(DataCategory::LogByte, 20);
 
         assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogByte, 20)]);
     }

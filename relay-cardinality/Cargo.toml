@@ -18,9 +18,9 @@ redis = ["relay-redis/impl"]
 workspace = true
 
 [dependencies]
-async-trait = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
+parking_lot = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
 relay-log = { workspace = true }
@@ -28,13 +28,11 @@ relay-redis = { workspace = true }
 relay-statsd = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 criterion = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
-tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 
 [[bench]]
 name = "redis"

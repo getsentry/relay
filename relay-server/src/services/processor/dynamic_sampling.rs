@@ -69,13 +69,13 @@ pub fn validate_and_set_dsc(
 }
 
 /// Computes the sampling decision on the incoming event
-pub async fn run<Group>(
+pub fn run<Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
-    reservoir: &ReservoirEvaluator<'_>,
+    reservoir: &ReservoirEvaluator,
 ) -> SamplingResult
 where
     Group: Sampling,
@@ -105,7 +105,6 @@ where
         root_config,
         managed_envelope.envelope().dsc(),
     )
-    .await
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
@@ -145,9 +144,9 @@ pub fn drop_unsampled_items(
 }
 
 /// Computes the sampling decision on the incoming envelope.
-async fn compute_sampling_decision(
+fn compute_sampling_decision(
     processing_enabled: bool,
-    reservoir: Option<&ReservoirEvaluator<'_>>,
+    reservoir: Option<&ReservoirEvaluator>,
     sampling_config: Option<&SamplingConfig>,
     event: Option<&Event>,
     root_sampling_config: Option<&SamplingConfig>,
@@ -177,7 +176,7 @@ async fn compute_sampling_decision(
     if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
         if let Some(seed) = event.id.value().map(|id| id.0) {
             let rules = sampling_state.filter_rules(RuleType::Transaction);
-            evaluator = match evaluator.match_rules(seed, event, rules).await {
+            evaluator = match evaluator.match_rules(seed, event, rules) {
                 ControlFlow::Continue(evaluator) => evaluator,
                 ControlFlow::Break(sampling_match) => {
                     return SamplingResult::Match(sampling_match);
@@ -188,7 +187,7 @@ async fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
-        return evaluator.match_rules(dsc.trace_id, dsc, rules).await.into();
+        return evaluator.match_rules(dsc.trace_id, dsc, rules).into();
     }
 
     SamplingResult::NoMatch
@@ -199,7 +198,7 @@ async fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-pub async fn tag_error_with_sampling_decision<Group: EventProcessing>(
+pub fn tag_error_with_sampling_decision<Group: EventProcessing>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
@@ -223,7 +222,7 @@ pub async fn tag_error_with_sampling_decision<Group: EventProcessing>(
         return;
     }
 
-    let Some(sampled) = utils::is_trace_fully_sampled(sampling_config, dsc).await else {
+    let Some(sampled) = utils::is_trace_fully_sampled(sampling_config, dsc) else {
         return;
     };
 
@@ -315,10 +314,7 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap();
+        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
         let ctx = envelope_response.envelope.unwrap();
         ctx.envelope().clone()
     }
@@ -369,8 +365,8 @@ mod tests {
         assert!(event.contexts.value().is_none());
     }
 
-    #[tokio::test]
-    async fn test_it_keeps_or_drops_transactions() {
+    #[test]
+    fn test_it_keeps_or_drops_transactions() {
         let event = Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(EventType::Transaction),
@@ -401,8 +397,7 @@ mod tests {
                 Some(&event),
                 None,
                 None,
-            )
-            .await;
+            );
             assert_eq!(res.decision().is_keep(), should_keep);
         }
     }
@@ -473,8 +468,7 @@ mod tests {
             project_info,
             None,
             &reservoir,
-        )
-        .await;
+        );
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
@@ -486,8 +480,7 @@ mod tests {
             project_info,
             None,
             &reservoir,
-        )
-        .await;
+        );
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transaction metrics version is up to date.
@@ -499,8 +492,7 @@ mod tests {
             project_info,
             None,
             &reservoir,
-        )
-        .await;
+        );
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -614,8 +606,8 @@ mod tests {
     }
 
     /// Happy path test for compute_sampling_decision.
-    #[tokio::test]
-    async fn test_compute_sampling_decision_matching() {
+    #[test]
+    fn test_compute_sampling_decision_matching() {
         let event = mocked_event(EventType::Transaction, "foo", "bar");
         let rule = SamplingRule {
             condition: RuleCondition::all(),
@@ -638,13 +630,12 @@ mod tests {
             Some(&event),
             None,
             None,
-        )
-        .await;
+        );
         assert!(res.is_match());
     }
 
-    #[tokio::test]
-    async fn test_matching_with_unsupported_rule() {
+    #[test]
+    fn test_matching_with_unsupported_rule() {
         let event = mocked_event(EventType::Transaction, "foo", "bar");
         let rule = SamplingRule {
             condition: RuleCondition::all(),
@@ -677,19 +668,17 @@ mod tests {
             Some(&event),
             None,
             None,
-        )
-        .await;
+        );
         assert!(res.is_no_match());
 
         // Match if processing is enabled.
         let res =
-            compute_sampling_decision(true, None, Some(&sampling_config), Some(&event), None, None)
-                .await;
+            compute_sampling_decision(true, None, Some(&sampling_config), Some(&event), None, None);
         assert!(res.is_match());
     }
 
-    #[tokio::test]
-    async fn test_client_sample_rate() {
+    #[test]
+    fn test_client_sample_rate() {
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -718,13 +707,12 @@ mod tests {
         };
 
         let res =
-            compute_sampling_decision(false, None, None, None, Some(&sampling_config), Some(&dsc))
-                .await;
+            compute_sampling_decision(false, None, None, None, Some(&sampling_config), Some(&dsc));
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
     }
 
-    async fn run_with_reservoir_rule<Group>(processing_group: ProcessingGroup) -> SamplingResult
+    fn run_with_reservoir_rule<Group>(processing_group: ProcessingGroup) -> SamplingResult
     where
         Group: Sampling + TryFrom<ProcessingGroup>,
     {
@@ -789,20 +777,18 @@ mod tests {
             sampling_project_info,
             &reservoir,
         )
-        .await
     }
 
-    #[tokio::test]
-    async fn test_reservoir_applied_for_transactions() {
-        let result =
-            run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction).await;
+    #[test]
+    fn test_reservoir_applied_for_transactions() {
+        let result = run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction);
         // Default sampling rate is 0.0, but transaction is retained because of reservoir:
         assert_eq!(result.decision(), SamplingDecision::Keep);
     }
 
-    #[tokio::test]
-    async fn test_reservoir_not_applied_for_spans() {
-        let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span).await;
+    #[test]
+    fn test_reservoir_not_applied_for_spans() {
+        let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span);
         // Default sampling rate is 0.0, and the reservoir does not apply to spans:
         assert_eq!(result.decision(), SamplingDecision::Drop);
     }
