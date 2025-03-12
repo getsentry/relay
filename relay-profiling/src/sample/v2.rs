@@ -102,10 +102,22 @@ pub struct ProfileData {
 
 impl ProfileData {
     fn is_above_max_duration(&self) -> bool {
-        self.samples.last().is_some_and(|last_sample| {
-            let duration = last_sample.timestamp - self.samples[0].timestamp;
-            duration.is_some_and(|d| d.to_f64() > MAX_PROFILE_CHUNK_DURATION_SECS)
-        })
+        if self.samples.is_empty() {
+            return false;
+        }
+        let mut min = self.samples[0].timestamp;
+        let mut max = self.samples[0].timestamp;
+
+        for sample in self.samples.iter().skip(1) {
+            if sample.timestamp < min {
+                min = sample.timestamp
+            } else if sample.timestamp > max {
+                max = sample.timestamp
+            }
+        }
+
+        let duration = max - min;
+        duration.is_some_and(|d| d.to_f64() > MAX_PROFILE_CHUNK_DURATION_SECS)
     }
     /// Ensures valid profile chunk or returns an error.
     ///
@@ -257,7 +269,7 @@ mod tests {
                 want: false,
             },
             TestStruct {
-                name: "not above max duration".to_string(),
+                name: "above max duration".to_string(),
                 profile: ProfileData {
                     samples: vec![
                         Sample {
@@ -276,6 +288,27 @@ mod tests {
                     ..Default::default()
                 },
                 want: true,
+            },
+            TestStruct {
+                name: "unsorted samples not above max duration".to_string(),
+                profile: ProfileData {
+                    samples: vec![
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".into(),
+                            timestamp: FiniteF64::new(50.0).unwrap(),
+                        },
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".to_string(),
+                            timestamp: FiniteF64::new(20.0).unwrap(),
+                        },
+                    ],
+                    stacks: vec![vec![0]],
+                    frames: vec![Default::default()],
+                    ..Default::default()
+                },
+                want: false,
             },
         ];
         for test in &test_cases {
