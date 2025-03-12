@@ -32,10 +32,11 @@ fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     Ok(())
 }
 
-fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
-    match field_name.unwrap_or("") {
-        PROSPERODUMP_EXTENSION => AttachmentType::Prosperodump,
-        _ => AttachmentType::Attachment,
+fn infer_attachment_type(_field_name: Option<&str>, file_name: &str) -> AttachmentType {
+    if file_name.ends_with(PROSPERODUMP_EXTENSION) {
+        AttachmentType::Prosperodump
+    } else {
+        AttachmentType::Attachment
     }
 }
 
@@ -43,7 +44,7 @@ async fn extract_multipart(
     multipart: Multipart<'static>,
     meta: RequestMeta,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = utils::multipart_items_by_extension(multipart, infer_attachment_type).await?;
+    let mut items = utils::multipart_items(multipart, infer_attachment_type).await?;
 
     let prosperodump_item = items
         .iter_mut()
