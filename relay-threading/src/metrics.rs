@@ -9,6 +9,17 @@ use std::sync::Arc;
 pub(crate) struct ThreadMetrics {
     /// Number of futures that are currently being polled concurrently by the thread in the pool.
     pub(crate) active_tasks: AtomicU64,
+    /// Number of tasks that have been successfully driven to completion.
+    ///
+    /// This number will monotonically grow if not reset.
+    pub(crate) finished_tasks: AtomicU64,
+}
+
+impl ThreadMetrics {
+    /// Resets metrics that are monotonically increasing.
+    pub fn reset(&self) {
+        self.finished_tasks.store(0, Ordering::Relaxed);
+    }
 }
 
 /// Metrics for the asynchronous pool.
@@ -23,6 +34,22 @@ impl AsyncPoolMetrics<'_> {
     /// Returns the amount of tasks in the pool's queue.
     pub fn queue_size(&self) -> u64 {
         self.queue_size
+    }
+
+    /// Returns the total number of finished tasks since the last poll.
+    pub fn finished_tasks(&self) -> u64 {
+        let total_finished_tasks: u64 = self
+            .threads_metrics
+            .iter()
+            .map(|m| {
+                let finished_tasks = m.finished_tasks.load(Ordering::Relaxed);
+                m.reset();
+
+                finished_tasks
+            })
+            .sum();
+
+        total_finished_tasks
     }
 
     /// Returns the utilization metric for the pool.

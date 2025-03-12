@@ -617,6 +617,11 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Tracks the number of tasks driven to completion by the async pool.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
+    AsyncPoolFinishedTasks,
     /// Number of Events that had corrupted (unprintable) event attributes.
     ///
     /// This currently checks for `environment` and `release`, for which we know that
@@ -853,6 +858,7 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            RelayCounters::AsyncPoolFinishedTasks => "async_pool.finished_tasks",
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
