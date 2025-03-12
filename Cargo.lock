@@ -3501,6 +3501,7 @@ dependencies = [
  "criterion",
  "hash32",
  "hashbrown 0.14.5",
+ "parking_lot",
  "relay-base-schema",
  "relay-common",
  "relay-log",

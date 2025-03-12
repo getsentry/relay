@@ -122,7 +122,7 @@ impl Limiter for RedisSetLimiter {
         let mut states = LimitState::from_limits(scoping, limits);
 
         // Acquire a read lock on the cache.
-        let cache = self.cache.read(timestamp).await;
+        let cache = self.cache.read(timestamp);
         for entry in entries {
             for state in states.iter_mut() {
                 let Some(scope) = state.matching_scope(entry) else {
@@ -179,7 +179,7 @@ impl Limiter for RedisSetLimiter {
                 // -> there is a very high chance we actually need the lock.
                 //
                 // Acquire a write lock on the cache.
-                let mut cache = self.cache.update(&result.scope, timestamp).await;
+                let mut cache = self.cache.update(&result.scope, timestamp);
                 for (entry, status) in result {
                     if status.is_rejected() {
                         reporter.reject(state.cardinality_limit(), entry.id);

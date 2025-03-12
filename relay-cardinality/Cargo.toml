@@ -21,6 +21,7 @@ workspace = true
 async-trait = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
+parking_lot = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
 relay-log = { workspace = true }
