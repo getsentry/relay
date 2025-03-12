@@ -1560,8 +1560,8 @@ impl EnvelopeProcessorService {
         if managed_envelope
             .envelope()
             .required_features()
-            .contains(&Feature::PlaystationEndpoint)
-            && !project_info.has_feature(Feature::PlaystationEndpoint)
+            .contains(&Feature::PlaystationIngestion)
+            && !project_info.has_feature(Feature::PlaystationIngestion)
         {
             managed_envelope.drop_items_silently();
             return Ok(None);

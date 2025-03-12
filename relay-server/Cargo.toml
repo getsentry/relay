@@ -52,7 +52,6 @@ itertools = { workspace = true }
 json-forensics = { workspace = true }
 libc = { workspace = true }
 liblzma = { workspace = true }
-lz4_flex = { workspace = true }
 mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
