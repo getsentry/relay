@@ -195,6 +195,10 @@ impl RelayStats {
             gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() as f64,
             pool = async_pool.name()
         );
+        metric!(
+            gauge(RelayGauges::AsyncPoolFinishedTasks) = metrics.finished_tasks() as f64,
+            pool = async_pool.name()
+        );
     }
 
     async fn async_pools_metrics(&self) {
