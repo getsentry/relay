@@ -1,9 +1,9 @@
-use parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::fmt;
 use std::time::Duration;
 
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
+use tokio::sync::{RwLock, RwLockMappedWriteGuard, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::redis::quota::QuotaScoping;
 use crate::statsd::{CardinalityLimiterCounters, CardinalityLimiterTimers};
@@ -43,8 +43,8 @@ impl Cache {
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheRead`] must be dropped.
-    pub fn read(&self, timestamp: UnixTimestamp) -> CacheRead<'_> {
-        let inner = self.inner.read();
+    pub async fn read(&self, timestamp: UnixTimestamp) -> CacheRead<'_> {
+        let inner = self.inner.read().await;
         CacheRead::new(inner, timestamp)
     }
 
@@ -52,8 +52,8 @@ impl Cache {
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
-    pub fn update(&self, scope: &QuotaScoping, timestamp: UnixTimestamp) -> CacheUpdate<'_> {
-        let mut inner = self.inner.write();
+    pub async fn update(&self, scope: &QuotaScoping, timestamp: UnixTimestamp) -> CacheUpdate<'_> {
+        let mut inner = self.inner.write().await;
 
         inner.vacuum(timestamp);
 
@@ -76,8 +76,7 @@ impl Cache {
 
 impl fmt::Debug for Cache {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.read();
-        f.debug_tuple("Cache").field(&inner.cache).finish()
+        f.debug_tuple("Cache").finish()
     }
 }
 
@@ -109,7 +108,7 @@ impl<'a> CacheRead<'a> {
 /// Cache update handle.
 ///
 /// Holds a cache write lock, the lock is released on drop.
-pub struct CacheUpdate<'a>(Option<MappedRwLockWriteGuard<'a, ScopedCache>>);
+pub struct CacheUpdate<'a>(Option<RwLockMappedWriteGuard<'a, ScopedCache>>);
 
 impl<'a> CacheUpdate<'a> {
     /// Creates a new [`CacheUpdate`] which operates on the passed cache.
@@ -231,8 +230,8 @@ mod tests {
         })
     }
 
-    #[test]
-    fn test_cache() {
+    #[tokio::test]
+    async fn test_cache() {
         let cache = Cache::new(Duration::from_secs(180));
 
         let window = SlidingWindow {
@@ -244,18 +243,18 @@ mod tests {
         let future = now + Duration::from_secs(window.granularity_seconds + 1);
 
         {
-            let cache = cache.read(now);
+            let cache = cache.read(now).await;
             assert_eq!(cache.check(&scope, 1, 1), CacheOutcome::Unknown);
         }
 
         {
-            let mut cache = cache.update(&scope, now);
+            let mut cache = cache.update(&scope, now).await;
             cache.accept(1);
             cache.accept(2);
         }
 
         {
-            let r1 = cache.read(now);
+            let r1 = cache.read(now).await;
             // All in cache, no matter the limit.
             assert_eq!(r1.check(&scope, 1, 1), CacheOutcome::Accepted);
             assert_eq!(r1.check(&scope, 1, 2), CacheOutcome::Accepted);
@@ -266,24 +265,24 @@ mod tests {
             assert_eq!(r1.check(&scope, 3, 2), CacheOutcome::Rejected);
 
             // Read concurrently from a future slot.
-            let r2 = cache.read(future);
+            let r2 = cache.read(future).await;
             assert_eq!(r2.check(&scope, 1, 1), CacheOutcome::Unknown);
             assert_eq!(r2.check(&scope, 2, 2), CacheOutcome::Unknown);
         }
 
         {
             // Move the cache into the future.
-            let mut cache = cache.update(&scope, future);
+            let mut cache = cache.update(&scope, future).await;
             cache.accept(1);
         }
 
         {
-            let future = cache.read(future);
+            let future = cache.read(future).await;
             // The future only contains `1`.
             assert_eq!(future.check(&scope, 1, 1), CacheOutcome::Accepted);
             assert_eq!(future.check(&scope, 2, 1), CacheOutcome::Rejected);
 
-            let past = cache.read(now);
+            let past = cache.read(now).await;
             // The cache has no information about the past.
             assert_eq!(past.check(&scope, 1, 1), CacheOutcome::Unknown);
             assert_eq!(past.check(&scope, 2, 1), CacheOutcome::Unknown);
@@ -291,8 +290,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_cache_different_scopings() {
+    #[tokio::test]
+    async fn test_cache_different_scopings() {
         let cache = Cache::new(Duration::from_secs(180));
 
         let window = SlidingWindow {
@@ -305,18 +304,18 @@ mod tests {
         let now = UnixTimestamp::now();
 
         {
-            let mut cache = cache.update(&scope1, now);
+            let mut cache = cache.update(&scope1, now).await;
             cache.accept(1);
         }
 
         {
-            let mut cache = cache.update(&scope2, now);
+            let mut cache = cache.update(&scope2, now).await;
             cache.accept(1);
             cache.accept(2);
         }
 
         {
-            let cache = cache.read(now);
+            let cache = cache.read(now).await;
             assert_eq!(cache.check(&scope1, 1, 99), CacheOutcome::Accepted);
             assert_eq!(cache.check(&scope1, 2, 99), CacheOutcome::Unknown);
             assert_eq!(cache.check(&scope1, 3, 99), CacheOutcome::Unknown);
@@ -328,8 +327,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_cache_vacuum() {
+    #[tokio::test]
+    async fn test_cache_vacuum() {
         let vacuum_interval = Duration::from_secs(30);
         let cache = Cache::new(vacuum_interval);
 
@@ -345,43 +344,43 @@ mod tests {
         let future = now + Duration::from_secs(vacuum_interval.as_secs() * 3);
 
         {
-            let mut cache = cache.update(&scope1, now);
+            let mut cache = cache.update(&scope1, now).await;
             cache.accept(10);
         }
 
         {
-            let mut cache = cache.update(&scope2, now);
+            let mut cache = cache.update(&scope2, now).await;
             cache.accept(20);
         }
 
         {
             // Verify entries.
-            let cache = cache.read(now);
+            let cache = cache.read(now).await;
             assert_eq!(cache.check(&scope1, 10, 100), CacheOutcome::Accepted);
             assert_eq!(cache.check(&scope2, 20, 100), CacheOutcome::Accepted);
         }
 
         {
             // Fast forward time a little bit and stay within all bounds.
-            let mut cache = cache.update(&scope2, in_interval);
+            let mut cache = cache.update(&scope2, in_interval).await;
             cache.accept(21);
         }
 
         {
             // Verify entries with old timestamp, values should still be there.
-            let cache = cache.read(now);
+            let cache = cache.read(now).await;
             assert_eq!(cache.check(&scope1, 10, 100), CacheOutcome::Accepted);
         }
 
         {
-            // Fast forward time far in the future, should vacuum old values.
-            let mut cache = cache.update(&scope2, future);
+            // Fast-forward time far in the future, should vacuum old values.
+            let mut cache = cache.update(&scope2, future).await;
             cache.accept(22);
         }
 
         {
             // Verify that there is no data with the original timestamp.
-            let cache = cache.read(now);
+            let cache = cache.read(now).await;
             assert_eq!(cache.check(&scope1, 10, 100), CacheOutcome::Unknown);
             assert_eq!(cache.check(&scope1, 11, 100), CacheOutcome::Unknown);
             assert_eq!(cache.check(&scope2, 20, 100), CacheOutcome::Unknown);
@@ -390,7 +389,7 @@ mod tests {
 
         {
             // Make sure the new/current values are cached.
-            let cache = cache.read(future);
+            let cache = cache.read(future).await;
             assert_eq!(cache.check(&scope2, 22, 100), CacheOutcome::Accepted);
         }
     }
