@@ -157,7 +157,6 @@ fn expand_dying_message_from_envelope_items(data: Bytes, envelope: &mut Envelope
 }
 
 fn update_event(item: Item, event: &mut Item) -> std::result::Result<(), serde_json::Error> {
-    // TODO is it OK to merge events this way, without updating envelope item headers?
     let original_json = serde_json::from_slice::<serde_json::Value>(&event.payload())?;
     let mut new_json = serde_json::from_slice(&item.payload())?;
     utils::merge_values(&mut new_json, original_json);
