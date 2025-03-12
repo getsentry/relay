@@ -1552,23 +1552,23 @@ impl EnvelopeProcessorService {
         report::process_user_reports(managed_envelope);
 
         if_processing!(self.inner.config, {
+            if managed_envelope
+                .envelope()
+                .required_features()
+                .contains(&Feature::PlaystationIngestion)
+                && should_filter(
+                    &self.inner.config,
+                    &project_info,
+                    Feature::PlaystationIngestion,
+                )
+            {
+                managed_envelope.drop_items_silently();
+                return Ok(None);
+            }
+
             unreal::expand(managed_envelope, &self.inner.config)?;
+            playstation::expand(managed_envelope, &self.inner.config)?;
         });
-
-        // TODO: Check if this is the correct way of doing this. Or if we should go via
-        // should_filter.
-        if managed_envelope
-            .envelope()
-            .required_features()
-            .contains(&Feature::PlaystationIngestion)
-            && !project_info.has_feature(Feature::PlaystationIngestion)
-        {
-            managed_envelope.drop_items_silently();
-            return Ok(None);
-        }
-
-        // TODO: Would probably either want to "expand here" (guard with some flag)
-        playstation::expand(managed_envelope, &self.inner.config)?;
 
         let extraction_result = event::extract(
             managed_envelope,
@@ -1584,7 +1584,6 @@ impl EnvelopeProcessorService {
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }
-            // TODO: Process
             if let Some(inner_event_fully_normalized) =
                 playstation::process(managed_envelope, &mut event)?
             {
