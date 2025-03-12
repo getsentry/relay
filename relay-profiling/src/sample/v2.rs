@@ -116,8 +116,8 @@ impl ProfileData {
             }
         }
 
-        let duration = max - min;
-        duration.is_some_and(|d| d.to_f64() > MAX_PROFILE_CHUNK_DURATION_SECS)
+        let duration = max.saturating_sub(min);
+        duration.to_f64() > MAX_PROFILE_CHUNK_DURATION_SECS
     }
     /// Ensures valid profile chunk or returns an error.
     ///
