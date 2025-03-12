@@ -838,28 +838,11 @@
 <a href="#837" id="837">837</a>
 <a href="#838" id="838">838</a>
 <a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a></pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
+<a href="#840" id="840">840</a></pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>std::cmp::Reverse;
 <span class="kw">use </span>std::collections::BTreeMap;
 
-<span class="kw">use </span>async_trait::async_trait;
 <span class="kw">use </span>hashbrown::{HashMap, HashSet};
 <span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
@@ -907,7 +890,7 @@
     </span><span class="kw">pub </span>metric_type: <span class="prelude-ty">Option</span>&lt;MetricType&gt;,
     <span class="doccomment">/// Metric name for which the cardinality limit was applied.
     ///
-    /// Only available if the limit was scoped to
+    /// Only available if the the limit was scoped to
     /// [`CardinalityScope::Name`](crate::CardinalityScope::Name).
     </span><span class="kw">pub </span>metric_name: <span class="prelude-ty">Option</span>&lt;MetricName&gt;,
 
@@ -931,12 +914,11 @@
 }
 
 <span class="doccomment">/// Limiter responsible to enforce limits.
-</span><span class="attr">#[async_trait]
 </span><span class="kw">pub trait </span>Limiter {
     <span class="doccomment">/// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    </span><span class="kw">async fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, E, R&gt;(
+    </span><span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, E, R&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -944,8 +926,8 @@
         reporter: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
     <span class="kw">where
-        </span>E: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt; + Send,
-        R: Reporter&lt;<span class="lifetime">'a</span>&gt; + Send;
+        </span>E: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
+        R: Reporter&lt;<span class="lifetime">'a</span>&gt;;
 }
 
 <span class="doccomment">/// Unit of operation for the cardinality limiter.
@@ -965,8 +947,9 @@
 <span class="doccomment">/// A single entry to check cardinality for.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub struct </span>Entry&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="doccomment">/// Opaque entry id, used to keep track of indices and buckets.
+    <span class="doccomment">/// Opaque entry Id, used to keep track of indices and buckets.
     </span><span class="kw">pub </span>id: EntryId,
+
     <span class="doccomment">/// Metric namespace to which the cardinality limit can be scoped.
     </span><span class="kw">pub </span>namespace: MetricNamespace,
     <span class="doccomment">/// Name to which the cardinality limit can be scoped.
@@ -1011,7 +994,7 @@
     <span class="doccomment">/// Checks cardinality limits of a list of buckets.
     ///
     /// Returns an iterator of all buckets that have been accepted.
-    </span><span class="kw">pub async fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, I: CardinalityItem&gt;(
+    </span><span class="kw">pub fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, I: CardinalityItem&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -1022,25 +1005,20 @@
         }
 
         <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::CardinalityLimiter), {
-            <span class="kw">let </span>entries = items
-                .iter()
-                .enumerate()
-                .filter_map(|(id, item)| {
-                    <span class="prelude-val">Some</span>(Entry::new(
-                        EntryId(id),
-                        item.namespace()<span class="question-mark">?</span>,
-                        item.name(),
-                        item.to_hash(),
-                    ))
-                })
-                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+            <span class="kw">let </span>entries = items.iter().enumerate().filter_map(|(id, item)| {
+                <span class="prelude-val">Some</span>(Entry::new(
+                    EntryId(id),
+                    item.namespace()<span class="question-mark">?</span>,
+                    item.name(),
+                    item.to_hash(),
+                ))
+            });
 
             <span class="kw">let </span><span class="kw-2">mut </span>rejections = DefaultReporter::default();
-            <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self
-                </span>.limiter
-                .check_cardinality_limits(scoping, limits, entries, <span class="kw-2">&amp;mut </span>rejections)
-                .<span class="kw">await
-            </span>{
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(err) =
+                <span class="self">self</span>.limiter
+                    .check_cardinality_limits(scoping, limits, entries, <span class="kw-2">&amp;mut </span>rejections)
+            {
                 <span class="kw">return </span><span class="prelude-val">Err</span>((items, err));
             }
 
@@ -1262,8 +1240,8 @@
         }
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_accepted() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_accepted() {
         <span class="comment">// HACK: we need to make Windows happy.
         </span><span class="kw">fn </span>assert_eq(value: Vec&lt;char&gt;, expected_value: Vec&lt;char&gt;) {
             <span class="macro">assert_eq!</span>(value, expected_value)
@@ -1334,13 +1312,12 @@
         assert_eq(split.accepted, <span class="macro">vec!</span>[]);
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_limiter_reject_all() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_limiter_reject_all() {
         <span class="kw">struct </span>RejectAllLimiter;
 
-        <span class="attr">#[async_trait]
-        </span><span class="kw">impl </span>Limiter <span class="kw">for </span>RejectAllLimiter {
-            <span class="kw">async fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
+        <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectAllLimiter {
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 _scoping: Scoping,
                 limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -1348,8 +1325,8 @@
                 rejections: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt; + Send,
-                T: Reporter&lt;<span class="lifetime">'a</span>&gt; + Send,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
+                T: Reporter&lt;<span class="lifetime">'a</span>&gt;,
             {
                 <span class="kw">for </span>entry <span class="kw">in </span>entries {
                     rejections.reject(<span class="kw-2">&amp;</span>limits[<span class="number">0</span>], entry.id);
@@ -1368,8 +1345,7 @@
         <span class="kw">let </span>limits = build_limits();
         <span class="kw">let </span>result = limiter
             .check_cardinality_limits(build_scoping(), <span class="kw-2">&amp;</span>limits, items.clone())
-            .<span class="kw">await
-            </span>.unwrap();
+            .unwrap();
 
         <span class="kw">let </span>expected_items = items
             .into_iter()
@@ -1382,13 +1358,12 @@
         <span class="macro">assert!</span>(split.accepted.is_empty());
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_limiter_accept_all() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_limiter_accept_all() {
         <span class="kw">struct </span>AcceptAllLimiter;
 
-        <span class="attr">#[async_trait]
-        </span><span class="kw">impl </span>Limiter <span class="kw">for </span>AcceptAllLimiter {
-            <span class="kw">async fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
+        <span class="kw">impl </span>Limiter <span class="kw">for </span>AcceptAllLimiter {
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 _scoping: Scoping,
                 _limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -1396,8 +1371,8 @@
                 _reporter: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt; + Send,
-                T: Reporter&lt;<span class="lifetime">'a</span>&gt; + Send,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
+                T: Reporter&lt;<span class="lifetime">'a</span>&gt;,
             {
                 <span class="prelude-val">Ok</span>(())
             }
@@ -1412,21 +1387,19 @@
         <span class="kw">let </span>limits = build_limits();
         <span class="kw">let </span>result = limiter
             .check_cardinality_limits(build_scoping(), <span class="kw-2">&amp;</span>limits, items.clone())
-            .<span class="kw">await
-            </span>.unwrap();
+            .unwrap();
 
         <span class="kw">let </span>split = result.into_split();
         <span class="macro">assert!</span>(split.rejected.is_empty());
         <span class="macro">assert_eq!</span>(split.accepted, items);
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_limiter_accept_odd_reject_even() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_limiter_accept_odd_reject_even() {
         <span class="kw">struct </span>RejectEvenLimiter;
 
-        <span class="attr">#[async_trait]
-        </span><span class="kw">impl </span>Limiter <span class="kw">for </span>RejectEvenLimiter {
-            <span class="kw">async fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
+        <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectEvenLimiter {
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 scoping: Scoping,
                 limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -1434,8 +1407,8 @@
                 reporter: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt; + Send,
-                T: Reporter&lt;<span class="lifetime">'a</span>&gt; + Send,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
+                T: Reporter&lt;<span class="lifetime">'a</span>&gt;,
             {
                 <span class="macro">assert_eq!</span>(scoping, build_scoping());
                 <span class="macro">assert_eq!</span>(limits, <span class="kw-2">&amp;</span>build_limits());
@@ -1464,8 +1437,7 @@
         <span class="kw">let </span>limits = build_limits();
         <span class="kw">let </span>split = limiter
             .check_cardinality_limits(build_scoping(), <span class="kw-2">&amp;</span>limits, items)
-            .<span class="kw">await
-            </span>.unwrap()
+            .unwrap()
             .into_split();
 
         <span class="macro">assert_eq!</span>(
@@ -1487,13 +1459,12 @@
         );
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_limiter_passive() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_limiter_passive() {
         <span class="kw">struct </span>RejectLimits;
 
-        <span class="attr">#[async_trait]
-        </span><span class="kw">impl </span>Limiter <span class="kw">for </span>RejectLimits {
-            <span class="kw">async fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
+        <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectLimits {
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 _scoping: Scoping,
                 limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -1501,8 +1472,8 @@
                 reporter: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt; + Send,
-                T: Reporter&lt;<span class="lifetime">'a</span>&gt; + Send,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
+                T: Reporter&lt;<span class="lifetime">'a</span>&gt;,
             {
                 <span class="kw">for </span>entry <span class="kw">in </span>entries {
                     reporter.reject(<span class="kw-2">&amp;</span>limits[entry.id.<span class="number">0 </span>% limits.len()], entry.id);
@@ -1549,8 +1520,7 @@
         ];
         <span class="kw">let </span>limited = limiter
             .check_cardinality_limits(build_scoping(), limits, items)
-            .<span class="kw">await
-            </span>.unwrap();
+            .unwrap();
 
         <span class="macro">assert!</span>(limited.has_rejections());
         <span class="macro">assert_eq!</span>(limited.exceeded_limits(), <span class="kw-2">&amp;</span>limits.iter().collect());
@@ -1574,13 +1544,12 @@
         );
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_cardinality_report() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_cardinality_report() {
         <span class="kw">struct </span>CreateReports;
 
-        <span class="attr">#[async_trait]
-        </span><span class="kw">impl </span>Limiter <span class="kw">for </span>CreateReports {
-            <span class="kw">async fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
+        <span class="kw">impl </span>Limiter <span class="kw">for </span>CreateReports {
+            <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 scoping: Scoping,
                 limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[CardinalityLimit],
@@ -1588,8 +1557,8 @@
                 reporter: <span class="kw-2">&amp;mut </span>T,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt; + Send,
-                T: Reporter&lt;<span class="lifetime">'a</span>&gt; + Send,
+                </span>I: IntoIterator&lt;Item = Entry&lt;<span class="lifetime">'b</span>&gt;&gt;,
+                T: Reporter&lt;<span class="lifetime">'a</span>&gt;,
             {
                 reporter.report_cardinality(
                     <span class="kw-2">&amp;</span>limits[<span class="number">0</span>],
@@ -1671,8 +1640,7 @@
         <span class="kw">let </span>limiter = CardinalityLimiter::new(CreateReports);
         <span class="kw">let </span>limited = limiter
             .check_cardinality_limits(scoping, limits, items)
-            .<span class="kw">await
-            </span>.unwrap();
+            .unwrap();
 
         <span class="kw">let </span>reports = limited.cardinality_reports();
         <span class="macro">assert_eq!</span>(reports.len(), <span class="number">2</span>);

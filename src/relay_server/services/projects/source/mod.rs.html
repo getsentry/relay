@@ -188,7 +188,7 @@
 <a href="#187" id="187">187</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::RedisClients;
+</span><span class="kw">use </span>relay_redis::RedisPools;
 <span class="kw">use </span>relay_system::{Addr, ServiceSpawn, ServiceSpawnExt <span class="kw">as _</span>};
 <span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
@@ -222,7 +222,7 @@
         services: <span class="kw-2">&amp;</span><span class="kw">dyn </span>ServiceSpawn,
         config: Arc&lt;Config&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>_redis: <span class="prelude-ty">Option</span>&lt;RedisClients&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>_redis: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>local_source = services.start(LocalProjectSourceService::new(config.clone()));
         <span class="kw">let </span>upstream_source = services.start(UpstreamProjectSourceService::new(

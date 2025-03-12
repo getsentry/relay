@@ -536,21 +536,11 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a></pre></div><pre class="rust"><code><span class="kw">use </span>itertools::Itertools;
+<a href="#538" id="538">538</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::{Mutex, PoisonError};
+
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
-<span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
-<span class="kw">use </span>tokio::sync::Mutex;
+<span class="kw">use </span>relay_redis::{PooledClient, RedisError, RedisScripts};
 
 <span class="kw">use </span><span class="kw">crate</span>::RedisQuota;
 
@@ -569,13 +559,13 @@
     /// We don't know if an item should be ratelimited or not until we've checked all the quotas.
     /// Therefore we only start decrementing the budgets of the various quotas when we know
     /// that None of the quotas hit the ratelimit.
-    </span><span class="kw">pub async fn </span>filter_rate_limited&lt;<span class="lifetime">'a</span>&gt;(
+    </span><span class="kw">pub fn </span>filter_rate_limited&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        client: <span class="kw-2">&amp;</span>AsyncRedisClient,
+        client: <span class="kw-2">&amp;mut </span>PooledClient,
         quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[RedisQuota&lt;<span class="lifetime">'a</span>&gt;],
         quantity: usize,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisQuota&lt;<span class="lifetime">'a</span>&gt;&gt;, RedisError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>guard = <span class="self">self</span>.limits.lock().<span class="kw">await</span>;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span>RedisQuota&lt;<span class="lifetime">'a</span>&gt;&gt;, RedisError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>guard = <span class="self">self</span>.limits.lock().unwrap_or_else(PoisonError::into_inner);
 
         <span class="kw">let </span><span class="kw-2">mut </span>ratelimited = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>not_ratelimited = <span class="macro">vec!</span>[];
@@ -588,10 +578,7 @@
         <span class="kw">for </span>(key, quota) <span class="kw">in </span>min_by_keyref {
             <span class="kw">let </span>val = guard.entry_ref(<span class="kw-2">&amp;</span>key).or_default();
 
-            <span class="kw">if </span>val
-                .is_rate_limited(client, quota, key, quantity <span class="kw">as </span>u64)
-                .<span class="kw">await</span><span class="question-mark">?
-            </span>{
+            <span class="kw">if </span>val.is_rate_limited(client, quota, key, quantity <span class="kw">as </span>u64)<span class="question-mark">? </span>{
                 ratelimited.push(quota);
             } <span class="kw">else </span>{
                 not_ratelimited.push(quota);
@@ -706,10 +693,10 @@
     }
 
     <span class="doccomment">/// Returns `true` if quota should be ratelimited.
-    </span><span class="kw">pub async fn </span>is_rate_limited(
+    </span><span class="kw">pub fn </span>is_rate_limited(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        client: <span class="kw-2">&amp;</span>AsyncRedisClient,
-        quota: <span class="kw-2">&amp;</span>RedisQuota&lt;<span class="lifetime">'_</span>&gt;,
+        client: <span class="kw-2">&amp;mut </span>PooledClient,
+        quota: <span class="kw-2">&amp;</span>RedisQuota,
         key: KeyRef&lt;<span class="lifetime">'_</span>&gt;,
         quantity: u64,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, RedisError&gt; {
@@ -734,17 +721,17 @@
         }
 
         <span class="kw">let </span>redis_key = key.redis_key(quota_slot);
-        <span class="kw">let </span>reserved = <span class="self">self</span>.try_reserve(client, quantity, quota, redis_key).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>reserved = <span class="self">self</span>.try_reserve(client, quantity, quota, redis_key)<span class="question-mark">?</span>;
         <span class="self">self</span>.budget += reserved;
 
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.budget &lt; quantity)
     }
 
-    <span class="kw">async fn </span>try_reserve(
+    <span class="kw">fn </span>try_reserve(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        client: <span class="kw-2">&amp;</span>AsyncRedisClient,
+        client: <span class="kw-2">&amp;mut </span>PooledClient,
         quantity: u64,
-        quota: <span class="kw-2">&amp;</span>RedisQuota&lt;<span class="lifetime">'_</span>&gt;,
+        quota: <span class="kw-2">&amp;</span>RedisQuota,
         redis_key: RedisKey,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;u64, RedisError&gt; {
         <span class="kw">let </span>min_required_budget = quantity.saturating_sub(<span class="self">self</span>.budget);
@@ -765,9 +752,8 @@
             .arg(budget_to_reserve)
             .arg(quota.limit())
             .arg(quota.key_expiry())
-            .invoke_async(<span class="kw-2">&amp;mut </span>client.get_connection())
-            .<span class="kw">await
-            </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
+            .invoke(<span class="kw-2">&amp;mut </span>client.connection()<span class="question-mark">?</span>)
+            .map_err(RedisError::Redis)<span class="question-mark">?</span>;
 
         <span class="self">self</span>.last_seen_redis_value = value;
 
@@ -800,17 +786,15 @@
     <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
-    <span class="kw">use </span>relay_redis::RedisConfigOptions;
+    <span class="kw">use </span>relay_redis::{RedisConfigOptions, RedisPool};
 
     <span class="kw">use crate</span>::{DataCategories, Quota, QuotaScope, Scoping};
 
-    <span class="kw">async fn </span>build_redis_client() -&gt; AsyncRedisClient {
+    <span class="kw">fn </span>build_redis_pool() -&gt; RedisPool {
         <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
             .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
 
-        AsyncRedisClient::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>RedisConfigOptions::default())
-            .<span class="kw">await
-            </span>.unwrap()
+        RedisPool::single(<span class="kw-2">&amp;</span>url, RedisConfigOptions::default()).unwrap()
     }
 
     <span class="kw">fn </span>build_quota(window: u64, limit: <span class="kw">impl </span>Into&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;&gt;) -&gt; Quota {
@@ -840,8 +824,8 @@
         RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_multiple_ratelimits() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_multiple_ratelimits() {
         <span class="kw">let </span>scoping = build_scoping();
 
         <span class="kw">let </span>quota1 = build_quota(<span class="number">10</span>, <span class="number">100</span>);
@@ -855,13 +839,13 @@
             build_redis_quota(<span class="kw-2">&amp;</span>quota3, <span class="kw-2">&amp;</span>scoping),
         ];
 
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
+        <span class="kw">let </span>pool = build_redis_pool();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
         <span class="kw">let </span>counter = GlobalRateLimits::default();
 
         <span class="kw">let </span>rate_limited_quotas = counter
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quotas, quantity)
-            .<span class="kw">await
-            </span>.unwrap();
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quotas, quantity)
+            .unwrap();
 
         <span class="comment">// Only the quotas that are less than the quantity gets ratelimited.
         </span><span class="macro">assert_eq!</span>(
@@ -875,8 +859,8 @@
 
     <span class="doccomment">/// Checks that if two quotas are identical but with different limits, we only use
     /// the one with the smaller limit.
-    </span><span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_use_smaller_limit() {
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_use_smaller_limit() {
         <span class="kw">let </span>smaller_limit = <span class="number">100</span>;
         <span class="kw">let </span>bigger_limit = <span class="number">200</span>;
 
@@ -893,13 +877,13 @@
             build_redis_quota(<span class="kw-2">&amp;</span>bigger_quota, <span class="kw-2">&amp;</span>scoping),
         ];
 
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
+        <span class="kw">let </span>pool = build_redis_pool();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
         <span class="kw">let </span>counter = GlobalRateLimits::default();
 
         <span class="kw">let </span>rate_limited_quotas = counter
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quotas, (bigger_limit * <span class="number">2</span>) <span class="kw">as </span>usize)
-            .<span class="kw">await
-            </span>.unwrap();
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quotas, (bigger_limit * <span class="number">2</span>) <span class="kw">as </span>usize)
+            .unwrap();
 
         <span class="macro">assert_eq!</span>(rate_limited_quotas.len(), <span class="number">1</span>);
 
@@ -909,15 +893,16 @@
         );
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_global_ratelimit() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_global_ratelimit() {
         <span class="kw">let </span>limit = <span class="number">200</span>;
 
         <span class="kw">let </span>quota = build_quota(<span class="number">10</span>, limit);
         <span class="kw">let </span>scoping = build_scoping();
         <span class="kw">let </span>redis_quota = [build_redis_quota(<span class="kw-2">&amp;</span>quota, <span class="kw-2">&amp;</span>scoping)];
 
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
+        <span class="kw">let </span>pool = build_redis_pool();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
         <span class="kw">let </span>counter = GlobalRateLimits::default();
 
         <span class="kw">let </span>expected_ratelimit_result = [<span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>].to_vec();
@@ -926,47 +911,46 @@
         // still be under the limit. 90 &lt; 200 -&gt; 180 &lt; 200 -&gt; 270 &gt; 200 -&gt; 360 &gt; 200.
         </span><span class="kw">for </span>should_ratelimit <span class="kw">in </span>expected_ratelimit_result {
             <span class="kw">let </span>is_ratelimited = counter
-                .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">90</span>)
-                .<span class="kw">await
-                </span>.unwrap();
+                .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">90</span>)
+                .unwrap();
 
             <span class="macro">assert_eq!</span>(should_ratelimit, !is_ratelimited.is_empty());
         }
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_global_ratelimit_over_under() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_global_ratelimit_over_under() {
         <span class="kw">let </span>limit = <span class="number">10</span>;
 
         <span class="kw">let </span>quota = build_quota(<span class="number">10</span>, limit);
         <span class="kw">let </span>scoping = build_scoping();
 
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
+        <span class="kw">let </span>pool = build_redis_pool();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
         <span class="kw">let </span>rl = GlobalRateLimits::default();
 
         <span class="kw">let </span>redis_quota = [build_redis_quota(<span class="kw-2">&amp;</span>quota, <span class="kw-2">&amp;</span>scoping)];
         <span class="macro">assert!</span>(!rl
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">11</span>)
-            .<span class="kw">await
-            </span>.unwrap()
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">11</span>)
+            .unwrap()
             .is_empty());
 
         <span class="macro">assert!</span>(rl
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">10</span>)
-            .<span class="kw">await
-            </span>.unwrap()
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">10</span>)
+            .unwrap()
             .is_empty());
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_multiple_global_ratelimit() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_multiple_global_ratelimit() {
         <span class="kw">let </span>limit = <span class="number">91_337</span>;
 
         <span class="kw">let </span>quota = build_quota(<span class="number">10</span>, limit <span class="kw">as </span>u64);
         <span class="kw">let </span>scoping = build_scoping();
         <span class="kw">let </span>quota = [build_redis_quota(<span class="kw-2">&amp;</span>quota, <span class="kw-2">&amp;</span>scoping)];
 
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
+        <span class="kw">let </span>pool = build_redis_pool();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
 
         <span class="kw">let </span>counter1 = GlobalRateLimits::default();
         <span class="kw">let </span>counter2 = GlobalRateLimits::default();
@@ -978,9 +962,8 @@
             <span class="kw">let </span>quantity = i % <span class="number">17</span>;
 
             <span class="kw">if </span>counter1
-                .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>quota, quantity)
-                .<span class="kw">await
-                </span>.unwrap()
+                .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>quota, quantity)
+                .unwrap()
                 .is_empty()
             {
                 total += quantity;
@@ -988,9 +971,8 @@
             }
 
             <span class="kw">if </span>counter2
-                .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>quota, quantity)
-                .<span class="kw">await
-                </span>.unwrap()
+                .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>quota, quantity)
+                .unwrap()
                 .is_empty()
             {
                 total += quantity;
@@ -1011,8 +993,8 @@
         <span class="macro">assert!</span>(diff &lt;= limit <span class="kw">as </span>f32 * DEFAULT_BUDGET_RATIO);
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_global_ratelimit_slots() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_global_ratelimit_slots() {
         <span class="kw">let </span>limit = <span class="number">200</span>;
         <span class="kw">let </span>window = <span class="number">10</span>;
 
@@ -1021,21 +1003,20 @@
         <span class="kw">let </span>scoping = build_scoping();
         <span class="kw">let </span>item_scoping = scoping.item(DataCategory::MetricBucket);
 
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
+        <span class="kw">let </span>pool = build_redis_pool();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
 
         <span class="kw">let </span>rl = GlobalRateLimits::default();
 
         <span class="kw">let </span>redis_quota = [RedisQuota::new(<span class="kw-2">&amp;</span>quota, item_scoping, ts).unwrap()];
         <span class="macro">assert!</span>(rl
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">200</span>)
-            .<span class="kw">await
-            </span>.unwrap()
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">200</span>)
+            .unwrap()
             .is_empty());
 
         <span class="macro">assert!</span>(!rl
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">1</span>)
-            .<span class="kw">await
-            </span>.unwrap()
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">1</span>)
+            .unwrap()
             .is_empty());
 
         <span class="comment">// Fast forward time.
@@ -1045,20 +1026,18 @@
                     .unwrap(),
             ];
         <span class="macro">assert!</span>(rl
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">200</span>)
-            .<span class="kw">await
-            </span>.unwrap()
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">200</span>)
+            .unwrap()
             .is_empty());
 
         <span class="macro">assert!</span>(!rl
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">1</span>)
-            .<span class="kw">await
-            </span>.unwrap()
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">1</span>)
+            .unwrap()
             .is_empty());
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_global_ratelimit_infinite() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_global_ratelimit_infinite() {
         <span class="kw">let </span>limit = <span class="prelude-val">None</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::now();
@@ -1067,7 +1046,8 @@
         <span class="kw">let </span>scoping = build_scoping();
         <span class="kw">let </span>item_scoping = scoping.item(DataCategory::MetricBucket);
 
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
+        <span class="kw">let </span>pool = build_redis_pool();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
 
         <span class="kw">let </span>rl = GlobalRateLimits::default();
 
@@ -1076,9 +1056,8 @@
         <span class="kw">for _ in </span><span class="number">0</span>..redis_threshold + <span class="number">10 </span>{
             <span class="kw">let </span>redis_quota = RedisQuota::new(<span class="kw-2">&amp;</span>quota, item_scoping, timestamp).unwrap();
             <span class="macro">assert!</span>(rl
-                .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>[redis_quota], quantity)
-                .<span class="kw">await
-                </span>.unwrap()
+                .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>[redis_quota], quantity)
+                .unwrap()
                 .is_empty());
         }
 
@@ -1090,9 +1069,8 @@
         <span class="kw">let </span>redis_quota = RedisQuota::new(<span class="kw-2">&amp;</span>quota, item_scoping, timestamp).unwrap();
 
         <span class="macro">assert!</span>(!rl
-            .filter_rate_limited(<span class="kw-2">&amp;</span>client, <span class="kw-2">&amp;</span>[redis_quota], quantity)
-            .<span class="kw">await
-            </span>.unwrap()
+            .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>[redis_quota], quantity)
+            .unwrap()
             .is_empty());
     }
 }

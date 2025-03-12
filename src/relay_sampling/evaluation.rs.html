@@ -833,26 +833,7 @@
 <a href="#832" id="832">832</a>
 <a href="#833" id="833">833</a>
 <a href="#834" id="834">834</a>
-<a href="#835" id="835">835</a>
-<a href="#836" id="836">836</a>
-<a href="#837" id="837">837</a>
-<a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a></pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
+<a href="#835" id="835">835</a></pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
@@ -868,7 +849,7 @@
 </span><span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_protocol::Getter;
 <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
-</span><span class="kw">use </span>relay_redis::AsyncRedisClient;
+</span><span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>serde::Serialize;
 <span class="kw">use </span>uuid::Uuid;
 
@@ -905,7 +886,7 @@
 </span><span class="kw">pub struct </span>ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt; {
     counters: ReservoirCounters,
     <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
-    </span>org_id_and_client: <span class="prelude-ty">Option</span>&lt;(OrganizationId, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>AsyncRedisClient)&gt;,
+    </span>org_id_and_redis_pool: <span class="prelude-ty">Option</span>&lt;(OrganizationId, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisPool)&gt;,
     <span class="comment">// Using PhantomData because the lifetimes are behind a feature flag.
     </span>_phantom: std::marker::PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>()&gt;,
 }
@@ -916,7 +897,7 @@
         <span class="self">Self </span>{
             counters,
             <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
-            </span>org_id_and_client: <span class="prelude-val">None</span>,
+            </span>org_id_and_redis_pool: <span class="prelude-val">None</span>,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -927,16 +908,17 @@
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
-    </span><span class="kw">async fn </span>redis_incr(
+    </span><span class="kw">fn </span>redis_incr(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         key: <span class="kw-2">&amp;</span>ReservoirRuleKey,
-        client: <span class="kw-2">&amp;</span>AsyncRedisClient,
+        redis_pool: <span class="kw-2">&amp;</span>RedisPool,
         rule_expiry: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DateTime&lt;Utc&gt;&gt;,
     ) -&gt; anyhow::Result&lt;i64&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection();
+        <span class="kw">let </span><span class="kw-2">mut </span>redis_client = redis_pool.client()<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>redis_connection = redis_client.connection()<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>val = redis_sampling::increment_redis_reservoir_count(<span class="kw-2">&amp;mut </span>connection, key).<span class="kw">await</span><span class="question-mark">?</span>;
-        redis_sampling::set_redis_expiry(<span class="kw-2">&amp;mut </span>connection, key, rule_expiry).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>val = redis_sampling::increment_redis_reservoir_count(<span class="kw-2">&amp;mut </span>redis_connection, key)<span class="question-mark">?</span>;
+        redis_sampling::set_redis_expiry(<span class="kw-2">&amp;mut </span>redis_connection, key, rule_expiry)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(val)
     }
@@ -959,14 +941,9 @@
     }
 
     <span class="doccomment">/// Evaluates a reservoir rule, returning `true` if it should be sampled.
-    </span><span class="kw">pub async fn </span>evaluate(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        rule: RuleId,
-        limit: i64,
-        _rule_expiry: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DateTime&lt;Utc&gt;&gt;,
-    ) -&gt; bool {
+    </span><span class="kw">pub fn </span>evaluate(<span class="kw-2">&amp;</span><span class="self">self</span>, rule: RuleId, limit: i64, _rule_expiry: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DateTime&lt;Utc&gt;&gt;) -&gt; bool {
         <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>((org_id, client)) = <span class="self">self</span>.org_id_and_client {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>((org_id, redis_pool)) = <span class="self">self</span>.org_id_and_redis_pool {
             <span class="kw">if let </span><span class="prelude-val">Ok</span>(guard) = <span class="self">self</span>.counters.lock() {
                 <span class="kw">if </span><span class="kw-2">*</span>guard.get(<span class="kw-2">&amp;</span>rule).unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>) &gt; limit {
                     <span class="kw">return </span><span class="bool-val">false</span>;
@@ -974,7 +951,7 @@
             }
 
             <span class="kw">let </span>key = ReservoirRuleKey::new(org_id, rule);
-            <span class="kw">let </span>redis_count = <span class="kw">match </span><span class="self">self</span>.redis_incr(<span class="kw-2">&amp;</span>key, client, _rule_expiry).<span class="kw">await </span>{
+            <span class="kw">let </span>redis_count = <span class="kw">match </span><span class="self">self</span>.redis_incr(<span class="kw-2">&amp;</span>key, redis_pool, _rule_expiry) {
                 <span class="prelude-val">Ok</span>(redis_count) =&gt; redis_count,
                 <span class="prelude-val">Err</span>(e) =&gt; {
                     <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;*</span>e, <span class="string">"failed to increment reservoir rule"</span>);
@@ -1001,8 +978,8 @@
     <span class="doccomment">/// Sets the Redis pool and organization ID for the [`ReservoirEvaluator`].
     ///
     /// These values are needed to synchronize with Redis.
-    </span><span class="kw">pub fn </span>set_redis(<span class="kw-2">&amp;mut </span><span class="self">self</span>, org_id: OrganizationId, client: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>AsyncRedisClient) {
-        <span class="self">self</span>.org_id_and_client = <span class="prelude-val">Some</span>((org_id, client));
+    </span><span class="kw">pub fn </span>set_redis(<span class="kw-2">&amp;mut </span><span class="self">self</span>, org_id: OrganizationId, redis_pool: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisPool) {
+        <span class="self">self</span>.org_id_and_redis_pool = <span class="prelude-val">Some</span>((org_id, redis_pool));
     }
 }
 
@@ -1047,7 +1024,7 @@
     ///    - If this value is returned and there are no more rules to evaluate, it should be interpreted as "no match."
     ///
     /// - `ControlFlow::Break`: Indicates that one or more rules have successfully matched.
-    </span><span class="kw">pub async fn </span>match_rules&lt;<span class="lifetime">'b</span>, I, G&gt;(
+    </span><span class="kw">pub fn </span>match_rules&lt;<span class="lifetime">'b</span>, I, G&gt;(
         <span class="kw-2">mut </span><span class="self">self</span>,
         seed: Uuid,
         instance: <span class="kw-2">&amp;</span>G,
@@ -1062,7 +1039,7 @@
                 <span class="kw">continue</span>;
             };
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(sample_rate) = <span class="self">self</span>.try_compute_sample_rate(rule).<span class="kw">await </span>{
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(sample_rate) = <span class="self">self</span>.try_compute_sample_rate(rule) {
                 <span class="kw">return </span>ControlFlow::Break(SamplingMatch::new(sample_rate, seed, <span class="self">self</span>.rule_ids));
             };
         }
@@ -1077,7 +1054,7 @@
     /// - `None` if the sampling rule is invalid, expired, or if the final sample rate has not been
     ///   determined yet.
     /// - `Some` if the computed sample rate should be applied directly.
-    </span><span class="kw">async fn </span>try_compute_sample_rate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rule: <span class="kw-2">&amp;</span>SamplingRule) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+    </span><span class="kw">fn </span>try_compute_sample_rate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rule: <span class="kw-2">&amp;</span>SamplingRule) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
         <span class="kw">match </span>rule.sampling_value {
             SamplingValue::Factor { value } =&gt; {
                 <span class="self">self</span>.factor <span class="kw-2">*</span>= rule.apply_decaying_fn(value, <span class="self">self</span>.now)<span class="question-mark">?</span>;
@@ -1093,10 +1070,7 @@
             }
             SamplingValue::Reservoir { limit } =&gt; {
                 <span class="kw">let </span>reservoir = <span class="self">self</span>.reservoir<span class="question-mark">?</span>;
-                <span class="kw">if </span>!reservoir
-                    .evaluate(rule.id, limit, rule.time_range.end.as_ref())
-                    .<span class="kw">await
-                </span>{
+                <span class="kw">if </span>!reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref()) {
                     <span class="kw">return </span><span class="prelude-val">None</span>;
                 }
 
@@ -1282,11 +1256,12 @@
     }
 
     <span class="doccomment">/// Helper to extract the sampling match after evaluating rules.
-    </span><span class="kw">async fn </span>get_sampling_match(rules: <span class="kw-2">&amp;</span>[SamplingRule], instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>Getter) -&gt; SamplingMatch {
-        <span class="kw">match </span>SamplingEvaluator::new(Utc::now())
-            .match_rules(Uuid::default(), instance, rules.iter())
-            .<span class="kw">await
-        </span>{
+    </span><span class="kw">fn </span>get_sampling_match(rules: <span class="kw-2">&amp;</span>[SamplingRule], instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>Getter) -&gt; SamplingMatch {
+        <span class="kw">match </span>SamplingEvaluator::new(Utc::now()).match_rules(
+            Uuid::default(),
+            instance,
+            rules.iter(),
+        ) {
             ControlFlow::Break(sampling_match) =&gt; sampling_match,
             ControlFlow::Continue(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">"no match found"</span>),
         }
@@ -1297,13 +1272,9 @@
     }
 
     <span class="doccomment">/// Helper to check if certain rules are matched on.
-    </span><span class="kw">async fn </span>matches_rule_ids(
-        rule_ids: <span class="kw-2">&amp;</span>[u32],
-        rules: <span class="kw-2">&amp;</span>[SamplingRule],
-        instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>Getter,
-    ) -&gt; bool {
+    </span><span class="kw">fn </span>matches_rule_ids(rule_ids: <span class="kw-2">&amp;</span>[u32], rules: <span class="kw-2">&amp;</span>[SamplingRule], instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>Getter) -&gt; bool {
         <span class="kw">let </span>matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(<span class="kw-2">*</span>num)).collect());
-        <span class="kw">let </span>sampling_match = get_sampling_match(rules, instance).<span class="kw">await</span>;
+        <span class="kw">let </span>sampling_match = get_sampling_match(rules, instance);
         matched_rule_ids == sampling_match.matched_rules
     }
 
@@ -1349,34 +1320,23 @@
         dsc
     }
 
-    <span class="kw">async fn </span>is_match(
-        now: DateTime&lt;Utc&gt;,
-        rule: <span class="kw-2">&amp;</span>SamplingRule,
-        dsc: <span class="kw-2">&amp;</span>DynamicSamplingContext,
-    ) -&gt; bool {
-        SamplingEvaluator::new(now)
-            .match_rules(Uuid::default(), dsc, std::iter::once(rule))
-            .<span class="kw">await
-            </span>.is_break()
-    }
-
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_reservoir_evaluator_limit() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_reservoir_evaluator_limit() {
         <span class="kw">let </span>evaluator = mock_reservoir_evaluator(<span class="macro">vec!</span>[(<span class="number">1</span>, <span class="number">0</span>)]);
 
         <span class="kw">let </span>rule = RuleId(<span class="number">1</span>);
         <span class="kw">let </span>limit = <span class="number">3</span>;
 
-        <span class="macro">assert!</span>(evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>));
+        <span class="macro">assert!</span>(evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>));
+        <span class="macro">assert!</span>(evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>));
         <span class="comment">// After 3 samples we have reached the limit, and the following rules are not sampled.
-        </span><span class="macro">assert!</span>(!evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(!evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>).<span class="kw">await</span>);
+        </span><span class="macro">assert!</span>(!evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>));
+        <span class="macro">assert!</span>(!evaluator.evaluate(rule, limit, <span class="prelude-val">None</span>));
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_sample_rate_compounding() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_sample_rate_compounding() {
         <span class="kw">let </span>rules = simple_sampling_rules(<span class="macro">vec!</span>[
             (RuleCondition::all(), SamplingValue::Factor { value: <span class="number">0.8 </span>}),
             (RuleCondition::all(), SamplingValue::Factor { value: <span class="number">0.5 </span>}),
@@ -1388,7 +1348,7 @@
         <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
 
         <span class="comment">// 0.8 * 0.5 * 0.25 == 0.1
-        </span><span class="macro">assert_eq!</span>(get_sampling_match(<span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>.sample_rate(), <span class="number">0.1</span>);
+        </span><span class="macro">assert_eq!</span>(get_sampling_match(<span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).sample_rate(), <span class="number">0.1</span>);
     }
 
     <span class="kw">fn </span>mocked_sampling_rule() -&gt; SamplingRule {
@@ -1428,8 +1388,8 @@
     /// previous rule(s) will not be present in the matched rules output.
     /// After the limit has been reached, the reservoir rule is ignored
     /// and the output is the two other rules (id = 0, id = 2).
-    </span><span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_reservoir_override() {
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_reservoir_override() {
         <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
         <span class="kw">let </span>rules = simple_sampling_rules(<span class="macro">vec!</span>[
             (RuleCondition::all(), SamplingValue::Factor { value: <span class="number">0.5 </span>}),
@@ -1447,36 +1407,27 @@
         </span><span class="kw">let </span>reservoir = mock_reservoir_evaluator(<span class="macro">vec!</span>[]);
 
         <span class="kw">let </span>evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), <span class="kw-2">&amp;</span>reservoir);
-        <span class="kw">let </span>matched_rules = get_matched_rules(
-            <span class="kw-2">&amp;</span>evaluator
-                .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter())
-                .<span class="kw">await</span>,
-        );
+        <span class="kw">let </span>matched_rules =
+            get_matched_rules(<span class="kw-2">&amp;</span>evaluator.match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter()));
         <span class="comment">// Reservoir rule overrides 0 and 2.
         </span><span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>matched_rules, <span class="kw-2">&amp;</span>[<span class="number">1</span>]);
 
         <span class="kw">let </span>evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), <span class="kw-2">&amp;</span>reservoir);
-        <span class="kw">let </span>matched_rules = get_matched_rules(
-            <span class="kw-2">&amp;</span>evaluator
-                .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter())
-                .<span class="kw">await</span>,
-        );
+        <span class="kw">let </span>matched_rules =
+            get_matched_rules(<span class="kw-2">&amp;</span>evaluator.match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter()));
         <span class="comment">// Reservoir rule overrides 0 and 2.
         </span><span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>matched_rules, <span class="kw-2">&amp;</span>[<span class="number">1</span>]);
 
         <span class="kw">let </span>evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), <span class="kw-2">&amp;</span>reservoir);
-        <span class="kw">let </span>matched_rules = get_matched_rules(
-            <span class="kw-2">&amp;</span>evaluator
-                .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter())
-                .<span class="kw">await</span>,
-        );
+        <span class="kw">let </span>matched_rules =
+            get_matched_rules(<span class="kw-2">&amp;</span>evaluator.match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter()));
         <span class="comment">// Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
         </span><span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>matched_rules, <span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">2</span>]);
     }
 
     <span class="doccomment">/// Checks that rules don't match if the time is outside the time range.
-    </span><span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_expired_rules() {
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_expired_rules() {
         <span class="kw">let </span>rule = SamplingRule {
             condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
@@ -1493,27 +1444,34 @@
 
         <span class="comment">// Baseline test.
         </span><span class="kw">let </span>within_timerange = Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
-        <span class="kw">let </span>res = SamplingEvaluator::new(within_timerange)
-            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule.clone()].iter())
-            .<span class="kw">await</span>;
+        <span class="kw">let </span>res = SamplingEvaluator::new(within_timerange).match_rules(
+            Uuid::default(),
+            <span class="kw-2">&amp;</span>dsc,
+            [rule.clone()].iter(),
+        );
+
         <span class="macro">assert!</span>(evaluation_is_match(res));
 
         <span class="kw">let </span>before_timerange = Utc.with_ymd_and_hms(<span class="number">1969</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
-        <span class="kw">let </span>res = SamplingEvaluator::new(before_timerange)
-            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule.clone()].iter())
-            .<span class="kw">await</span>;
+        <span class="kw">let </span>res = SamplingEvaluator::new(before_timerange).match_rules(
+            Uuid::default(),
+            <span class="kw-2">&amp;</span>dsc,
+            [rule.clone()].iter(),
+        );
         <span class="macro">assert!</span>(!evaluation_is_match(res));
 
         <span class="kw">let </span>after_timerange = Utc.with_ymd_and_hms(<span class="number">1971</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
-        <span class="kw">let </span>res = SamplingEvaluator::new(after_timerange)
-            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule].iter())
-            .<span class="kw">await</span>;
+        <span class="kw">let </span>res = SamplingEvaluator::new(after_timerange).match_rules(
+            Uuid::default(),
+            <span class="kw-2">&amp;</span>dsc,
+            [rule].iter(),
+        );
         <span class="macro">assert!</span>(!evaluation_is_match(res));
     }
 
     <span class="doccomment">/// Checks that `SamplingValueEvaluator` correctly matches the right rules.
-    </span><span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_condition_matching() {
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_condition_matching() {
         <span class="kw">let </span>rules = simple_sampling_rules(<span class="macro">vec!</span>[
             (
                 RuleCondition::glob(<span class="string">"trace.transaction"</span>, <span class="string">"*healthcheck*"</span>),
@@ -1545,15 +1503,15 @@
 
         <span class="comment">// early return of first rule
         </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[(<span class="string">"trace.transaction"</span>, <span class="string">"foohealthcheckbar"</span>)]);
-        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">0</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">0</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
 
         <span class="comment">// early return of second rule
         </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[(<span class="string">"trace.environment"</span>, <span class="string">"dev"</span>)]);
-        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">1</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">1</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
 
         <span class="comment">// factor match third rule and early return sixth rule
         </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[(<span class="string">"trace.transaction"</span>, <span class="string">"raboof"</span>)]);
-        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
 
         <span class="comment">// factor match third rule and early return fourth rule
         </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[
@@ -1561,7 +1519,7 @@
             (<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>),
             (<span class="string">"trace.user.segment"</span>, <span class="string">"vip"</span>),
         ]);
-        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
 
         <span class="comment">// factor match third, fifth rule and early return sixth rule
         </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[
@@ -1569,14 +1527,14 @@
             (<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>),
             (<span class="string">"trace.environment"</span>, <span class="string">"prod"</span>),
         ]);
-        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
 
         <span class="comment">// factor match fifth and early return sixth rule
         </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[
             (<span class="string">"trace.release"</span>, <span class="string">"1.1.1"</span>),
             (<span class="string">"trace.environment"</span>, <span class="string">"prod"</span>),
         ]);
-        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
     }
 
     <span class="attr">#[test]
@@ -1624,14 +1582,12 @@
         <span class="macro">assert!</span>(MatchedRuleIds::parse(<span class="string">"a,b"</span>).is_err());
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that no match is done when there are no matching rules.
-    </span><span class="kw">async fn </span>test_get_sampling_match_result_with_no_match() {
+    </span><span class="kw">fn </span>test_get_sampling_match_result_with_no_match() {
         <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
 
-        <span class="kw">let </span>res = SamplingEvaluator::new(Utc::now())
-            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [].iter())
-            .<span class="kw">await</span>;
+        <span class="kw">let </span>res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [].iter());
 
         <span class="macro">assert!</span>(!evaluation_is_match(res));
     }
@@ -1640,8 +1596,8 @@
     /// time is out of bounds of the time range.
     /// When the `start` or `end` of the range is missing, it defaults to always include
     /// times before the `end` or after the `start`, respectively.
-    </span><span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_sample_rate_valid_time_range() {
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_sample_rate_valid_time_range() {
         <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
         <span class="kw">let </span>time_range = TimeRange {
             start: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
@@ -1661,49 +1617,55 @@
             decaying_fn: DecayingFunction::Constant,
         };
 
+        <span class="kw">let </span>is_match = |now: DateTime&lt;Utc&gt;, rule: <span class="kw-2">&amp;</span>SamplingRule| -&gt; bool {
+            SamplingEvaluator::new(now)
+                .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule.clone()].iter())
+                .is_break()
+        };
+
         <span class="comment">// [start..end]
-        </span><span class="macro">assert!</span>(!is_match(before_time_range, <span class="kw-2">&amp;</span>rule, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(!is_match(after_time_range, <span class="kw-2">&amp;</span>rule, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        </span><span class="macro">assert!</span>(!is_match(before_time_range, <span class="kw-2">&amp;</span>rule));
+        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule));
+        <span class="macro">assert!</span>(!is_match(after_time_range, <span class="kw-2">&amp;</span>rule));
 
         <span class="comment">// [start..]
         </span><span class="kw">let </span><span class="kw-2">mut </span>rule_without_end = rule.clone();
         rule_without_end.time_range.end = <span class="prelude-val">None</span>;
-        <span class="macro">assert!</span>(!is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_end, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_end, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_end, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(!is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_end));
+        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_end));
+        <span class="macro">assert!</span>(is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_end));
 
         <span class="comment">// [..end]
         </span><span class="kw">let </span><span class="kw-2">mut </span>rule_without_start = rule.clone();
         rule_without_start.time_range.start = <span class="prelude-val">None</span>;
-        <span class="macro">assert!</span>(is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_start, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_start, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(!is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_start, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_start));
+        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_start));
+        <span class="macro">assert!</span>(!is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_start));
 
         <span class="comment">// [..]
         </span><span class="kw">let </span><span class="kw-2">mut </span>rule_without_range = rule.clone();
         rule_without_range.time_range = TimeRange::default();
-        <span class="macro">assert!</span>(is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_range, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_range, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
-        <span class="macro">assert!</span>(is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_range, <span class="kw-2">&amp;</span>dsc).<span class="kw">await</span>);
+        <span class="macro">assert!</span>(is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_range));
+        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_range));
+        <span class="macro">assert!</span>(is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_range));
     }
 
     <span class="doccomment">/// Checks that `validate_match` yields the correct controlflow given the SamplingValue variant.
-    </span><span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_validate_match() {
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_validate_match() {
         <span class="kw">let </span><span class="kw-2">mut </span>rule = mocked_sampling_rule();
 
         <span class="kw">let </span>reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
         <span class="kw">let </span><span class="kw-2">mut </span>eval = SamplingEvaluator::new_with_reservoir(Utc::now(), <span class="kw-2">&amp;</span>reservoir);
 
         rule.sampling_value = SamplingValue::SampleRate { value: <span class="number">1.0 </span>};
-        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule).<span class="kw">await</span>, <span class="prelude-val">Some</span>(<span class="number">1.0</span>));
+        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule), <span class="prelude-val">Some</span>(<span class="number">1.0</span>));
 
         rule.sampling_value = SamplingValue::Factor { value: <span class="number">1.0 </span>};
-        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule).<span class="kw">await</span>, <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule), <span class="prelude-val">None</span>);
 
         rule.sampling_value = SamplingValue::Reservoir { limit: <span class="number">1 </span>};
-        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule).<span class="kw">await</span>, <span class="prelude-val">Some</span>(<span class="number">1.0</span>));
+        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule), <span class="prelude-val">Some</span>(<span class="number">1.0</span>));
     }
 }
 </code></pre></div></section></main></body></html>

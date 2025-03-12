@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["AsyncRedisConnection","RedisError"],"struct":["AsyncRedisClient","RedisClientStats","RedisClients","RedisConfigOptions","RedisScripts"]};
+window.SIDEBAR_ITEMS = {"enum":["AsyncRedisConnection","PooledClient","RedisError","RedisPool"],"struct":["AsyncRedisClient","Connection","RedisConfigOptions","RedisPools","RedisScripts","Stats"]};

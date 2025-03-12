@@ -307,19 +307,9 @@
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::{
+<a href="#309" id="309">309</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::{
     redis::{<span class="self">self</span>, FromRedisValue, Script},
-    AsyncRedisConnection, RedisScripts,
+    Connection, RedisScripts,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::Result;
@@ -432,12 +422,11 @@
     }
 
     <span class="doccomment">/// Makes sure the script is loaded in Redis.
-    </span><span class="kw">async fn </span>load_redis(<span class="kw-2">&amp;</span><span class="self">self</span>, con: <span class="kw-2">&amp;mut </span>AsyncRedisConnection) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+    </span><span class="kw">fn </span>load_redis(<span class="kw-2">&amp;</span><span class="self">self</span>, con: <span class="kw-2">&amp;mut </span>Connection) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
         <span class="self">self</span>.<span class="number">0
             </span>.prepare_invoke()
-            .load_async(con)
-            .<span class="kw">await
-            </span>.map_err(relay_redis::RedisError::Redis)<span class="question-mark">?</span>;
+            .load(con)
+            .map_err(relay_redis::RedisError::Redis)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -490,19 +479,15 @@
     <span class="doccomment">/// Invokes the entire pipeline and returns the results.
     ///
     /// Returns one result for each script invocation.
-    </span><span class="kw">pub async fn </span>invoke(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        con: <span class="kw-2">&amp;mut </span>AsyncRedisConnection,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;CardinalityScriptResult&gt;&gt; {
-        <span class="kw">match </span><span class="self">self</span>.pipe.query_async(con).<span class="kw">await </span>{
+    </span><span class="kw">pub fn </span>invoke(<span class="kw-2">&amp;</span><span class="self">self</span>, con: <span class="kw-2">&amp;mut </span>Connection&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;CardinalityScriptResult&gt;&gt; {
+        <span class="kw">match </span><span class="self">self</span>.pipe.query(con) {
             <span class="prelude-val">Ok</span>(result) =&gt; <span class="prelude-val">Ok</span>(result),
             <span class="prelude-val">Err</span>(err) <span class="kw">if </span>err.kind() == redis::ErrorKind::NoScriptError =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"Redis script no loaded, loading it now"</span>);
-                <span class="self">self</span>.script.load_redis(con).<span class="kw">await</span><span class="question-mark">?</span>;
+                <span class="self">self</span>.script.load_redis(con)<span class="question-mark">?</span>;
                 <span class="self">self</span>.pipe
-                    .query_async(con)
-                    .<span class="kw">await
-                    </span>.map_err(relay_redis::RedisError::Redis)
+                    .query(con)
+                    .map_err(relay_redis::RedisError::Redis)
                     .map_err(Into::into)
             }
             <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(relay_redis::RedisError::Redis(err).into()),
@@ -512,15 +497,15 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisConfigOptions};
+    <span class="kw">use </span>relay_redis::{RedisConfigOptions, RedisPool};
     <span class="kw">use </span>uuid::Uuid;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">impl </span>CardinalityScript {
-        <span class="kw">async fn </span>invoke_one(
+        <span class="kw">fn </span>invoke_one(
             <span class="kw-2">&amp;</span><span class="self">self</span>,
-            con: <span class="kw-2">&amp;mut </span>AsyncRedisConnection,
+            con: <span class="kw-2">&amp;mut </span>Connection,
             limit: u32,
             expire: u64,
             hashes: <span class="kw">impl </span>Iterator&lt;Item = u32&gt;,
@@ -529,15 +514,14 @@
             <span class="kw">let </span><span class="kw-2">mut </span>results = <span class="self">self
                 </span>.pipe()
                 .add_invocation(limit, expire, hashes, keys)
-                .invoke(con)
-                .<span class="kw">await</span><span class="question-mark">?</span>;
+                .invoke(con)<span class="question-mark">?</span>;
 
             <span class="macro">assert_eq!</span>(results.len(), <span class="number">1</span>);
             <span class="prelude-val">Ok</span>(results.pop().unwrap())
         }
     }
 
-    <span class="kw">async fn </span>build_redis_client() -&gt; AsyncRedisClient {
+    <span class="kw">fn </span>build_redis() -&gt; RedisPool {
         <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
             .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
 
@@ -545,7 +529,7 @@
             max_connections: <span class="number">1</span>,
             ..Default::default()
         };
-        AsyncRedisClient::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>opts).<span class="kw">await</span>.unwrap()
+        RedisPool::single(<span class="kw-2">&amp;</span>url, opts).unwrap()
     }
 
     <span class="kw">fn </span>keys(prefix: Uuid, keys: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; <span class="kw">impl </span>Iterator&lt;Item = String&gt; {
@@ -555,28 +539,27 @@
             .into_iter()
     }
 
-    <span class="kw">async fn </span>assert_ttls(connection: <span class="kw-2">&amp;mut </span>AsyncRedisConnection, prefix: Uuid) {
+    <span class="kw">fn </span>assert_ttls(connection: <span class="kw-2">&amp;mut </span>Connection, prefix: Uuid) {
         <span class="kw">let </span>keys = redis::cmd(<span class="string">"KEYS"</span>)
             .arg(<span class="macro">format!</span>(<span class="string">"{prefix}-*"</span>))
-            .query_async::&lt;Vec&lt;String&gt;&gt;(connection)
-            .<span class="kw">await
-            </span>.unwrap();
+            .query::&lt;Vec&lt;String&gt;&gt;(connection)
+            .unwrap();
 
         <span class="kw">for </span>key <span class="kw">in </span>keys {
             <span class="kw">let </span>ttl = redis::cmd(<span class="string">"TTL"</span>)
                 .arg(<span class="kw-2">&amp;</span>key)
-                .query_async::&lt;i64&gt;(connection)
-                .<span class="kw">await
-                </span>.unwrap();
+                .query::&lt;i64&gt;(connection)
+                .unwrap();
 
             <span class="macro">assert!</span>(ttl &gt;= <span class="number">0</span>, <span class="string">"Key {key} has no TTL"</span>);
         }
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_below_limit_perfect_cardinality_ttl() {
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection();
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_below_limit_perfect_cardinality_ttl() {
+        <span class="kw">let </span>redis = build_redis();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = redis.client().unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection().unwrap();
 
         <span class="kw">let </span>script = CardinalityScript::load();
 
@@ -586,40 +569,38 @@
 
         script
             .invoke_one(<span class="kw-2">&amp;mut </span>connection, <span class="number">50</span>, <span class="number">3600</span>, <span class="number">0</span>..<span class="number">30</span>, keys(prefix, k1))
-            .<span class="kw">await
-            </span>.unwrap();
+            .unwrap();
 
         script
             .invoke_one(<span class="kw-2">&amp;mut </span>connection, <span class="number">50</span>, <span class="number">3600</span>, <span class="number">0</span>..<span class="number">30</span>, keys(prefix, k2))
-            .<span class="kw">await
-            </span>.unwrap();
+            .unwrap();
 
-        assert_ttls(<span class="kw-2">&amp;mut </span>connection, prefix).<span class="kw">await</span>;
+        assert_ttls(<span class="kw-2">&amp;mut </span>connection, prefix);
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_load_script() {
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection();
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_load_script() {
+        <span class="kw">let </span>redis = build_redis();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = redis.client().unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection().unwrap();
 
         <span class="kw">let </span>script = CardinalityScript::load();
         <span class="kw">let </span>keys = keys(Uuid::new_v4(), <span class="kw-2">&amp;</span>[<span class="string">"a"</span>, <span class="string">"b"</span>, <span class="string">"c"</span>]);
 
         redis::cmd(<span class="string">"SCRIPT"</span>)
             .arg(<span class="string">"FLUSH"</span>)
-            .exec_async(<span class="kw-2">&amp;mut </span>connection)
-            .<span class="kw">await
-            </span>.unwrap();
+            .exec(<span class="kw-2">&amp;mut </span>connection)
+            .unwrap();
         script
             .invoke_one(<span class="kw-2">&amp;mut </span>connection, <span class="number">50</span>, <span class="number">3600</span>, <span class="number">0</span>..<span class="number">30</span>, keys)
-            .<span class="kw">await
-            </span>.unwrap();
+            .unwrap();
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_multiple_calls_in_pipeline() {
-        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection();
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_multiple_calls_in_pipeline() {
+        <span class="kw">let </span>redis = build_redis();
+        <span class="kw">let </span><span class="kw-2">mut </span>client = redis.client().unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection().unwrap();
 
         <span class="kw">let </span>script = CardinalityScript::load();
         <span class="kw">let </span>k2 = keys(Uuid::new_v4(), <span class="kw-2">&amp;</span>[<span class="string">"a"</span>, <span class="string">"b"</span>, <span class="string">"c"</span>]);
@@ -630,8 +611,7 @@
             .add_invocation(<span class="number">50</span>, <span class="number">3600</span>, <span class="number">0</span>..<span class="number">30</span>, k1)
             .add_invocation(<span class="number">50</span>, <span class="number">3600</span>, <span class="number">0</span>..<span class="number">30</span>, k2)
             .invoke(<span class="kw-2">&amp;mut </span>connection)
-            .<span class="kw">await
-            </span>.unwrap();
+            .unwrap();
 
         <span class="macro">assert_eq!</span>(results.len(), <span class="number">2</span>);
     }

@@ -228,11 +228,16 @@
 <a href="#227" id="227">227</a>
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisClientStats, RedisClients};
+</span><span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisPool, RedisPools, Stats};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, Handle, RuntimeMetrics, Service};
 <span class="kw">use </span>relay_threading::AsyncPool;
@@ -253,7 +258,7 @@
     rt_metrics: RuntimeMetrics,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>redis_pools: <span class="prelude-ty">Option</span>&lt;RedisClients&gt;,
+    </span>redis_pools: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
     processor_pool: EnvelopeProcessorServicePool,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>store_pool: StoreServicePool,
@@ -264,7 +269,7 @@
         config: Arc&lt;Config&gt;,
         runtime: Handle,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis_pools: <span class="prelude-ty">Option</span>&lt;RedisClients&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis_pools: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
         processor_pool: EnvelopeProcessorServicePool,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>store_pool: StoreServicePool,
     ) -&gt; <span class="self">Self </span>{
@@ -381,12 +386,17 @@
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>redis_pool(redis_pool: <span class="kw-2">&amp;</span>RedisPool, name: <span class="kw-2">&amp;</span>str) {
+        <span class="self">Self</span>::stats_metrics(redis_pool.stats(), name);
+    }
+
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>async_redis_connection(client: <span class="kw-2">&amp;</span>AsyncRedisClient, name: <span class="kw-2">&amp;</span>str) {
         <span class="self">Self</span>::stats_metrics(client.stats(), name);
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>stats_metrics(stats: RedisClientStats, name: <span class="kw-2">&amp;</span>str) {
+    </span><span class="kw">fn </span>stats_metrics(stats: Stats, name: <span class="kw-2">&amp;</span>str) {
         <span class="macro">metric!</span>(
             gauge(RelayGauges::RedisPoolConnections) = u64::from(stats.connections),
             pool = name
@@ -402,15 +412,15 @@
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">async fn </span>redis_pools(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(RedisClients {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(RedisPools {
             project_configs,
             cardinality,
             quotas,
         }) = <span class="self">self</span>.redis_pools.as_ref()
         {
             <span class="self">Self</span>::async_redis_connection(project_configs, <span class="string">"project_configs"</span>);
-            <span class="self">Self</span>::async_redis_connection(cardinality, <span class="string">"cardinality"</span>);
-            <span class="self">Self</span>::async_redis_connection(quotas, <span class="string">"quotas"</span>);
+            <span class="self">Self</span>::redis_pool(cardinality, <span class="string">"cardinality"</span>);
+            <span class="self">Self</span>::redis_pool(quotas, <span class="string">"quotas"</span>);
         }
     }
 

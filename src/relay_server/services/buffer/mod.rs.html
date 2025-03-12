@@ -1549,8 +1549,8 @@
             <span class="kw">let </span><span class="prelude-val">Ok</span>(CheckedEnvelope {
                 envelope: <span class="prelude-val">Some</span>(managed_envelope),
                 ..
-            }) = own_project.check_envelope(managed_envelope).<span class="kw">await
-            else </span>{
+            }) = own_project.check_envelope(managed_envelope)
+            <span class="kw">else </span>{
                 <span class="kw">continue</span>; <span class="comment">// Outcomes are emitted by `check_envelope`.
             </span>};
 
