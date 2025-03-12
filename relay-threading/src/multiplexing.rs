@@ -173,7 +173,7 @@ where
             // We calculate how many tasks have been driven to completion.
             if let Some(finished_tasks) = before_len.checked_sub(after_len) {
                 this.metrics
-                    .active_tasks
+                    .finished_tasks
                     .store(finished_tasks, Ordering::Relaxed);
             }
 
