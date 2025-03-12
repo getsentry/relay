@@ -224,7 +224,11 @@
 <a href="#223" id="223">223</a>
 <a href="#224" id="224">224</a>
 <a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -238,7 +242,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreServicePool;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsNetworkOutage, UpstreamRelay};
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RuntimeCounters, RuntimeGauges};
 
 <span class="doccomment">/// Relay Stats Service.
 ///
@@ -419,6 +423,10 @@
         );
         <span class="macro">metric!</span>(
             gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() <span class="kw">as </span>f64,
+            pool = async_pool.name()
+        );
+        <span class="macro">metric!</span>(
+            counter(RelayCounters::AsyncPoolFinishedTasks) += metrics.finished_tasks(),
             pool = async_pool.name()
         );
     }

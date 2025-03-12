@@ -1044,7 +1044,13 @@
 <a href="#1043" id="1043">1043</a>
 <a href="#1044" id="1044">1044</a>
 <a href="#1045" id="1045">1045</a>
-<a href="#1046" id="1046">1046</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1663,6 +1669,11 @@
 
 <span class="doccomment">/// Counter metrics used by Relay
 </span><span class="kw">pub enum </span>RelayCounters {
+    <span class="doccomment">/// Tracks the number of tasks driven to completion by the async pool.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
+    </span>AsyncPoolFinishedTasks,
     <span class="doccomment">/// Number of Events that had corrupted (unprintable) event attributes.
     ///
     /// This currently checks for `environment` and `release`, for which we know that
@@ -1899,6 +1910,7 @@
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
+            RelayCounters::AsyncPoolFinishedTasks =&gt; <span class="string">"async_pool.finished_tasks"</span>,
             RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
             RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
             RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
