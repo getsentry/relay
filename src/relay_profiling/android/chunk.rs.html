@@ -186,7 +186,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::measurements::ChunkMeasurement;
 <span class="kw">use </span><span class="kw">crate</span>::sample::v2::ProfileData;
 <span class="kw">use </span><span class="kw">crate</span>::types::{ClientSdk, DebugMeta};
-<span class="kw">use crate</span>::{ProfileError, MAX_PROFILE_DURATION};
+<span class="kw">use crate</span>::{ProfileError, MAX_PROFILE_CHUNK_DURATION};
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Metadata {
@@ -276,7 +276,7 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
     }
 
-    <span class="kw">if </span>profile.profile.elapsed_time &gt; MAX_PROFILE_DURATION {
+    <span class="kw">if </span>profile.profile.elapsed_time &gt; MAX_PROFILE_CHUNK_DURATION {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::DurationIsTooLong);
     }
 

@@ -363,7 +363,12 @@
 <a href="#362" id="362">362</a>
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
 //! ingestion as JSON objects with some metadata. They are sent alongside a transaction (usually in
@@ -434,6 +439,11 @@
 <span class="kw">mod </span>utils;
 
 <span class="kw">const </span>MAX_PROFILE_DURATION: Duration = Duration::from_secs(<span class="number">30</span>);
+<span class="doccomment">/// For continuous profiles, each chunk can be at most 1 minute.
+/// In certain circumstances (e.g. high cpu load) the profiler
+/// the profiler may be stopped slightly after 60, hence here we
+/// give it a bit more room to handle such cases (66 instead of 60)
+</span><span class="kw">const </span>MAX_PROFILE_CHUNK_DURATION: Duration = Duration::from_secs(<span class="number">66</span>);
 
 <span class="doccomment">/// Unique identifier for a profile.
 ///
