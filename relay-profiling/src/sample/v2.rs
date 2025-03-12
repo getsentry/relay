@@ -225,4 +225,66 @@ mod tests {
             vec![FiniteF64::new(30.0).unwrap(), FiniteF64::new(60.0).unwrap(),]
         );
     }
+
+    #[test]
+    fn test_is_above_max_duration() {
+        struct TestStruct {
+            name: String,
+            profile: ProfileData,
+            want: bool,
+        }
+
+        let test_cases = [
+            TestStruct {
+                name: "not above max duration".to_string(),
+                profile: ProfileData {
+                    samples: vec![
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".into(),
+                            timestamp: FiniteF64::new(30.0).unwrap(),
+                        },
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".to_string(),
+                            timestamp: FiniteF64::new(60.0).unwrap(),
+                        },
+                    ],
+                    stacks: vec![vec![0]],
+                    frames: vec![Default::default()],
+                    ..Default::default()
+                },
+                want: false,
+            },
+            TestStruct {
+                name: "not above max duration".to_string(),
+                profile: ProfileData {
+                    samples: vec![
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".into(),
+                            timestamp: FiniteF64::new(10.0).unwrap(),
+                        },
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".to_string(),
+                            timestamp: FiniteF64::new(80.0).unwrap(),
+                        },
+                    ],
+                    stacks: vec![vec![0]],
+                    frames: vec![Default::default()],
+                    ..Default::default()
+                },
+                want: true,
+            },
+        ];
+        for test in &test_cases {
+            assert_eq!(
+                test.profile.is_above_max_duration(),
+                test.want,
+                "test <{}> failed",
+                test.name
+            )
+        }
+    }
 }
