@@ -69,6 +69,10 @@ mod types;
 mod utils;
 
 const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
+/// For continuous profiles, each chunk can be at most 1 minute.
+/// In certain circumstances (e.g. high cpu load) the profiler
+/// the profiler may be stopped slightly after 60, hence here we
+/// give it a bit more room to handle such cases (66 instead of 60)
 const MAX_PROFILE_CHUNK_DURATION: Duration = Duration::from_secs(66);
 
 /// Unique identifier for a profile.
