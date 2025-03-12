@@ -196,7 +196,7 @@ impl RelayStats {
             pool = async_pool.name()
         );
         metric!(
-            gauge(RelayCounters::AsyncPoolFinishedTasks) = metrics.finished_tasks() as f64,
+            gauge(RelayCounters::AsyncPoolFinishedTasks) = metrics.finished_tasks(),
             pool = async_pool.name()
         );
     }
