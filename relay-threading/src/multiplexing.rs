@@ -174,7 +174,7 @@ where
             if let Some(finished_tasks) = before_len.checked_sub(after_len) {
                 this.metrics
                     .finished_tasks
-                    .store(finished_tasks, Ordering::Relaxed);
+                    .fetch_add(finished_tasks, Ordering::Relaxed);
             }
 
             // If we can't get anymore tasks, and we don't have anything else to process, we report
