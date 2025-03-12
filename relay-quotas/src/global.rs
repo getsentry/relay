@@ -17,8 +17,8 @@ pub struct GlobalRateLimits {
 impl GlobalRateLimits {
     /// Returns a vector of the [`RedisQuota`]'s that should be ratelimited.
     ///
-    /// We don't know if an item should be ratelimited or not until we've checked all the quotas.
-    /// Therefore we only start decrementing the budgets of the various quotas when we know
+    /// We don't know if an item should be rate limited or not until we've checked all the quotas.
+    /// Therefore, we only start decrementing the budgets of the various quotas when we know
     /// that None of the quotas hit the ratelimit.
     pub async fn filter_rate_limited<'a>(
         &self,

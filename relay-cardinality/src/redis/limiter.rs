@@ -121,36 +121,37 @@ impl Limiter for RedisSetLimiter {
 
         let mut states = LimitState::from_limits(scoping, limits);
 
-        // Acquire a read lock on the cache.
-        let cache = self.cache.read(timestamp);
-        for entry in entries {
-            for state in states.iter_mut() {
-                let Some(scope) = state.matching_scope(entry) else {
-                    // Entry not relevant for limit.
-                    continue;
-                };
+        {
+            // Acquire a read lock on the cache.
+            let cache = self.cache.read(timestamp);
+            for entry in entries {
+                for state in states.iter_mut() {
+                    let Some(scope) = state.matching_scope(entry) else {
+                        // Entry not relevant for limit.
+                        continue;
+                    };
 
-                match cache.check(&scope, entry.hash, state.limit) {
-                    CacheOutcome::Accepted => {
-                        // Accepted already, nothing to do.
-                        state.cache_hit();
-                        state.accepted();
-                    }
-                    CacheOutcome::Rejected => {
-                        // Rejected, add it to the rejected list and move on.
-                        reporter.reject(state.cardinality_limit(), entry.id);
-                        state.cache_hit();
-                        state.rejected();
-                    }
-                    CacheOutcome::Unknown => {
-                        // Add the entry to the state -> needs to be checked with Redis.
-                        state.add(scope, RedisEntry::new(entry.id, entry.hash));
-                        state.cache_miss();
+                    match cache.check(&scope, entry.hash, state.limit) {
+                        CacheOutcome::Accepted => {
+                            // Accepted already, nothing to do.
+                            state.cache_hit();
+                            state.accepted();
+                        }
+                        CacheOutcome::Rejected => {
+                            // Rejected, add it to the rejected list and move on.
+                            reporter.reject(state.cardinality_limit(), entry.id);
+                            state.cache_hit();
+                            state.rejected();
+                        }
+                        CacheOutcome::Unknown => {
+                            // Add the entry to the state -> needs to be checked with Redis.
+                            state.add(scope, RedisEntry::new(entry.id, entry.hash));
+                            state.cache_miss();
+                        }
                     }
                 }
             }
         }
-        drop(cache); // Give up the cache lock!
 
         let mut connection = self.redis.get_connection();
 
@@ -174,22 +175,23 @@ impl Limiter for RedisSetLimiter {
             for result in results {
                 reporter.report_cardinality(state.cardinality_limit(), result.to_report(timestamp));
 
-                // This always acquires a write lock, but we only hit this
-                // if we previously didn't satisfy the request from the cache,
-                // -> there is a very high chance we actually need the lock.
-                //
-                // Acquire a write lock on the cache.
-                let mut cache = self.cache.update(&result.scope, timestamp);
-                for (entry, status) in result {
-                    if status.is_rejected() {
-                        reporter.reject(state.cardinality_limit(), entry.id);
-                        state.rejected();
-                    } else {
-                        cache.accept(entry.hash);
-                        state.accepted();
+                {
+                    // This always acquires a write lock, but we only hit this
+                    // if we previously didn't satisfy the request from the cache,
+                    // -> there is a very high chance we actually need the lock.
+                    //
+                    // Acquire a read lock on the cache.
+                    let mut cache = self.cache.update(&result.scope, timestamp);
+                    for (entry, status) in result {
+                        if status.is_rejected() {
+                            reporter.reject(state.cardinality_limit(), entry.id);
+                            state.rejected();
+                        } else {
+                            cache.accept(entry.hash);
+                            state.accepted();
+                        }
                     }
                 }
-                drop(cache); // Give up the cache lock!
             }
         }
 
