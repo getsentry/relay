@@ -19,11 +19,6 @@ pub enum RelayGauges {
     /// This metric is tagged with:
     /// - `pool`: the name of the pool.
     AsyncPoolUtilization,
-    /// Tracks the number of tasks driven to completion by the async pool.
-    ///
-    /// This metric is tagged with:
-    /// - `pool`: the name of the pool.
-    AsyncPoolFinishedTasks,
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
@@ -75,7 +70,6 @@ impl GaugeMetric for RelayGauges {
         match self {
             RelayGauges::AsyncPoolQueueSize => "async_pool.queue_size",
             RelayGauges::AsyncPoolUtilization => "async_pool.utilization",
-            RelayGauges::AsyncPoolFinishedTasks => "async_pool.finished_tasks",
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",
@@ -623,6 +617,11 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Tracks the number of tasks driven to completion by the async pool.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
+    AsyncPoolFinishedTasks,
     /// Number of Events that had corrupted (unprintable) event attributes.
     ///
     /// This currently checks for `environment` and `release`, for which we know that
@@ -859,6 +858,7 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            RelayCounters::AsyncPoolFinishedTasks => "async_pool.finished_tasks",
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
