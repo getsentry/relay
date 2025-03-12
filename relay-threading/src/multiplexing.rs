@@ -523,5 +523,7 @@ mod tests {
 
         // We expect that now we have 1 active task, the one that is indefinitely pending.
         assert_eq!(metrics.active_tasks.load(Ordering::Relaxed), 1);
+        // An indefinitely pending task is never finished.
+        assert_eq!(metrics.finished_tasks.load(Ordering::Relaxed), 0);
     }
 }
