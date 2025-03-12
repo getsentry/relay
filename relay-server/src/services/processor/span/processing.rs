@@ -46,7 +46,7 @@ use thiserror::Error;
 struct ValidationError(#[from] anyhow::Error);
 
 #[allow(clippy::too_many_arguments)]
-pub async fn process(
+pub fn process(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
@@ -56,7 +56,7 @@ pub async fn process(
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
     geo_lookup: Option<&GeoIpLookup>,
-    reservoir_counters: &ReservoirEvaluator<'_>,
+    reservoir_counters: &ReservoirEvaluator,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -69,8 +69,7 @@ pub async fn process(
         project_info.clone(),
         sampling_project_info,
         reservoir_counters,
-    )
-    .await;
+    );
 
     let span_metrics_extraction_config = match project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),

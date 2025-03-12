@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use relay_base_schema::organization::OrganizationId;
-use relay_redis::AsyncRedisConnection;
 
 use crate::config::RuleId;
 
@@ -20,21 +19,20 @@ impl ReservoirRuleKey {
 ///
 /// - INCR docs: [`https://redis.io/commands/incr/`]
 /// - If the counter doesn't exist in redis, a new one will be inserted.
-pub async fn increment_redis_reservoir_count(
-    connection: &mut AsyncRedisConnection,
+pub fn increment_redis_reservoir_count(
+    redis_connection: &mut relay_redis::Connection,
     key: &ReservoirRuleKey,
 ) -> anyhow::Result<i64> {
     let val = relay_redis::redis::cmd("INCR")
         .arg(key.as_str())
-        .query_async(connection)
-        .await?;
+        .query(redis_connection)?;
 
     Ok(val)
 }
 
 /// Sets the expiry time for a reservoir rule count.
-pub async fn set_redis_expiry(
-    connection: &mut AsyncRedisConnection,
+pub fn set_redis_expiry(
+    redis_connection: &mut relay_redis::Connection,
     key: &ReservoirRuleKey,
     rule_expiry: Option<&DateTime<Utc>>,
 ) -> anyhow::Result<()> {
@@ -46,8 +44,6 @@ pub async fn set_redis_expiry(
     relay_redis::redis::cmd("EXPIRE")
         .arg(key.as_str())
         .arg(expiry_time - now)
-        .query_async::<()>(connection)
-        .await?;
-
+        .query::<()>(redis_connection)?;
     Ok(())
 }
