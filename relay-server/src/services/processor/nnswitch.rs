@@ -1,4 +1,4 @@
-//! Nintendo Switch processor related code.
+//! Nintendo Switch crash reports processor related code.
 //!
 //! These functions are included only in the processing mode.
 
@@ -6,7 +6,7 @@ use crate::envelope::{ContentType, EnvelopeError, Item, ItemType};
 use crate::services::processor::{ErrorGroup, ProcessingError};
 use crate::utils::{self, TypedEnvelope};
 use crate::Envelope;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
@@ -18,15 +18,15 @@ pub(crate) enum SwitchProcessingError {
     InvalidJson(#[source] serde_json::Error),
     #[error("envelope parsing failed")]
     EnvelopeParsing(#[from] EnvelopeError),
-    #[error("unexpected EOF at offset {offset:?}, expected {expected:?}")]
-    UnexpectedEof { offset: usize, expected: String },
+    #[error("unexpected EOF, expected {expected:?}")]
+    UnexpectedEof { expected: String },
     #[error("invalid {0:?}")]
     InvalidValue(String),
     #[error("Zstandard error")]
     Zstandard(#[source] std::io::Error),
 }
 
-/// Expands Nintendo Switch DyingMessage attachment.
+/// Expands Nintendo Switch crash-reports.
 ///
 /// If the envelope does NOT contain a `dying_message.dat` attachment, it doesn't do anything.
 /// If the attachment item is found and it matches the expected format, it parses the attachment
@@ -73,30 +73,65 @@ fn is_dying_message(item: &crate::envelope::Item) -> bool {
 
 /// Parses DyingMessage contents and updates the envelope.
 /// See https://github.com/getsentry/sentry-switch/blob/main/docs/protocol/README.md
-fn expand_dying_message(payload: Bytes, envelope: &mut Envelope) -> Result<()> {
-    let mut offset = SENTRY_MAGIC.len();
+/// The format goes as follows:
+///
+/// ```text
+/// 4 bytes - Magic number (0x736E7472 = 'sntr')
+/// 1 byte - Format version (0-255)
+/// n bytes - Version-specific data
+/// ```
+fn expand_dying_message(mut payload: Bytes, envelope: &mut Envelope) -> Result<()> {
+    payload.advance(SENTRY_MAGIC.len());
     let version = payload
-        .get(offset)
-        .ok_or_else(|| SwitchProcessingError::UnexpectedEof {
-            offset,
+        .try_get_u8()
+        .map_err(|_| SwitchProcessingError::UnexpectedEof {
             expected: "version".into(),
         })?;
-    offset += 1;
     match version {
-        0 => expand_dying_message_v0(payload, offset, envelope),
+        0 => expand_dying_message_v0(payload, envelope),
         _ => Err(SwitchProcessingError::InvalidValue("version".into())),
     }
 }
 
 /// DyingMessage protocol v0 parser.
-/// Header format:
-/// 1 byte - payload encoding
-/// 2 bytes - payload size (compressed payload size if compression is used) (0-65535)
-fn expand_dying_message_v0(
-    payload: Bytes,
-    mut offset: usize,
-    envelope: &mut Envelope,
-) -> Result<()> {
+/// ### v0 file format
+///
+/// The version-specific data is as follows:
+///
+/// ```text
+/// 1 byte - Payload encoding
+/// 2 bytes - Payload size, big-endian notation (before decompression if compressed) (0-65535)
+/// n bytes - Payload
+/// ```
+///
+/// The payload encoding is stored as a single byte but stores multiple components by splitting bits to groups:
+///
+/// ```text
+/// 2 bits (uint2) - format (after decompression), possible values:
+/// - `0` = envelope items without envelope header
+/// 2 bits (uint2) - compression algorithm, possible values:
+/// - `0` = none
+/// - `1` = Zstandard
+/// 4 bits (uint4) - compression-algorithm-specific argument, e.g. dictionary identifier
+/// ```
+///
+/// The payload consists of envelope-items, as specified in the
+/// [Envelope data format](https://develop.sentry.dev/sdk/data-model/envelopes/#serialization-format).
+/// However, there is no envelope header as that is irrelevant in the context of DyingMessage.
+///
+/// Additionally, the [Event envelope item type](https://develop.sentry.dev/sdk/data-model/event-payloads/) is considered
+/// a "patch" over the actual event envelope item in the "parent" envelope (the one that the DyingMessage is attached to).
+/// This will result in an update of the parent envelope's event item with the data from the DyingMessage's event item.
+///
+/// Any other item is attached to the parent envelope.
+///
+/// #### ZStandard compression
+///
+/// In case the payload is compressed with Zstandard, it is configured to omit the following in the compressed data:
+///
+/// - ZStandard magic number
+/// - Dictionary ID
+fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Result<()> {
     // The payload encoding is stored as a single byte but stores multiple components by splitting bits to groups:
     // - 2 bits (uint2) - format (after decompression), possible values:
     //   - `0` = envelope items without envelope header
@@ -104,30 +139,24 @@ fn expand_dying_message_v0(
     //   - `0` = none
     //   - `1` = Zstandard
     // - 4 bits (uint4) - compression algorithm specific argument, e.g. dictionary identifier
-    let encoding_byte =
-        payload
-            .get(offset)
-            .ok_or_else(|| SwitchProcessingError::UnexpectedEof {
-                offset,
-                expected: "encoding".into(),
-            })?;
+    let encoding_byte = payload
+        .try_get_u8()
+        .map_err(|_| SwitchProcessingError::UnexpectedEof {
+            expected: "encoding".into(),
+        })?;
     let format = (encoding_byte >> 6) & 0b0000_0011;
     let compression = (encoding_byte >> 4) & 0b0000_0011;
     let compression_arg = encoding_byte & 0b0000_1111;
-    offset += 1;
 
-    if payload.len() < offset + 2 {
-        return Err(SwitchProcessingError::UnexpectedEof {
-            offset,
-            expected: "compressed data length".into(),
-        });
-    }
-    let compressed_length = u16::from_be_bytes([payload[offset], payload[offset + 1]]);
-    offset += 2;
+    let compressed_length =
+        payload
+            .try_get_u16()
+            .map_err(|_| SwitchProcessingError::UnexpectedEof {
+                expected: "compressed data length".into(),
+            })?;
     let data = decompress_data(
         payload,
-        offset,
-        compressed_length,
+        compressed_length as usize,
         compression,
         compression_arg,
     )?;
@@ -167,19 +196,17 @@ fn update_event(item: Item, event: &mut Item) -> std::result::Result<(), serde_j
 
 fn decompress_data(
     payload: Bytes,
-    offset: usize,
-    compressed_length: u16,
+    compressed_length: usize,
     compression: u8,
     compression_arg: u8,
 ) -> Result<Bytes> {
-    let data_end_offset = offset + compressed_length as usize;
-    if payload.len() < data_end_offset {
+    if payload.len() < compressed_length {
         return Err(SwitchProcessingError::InvalidValue(
             "compressed data length".into(),
         ));
     }
 
-    let data = payload.slice(offset..data_end_offset);
+    let data = payload.slice(0..compressed_length);
     match compression {
         // No compression
         0 => Ok(data),
