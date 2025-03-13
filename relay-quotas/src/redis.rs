@@ -6,7 +6,7 @@ use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
 use relay_redis::{RedisError, RedisPool, RedisScripts};
-use relay_system::Addr;
+use relay_system::{Addr, SendError};
 use std::fmt::{self, Debug};
 use thiserror::Error;
 
@@ -21,6 +21,9 @@ pub enum RateLimitingError {
     /// Failed to communicate with Redis.
     #[error("failed to communicate with redis")]
     Redis(#[source] RedisError),
+
+    #[error("failed to check global rate limits")]
+    UnreachableGlobalRateLimits,
 }
 
 fn get_refunded_quota_key(counter_key: &str) -> String {
@@ -88,6 +91,13 @@ impl OwnedRedisQuota {
     /// Returns the current slot of the quota.
     pub fn slot(&self) -> u64 {
         (self.timestamp.as_secs() - self.shift()) / self.window
+    }
+
+    /// Returns when the quota will expire.
+    pub fn expiry(&self) -> UnixTimestamp {
+        let next_slot = self.slot() + 1;
+        let next_start = next_slot * self.window + self.shift();
+        UnixTimestamp::from_secs(next_start)
     }
 
     /// Returns when the key should expire in Redis.
@@ -337,20 +347,20 @@ impl RedisRateLimiter {
         //     .filter_rate_limited(&mut client, &global_quotas, quantity)
         //     .map_err(RateLimitingError::Redis)?;
 
-        // TODO: return indexes of quotas that were rate limited so that we can immediately reference
-        //  them.
+        let owned_global_quotas = global_quotas.into_iter().map(|q| q.to_owned()).collect();
         let rate_limited_global_quotas = self
             .global_rate_limits
             .send(CheckRateLimited {
                 pool: self.pool.clone(),
-                quotas: &global_quotas,
+                quotas: owned_global_quotas,
                 quantity,
             })
-            .await;
+            .await
+            .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)??;
 
         for quota in rate_limited_global_quotas {
             let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-            rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
+            rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
         }
 
         // Either there are no quotas to run against Redis, or we already have a rate limit from a
