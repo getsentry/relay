@@ -3886,6 +3886,7 @@ dependencies = [
  "relay-common",
  "relay-log",
  "relay-redis",
+ "relay-system",
  "serde",
  "serde_json",
  "smallvec",

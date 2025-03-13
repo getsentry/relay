@@ -1,15 +1,14 @@
-use std::fmt::{self, Debug};
-
+use crate::global::{CheckRateLimited, GlobalRateLimits};
+use crate::quota::{ItemScoping, Quota, QuotaScope};
+use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
+use crate::{OwnedItemScoping, REJECT_ALL_SECS};
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
 use relay_redis::{RedisError, RedisPool, RedisScripts};
+use relay_system::Addr;
+use std::fmt::{self, Debug};
 use thiserror::Error;
-
-use crate::global::GlobalRateLimits;
-use crate::quota::{ItemScoping, Quota, QuotaScope};
-use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::REJECT_ALL_SECS;
 
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -40,6 +39,70 @@ where
             Some(ref value) => write!(f, "{value}"),
             None => Ok(()),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct OwnedRedisQuota {
+    /// The original quota.
+    quota: Quota,
+    /// Scopes of the item being tracked.
+    scoping: OwnedItemScoping,
+    /// The Redis key prefix mapped from the quota id.
+    prefix: String,
+    /// The redis window in seconds mapped from the quota.
+    window: u64,
+    /// The ingestion timestamp determining the rate limiting bucket.
+    timestamp: UnixTimestamp,
+}
+
+impl OwnedRedisQuota {
+    // TODO: figure out how to remove duplication for these methods.
+
+    /// Returns the window size of the quota.
+    pub fn window(&self) -> u64 {
+        self.window
+    }
+
+    /// Returns the prefix of the quota.
+    pub fn prefix(&self) -> &str {
+        &self.prefix
+    }
+
+    /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
+    pub fn limit(&self) -> i64 {
+        self.limit
+            // If it does not fit into i64, treat as unlimited:
+            .and_then(|limit| limit.try_into().ok())
+            .unwrap_or(-1)
+    }
+
+    fn shift(&self) -> u64 {
+        if self.quota.scope == QuotaScope::Global {
+            0
+        } else {
+            self.scoping.organization_id.value() % self.window
+        }
+    }
+
+    /// Returns the current slot of the quota.
+    pub fn slot(&self) -> u64 {
+        (self.timestamp.as_secs() - self.shift()) / self.window
+    }
+
+    /// Returns when the key should expire in Redis.
+    ///
+    /// Like [`Self::expiry()`] but adds an additional grace period for the key.
+    pub fn key_expiry(&self) -> u64 {
+        self.expiry().as_secs() + GRACE
+    }
+}
+
+impl std::ops::Deref for OwnedRedisQuota {
+    type Target = Quota;
+
+    fn deref(&self) -> &Self::Target {
+        &self.quota
     }
 }
 
@@ -75,6 +138,16 @@ impl<'a> RedisQuota<'a> {
             window,
             timestamp,
         })
+    }
+
+    pub fn to_owned(&self) -> OwnedRedisQuota {
+        OwnedRedisQuota {
+            quota: self.quota.clone(),
+            scoping: self.scoping.to_owned(),
+            prefix: self.prefix.to_string(),
+            window: self.window,
+            timestamp: self.timestamp,
+        }
     }
 
     /// Returns the window size of the quota.
@@ -167,17 +240,17 @@ pub struct RedisRateLimiter {
     pool: RedisPool,
     script: &'static Script,
     max_limit: Option<u64>,
-    global_limits: GlobalRateLimits,
+    global_rate_limits: Addr<GlobalRateLimits>,
 }
 
 impl RedisRateLimiter {
     /// Creates a new `RedisRateLimiter` instance.
-    pub fn new(pool: RedisPool) -> Self {
+    pub fn new(pool: RedisPool, global_rate_limits: Addr<GlobalRateLimits>) -> Self {
         RedisRateLimiter {
             pool,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_limits: GlobalRateLimits::default(),
+            global_rate_limits,
         }
     }
 
@@ -207,7 +280,7 @@ impl RedisRateLimiter {
     /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
     /// limit has been reached or exceeded without incrementing it in the success case. This can be
     /// useful to check for required quotas in a different data category.
-    pub fn is_rate_limited<'a>(
+    pub async fn is_rate_limited<'a>(
         &self,
         quotas: impl IntoIterator<Item = &'a Quota>,
         item_scoping: ItemScoping<'_>,
@@ -230,8 +303,8 @@ impl RedisRateLimiter {
                 // increment any keys, as one quota has reached capacity (this is how regular quotas
                 // behave as well).
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
-                rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
-            } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
+                rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
+            } else if let Some(quota) = RedisQuota::new(&quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
                     global_quotas.push(quota);
                 } else {
@@ -259,10 +332,21 @@ impl RedisRateLimiter {
             }
         }
 
+        // let rate_limited_global_quotas = self
+        //     .global_rate_limits
+        //     .filter_rate_limited(&mut client, &global_quotas, quantity)
+        //     .map_err(RateLimitingError::Redis)?;
+
+        // TODO: return indexes of quotas that were rate limited so that we can immediately reference
+        //  them.
         let rate_limited_global_quotas = self
-            .global_limits
-            .filter_rate_limited(&mut client, &global_quotas, quantity)
-            .map_err(RateLimitingError::Redis)?;
+            .global_rate_limits
+            .send(CheckRateLimited {
+                pool: self.pool.clone(),
+                quotas: &global_quotas,
+                quantity,
+            })
+            .await;
 
         for quota in rate_limited_global_quotas {
             let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
@@ -324,7 +408,7 @@ mod tests {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_limits: GlobalRateLimits::default(),
+            global_rate_limits: Inner::default(),
         }
     }
 

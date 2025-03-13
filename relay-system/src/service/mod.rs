@@ -202,7 +202,7 @@ impl<T> fmt::Debug for Sender<T> {
 impl<T> Sender<T> {
     /// Sends the response value and closes the [`Request`].
     ///
-    /// This silenly drops the value if the request has been dropped.
+    /// This silently drops the value if the request has been dropped.
     pub fn send(self, value: T) {
         self.0.send(value).ok();
     }

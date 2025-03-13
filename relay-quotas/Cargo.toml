@@ -22,6 +22,7 @@ relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
 relay-log = { workspace = true, optional = true }
 relay-redis = { workspace = true, optional = true }
+relay-system = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true, optional = true }

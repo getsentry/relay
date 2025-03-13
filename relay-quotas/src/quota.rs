@@ -96,6 +96,39 @@ impl From<MetricNamespace> for MetricNamespaceScoping {
 
 /// Data categorization and scoping information.
 ///
+/// [`OwnedItemScoping`] is always attached to a [`Scoping`].
+///
+/// It is the owned variant of [`ItemScoping`] intended for the use with the rate limiter.
+///
+/// It implements `Deref<Target = Scoping>` and `AsRef<Scoping>` for ease of use.
+#[derive(Clone, Copy, Debug)]
+pub struct OwnedItemScoping {
+    /// The data category of the item.
+    pub category: DataCategory,
+
+    /// Scoping of the data.
+    pub scoping: Scoping,
+
+    /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
+    pub namespace: MetricNamespaceScoping,
+}
+
+impl AsRef<Scoping> for OwnedItemScoping {
+    fn as_ref(&self) -> &Scoping {
+        &self.scoping
+    }
+}
+
+impl std::ops::Deref for OwnedItemScoping {
+    type Target = Scoping;
+
+    fn deref(&self) -> &Self::Target {
+        &self.scoping
+    }
+}
+
+/// Data categorization and scoping information.
+///
 /// `ItemScoping` is always attached to a `Scope` and references it internally. It is a cheap,
 /// copyable type intended for the use with `RateLimits` and `RateLimiter`. It implements
 /// `Deref<Target = Scoping>` and `AsRef<Scoping>` for ease of use.
@@ -109,6 +142,16 @@ pub struct ItemScoping<'a> {
 
     /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     pub namespace: MetricNamespaceScoping,
+}
+
+impl<'a> ItemScoping<'a> {
+    pub fn to_owned(&self) -> OwnedItemScoping {
+        OwnedItemScoping {
+            category: self.category.clone(),
+            scoping: self.scoping.clone(),
+            namespace: self.namespace.clone(),
+        }
+    }
 }
 
 impl AsRef<Scoping> for ItemScoping<'_> {
@@ -362,7 +405,7 @@ pub struct Quota {
     /// If `None`, it will match any namespace.
     pub namespace: Option<MetricNamespace>,
 
-    /// A machine readable reason returned when this quota is exceeded. Required in all cases except
+    /// A machine-readable reason returned when this quota is exceeded. Required in all cases except
     /// `limit=None`, since unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<ReasonCode>,
