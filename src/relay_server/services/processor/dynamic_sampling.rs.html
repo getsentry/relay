@@ -793,7 +793,28 @@
 <a href="#792" id="792">792</a>
 <a href="#793" id="793">793</a>
 <a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -802,13 +823,16 @@
 <span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 <span class="kw">use </span>relay_event_schema::protocol::{Contexts, Event, TraceContext};
 <span class="kw">use </span>relay_protocol::{Annotated, Empty};
+<span class="kw">use </span>relay_quotas::DataCategory;
 <span class="kw">use </span>relay_sampling::config::RuleType;
 <span class="kw">use </span>relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 <span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{CountFor, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{event_category, EventProcessing, Sampling, TransactionGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{
+    event_category, EventProcessing, Sampling, SpansExtracted, TransactionGroup,
+};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, SamplingResult, TypedEnvelope};
 
@@ -907,6 +931,7 @@
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
     event: Annotated&lt;Event&gt;,
     outcome: Outcome,
+    spans_extracted: SpansExtracted,
 ) {
     <span class="comment">// Remove all items from the envelope which need to be dropped due to dynamic sampling.
     </span><span class="kw">let </span>dropped_items = managed_envelope
@@ -929,6 +954,23 @@
     <span class="comment">// Mark all remaining items in the envelope as un-sampled.
     </span><span class="kw">for </span>item <span class="kw">in </span>managed_envelope.envelope_mut().items_mut() {
         item.set_sampled(<span class="bool-val">false</span>);
+    }
+
+    <span class="comment">// Another 'hack' to emit outcomes from the container item for the contained items (spans).
+    //
+    // The entire tracking outcomes for contained elements is not handled in a systematic way
+    // and whenever an event/transaction is discarded, contained elements are tracked in a 'best
+    // effort' basis (basically in all the cases where someone figured out this is a problem).
+    //
+    // This is yet another case, when the spans have not yet been separated from the transaction
+    // also emit dynamic sampling outcomes for the contained spans.
+    </span><span class="kw">if </span>!spans_extracted.<span class="number">0 </span>{
+        <span class="kw">let </span>spans = event.value().and_then(|e| e.spans.value());
+        <span class="kw">let </span>span_count = spans.map_or(<span class="number">0</span>, |s| s.len());
+
+        <span class="comment">// Track the amount of contained spans + 1 segment span (the transaction itself which would
+        // be converted to a span).
+        </span>managed_envelope.track_outcome(outcome.clone(), DataCategory::SpanIndexed, span_count + <span class="number">1</span>);
     }
 
     <span class="comment">// All items have been dropped, now make sure the event is also handled and dropped.

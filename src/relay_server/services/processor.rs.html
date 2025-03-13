@@ -4247,7 +4247,12 @@
 <a href="#4246" id="4246">4246</a>
 <a href="#4247" id="4247">4247</a>
 <a href="#4248" id="4248">4248</a>
-<a href="#4249" id="4249">4249</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4249" id="4249">4249</a>
+<a href="#4250" id="4250">4250</a>
+<a href="#4251" id="4251">4251</a>
+<a href="#4252" id="4252">4252</a>
+<a href="#4253" id="4253">4253</a>
+<a href="#4254" id="4254">4254</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -6033,7 +6038,12 @@
                 spans_extracted,
             )<span class="question-mark">?</span>;
 
-            dynamic_sampling::drop_unsampled_items(managed_envelope, event, outcome);
+            dynamic_sampling::drop_unsampled_items(
+                managed_envelope,
+                event,
+                outcome,
+                spans_extracted,
+            );
 
             <span class="comment">// At this point we have:
             //  - An empty envelope.
