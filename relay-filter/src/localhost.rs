@@ -113,8 +113,8 @@ mod tests {
         Event {
             request: Annotated::from(Request {
                 headers: Annotated::from(Headers(PairList(vec![Annotated::new((
-                    Annotated::new(HeaderName::new(key.to_string())),
-                    Annotated::new(HeaderValue::new(value.to_string())),
+                    Annotated::new(HeaderName::new(key)),
+                    Annotated::new(HeaderValue::new(value)),
                 ))]))),
                 ..Default::default()
             }),
