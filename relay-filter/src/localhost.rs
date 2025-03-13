@@ -40,14 +40,12 @@ fn matches<F: Filterable>(item: &F) -> bool {
         }
     }
 
-    if item.url().is_none() {
-        for header_name in [HOST_HEADER, FORWARDED_HOST_HEADER] {
-            if let Some(header) = item.header(header_name) {
-                if let Some(domain_part) = header.split(":").next() {
-                    // header values here will usually look like "localhost:3000" or "127.0.0.1:8080"
-                    if LOCAL_DOMAINS.iter().any(|domain| domain_part == *domain) {
-                        return true;
-                    }
+    for header_name in [HOST_HEADER, FORWARDED_HOST_HEADER] {
+        if let Some(header) = item.header(header_name) {
+            if let Some(domain_part) = header.split(":").next() {
+                // header values here will usually look like "localhost:3000" or "127.0.0.1:8080"
+                if LOCAL_DOMAINS.iter().any(|domain| domain_part == *domain) {
+                    return true;
                 }
             }
         }
