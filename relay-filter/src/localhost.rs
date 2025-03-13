@@ -5,11 +5,11 @@ use crate::{FilterConfig, FilterStatKey, Filterable};
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
-const FORWARDED_FOR_HEADER: &'static str = "X-Forwarded-For";
+const FORWARDED_FOR_HEADER: &str = "X-Forwarded-For";
 
-const FORWARDED_HOST_HEADER: &'static str = "X-Forwarded-Host";
+const FORWARDED_HOST_HEADER: &str = "X-Forwarded-Host";
 
-const HOST_HEADER: &'static str = "Host";
+const HOST_HEADER: &str = "Host";
 
 /// Check if the event originates from the local host.
 fn matches<F: Filterable>(item: &F) -> bool {
