@@ -368,11 +368,6 @@ def test_localhost_filter_with_headers(mini_sentry, relay, headers):
     ],
 )
 def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
-    """
-    This test aims to reproduce a case where the SDK would set {{auto}} as user.ip_address
-    and relay would infer its internet address.
-    The IP address is pre-filled to simulate that inference.
-    """
     relay = relay(mini_sentry)
 
     project_id = 42
@@ -380,8 +375,8 @@ def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
     filter_settings = project_config["config"]["filterSettings"]
     filter_settings["localhost"] = {"isEnabled": True}
 
-    event = {"user": {"ip_address": "81.41.165.209"}, "request": {"headers": headers}}
-    relay.send_event(project_id, event)
+    event = {"user": "{{auto}}", "request": {"headers": headers}}
+    relay.send_event(project_id, event, headers={"X-Forwarded-For": "81.41.165.209"})
 
     report = mini_sentry.get_client_report()
     assert report["filtered_events"] == [
