@@ -18,7 +18,7 @@ use crate::debug_image::get_proguard_image;
 use crate::measurements::ChunkMeasurement;
 use crate::sample::v2::ProfileData;
 use crate::types::{ClientSdk, DebugMeta};
-use crate::{ProfileError, MAX_PROFILE_DURATION};
+use crate::{ProfileError, MAX_PROFILE_CHUNK_DURATION};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Metadata {
@@ -108,7 +108,7 @@ fn parse_chunk(payload: &[u8]) -> Result<Chunk, ProfileError> {
         return Err(ProfileError::NotEnoughSamples);
     }
 
-    if profile.profile.elapsed_time > MAX_PROFILE_DURATION {
+    if profile.profile.elapsed_time > MAX_PROFILE_CHUNK_DURATION {
         return Err(ProfileError::DurationIsTooLong);
     }
 
