@@ -1432,7 +1432,22 @@
 <a href="#1431" id="1431">1431</a>
 <a href="#1432" id="1432">1432</a>
 <a href="#1433" id="1433">1433</a>
-<a href="#1434" id="1434">1434</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1665,8 +1680,16 @@
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
-        new_item
-            .set_ingest_span_in_eap(project_info.config.features.has(Feature::IngestSpansInEap));
+        new_item.set_ingest_span_in_eap(
+            project_info
+                .config
+                .features
+                .has(Feature::IngestSpansInEapForOrganization)
+                || project_info
+                    .config
+                    .features
+                    .has(Feature::IngestSpansInEapForProject),
+        );
 
         <span class="kw-2">*</span>item = new_item;
 
@@ -1732,7 +1755,14 @@
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
-    <span class="kw">let </span>ingest_in_eap = project_info.config.features.has(Feature::IngestSpansInEap);
+    <span class="kw">let </span>ingest_in_eap = project_info
+        .config
+        .features
+        .has(Feature::IngestSpansInEapForOrganization)
+        || project_info
+            .config
+            .features
+            .has(Feature::IngestSpansInEapForProject);
 
     <span class="kw">let </span><span class="kw-2">mut </span>add_span = |<span class="kw-2">mut </span>span: Span| {
         add_sample_rate(
