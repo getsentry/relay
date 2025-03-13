@@ -7,13 +7,16 @@ use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
+use relay_quotas::DataCategory;
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::{CountFor, ItemType};
 use crate::services::outcome::Outcome;
-use crate::services::processor::{event_category, EventProcessing, Sampling, TransactionGroup};
+use crate::services::processor::{
+    event_category, EventProcessing, Sampling, SpansExtracted, TransactionGroup,
+};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{self, SamplingResult, TypedEnvelope};
 
@@ -112,6 +115,7 @@ pub fn drop_unsampled_items(
     managed_envelope: &mut TypedEnvelope<TransactionGroup>,
     event: Annotated<Event>,
     outcome: Outcome,
+    spans_extracted: SpansExtracted,
 ) {
     // Remove all items from the envelope which need to be dropped due to dynamic sampling.
     let dropped_items = managed_envelope
@@ -134,6 +138,23 @@ pub fn drop_unsampled_items(
     // Mark all remaining items in the envelope as un-sampled.
     for item in managed_envelope.envelope_mut().items_mut() {
         item.set_sampled(false);
+    }
+
+    // Another 'hack' to emit outcomes from the container item for the contained items (spans).
+    //
+    // The entire tracking outcomes for contained elements is not handled in a systematic way
+    // and whenever an event/transaction is discarded, contained elements are tracked in a 'best
+    // effort' basis (basically in all the cases where someone figured out this is a problem).
+    //
+    // This is yet another case, when the spans have not yet been separated from the transaction
+    // also emit dynamic sampling outcomes for the contained spans.
+    if !spans_extracted.0 {
+        let spans = event.value().and_then(|e| e.spans.value());
+        let span_count = spans.map_or(0, |s| s.len());
+
+        // Track the amount of contained spans + 1 segment span (the transaction itself which would
+        // be converted to a span).
+        managed_envelope.track_outcome(outcome.clone(), DataCategory::SpanIndexed, span_count + 1);
     }
 
     // All items have been dropped, now make sure the event is also handled and dropped.
