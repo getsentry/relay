@@ -1013,12 +1013,13 @@ def test_transaction_metrics_extraction_external_relays(
     }
     external.send_transaction(project_id, tx, item_headers, trace_info)
 
+    # Client reports.
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
 
     if expect_metrics_extraction:
-        metrics_envelope = mini_sentry.captured_events.get(timeout=3)
-        assert len(metrics_envelope.items) == 1
         metrics_envelope = mini_sentry.captured_events.get(timeout=3)
         assert len(metrics_envelope.items) == 1
 
