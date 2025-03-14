@@ -11,13 +11,19 @@ use crate::RateLimitingError;
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 
-/// Checks which quotas are rate limited by the global rate limiter.
+/// A request to check which quotas are rate limited by the global rate limiter.
+///
+/// This is typically sent to a [`GlobalRateLimitsService`] to determine which quotas
+/// should be rate limited based on the current usage.
 pub struct CheckRateLimited {
     pub quotas: Vec<OwnedRedisQuota>,
     pub quantity: usize,
 }
 
-/// Global rate limiting for envelopes.
+/// Interface for global rate limiting operations.
+///
+/// This enum defines the messages that can be sent to a service implementing
+/// global rate limiting functionality.
 pub enum GlobalRateLimits {
     /// Checks which quotas are rate limited by the global rate limiter.
     CheckRateLimited(
@@ -41,7 +47,8 @@ impl FromMessage<CheckRateLimited> for GlobalRateLimits {
 
 /// Service implementing the [`GlobalRateLimits`] interface.
 ///
-/// This service offers global rate limiting that is performed within a [`RedisPool`].
+/// This service provides global rate limiting functionality that is synchronized
+/// across multiple instances using a [`RedisPool`].
 #[derive(Debug)]
 pub struct GlobalRateLimitsService {
     pool: RedisPool,
@@ -49,7 +56,10 @@ pub struct GlobalRateLimitsService {
 }
 
 impl GlobalRateLimitsService {
-    /// Creates a new instance of [`GlobalRateLimitsService`].
+    /// Creates a new [`GlobalRateLimitsService`] with the provided Redis pool.
+    ///
+    /// The service will use the pool to communicate with Redis for synchronizing
+    /// rate limits across multiple instances.
     pub fn new(pool: RedisPool) -> Self {
         Self {
             pool,
@@ -95,17 +105,22 @@ impl Service for GlobalRateLimitsService {
 }
 
 /// A rate limiter for global rate limits.
+///
+/// This struct maintains local caches of rate limits to reduce the number of
+/// Redis operations required.
 #[derive(Debug, Default)]
 struct Inner {
     limits: hashbrown::HashMap<Key, GlobalRateLimit>,
 }
 
 impl Inner {
-    /// Returns a vector of the [`RedisQuota`]'s that should be rate limited.
+    /// Returns the [`RedisQuota`]s that should be rate limited.
     ///
-    /// We don't know if an item should be rate limited or not until we've checked all the quotas.
-    /// Therefore, we only start decrementing the budgets of the various quotas when we know
-    /// that None of the quotas hit the ratelimit.
+    /// This method checks all quotas against their limits and returns those that
+    /// exceed their limits. The rate limits are checked globally using Redis.
+    ///
+    /// Budgets are only decremented when none of the quotas hit their rate limits,
+    /// which ensures consistent behavior across all quotas.
     pub fn filter_rate_limited<'a>(
         &mut self,
         client: &mut PooledClient,
@@ -142,9 +157,10 @@ impl Inner {
     }
 }
 
-/// Used to look up a hashmap of [`keys`](Key) without a string allocation.
+/// Reference to a rate limit key without requiring string allocation.
 ///
-/// This works due to the [`hashbrown::Equivalent`] trait.
+/// This struct is used to look up rate limits in a hashmap efficiently by
+/// implementing the [`hashbrown::Equivalent`] trait.
 #[derive(Clone, Copy, Hash, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct KeyRef<'a> {
     prefix: &'a str,
@@ -180,7 +196,8 @@ impl hashbrown::Equivalent<Key> for KeyRef<'_> {
 
 /// Key for storing global quota-budgets locally.
 ///
-/// Note: must not be used in redis. For that, use RedisQuota.key().
+/// This is used to identify unique rate limits in the local cache.
+/// Note that this is distinct from the keys used in Redis.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Key {
     prefix: String,
@@ -198,6 +215,9 @@ impl From<&KeyRef<'_>> for Key {
     }
 }
 
+/// Redis key representation for global rate limits.
+///
+/// This struct formats rate limit keys for use in Redis operations.
 #[derive(Debug)]
 struct RedisKey(String);
 
@@ -215,12 +235,12 @@ impl RedisKey {
 
 /// A single global rate limit.
 ///
-/// When we want to ratelimit across all relay-instances, we need to use Redis to synchronize.
-/// Calling Redis every time we want to check if an item should be rate limited would be very expensive,
-/// which is why we have this cache. It works by 'taking' a certain budget from Redis, by pre-incrementing
-/// a global counter. We put the amount we pre-incremented into this local cache and count down until
-/// we have no more budget, then we ask for more from Redis. If we find the global counter is above
-/// the quota limit, we will ratelimit the item.
+/// This struct implements a local cache of a global rate limit. It reserves a budget
+/// from Redis that can be consumed locally, reducing the number of Redis operations
+/// required. When the local budget is exhausted, a new budget is requested from Redis.
+///
+/// This approach significantly reduces the overhead of checking rate limits while
+/// still maintaining global synchronization across multiple instances.
 #[derive(Debug)]
 struct GlobalRateLimit {
     budget: u64,
@@ -229,6 +249,7 @@ struct GlobalRateLimit {
 }
 
 impl GlobalRateLimit {
+    /// Creates a new [`GlobalRateLimit`] with empty budget.
     fn new() -> Self {
         Self {
             budget: 0,
@@ -237,7 +258,11 @@ impl GlobalRateLimit {
         }
     }
 
-    /// Returns `true` if quota should be rate limited.
+    /// Checks if the quota should be rate limited.
+    ///
+    /// Returns `true` if the quota has exceeded its limit and should be rate limited.
+    /// This method handles time slot transitions and requests additional budget from
+    /// Redis when necessary.
     pub fn check_rate_limited(
         &mut self,
         client: &mut PooledClient,
@@ -274,6 +299,10 @@ impl GlobalRateLimit {
         Ok(self.budget < quantity)
     }
 
+    /// Attempts to reserve budget from Redis for this rate limit.
+    ///
+    /// This method calculates how much budget to request based on the current needs
+    /// and quota limits, then communicates with Redis to reserve this budget.
     fn try_reserve(
         &mut self,
         client: &mut PooledClient,
@@ -307,6 +336,11 @@ impl GlobalRateLimit {
         Ok(budget)
     }
 
+    /// Calculates the default amount of budget to request from Redis.
+    ///
+    /// This method determines an appropriate budget size based on the quota limit
+    /// and the configured budget ratio, balancing Redis communication overhead
+    /// against local memory usage.
     fn default_request_size(&self, quantity: u64, quota: &RedisQuota) -> u64 {
         match quota.limit {
             Some(limit) => (limit as f32 * DEFAULT_BUDGET_RATIO) as u64,

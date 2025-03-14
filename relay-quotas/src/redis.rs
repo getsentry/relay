@@ -275,8 +275,8 @@ impl RedisRateLimiter {
                 // increment any keys, as one quota has reached capacity (this is how regular quotas
                 // behave as well).
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
-                rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
-            } else if let Some(quota) = RedisQuota::new(&quota, item_scoping, timestamp) {
+                rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
+            } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
                     global_quotas.push(quota);
                 } else {
