@@ -486,11 +486,10 @@ pub fn normalize_user_geoinfo(
     user: &mut Annotated<User>,
     ip_addr: Option<&IpAddr>,
 ) {
-    if let Some(user) = user.value_mut() {
-        if let Some(ip_address) = user.ip_address.value().or(ip_addr) {
-            if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
-                user.geo.set_value(Some(geo));
-            }
+    let user = user.value_mut().get_or_insert_with(User::default);
+    if let Some(ip_address) = user.ip_address.value().or(ip_addr) {
+        if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
+            user.geo.set_value(Some(geo));
         }
     }
 }
