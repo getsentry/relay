@@ -98,6 +98,7 @@ mod span;
 mod transaction;
 pub use span::extract_transaction_span;
 
+mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -1551,7 +1552,22 @@ impl EnvelopeProcessorService {
         report::process_user_reports(managed_envelope);
 
         if_processing!(self.inner.config, {
+            if managed_envelope
+                .envelope()
+                .required_features()
+                .contains(&Feature::PlaystationIngestion)
+                && should_filter(
+                    &self.inner.config,
+                    &project_info,
+                    Feature::PlaystationIngestion,
+                )
+            {
+                managed_envelope.drop_items_silently();
+                return Ok(None);
+            }
+
             unreal::expand(managed_envelope, &self.inner.config)?;
+            playstation::expand(managed_envelope, &self.inner.config)?;
         });
 
         let extraction_result = event::extract(
@@ -1565,6 +1581,11 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             if let Some(inner_event_fully_normalized) =
                 unreal::process(managed_envelope, &mut event)?
+            {
+                event_fully_normalized = inner_event_fully_normalized;
+            }
+            if let Some(inner_event_fully_normalized) =
+                playstation::process(managed_envelope, &mut event)?
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }

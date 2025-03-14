@@ -154,7 +154,7 @@ pub async fn multipart_items<F>(
     mut infer_type: F,
 ) -> Result<Items, multer::Error>
 where
-    F: FnMut(Option<&str>) -> AttachmentType,
+    F: FnMut(Option<&str>, &str) -> AttachmentType,
 {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
@@ -162,7 +162,7 @@ where
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
             let mut item = Item::new(ItemType::Attachment);
-            item.set_attachment_type(infer_type(field.name()));
+            item.set_attachment_type(infer_type(field.name(), file_name));
             item.set_filename(file_name);
             // Extract the body after the immutable borrow on `file_name` is gone.
             if let Some(content_type) = field.content_type() {
