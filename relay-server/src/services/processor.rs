@@ -34,7 +34,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_protocol::{Annotated, Empty};
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{DataCategory, GlobalRateLimits, RateLimits, Scoping};
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -1099,6 +1099,8 @@ pub struct Addrs {
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
+    #[cfg(feature = "processing")]
+    pub global_rate_limits: Option<Addr<GlobalRateLimits>>,
 }
 
 impl Default for Addrs {
@@ -1110,6 +1112,8 @@ impl Default for Addrs {
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            global_rate_limits: None,
         }
     }
 }
@@ -1164,16 +1168,27 @@ impl EnvelopeProcessorService {
             None => (None, None),
         };
 
+        #[cfg(feature = "processing")]
+        let rate_limiter = if let (Some(quotas), Some(global_rate_limits)) =
+            (quotas.clone(), &addrs.global_rate_limits)
+        {
+            Some(
+                RedisRateLimiter::new(quotas, global_rate_limits.clone())
+                    .max_limit(config.max_rate_limit()),
+            )
+        } else {
+            None
+        };
+
         let inner = InnerProcessor {
             pool,
             global_config,
             project_cache,
             cogs,
             #[cfg(feature = "processing")]
-            quotas_pool: quotas.clone(),
+            quotas_pool: quotas,
             #[cfg(feature = "processing")]
-            rate_limiter: quotas
-                .map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
+            rate_limiter,
             addrs,
             geoip_lookup,
             #[cfg(feature = "processing")]

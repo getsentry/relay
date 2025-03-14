@@ -341,7 +341,7 @@ fn default_scope() -> QuotaScope {
     QuotaScope::Organization
 }
 
-/// A machine readable, freeform reason code for rate limits.
+/// A machine-readable, freeform reason code for rate limits.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Hash)]
 pub struct ReasonCode(String);
 

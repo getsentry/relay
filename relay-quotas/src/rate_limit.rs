@@ -172,7 +172,7 @@ pub struct RateLimit {
     /// The scope of this rate limit.
     pub scope: RateLimitScope,
 
-    /// A machine readable reason indicating which quota caused it.
+    /// A machine-readable reason indicating which quota caused it.
     pub reason_code: Option<ReasonCode>,
 
     /// A marker when this rate limit expires.

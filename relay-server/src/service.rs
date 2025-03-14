@@ -34,6 +34,7 @@ use relay_cogs::Cogs;
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_config::{RedisConfigRef, RedisPoolConfigs};
+use relay_quotas::GlobalRateLimitsService;
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
@@ -247,6 +248,11 @@ impl ServiceState {
         let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
 
+        #[cfg(feature = "processing")]
+        let global_rate_limits = redis_pools
+            .as_ref()
+            .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
+
         let processor_pool = create_processor_pool(&config)?;
         services.start_with(
             EnvelopeProcessorService::new(
@@ -264,6 +270,8 @@ impl ServiceState {
                     #[cfg(feature = "processing")]
                     store_forwarder: store.clone(),
                     aggregator: aggregator.clone(),
+                    #[cfg(feature = "processing")]
+                    global_rate_limits,
                 },
                 metric_outcomes.clone(),
             ),

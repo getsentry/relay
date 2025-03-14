@@ -367,13 +367,9 @@ impl RedisRateLimiter {
 
 #[cfg(test)]
 mod tests {
+
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use super::*;
-    use crate::global::GlobalRateLimitsService;
-    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
-    use crate::rate_limit::RateLimitScope;
-    use crate::MetricNamespaceScoping;
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -381,6 +377,12 @@ mod tests {
     use relay_redis::RedisConfigOptions;
     use relay_system::Service;
     use smallvec::smallvec;
+
+    use super::*;
+    use crate::global::GlobalRateLimitsService;
+    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
+    use crate::rate_limit::RateLimitScope;
+    use crate::MetricNamespaceScoping;
 
     fn build_rate_limiter() -> RedisRateLimiter {
         let url = std::env::var("RELAY_REDIS_URL")

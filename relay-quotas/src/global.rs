@@ -11,11 +11,13 @@ use crate::RateLimitingError;
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 
+/// Checks which quotas are rate limited by the global rate limiter.
 pub struct CheckRateLimited {
     pub quotas: Vec<OwnedRedisQuota>,
     pub quantity: usize,
 }
 
+/// Global rate limiting for envelopes.
 pub enum GlobalRateLimits {
     CheckRateLimited(
         CheckRateLimited,
@@ -36,7 +38,9 @@ impl FromMessage<CheckRateLimited> for GlobalRateLimits {
     }
 }
 
-// TODO: verify how we can expose an handle containing state that can be read directly.
+/// Service implementing the [`GlobalRateLimits`] interface.
+///
+/// This service offers global rate limiting that is performed within a [`RedisPool`].
 #[derive(Debug)]
 pub struct GlobalRateLimitsService {
     pool: RedisPool,
@@ -316,7 +320,8 @@ impl Default for GlobalRateLimit {
     }
 }
 
-// TODO: update tests.
+// TODO: add a test that checks the service.
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;

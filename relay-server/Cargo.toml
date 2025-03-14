@@ -81,7 +81,7 @@ relay-monitors = { workspace = true }
 relay-pii = { workspace = true }
 relay-profiling = { workspace = true }
 relay-protocol = { workspace = true }
-relay-quotas = { workspace = true }
+relay-quotas = { workspace = true, features = ["redis"] }
 relay-redis = { workspace = true }
 relay-replays = { workspace = true }
 relay-sampling = { workspace = true }
