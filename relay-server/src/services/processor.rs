@@ -34,7 +34,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_protocol::{Annotated, Empty};
-use relay_quotas::{DataCategory, GlobalRateLimits, RateLimits, Scoping};
+use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -76,7 +76,7 @@ use {
         RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{GlobalRateLimits, Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
@@ -2158,7 +2158,8 @@ impl EnvelopeProcessorService {
                 sampling_project_info,
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
-            );
+            )
+            .await;
 
             self.enforce_quotas(
                 managed_envelope,

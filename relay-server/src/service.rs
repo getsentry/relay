@@ -34,6 +34,7 @@ use relay_cogs::Cogs;
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_config::{RedisConfigRef, RedisPoolConfigs};
+#[cfg(feature = "processing")]
 use relay_quotas::GlobalRateLimitsService;
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;

@@ -17,7 +17,7 @@ use crate::{OwnedItemScoping, REJECT_ALL_SECS};
 /// metrics may not be in sync with the computer running this code.
 const GRACE: u64 = 60;
 
-/// An error returned by `RedisRateLimiter`.
+/// An error returned by [`RedisRateLimiter`].
 #[derive(Debug, Error)]
 pub enum RateLimitingError {
     /// Failed to communicate with Redis.
@@ -29,6 +29,10 @@ pub enum RateLimitingError {
     UnreachableGlobalRateLimits,
 }
 
+/// Creates a refund key for a given counter key.
+///
+/// Refund keys are used to track credits that should be applied to a quota,
+/// allowing for more flexible quota management.
 fn get_refunded_quota_key(counter_key: &str) -> String {
     format!("r:{counter_key}")
 }
@@ -92,6 +96,11 @@ pub struct RedisQuota<'a> {
 }
 
 impl<'a> RedisQuota<'a> {
+    /// Creates a new [`RedisQuota`] from a [`Quota`], item scoping, and timestamp.
+    ///
+    /// Returns `None` if the quota cannot be tracked in Redis because it's missing
+    /// required fields (ID or window). This allows forward compatibility with
+    /// future quota types.
     pub(crate) fn new(
         quota: &'a Quota,
         scoping: ItemScoping<'a>,
@@ -110,7 +119,7 @@ impl<'a> RedisQuota<'a> {
         })
     }
 
-    /// Converts [`RedisQuota`] to an [`OwnedRedisQuota`] leaving the original
+    /// Converts this [`RedisQuota`] to an [`OwnedRedisQuota`] leaving the original
     /// struct in place.
     pub(crate) fn to_owned(&self) -> OwnedRedisQuota {
         OwnedRedisQuota {
@@ -122,17 +131,20 @@ impl<'a> RedisQuota<'a> {
         }
     }
 
-    /// Returns the window size of the quota.
+    /// Returns the window size of the quota in seconds.
     pub(crate) fn window(&self) -> u64 {
         self.window
     }
 
-    /// Returns the prefix of the quota.
+    /// Returns the prefix of the quota used for Redis key generation.
     pub(crate) fn prefix(&self) -> &'a str {
         self.prefix
     }
 
-    /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
+    /// Returns the limit value formatted for Redis.
+    ///
+    /// Returns `-1` for unlimited quotas or when the limit doesn't fit into an `i64`.
+    /// Otherwise, returns the limit value as an `i64`.
     pub(crate) fn limit(&self) -> i64 {
         self.limit
             // If it does not fit into i64, treat as unlimited:
@@ -148,26 +160,32 @@ impl<'a> RedisQuota<'a> {
         }
     }
 
-    /// Returns the current slot of the quota.
+    /// Returns the current time slot of the quota based on the timestamp.
+    ///
+    /// Slots are used to determine the time bucket for rate limiting.
     pub(crate) fn slot(&self) -> u64 {
         (self.timestamp.as_secs() - self.shift()) / self.window
     }
 
-    /// Returns when the quota will expire.
+    /// Returns the timestamp when the current quota window will expire.
     pub(crate) fn expiry(&self) -> UnixTimestamp {
         let next_slot = self.slot() + 1;
         let next_start = next_slot * self.window + self.shift();
         UnixTimestamp::from_secs(next_start)
     }
 
-    /// Returns when the key should expire in Redis.
+    /// Returns when the Redis key should expire.
     ///
-    /// Like [`Self::expiry()`] but adds an additional grace period for the key.
+    /// This is the expiry time plus a grace period.
     pub(crate) fn key_expiry(&self) -> u64 {
         self.expiry().as_secs() + GRACE
     }
 
-    /// Returns the key of the quota.
+    /// Returns the Redis key for this quota.
+    ///
+    /// The key includes the quota ID, organization ID, and other scoping information
+    /// based on the quota's scope type. Keys are structured to ensure proper isolation
+    /// between different organizations and scopes.
     pub(crate) fn key(&self) -> String {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
@@ -205,7 +223,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 ///
 /// Quotas can specify a window to be tracked in, such as per minute or per hour. Additionally,
 /// quotas allow to specify the data categories they apply to, for example error events or
-/// attachments. For more information on quota parameters, see `QuotaConfig`.
+/// attachments. For more information on quota parameters, see [`Quota`].
 ///
 /// Requires the `redis` feature.
 pub struct RedisRateLimiter {
@@ -216,7 +234,7 @@ pub struct RedisRateLimiter {
 }
 
 impl RedisRateLimiter {
-    /// Creates a new `RedisRateLimiter` instance.
+    /// Creates a new [`RedisRateLimiter`] instance.
     pub fn new(pool: RedisPool, global_rate_limits: Addr<GlobalRateLimits>) -> Self {
         RedisRateLimiter {
             pool,
@@ -229,14 +247,13 @@ impl RedisRateLimiter {
     /// Sets the maximum rate limit in seconds.
     ///
     /// By default, this rate limiter will return rate limits based on the quotas' `window` fields.
-    /// If a maximum rate limit is set, this limit is bounded.
+    /// If a maximum rate limit is set, the returned rate limit will be bounded by this value.
     pub fn max_limit(mut self, max_limit: Option<u64>) -> Self {
         self.max_limit = max_limit;
         self
     }
 
-    /// Checks whether any of the quotas in effect for the given project and project key has been
-    /// exceeded and records consumption of the quota.
+    /// Checks whether any of the quotas in effect have been exceeded and records consumption.
     ///
     /// By invoking this method, the caller signals that data is being ingested and needs to be
     /// counted against the quota. This increment happens atomically if none of the quotas have been
@@ -245,13 +262,13 @@ impl RedisRateLimiter {
     /// If no key is specified, then only organization-wide and project-wide quotas are checked. If
     /// a key is specified, then key-quotas are also checked.
     ///
-    /// If the current consumed quotas are still under the limit and the current quantity would put
-    /// it over the limit, which normaly would return the _rejection_, setting `over_accept_once`
-    /// to `true` will allow accept the incoming data even if the limit is exceeded once.
+    /// When `over_accept_once` is set to `true` and the current quota would be exceeded by the
+    /// provided `quantity`, the data is accepted once and subsequent requests will be rejected
+    /// until the quota refreshes.
     ///
-    /// The passed `quantity` may be `0`. In this case, the rate limiter will check if the quota
-    /// limit has been reached or exceeded without incrementing it in the success case. This can be
-    /// useful to check for required quotas in a different data category.
+    /// A `quantity` of `0` can be used to check if the quota limit has been reached or exceeded
+    /// without incrementing it in the success case. This is useful for checking quotas in a different
+    /// data category.
     pub async fn is_rate_limited<'a>(
         &self,
         quotas: impl IntoIterator<Item = &'a Quota>,
@@ -355,7 +372,9 @@ impl RedisRateLimiter {
         Ok(rate_limits)
     }
 
-    /// Creates a rate limit bounded by `max_limit`.
+    /// Creates a [`RetryAfter`] value that is bounded by the configured [`max_limit`](Self::max_limit).
+    ///
+    /// If a maximum rate limit has been set, the returned value will not exceed that limit.
     fn retry_after(&self, mut seconds: u64) -> RetryAfter {
         if let Some(max_limit) = self.max_limit {
             seconds = std::cmp::min(seconds, max_limit);

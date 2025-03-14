@@ -6,11 +6,14 @@ use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
+#[cfg(feature = "processing")]
 use relay_quotas::GlobalRateLimitsService;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
 
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
-use relay_system::{Addr, Service};
+use relay_system::Addr;
+#[cfg(feature = "processing")]
+use relay_system::Service;
 use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
