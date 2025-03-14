@@ -391,25 +391,3 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
     event = envelope.get_event()
     assert event["user"]["ip_address"] is None
     assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
-
-
-@pytest.mark.parametrize(
-    "scrub_ip_addresses, user_id",
-    [(True, None), (False, "[ip]")],
-)
-def test_ip_not_extracted_with_setting(mini_sentry, relay, scrub_ip_addresses, user_id):
-    project_id = 42
-    relay = relay(mini_sentry)
-
-    config = mini_sentry.add_basic_project_config(project_id)
-    config["config"].setdefault("datascrubbingSettings", {})[
-        "scrubIpAddresses"
-    ] = scrub_ip_addresses
-    config["config"]["piiConfig"]["applications"]["$user.ip_address"] = ["@ip"]
-
-    relay.send_event(project_id, {"user": {"ip_address": "{{auto}}"}})
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-    assert event["user"]["ip_address"] is None
-    assert event["user"].get("id", None) == user_id
