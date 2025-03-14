@@ -249,6 +249,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         key_id: config.key_id.clone(),
         grouping_config: config.grouping_config.clone(),
         client_ip: config.client_ip.as_ref(),
+        infer_ip_address: true, // only supported in relay
         client_sample_rate: config.client_sample_rate,
         user_agent: RawUserAgentInfo {
             user_agent: config.user_agent.as_deref(),

@@ -252,7 +252,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     );
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
 
-    let client_ip = config.client_ip.filter(|_| !config.infer_ip_address);
+    let client_ip = config.client_ip.filter(|_| config.infer_ip_address);
 
     // Process security reports first to ensure all props.
     normalize_security_report(event, client_ip, &config.user_agent);
@@ -487,7 +487,12 @@ pub fn normalize_user_geoinfo(
     ip_addr: Option<&IpAddr>,
 ) {
     let user = user.value_mut().get_or_insert_with(User::default);
-    if let Some(ip_address) = user.ip_address.value().or(ip_addr) {
+    if let Some(ip_address) = user
+        .ip_address
+        .value()
+        .filter(|ip| !ip.is_auto())
+        .or(ip_addr)
+    {
         if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
             user.geo.set_value(Some(geo));
         }

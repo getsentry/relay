@@ -1461,7 +1461,8 @@ impl EnvelopeProcessorService {
                 protocol_version: Some(request_meta.version().to_string()),
                 grouping_config: project_info.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
-                infer_ip_address: project_info
+                // if the setting is enabled we do not want to infer the ip address
+                infer_ip_address: !project_info
                     .config
                     .datascrubbing_settings
                     .scrub_ip_addresses,
