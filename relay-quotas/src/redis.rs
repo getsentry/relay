@@ -165,16 +165,6 @@ impl<'a> RedisQuota<'a> {
         }
     }
 
-    /// Returns the window size of the quota.
-    pub fn window(&self) -> u64 {
-        self.window
-    }
-
-    /// Returns the prefix of the quota.
-    pub fn prefix(&self) -> &'a str {
-        self.prefix
-    }
-
     /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
     pub fn limit(&self) -> i64 {
         self.limit
@@ -346,11 +336,6 @@ impl RedisRateLimiter {
                 )
             }
         }
-
-        // let rate_limited_global_quotas = self
-        //     .global_rate_limits
-        //     .filter_rate_limited(&mut client, &global_quotas, quantity)
-        //     .map_err(RateLimitingError::Redis)?;
 
         let owned_global_quotas = global_quotas.into_iter().map(|q| q.to_owned()).collect();
         let rate_limited_global_quotas = self
