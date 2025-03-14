@@ -6,10 +6,11 @@ use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
+use relay_quotas::GlobalRateLimitsService;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
 
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
-use relay_system::Addr;
+use relay_system::{Addr, Service};
 use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
@@ -117,6 +118,11 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     .transpose()
     .unwrap();
 
+    #[cfg(feature = "processing")]
+    let global_rate_limits = redis_pools
+        .as_ref()
+        .map(|p| GlobalRateLimitsService::new(p.quotas.clone()).start_detached());
+
     let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
     let config = Arc::new(config);
@@ -135,6 +141,8 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator,
+            #[cfg(feature = "processing")]
+            global_rate_limits,
         },
         metric_outcomes,
     )

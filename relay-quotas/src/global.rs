@@ -19,6 +19,7 @@ pub struct CheckRateLimited {
 
 /// Global rate limiting for envelopes.
 pub enum GlobalRateLimits {
+    /// Checks which quotas are rate limited by the global rate limiter.
     CheckRateLimited(
         CheckRateLimited,
         Sender<Result<Vec<OwnedRedisQuota>, RateLimitingError>>,
@@ -48,6 +49,7 @@ pub struct GlobalRateLimitsService {
 }
 
 impl GlobalRateLimitsService {
+    /// Creates a new instance of [`GlobalRateLimitsService`].
     pub fn new(pool: RedisPool) -> Self {
         Self {
             pool,

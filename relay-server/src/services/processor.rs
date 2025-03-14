@@ -1128,7 +1128,7 @@ struct InnerProcessor {
     quotas_pool: Option<RedisPool>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
-    rate_limiter: Option<RedisRateLimiter>,
+    rate_limiter: Option<Arc<RedisRateLimiter>>,
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
@@ -1172,10 +1172,10 @@ impl EnvelopeProcessorService {
         let rate_limiter = if let (Some(quotas), Some(global_rate_limits)) =
             (quotas.clone(), &addrs.global_rate_limits)
         {
-            Some(
+            Some(Arc::new(
                 RedisRateLimiter::new(quotas, global_rate_limits.clone())
                     .max_limit(config.max_rate_limit()),
-            )
+            ))
         } else {
             None
         };
@@ -1252,7 +1252,7 @@ impl EnvelopeProcessorService {
         rate_limits: Arc<RateLimits>,
     ) -> Result<Annotated<Event>, ProcessingError> {
         let global_config = self.inner.global_config.current();
-        let rate_limiter = match self.inner.rate_limiter.as_ref() {
+        let rate_limiter = match self.inner.rate_limiter.clone() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(event),
         };
@@ -3256,13 +3256,14 @@ impl EnforcementResult {
 }
 
 #[cfg(feature = "processing")]
-enum RateLimiter<'a> {
+#[derive(Clone)]
+enum RateLimiter {
     Cached,
-    Consistent(&'a RedisRateLimiter),
+    Consistent(Arc<RedisRateLimiter>),
 }
 
 #[cfg(feature = "processing")]
-impl RateLimiter<'_> {
+impl RateLimiter {
     async fn enforce<Group>(
         &self,
         managed_envelope: &mut TypedEnvelope<Group>,
@@ -3283,15 +3284,28 @@ impl RateLimiter<'_> {
 
         let event_category = event_category(&event);
 
+        // We extract the rate limiters, in case we perform consistent rate limiting, since we will
+        // need Redis access.
+        //
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
+        let this = self.clone();
+        let rate_limits_clone = rate_limits.clone();
         let mut envelope_limiter =
-            EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| match self {
-                RateLimiter::Cached => Ok(rate_limits.check_with_quotas(quotas, item_scope)),
-                RateLimiter::Consistent(rl) => Ok::<_, ProcessingError>(
-                    rl.is_rate_limited(quotas, item_scope, quantity, false)
-                        .await?,
-                ),
+            EnvelopeLimiter::new(CheckLimits::All, move |item_scope, quantity| {
+                let this = this.clone();
+                let rate_limits_clone = rate_limits_clone.clone();
+
+                async move {
+                    match this {
+                        RateLimiter::Consistent(rate_limiter) => Ok::<_, ProcessingError>(
+                            rate_limiter
+                                .is_rate_limited(quotas, item_scope, quantity, false)
+                                .await?,
+                        ),
+                        _ => Ok(rate_limits_clone.check_with_quotas(quotas, item_scope)),
+                    }
+                }
             });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
@@ -3303,8 +3317,10 @@ impl RateLimiter<'_> {
         let scoping = managed_envelope.scoping();
         let (enforcement, rate_limits) =
             metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-                envelope_limiter.compute(managed_envelope.envelope_mut(), &scoping)?
-            });
+                envelope_limiter
+                    .compute(managed_envelope.envelope_mut(), &scoping)
+                    .await
+            })?;
         let event_active = enforcement.is_event_active();
 
         // Use the same rate limits as used for the envelope on the metrics.
@@ -3831,7 +3847,7 @@ mod tests {
         let processor = create_test_processor(config).await;
         assert!(processor.redis_rate_limiter_enabled());
 
-        processor.encode_metrics_processing(message, &store);
+        processor.encode_metrics_processing(message, &store).await;
 
         drop(store);
         let orgs_not_ratelimited = handle.await.unwrap();
@@ -3906,7 +3922,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         let new_envelope = envelope_response.envelope.unwrap();
         let new_envelope = new_envelope.envelope();
 
