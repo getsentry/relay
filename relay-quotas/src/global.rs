@@ -356,8 +356,6 @@ impl Default for GlobalRateLimit {
     }
 }
 
-// TODO: add a test that checks the service.
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -405,6 +403,44 @@ mod tests {
     fn build_redis_quota<'a>(quota: &'a Quota, scoping: &'a Scoping) -> RedisQuota<'a> {
         let scoping = scoping.item(DataCategory::MetricBucket);
         RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_global_rate_limits_service() {
+        let service = GlobalRateLimitsService::new(build_redis_pool());
+        let tx = service.start_detached();
+
+        let scoping = build_scoping();
+
+        let quota1 = build_quota(10, 100);
+        let quota2 = build_quota(10, 150);
+        let quota3 = build_quota(10, 200);
+        let quantity = 175;
+
+        let redis_quotas = [
+            build_redis_quota(&quota1, &scoping),
+            build_redis_quota(&quota2, &scoping),
+            build_redis_quota(&quota3, &scoping),
+        ]
+        .iter()
+        .map(|q| q.to_owned())
+        .collect();
+
+        let check_rate_limited = CheckRateLimited {
+            quotas: redis_quotas,
+            quantity,
+        };
+
+        let rate_limited_quotas = tx.send(check_rate_limited).await.unwrap().unwrap();
+
+        // Only the quotas that are less than the quantity gets rate_limited.
+        assert_eq!(
+            BTreeSet::from([100, 150]),
+            rate_limited_quotas
+                .iter()
+                .map(|quota| quota.to_ref().limit())
+                .collect()
+        );
     }
 
     #[test]
