@@ -15,7 +15,7 @@ use relay_test::mock_service;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::metrics::{MetricOutcomes, MetricStats};
 #[cfg(feature = "processing")]
-use crate::service::create_redis_pools;
+use crate::service::create_redis_clients;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
@@ -111,7 +111,7 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     let redis_pools = match config.redis() {
-        Some(pool) => Some(create_redis_pools(pool).await),
+        Some(pool) => Some(create_redis_clients(pool).await),
         None => None,
     }
     .transpose()
@@ -146,7 +146,7 @@ pub async fn create_test_processor_with_addrs(
 ) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     let redis_pools = match config.redis() {
-        Some(pools) => Some(create_redis_pools(pools).await),
+        Some(pools) => Some(create_redis_clients(pools).await),
         None => None,
     }
     .transpose()

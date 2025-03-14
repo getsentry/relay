@@ -1,7 +1,7 @@
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::RedisPools;
+use relay_redis::RedisClients;
 use relay_system::{Addr, ServiceSpawn, ServiceSpawnExt as _};
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -35,7 +35,7 @@ impl ProjectSource {
         services: &dyn ServiceSpawn,
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] _redis: Option<RedisPools>,
+        #[cfg(feature = "processing")] _redis: Option<RedisClients>,
     ) -> Self {
         let local_source = services.start(LocalProjectSourceService::new(config.clone()));
         let upstream_source = services.start(UpstreamProjectSourceService::new(
