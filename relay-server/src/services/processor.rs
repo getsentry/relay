@@ -1418,15 +1418,7 @@ impl EnvelopeProcessorService {
         };
 
         let request_meta = managed_envelope.envelope().meta();
-        let client_ipaddr = request_meta
-            .client_addr()
-            .filter(|_| {
-                !project_info
-                    .config
-                    .datascrubbing_settings
-                    .scrub_ip_addresses
-            })
-            .map(IpAddr::from);
+        let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         let transaction_aggregator_config = self
             .inner
