@@ -54,6 +54,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
+use crate::services::processor::nnswitch::SwitchProcessingError;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -101,6 +102,9 @@ pub use span::extract_transaction_span;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
+
+#[cfg(feature = "processing")]
+mod nnswitch;
 
 /// Creates the block only if used with `processing` feature.
 ///
@@ -527,6 +531,10 @@ pub enum ProcessingError {
 
     #[error("replay filtered with reason: {0:?}")]
     ReplayFiltered(FilterStatKey),
+
+    #[cfg(feature = "processing")]
+    #[error("nintendo switch dying message processing failed")]
+    InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 }
 
 impl ProcessingError {
@@ -546,6 +554,7 @@ impl ProcessingError {
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
+            Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
@@ -1552,6 +1561,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
+            nnswitch::expand(managed_envelope)?;
         });
 
         let extraction_result = event::extract(
