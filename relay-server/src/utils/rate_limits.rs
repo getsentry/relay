@@ -918,21 +918,24 @@ impl<F, E, R> fmt::Debug for EnvelopeLimiter<F, E, R> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::services::processor::ProcessingGroup;
-    use crate::{
-        envelope::{AttachmentType, ContentType, SourceQuantities},
-        extractors::RequestMeta,
-    };
+
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::sync::Arc;
+
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::MetricNamespace;
     use relay_quotas::RetryAfter;
     use relay_system::Addr;
     use smallvec::smallvec;
-    use std::collections::{BTreeMap, BTreeSet};
-    use std::sync::Arc;
     use tokio::sync::Mutex;
+
+    use super::*;
+    use crate::services::processor::ProcessingGroup;
+    use crate::{
+        envelope::{AttachmentType, ContentType, SourceQuantities},
+        extractors::RequestMeta,
+    };
 
     #[tokio::test]
     async fn test_format_rate_limits() {
