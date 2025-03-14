@@ -589,8 +589,8 @@ mod tests {
             Item::new(0, MetricNamespace::Sessions),
             Item::new(1, MetricNamespace::Transactions),
             Item::new(2, MetricNamespace::Spans),
-            Item::new(3, MetricNamespace::Custom),
-            Item::new(4, MetricNamespace::Custom),
+            Item::new(3, MetricNamespace::Unsupported),
+            Item::new(4, MetricNamespace::Unsupported),
             Item::new(5, MetricNamespace::Transactions),
             Item::new(6, MetricNamespace::Spans),
         ];
@@ -605,7 +605,7 @@ mod tests {
             vec![
                 (Item::new(0, MetricNamespace::Sessions), &limits[0]),
                 (Item::new(2, MetricNamespace::Spans), &limits[0]),
-                (Item::new(4, MetricNamespace::Custom), &limits[0]),
+                (Item::new(4, MetricNamespace::Unsupported), &limits[0]),
                 (Item::new(6, MetricNamespace::Spans), &limits[0]),
             ]
         );
@@ -613,7 +613,7 @@ mod tests {
             split.accepted,
             vec![
                 Item::new(1, MetricNamespace::Transactions),
-                Item::new(3, MetricNamespace::Custom),
+                Item::new(3, MetricNamespace::Unsupported),
                 Item::new(5, MetricNamespace::Transactions),
             ]
         );
@@ -671,12 +671,12 @@ mod tests {
         ];
 
         let items = vec![
-            Item::new(0, MetricNamespace::Custom),
-            Item::new(1, MetricNamespace::Custom),
-            Item::new(2, MetricNamespace::Custom),
-            Item::new(3, MetricNamespace::Custom),
-            Item::new(4, MetricNamespace::Custom),
-            Item::new(5, MetricNamespace::Custom),
+            Item::new(0, MetricNamespace::Spans),
+            Item::new(1, MetricNamespace::Spans),
+            Item::new(2, MetricNamespace::Spans),
+            Item::new(3, MetricNamespace::Spans),
+            Item::new(4, MetricNamespace::Spans),
+            Item::new(5, MetricNamespace::Spans),
         ];
         let limited = limiter
             .check_cardinality_limits(build_scoping(), limits, items)
@@ -689,17 +689,17 @@ mod tests {
         assert_eq!(
             split.rejected,
             vec![
-                (Item::new(0, MetricNamespace::Custom), &limits[0]),
-                (Item::new(2, MetricNamespace::Custom), &limits[0]),
-                (Item::new(4, MetricNamespace::Custom), &limits[0]),
+                (Item::new(0, MetricNamespace::Spans), &limits[0]),
+                (Item::new(2, MetricNamespace::Spans), &limits[0]),
+                (Item::new(4, MetricNamespace::Spans), &limits[0]),
             ]
         );
         assert_eq!(
             split.accepted,
             vec![
-                Item::new(1, MetricNamespace::Custom),
-                Item::new(3, MetricNamespace::Custom),
-                Item::new(5, MetricNamespace::Custom),
+                Item::new(1, MetricNamespace::Spans),
+                Item::new(3, MetricNamespace::Spans),
+                Item::new(5, MetricNamespace::Spans),
             ]
         );
     }
@@ -795,7 +795,7 @@ mod tests {
             },
         ];
         let scoping = build_scoping();
-        let items = vec![Item::new(0, MetricNamespace::Custom)];
+        let items = vec![Item::new(0, MetricNamespace::Spans)];
 
         let limiter = CardinalityLimiter::new(CreateReports);
         let limited = limiter

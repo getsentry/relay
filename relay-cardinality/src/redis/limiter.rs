@@ -430,12 +430,12 @@ mod tests {
         let m5 = MetricName::from("f");
 
         let entries = [
-            Entry::new(EntryId(0), Custom, &m0, 0),
-            Entry::new(EntryId(1), Custom, &m1, 1),
-            Entry::new(EntryId(2), Custom, &m2, 2),
-            Entry::new(EntryId(3), Custom, &m3, 3),
-            Entry::new(EntryId(4), Custom, &m4, 4),
-            Entry::new(EntryId(5), Custom, &m5, 5),
+            Entry::new(EntryId(0), Sessions, &m0, 0),
+            Entry::new(EntryId(1), Sessions, &m1, 1),
+            Entry::new(EntryId(2), Sessions, &m2, 2),
+            Entry::new(EntryId(3), Sessions, &m3, 3),
+            Entry::new(EntryId(4), Sessions, &m4, 4),
+            Entry::new(EntryId(5), Sessions, &m5, 5),
         ];
 
         let scoping = new_scoping(&limiter);
@@ -449,7 +449,7 @@ mod tests {
             },
             limit: 5,
             scope: CardinalityScope::Organization,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         };
 
         // 6 items, limit is 5 -> 1 rejection.
@@ -476,12 +476,12 @@ mod tests {
         let m1 = MetricName::from("b");
 
         let entries = [
-            Entry::new(EntryId(0), Custom, &m0, 0),
-            Entry::new(EntryId(1), Custom, &m0, 1),
-            Entry::new(EntryId(2), Custom, &m0, 2),
-            Entry::new(EntryId(3), Custom, &m1, 3),
-            Entry::new(EntryId(4), Custom, &m1, 4),
-            Entry::new(EntryId(5), Custom, &m1, 5),
+            Entry::new(EntryId(0), Sessions, &m0, 0),
+            Entry::new(EntryId(1), Sessions, &m0, 1),
+            Entry::new(EntryId(2), Sessions, &m0, 2),
+            Entry::new(EntryId(3), Sessions, &m1, 3),
+            Entry::new(EntryId(4), Sessions, &m1, 4),
+            Entry::new(EntryId(5), Sessions, &m1, 5),
         ];
 
         let scoping = new_scoping(&limiter);
@@ -495,7 +495,7 @@ mod tests {
             },
             limit: 2,
             scope: CardinalityScope::Name,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         };
 
         let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
@@ -537,12 +537,12 @@ mod tests {
         let m2 = MetricName::from("d:custom/foo@none");
 
         let entries = [
-            Entry::new(EntryId(0), Custom, &m0, 0),
-            Entry::new(EntryId(1), Custom, &m0, 1),
-            Entry::new(EntryId(2), Custom, &m1, 2),
-            Entry::new(EntryId(3), Custom, &m2, 3),
-            Entry::new(EntryId(4), Custom, &m2, 4),
-            Entry::new(EntryId(5), Custom, &m2, 5),
+            Entry::new(EntryId(0), Sessions, &m0, 0),
+            Entry::new(EntryId(1), Sessions, &m0, 1),
+            Entry::new(EntryId(2), Sessions, &m1, 2),
+            Entry::new(EntryId(3), Sessions, &m2, 3),
+            Entry::new(EntryId(4), Sessions, &m2, 4),
+            Entry::new(EntryId(5), Sessions, &m2, 5),
         ];
 
         let scoping = new_scoping(&limiter);
@@ -556,7 +556,7 @@ mod tests {
             },
             limit: 2,
             scope: CardinalityScope::Type,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         };
 
         let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
@@ -615,17 +615,17 @@ mod tests {
             },
             limit: 1,
             scope: CardinalityScope::Organization,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         }];
 
         let m = MetricName::from("a");
 
-        let entries1 = [Entry::new(EntryId(0), Custom, &m, 0)];
+        let entries1 = [Entry::new(EntryId(0), Sessions, &m, 0)];
         assert!(limiter.test_limits(scoping1, limits, entries1).is_empty());
         assert!(limiter.test_limits(scoping2, limits, entries1).is_empty());
 
         // Make sure `entries2` is not accepted.
-        let entries2 = [Entry::new(EntryId(1), Custom, &m, 1)];
+        let entries2 = [Entry::new(EntryId(1), Sessions, &m, 1)];
         assert_eq!(limiter.test_limits(scoping1, limits, entries2).len(), 1);
         assert_eq!(limiter.test_limits(scoping2, limits, entries2).len(), 1);
 
@@ -679,19 +679,19 @@ mod tests {
             },
             limit: 10_000,
             scope: CardinalityScope::Organization,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         }];
 
         let m = MetricName::from("a");
 
         let entries = (0..50)
-            .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
+            .map(|i| Entry::new(EntryId(i as usize), Sessions, &m, i))
             .collect::<Vec<_>>();
         let rejected = limiter.test_limits(scoping, limits, entries);
         assert_eq!(rejected.len(), 0);
 
         let entries = (100..150)
-            .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
+            .map(|i| Entry::new(EntryId(i as usize), Sessions, &m, i))
             .collect::<Vec<_>>();
         let rejected = limiter.test_limits(scoping, limits, entries);
         assert_eq!(rejected.len(), 0);
@@ -712,13 +712,13 @@ mod tests {
             },
             limit: 80_000,
             scope: CardinalityScope::Organization,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         }];
 
         let m = MetricName::from("a");
 
         let entries = (0..100_000)
-            .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
+            .map(|i| Entry::new(EntryId(i as usize), Sessions, &m, i))
             .collect::<Vec<_>>();
 
         let rejected = limiter.test_limits(scoping, limits, entries);
@@ -741,14 +741,14 @@ mod tests {
             window,
             limit: 1,
             scope: CardinalityScope::Organization,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         }];
 
         let m0 = MetricName::from("a");
         let m1 = MetricName::from("b");
 
-        let entries1 = [Entry::new(EntryId(0), Custom, &m0, 0)];
-        let entries2 = [Entry::new(EntryId(1), Custom, &m1, 1)];
+        let entries1 = [Entry::new(EntryId(0), Sessions, &m0, 0)];
+        let entries2 = [Entry::new(EntryId(1), Sessions, &m1, 1)];
 
         // 1 item and limit is 1 -> No rejections.
         let rejected = limiter.test_limits(scoping, limits, entries1);
@@ -798,7 +798,7 @@ mod tests {
         let m1 = MetricName::from("b");
         let m2 = MetricName::from("c");
 
-        let entries1 = [Entry::new(EntryId(0), Custom, &m0, 0)];
+        let entries1 = [Entry::new(EntryId(0), Sessions, &m0, 0)];
         let entries2 = [Entry::new(EntryId(0), Spans, &m1, 1)];
         let entries3 = [Entry::new(EntryId(0), Transactions, &m2, 2)];
 
@@ -828,7 +828,7 @@ mod tests {
                 },
                 limit: 1,
                 scope: CardinalityScope::Organization,
-                namespace: Some(Custom),
+                namespace: Some(Sessions),
             },
             CardinalityLimit {
                 id: "limit2".to_owned(),
@@ -840,7 +840,7 @@ mod tests {
                 },
                 limit: 1,
                 scope: CardinalityScope::Organization,
-                namespace: Some(Custom),
+                namespace: Some(Sessions),
             },
             CardinalityLimit {
                 id: "limit3".to_owned(),
@@ -876,8 +876,8 @@ mod tests {
         let m5 = MetricName::from("f");
 
         let entries = [
-            Entry::new(EntryId(0), Custom, &m0, 0),
-            Entry::new(EntryId(1), Custom, &m1, 1),
+            Entry::new(EntryId(0), Sessions, &m0, 0),
+            Entry::new(EntryId(1), Sessions, &m1, 1),
             Entry::new(EntryId(2), Spans, &m2, 2),
             Entry::new(EntryId(3), Spans, &m3, 3),
             Entry::new(EntryId(4), Transactions, &m4, 4),
@@ -968,8 +968,8 @@ mod tests {
 
         let m1 = MetricName::from("a");
         let m2 = MetricName::from("b");
-        let entries1 = [Entry::new(EntryId(0), Custom, &m1, 0)];
-        let entries2 = [Entry::new(EntryId(0), Custom, &m2, 1)];
+        let entries1 = [Entry::new(EntryId(0), Sessions, &m1, 0)];
+        let entries2 = [Entry::new(EntryId(0), Sessions, &m2, 1)];
 
         // Accept different entries for different scopes.
         let rejected = limiter.test_limits(scoping1, limits, entries1);
@@ -1000,14 +1000,14 @@ mod tests {
             window,
             limit: 100,
             scope: CardinalityScope::Organization,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         }];
 
         let m = MetricName::from("foo");
         macro_rules! test {
             ($r:expr) => {{
                 let entries = $r
-                    .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
+                    .map(|i| Entry::new(EntryId(i as usize), Sessions, &m, i))
                     .collect::<Vec<_>>();
 
                 limiter.test_limits(scoping, limits, entries)
@@ -1099,14 +1099,14 @@ mod tests {
             window,
             limit: 100,
             scope: CardinalityScope::Organization,
-            namespace: Some(Custom),
+            namespace: Some(Sessions),
         }];
 
         let m = MetricName::from("foo");
         macro_rules! test {
             ($r:expr) => {{
                 let entries = $r
-                    .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
+                    .map(|i| Entry::new(EntryId(i as usize), Sessions, &m, i))
                     .collect::<Vec<_>>();
 
                 limiter.test_limits(scoping, limits, entries)

@@ -41,11 +41,6 @@ pub enum Feature {
     /// Serialized as `organizations:device-class-synthesis`.
     #[serde(rename = "organizations:device-class-synthesis")]
     DeviceClassSynthesis,
-    /// Allow ingestion of metrics in the "custom" namespace.
-    ///
-    /// Serialized as `organizations:custom-metrics`.
-    #[serde(rename = "organizations:custom-metrics")]
-    CustomMetrics,
     /// Enable processing profiles.
     ///
     /// Serialized as `organizations:profiling`.
