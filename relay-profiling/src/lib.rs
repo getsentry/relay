@@ -122,6 +122,10 @@ impl Filterable for MinimalProfile {
     fn user_agent(&self) -> Option<&str> {
         None
     }
+
+    fn header(&self, _: &str) -> Option<&str> {
+        None
+    }
 }
 
 impl Getter for MinimalProfile {

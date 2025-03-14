@@ -31,6 +31,9 @@ pub trait Filterable {
 
     /// The user agent of the client that sent the data.
     fn user_agent(&self) -> Option<&str>;
+
+    /// The header for the given `header_name`. Used for localhost filtering.
+    fn header(&self, header_name: &str) -> Option<&str>;
 }
 
 impl Filterable for Event {
@@ -73,6 +76,14 @@ impl Filterable for Event {
     fn user_agent(&self) -> Option<&str> {
         self.user_agent()
     }
+
+    fn header(&self, header_name: &str) -> Option<&str> {
+        self.request
+            .value()?
+            .headers
+            .value()?
+            .get_header(header_name)
+    }
 }
 
 impl Filterable for Replay {
@@ -108,6 +119,14 @@ impl Filterable for Replay {
 
     fn user_agent(&self) -> Option<&str> {
         self.user_agent()
+    }
+
+    fn header(&self, header_name: &str) -> Option<&str> {
+        self.request
+            .value()?
+            .headers
+            .value()?
+            .get_header(header_name)
     }
 }
 
@@ -146,5 +165,9 @@ impl Filterable for Span {
 
     fn user_agent(&self) -> Option<&str> {
         self.data.value()?.user_agent_original.as_str()
+    }
+
+    fn header(&self, _: &str) -> Option<&str> {
+        None
     }
 }
