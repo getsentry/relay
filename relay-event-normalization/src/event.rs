@@ -173,7 +173,7 @@ impl Default for NormalizationConfig<'_> {
             protocol_version: Default::default(),
             grouping_config: Default::default(),
             client_ip: Default::default(),
-            infer_ip_address: Default::default(),
+            infer_ip_address: true,
             client_sample_rate: Default::default(),
             user_agent: Default::default(),
             max_name_and_unit_len: Default::default(),
@@ -267,6 +267,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         event.platform.as_str(),
         client_ip,
     );
+
+    dbg!(&config.geoip_lookup);
 
     if let Some(geoip_lookup) = config.geoip_lookup {
         normalize_user_geoinfo(geoip_lookup, &mut event.user, config.client_ip);
