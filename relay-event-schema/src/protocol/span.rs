@@ -110,6 +110,13 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty")]
     pub was_transaction: Annotated<bool>,
 
+    // Used to clarify the relationship between parents and children, or to distinguish between
+    // spans, e.g. a `server` and `client` span with the same name.
+    //
+    // See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
+    #[metastructure(skip_serialization = "empty", trim = false)]
+    pub kind: Annotated<String>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]

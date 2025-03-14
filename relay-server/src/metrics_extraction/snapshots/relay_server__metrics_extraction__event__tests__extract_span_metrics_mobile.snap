@@ -86,6 +86,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -270,6 +271,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             ),
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -354,6 +356,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -438,6 +441,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -522,6 +526,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -606,6 +611,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -763,6 +769,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -920,6 +927,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -1004,6 +1012,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -1161,6 +1170,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
         Span {
@@ -1318,6 +1328,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             measurements: ~,
             platform: ~,
             was_transaction: ~,
+            kind: ~,
             other: {},
         },
     ],

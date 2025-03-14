@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
+use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
 
 use crate::otel_trace::{
     status::StatusCode as OtelStatusCode, Span as OtelSpan, SpanFlags as OtelSpanFlags,
@@ -221,8 +222,24 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
+        kind: kind_int_to_string(kind).into(),
         ..Default::default()
     }
+}
+
+/// String representation of an incoming OTel span kind.
+/// See <https://github.com/open-telemetry/opentelemetry-proto/blob/d7770822d70c7bd47a6891fc9faacc66fc4af3d3/opentelemetry/proto/trace/v1/trace.proto#L152-L178>
+fn kind_int_to_string(kind: i32) -> String {
+    match kind.try_into() {
+        Ok(SpanKind::Unspecified) | Ok(SpanKind::Internal) => "internal",
+        Ok(SpanKind::Server) => "server",
+        Ok(SpanKind::Client) => "client",
+        Ok(SpanKind::Producer) => "producer",
+        Ok(SpanKind::Consumer) => "consumer",
+        // Fall back to the default kind value of internal
+        Err(_) => "internal",
+    }
+    .to_owned()
 }
 
 #[cfg(test)]
@@ -715,6 +732,7 @@ mod tests {
             measurements: ~,
             platform: "php",
             was_transaction: ~,
+            kind: "internal",
             other: {},
         }
         "###);
@@ -748,6 +766,22 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
         assert_eq!(event_span.is_remote, Annotated::new(false));
+    }
+
+    #[test]
+    fn extract_span_kind() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "startTimeUnixNano": "123000000000",
+            "endTimeUnixNano": "123500000000",
+            "kind": 3
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let kind = event_span.kind.value().expect("kind should be set");
+        assert_eq!(kind, "client");
     }
 
     #[test]

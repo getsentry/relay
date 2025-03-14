@@ -70,6 +70,7 @@ impl From<&Event> for Span {
             measurements: measurements.clone(),
             platform: platform.clone(),
             was_transaction: true.into(),
+            kind: Default::default(),
             other: Default::default(),
         }
     }
@@ -271,6 +272,7 @@ mod tests {
             ),
             platform: "php",
             was_transaction: true,
+            kind: ~,
             other: {},
         }
         "###);
