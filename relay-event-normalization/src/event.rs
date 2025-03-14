@@ -268,8 +268,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         client_ip,
     );
 
-    dbg!(&config.geoip_lookup);
-
     if let Some(geoip_lookup) = config.geoip_lookup {
         normalize_user_geoinfo(geoip_lookup, &mut event.user, config.client_ip);
     }
