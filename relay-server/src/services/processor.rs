@@ -1418,15 +1418,7 @@ impl EnvelopeProcessorService {
         };
 
         let request_meta = managed_envelope.envelope().meta();
-        let client_ipaddr = request_meta
-            .client_addr()
-            .filter(|_| {
-                !project_info
-                    .config
-                    .datascrubbing_settings
-                    .scrub_ip_addresses
-            })
-            .map(IpAddr::from);
+        let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         let transaction_aggregator_config = self
             .inner
@@ -1469,6 +1461,11 @@ impl EnvelopeProcessorService {
                 protocol_version: Some(request_meta.version().to_string()),
                 grouping_config: project_info.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
+                // if the setting is enabled we do not want to infer the ip address
+                infer_ip_address: !project_info
+                    .config
+                    .datascrubbing_settings
+                    .scrub_ip_addresses,
                 client_sample_rate: managed_envelope
                     .envelope()
                     .dsc()

@@ -90,9 +90,11 @@ pub fn normalize(
         normalize_platform(replay_value);
         normalize_ip_address(replay_value, client_ip);
         if let Some(geoip_lookup) = geoip_lookup {
-            if let Some(user) = replay_value.user.value_mut() {
-                normalize_user_geoinfo(geoip_lookup, user);
-            }
+            normalize_user_geoinfo(
+                geoip_lookup,
+                &mut replay_value.user,
+                client_ip.map(|ip| IpAddr(ip.to_string())).as_ref(),
+            );
         }
         normalize_user_agent(replay_value, user_agent);
         normalize_type(replay_value);
