@@ -48,8 +48,9 @@ where
     }
 }
 
+/// Owned version of [`RedisQuota`].
 #[derive(Debug, Clone)]
-pub struct OwnedRedisQuota {
+pub(crate) struct OwnedRedisQuota {
     /// The original quota.
     quota: Quota,
     /// Scopes of the item being tracked.
@@ -63,59 +64,15 @@ pub struct OwnedRedisQuota {
 }
 
 impl OwnedRedisQuota {
-    // TODO: figure out how to remove duplication for these methods.
-
-    /// Returns the window size of the quota.
-    pub fn window(&self) -> u64 {
-        self.window
-    }
-
-    /// Returns the prefix of the quota.
-    pub fn prefix(&self) -> &str {
-        &self.prefix
-    }
-
-    /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
-    pub fn limit(&self) -> i64 {
-        self.limit
-            // If it does not fit into i64, treat as unlimited:
-            .and_then(|limit| limit.try_into().ok())
-            .unwrap_or(-1)
-    }
-
-    fn shift(&self) -> u64 {
-        if self.quota.scope == QuotaScope::Global {
-            0
-        } else {
-            self.scoping.organization_id.value() % self.window
+    /// Returns an instance of [`RedisQuota`] which borrows from this [`OwnedRedisQuota`].
+    pub(crate) fn to_ref(&self) -> RedisQuota {
+        RedisQuota {
+            quota: &self.quota,
+            scoping: self.scoping.to_ref(),
+            prefix: &self.prefix,
+            window: self.window,
+            timestamp: self.timestamp,
         }
-    }
-
-    /// Returns the current slot of the quota.
-    pub fn slot(&self) -> u64 {
-        (self.timestamp.as_secs() - self.shift()) / self.window
-    }
-
-    /// Returns when the quota will expire.
-    pub fn expiry(&self) -> UnixTimestamp {
-        let next_slot = self.slot() + 1;
-        let next_start = next_slot * self.window + self.shift();
-        UnixTimestamp::from_secs(next_start)
-    }
-
-    /// Returns when the key should expire in Redis.
-    ///
-    /// Like [`Self::expiry()`] but adds an additional grace period for the key.
-    pub fn key_expiry(&self) -> u64 {
-        self.expiry().as_secs() + GRACE
-    }
-}
-
-impl std::ops::Deref for OwnedRedisQuota {
-    type Target = Quota;
-
-    fn deref(&self) -> &Self::Target {
-        &self.quota
     }
 }
 
@@ -163,6 +120,16 @@ impl<'a> RedisQuota<'a> {
             window: self.window,
             timestamp: self.timestamp,
         }
+    }
+
+    /// Returns the window size of the quota.
+    pub fn window(&self) -> u64 {
+        self.window
+    }
+
+    /// Returns the prefix of the quota.
+    pub fn prefix(&self) -> &str {
+        &self.prefix
     }
 
     /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
@@ -337,16 +304,30 @@ impl RedisRateLimiter {
             }
         }
 
+        // We build the owned quotas to send over to the service.
         let owned_global_quotas = global_quotas.into_iter().map(|q| q.to_owned()).collect();
-        let rate_limited_global_quotas = self
+
+        // We send a message to the service and wait for a response. The rationale behind using this
+        // mechanism instead of a simple lock is to preserve FIFO ordering in the resumption of
+        // suspended futures. With a lock this would not happen since the awaiting future that holds
+        // the lock will be put back into the queue when resumed but the position in the queue will
+        // be after all the futures that still have to be executed and will eventually suspend after
+        // trying to acquire the lock held by the future that is at the end of the queue.
+        let rate_limited_owned_global_quotas = self
             .global_rate_limits
             .send(CheckRateLimited {
-                pool: self.pool.clone(),
                 quotas: owned_global_quotas,
                 quantity,
             })
             .await
             .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)??;
+
+        // We build back the normal quotas to use them as before. This is not the most efficient
+        // mechanism, but it keeps the code independent of the service change.
+        let rate_limited_global_quotas = rate_limited_owned_global_quotas
+            .iter()
+            .map(|q| q.to_ref())
+            .collect::<Vec<_>>();
 
         for quota in rate_limited_global_quotas {
             let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());

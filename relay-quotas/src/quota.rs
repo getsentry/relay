@@ -113,6 +113,17 @@ pub struct OwnedItemScoping {
     pub namespace: MetricNamespaceScoping,
 }
 
+impl OwnedItemScoping {
+    /// Returns an instance of [`ItemScoping`] which borrows from this [`OwnedItemScoping`].
+    pub fn to_ref(&self) -> ItemScoping {
+        ItemScoping {
+            category: self.category,
+            scoping: &self.scoping,
+            namespace: self.namespace,
+        }
+    }
+}
+
 impl AsRef<Scoping> for OwnedItemScoping {
     fn as_ref(&self) -> &Scoping {
         &self.scoping
