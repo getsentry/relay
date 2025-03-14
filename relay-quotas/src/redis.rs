@@ -1,14 +1,16 @@
-use crate::global::{CheckRateLimited, GlobalRateLimits};
-use crate::quota::{ItemScoping, Quota, QuotaScope};
-use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::{OwnedItemScoping, REJECT_ALL_SECS};
+use std::fmt::{self, Debug};
+
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
 use relay_redis::{RedisError, RedisPool, RedisScripts};
-use relay_system::{Addr, SendError};
-use std::fmt::{self, Debug};
+use relay_system::Addr;
 use thiserror::Error;
+
+use crate::global::{CheckRateLimited, GlobalRateLimits};
+use crate::quota::{ItemScoping, Quota, QuotaScope};
+use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
+use crate::{OwnedItemScoping, REJECT_ALL_SECS};
 
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -22,6 +24,7 @@ pub enum RateLimitingError {
     #[error("failed to communicate with redis")]
     Redis(#[source] RedisError),
 
+    /// Failed to check global rate limits via the service.
     #[error("failed to check global rate limits")]
     UnreachableGlobalRateLimits,
 }
@@ -46,7 +49,7 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct OwnedRedisQuota {
+pub struct OwnedRedisQuota {
     /// The original quota.
     quota: Quota,
     /// Scopes of the item being tracked.
@@ -150,6 +153,8 @@ impl<'a> RedisQuota<'a> {
         })
     }
 
+    /// Converts [`RedisQuota`] to an [`OwnedRedisQuota`] leaving the original
+    /// struct in place.
     pub fn to_owned(&self) -> OwnedRedisQuota {
         OwnedRedisQuota {
             quota: self.quota.clone(),
@@ -398,32 +403,35 @@ impl RedisRateLimiter {
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use super::*;
+    use crate::global::GlobalRateLimitsService;
+    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
+    use crate::rate_limit::RateLimitScope;
+    use crate::MetricNamespaceScoping;
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
+    use relay_system::Service;
     use smallvec::smallvec;
-
-    use super::*;
-    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
-    use crate::rate_limit::RateLimitScope;
-    use crate::MetricNamespaceScoping;
 
     fn build_rate_limiter() -> RedisRateLimiter {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+        let pool = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
+        let global_rate_limits = GlobalRateLimitsService::new(pool.clone()).start_detached();
 
         RedisRateLimiter {
-            pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
+            pool,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_rate_limits: Inner::default(),
+            global_rate_limits,
         }
     }
 
-    #[test]
-    fn test_zero_size_quotas() {
+    #[tokio::test]
+    async fn test_zero_size_quotas() {
         let quotas = &[
             Quota {
                 id: None,
@@ -460,6 +468,7 @@ mod tests {
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
             .is_rate_limited(quotas, scoping, 1, false)
+            .await
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -477,8 +486,8 @@ mod tests {
     }
 
     /// Tests that a quota with and without namespace are counted separately.
-    #[test]
-    fn test_non_global_namespace_quota() {
+    #[tokio::test]
+    async fn test_non_global_namespace_quota() {
         let quota_limit = 5;
         let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
             Quota {
@@ -513,6 +522,7 @@ mod tests {
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1, false)
+                .await
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -531,6 +541,7 @@ mod tests {
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quota_with_namespace, scoping, 1, false)
+                .await
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -546,8 +557,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_simple_quota() {
+    #[tokio::test]
+    async fn test_simple_quota() {
         let quotas = &[Quota {
             id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
@@ -575,6 +586,7 @@ mod tests {
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1, false)
+                .await
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -596,8 +608,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_simple_global_quota() {
+    #[tokio::test]
+    async fn test_simple_global_quota() {
         let quotas = &[Quota {
             id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
@@ -625,6 +637,7 @@ mod tests {
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1, false)
+                .await
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -646,8 +659,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_quantity_0() {
+    #[tokio::test]
+    async fn test_quantity_0() {
         let quotas = &[Quota {
             id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
@@ -675,30 +688,34 @@ mod tests {
         // limit is 1, so first call not rate limited
         assert!(!rate_limiter
             .is_rate_limited(quotas, scoping, 1, false)
+            .await
             .unwrap()
             .is_limited());
 
         // quota is now exhausted
         assert!(rate_limiter
             .is_rate_limited(quotas, scoping, 1, false)
+            .await
             .unwrap()
             .is_limited());
 
         // quota is exhausted, regardless of the quantity
         assert!(rate_limiter
             .is_rate_limited(quotas, scoping, 0, false)
+            .await
             .unwrap()
             .is_limited());
 
         // quota is exhausted, regardless of the quantity
         assert!(rate_limiter
             .is_rate_limited(quotas, scoping, 1, false)
+            .await
             .unwrap()
             .is_limited());
     }
 
-    #[test]
-    fn test_quota_go_over() {
+    #[tokio::test]
+    async fn test_quota_go_over() {
         let quotas = &[Quota {
             id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
@@ -726,6 +743,7 @@ mod tests {
         // limit is 2, so first call not rate limited
         let is_limited = rate_limiter
             .is_rate_limited(quotas, scoping, 1, true)
+            .await
             .unwrap()
             .is_limited();
         assert!(!is_limited);
@@ -733,6 +751,7 @@ mod tests {
         // go over limit, but first call is over-accepted
         let is_limited = rate_limiter
             .is_rate_limited(quotas, scoping, 2, true)
+            .await
             .unwrap()
             .is_limited();
         assert!(!is_limited);
@@ -740,6 +759,7 @@ mod tests {
         // quota is exhausted, regardless of the quantity
         let is_limited = rate_limiter
             .is_rate_limited(quotas, scoping, 0, true)
+            .await
             .unwrap()
             .is_limited();
         assert!(is_limited);
@@ -747,13 +767,14 @@ mod tests {
         // quota is exhausted, regardless of the quantity
         let is_limited = rate_limiter
             .is_rate_limited(quotas, scoping, 1, true)
+            .await
             .unwrap()
             .is_limited();
         assert!(is_limited);
     }
 
-    #[test]
-    fn test_bails_immediately_without_any_quota() {
+    #[tokio::test]
+    async fn test_bails_immediately_without_any_quota() {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
@@ -767,6 +788,7 @@ mod tests {
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
             .is_rate_limited(&[], scoping, 1, false)
+            .await
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -774,8 +796,8 @@ mod tests {
         assert_eq!(rate_limits, vec![]);
     }
 
-    #[test]
-    fn test_limited_with_unlimited_quota() {
+    #[tokio::test]
+    async fn test_limited_with_unlimited_quota() {
         let quotas = &[
             Quota {
                 id: Some("q0".to_string()),
@@ -815,6 +837,7 @@ mod tests {
         for i in 0..1 {
             let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1, false)
+                .await
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -836,8 +859,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_quota_with_quantity() {
+    #[tokio::test]
+    async fn test_quota_with_quantity() {
         let quotas = &[Quota {
             id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
@@ -865,6 +888,7 @@ mod tests {
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 100, false)
+                .await
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -886,8 +910,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_get_redis_key_scoped() {
+    #[tokio::test]
+    async fn test_get_redis_key_scoped() {
         let quota = Quota {
             id: Some("foo".to_owned()),
             categories: DataCategories::new(),
@@ -915,8 +939,8 @@ mod tests {
         assert_eq!(redis_quota.key(), "quota:foo{69420}42:61561561");
     }
 
-    #[test]
-    fn test_get_redis_key_unscoped() {
+    #[tokio::test]
+    async fn test_get_redis_key_unscoped() {
         let quota = Quota {
             id: Some("foo".to_owned()),
             categories: DataCategories::new(),
@@ -944,8 +968,8 @@ mod tests {
         assert_eq!(redis_quota.key(), "quota:foo{69420}:23453");
     }
 
-    #[test]
-    fn test_large_redis_limit_large() {
+    #[tokio::test]
+    async fn test_large_redis_limit_large() {
         let quota = Quota {
             id: Some("foo".to_owned()),
             categories: DataCategories::new(),
@@ -973,9 +997,9 @@ mod tests {
         assert_eq!(redis_quota.limit(), -1);
     }
 
-    #[test]
+    #[tokio::test]
     #[allow(clippy::disallowed_names, clippy::let_unit_value)]
-    fn test_is_rate_limited_script() {
+    async fn test_is_rate_limited_script() {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_secs())

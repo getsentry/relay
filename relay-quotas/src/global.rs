@@ -1,13 +1,12 @@
-use std::sync::{Mutex, PoisonError};
-
-use crate::redis::{OwnedRedisQuota, RedisQuota};
-use crate::RateLimitingError;
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::{PooledClient, RedisError, RedisPool, RedisScripts};
 use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, Receiver, Sender, Service,
 };
+
+use crate::redis::OwnedRedisQuota;
+use crate::RateLimitingError;
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
@@ -41,13 +40,30 @@ impl FromMessage<CheckRateLimited> for GlobalRateLimits {
 // TODO: verify how we can expose an handle containing state that can be read directly.
 #[derive(Debug)]
 pub struct GlobalRateLimitsService {
+    pool: RedisPool,
     inner: Inner,
+}
+
+impl GlobalRateLimitsService {
+    pub fn new(pool: RedisPool) -> Self {
+        Self {
+            pool,
+            inner: Inner::default(),
+        }
+    }
 }
 
 impl Service for GlobalRateLimitsService {
     type Interface = GlobalRateLimits;
 
     async fn run(mut self, mut rx: Receiver<Self::Interface>) {
+        let Ok(mut client) = self.pool.client() else {
+            relay_log::error!(
+                "The redis client could not be created from the global rate limits service"
+            );
+            return;
+        };
+
         loop {
             let Some(message) = rx.recv().await else {
                 break;
@@ -56,7 +72,7 @@ impl Service for GlobalRateLimitsService {
             match message {
                 GlobalRateLimits::CheckRateLimited(message, sender) => {
                     let result = self.inner.filter_rate_limited(
-                        message.pool,
+                        &mut client,
                         message.quotas,
                         message.quantity,
                     );
@@ -81,12 +97,10 @@ impl Inner {
     /// that None of the quotas hit the ratelimit.
     pub fn filter_rate_limited(
         &mut self,
-        pool: RedisPool,
+        client: &mut PooledClient,
         quotas: Vec<OwnedRedisQuota>,
         quantity: usize,
     ) -> Result<Vec<OwnedRedisQuota>, RateLimitingError> {
-        let mut client = pool.client().map_err(RateLimitingError::Redis)?;
-
         let mut rate_limited = vec![];
         let mut not_rate_limited = vec![];
 
@@ -94,13 +108,13 @@ impl Inner {
         // might have multiple quotas that are the same but with different limits.
         let min_by_key_ref = quotas
             .into_iter()
-            .into_grouping_map_by(|q| Key::new(q))
+            .into_grouping_map_by(Key::new)
             .min_by_key(|_, q| q.limit());
 
         for (key, quota) in min_by_key_ref {
             let global_rate_limit = self.limits.entry_ref(&key).or_default();
 
-            if global_rate_limit.check_rate_limited(&mut client, &quota, &key, quantity as u64)? {
+            if global_rate_limit.check_rate_limited(client, &quota, &key, quantity as u64)? {
                 rate_limited.push(quota);
             } else {
                 not_rate_limited.push(quota);

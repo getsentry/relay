@@ -144,19 +144,15 @@ pub struct ItemScoping<'a> {
     pub namespace: MetricNamespaceScoping,
 }
 
-impl<'a> ItemScoping<'a> {
+impl ItemScoping<'_> {
+    /// Converts [`ItemScoping`] to an [`OwnedItemScoping`] leaving the original
+    /// struct in place.
     pub fn to_owned(&self) -> OwnedItemScoping {
         OwnedItemScoping {
-            category: self.category.clone(),
-            scoping: self.scoping.clone(),
-            namespace: self.namespace.clone(),
+            category: self.category,
+            scoping: *self.scoping,
+            namespace: self.namespace,
         }
-    }
-}
-
-impl AsRef<Scoping> for ItemScoping<'_> {
-    fn as_ref(&self) -> &Scoping {
-        self.scoping
     }
 }
 
