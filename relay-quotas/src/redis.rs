@@ -50,7 +50,7 @@ where
 
 /// Owned version of [`RedisQuota`].
 #[derive(Debug, Clone)]
-pub(crate) struct OwnedRedisQuota {
+pub struct OwnedRedisQuota {
     /// The original quota.
     quota: Quota,
     /// Scopes of the item being tracked.
@@ -65,7 +65,7 @@ pub(crate) struct OwnedRedisQuota {
 
 impl OwnedRedisQuota {
     /// Returns an instance of [`RedisQuota`] which borrows from this [`OwnedRedisQuota`].
-    pub(crate) fn to_ref(&self) -> RedisQuota {
+    pub fn to_ref(&self) -> RedisQuota {
         RedisQuota {
             quota: &self.quota,
             scoping: self.scoping.to_ref(),
@@ -78,7 +78,7 @@ impl OwnedRedisQuota {
 
 /// Reference to information required for tracking quotas in Redis.
 #[derive(Debug, Clone)]
-pub(crate) struct RedisQuota<'a> {
+pub struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
     /// Scopes of the item being tracked.
@@ -112,7 +112,7 @@ impl<'a> RedisQuota<'a> {
 
     /// Converts [`RedisQuota`] to an [`OwnedRedisQuota`] leaving the original
     /// struct in place.
-    pub fn to_owned(&self) -> OwnedRedisQuota {
+    pub(crate) fn to_owned(&self) -> OwnedRedisQuota {
         OwnedRedisQuota {
             quota: self.quota.clone(),
             scoping: self.scoping.to_owned(),
@@ -123,17 +123,17 @@ impl<'a> RedisQuota<'a> {
     }
 
     /// Returns the window size of the quota.
-    pub fn window(&self) -> u64 {
+    pub(crate) fn window(&self) -> u64 {
         self.window
     }
 
     /// Returns the prefix of the quota.
-    pub fn prefix(&self) -> &str {
-        &self.prefix
+    pub(crate) fn prefix(&self) -> &'a str {
+        self.prefix
     }
 
     /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
-    pub fn limit(&self) -> i64 {
+    pub(crate) fn limit(&self) -> i64 {
         self.limit
             // If it does not fit into i64, treat as unlimited:
             .and_then(|limit| limit.try_into().ok())
@@ -149,12 +149,12 @@ impl<'a> RedisQuota<'a> {
     }
 
     /// Returns the current slot of the quota.
-    pub fn slot(&self) -> u64 {
+    pub(crate) fn slot(&self) -> u64 {
         (self.timestamp.as_secs() - self.shift()) / self.window
     }
 
     /// Returns when the quota will expire.
-    pub fn expiry(&self) -> UnixTimestamp {
+    pub(crate) fn expiry(&self) -> UnixTimestamp {
         let next_slot = self.slot() + 1;
         let next_start = next_slot * self.window + self.shift();
         UnixTimestamp::from_secs(next_start)
@@ -163,12 +163,12 @@ impl<'a> RedisQuota<'a> {
     /// Returns when the key should expire in Redis.
     ///
     /// Like [`Self::expiry()`] but adds an additional grace period for the key.
-    pub fn key_expiry(&self) -> u64 {
+    pub(crate) fn key_expiry(&self) -> u64 {
         self.expiry().as_secs() + GRACE
     }
 
     /// Returns the key of the quota.
-    pub fn key(&self) -> String {
+    pub(crate) fn key(&self) -> String {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {

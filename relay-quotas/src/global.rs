@@ -11,12 +11,12 @@ use crate::RateLimitingError;
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 
-pub(crate) struct CheckRateLimited {
+pub struct CheckRateLimited {
     pub quotas: Vec<OwnedRedisQuota>,
     pub quantity: usize,
 }
 
-pub(crate) enum GlobalRateLimits {
+pub enum GlobalRateLimits {
     CheckRateLimited(
         CheckRateLimited,
         Sender<Result<Vec<OwnedRedisQuota>, RateLimitingError>>,
@@ -210,7 +210,7 @@ impl RedisKey {
 /// A single global rate limit.
 ///
 /// When we want to ratelimit across all relay-instances, we need to use Redis to synchronize.
-/// Calling Redis every time we want to check if an item should be rate_limited would be very expensive,
+/// Calling Redis every time we want to check if an item should be rate limited would be very expensive,
 /// which is why we have this cache. It works by 'taking' a certain budget from Redis, by pre-incrementing
 /// a global counter. We put the amount we pre-incremented into this local cache and count down until
 /// we have no more budget, then we ask for more from Redis. If we find the global counter is above
