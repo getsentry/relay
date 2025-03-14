@@ -47,7 +47,7 @@ impl<'a> Project<'a> {
     ///  - Validate origins and public keys
     ///  - Quotas with a limit of `0`
     ///  - Cached rate limits
-    pub fn check_envelope(
+    pub async fn check_envelope(
         &self,
         mut envelope: ManagedEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
@@ -77,12 +77,17 @@ impl<'a> Project<'a> {
         let current_limits = self.rate_limits().current_limits();
 
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
-        let envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, _| {
-            Ok(current_limits.check_with_quotas(quotas, item_scoping))
-        });
+        let current_limits_clone = current_limits.clone();
+        let envelope_limiter =
+            EnvelopeLimiter::new(CheckLimits::NonIndexed, move |item_scoping, _| {
+                let current_limits_clone = current_limits_clone.clone();
 
-        let (mut enforcement, mut rate_limits) =
-            envelope_limiter.compute(envelope.envelope_mut(), &scoping)?;
+                async move { Ok(current_limits_clone.check_with_quotas(quotas, item_scoping)) }
+            });
+
+        let (mut enforcement, mut rate_limits) = envelope_limiter
+            .compute(envelope.envelope_mut(), &scoping)
+            .await?;
 
         let check_nested_spans = state
             .as_ref()
@@ -218,8 +223,8 @@ mod tests {
         RequestMeta::new(dsn)
     }
 
-    #[test]
-    fn test_track_nested_spans_outcomes() {
+    #[tokio::test]
+    async fn test_track_nested_spans_outcomes() {
         let config = Default::default();
         let project = create_project(
             &config,
@@ -283,7 +288,7 @@ mod tests {
             ProcessingGroup::Transaction,
         );
 
-        project.check_envelope(managed_envelope).unwrap();
+        project.check_envelope(managed_envelope).await.unwrap();
         drop(outcome_aggregator);
 
         let expected = [
@@ -294,7 +299,7 @@ mod tests {
         ];
 
         for (expected_category, expected_quantity) in expected {
-            let outcome = outcome_aggregator_rx.blocking_recv().unwrap();
+            let outcome = outcome_aggregator_rx.recv().await.unwrap();
             assert_eq!(outcome.category, expected_category);
             assert_eq!(outcome.quantity, expected_quantity);
         }
