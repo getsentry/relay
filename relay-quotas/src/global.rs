@@ -361,14 +361,13 @@ mod tests {
     use std::collections::BTreeSet;
     use std::time::Duration;
 
-    use super::*;
-
     use relay_base_schema::data_category::DataCategory;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_common::time::UnixTimestamp;
     use relay_redis::{RedisConfigOptions, RedisPool};
 
+    use super::*;
     use crate::{DataCategories, Quota, QuotaScope, Scoping};
 
     fn build_redis_pool() -> RedisPool {
