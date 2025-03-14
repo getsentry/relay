@@ -450,7 +450,7 @@
         <span class="self">Self</span>((<span class="self">self</span>.<span class="number">0 </span>+ other.<span class="number">0</span>).clamp(f64::MIN, f64::MAX))
     }
 
-    <span class="doccomment">/// Adds two numbers, saturating at the maximum and minimum representable values.
+    <span class="doccomment">/// Subtracts two numbers, saturating at the maximum and minimum representable values.
     </span><span class="kw">pub fn </span>saturating_sub(<span class="self">self</span>, other: <span class="self">Self</span>) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>((<span class="self">self</span>.<span class="number">0 </span>- other.<span class="number">0</span>).clamp(f64::MIN, f64::MAX))
     }
