@@ -527,7 +527,9 @@ impl fmt::Display for DiscardReason {
     }
 }
 
-/// The type of envelope item.
+/// Similar to [`ItemType`] but it does not have any additional information in the
+/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
+/// The variants should be the same as [`ItemType`].
 #[derive(Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Clone)]
 pub enum DiscardItemType {
     /// Event payload encoded in JSON.
@@ -1215,6 +1217,22 @@ mod tests {
         assert_eq!(
             MatchedRuleIds::parse(&serialized).unwrap(),
             MatchedRuleIds([1000, 1004, 1400, 1500, 0].map(RuleId).into())
+        );
+    }
+
+    #[test]
+    fn test_outcome_discard_reason() {
+        assert_eq!(
+            Some(Cow::from("too_large_attachment")),
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment)).to_reason()
+        );
+        assert_eq!(
+            Some(Cow::from("too_large_unknown")),
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Unknown)).to_reason()
+        );
+        assert_eq!(
+            Some(Cow::from("too_large_unreal_report")),
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::UnrealReport)).to_reason()
         );
     }
 }
