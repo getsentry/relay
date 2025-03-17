@@ -106,7 +106,7 @@ impl Params {
             .map(|i| {
                 Entry::new(
                     EntryId(i),
-                    MetricNamespace::Custom,
+                    MetricNamespace::Spans,
                     &self.names[i % self.names.len()],
                     u32::MAX - (i as u32),
                 )
@@ -128,7 +128,7 @@ impl Params {
                     .map(|i| {
                         Entry::new(
                             EntryId(i),
-                            MetricNamespace::Custom,
+                            MetricNamespace::Spans,
                             &self.names[i % self.names.len()],
                             hash.fetch_sub(1, Ordering::SeqCst),
                         )
@@ -142,7 +142,7 @@ impl Params {
     fn never_entry(&self) -> Entry<'_> {
         Entry::new(
             EntryId(usize::MAX),
-            MetricNamespace::Custom,
+            MetricNamespace::Spans,
             &self.names[0],
             0,
         )
@@ -154,7 +154,7 @@ impl Params {
             .map(|i| {
                 Entry::new(
                     EntryId(usize::MAX - i),
-                    MetricNamespace::Custom,
+                    MetricNamespace::Spans,
                     &self.names[i % self.names.len()],
                     i as u32,
                 )
