@@ -8,7 +8,7 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use symbolic_unreal::{
-    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
+    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4FileType, Unreal4LogEntry,
 };
 
 use crate::constants::{
