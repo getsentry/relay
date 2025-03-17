@@ -426,11 +426,7 @@ def test_geo_inferred_without_user_ip(
     project_id = 42
     relay = relay(
         mini_sentry,
-        options={
-            "geoip": {
-                "path": "relay-event-normalization/tests/fixtures/GeoIP2-Enterprise-Test.mmdb"
-            }
-        },
+        options={"geoip": {"path": "tests/fixtures/GeoIP2-Enterprise-Test.mmdb"}},
     )
 
     config = mini_sentry.add_basic_project_config(project_id)
