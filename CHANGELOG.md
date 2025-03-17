@@ -12,6 +12,7 @@
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 - Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
+- Improve localhost detection by checking headers in envelope. ([#4580](https://github.com/getsentry/relay/pull/4580))
 
 **Bug Fixes**:
 
