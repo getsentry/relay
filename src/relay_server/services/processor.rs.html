@@ -4249,10 +4249,7 @@
 <a href="#4248" id="4248">4248</a>
 <a href="#4249" id="4249">4249</a>
 <a href="#4250" id="4250">4250</a>
-<a href="#4251" id="4251">4251</a>
-<a href="#4252" id="4252">4252</a>
-<a href="#4253" id="4253">4253</a>
-<a href="#4254" id="4254">4254</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4251" id="4251">4251</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -5672,15 +5669,7 @@
         };
 
         <span class="kw">let </span>request_meta = managed_envelope.envelope().meta();
-        <span class="kw">let </span>client_ipaddr = request_meta
-            .client_addr()
-            .filter(|<span class="kw">_</span>| {
-                !project_info
-                    .config
-                    .datascrubbing_settings
-                    .scrub_ip_addresses
-            })
-            .map(IpAddr::from);
+        <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         <span class="kw">let </span>transaction_aggregator_config = <span class="self">self
             </span>.inner
@@ -5723,6 +5712,11 @@
                 protocol_version: <span class="prelude-val">Some</span>(request_meta.version().to_string()),
                 grouping_config: project_info.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
+                <span class="comment">// if the setting is enabled we do not want to infer the ip address
+                </span>infer_ip_address: !project_info
+                    .config
+                    .datascrubbing_settings
+                    .scrub_ip_addresses,
                 client_sample_rate: managed_envelope
                     .envelope()
                     .dsc()

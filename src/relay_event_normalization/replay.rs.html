@@ -499,7 +499,9 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a></pre></div><pre class="rust"><code><span class="doccomment">//! Validation and normalization of [`Replay`] events.
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a></pre></div><pre class="rust"><code><span class="doccomment">//! Validation and normalization of [`Replay`] events.
 
 </span><span class="kw">use </span>std::net::IpAddr <span class="kw">as </span>StdIpAddr;
 
@@ -591,9 +593,11 @@
         normalize_platform(replay_value);
         normalize_ip_address(replay_value, client_ip);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = geoip_lookup {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = replay_value.user.value_mut() {
-                normalize_user_geoinfo(geoip_lookup, user);
-            }
+            normalize_user_geoinfo(
+                geoip_lookup,
+                <span class="kw-2">&amp;mut </span>replay_value.user,
+                client_ip.map(|ip| IpAddr(ip.to_string())).as_ref(),
+            );
         }
         normalize_user_agent(replay_value, user_agent);
         normalize_type(replay_value);

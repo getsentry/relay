@@ -4470,7 +4470,18 @@
 <a href="#4469" id="4469">4469</a>
 <a href="#4470" id="4470">4470</a>
 <a href="#4471" id="4471">4471</a>
-<a href="#4472" id="4472">4472</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
+<a href="#4472" id="4472">4472</a>
+<a href="#4473" id="4473">4473</a>
+<a href="#4474" id="4474">4474</a>
+<a href="#4475" id="4475">4475</a>
+<a href="#4476" id="4476">4476</a>
+<a href="#4477" id="4477">4477</a>
+<a href="#4478" id="4478">4478</a>
+<a href="#4479" id="4479">4479</a>
+<a href="#4480" id="4480">4480</a>
+<a href="#4481" id="4481">4481</a>
+<a href="#4482" id="4482">4482</a>
+<a href="#4483" id="4483">4483</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
 
@@ -4539,6 +4550,9 @@
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
     /// `request` context, this IP address gets added to the `user` context.
     </span><span class="kw">pub </span>client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>IpAddr&gt;,
+
+    <span class="doccomment">/// Specifies whether the client_ip should be used to determine the ip address of the user.
+    </span><span class="kw">pub </span>infer_ip_address: bool,
 
     <span class="doccomment">/// The SDK's sample rate as communicated via envelope headers.
     ///
@@ -4642,6 +4656,7 @@
             protocol_version: Default::default(),
             grouping_config: Default::default(),
             client_ip: Default::default(),
+            infer_ip_address: <span class="bool-val">true</span>,
             client_sample_rate: Default::default(),
             user_agent: Default::default(),
             max_name_and_unit_len: Default::default(),
@@ -4720,24 +4735,24 @@
     );
     <span class="kw">let _ </span>= transactions_processor.process_event(event, meta, ProcessingState::root());
 
+    <span class="kw">let </span>client_ip = config.client_ip.filter(|<span class="kw">_</span>| config.infer_ip_address);
+
     <span class="comment">// Process security reports first to ensure all props.
-    </span>normalize_security_report(event, config.client_ip, <span class="kw-2">&amp;</span>config.user_agent);
+    </span>normalize_security_report(event, client_ip, <span class="kw-2">&amp;</span>config.user_agent);
 
     <span class="comment">// Process NEL reports to ensure all props.
-    </span>normalize_nel_report(event, config.client_ip);
+    </span>normalize_nel_report(event, client_ip);
 
     <span class="comment">// Insert IP addrs before recursing, since geo lookup depends on it.
     </span>normalize_ip_addresses(
         <span class="kw-2">&amp;mut </span>event.request,
         <span class="kw-2">&amp;mut </span>event.user,
         event.platform.as_str(),
-        config.client_ip,
+        client_ip,
     );
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = config.geoip_lookup {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value_mut() {
-            normalize_user_geoinfo(geoip_lookup, user);
-        }
+        normalize_user_geoinfo(geoip_lookup, <span class="kw-2">&amp;mut </span>event.user, config.client_ip);
     }
 
     <span class="comment">// Validate the basic attributes we extract metrics from
@@ -4949,13 +4964,20 @@
 }
 
 <span class="doccomment">/// Sets the user's GeoIp info based on user's IP address.
-</span><span class="kw">pub fn </span>normalize_user_geoinfo(geoip_lookup: <span class="kw-2">&amp;</span>GeoIpLookup, user: <span class="kw-2">&amp;mut </span>User) {
-    <span class="comment">// Infer user.geo from user.ip_address
-    </span><span class="kw">if </span>user.geo.value().is_none() {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_address) = user.ip_address.value() {
-            <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
-                user.geo.set_value(<span class="prelude-val">Some</span>(geo));
-            }
+</span><span class="kw">pub fn </span>normalize_user_geoinfo(
+    geoip_lookup: <span class="kw-2">&amp;</span>GeoIpLookup,
+    user: <span class="kw-2">&amp;mut </span>Annotated&lt;User&gt;,
+    ip_addr: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>IpAddr&gt;,
+) {
+    <span class="kw">let </span>user = user.value_mut().get_or_insert_with(User::default);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_address) = user
+        .ip_address
+        .value()
+        .filter(|ip| !ip.is_auto())
+        .or(ip_addr)
+    {
+        <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
+            user.geo.set_value(<span class="prelude-val">Some</span>(geo));
         }
     }
 }
