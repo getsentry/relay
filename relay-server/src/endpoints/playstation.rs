@@ -51,7 +51,6 @@ async fn extract_multipart(
         .find(|item| item.attachment_type() == Some(&AttachmentType::Prosperodump))
         .ok_or(BadStoreRequest::MissingProsperodump)?;
 
-    // TODO: Think about if we want a ContentType::Prosperodump ?
     prosperodump_item.set_payload(OctetStream, prosperodump_item.payload());
 
     validate_prosperodump(&prosperodump_item.payload())?;
@@ -86,7 +85,6 @@ async fn handle(
     };
 
     // Return here needs to be a 200 with arbitrary text to make the sender happy.
-    // TODO: Think about if there is something else to return here
     Ok(TextResponse(id))
 }
 
