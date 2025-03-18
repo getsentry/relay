@@ -86,7 +86,7 @@ impl From<RedisQuota<'_>> for OwnedRedisQuota {
 }
 
 /// Reference to information required for tracking quotas in Redis.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,

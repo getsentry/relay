@@ -62,7 +62,7 @@ impl Scoping {
 ///
 /// This enum is used within [`ItemScoping`] to represent the metric namespace of an item.
 /// It handles the different cases: no namespace, a specific namespace, or any namespace.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Hash, PartialOrd)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd)]
 pub enum MetricNamespaceScoping {
     /// The item does not contain metrics of any namespace.
     ///
@@ -149,7 +149,7 @@ impl std::ops::Deref for OwnedItemScoping {
 ///
 /// [`ItemScoping`] combines a data category, scoping information, and optional
 /// metric namespace to fully define an item for rate limiting purposes.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ItemScoping<'a> {
     /// The data category of the item.
     pub category: DataCategory,
