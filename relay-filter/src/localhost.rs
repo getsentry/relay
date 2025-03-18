@@ -5,8 +5,6 @@ use crate::{FilterConfig, FilterStatKey, Filterable};
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
-const FORWARDED_FOR_HEADER: &str = "X-Forwarded-For";
-
 const FORWARDED_HOST_HEADER: &str = "X-Forwarded-Host";
 
 const HOST_HEADER: &str = "Host";
@@ -31,12 +29,6 @@ fn matches<F: Filterable>(item: &F) -> bool {
             {
                 return true;
             }
-        }
-    }
-
-    if let Some(forwarded_for) = item.header(FORWARDED_FOR_HEADER) {
-        if LOCAL_IPS.iter().any(|ip| forwarded_for == *ip) {
-            return true;
         }
     }
 

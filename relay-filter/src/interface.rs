@@ -32,7 +32,13 @@ pub trait Filterable {
     /// The user agent of the client that sent the data.
     fn user_agent(&self) -> Option<&str>;
 
-    /// The header for the given `header_name`. Used for localhost filtering.
+    /// Retrieves a header from the Item metadata. This is used for localhost
+    /// filtering by looking at different headers to see if they contain localhost information.
+    ///
+    /// For example: For events, it will check headers that are stored in "request.headers".
+    ///
+    /// This is **not** supposed to check header information from the request that
+    /// reached relay.
     fn header(&self, header_name: &str) -> Option<&str>;
 }
 
