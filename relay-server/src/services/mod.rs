@@ -43,5 +43,6 @@ pub mod test_store;
 pub mod upstream;
 
 pub mod autoscaling;
+mod global_rate_limits;
 #[cfg(feature = "processing")]
 pub mod store;

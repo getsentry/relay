@@ -122,7 +122,7 @@ impl OwnedItemScoping {
     /// Creates a reference version of this scoping.
     ///
     /// Returns an [`ItemScoping`] that references this owned instance's data.
-    pub fn to_ref(&self) -> ItemScoping {
+    pub fn build_ref(&self) -> ItemScoping {
         ItemScoping {
             category: self.category,
             scoping: &self.scoping,
@@ -149,10 +149,7 @@ impl std::ops::Deref for OwnedItemScoping {
 ///
 /// [`ItemScoping`] combines a data category, scoping information, and optional
 /// metric namespace to fully define an item for rate limiting purposes.
-///
-/// This type is cheap to copy and is designed for temporary use when checking
-/// whether rate limits apply to a specific item.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ItemScoping<'a> {
     /// The data category of the item.
     pub category: DataCategory,
@@ -168,7 +165,7 @@ impl ItemScoping<'_> {
     /// Converts this reference-based scoping to an owned version.
     ///
     /// Creates an [`OwnedItemScoping`] containing a copy of all the data in this instance.
-    pub fn to_owned(&self) -> OwnedItemScoping {
+    pub fn build_owned(&self) -> OwnedItemScoping {
         OwnedItemScoping {
             category: self.category,
             scoping: *self.scoping,

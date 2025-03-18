@@ -4,15 +4,14 @@ use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
 use relay_redis::{RedisError, RedisPool, RedisScripts};
-use relay_system::Addr;
 use thiserror::Error;
 
-use crate::global::{CheckRateLimited, GlobalRateLimits};
+use crate::global::GlobalLimiter;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
 use crate::{OwnedItemScoping, REJECT_ALL_SECS};
 
-/// The `grace` period allows accomodating for clock drift in TTL
+/// The `grace` period allows accommodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
 /// metrics may not be in sync with the computer running this code.
 const GRACE: u64 = 60;
@@ -69,10 +68,10 @@ pub struct OwnedRedisQuota {
 
 impl OwnedRedisQuota {
     /// Returns an instance of [`RedisQuota`] which borrows from this [`OwnedRedisQuota`].
-    pub fn to_ref(&self) -> RedisQuota {
+    pub fn build_ref(&self) -> RedisQuota {
         RedisQuota {
             quota: &self.quota,
-            scoping: self.scoping.to_ref(),
+            scoping: self.scoping.build_ref(),
             prefix: &self.prefix,
             window: self.window,
             timestamp: self.timestamp,
@@ -80,8 +79,14 @@ impl OwnedRedisQuota {
     }
 }
 
+impl From<RedisQuota<'_>> for OwnedRedisQuota {
+    fn from(quota: RedisQuota) -> Self {
+        quota.build_owned()
+    }
+}
+
 /// Reference to information required for tracking quotas in Redis.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
@@ -101,7 +106,7 @@ impl<'a> RedisQuota<'a> {
     /// Returns `None` if the quota cannot be tracked in Redis because it's missing
     /// required fields (ID or window). This allows forward compatibility with
     /// future quota types.
-    pub(crate) fn new(
+    pub fn new(
         quota: &'a Quota,
         scoping: ItemScoping<'a>,
         timestamp: UnixTimestamp,
@@ -121,10 +126,10 @@ impl<'a> RedisQuota<'a> {
 
     /// Converts this [`RedisQuota`] to an [`OwnedRedisQuota`] leaving the original
     /// struct in place.
-    pub(crate) fn to_owned(&self) -> OwnedRedisQuota {
+    pub fn build_owned(&self) -> OwnedRedisQuota {
         OwnedRedisQuota {
             quota: self.quota.clone(),
-            scoping: self.scoping.to_owned(),
+            scoping: self.scoping.build_owned(),
             prefix: self.prefix.to_string(),
             window: self.window,
             timestamp: self.timestamp,
@@ -132,12 +137,12 @@ impl<'a> RedisQuota<'a> {
     }
 
     /// Returns the window size of the quota in seconds.
-    pub(crate) fn window(&self) -> u64 {
+    pub fn window(&self) -> u64 {
         self.window
     }
 
     /// Returns the prefix of the quota used for Redis key generation.
-    pub(crate) fn prefix(&self) -> &'a str {
+    pub fn prefix(&self) -> &'a str {
         self.prefix
     }
 
@@ -145,7 +150,7 @@ impl<'a> RedisQuota<'a> {
     ///
     /// Returns `-1` for unlimited quotas or when the limit doesn't fit into an `i64`.
     /// Otherwise, returns the limit value as an `i64`.
-    pub(crate) fn limit(&self) -> i64 {
+    pub fn limit(&self) -> i64 {
         self.limit
             // If it does not fit into i64, treat as unlimited:
             .and_then(|limit| limit.try_into().ok())
@@ -163,12 +168,12 @@ impl<'a> RedisQuota<'a> {
     /// Returns the current time slot of the quota based on the timestamp.
     ///
     /// Slots are used to determine the time bucket for rate limiting.
-    pub(crate) fn slot(&self) -> u64 {
+    pub fn slot(&self) -> u64 {
         (self.timestamp.as_secs() - self.shift()) / self.window
     }
 
     /// Returns the timestamp when the current quota window will expire.
-    pub(crate) fn expiry(&self) -> UnixTimestamp {
+    pub fn expiry(&self) -> UnixTimestamp {
         let next_slot = self.slot() + 1;
         let next_start = next_slot * self.window + self.shift();
         UnixTimestamp::from_secs(next_start)
@@ -177,7 +182,7 @@ impl<'a> RedisQuota<'a> {
     /// Returns when the Redis key should expire.
     ///
     /// This is the expiry time plus a grace period.
-    pub(crate) fn key_expiry(&self) -> u64 {
+    pub fn key_expiry(&self) -> u64 {
         self.expiry().as_secs() + GRACE
     }
 
@@ -186,7 +191,7 @@ impl<'a> RedisQuota<'a> {
     /// The key includes the quota ID, organization ID, and other scoping information
     /// based on the quota's scope type. Keys are structured to ensure proper isolation
     /// between different organizations and scopes.
-    pub(crate) fn key(&self) -> String {
+    pub fn key(&self) -> String {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
@@ -226,21 +231,21 @@ impl std::ops::Deref for RedisQuota<'_> {
 /// attachments. For more information on quota parameters, see [`Quota`].
 ///
 /// Requires the `redis` feature.
-pub struct RedisRateLimiter {
+pub struct RedisRateLimiter<T> {
     pool: RedisPool,
     script: &'static Script,
     max_limit: Option<u64>,
-    global_rate_limits: Addr<GlobalRateLimits>,
+    global_limiter: T,
 }
 
-impl RedisRateLimiter {
+impl<T: GlobalLimiter> RedisRateLimiter<T> {
     /// Creates a new [`RedisRateLimiter`] instance.
-    pub fn new(pool: RedisPool, global_rate_limits: Addr<GlobalRateLimits>) -> Self {
+    pub fn new(pool: RedisPool, global_limiter: T) -> Self {
         RedisRateLimiter {
             pool,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_rate_limits,
+            global_limiter,
         }
     }
 
@@ -321,30 +326,16 @@ impl RedisRateLimiter {
             }
         }
 
-        // We build the owned quotas to send over to the service.
-        let owned_global_quotas = global_quotas.into_iter().map(|q| q.to_owned()).collect();
-
-        // We send a message to the service and wait for a response. The rationale behind using this
-        // mechanism instead of a simple lock is to preserve FIFO ordering in the resumption of
-        // suspended futures. With a lock this would not happen since the awaiting future that holds
-        // the lock will be put back into the queue when resumed but the position in the queue will
-        // be after all the futures that still have to be executed and will eventually suspend after
-        // trying to acquire the lock held by the future that is at the end of the queue.
-        let rate_limited_owned_global_quotas = self
-            .global_rate_limits
-            .send(CheckRateLimited {
-                quotas: owned_global_quotas,
-                quantity,
-            })
-            .await
-            .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)??;
-
-        // We build back the normal quotas to use them as before. This is not the most efficient
-        // mechanism, but it keeps the code independent of the service change.
-        let rate_limited_global_quotas = rate_limited_owned_global_quotas
-            .iter()
-            .map(|q| q.to_ref())
-            .collect::<Vec<_>>();
+        // We check the global rate limits before the other limits. This step must be separate from
+        // checking the other rate limits, since those are checked with a Redis script that works
+        // under the invariant that all keys are within the same Redis instance (given their partitioning).
+        // Global keys on the other hand are always on the same instance, so if they were to be mixed
+        // with normal keys the script will end up referencing keys from multiple instances, making it
+        // impossible for the script to work.
+        let rate_limited_global_quotas = self
+            .global_limiter
+            .check_global_rate_limits(&global_quotas, quantity)
+            .await?;
 
         for quota in rate_limited_global_quotas {
             let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
@@ -386,7 +377,7 @@ impl RedisRateLimiter {
 
 #[cfg(test)]
 mod tests {
-
+    use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use relay_base_schema::metrics::MetricNamespace;
@@ -394,26 +385,47 @@ mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
-    use relay_system::Service;
     use smallvec::smallvec;
 
     use super::*;
-    use crate::global::GlobalRateLimitsService;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
-    use crate::MetricNamespaceScoping;
+    use crate::{GlobalRateLimiter, MetricNamespaceScoping};
 
-    fn build_rate_limiter() -> RedisRateLimiter {
+    struct MockGlobalLimiter {
+        pool: RedisPool,
+        global_rate_limiter: Mutex<GlobalRateLimiter>,
+    }
+
+    impl GlobalLimiter for MockGlobalLimiter {
+        async fn check_global_rate_limits<'a>(
+            &self,
+            global_quotas: &'a [RedisQuota<'a>],
+            quantity: usize,
+        ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
+            let mut client = self.pool.client().unwrap();
+            self.global_rate_limiter
+                .lock()
+                .unwrap()
+                .filter_rate_limited(&mut client, global_quotas, quantity)
+        }
+    }
+
+    fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
         let pool = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
-        let global_rate_limits = GlobalRateLimitsService::new(pool.clone()).start_detached();
+
+        let global_limiter = MockGlobalLimiter {
+            pool: pool.clone(),
+            global_rate_limiter: Mutex::new(GlobalRateLimiter::default()),
+        };
 
         RedisRateLimiter {
             pool,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
-            global_rate_limits,
+            global_limiter,
         }
     }
 

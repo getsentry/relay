@@ -1,107 +1,23 @@
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
-use relay_redis::{PooledClient, RedisError, RedisPool, RedisScripts};
-use relay_system::{
-    AsyncResponse, FromMessage, Interface, MessageResponse, Receiver, Sender, Service,
-};
+use relay_redis::{PooledClient, RedisError, RedisScripts};
+use relay_system::{Interface, MessageResponse, Service};
+use std::future::Future;
 
-use crate::redis::{OwnedRedisQuota, RedisQuota};
-use crate::RateLimitingError;
+use crate::redis::RedisQuota;
+use crate::{OwnedRedisQuota, RateLimitingError};
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 
-/// A request to check which quotas are rate limited by the global rate limiter.
-///
-/// This is typically sent to a [`GlobalRateLimitsService`] to determine which quotas
-/// should be rate limited based on the current usage.
-pub struct CheckRateLimited {
-    pub quotas: Vec<OwnedRedisQuota>,
-    pub quantity: usize,
-}
-
-/// Interface for global rate limiting operations.
-///
-/// This enum defines the messages that can be sent to a service implementing
-/// global rate limiting functionality.
-pub enum GlobalRateLimits {
-    /// Checks which quotas are rate limited by the global rate limiter.
-    CheckRateLimited(
-        CheckRateLimited,
-        Sender<Result<Vec<OwnedRedisQuota>, RateLimitingError>>,
-    ),
-}
-
-impl Interface for GlobalRateLimits {}
-
-impl FromMessage<CheckRateLimited> for GlobalRateLimits {
-    type Response = AsyncResponse<Result<Vec<OwnedRedisQuota>, RateLimitingError>>;
-
-    fn from_message(
-        message: CheckRateLimited,
-        sender: <Self::Response as MessageResponse>::Sender,
-    ) -> Self {
-        Self::CheckRateLimited(message, sender)
-    }
-}
-
-/// Service implementing the [`GlobalRateLimits`] interface.
-///
-/// This service provides global rate limiting functionality that is synchronized
-/// across multiple instances using a [`RedisPool`].
-#[derive(Debug)]
-pub struct GlobalRateLimitsService {
-    pool: RedisPool,
-    inner: Inner,
-}
-
-impl GlobalRateLimitsService {
-    /// Creates a new [`GlobalRateLimitsService`] with the provided Redis pool.
-    ///
-    /// The service will use the pool to communicate with Redis for synchronizing
-    /// rate limits across multiple instances.
-    pub fn new(pool: RedisPool) -> Self {
-        Self {
-            pool,
-            inner: Inner::default(),
-        }
-    }
-}
-
-impl Service for GlobalRateLimitsService {
-    type Interface = GlobalRateLimits;
-
-    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
-        let Ok(mut client) = self.pool.client() else {
-            relay_log::error!(
-                "The redis client could not be created from the global rate limits service"
-            );
-            return;
-        };
-
-        loop {
-            let Some(message) = rx.recv().await else {
-                break;
-            };
-
-            match message {
-                GlobalRateLimits::CheckRateLimited(message, sender) => {
-                    let quotas = message
-                        .quotas
-                        .iter()
-                        .map(|q| q.to_ref())
-                        .collect::<Vec<_>>();
-
-                    let result = self
-                        .inner
-                        .filter_rate_limited(&mut client, &quotas, message.quantity)
-                        .map(|q| q.into_iter().map(|q| q.to_owned()).collect());
-
-                    sender.send(result);
-                }
-            }
-        }
-    }
+/// A trait that exposes methods to check global rate limits.
+pub trait GlobalLimiter {
+    /// Returns the [`OwnedRedisQuota`]s that should be rate limited.
+    fn check_global_rate_limits<'a>(
+        &self,
+        global_quotas: &'a [RedisQuota<'a>],
+        quantity: usize,
+    ) -> impl Future<Output = Result<Vec<&'a RedisQuota<'a>>, RateLimitingError>> + Send;
 }
 
 /// A rate limiter for global rate limits.
@@ -109,11 +25,11 @@ impl Service for GlobalRateLimitsService {
 /// This struct maintains local caches of rate limits to reduce the number of
 /// Redis operations required.
 #[derive(Debug, Default)]
-struct Inner {
+pub struct GlobalRateLimiter {
     limits: hashbrown::HashMap<Key, GlobalRateLimit>,
 }
 
-impl Inner {
+impl GlobalRateLimiter {
     /// Returns the [`RedisQuota`]s that should be rate limited.
     ///
     /// This method checks all quotas against their limits and returns those that
@@ -126,7 +42,7 @@ impl Inner {
         client: &mut PooledClient,
         quotas: &'a [RedisQuota<'a>],
         quantity: usize,
-    ) -> Result<Vec<&RedisQuota<'a>>, RateLimitingError> {
+    ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
         let mut rate_limited = vec![];
         let mut not_rate_limited = vec![];
 
@@ -404,44 +320,6 @@ mod tests {
         RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
     }
 
-    #[tokio::test]
-    async fn test_global_rate_limits_service() {
-        let service = GlobalRateLimitsService::new(build_redis_pool());
-        let tx = service.start_detached();
-
-        let scoping = build_scoping();
-
-        let quota1 = build_quota(10, 100);
-        let quota2 = build_quota(10, 150);
-        let quota3 = build_quota(10, 200);
-        let quantity = 175;
-
-        let redis_quotas = [
-            build_redis_quota(&quota1, &scoping),
-            build_redis_quota(&quota2, &scoping),
-            build_redis_quota(&quota3, &scoping),
-        ]
-        .iter()
-        .map(|q| q.to_owned())
-        .collect();
-
-        let check_rate_limited = CheckRateLimited {
-            quotas: redis_quotas,
-            quantity,
-        };
-
-        let rate_limited_quotas = tx.send(check_rate_limited).await.unwrap().unwrap();
-
-        // Only the quotas that are less than the quantity gets rate_limited.
-        assert_eq!(
-            BTreeSet::from([100, 150]),
-            rate_limited_quotas
-                .iter()
-                .map(|quota| quota.to_ref().limit())
-                .collect()
-        );
-    }
-
     #[test]
     fn test_multiple_rate_limits() {
         let scoping = build_scoping();
@@ -459,7 +337,7 @@ mod tests {
 
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
-        let mut counter = Inner::default();
+        let mut counter = GlobalRateLimiter::default();
 
         let rate_limited_quotas = counter
             .filter_rate_limited(&mut client, &redis_quotas, quantity)
@@ -497,7 +375,7 @@ mod tests {
 
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
-        let mut counter = Inner::default();
+        let mut counter = GlobalRateLimiter::default();
 
         let rate_limited_quotas = counter
             .filter_rate_limited(&mut client, &redis_quotas, (bigger_limit * 2) as usize)
@@ -521,7 +399,7 @@ mod tests {
 
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
-        let mut counter = Inner::default();
+        let mut counter = GlobalRateLimiter::default();
 
         let expected_rate_limit_result = [false, false, true, true].to_vec();
 
@@ -545,7 +423,7 @@ mod tests {
 
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
-        let mut rl = Inner::default();
+        let mut rl = GlobalRateLimiter::default();
 
         let redis_quota = [build_redis_quota(&quota, &scoping)];
         assert!(!rl
@@ -570,8 +448,8 @@ mod tests {
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
 
-        let mut counter1 = Inner::default();
-        let mut counter2 = Inner::default();
+        let mut counter1 = GlobalRateLimiter::default();
+        let mut counter2 = GlobalRateLimiter::default();
 
         let mut total = 0;
         let mut total_counter_1 = 0;
@@ -624,7 +502,7 @@ mod tests {
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
 
-        let mut rl = Inner::default();
+        let mut rl = GlobalRateLimiter::default();
 
         let redis_quota = [RedisQuota::new(&quota, item_scoping, ts).unwrap()];
         assert!(rl
@@ -667,7 +545,7 @@ mod tests {
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
 
-        let mut rl = Inner::default();
+        let mut rl = GlobalRateLimiter::default();
 
         let quantity = 2;
         let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64;
@@ -681,7 +559,7 @@ mod tests {
 
         // Grab a new rate limiter and make sure even with the infinite limit,
         // the quantity was still synchronized via Redis.
-        let mut rl = Inner::default();
+        let mut rl = GlobalRateLimiter::default();
 
         quota.limit = Some(redis_threshold);
         let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
