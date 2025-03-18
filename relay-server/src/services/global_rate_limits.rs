@@ -70,14 +70,17 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
             .await
             .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)?;
 
-        // For each owned quota, we lookup the original quota and match it. In case of multiple
-        // duplicate quotas, the first one will be matched.
+        // Perform a reverse lookup to match each owned quota with its original reference.
+        // If multiple identical quotas exist, the first match will be reused. Equality is determined
+        // by the `Eq` and `PartialEq` implementations, meaning duplicate quotas will return
+        // the same reference multiple times. This does not impact correctness since the returned
+        // reference is interchangeable with any other identical quota.
         //
-        // This is done to make the `check_global_rate_limits` function depend only on references
-        // and hide the fact that we send owned data across threads.
+        // This design ensures that `check_global_rate_limits` operates exclusively on references,
+        // abstracting away the fact that owned data is transferred across threads.
         //
-        // The operation is O(n^2) but we are assuming the number of quotas is bounded by a low number
-        // since now they are only used for metric buckets limiting.
+        // The operation has a time complexity of O(n^2), but the number of quotas is assumed
+        // to be small, as they are currently used only for metric bucket limiting.
         let rate_limited_global_quotas =
             rate_limited_owned_global_quotas.map(|owned_global_quotas| {
                 owned_global_quotas
@@ -218,9 +221,12 @@ mod tests {
         let quota3 = build_quota(10, 200);
         let quantity = 175;
 
+        let redis_quota_2 = build_redis_quota(&quota2, &scoping);
         let redis_quotas = [
             build_redis_quota(&quota1, &scoping),
-            build_redis_quota(&quota2, &scoping),
+            // We add a duplicated quota, to make sure the reverse mapping works.
+            redis_quota_2.clone(),
+            redis_quota_2,
             build_redis_quota(&quota3, &scoping),
         ]
         .iter()
@@ -236,7 +242,7 @@ mod tests {
 
         // Only the quotas that are less than the quantity gets rate_limited.
         assert_eq!(
-            BTreeSet::from([100, 150]),
+            BTreeSet::from([100, 150, 150]),
             rate_limited_quotas
                 .iter()
                 .map(|quota| quota.build_ref().limit())
