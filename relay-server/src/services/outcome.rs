@@ -530,7 +530,7 @@ impl fmt::Display for DiscardReason {
 /// Similar to [`ItemType`] but it does not have any additional information in the
 /// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
 /// The variants should be the same as [`ItemType`].
-#[derive(Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Clone)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum DiscardItemType {
     /// Event payload encoded in JSON.
     Event,
@@ -627,8 +627,8 @@ impl DiscardItemType {
     }
 }
 
-impl From<ItemType> for DiscardItemType {
-    fn from(value: ItemType) -> Self {
+impl From<&ItemType> for DiscardItemType {
+    fn from(value: &ItemType) -> Self {
         match value {
             ItemType::Event => DiscardItemType::Event,
             ItemType::Transaction => DiscardItemType::Transaction,
@@ -661,9 +661,9 @@ impl From<ItemType> for DiscardItemType {
     }
 }
 
-impl From<&ItemType> for DiscardItemType {
-    fn from(value: &ItemType) -> Self {
-        value.to_owned().into()
+impl From<ItemType> for DiscardItemType {
+    fn from(value: ItemType) -> Self {
+        From::from(&value)
     }
 }
 

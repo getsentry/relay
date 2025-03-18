@@ -377,7 +377,7 @@ pub async fn handle_envelope(
         utils::check_envelope_size_limits(state.config(), managed_envelope.envelope())
     {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge(
-            offender.clone().into(),
+            (&offender).into(),
         )));
         return Err(BadStoreRequest::Overflow(offender));
     }
