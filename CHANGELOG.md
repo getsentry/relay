@@ -10,6 +10,7 @@
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
+- Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
 
 **Internal**:
 
