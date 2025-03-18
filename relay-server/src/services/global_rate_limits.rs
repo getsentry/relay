@@ -192,15 +192,6 @@ mod tests {
         }
     }
 
-    fn build_scoping() -> Scoping {
-        Scoping {
-            organization_id: OrganizationId::new(69420),
-            project_id: ProjectId::new(42),
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            key_id: Some(4711),
-        }
-    }
-
     fn build_redis_quota<'a>(quota: &'a Quota, scoping: &'a Scoping) -> RedisQuota<'a> {
         let scoping = scoping.item(DataCategory::MetricBucket);
         RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
@@ -211,7 +202,12 @@ mod tests {
         let service = GlobalRateLimitsService::new(build_redis_pool());
         let tx = service.start_detached();
 
-        let scoping = build_scoping();
+        let scoping = Scoping {
+            organization_id: OrganizationId::new(69420),
+            project_id: ProjectId::new(42),
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            key_id: Some(4711),
+        };
 
         let quota1 = build_quota(10, 100);
         let quota2 = build_quota(10, 150);
