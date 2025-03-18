@@ -423,6 +423,32 @@ class SentryLike:
         response.raise_for_status()
         return response
 
+    def send_playstation_request(self, project_id, file_content, dsn_key_idx=0):
+        """
+        Sends a request to the playstation endpoint
+        :param project_id: the project id
+        :param file_content: the unreal file content
+        """
+        response = self.post(
+            "/api/{}/playstation/?sentry_key={}".format(
+                project_id, self.get_dsn_public_key(project_id, dsn_key_idx)
+            ),
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+            },
+            files={
+                "upload_file_minidump": (
+                    "playstation.prosperodmp",
+                    file_content,
+                    "application/octet-stream",
+                )
+            },
+        )
+
+        response.raise_for_status()
+        return response
+
     def send_attachments(self, project_id, event_id, files, dsn_key_idx=0):
         files = {
             name: (file_name, file_content) for (name, file_name, file_content) in files

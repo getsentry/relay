@@ -1553,7 +1553,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
-            playstation::expand(managed_envelope, &self.inner.config, &project_info)?;
+            playstation::expand(managed_envelope, &project_info)?;
         });
 
         let extraction_result = event::extract(
