@@ -1,4 +1,3 @@
-use futures::StreamExt;
 use relay_quotas::{
     GlobalLimiter, GlobalRateLimiter, OwnedRedisQuota, RateLimitingError, RedisQuota,
 };
@@ -6,6 +5,7 @@ use relay_redis::RedisPool;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, MessageResponse, Receiver, Sender, Service,
 };
+use std::sync::{Arc, Mutex};
 
 /// A request to check which quotas are rate limited by the global rate limiter.
 ///
@@ -87,6 +87,12 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
     }
 }
 
+impl From<Addr<GlobalRateLimits>> for GlobalRateLimitsServiceHandle {
+    fn from(tx: Addr<GlobalRateLimits>) -> Self {
+        Self { tx }
+    }
+}
+
 /// Service implementing the [`GlobalRateLimits`] interface.
 ///
 /// This service provides global rate limiting functionality that is synchronized
@@ -113,13 +119,8 @@ impl GlobalRateLimitsService {
 impl Service for GlobalRateLimitsService {
     type Interface = GlobalRateLimits;
 
-    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
-        let Ok(mut client) = self.pool.client() else {
-            relay_log::error!(
-                "The redis client could not be created from the global rate limits service"
-            );
-            return;
-        };
+    async fn run(self, mut rx: Receiver<Self::Interface>) {
+        let limiter = Arc::new(Mutex::new(self.limiter));
 
         loop {
             let Some(message) = rx.recv().await else {
@@ -128,18 +129,28 @@ impl Service for GlobalRateLimitsService {
 
             match message {
                 GlobalRateLimits::CheckRateLimited(message, sender) => {
-                    let quotas = message
-                        .global_quotas
-                        .iter()
-                        .map(|q| q.build_ref())
-                        .collect::<Vec<_>>();
-
-                    let result = tokio::task::spawn_blocking(|| {
-                        self.limiter
+                    let pool = self.pool.clone();
+                    let state = limiter.clone();
+                    let result = tokio::task::spawn_blocking(move || {
+                        let Ok(mut client) = pool.client() else {
+                            relay_log::error!("The redis client could not be created from the global rate limits service");
+                            return Err(RateLimitingError::UnreachableGlobalRateLimits);
+                        };
+                        
+                        let mut limiter = state.lock().unwrap();
+                        
+                        let quotas = message
+                            .global_quotas
+                            .iter()
+                            .map(|q| q.build_ref())
+                            .collect::<Vec<_>>();
+                     
+                        limiter
                             .filter_rate_limited(&mut client, &quotas, message.quantity)
                             .map(|q| q.into_iter().map(|q| q.build_owned()).collect())
                     })
-                    .await;
+                    .await
+                    .unwrap_or_else(|_| Err(RateLimitingError::UnreachableGlobalRateLimits));
 
                     sender.send(result);
                 }
@@ -150,7 +161,8 @@ impl Service for GlobalRateLimitsService {
 
 #[cfg(test)]
 mod tests {
-    use crate::services::global_rate_limits::{CheckRateLimited, GlobalRateLimitsService};
+    use std::collections::BTreeSet;
+
     use relay_base_schema::data_category::DataCategory;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -158,7 +170,8 @@ mod tests {
     use relay_quotas::{DataCategories, Quota, QuotaScope, RedisQuota, Scoping};
     use relay_redis::{RedisConfigOptions, RedisPool};
     use relay_system::Service;
-    use std::collections::BTreeSet;
+
+    use crate::services::global_rate_limits::{CheckRateLimited, GlobalRateLimitsService};
 
     fn build_redis_pool() -> RedisPool {
         let url = std::env::var("RELAY_REDIS_URL")

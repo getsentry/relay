@@ -1173,7 +1173,7 @@ impl EnvelopeProcessorService {
             (quotas.clone(), &addrs.global_rate_limits)
         {
             Some(Arc::new(
-                RedisRateLimiter::new(quotas, global_rate_limits.clone())
+                RedisRateLimiter::new(quotas, global_rate_limits.clone().into())
                     .max_limit(config.max_rate_limit()),
             ))
         } else {
