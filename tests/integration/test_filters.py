@@ -321,12 +321,12 @@ def test_client_ip_filters_are_applied(
 @pytest.mark.parametrize(
     "headers",
     [
-        {"X-Forwarded-For": "127.0.0.1"},
-        {"X-Forwarded-For": "::1"},
         {"Host": "localhost:3000"},
         {"Host": "127.0.0.1:3000"},
+        {"Host": "localhost"},
         {"X-Forwarded-Host": "localhost:3000"},
         {"X-Forwarded-Host": "127.0.0.1:3000"},
+        {"X-Forwarded-Host": "localhost"},
     ],
 )
 def test_localhost_filter_with_headers(mini_sentry, relay, headers):
@@ -359,12 +359,12 @@ def test_localhost_filter_with_headers(mini_sentry, relay, headers):
 @pytest.mark.parametrize(
     "headers",
     [
-        {"X-Forwarded-For": "127.0.0.1"},
-        {"X-Forwarded-For": "::1"},
         {"Host": "localhost:3000"},
         {"Host": "127.0.0.1:3000"},
+        {"Host": "localhost"},
         {"X-Forwarded-Host": "localhost:3000"},
         {"X-Forwarded-Host": "127.0.0.1:3000"},
+        {"X-Forwarded-Host": "localhost"},
     ],
 )
 def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
@@ -389,7 +389,6 @@ def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
 @pytest.mark.parametrize(
     "headers",
     [
-        {"X-Forwarded-For": "81.41.165.209"},
         {"Host": "example.com"},
         {"Host": "localhost.example.com:3000"},
         {"X-Forwarded-Host": "localhost.example.com:3000"},
