@@ -405,7 +405,7 @@ impl fmt::Display for ReasonCode {
 /// - Count data without limiting it (`limit` = None)
 ///
 /// Different quotas may apply at different scope levels (organization, project, key).
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Quota {
     /// The unique identifier for counting this quota.
