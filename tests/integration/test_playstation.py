@@ -2,6 +2,8 @@ import pytest
 import os
 import requests
 
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
+
 
 def load_dump_file(base_file_name: str):
     dmp_path = os.path.join(
@@ -90,3 +92,44 @@ def test_playstation_with_feature_flag(
     assert len(outcomes) == 2
     assert outcomes[0]["reason"] == "no_event_payload"
     assert outcomes[1]["reason"] == "no_event_payload"
+
+
+def test_playstation_attachment(
+    mini_sentry, relay_with_processing, outcomes_consumer, attachments_consumer
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    mini_sentry.add_full_project_config(
+        PROJECT_ID,
+        extra={"config": {"features": ["projects:relay-playstation-ingestion"]}},
+    )
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+    relay = relay_with_processing()
+
+    bogus_error = {
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "type": "error",
+        "exception": {"values": [{"type": "ValueError", "value": "Should not happen"}]},
+    }
+    envelope = Envelope()
+    envelope.add_event(bogus_error)
+
+    # Add the PlayStation dump as an attachment
+    envelope.add_item(
+        Item(
+            type="attachment",
+            payload=PayloadRef(bytes=playstation_dump),
+            headers={
+                "attachment_type": "playstation.prosperodump",
+                "filename": "playstation.prosperodmp",
+                "content_type": "application/octet-stream",
+            },
+        )
+    )
+    relay.send_envelope(PROJECT_ID, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 0
+    # TODO: Add stronger assert later to check we make it into the expand function and add test
+    # to check that we don't make it into if the feature is not enabled.

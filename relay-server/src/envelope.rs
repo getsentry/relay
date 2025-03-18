@@ -474,6 +474,7 @@ impl std::str::FromStr for AttachmentType {
             "event.minidump" => AttachmentType::Minidump,
             "event.applecrashreport" => AttachmentType::AppleCrashReport,
             "event.payload" => AttachmentType::EventPayload,
+            "playstation.prosperodump" => AttachmentType::Prosperodump,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "event.view_hierarchy" => AttachmentType::ViewHierarchy,
             "unreal.context" => AttachmentType::UnrealContext,
