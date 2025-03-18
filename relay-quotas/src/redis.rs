@@ -79,12 +79,6 @@ impl OwnedRedisQuota {
     }
 }
 
-impl From<RedisQuota<'_>> for OwnedRedisQuota {
-    fn from(quota: RedisQuota) -> Self {
-        quota.build_owned()
-    }
-}
-
 /// Reference to information required for tracking quotas in Redis.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RedisQuota<'a> {
@@ -223,7 +217,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 
 /// A service that executes quotas and checks for rate limits in a shared cache.
 ///
-/// Quotas handle tracking a project's usage and respond whether or not a project has been
+/// Quotas handle tracking a project's usage and respond whether a project has been
 /// configured to throttle incoming data if they go beyond the specified quota.
 ///
 /// Quotas can specify a window to be tracked in, such as per minute or per hour. Additionally,

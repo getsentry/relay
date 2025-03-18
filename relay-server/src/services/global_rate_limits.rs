@@ -41,6 +41,10 @@ impl FromMessage<CheckRateLimited> for GlobalRateLimits {
     }
 }
 
+/// A handle to the [`GlobalRateLimitsServiceHandle`].
+///
+/// This handle implements [`GlobalLimiter`] to expose the global rate limiting feature from the
+/// [`GlobalRateLimitsServiceHandle`].
 pub struct GlobalRateLimitsServiceHandle {
     tx: Addr<GlobalRateLimits>,
 }
