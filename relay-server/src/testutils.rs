@@ -6,8 +6,6 @@ use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
-#[cfg(feature = "processing")]
-use relay_quotas::GlobalRateLimitsService;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
 
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
@@ -21,6 +19,8 @@ use crate::metrics::{MetricOutcomes, MetricStats};
 #[cfg(feature = "processing")]
 use crate::service::create_redis_pools;
 use crate::services::global_config::GlobalConfigHandle;
+#[cfg(feature = "processing")]
+use crate::services::global_rate_limits::GlobalRateLimitsService;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
 use crate::services::projects::cache::ProjectCacheHandle;

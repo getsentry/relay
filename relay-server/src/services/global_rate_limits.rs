@@ -53,7 +53,7 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
     ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
         // We build the owned quotas to send over to the service.
         let owned_global_quotas = global_quotas
-            .into_iter()
+            .iter()
             .map(|q| q.build_owned())
             .collect::<Vec<_>>();
 
@@ -136,15 +136,12 @@ impl Service for GlobalRateLimitsService {
                             relay_log::error!("The redis client could not be created from the global rate limits service");
                             return Err(RateLimitingError::UnreachableGlobalRateLimits);
                         };
-                        
                         let mut limiter = state.lock().unwrap();
-                        
                         let quotas = message
                             .global_quotas
                             .iter()
                             .map(|q| q.build_ref())
                             .collect::<Vec<_>>();
-                     
                         limiter
                             .filter_rate_limited(&mut client, &quotas, message.quantity)
                             .map(|q| q.into_iter().map(|q| q.build_owned()).collect())

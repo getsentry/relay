@@ -339,7 +339,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
 
         for quota in rate_limited_global_quotas {
             let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-            rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
+            rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
         }
 
         // Either there are no quotas to run against Redis, or we already have a rate limit from a

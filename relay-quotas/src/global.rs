@@ -1,18 +1,18 @@
+use std::future::Future;
+
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::{PooledClient, RedisError, RedisScripts};
-use relay_system::{Interface, MessageResponse, Service};
-use std::future::Future;
 
 use crate::redis::RedisQuota;
-use crate::{OwnedRedisQuota, RateLimitingError};
+use crate::RateLimitingError;
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 
 /// A trait that exposes methods to check global rate limits.
 pub trait GlobalLimiter {
-    /// Returns the [`OwnedRedisQuota`]s that should be rate limited.
+    /// Returns the [`RedisQuota`]s that should be rate limited.
     fn check_global_rate_limits<'a>(
         &self,
         global_quotas: &'a [RedisQuota<'a>],

@@ -9,6 +9,8 @@ use crate::services::buffer::{
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
+#[cfg(feature = "processing")]
+use crate::services::global_rate_limits::GlobalRateLimitsService;
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
@@ -34,8 +36,6 @@ use relay_cogs::Cogs;
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_config::{RedisConfigRef, RedisPoolConfigs};
-#[cfg(feature = "processing")]
-use relay_quotas::GlobalRateLimitsService;
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]

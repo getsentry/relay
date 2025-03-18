@@ -68,6 +68,7 @@ use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
+    crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
@@ -76,7 +77,7 @@ use {
         RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_quotas::{GlobalRateLimits, Quota, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
@@ -1128,7 +1129,7 @@ struct InnerProcessor {
     quotas_pool: Option<RedisPool>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
-    rate_limiter: Option<Arc<RedisRateLimiter>>,
+    rate_limiter: Option<Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>>,
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
@@ -3260,7 +3261,7 @@ impl EnforcementResult {
 #[derive(Clone)]
 enum RateLimiter {
     Cached,
-    Consistent(Arc<RedisRateLimiter>),
+    Consistent(Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>),
 }
 
 #[cfg(feature = "processing")]
