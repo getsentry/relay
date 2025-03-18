@@ -74,14 +74,16 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
         //
         // The operation is O(n^2) but we are assuming the number of quotas is bounded by a low number
         // since now they are only used for metric buckets limiting.
-        let rate_limited_global_quotas = rate_limited_owned_global_quotas.map(|o| {
-            o.iter()
-                .filter_map(|owned_global_quota| {
-                    let global_quota = owned_global_quota.build_ref();
-                    global_quotas.iter().find(|x| **x == global_quota)
-                })
-                .collect::<Vec<_>>()
-        });
+        let rate_limited_global_quotas =
+            rate_limited_owned_global_quotas.map(|owned_global_quotas| {
+                owned_global_quotas
+                    .iter()
+                    .filter_map(|owned_global_quota| {
+                        let global_quota = owned_global_quota.build_ref();
+                        global_quotas.iter().find(|x| **x == global_quota)
+                    })
+                    .collect::<Vec<_>>()
+            });
 
         rate_limited_global_quotas
     }
