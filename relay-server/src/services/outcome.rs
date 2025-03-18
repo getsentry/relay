@@ -1229,15 +1229,15 @@ mod tests {
     #[test]
     fn test_outcome_discard_reason() {
         assert_eq!(
-            Some(Cow::from("too_large_attachment")),
+            Some(Cow::from("too_large:attachment")),
             Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment)).to_reason()
         );
         assert_eq!(
-            Some(Cow::from("too_large_unknown")),
+            Some(Cow::from("too_large:unknown")),
             Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Unknown)).to_reason()
         );
         assert_eq!(
-            Some(Cow::from("too_large_unreal_report")),
+            Some(Cow::from("too_large:unreal_report")),
             Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::UnrealReport)).to_reason()
         );
     }
