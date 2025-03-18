@@ -900,7 +900,10 @@ impl ClientReportOutcomeProducer {
             Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
             Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
             _ => {
-                // Cannot convert this outcome to a client report.
+                relay_log::debug!(
+                    "Outcome '{}' cannot be converted to client report",
+                    msg.outcome
+                );
                 return;
             }
         };
