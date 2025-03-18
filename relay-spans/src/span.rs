@@ -544,50 +544,48 @@ mod tests {
                         "arrayValue": {
                             "values": [
                                 {
-                                    "value": {
-                                        "kvlistValue": {
-                                            "values": [
-                                                {
-                                                    "key": "min",
-                                                    "value": {
-                                                        "doubleValue": 1.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "max",
-                                                    "value": {
-                                                        "doubleValue": 2.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "sum",
-                                                    "value": {
-                                                        "doubleValue": 3.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "count",
-                                                    "value": {
-                                                        "intValue": "2"
-                                                    }
-                                                },
-                                                {
-                                                    "key": "tags",
-                                                    "value": {
-                                                        "kvlistValue": {
-                                                            "values": [
-                                                                {
-                                                                    "key": "environment",
-                                                                    "value": {
-                                                                        "stringValue": "test"
-                                                                    }
+                                    "kvlistValue": {
+                                        "values": [
+                                            {
+                                                "key": "min",
+                                                "value": {
+                                                    "doubleValue": 1.0
+                                                }
+                                            },
+                                            {
+                                                "key": "max",
+                                                "value": {
+                                                    "doubleValue": 2.0
+                                                }
+                                            },
+                                            {
+                                                "key": "sum",
+                                                "value": {
+                                                    "doubleValue": 3.0
+                                                }
+                                            },
+                                            {
+                                                "key": "count",
+                                                "value": {
+                                                    "intValue": "2"
+                                                }
+                                            },
+                                            {
+                                                "key": "tags",
+                                                "value": {
+                                                    "kvlistValue": {
+                                                        "values": [
+                                                            {
+                                                                "key": "environment",
+                                                                "value": {
+                                                                    "stringValue": "test"
                                                                 }
-                                                            ]
-                                                        }
+                                                            }
+                                                        ]
                                                     }
                                                 }
-                                            ]
-                                        }
+                                            }
+                                        ]
                                     }
                                 }
                             ]
