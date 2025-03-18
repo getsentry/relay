@@ -594,6 +594,9 @@ pub enum DiscardItemType {
 }
 
 impl DiscardItemType {
+    /// Returns the enum variant as string representation in snake case.
+    ///
+    /// For example, `DiscardItemType::UserReportV2` gets converted into `user_report_v2`.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Unknown => "unknown",
