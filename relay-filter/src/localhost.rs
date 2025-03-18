@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_filter_forwarded_host_header() {
-        for host_value in ["localhost:3000", "127.0.0.1:3000"] {
+        for host_value in ["localhost:3000", "127.0.0.1:3000", "localhost"] {
             let event = get_event_with_header(FORWARDED_HOST_HEADER, host_value);
             let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_eq!(filter_result, Err(FilterStatKey::Localhost))
@@ -231,17 +231,8 @@ mod tests {
 
     #[test]
     fn test_filter_request_host_header() {
-        for host_value in ["localhost:3000", "127.0.0.1:3000"] {
+        for host_value in ["localhost:3000", "127.0.0.1:3000", "localhost"] {
             let event = get_event_with_header(HOST_HEADER, host_value);
-            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
-            assert_eq!(filter_result, Err(FilterStatKey::Localhost))
-        }
-    }
-
-    #[test]
-    fn test_filter_request_forwarded_for_header() {
-        for ip in ["127.0.0.1", "::1"] {
-            let event = get_event_with_header(FORWARDED_FOR_HEADER, ip);
             let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_eq!(filter_result, Err(FilterStatKey::Localhost))
         }
