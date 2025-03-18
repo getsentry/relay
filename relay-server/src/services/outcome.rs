@@ -206,7 +206,7 @@ impl Outcome {
     pub fn to_reason(&self) -> Option<Cow<'_, str>> {
         match self {
             Outcome::Invalid(DiscardReason::TooLarge(too_large_reason)) => Some(Cow::Owned(
-                format!("too_large_{}", too_large_reason.as_str()),
+                format!("too_large:{}", too_large_reason.as_str()),
             )),
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
