@@ -4,13 +4,26 @@
 
 **Features**:
 
+- Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
+
+## 25.3.0
+
+**Features**:
+
 - Tag images with release version. ([#4532](https://github.com/getsentry/relay/pull/4532))
 - Switch default envelope compression from gzip to zstd. ([#4531](https://github.com/getsentry/relay/pull/4531))
 - Update release to include an aarch64 binary. ([#4514](https://github.com/getsentry/relay/pull/4514))
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
-- Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
+- Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
+- Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
+
+**Bug Fixes**:
+
+- Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
+- Emit filtered/sampled outcomes for spans attached to a dropped transaction. ([#4569](https://github.com/getsentry/relay/pull/4569))
+- Fix missing geo information for user when IP scrubbing was enabled. ([#4586](https://github.com/getsentry/relay/pull/4586))
 
 **Internal**:
 
@@ -22,6 +35,8 @@
 - Adopt new `AsyncPool` for the `EnvelopeProcessorService` and `StoreService`. ([#4520](https://github.com/getsentry/relay/pull/4520))
 - Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
 - Expose metrics for the `AsyncPool`. ([#4538](https://github.com/getsentry/relay/pull/4538))
+- Expose service utilization metrics through the internal relay metric endpoint. ([#4543](https://github.com/getsentry/relay/pull/4543))
+- Always set observed time for OTel logs in Relay. ([#4559](https://github.com/getsentry/relay/pull/4559))
 
 ## 25.2.0
 

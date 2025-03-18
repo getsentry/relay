@@ -153,12 +153,29 @@ where
         let mut this = self.project();
 
         loop {
-            this.tasks.as_mut().poll_tasks_until_pending(cx);
-
-            // We report how many tasks are being concurrently polled in this future.
+            // We report before polling since we might have only blocking tasks meaning that the
+            // measure after the `poll_tasks_until_pending` will return 0, since all futures will
+            // be completed.
+            let before_len = this.tasks.len() as u64;
             this.metrics
                 .active_tasks
-                .store(this.tasks.len() as u64, Ordering::Relaxed);
+                .store(before_len, Ordering::Relaxed);
+
+            this.tasks.as_mut().poll_tasks_until_pending(cx);
+
+            // We also want to report after polling since we might have finished polling some futures
+            // and some not.
+            let after_len = this.tasks.len() as u64;
+            this.metrics
+                .active_tasks
+                .store(after_len, Ordering::Relaxed);
+
+            // We calculate how many tasks have been driven to completion.
+            if let Some(finished_tasks) = before_len.checked_sub(after_len) {
+                this.metrics
+                    .finished_tasks
+                    .fetch_add(finished_tasks, Ordering::Relaxed);
+            }
 
             // If we can't get anymore tasks, and we don't have anything else to process, we report
             // ready. Otherwise, if we have something to process, we report pending.
@@ -506,5 +523,7 @@ mod tests {
 
         // We expect that now we have 1 active task, the one that is indefinitely pending.
         assert_eq!(metrics.active_tasks.load(Ordering::Relaxed), 1);
+        // An indefinitely pending task is never finished.
+        assert_eq!(metrics.finished_tasks.load(Ordering::Relaxed), 0);
     }
 }

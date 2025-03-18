@@ -282,7 +282,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
     relay.send_event(project_id, event)
 
     score_total_seen = 0
-    for _ in range(2):
+    for _ in range(3):  # 2 client reports and the actual item we're interested in
         envelope = mini_sentry.captured_events.get()
         for item in envelope.items:
             if item.type == "metric_buckets":
@@ -1876,7 +1876,7 @@ def test_dynamic_sampling(
 
 
 @pytest.mark.parametrize("ingest_in_eap", [True, False])
-def test_ingest_in_eap(
+def test_ingest_in_eap_for_organization(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
@@ -1893,6 +1893,52 @@ def test_ingest_in_eap(
 
     if ingest_in_eap:
         project_config["config"]["features"] += ["organizations:ingest-spans-in-eap"]
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    relay.send_event(project_id, event)
+
+    if ingest_in_eap:
+        spans_consumer.get_span()
+        spans_consumer.get_span()
+
+    spans_consumer.assert_empty()
+
+
+@pytest.mark.parametrize("ingest_in_eap", [True, False])
+def test_ingest_in_eap_for_project(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    ingest_in_eap,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:indexed-spans-extraction",
+    ]
+
+    if ingest_in_eap:
+        project_config["config"]["features"] += ["projects:ingest-spans-in-eap"]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     end = datetime.now(timezone.utc) - timedelta(seconds=1)

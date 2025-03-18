@@ -12,7 +12,7 @@ use crate::services::processor::EnvelopeProcessorServicePool;
 #[cfg(feature = "processing")]
 use crate::services::store::StoreServicePool;
 use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
-use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
+use crate::statsd::{RelayCounters, RelayGauges, RuntimeCounters, RuntimeGauges};
 
 /// Relay Stats Service.
 ///
@@ -194,10 +194,14 @@ impl RelayStats {
 
         metric!(
             gauge(RelayGauges::AsyncPoolQueueSize) = metrics.queue_size(),
-            pool_name = async_pool.name()
+            pool = async_pool.name()
         );
         metric!(
             gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() as f64,
+            pool = async_pool.name()
+        );
+        metric!(
+            counter(RelayCounters::AsyncPoolFinishedTasks) += metrics.finished_tasks(),
             pool = async_pool.name()
         );
     }

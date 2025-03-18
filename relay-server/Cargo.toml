@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.2.0"
+version = "25.3.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -62,7 +62,6 @@ pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
-rayon = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }

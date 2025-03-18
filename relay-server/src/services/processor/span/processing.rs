@@ -231,8 +231,16 @@ pub fn process(
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
-        new_item
-            .set_ingest_span_in_eap(project_info.config.features.has(Feature::IngestSpansInEap));
+        new_item.set_ingest_span_in_eap(
+            project_info
+                .config
+                .features
+                .has(Feature::IngestSpansInEapForOrganization)
+                || project_info
+                    .config
+                    .features
+                    .has(Feature::IngestSpansInEapForProject),
+        );
 
         *item = new_item;
 
@@ -298,7 +306,14 @@ pub fn extract_from_event(
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
-    let ingest_in_eap = project_info.config.features.has(Feature::IngestSpansInEap);
+    let ingest_in_eap = project_info
+        .config
+        .features
+        .has(Feature::IngestSpansInEapForOrganization)
+        || project_info
+            .config
+            .features
+            .has(Feature::IngestSpansInEapForProject);
 
     let mut add_span = |mut span: Span| {
         add_sample_rate(

@@ -1013,6 +1013,9 @@ def test_transaction_metrics_extraction_external_relays(
     }
     external.send_transaction(project_id, tx, item_headers, trace_info)
 
+    # Client reports.
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
 
@@ -1576,9 +1579,13 @@ def test_generic_metric_extraction(mini_sentry, relay):
     relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
 
+    # Skip client reports
     envelope = mini_sentry.captured_events.get(timeout=3)
+    assert envelope.get_event() is None
     envelope = mini_sentry.captured_events.get(timeout=3)
+    assert envelope.get_event() is None
 
+    envelope = mini_sentry.captured_events.get(timeout=3)
     for item in envelope.items:
         # Transaction items should be sampled and not among the envelope items.
         assert item.headers.get("type") != "transaction"
@@ -2008,7 +2015,7 @@ def test_histogram_outliers(mini_sentry, relay):
     relay.send_event(42, event)
 
     tags = {}
-    for _ in range(2):
+    for _ in range(3):
         envelope = mini_sentry.captured_events.get()
         for item in envelope:
             if item.type == "metric_buckets":
