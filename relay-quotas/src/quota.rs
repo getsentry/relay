@@ -131,20 +131,6 @@ impl OwnedItemScoping {
     }
 }
 
-impl AsRef<Scoping> for OwnedItemScoping {
-    fn as_ref(&self) -> &Scoping {
-        &self.scoping
-    }
-}
-
-impl std::ops::Deref for OwnedItemScoping {
-    type Target = Scoping;
-
-    fn deref(&self) -> &Self::Target {
-        &self.scoping
-    }
-}
-
 /// Data categorization and scoping information for a single item.
 ///
 /// [`ItemScoping`] combines a data category, scoping information, and optional
