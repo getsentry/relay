@@ -13,7 +13,6 @@ use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
 use crate::utils::TypedEnvelope;
 
-#[cfg(feature = "processing")]
 pub fn expand(
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
     project_info: &ProjectInfo,

@@ -98,6 +98,7 @@ mod span;
 mod transaction;
 pub use span::extract_transaction_span;
 
+#[cfg(feature = "processing")]
 mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
