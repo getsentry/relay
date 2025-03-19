@@ -15,7 +15,7 @@ use crate::service::ServiceState;
 use crate::utils;
 
 /// The extension of a prosperodump in the multipart form-data upload.
-const PROSPERODUMP_EXTENSION: &str = "prosperodmp";
+const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
 
 /// Prosperodump attachments should have these magic bytes
 const PROSPERODUMP_MAGIC_HEADER: &[u8] = b"\x7FELF";
