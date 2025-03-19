@@ -5,13 +5,15 @@ use crate::{FilterConfig, FilterStatKey, Filterable};
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
+const FORWARDED_HOST_HEADER: &str = "X-Forwarded-Host";
+
+const HOST_HEADER: &str = "Host";
+
 /// Check if the event originates from the local host.
 fn matches<F: Filterable>(item: &F) -> bool {
     if let Some(ip_addr) = item.ip_addr() {
-        for &local_ip in LOCAL_IPS {
-            if local_ip == ip_addr {
-                return true;
-            }
+        if LOCAL_IPS.contains(&ip_addr) {
+            return true;
         }
     }
 
@@ -23,6 +25,17 @@ fn matches<F: Filterable>(item: &F) -> bool {
         if let Some(host) = url.host_str() {
             for &local_domain in LOCAL_DOMAINS {
                 if host_matches_or_is_subdomain_of(host, local_domain) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    for header_name in [HOST_HEADER, FORWARDED_HOST_HEADER] {
+        if let Some(header) = item.header(header_name) {
+            if let Some(domain_part) = header.split(":").next() {
+                // header values here will usually look like "localhost:3000" or "127.0.0.1:8080"
+                if LOCAL_DOMAINS.contains(&domain_part) {
                     return true;
                 }
             }
@@ -50,7 +63,9 @@ pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{Event, IpAddr, Request, User};
+    use relay_event_schema::protocol::{
+        Event, HeaderName, HeaderValue, Headers, IpAddr, PairList, Request, User,
+    };
     use relay_protocol::Annotated;
 
     use super::*;
@@ -80,6 +95,19 @@ mod tests {
             request: Annotated::from(Request {
                 url: Annotated::from(val.to_string()),
                 ..Request::default()
+            }),
+            ..Event::default()
+        }
+    }
+
+    fn get_event_with_header(key: &str, value: &str) -> Event {
+        Event {
+            request: Annotated::from(Request {
+                headers: Annotated::from(Headers(PairList(vec![Annotated::new((
+                    Annotated::new(HeaderName::new(key)),
+                    Annotated::new(HeaderValue::new(value)),
+                ))]))),
+                ..Default::default()
             }),
             ..Event::default()
         }
@@ -189,5 +217,41 @@ mod tests {
         let event = get_event_with_url(url);
         let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
         assert_eq!(filter_result, Ok(()), "Filtered valid url '{url}'");
+    }
+
+    #[test]
+    fn test_filter_forwarded_host_header() {
+        for host_value in ["localhost:3000", "127.0.0.1:3000", "localhost"] {
+            let event = get_event_with_header(FORWARDED_HOST_HEADER, host_value);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(filter_result, Err(FilterStatKey::Localhost))
+        }
+    }
+
+    #[test]
+    fn test_filter_request_host_header() {
+        for host_value in ["localhost:3000", "127.0.0.1:3000", "localhost"] {
+            let event = get_event_with_header(HOST_HEADER, host_value);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(filter_result, Err(FilterStatKey::Localhost))
+        }
+    }
+
+    #[test]
+    fn test_filter_request_subdomain_host_header() {
+        for domain in ["localhost.sentry.io", "localhost.sentry.io:3000"] {
+            let event = get_event_with_header(HOST_HEADER, domain);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(filter_result, Ok(()))
+        }
+    }
+
+    #[test]
+    fn test_filter_request_subdomain_forwarded_host_header() {
+        for domain in ["localhost.sentry.io", "localhost.sentry.io:3000"] {
+            let event = get_event_with_header(FORWARDED_HOST_HEADER, domain);
+            let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+            assert_eq!(filter_result, Ok(()))
+        }
     }
 }
