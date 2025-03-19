@@ -18,11 +18,13 @@ pub fn expand(
     project_info: &ProjectInfo,
 ) -> Result<(), ProcessingError> {
     let envelope = &mut managed_envelope.envelope_mut();
+    if !project_info.has_feature(Feature::PlaystationIngestion) {
+        return Ok(());
+    }
 
     if let Some(_item) = envelope.take_item_by(|item| {
         item.ty() == &ItemType::Attachment
             && item.attachment_type() == Some(&AttachmentType::Prosperodump)
-            && project_info.has_feature(Feature::PlaystationIngestion)
     }) {
         // TODO: Add the expand logic here
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);

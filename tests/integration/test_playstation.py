@@ -69,7 +69,6 @@ def test_playstation_too_large(mini_sentry, relay_with_processing, outcomes_cons
     assert response.status_code == 400, "Expected a 400 status code"
 
 
-# Turns out these are not data_dog metrics but sentry_metrics hence the entire thing is not working
 def test_playstation_with_feature_flag(
     mini_sentry, relay_with_processing, outcomes_consumer
 ):
