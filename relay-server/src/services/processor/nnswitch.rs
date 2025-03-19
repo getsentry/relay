@@ -414,4 +414,10 @@ mod tests {
         ));
         assert!(expand(&mut envelope).is_err());
     }
+
+    #[test]
+    fn test_expand_works_with_empty_data() {
+        let mut envelope = create_envelope(Bytes::from("sntr\0\0\0\0"));
+        assert!(expand(&mut envelope).is_ok());
+    }
 }
