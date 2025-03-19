@@ -13,6 +13,7 @@ use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
 use crate::utils::TypedEnvelope;
 
+#[cfg(feature = "processing")]
 pub fn expand(
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
     project_info: &ProjectInfo,
@@ -27,6 +28,7 @@ pub fn expand(
             && item.attachment_type() == Some(&AttachmentType::Prosperodump)
     }) {
         // TODO: Add the expand logic here
+
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);
     }
 
