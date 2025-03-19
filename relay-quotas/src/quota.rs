@@ -36,10 +36,10 @@ impl Scoping {
     /// The returned item scoping contains a reference to this scope and the provided
     /// data category. This is a cheap operation that allows for efficient rate limiting
     /// of individual items.
-    pub fn item(&self, category: DataCategory) -> ItemScoping<'_> {
+    pub fn item(&self, category: DataCategory) -> ItemScoping {
         ItemScoping {
             category,
-            scoping: self,
+            scoping: *self,
             namespace: MetricNamespaceScoping::None,
         }
     }
@@ -49,10 +49,10 @@ impl Scoping {
     /// The returned item scoping contains a reference to this scope, the
     /// [`DataCategory::MetricBucket`] category, and the provided metric namespace.
     /// This is specialized for handling metrics with namespaces.
-    pub fn metric_bucket(&self, namespace: MetricNamespace) -> ItemScoping<'_> {
+    pub fn metric_bucket(&self, namespace: MetricNamespace) -> ItemScoping {
         ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: self,
+            scoping: *self,
             namespace: MetricNamespaceScoping::Some(namespace),
         }
     }
@@ -101,13 +101,12 @@ impl From<MetricNamespace> for MetricNamespaceScoping {
     }
 }
 
-/// An owned data categorization and scoping information.
+/// Data categorization and scoping information for a single item.
 ///
-/// [`OwnedItemScoping`] is similar to [`ItemScoping`] but owns its data rather than
-/// borrowing it. This makes it suitable for storing in data structures or passing
-/// between threads.
-#[derive(Debug, Clone)]
-pub struct OwnedItemScoping {
+/// [`ItemScoping`] combines a data category, scoping information, and optional
+/// metric namespace to fully define an item for rate limiting purposes.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ItemScoping {
     /// The data category of the item.
     pub category: DataCategory,
 
@@ -118,57 +117,15 @@ pub struct OwnedItemScoping {
     pub namespace: MetricNamespaceScoping,
 }
 
-impl OwnedItemScoping {
-    /// Creates a reference version of this scoping.
-    ///
-    /// Returns an [`ItemScoping`] that references this owned instance's data.
-    pub fn build_ref(&self) -> ItemScoping {
-        ItemScoping {
-            category: self.category,
-            scoping: &self.scoping,
-            namespace: self.namespace,
-        }
-    }
-}
-
-/// Data categorization and scoping information for a single item.
-///
-/// [`ItemScoping`] combines a data category, scoping information, and optional
-/// metric namespace to fully define an item for rate limiting purposes.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ItemScoping<'a> {
-    /// The data category of the item.
-    pub category: DataCategory,
-
-    /// Scoping of the data.
-    pub scoping: &'a Scoping,
-
-    /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
-    pub namespace: MetricNamespaceScoping,
-}
-
-impl ItemScoping<'_> {
-    /// Converts this reference-based scoping to an owned version.
-    ///
-    /// Creates an [`OwnedItemScoping`] containing a copy of all the data in this instance.
-    pub fn build_owned(&self) -> OwnedItemScoping {
-        OwnedItemScoping {
-            category: self.category,
-            scoping: *self.scoping,
-            namespace: self.namespace,
-        }
-    }
-}
-
-impl std::ops::Deref for ItemScoping<'_> {
+impl std::ops::Deref for ItemScoping {
     type Target = Scoping;
 
     fn deref(&self) -> &Self::Target {
-        self.scoping
+        &self.scoping
     }
 }
 
-impl ItemScoping<'_> {
+impl ItemScoping {
     /// Returns the identifier for the given quota scope.
     ///
     /// Maps the quota scope type to the corresponding identifier from this scoping,
@@ -483,7 +440,7 @@ impl Quota {
     ///  - there is no `scope_id` constraint
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
-    fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
+    fn matches_scope(&self, scoping: ItemScoping) -> bool {
         if self.scope == QuotaScope::Global {
             return true;
         }
@@ -509,7 +466,7 @@ impl Quota {
     ///
     /// This method determines if this quota should be applied to a given item
     /// based on its scope, categories, and namespace.
-    pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
+    pub fn matches(&self, scoping: ItemScoping) -> bool {
         self.matches_scope(scoping)
             && scoping.matches_categories(&self.categories)
             && scoping.matches_namespaces(&self.namespace)
@@ -820,7 +777,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -845,7 +802,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -870,7 +827,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -881,7 +838,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Transaction,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -906,7 +863,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -931,7 +888,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -942,7 +899,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -967,7 +924,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -978,7 +935,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -1003,7 +960,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -1014,7 +971,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -1025,7 +982,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),

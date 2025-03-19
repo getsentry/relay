@@ -74,7 +74,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
         }
 
         let quota_scope = QuotaScope::from_name(components.next().unwrap_or(""));
-        let scope = RateLimitScope::for_quota(scoping, quota_scope);
+        let scope = RateLimitScope::for_quota(*scoping, quota_scope);
 
         let reason_code = components
             .next()
@@ -565,12 +565,12 @@ struct Check<F, E, R> {
     _2: PhantomData<R>,
 }
 
-impl<'a, F, E, R> Check<F, E, R>
+impl<F, E, R> Check<F, E, R>
 where
-    F: FnMut(ItemScoping<'a>, usize) -> R,
+    F: FnMut(ItemScoping, usize) -> R,
     R: Future<Output = Result<RateLimits, E>>,
 {
-    async fn apply(&mut self, scoping: ItemScoping<'a>, quantity: usize) -> Result<RateLimits, E> {
+    async fn apply(&mut self, scoping: ItemScoping, quantity: usize) -> Result<RateLimits, E> {
         if matches!(self.limits, CheckLimits::NonIndexed) && scoping.category.is_indexed() {
             return Ok(RateLimits::default());
         }
@@ -597,7 +597,7 @@ pub struct EnvelopeLimiter<F, E, R> {
 
 impl<'a, F, E, R> EnvelopeLimiter<F, E, R>
 where
-    F: FnMut(ItemScoping<'a>, usize) -> R,
+    F: FnMut(ItemScoping, usize) -> R,
     R: Future<Output = Result<RateLimits, E>>,
 {
     /// Create a new `EnvelopeLimiter` with the given `check` function.
@@ -1179,11 +1179,7 @@ mod tests {
             self
         }
 
-        pub fn check(
-            &mut self,
-            scoping: ItemScoping<'_>,
-            quantity: usize,
-        ) -> Result<RateLimits, ()> {
+        pub fn check(&mut self, scoping: ItemScoping, quantity: usize) -> Result<RateLimits, ()> {
             let cat = scoping.category;
             let previous = self.called.insert(cat, quantity);
             assert!(previous.is_none(), "rate limiter invoked twice for {cat}");

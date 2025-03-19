@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::global::GlobalLimiter;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::{OwnedItemScoping, REJECT_ALL_SECS};
+use crate::REJECT_ALL_SECS;
 
 /// The `grace` period allows accommodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -57,7 +57,7 @@ pub struct OwnedRedisQuota {
     /// The original quota.
     quota: Quota,
     /// Scopes of the item being tracked.
-    scoping: OwnedItemScoping,
+    scoping: ItemScoping,
     /// The Redis key prefix mapped from the quota id.
     prefix: String,
     /// The redis window in seconds mapped from the quota.
@@ -71,7 +71,7 @@ impl OwnedRedisQuota {
     pub fn build_ref(&self) -> RedisQuota {
         RedisQuota {
             quota: &self.quota,
-            scoping: self.scoping.build_ref(),
+            scoping: self.scoping,
             prefix: &self.prefix,
             window: self.window,
             timestamp: self.timestamp,
@@ -85,7 +85,7 @@ pub struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
     /// Scopes of the item being tracked.
-    scoping: ItemScoping<'a>,
+    scoping: ItemScoping,
     /// The Redis key prefix mapped from the quota id.
     prefix: &'a str,
     /// The redis window in seconds mapped from the quota.
@@ -100,11 +100,7 @@ impl<'a> RedisQuota<'a> {
     /// Returns `None` if the quota cannot be tracked in Redis because it's missing
     /// required fields (ID or window). This allows forward compatibility with
     /// future quota types.
-    pub fn new(
-        quota: &'a Quota,
-        scoping: ItemScoping<'a>,
-        timestamp: UnixTimestamp,
-    ) -> Option<Self> {
+    pub fn new(quota: &'a Quota, scoping: ItemScoping, timestamp: UnixTimestamp) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
         let prefix = quota.id.as_deref()?;
         let window = quota.window?;
@@ -123,7 +119,7 @@ impl<'a> RedisQuota<'a> {
     pub fn build_owned(&self) -> OwnedRedisQuota {
         OwnedRedisQuota {
             quota: self.quota.clone(),
-            scoping: self.scoping.build_owned(),
+            scoping: self.scoping,
             prefix: self.prefix.to_string(),
             window: self.window,
             timestamp: self.timestamp,
@@ -271,7 +267,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     pub async fn is_rate_limited<'a>(
         &self,
         quotas: impl IntoIterator<Item = &'a Quota>,
-        item_scoping: ItemScoping<'_>,
+        item_scoping: ItemScoping,
         quantity: usize,
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
@@ -291,7 +287,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
                 // increment any keys, as one quota has reached capacity (this is how regular quotas
                 // behave as well).
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
-                rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
+                rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
                     global_quotas.push(quota);
@@ -333,7 +329,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
 
         for quota in rate_limited_global_quotas {
             let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-            rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
+            rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
         }
 
         // Either there are no quotas to run against Redis, or we already have a rate limit from a
@@ -350,7 +346,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         for (quota, is_rejected) in tracked_quotas.iter().zip(rejections) {
             if is_rejected {
                 let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-                rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
+                rate_limits.add(RateLimit::from_quota(quota, *item_scoping, retry_after));
             }
         }
 
@@ -450,7 +446,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -500,7 +496,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -565,7 +561,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -616,7 +612,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -667,7 +663,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -722,7 +718,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -770,7 +766,7 @@ mod tests {
     async fn test_bails_immediately_without_any_quota() {
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -816,7 +812,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -867,7 +863,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -918,7 +914,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(69420),
                 project_id: ProjectId::new(42),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -947,7 +943,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(69420),
                 project_id: ProjectId::new(42),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -976,7 +972,7 @@ mod tests {
 
         let scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(69420),
                 project_id: ProjectId::new(42),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),

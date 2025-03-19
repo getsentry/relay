@@ -153,7 +153,7 @@ impl RateLimitScope {
     ///
     /// This extracts the appropriate scope identifier based on the quota's scope type.
     /// For unknown scopes, it assumes the most specific scope (Key).
-    pub fn for_quota(scoping: &Scoping, scope: QuotaScope) -> Self {
+    pub fn for_quota(scoping: Scoping, scope: QuotaScope) -> Self {
         match scope {
             QuotaScope::Global => Self::Global,
             QuotaScope::Organization => Self::Organization(scoping.organization_id),
@@ -211,7 +211,7 @@ impl RateLimit {
     ///
     /// This builds a rate limit with the appropriate scope derived from the quota and scoping
     /// information. The categories and other properties are copied from the quota.
-    pub fn from_quota(quota: &Quota, scoping: &Scoping, retry_after: RetryAfter) -> Self {
+    pub fn from_quota(quota: &Quota, scoping: Scoping, retry_after: RetryAfter) -> Self {
         Self {
             categories: quota.categories.clone(),
             scope: RateLimitScope::for_quota(scoping, quota.scope),
@@ -225,14 +225,14 @@ impl RateLimit {
     ///
     /// A rate limit applies if its scope matches the item's scope, and the item's
     /// category and namespace match those of the rate limit.
-    pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
+    pub fn matches(&self, scoping: ItemScoping) -> bool {
         self.matches_scope(scoping)
             && scoping.matches_categories(&self.categories)
             && scoping.matches_namespaces(&self.namespaces)
     }
 
     /// Returns `true` if the rate limiting scope matches the given item.
-    fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
+    fn matches_scope(&self, scoping: ItemScoping) -> bool {
         match self.scope {
             RateLimitScope::Global => true,
             RateLimitScope::Organization(org_id) => scoping.organization_id == org_id,
@@ -328,7 +328,7 @@ impl RateLimits {
     /// Returns a new [`RateLimits`] instance containing only the rate limits that match
     /// the provided [`ItemScoping`]. If no limits match, the returned instance will be empty
     /// and [`is_ok`](Self::is_ok) will return `true`.
-    pub fn check(&self, scoping: ItemScoping<'_>) -> Self {
+    pub fn check(&self, scoping: ItemScoping) -> Self {
         self.check_with_quotas(&[], scoping)
     }
 
@@ -342,14 +342,14 @@ impl RateLimits {
     pub fn check_with_quotas<'a>(
         &self,
         quotas: impl IntoIterator<Item = &'a Quota>,
-        scoping: ItemScoping<'_>,
+        scoping: ItemScoping,
     ) -> Self {
         let mut applied_limits = Self::new();
 
         for quota in quotas {
             if quota.limit == Some(0) && quota.matches(scoping) {
                 let retry_after = RetryAfter::from_secs(REJECT_ALL_SECS);
-                applied_limits.add(RateLimit::from_quota(quota, &scoping, retry_after));
+                applied_limits.add(RateLimit::from_quota(quota, *scoping, retry_after));
             }
         }
 
@@ -552,7 +552,7 @@ mod tests {
 
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -563,7 +563,7 @@ mod tests {
 
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Transaction,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -585,7 +585,7 @@ mod tests {
 
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -596,7 +596,7 @@ mod tests {
 
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -618,7 +618,7 @@ mod tests {
 
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -629,7 +629,7 @@ mod tests {
 
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -658,13 +658,13 @@ mod tests {
 
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: &scoping,
+            scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Custom),
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: &scoping,
+            scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
         }));
 
@@ -678,13 +678,13 @@ mod tests {
 
         assert!(general_rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: &scoping,
+            scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
         }));
 
         assert!(general_rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: &scoping,
+            scoping,
             namespace: MetricNamespaceScoping::None,
         }));
     }
@@ -703,7 +703,7 @@ mod tests {
 
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -714,7 +714,7 @@ mod tests {
 
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("deadbeefdeadbeefdeadbeefdeadbeef").unwrap(),
@@ -1023,7 +1023,7 @@ mod tests {
 
         let applied_limits = rate_limits.check(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -1074,7 +1074,7 @@ mod tests {
 
         let item_scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
