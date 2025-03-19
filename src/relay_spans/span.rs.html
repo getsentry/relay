@@ -757,9 +757,7 @@
 <a href="#756" id="756">756</a>
 <a href="#757" id="757">757</a>
 <a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
+<a href="#759" id="759">759</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
@@ -1305,50 +1303,48 @@
                         "arrayValue": {
                             "values": [
                                 {
-                                    "value": {
-                                        "kvlistValue": {
-                                            "values": [
-                                                {
-                                                    "key": "min",
-                                                    "value": {
-                                                        "doubleValue": 1.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "max",
-                                                    "value": {
-                                                        "doubleValue": 2.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "sum",
-                                                    "value": {
-                                                        "doubleValue": 3.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "count",
-                                                    "value": {
-                                                        "intValue": "2"
-                                                    }
-                                                },
-                                                {
-                                                    "key": "tags",
-                                                    "value": {
-                                                        "kvlistValue": {
-                                                            "values": [
-                                                                {
-                                                                    "key": "environment",
-                                                                    "value": {
-                                                                        "stringValue": "test"
-                                                                    }
+                                    "kvlistValue": {
+                                        "values": [
+                                            {
+                                                "key": "min",
+                                                "value": {
+                                                    "doubleValue": 1.0
+                                                }
+                                            },
+                                            {
+                                                "key": "max",
+                                                "value": {
+                                                    "doubleValue": 2.0
+                                                }
+                                            },
+                                            {
+                                                "key": "sum",
+                                                "value": {
+                                                    "doubleValue": 3.0
+                                                }
+                                            },
+                                            {
+                                                "key": "count",
+                                                "value": {
+                                                    "intValue": "2"
+                                                }
+                                            },
+                                            {
+                                                "key": "tags",
+                                                "value": {
+                                                    "kvlistValue": {
+                                                        "values": [
+                                                            {
+                                                                "key": "environment",
+                                                                "value": {
+                                                                    "stringValue": "test"
                                                                 }
-                                                            ]
-                                                        }
+                                                            }
+                                                        ]
                                                     }
                                                 }
-                                            ]
-                                        }
+                                            }
+                                        ]
                                     }
                                 }
                             ]

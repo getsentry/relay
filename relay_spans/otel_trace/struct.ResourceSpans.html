@@ -7,7 +7,8 @@
 If this field is not set then no resource info is known.</p>
 </div><span id="structfield.scope_spans" class="structfield section-header"><a href="#structfield.scope_spans" class="anchor field">§</a><code>scope_spans: <a class="struct" href="https://doc.rust-lang.org/1.85.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="struct.ScopeSpans.html" title="struct relay_spans::otel_trace::ScopeSpans">ScopeSpans</a>&gt;</code></span><div class="docblock"><p>A list of ScopeSpans that originate from a resource.</p>
 </div><span id="structfield.schema_url" class="structfield section-header"><a href="#structfield.schema_url" class="anchor field">§</a><code>schema_url: <a class="struct" href="https://doc.rust-lang.org/1.85.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></code></span><div class="docblock"><p>The Schema URL, if known. This is the identifier of the Schema that the resource data
-is recorded in. To learn more about Schema URL see
+is recorded in. Notably, the last part of the URL path is the version number of the
+schema: http[s]://server[:port]/path/<version>. To learn more about Schema URL see
 <a href="https://opentelemetry.io/docs/specs/otel/schemas/#schema-url">https://opentelemetry.io/docs/specs/otel/schemas/#schema-url</a>
 This schema_url applies to the data in the “resource” field. It does not apply
 to the data in the “scope_spans” field which have their own schema_url field.</p>
