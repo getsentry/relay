@@ -1,4 +1,3 @@
-use libc::send;
 use relay_quotas::{
     GlobalLimiter, GlobalRateLimiter, OwnedRedisQuota, RateLimitingError, RedisQuota,
 };
