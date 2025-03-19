@@ -1,3 +1,4 @@
+use libc::send;
 use relay_quotas::{
     GlobalLimiter, GlobalRateLimiter, OwnedRedisQuota, RateLimitingError, RedisQuota,
 };
@@ -123,6 +124,51 @@ impl GlobalRateLimitsService {
             limiter: GlobalRateLimiter::default(),
         }
     }
+
+    /// Handles a [`GlobalRateLimits`] message.
+    async fn handle_message(
+        pool: RedisPool,
+        limiter: Arc<Mutex<GlobalRateLimiter>>,
+        message: GlobalRateLimits,
+    ) {
+        match message {
+            GlobalRateLimits::CheckRateLimited(check_rate_limited, sender) => {
+                let result =
+                    Self::handle_check_rate_limited(pool, limiter, check_rate_limited).await;
+                sender.send(result);
+            }
+        }
+    }
+
+    /// Handles the [`GlobalRateLimits::CheckRateLimited`] message.
+    ///
+    /// This function uses `spawn_blocking` to suspend on synchronous work that is offloaded to
+    /// a specialized thread pool.
+    async fn handle_check_rate_limited(
+        pool: RedisPool,
+        limiter: Arc<Mutex<GlobalRateLimiter>>,
+        check_rate_limited: CheckRateLimited,
+    ) -> Result<Vec<OwnedRedisQuota>, RateLimitingError> {
+        tokio::task::spawn_blocking(move || {
+            let Ok(mut client) = pool.client() else {
+                relay_log::error!(
+                    "The redis client could not be created from the global rate limits service"
+                );
+                return Err(RateLimitingError::UnreachableGlobalRateLimits);
+            };
+            let mut limiter = limiter.lock().unwrap();
+            let quotas = check_rate_limited
+                .global_quotas
+                .iter()
+                .map(|q| q.build_ref())
+                .collect::<Vec<_>>();
+            limiter
+                .filter_rate_limited(&mut client, &quotas, check_rate_limited.quantity)
+                .map(|q| q.into_iter().map(|q| q.build_owned()).collect())
+        })
+        .await
+        .unwrap_or_else(|_| Err(RateLimitingError::UnreachableGlobalRateLimits))
+    }
 }
 
 impl Service for GlobalRateLimitsService {
@@ -136,31 +182,7 @@ impl Service for GlobalRateLimitsService {
                 break;
             };
 
-            match message {
-                GlobalRateLimits::CheckRateLimited(message, sender) => {
-                    let pool = self.pool.clone();
-                    let state = limiter.clone();
-                    let result = tokio::task::spawn_blocking(move || {
-                        let Ok(mut client) = pool.client() else {
-                            relay_log::error!("The redis client could not be created from the global rate limits service");
-                            return Err(RateLimitingError::UnreachableGlobalRateLimits);
-                        };
-                        let mut limiter = state.lock().unwrap();
-                        let quotas = message
-                            .global_quotas
-                            .iter()
-                            .map(|q| q.build_ref())
-                            .collect::<Vec<_>>();
-                        limiter
-                            .filter_rate_limited(&mut client, &quotas, message.quantity)
-                            .map(|q| q.into_iter().map(|q| q.build_owned()).collect())
-                    })
-                    .await
-                    .unwrap_or_else(|_| Err(RateLimitingError::UnreachableGlobalRateLimits));
-
-                    sender.send(result);
-                }
-            }
+            Self::handle_message(self.pool.clone(), limiter.clone(), message).await;
         }
     }
 }

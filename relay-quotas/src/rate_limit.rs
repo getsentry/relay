@@ -16,9 +16,6 @@ use crate::REJECT_ALL_SECS;
 /// [`RetryAfter`] represents a point in time when a rate limit expires. It allows checking
 /// whether the rate limit is still active or has expired, and calculating the remaining time
 /// until expiration.
-///
-/// This type is designed to work with monotonic time, ensuring consistent behavior even if
-/// the system clock changes.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RetryAfter {
     when: Instant,

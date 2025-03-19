@@ -106,7 +106,7 @@ impl From<MetricNamespace> for MetricNamespaceScoping {
 /// [`OwnedItemScoping`] is similar to [`ItemScoping`] but owns its data rather than
 /// borrowing it. This makes it suitable for storing in data structures or passing
 /// between threads.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone)]
 pub struct OwnedItemScoping {
     /// The data category of the item.
     pub category: DataCategory,
