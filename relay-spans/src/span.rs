@@ -827,13 +827,13 @@ mod tests {
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         assert_eq!(
-            get_path!(annotated_span.trace_id),
+            get_path!(annotated_span.links[0].trace_id),
             Some(&Annotated::new(TraceId(
                 "4c79f60c11214eb38604f4ae0781bfb2".into()
             )))
         );
         assert_eq!(
-            get_path!(annotated_span.span_id),
+            get_path!(annotated_span.links[0].span_id),
             Some(&Annotated::new(SpanId("fa90fdead5f74052".into())))
         );
         assert_eq!(
