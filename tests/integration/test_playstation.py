@@ -11,9 +11,7 @@ def load_dump_file(base_file_name: str):
     )
 
     with open(dmp_path, "rb") as f:
-        dmp_file = f.read()
-
-    return dmp_file
+        return f.read()
 
 
 # Turns out these are not data_dog metrics but sentry_metrics hence the entire thing is not working
