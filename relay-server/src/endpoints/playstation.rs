@@ -89,7 +89,5 @@ async fn handle(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    // TODO:  Check if this even has an effect since we will always have a multipart message.
-    // Looking at the minidump endpoint seems like multipart bypasses this.
     post(handle).route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
 }
