@@ -757,19 +757,122 @@
 <a href="#756" id="756">756</a>
 <a href="#757" id="757">757</a>
 <a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
+<span class="kw">use </span>opentelemetry_proto::tonic::trace::v1::span::Link <span class="kw">as </span>OtelLink;
 
 <span class="kw">use </span><span class="kw">crate</span>::otel_trace::{
     status::StatusCode <span class="kw">as </span>OtelStatusCode, Span <span class="kw">as </span>OtelSpan, SpanFlags <span class="kw">as </span>OtelSpanFlags,
 };
 <span class="kw">use </span><span class="kw">crate</span>::status_codes;
 <span class="kw">use </span>relay_event_schema::protocol::{
-    EventId, Span <span class="kw">as </span>EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
+    EventId, Span <span class="kw">as </span>EventSpan, SpanData, SpanId, SpanLink, SpanStatus, Timestamp, TraceId,
 };
-<span class="kw">use </span>relay_protocol::{Annotated, FromValue, Object};
+<span class="kw">use </span>relay_protocol::{Annotated, FromValue, Object, Value};
 
 <span class="doccomment">/// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 </span><span class="kw">fn </span>convert_from_otel_to_sentry_status(
@@ -855,6 +958,7 @@
         kind,
         attributes,
         status,
+        links,
         ..
     } = otel_span;
 
@@ -924,26 +1028,8 @@
                 }
                 <span class="kw">_ </span>=&gt; {
                     <span class="kw">let </span>key = attribute.key;
-                    <span class="kw">match </span>value {
-                        OtelValue::ArrayValue(<span class="kw">_</span>) =&gt; {}
-                        OtelValue::BoolValue(v) =&gt; {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                        OtelValue::BytesValue(v) =&gt; {
-                            <span class="kw">if let </span><span class="prelude-val">Ok</span>(v) = String::from_utf8(v) {
-                                data.insert(key, Annotated::new(v.into()));
-                            }
-                        }
-                        OtelValue::DoubleValue(v) =&gt; {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                        OtelValue::IntValue(v) =&gt; {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                        OtelValue::KvlistValue(<span class="kw">_</span>) =&gt; {}
-                        OtelValue::StringValue(v) =&gt; {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = otel_to_sentry_value(value) {
+                        data.insert(key, Annotated::new(v));
                     }
                 }
             }
@@ -957,6 +1043,11 @@
     <span class="kw">if let </span>(<span class="prelude-val">Some</span>(http_method), <span class="prelude-val">Some</span>(http_route)) = (http_method, http_route) {
         description = description.or(<span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"{http_method} {http_route}"</span>)));
     }
+
+    <span class="kw">let </span>sentry_links: Vec&lt;Annotated&lt;SpanLink&gt;&gt; = links
+        .into_iter()
+        .map(|link| otel_to_sentry_link(link).into())
+        .collect();
 
     EventSpan {
         op: op.into(),
@@ -980,7 +1071,46 @@
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
+        links: sentry_links.into(),
         ..Default::default()
+    }
+}
+
+<span class="kw">fn </span>otel_to_sentry_link(otel_link: OtelLink) -&gt; SpanLink {
+    <span class="comment">// See the W3C trace context specification:
+    // &lt;https://www.w3.org/TR/trace-context-2/#sampled-flag&gt;
+    </span><span class="kw">const </span>W3C_TRACE_CONTEXT_SAMPLED: u32 = <span class="number">1 </span>&lt;&lt; <span class="number">0</span>;
+
+    <span class="kw">let </span>attributes = BTreeMap::from_iter(otel_link.attributes.into_iter().flat_map(|kv| {
+        kv.value
+            .and_then(|v| v.value)
+            .and_then(otel_to_sentry_value)
+            .map(|v| (kv.key, v.into()))
+    }))
+    .into();
+
+    SpanLink {
+        trace_id: TraceId(hex::encode(otel_link.trace_id)).into(),
+        span_id: SpanId(hex::encode(otel_link.span_id)).into(),
+        sampled: (otel_link.flags &amp; W3C_TRACE_CONTEXT_SAMPLED != <span class="number">0</span>).into(),
+        attributes,
+        <span class="comment">// The parent span ID is not available over OTLP.
+        </span>parent_span_id: Annotated::empty(),
+        other: Default::default(),
+    }
+}
+
+<span class="kw">fn </span>otel_to_sentry_value(value: OtelValue) -&gt; <span class="prelude-ty">Option</span>&lt;Value&gt; {
+    <span class="kw">match </span>value {
+        OtelValue::BoolValue(v) =&gt; <span class="prelude-val">Some</span>(Value::Bool(v)),
+        OtelValue::DoubleValue(v) =&gt; <span class="prelude-val">Some</span>(Value::F64(v)),
+        OtelValue::IntValue(v) =&gt; <span class="prelude-val">Some</span>(Value::I64(v)),
+        OtelValue::StringValue(v) =&gt; <span class="prelude-val">Some</span>(Value::String(v)),
+        OtelValue::BytesValue(v) =&gt; {
+            String::from_utf8(v).map_or(<span class="prelude-val">None</span>, |str| <span class="prelude-val">Some</span>(Value::String(str)))
+        }
+        OtelValue::ArrayValue(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        OtelValue::KvlistValue(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
     }
 }
 
@@ -1466,7 +1596,7 @@
                     ),
                 },
             },
-            links: ~,
+            links: [],
             sentry_tags: ~,
             received: ~,
             measurements: ~,
@@ -1513,6 +1643,78 @@
         <span class="macro">assert_eq!</span>(
             otel_value_to_span_id(input).as_deref(),
             <span class="prelude-val">Some</span>(<span class="string">"fa90fdead5f74052"</span>)
+        );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_link() {
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "links": [
+                {
+                    "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "spanId": "fa90fdead5f74052",
+                    "attributes": [
+                        {
+                            "key": "str_key",
+                            "value": {
+                                "stringValue": "str_value"
+                            }
+                        },
+                        {
+                            "key": "bool_key",
+                            "value": {
+                                "boolValue": true
+                            }
+                        },
+                        {
+                            "key": "int_key",
+                            "value": {
+                                "intValue": "123"
+                            }
+                        },
+                        {
+                            "key": "double_key",
+                            "value": {
+                                "doubleValue": 1.23
+                            }
+                        }
+                    ],
+                    "flags": 1
+                }
+            ]
+        }"#</span>;
+        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
+        <span class="kw">let </span>annotated_span: Annotated&lt;EventSpan&gt; = Annotated::new(event_span);
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].trace_id),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(TraceId(
+                <span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into()
+            )))
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].span_id),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())))
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"str_key"</span>]),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::String(<span class="string">"str_value"</span>.into())))
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"bool_key"</span>]),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::Bool(<span class="bool-val">true</span>)))
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"int_key"</span>]),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::I64(<span class="number">123</span>)))
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"double_key"</span>]),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::F64(<span class="number">1.23</span>)))
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].sampled),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="bool-val">true</span>))
         );
     }
 }
