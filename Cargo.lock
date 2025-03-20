@@ -1104,7 +1104,7 @@ dependencies = [
  "console",
  "shell-words",
  "tempfile",
- "thiserror",
+ "thiserror 1.0.69",
  "zeroize",
 ]
 
@@ -1177,7 +1177,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1683,7 +1683,7 @@ dependencies = [
  "ipnet",
  "once_cell",
  "rand",
- "thiserror",
+ "thiserror 1.0.69",
  "tinyvec",
  "tokio",
  "tracing",
@@ -1706,7 +1706,7 @@ dependencies = [
  "rand",
  "resolv-conf",
  "smallvec",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
 ]
@@ -2468,7 +2468,7 @@ dependencies = [
  "procfs-core",
  "range-map",
  "scroll",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
  "tracing",
  "uuid",
@@ -2806,24 +2806,25 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry"
-version = "0.24.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c365a63eec4f55b7efeceb724f1336f26a9cf3427b70e59e2cd2a5b947fba96"
+checksum = "236e667b670a5cdf90c258f5a55794ec5ac5027e960c224bff8367a59e1e6426"
 dependencies = [
  "futures-core",
  "futures-sink",
  "js-sys",
- "once_cell",
  "pin-project-lite",
- "thiserror",
+ "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "opentelemetry-proto"
-version = "0.7.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30ee9f20bff9c984511a02f082dc8ede839e4a9bf15cc2487c8d6fea5ad850d9"
+checksum = "56f8870d3024727e99212eb3bb1762ec16e255e3e6f58eeb3dc8db1aa226746d"
 dependencies = [
+ "base64 0.22.1",
  "hex",
  "opentelemetry",
  "opentelemetry_sdk",
@@ -2834,20 +2835,18 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry_sdk"
-version = "0.24.1"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "692eac490ec80f24a17828d49b40b60f5aeaccdfe6a503f939713afd22bc28df"
+checksum = "84dfad6042089c7fc1f6118b7040dc2eb4ab520abbf410b79dc481032af39570"
 dependencies = [
- "async-trait",
  "futures-channel",
  "futures-executor",
  "futures-util",
- "once_cell",
  "opentelemetry",
  "percent-encoding",
  "rand",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -2939,7 +2938,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879952a81a83930934cbf1786752d6dedc3b1f29e8f8fb2ad1d0a36f377cf442"
 dependencies = [
  "memchr",
- "thiserror",
+ "thiserror 1.0.69",
  "ucd-trie",
 ]
 
@@ -3420,7 +3419,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "relay"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3439,7 +3438,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -3450,13 +3449,13 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror",
+ "thiserror 1.0.69",
  "uuid",
 ]
 
 [[package]]
 name = "relay-base-schema"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "regex",
  "relay-common",
@@ -3467,7 +3466,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.6"
+version = "0.9.7"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3495,7 +3494,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cardinality"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "criterion",
  "hash32",
@@ -3508,20 +3507,20 @@ dependencies = [
  "relay-statsd",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "uuid",
 ]
 
 [[package]]
 name = "relay-cogs"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "insta",
 ]
 
 [[package]]
 name = "relay-common"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -3535,7 +3534,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3550,14 +3549,14 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "uuid",
 ]
 
 [[package]]
 name = "relay-crash"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3565,7 +3564,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "relay-auth",
@@ -3588,7 +3587,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-derive"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3598,7 +3597,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-normalization"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3625,14 +3624,14 @@ dependencies = [
  "similar-asserts",
  "smallvec",
  "sqlparser",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "uuid",
 ]
 
 [[package]]
 name = "relay-event-schema"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3648,14 +3647,14 @@ dependencies = [
  "serde",
  "serde_json",
  "similar-asserts",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "uuid",
 ]
 
 [[package]]
 name = "relay-ffi"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -3663,7 +3662,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "quote",
  "syn",
@@ -3671,7 +3670,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "indexmap 2.7.0",
  "insta",
@@ -3690,7 +3689,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "rdkafka",
  "rdkafka-sys",
@@ -3701,12 +3700,12 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "relay-log"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "console",
  "relay-common",
@@ -3720,7 +3719,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "ahash",
  "bytecount",
@@ -3746,26 +3745,26 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "smallvec",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "unescaper",
 ]
 
 [[package]]
 name = "relay-monitors"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "relay-base-schema",
  "serde",
  "serde_json",
  "similar-asserts",
- "thiserror",
+ "thiserror 1.0.69",
  "uuid",
 ]
 
 [[package]]
 name = "relay-ourlogs"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "chrono",
  "hex",
@@ -3780,7 +3779,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "criterion",
  "memchr",
@@ -3790,7 +3789,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern-fuzz"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "libfuzzer-sys",
  "relay-pattern",
@@ -3798,7 +3797,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pii"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "hmac",
  "insta",
@@ -3820,13 +3819,13 @@ dependencies = [
  "sha1",
  "similar-asserts",
  "smallvec",
- "thiserror",
+ "thiserror 1.0.69",
  "utf16string",
 ]
 
 [[package]]
 name = "relay-profiling"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "android_trace_log",
  "chrono",
@@ -3843,14 +3842,14 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_path_to_error",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "uuid",
 ]
 
 [[package]]
 name = "relay-protocol"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "insta",
  "num-traits",
@@ -3867,7 +3866,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol-derive"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3877,7 +3876,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "hashbrown 0.14.5",
  "insta",
@@ -3889,25 +3888,26 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "thiserror",
+ "thiserror 1.0.69",
+ "tokio",
  "uuid",
 ]
 
 [[package]]
 name = "relay-redis"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "r2d2",
  "redis",
  "relay-log",
  "serde",
  "serde_yaml",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "relay-replays"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "criterion",
  "flate2",
@@ -3924,7 +3924,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3943,7 +3943,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4025,7 +4025,7 @@ dependencies = [
  "symbolic-unreal",
  "sysinfo",
  "tempfile",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-util",
  "tower 0.5.2",
@@ -4037,7 +4037,7 @@ dependencies = [
 
 [[package]]
 name = "relay-spans"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "chrono",
  "hex",
@@ -4051,7 +4051,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "cadence",
  "crossbeam-channel",
@@ -4063,7 +4063,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "futures",
  "insta",
@@ -4076,7 +4076,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -4085,7 +4085,7 @@ dependencies = [
 
 [[package]]
 name = "relay-threading"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "criterion",
  "flume",
@@ -4097,7 +4097,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ua"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "once_cell",
  "uaparser",
@@ -4497,7 +4497,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
 ]
 
@@ -4559,7 +4559,7 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
  "url",
  "uuid",
@@ -4887,7 +4887,7 @@ dependencies = [
  "sha2",
  "smallvec",
  "sqlformat",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -4967,7 +4967,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
  "whoami",
 ]
@@ -5005,7 +5005,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
  "whoami",
 ]
@@ -5116,7 +5116,7 @@ dependencies = [
  "regex",
  "scroll",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
 ]
 
@@ -5215,7 +5215,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
+dependencies = [
+ "thiserror-impl 2.0.12",
 ]
 
 [[package]]
@@ -5223,6 +5232,17 @@ name = "thiserror-impl"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5639,7 +5659,7 @@ version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c878a167baa8afd137494101a688ef8c67125089ff2249284bd2b5f9bfedb815"
 dependencies = [
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
