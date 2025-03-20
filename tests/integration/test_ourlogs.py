@@ -14,7 +14,32 @@ TEST_CONFIG = {
 }
 
 
-def envelope_with_ourlogs(start: datetime, end: datetime) -> Envelope:
+def envelope_with_sentry_logs(start: datetime) -> Envelope:
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="log",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "timestamp": start.timestamp(),
+                        "trace_id": "5b8efff798038103d269b633813fc60c",
+                        "span_id": "eee19b7ec3c1b174",
+                        "level": "info",
+                        "body": "Example log record",
+                        "attributes": {
+                            "boolean.attribute": {"bool_value": True},
+                            "sentry.severity_text": {"string_value": "info"},
+                        },
+                    }
+                ).encode()
+            ),
+        )
+    )
+    return envelope
+
+
+def envelope_with_otel_logs(start: datetime) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
@@ -23,7 +48,7 @@ def envelope_with_ourlogs(start: datetime, end: datetime) -> Envelope:
                 bytes=json.dumps(
                     {
                         "timeUnixNano": str(int(start.timestamp() * 1e9)),
-                        "observedTimeUnixNano": str(int(end.timestamp() * 1e9)),
+                        "observedTimeUnixNano": str(int(start.timestamp() * 1e9)),
                         "severityNumber": 10,
                         "severityText": "Information",
                         "traceId": "5B8EFFF798038103D269B633813FC60C",
@@ -49,7 +74,7 @@ def envelope_with_ourlogs(start: datetime, end: datetime) -> Envelope:
     return envelope
 
 
-def test_ourlog_extraction(
+def test_ourlog_extraction_with_otel_logs(
     mini_sentry,
     relay_with_processing,
     ourlogs_consumer,
@@ -63,13 +88,14 @@ def test_ourlog_extraction(
 
     relay = relay_with_processing(options=TEST_CONFIG)
 
+    start = datetime.now(timezone.utc)
+
     duration = timedelta(milliseconds=500)
     now = datetime.now(timezone.utc)
     end = now - timedelta(seconds=1)
     start = end - duration
 
-    # Send OTel log and sentry log via envelope
-    envelope = envelope_with_ourlogs(start, end)
+    envelope = envelope_with_otel_logs(start)
     relay.send_envelope(project_id, envelope)
 
     ourlogs = ourlogs_consumer.get_ourlogs()
@@ -79,9 +105,7 @@ def test_ourlog_extraction(
         "project_id": 42,
         "retention_days": 90,
         "timestamp_nanos": int(start.timestamp() * 1e9),
-        "observed_timestamp_nanos": time_within_delta(
-            start.timestamp(), expect_resolution="ns"
-        ),
+        "observed_timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "body": "Example log record",
         "trace_flags": 0,
@@ -93,6 +117,59 @@ def test_ourlog_extraction(
             "boolean.attribute": {"bool_value": True},
             "int.attribute": {"int_value": 10},
             "double.attribute": {"double_value": 637.704},
+            "sentry.severity_number": {"int_value": 10},
+            "sentry.severity_text": {"string_value": "Information"},
+            "sentry.timestamp_nanos": {
+                "string_value": str(int(start.timestamp() * 1e9))
+            },
+            "sentry.trace_flags": {"int_value": 0},
+        },
+    }
+
+    del ourlogs[0]["received"]
+    del ourlogs[0]["attributes"]["sentry.observed_timestamp_nanos"]
+
+    assert ourlogs[0] == expected
+
+    ourlogs_consumer.assert_empty()
+
+
+def test_ourlog_extraction_with_sentry_logs(
+    mini_sentry,
+    relay_with_processing,
+    ourlogs_consumer,
+):
+    ourlogs_consumer = ourlogs_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    start = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(start)
+    relay.send_envelope(project_id, envelope)
+
+    ourlogs = ourlogs_consumer.get_ourlogs()
+    assert len(ourlogs) == 1
+    expected = {
+        "organization_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
+        "timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
+        "observed_timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
+        "trace_id": "5b8efff798038103d269b633813fc60c",
+        "body": "Example log record",
+        "span_id": "eee19b7ec3c1b174",
+        "severity_text": "info",
+        "severity_number": 9,
+        "attributes": {
+            "boolean.attribute": {"bool_value": True},
+            "sentry.severity_number": {"int_value": 9},
+            "sentry.severity_text": {"string_value": "info"},
         },
     }
 
@@ -113,12 +190,9 @@ def test_ourlog_extraction_is_disabled_without_feature(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = []
 
-    duration = timedelta(milliseconds=500)
-    now = datetime.now(timezone.utc)
-    end = now - timedelta(seconds=1)
-    start = end - duration
+    start = datetime.now(timezone.utc)
 
-    envelope = envelope_with_ourlogs(start, end)
+    envelope = envelope_with_otel_logs(start)
     relay.send_envelope(project_id, envelope)
 
     ourlogs = ourlogs_consumer.get_ourlogs()
