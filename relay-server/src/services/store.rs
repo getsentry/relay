@@ -1325,6 +1325,16 @@ struct CheckInKafkaMessage {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+struct SpanLink<'a> {
+    pub trace_id: &'a str,
+    pub span_id: &'a str,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled: Option<bool>,
+    #[serde(borrow)]
+    pub attributes: Option<&'a RawValue>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct SpanMeasurement {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     value: Option<f64>,
@@ -1348,6 +1358,8 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     data: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "none_or_empty_vec")]
+    links: Option<Vec<SpanLink<'a>>>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(default)]
@@ -1423,6 +1435,13 @@ fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
     match value {
         None => true,
         Some(raw) => raw.get() == "{}",
+    }
+}
+
+fn none_or_empty_vec<T>(value: &Option<Vec<T>>) -> bool {
+    match &value {
+        Some(vec) => vec.is_empty(),
+        None => true,
     }
 }
 
