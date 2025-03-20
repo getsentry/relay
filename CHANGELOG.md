@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 25.3.0
 
 **Features**:
 
@@ -12,11 +12,13 @@
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 - Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
+- Improve localhost detection by checking contained request headers in the error. ([#4580](https://github.com/getsentry/relay/pull/4580))
 
 **Bug Fixes**:
 
 - Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
 - Emit filtered/sampled outcomes for spans attached to a dropped transaction. ([#4569](https://github.com/getsentry/relay/pull/4569))
+- Fix missing geo information for user when IP scrubbing was enabled. ([#4586](https://github.com/getsentry/relay/pull/4586))
 
 **Internal**:
 
