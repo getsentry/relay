@@ -19,9 +19,7 @@ def envelope_with_sentry_logs(payload: dict) -> Envelope:
     envelope.add_item(
         Item(
             type="log",
-            payload=PayloadRef(
-                bytes=json.dumps(payload).encode()
-            ),
+            payload=PayloadRef(bytes=json.dumps(payload).encode()),
         )
     )
     return envelope
@@ -159,7 +157,9 @@ def test_ourlog_extraction_with_sentry_logs(
         "level": "warn",
         "body": "Example log record",
     }
-    envelope_with_missing_fields = envelope_with_sentry_logs(payload_with_missing_fields)
+    envelope_with_missing_fields = envelope_with_sentry_logs(
+        payload_with_missing_fields
+    )
     relay.send_envelope(project_id, envelope_with_missing_fields)
 
     ourlogs = ourlogs_consumer.get_ourlogs()
