@@ -613,9 +613,6 @@ def test_filters_are_applied_to_profiles(
                 outcome.pop("timestamp")
                 outcomes.append(outcome)
 
-        print("=======")
-        print(outcomes)
-
         assert outcomes == [
             {
                 "category": data_category,
