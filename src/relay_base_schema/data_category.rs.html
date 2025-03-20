@@ -246,7 +246,18 @@
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
@@ -349,11 +360,20 @@
     ///
     /// This is the category for logs for which we store log event total bytes for users.
     </span>LogByte = <span class="number">24</span>,
-    <span class="doccomment">/// ProfileDurationUi
+    <span class="doccomment">/// Profile duration of a UI profile.
     ///
     /// This data category is used to count the number of milliseconds per indexed UI profile
     /// chunk.
+    ///
+    /// See also: [`Self::ProfileDuration`]
     </span>ProfileDurationUi = <span class="number">25</span>,
+    <span class="doccomment">/// UI Profile Chunk.
+    ///
+    /// This data category is used to count the number of milliseconds per indexed UI profile
+    /// chunk.
+    ///
+    /// See also: [`Self::ProfileChunk`]
+    </span>ProfileChunkUi = <span class="number">26</span>,
 
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
@@ -393,6 +413,7 @@
             <span class="string">"profile_duration" </span>=&gt; <span class="self">Self</span>::ProfileDuration,
             <span class="string">"profile_duration_ui" </span>=&gt; <span class="self">Self</span>::ProfileDurationUi,
             <span class="string">"profile_chunk" </span>=&gt; <span class="self">Self</span>::ProfileChunk,
+            <span class="string">"profile_chunk_ui" </span>=&gt; <span class="self">Self</span>::ProfileChunkUi,
             <span class="string">"metric_second" </span>=&gt; <span class="self">Self</span>::MetricSecond,
             <span class="string">"replay_video" </span>=&gt; <span class="self">Self</span>::DoNotUseReplayVideo,
             <span class="string">"uptime" </span>=&gt; <span class="self">Self</span>::Uptime,
@@ -428,6 +449,7 @@
             <span class="self">Self</span>::ProfileDuration =&gt; <span class="string">"profile_duration"</span>,
             <span class="self">Self</span>::ProfileDurationUi =&gt; <span class="string">"profile_duration_ui"</span>,
             <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
+            <span class="self">Self</span>::ProfileChunkUi =&gt; <span class="string">"profile_chunk_ui"</span>,
             <span class="self">Self</span>::MetricSecond =&gt; <span class="string">"metric_second"</span>,
             <span class="self">Self</span>::Uptime =&gt; <span class="string">"uptime"</span>,
             <span class="self">Self</span>::AttachmentItem =&gt; <span class="string">"attachment_item"</span>,

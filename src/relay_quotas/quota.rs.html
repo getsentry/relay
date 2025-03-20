@@ -992,7 +992,8 @@
 <a href="#991" id="991">991</a>
 <a href="#992" id="992">992</a>
 <a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
@@ -1201,6 +1202,7 @@
             | DataCategory::MetricBucket
             | DataCategory::UserReportV2
             | DataCategory::ProfileChunk
+            | DataCategory::ProfileChunkUi
             | DataCategory::Uptime
             | DataCategory::MetricSecond
             | DataCategory::AttachmentItem
