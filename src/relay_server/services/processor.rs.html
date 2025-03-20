@@ -4249,7 +4249,84 @@
 <a href="#4248" id="4248">4248</a>
 <a href="#4249" id="4249">4249</a>
 <a href="#4250" id="4250">4250</a>
-<a href="#4251" id="4251">4251</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4251" id="4251">4251</a>
+<a href="#4252" id="4252">4252</a>
+<a href="#4253" id="4253">4253</a>
+<a href="#4254" id="4254">4254</a>
+<a href="#4255" id="4255">4255</a>
+<a href="#4256" id="4256">4256</a>
+<a href="#4257" id="4257">4257</a>
+<a href="#4258" id="4258">4258</a>
+<a href="#4259" id="4259">4259</a>
+<a href="#4260" id="4260">4260</a>
+<a href="#4261" id="4261">4261</a>
+<a href="#4262" id="4262">4262</a>
+<a href="#4263" id="4263">4263</a>
+<a href="#4264" id="4264">4264</a>
+<a href="#4265" id="4265">4265</a>
+<a href="#4266" id="4266">4266</a>
+<a href="#4267" id="4267">4267</a>
+<a href="#4268" id="4268">4268</a>
+<a href="#4269" id="4269">4269</a>
+<a href="#4270" id="4270">4270</a>
+<a href="#4271" id="4271">4271</a>
+<a href="#4272" id="4272">4272</a>
+<a href="#4273" id="4273">4273</a>
+<a href="#4274" id="4274">4274</a>
+<a href="#4275" id="4275">4275</a>
+<a href="#4276" id="4276">4276</a>
+<a href="#4277" id="4277">4277</a>
+<a href="#4278" id="4278">4278</a>
+<a href="#4279" id="4279">4279</a>
+<a href="#4280" id="4280">4280</a>
+<a href="#4281" id="4281">4281</a>
+<a href="#4282" id="4282">4282</a>
+<a href="#4283" id="4283">4283</a>
+<a href="#4284" id="4284">4284</a>
+<a href="#4285" id="4285">4285</a>
+<a href="#4286" id="4286">4286</a>
+<a href="#4287" id="4287">4287</a>
+<a href="#4288" id="4288">4288</a>
+<a href="#4289" id="4289">4289</a>
+<a href="#4290" id="4290">4290</a>
+<a href="#4291" id="4291">4291</a>
+<a href="#4292" id="4292">4292</a>
+<a href="#4293" id="4293">4293</a>
+<a href="#4294" id="4294">4294</a>
+<a href="#4295" id="4295">4295</a>
+<a href="#4296" id="4296">4296</a>
+<a href="#4297" id="4297">4297</a>
+<a href="#4298" id="4298">4298</a>
+<a href="#4299" id="4299">4299</a>
+<a href="#4300" id="4300">4300</a>
+<a href="#4301" id="4301">4301</a>
+<a href="#4302" id="4302">4302</a>
+<a href="#4303" id="4303">4303</a>
+<a href="#4304" id="4304">4304</a>
+<a href="#4305" id="4305">4305</a>
+<a href="#4306" id="4306">4306</a>
+<a href="#4307" id="4307">4307</a>
+<a href="#4308" id="4308">4308</a>
+<a href="#4309" id="4309">4309</a>
+<a href="#4310" id="4310">4310</a>
+<a href="#4311" id="4311">4311</a>
+<a href="#4312" id="4312">4312</a>
+<a href="#4313" id="4313">4313</a>
+<a href="#4314" id="4314">4314</a>
+<a href="#4315" id="4315">4315</a>
+<a href="#4316" id="4316">4316</a>
+<a href="#4317" id="4317">4317</a>
+<a href="#4318" id="4318">4318</a>
+<a href="#4319" id="4319">4319</a>
+<a href="#4320" id="4320">4320</a>
+<a href="#4321" id="4321">4321</a>
+<a href="#4322" id="4322">4322</a>
+<a href="#4323" id="4323">4323</a>
+<a href="#4324" id="4324">4324</a>
+<a href="#4325" id="4325">4325</a>
+<a href="#4326" id="4326">4326</a>
+<a href="#4327" id="4327">4327</a>
+<a href="#4328" id="4328">4328</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4319,6 +4396,7 @@
 <span class="kw">use </span>relay_threading::AsyncPool;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
+    <span class="kw">crate</span>::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
     <span class="kw">crate</span>::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
@@ -5350,6 +5428,8 @@
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
     <span class="kw">pub </span>aggregator: Addr&lt;Aggregator&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">pub </span>global_rate_limits: <span class="prelude-ty">Option</span>&lt;Addr&lt;GlobalRateLimits&gt;&gt;,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Addrs {
@@ -5361,6 +5441,8 @@
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>store_forwarder: <span class="prelude-val">None</span>,
             aggregator: Addr::dummy(),
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>global_rate_limits: <span class="prelude-val">None</span>,
         }
     }
 }
@@ -5375,7 +5457,7 @@
     </span>quotas_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     addrs: Addrs,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;RedisRateLimiter&gt;,
+    </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;Arc&lt;RedisRateLimiter&lt;GlobalRateLimitsServiceHandle&gt;&gt;&gt;,
     geoip_lookup: <span class="prelude-ty">Option</span>&lt;GeoIpLookup&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>cardinality_limiter: <span class="prelude-ty">Option</span>&lt;CardinalityLimiter&gt;,
@@ -5415,16 +5497,27 @@
             <span class="prelude-val">None </span>=&gt; (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
         };
 
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span><span class="kw">let </span>rate_limiter = <span class="kw">if let </span>(<span class="prelude-val">Some</span>(quotas), <span class="prelude-val">Some</span>(global_rate_limits)) =
+            (quotas.clone(), <span class="kw-2">&amp;</span>addrs.global_rate_limits)
+        {
+            <span class="prelude-val">Some</span>(Arc::new(
+                RedisRateLimiter::new(quotas, global_rate_limits.clone().into())
+                    .max_limit(config.max_rate_limit()),
+            ))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>};
+
         <span class="kw">let </span>inner = InnerProcessor {
             pool,
             global_config,
             project_cache,
             cogs,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>quotas_pool: quotas.clone(),
+            </span>quotas_pool: quotas,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>rate_limiter: quotas
-                .map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
+            </span>rate_limiter,
             addrs,
             geoip_lookup,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -5479,7 +5572,7 @@
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>enforce_quotas&lt;Group&gt;(
+    </span><span class="kw">async fn </span>enforce_quotas&lt;Group&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
         event: Annotated&lt;Event&gt;,
@@ -5488,31 +5581,35 @@
         rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Annotated&lt;Event&gt;, ProcessingError&gt; {
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
-        <span class="kw">let </span>rate_limiter = <span class="kw">match </span><span class="self">self</span>.inner.rate_limiter.as_ref() {
+        <span class="kw">let </span>rate_limiter = <span class="kw">match </span><span class="self">self</span>.inner.rate_limiter.clone() {
             <span class="prelude-val">Some</span>(rate_limiter) =&gt; rate_limiter,
             <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(event),
         };
 
         <span class="comment">// Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
         // applied in the fast path, all cached quotas can be applied here.
-        </span><span class="kw">let </span>cached_result = RateLimiter::Cached.enforce(
-            managed_envelope,
-            event,
-            extracted_metrics,
-            <span class="kw-2">&amp;</span>global_config,
-            project_info.clone(),
-            rate_limits.clone(),
-        )<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>cached_result = RateLimiter::Cached
+            .enforce(
+                managed_envelope,
+                event,
+                extracted_metrics,
+                <span class="kw-2">&amp;</span>global_config,
+                project_info.clone(),
+                rate_limits.clone(),
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="comment">// Enforce all quotas consistently with Redis.
-        </span><span class="kw">let </span>consistent_result = RateLimiter::Consistent(rate_limiter).enforce(
-            managed_envelope,
-            cached_result.event,
-            extracted_metrics,
-            <span class="kw-2">&amp;</span>global_config,
-            project_info,
-            rate_limits,
-        )<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>consistent_result = RateLimiter::Consistent(rate_limiter)
+            .enforce(
+                managed_envelope,
+                cached_result.event,
+                extracted_metrics,
+                <span class="kw-2">&amp;</span>global_config,
+                project_info,
+                rate_limits,
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="comment">// Update cached rate limits with the freshly computed ones.
         </span><span class="kw">if </span>!consistent_result.rate_limits.is_empty() {
@@ -5782,7 +5879,7 @@
     }
 
     <span class="doccomment">/// Processes the general errors, and the items which require or create the events.
-    </span><span class="kw">fn </span>process_errors(
+    </span><span class="kw">async fn </span>process_errors(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ErrorGroup&gt;,
         project_id: ProjectId,
@@ -5853,13 +5950,15 @@
         }
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            event = <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                event,
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info.clone(),
-                rate_limits,
-            )<span class="question-mark">?</span>;
+            event = <span class="self">self
+                </span>.enforce_quotas(
+                    managed_envelope,
+                    event,
+                    <span class="kw-2">&amp;mut </span>extracted_metrics,
+                    project_info.clone(),
+                    rate_limits,
+                )
+                .<span class="kw">await</span><span class="question-mark">?</span>;
         });
 
         <span class="kw">if </span>event.value().is_some() {
@@ -5890,7 +5989,7 @@
     <span class="doccomment">/// Processes only transactions and transaction-related items.
     </span><span class="attr">#[allow(unused_assignments)]
     #[allow(clippy::too_many_arguments)]
-    </span><span class="kw">fn </span>process_transactions(
+    </span><span class="kw">async fn </span>process_transactions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
         cogs: <span class="kw-2">&amp;mut </span>Token,
@@ -6044,13 +6143,15 @@
             //  - An envelope containing only processed profiles.
             // We need to make sure there are enough quotas for these profiles.
             </span><span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                event = <span class="self">self</span>.enforce_quotas(
-                    managed_envelope,
-                    Annotated::empty(),
-                    <span class="kw-2">&amp;mut </span>extracted_metrics,
-                    project_info.clone(),
-                    rate_limits,
-                )<span class="question-mark">?</span>;
+                event = <span class="self">self
+                    </span>.enforce_quotas(
+                        managed_envelope,
+                        Annotated::empty(),
+                        <span class="kw-2">&amp;mut </span>extracted_metrics,
+                        project_info.clone(),
+                        rate_limits,
+                    )
+                    .<span class="kw">await</span><span class="question-mark">?</span>;
             });
 
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics));
@@ -6102,13 +6203,15 @@
                 );
             }
 
-            event = <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                event,
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info.clone(),
-                rate_limits,
-            )<span class="question-mark">?</span>;
+            event = <span class="self">self
+                </span>.enforce_quotas(
+                    managed_envelope,
+                    event,
+                    <span class="kw-2">&amp;mut </span>extracted_metrics,
+                    project_info.clone(),
+                    rate_limits,
+                )
+                .<span class="kw">await</span><span class="question-mark">?</span>;
 
             event = span::maybe_discard_transaction(managed_envelope, event, project_info);
         });
@@ -6135,7 +6238,7 @@
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
 
-    <span class="kw">fn </span>process_profile_chunks(
+    <span class="kw">async fn </span>process_profile_chunks(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ProfileChunkGroup&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
@@ -6154,7 +6257,7 @@
     }
 
     <span class="doccomment">/// Processes standalone items that require an event ID, but do not have an event on the same envelope.
-    </span><span class="kw">fn </span>process_standalone(
+    </span><span class="kw">async fn </span>process_standalone(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;StandaloneGroup&gt;,
         config: Arc&lt;Config&gt;,
@@ -6182,7 +6285,8 @@
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 project_info.clone(),
                 rate_limits,
-            )<span class="question-mark">?</span>;
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
         });
 
         report::process_user_reports(managed_envelope);
@@ -6192,7 +6296,7 @@
     }
 
     <span class="doccomment">/// Processes user sessions.
-    </span><span class="kw">fn </span>process_sessions(
+    </span><span class="kw">async fn </span>process_sessions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SessionGroup&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
@@ -6213,14 +6317,15 @@
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 project_info,
                 rate_limits,
-            )<span class="question-mark">?</span>;
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
         });
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
 
     <span class="doccomment">/// Processes user and client reports.
-    </span><span class="kw">fn </span>process_client_reports(
+    </span><span class="kw">async fn </span>process_client_reports(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ClientReportGroup&gt;,
         config: Arc&lt;Config&gt;,
@@ -6237,7 +6342,8 @@
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 project_info.clone(),
                 rate_limits,
-            )<span class="question-mark">?</span>;
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
         });
 
         report::process_client_reports(
@@ -6251,7 +6357,7 @@
     }
 
     <span class="doccomment">/// Processes replays.
-    </span><span class="kw">fn </span>process_replays(
+    </span><span class="kw">async fn </span>process_replays(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ReplayGroup&gt;,
         config: Arc&lt;Config&gt;,
@@ -6276,14 +6382,15 @@
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 project_info,
                 rate_limits,
-            )<span class="question-mark">?</span>;
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
         });
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
 
     <span class="doccomment">/// Processes cron check-ins.
-    </span><span class="kw">fn </span>process_checkins(
+    </span><span class="kw">async fn </span>process_checkins(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="attr">#[allow(unused_variables)] </span>managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;CheckInGroup&gt;,
         <span class="attr">#[allow(unused_variables)] </span>project_id: ProjectId,
@@ -6300,7 +6407,8 @@
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 project_info,
                 rate_limits,
-            )<span class="question-mark">?</span>;
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="self">self</span>.normalize_checkins(managed_envelope, project_id);
         });
 
@@ -6309,7 +6417,7 @@
 
     <span class="doccomment">/// Process logs
     ///
-    </span><span class="kw">fn </span>process_logs(
+    </span><span class="kw">async fn </span>process_logs(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;LogGroup&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
@@ -6331,7 +6439,8 @@
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 project_info.clone(),
                 rate_limits,
-            )<span class="question-mark">?</span>;
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
             ourlog::process(managed_envelope, project_info.clone());
         });
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
@@ -6341,7 +6450,7 @@
     ///
     /// This function does *not* run for spans extracted from transactions.
     </span><span class="attr">#[allow(clippy::too_many_arguments)]
-    </span><span class="kw">fn </span>process_standalone_spans(
+    </span><span class="kw">async fn </span>process_standalone_spans(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SpanGroup&gt;,
         config: Arc&lt;Config&gt;,
@@ -6375,7 +6484,8 @@
                 sampling_project_info,
                 <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 <span class="kw-2">&amp;</span>reservoir,
-            );
+            )
+            .<span class="kw">await</span>;
 
             <span class="self">self</span>.enforce_quotas(
                 managed_envelope,
@@ -6383,14 +6493,15 @@
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 project_info,
                 rate_limits,
-            )<span class="question-mark">?</span>;
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
         });
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
 
     <span class="attr">#[expect(clippy::too_many_arguments)]
-    </span><span class="kw">fn </span>process_envelope(
+    </span><span class="kw">async fn </span>process_envelope(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         cogs: <span class="kw-2">&amp;mut </span>Token,
         <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
@@ -6429,23 +6540,24 @@
             .set_project_id(project_id);
 
         <span class="macro">macro_rules!</span> run {
-            (<span class="macro-nonterminal">$fn_name</span>:ident $(, <span class="macro-nonterminal">$args</span>:expr)<span class="kw-2">*</span>) =&gt; {{
-                <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = managed_envelope.try_into()<span class="question-mark">?</span>;
-                <span class="kw">match </span><span class="self">self</span>.<span class="macro-nonterminal">$fn_name</span>(<span class="kw-2">&amp;mut </span>managed_envelope, $(<span class="macro-nonterminal">$args</span>),<span class="kw-2">*</span>) {
-                    <span class="prelude-val">Ok</span>(extracted_metrics) =&gt; <span class="prelude-val">Ok</span>(ProcessingResult {
-                        managed_envelope: managed_envelope.into_processed(),
-                        extracted_metrics: extracted_metrics.map_or(ProcessingExtractedMetrics::new(), |e| e)
-                    }),
-                    <span class="prelude-val">Err</span>(error) =&gt; {
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = error.to_outcome() {
-                            managed_envelope.reject(outcome);
+            (<span class="macro-nonterminal">$fn_name</span>:ident $(, <span class="macro-nonterminal">$args</span>:expr)<span class="kw-2">*</span>) =&gt; {
+                <span class="kw">async </span>{
+                    <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = managed_envelope.try_into()<span class="question-mark">?</span>;
+                    <span class="kw">match </span><span class="self">self</span>.<span class="macro-nonterminal">$fn_name</span>(<span class="kw-2">&amp;mut </span>managed_envelope, $(<span class="macro-nonterminal">$args</span>),<span class="kw-2">*</span>).<span class="kw">await </span>{
+                        <span class="prelude-val">Ok</span>(extracted_metrics) =&gt; <span class="prelude-val">Ok</span>(ProcessingResult {
+                            managed_envelope: managed_envelope.into_processed(),
+                            extracted_metrics: extracted_metrics.map_or(ProcessingExtractedMetrics::new(), |e| e)
+                        }),
+                        <span class="prelude-val">Err</span>(error) =&gt; {
+                            <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = error.to_outcome() {
+                                managed_envelope.reject(outcome);
+                            }
+
+                            <span class="kw">return </span><span class="prelude-val">Err</span>(error);
                         }
-
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(error);
                     }
-                }
-
-            }};
+                }.<span class="kw">await
+            </span>};
         }
 
         <span class="macro">relay_log::trace!</span>(<span class="string">"Processing {group} group"</span>, group = group.variant());
@@ -6543,7 +6655,7 @@
         }
     }
 
-    <span class="kw">fn </span>process(
+    <span class="kw">async fn </span>process(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         cogs: <span class="kw-2">&amp;mut </span>Token,
         message: ProcessEnvelope,
@@ -6585,74 +6697,84 @@
             .user_agent()
             .map(str::to_owned);
 
-        relay_log::with_scope(
-            |scope| {
-                scope.set_tag(<span class="string">"project"</span>, project_id);
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = client {
-                    scope.set_tag(<span class="string">"sdk"</span>, client);
+        <span class="comment">// We set additional information on the scope, which will be removed after processing the
+        // envelope.
+        </span>relay_log::configure_scope(|scope| {
+            scope.set_tag(<span class="string">"project"</span>, project_id);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = client {
+                scope.set_tag(<span class="string">"sdk"</span>, client);
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent) = user_agent {
+                scope.set_extra(<span class="string">"user_agent"</span>, user_agent.into());
+            }
+        });
+
+        <span class="kw">let </span>result = <span class="kw">match </span><span class="self">self
+            </span>.process_envelope(
+                cogs,
+                managed_envelope,
+                project_id,
+                project_info,
+                rate_limits,
+                sampling_project_info,
+                reservoir_counters,
+            )
+            .<span class="kw">await
+        </span>{
+            <span class="prelude-val">Ok</span>(result) =&gt; {
+                <span class="kw">let </span>(<span class="kw-2">mut </span>managed_envelope, extracted_metrics) = result.into_inner();
+
+                <span class="comment">// The envelope could be modified or even emptied during processing, which
+                // requires re-computation of the context.
+                </span>managed_envelope.update();
+
+                <span class="kw">let </span>has_metrics = !extracted_metrics.project_metrics.is_empty();
+                <span class="kw">if </span>has_metrics {
+                    send_metrics(
+                        extracted_metrics,
+                        managed_envelope.envelope(),
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.aggregator,
+                    );
                 }
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent) = user_agent {
-                    scope.set_extra(<span class="string">"user_agent"</span>, user_agent.into());
-                }
-            },
-            || {
-                <span class="kw">match </span><span class="self">self</span>.process_envelope(
-                    cogs,
-                    managed_envelope,
-                    project_id,
-                    project_info,
-                    rate_limits,
-                    sampling_project_info,
-                    reservoir_counters,
-                ) {
-                    <span class="prelude-val">Ok</span>(result) =&gt; {
-                        <span class="kw">let </span>(<span class="kw-2">mut </span>managed_envelope, extracted_metrics) = result.into_inner();
 
-                        <span class="comment">// The envelope could be modified or even emptied during processing, which
-                        // requires re-computation of the context.
-                        </span>managed_envelope.update();
-
-                        <span class="kw">let </span>has_metrics = !extracted_metrics.project_metrics.is_empty();
-                        <span class="kw">if </span>has_metrics {
-                            send_metrics(
-                                extracted_metrics,
-                                managed_envelope.envelope(),
-                                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.aggregator,
-                            );
-                        }
-
-                        <span class="kw">let </span>envelope_response = <span class="kw">if </span>managed_envelope.envelope().is_empty() {
-                            <span class="kw">if </span>!has_metrics {
-                                <span class="comment">// Individual rate limits have already been issued
-                                </span>managed_envelope.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
-                            } <span class="kw">else </span>{
-                                managed_envelope.accept();
-                            }
-
-                            <span class="prelude-val">None
-                        </span>} <span class="kw">else </span>{
-                            <span class="prelude-val">Some</span>(managed_envelope)
-                        };
-
-                        <span class="prelude-val">Ok</span>(ProcessEnvelopeResponse {
-                            envelope: envelope_response,
-                        })
+                <span class="kw">let </span>envelope_response = <span class="kw">if </span>managed_envelope.envelope().is_empty() {
+                    <span class="kw">if </span>!has_metrics {
+                        <span class="comment">// Individual rate limits have already been issued
+                        </span>managed_envelope.reject(Outcome::RateLimited(<span class="prelude-val">None</span>));
+                    } <span class="kw">else </span>{
+                        managed_envelope.accept();
                     }
-                    <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(err),
-                }
-            },
-        )
+
+                    <span class="prelude-val">None
+                </span>} <span class="kw">else </span>{
+                    <span class="prelude-val">Some</span>(managed_envelope)
+                };
+
+                <span class="prelude-val">Ok</span>(ProcessEnvelopeResponse {
+                    envelope: envelope_response,
+                })
+            }
+            <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(err),
+        };
+
+        relay_log::configure_scope(|scope| {
+            scope.remove_tag(<span class="string">"project"</span>);
+            scope.remove_tag(<span class="string">"sdk"</span>);
+            scope.remove_tag(<span class="string">"user_agent"</span>);
+        });
+
+        result
     }
 
-    <span class="kw">fn </span>handle_process_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessEnvelope) {
+    <span class="kw">async fn </span>handle_process_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessEnvelope) {
         <span class="kw">let </span>project_key = message.envelope.envelope().meta().public_key();
         <span class="kw">let </span>wait_time = message.envelope.age();
         <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         <span class="kw">let </span>group = message.envelope.group().variant();
         <span class="kw">let </span>result = <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
-            <span class="self">self</span>.process(cogs, message)
-        });
+            <span class="self">self</span>.process(cogs, message).<span class="kw">await
+        </span>});
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(response) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope) = response.envelope {
@@ -6924,7 +7046,7 @@
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>rate_limit_buckets(
+    </span><span class="kw">async fn </span>rate_limit_buckets(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         project_info: <span class="kw-2">&amp;</span>ProjectInfo,
@@ -6945,7 +7067,10 @@
         <span class="kw">for </span>(namespace, quantity) <span class="kw">in </span>namespaces {
             <span class="kw">let </span>item_scoping = scoping.metric_bucket(namespace);
 
-            <span class="kw">let </span>limits = <span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, quantity, <span class="bool-val">false</span>) {
+            <span class="kw">let </span>limits = <span class="kw">match </span>rate_limiter
+                .is_rate_limited(quotas, item_scoping, quantity, <span class="bool-val">false</span>)
+                .<span class="kw">await
+            </span>{
                 <span class="prelude-val">Ok</span>(limits) =&gt; limits,
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="macro">relay_log::error!</span>(
@@ -6979,13 +7104,13 @@
 
         <span class="kw">match </span>MetricsLimiter::create(buckets, project_info.config.quotas.clone(), scoping) {
             <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
-            <span class="prelude-val">Ok</span>(bucket_limiter) =&gt; <span class="self">self</span>.apply_other_rate_limits(bucket_limiter),
+            <span class="prelude-val">Ok</span>(bucket_limiter) =&gt; <span class="self">self</span>.apply_other_rate_limits(bucket_limiter).<span class="kw">await</span>,
         }
     }
 
     <span class="doccomment">/// Check and apply rate limits to metrics buckets for transactions and spans.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>apply_other_rate_limits(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>bucket_limiter: MetricsLimiter) -&gt; Vec&lt;Bucket&gt; {
+    </span><span class="kw">async fn </span>apply_other_rate_limits(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>bucket_limiter: MetricsLimiter) -&gt; Vec&lt;Bucket&gt; {
         <span class="macro">relay_log::trace!</span>(<span class="string">"handle_rate_limit_buckets"</span>);
 
         <span class="kw">let </span>scoping = <span class="kw-2">*</span>bucket_limiter.scoping();
@@ -7006,12 +7131,10 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>is_limited = <span class="bool-val">false</span>;
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(count) = count {
-                    <span class="kw">match </span>rate_limiter.is_rate_limited(
-                        quotas,
-                        scoping.item(category),
-                        count,
-                        over_accept_once,
-                    ) {
+                    <span class="kw">match </span>rate_limiter
+                        .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
+                        .<span class="kw">await
+                    </span>{
                         <span class="prelude-val">Ok</span>(limits) =&gt; {
                             is_limited = limits.is_limited();
                             rate_limits.merge(limits)
@@ -7145,7 +7268,11 @@
     ///  - rate limiting
     ///  - submit to `StoreForwarder`
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>encode_metrics_processing(<span class="kw-2">&amp;</span><span class="self">self</span>, message: FlushBuckets, store_forwarder: <span class="kw-2">&amp;</span>Addr&lt;Store&gt;) {
+    </span><span class="kw">async fn </span>encode_metrics_processing(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        message: FlushBuckets,
+        store_forwarder: <span class="kw-2">&amp;</span>Addr&lt;Store&gt;,
+    ) {
         <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
         <span class="kw">use </span><span class="kw">crate</span>::services::store::StoreMetrics;
 
@@ -7156,7 +7283,9 @@
             ..
         } <span class="kw">in </span>message.buckets.into_values()
         {
-            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_buckets(scoping, <span class="kw-2">&amp;</span>project_info, buckets);
+            <span class="kw">let </span>buckets = <span class="self">self
+                </span>.rate_limit_buckets(scoping, <span class="kw-2">&amp;</span>project_info, buckets)
+                .<span class="kw">await</span>;
 
             <span class="kw">let </span>limits = project_info.get_cardinality_limits();
             <span class="kw">let </span>buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets);
@@ -7326,7 +7455,7 @@
         <span class="self">self</span>.send_global_partition(partition_key, <span class="kw-2">&amp;mut </span>partition);
     }
 
-    <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, <span class="kw-2">mut </span>message: FlushBuckets) {
+    <span class="kw">async fn </span>handle_flush_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, <span class="kw-2">mut </span>message: FlushBuckets) {
         <span class="kw">for </span>(project_key, pb) <span class="kw">in </span>message.buckets.iter_mut() {
             <span class="kw">let </span>buckets = std::mem::take(<span class="kw-2">&amp;mut </span>pb.buckets);
             pb.buckets =
@@ -7336,7 +7465,9 @@
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.addrs.store_forwarder {
-                <span class="kw">return </span><span class="self">self</span>.encode_metrics_processing(message, store_forwarder);
+                <span class="kw">return </span><span class="self">self
+                    </span>.encode_metrics_processing(message, store_forwarder)
+                    .<span class="kw">await</span>;
             }
         }
 
@@ -7352,7 +7483,7 @@
         <span class="self">self</span>.inner.rate_limiter.is_some()
     }
 
-    <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EnvelopeProcessor) {
+    <span class="kw">async fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EnvelopeProcessor) {
         <span class="kw">let </span>ty = message.variant();
         <span class="kw">let </span>feature_weights = <span class="self">self</span>.feature_weights(<span class="kw-2">&amp;</span>message);
 
@@ -7361,15 +7492,17 @@
 
             <span class="kw">match </span>message {
                 EnvelopeProcessor::ProcessEnvelope(m) =&gt; {
-                    <span class="self">self</span>.handle_process_envelope(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
-                }
+                    <span class="self">self</span>.handle_process_envelope(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m).<span class="kw">await
+                </span>}
                 EnvelopeProcessor::ProcessProjectMetrics(m) =&gt; {
                     <span class="self">self</span>.handle_process_metrics(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
                 }
                 EnvelopeProcessor::ProcessBatchedMetrics(m) =&gt; {
                     <span class="self">self</span>.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
                 }
-                EnvelopeProcessor::FlushBuckets(m) =&gt; <span class="self">self</span>.handle_flush_buckets(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m),
+                EnvelopeProcessor::FlushBuckets(m) =&gt; {
+                    <span class="self">self</span>.handle_flush_buckets(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m).<span class="kw">await
+                </span>}
                 EnvelopeProcessor::SubmitEnvelope(m) =&gt; <span class="self">self</span>.handle_submit_envelope(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m),
                 EnvelopeProcessor::SubmitClientReports(m) =&gt; {
                     <span class="self">self</span>.handle_submit_client_reports(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
@@ -7425,7 +7558,7 @@
             <span class="kw">let </span>service = <span class="self">self</span>.clone();
             <span class="self">self</span>.inner
                 .pool
-                .spawn_async(<span class="kw">async move </span>{ service.handle_message(message) }.boxed())
+                .spawn_async(<span class="kw">async move </span>{ service.handle_message(message).<span class="kw">await </span>}.boxed())
                 .<span class="kw">await</span>;
         }
     }
@@ -7450,14 +7583,15 @@
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">enum </span>RateLimiter&lt;<span class="lifetime">'a</span>&gt; {
+#[derive(Clone)]
+</span><span class="kw">enum </span>RateLimiter {
     Cached,
-    Consistent(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisRateLimiter),
+    Consistent(Arc&lt;RedisRateLimiter&lt;GlobalRateLimitsServiceHandle&gt;&gt;),
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">impl </span>RateLimiter&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>enforce&lt;Group&gt;(
+</span><span class="kw">impl </span>RateLimiter {
+    <span class="kw">async fn </span>enforce&lt;Group&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
         event: Annotated&lt;Event&gt;,
@@ -7477,14 +7611,28 @@
 
         <span class="kw">let </span>event_category = event_category(<span class="kw-2">&amp;</span>event);
 
-        <span class="comment">// When invoking the rate limiter, capture if the event item has been rate limited to also
+        <span class="comment">// We extract the rate limiters, in case we perform consistent rate limiting, since we will
+        // need Redis access.
+        //
+        // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_limiter =
-            EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| <span class="kw">match </span><span class="self">self </span>{
-                RateLimiter::Cached =&gt; <span class="prelude-val">Ok</span>(rate_limits.check_with_quotas(quotas, item_scope)),
-                RateLimiter::Consistent(rl) =&gt; <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProcessingError&gt;(
-                    rl.is_rate_limited(quotas, item_scope, quantity, <span class="bool-val">false</span>)<span class="question-mark">?</span>,
-                ),
+        </span><span class="kw">let </span>this = <span class="self">self</span>.clone();
+        <span class="kw">let </span>rate_limits_clone = rate_limits.clone();
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope_limiter =
+            EnvelopeLimiter::new(CheckLimits::All, <span class="kw">move </span>|item_scope, quantity| {
+                <span class="kw">let </span>this = this.clone();
+                <span class="kw">let </span>rate_limits_clone = rate_limits_clone.clone();
+
+                <span class="kw">async move </span>{
+                    <span class="kw">match </span>this {
+                        RateLimiter::Consistent(rate_limiter) =&gt; <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProcessingError&gt;(
+                            rate_limiter
+                                .is_rate_limited(quotas, item_scope, quantity, <span class="bool-val">false</span>)
+                                .<span class="kw">await</span><span class="question-mark">?</span>,
+                        ),
+                        <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(rate_limits_clone.check_with_quotas(quotas, item_scope)),
+                    }
+                }
             });
 
         <span class="comment">// Tell the envelope limiter about the event, since it has been removed from the Envelope at
@@ -7496,8 +7644,10 @@
         <span class="kw">let </span>scoping = managed_envelope.scoping();
         <span class="kw">let </span>(enforcement, rate_limits) =
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingRateLimiting), {
-                envelope_limiter.compute(managed_envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?
-            </span>});
+                envelope_limiter
+                    .compute(managed_envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)
+                    .<span class="kw">await
+            </span>})<span class="question-mark">?</span>;
         <span class="kw">let </span>event_active = enforcement.is_event_active();
 
         <span class="comment">// Use the same rate limits as used for the envelope on the metrics.
@@ -8024,7 +8174,7 @@
         <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
         <span class="macro">assert!</span>(processor.redis_rate_limiter_enabled());
 
-        processor.encode_metrics_processing(message, <span class="kw-2">&amp;</span>store);
+        processor.encode_metrics_processing(message, <span class="kw-2">&amp;</span>store).<span class="kw">await</span>;
 
         drop(store);
         <span class="kw">let </span>orgs_not_ratelimited = handle.<span class="kw">await</span>.unwrap();
@@ -8099,7 +8249,10 @@
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        <span class="kw">let </span>envelope_response = processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).unwrap();
+        <span class="kw">let </span>envelope_response = processor
+            .process(<span class="kw-2">&amp;mut </span>Token::noop(), message)
+            .<span class="kw">await
+            </span>.unwrap();
         <span class="kw">let </span>new_envelope = envelope_response.envelope.unwrap();
         <span class="kw">let </span>new_envelope = new_envelope.envelope();
 
@@ -8173,7 +8326,8 @@
         <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
         <span class="kw">let </span>response = processor
             .process(<span class="kw-2">&amp;mut </span>Token::noop(), process_message)
-            .unwrap();
+            .<span class="kw">await
+            </span>.unwrap();
         <span class="kw">let </span>envelope = response.envelope.as_ref().unwrap().envelope();
         <span class="kw">let </span>event = envelope
             .get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Event)

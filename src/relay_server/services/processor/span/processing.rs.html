@@ -1495,7 +1495,7 @@
 </span><span class="kw">struct </span>ValidationError(<span class="attr">#[from] </span>anyhow::Error);
 
 <span class="attr">#[allow(clippy::too_many_arguments)]
-</span><span class="kw">pub fn </span>process(
+</span><span class="kw">pub async fn </span>process(
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SpanGroup&gt;,
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
     extracted_metrics: <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics,
@@ -1505,7 +1505,7 @@
     project_info: Arc&lt;ProjectInfo&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
     geo_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GeoIpLookup&gt;,
-    reservoir_counters: <span class="kw-2">&amp;</span>ReservoirEvaluator,
+    reservoir_counters: <span class="kw-2">&amp;</span>ReservoirEvaluator&lt;<span class="lifetime">'_</span>&gt;,
 ) {
     <span class="kw">use </span>relay_event_normalization::RemoveOtherProcessor;
 
@@ -2598,7 +2598,7 @@
                 }
             }"#</span>,
         )
-        .unwrap();
+            .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
             <span class="prelude-val">None</span>,
@@ -2616,7 +2616,7 @@
                 }
             }"#</span>,
         )
-        .unwrap();
+            .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
             <span class="prelude-val">None</span>,
@@ -2638,7 +2638,7 @@
                 }
             }"#</span>,
         )
-        .unwrap();
+            .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
             <span class="prelude-val">Some</span>(<span class="string">"Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"</span>),
@@ -2675,7 +2675,7 @@
                 }
             }"#</span>,
         )
-        .unwrap();
+            .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
             <span class="prelude-val">None</span>,
@@ -2880,7 +2880,7 @@
               "segment_id": "88457c3c28f4c0c6"
         }"#</span>,
         )
-        .unwrap();
+            .unwrap();
 
         normalize(<span class="kw-2">&amp;mut </span>span, normalize_config()).unwrap();
 

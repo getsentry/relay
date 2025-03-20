@@ -1166,7 +1166,52 @@
 <a href="#1165" id="1165">1165</a>
 <a href="#1166" id="1166">1166</a>
 <a href="#1167" id="1167">1167</a>
-<a href="#1168" id="1168">1168</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#1168" id="1168">1168</a>
+<a href="#1169" id="1169">1169</a>
+<a href="#1170" id="1170">1170</a>
+<a href="#1171" id="1171">1171</a>
+<a href="#1172" id="1172">1172</a>
+<a href="#1173" id="1173">1173</a>
+<a href="#1174" id="1174">1174</a>
+<a href="#1175" id="1175">1175</a>
+<a href="#1176" id="1176">1176</a>
+<a href="#1177" id="1177">1177</a>
+<a href="#1178" id="1178">1178</a>
+<a href="#1179" id="1179">1179</a>
+<a href="#1180" id="1180">1180</a>
+<a href="#1181" id="1181">1181</a>
+<a href="#1182" id="1182">1182</a>
+<a href="#1183" id="1183">1183</a>
+<a href="#1184" id="1184">1184</a>
+<a href="#1185" id="1185">1185</a>
+<a href="#1186" id="1186">1186</a>
+<a href="#1187" id="1187">1187</a>
+<a href="#1188" id="1188">1188</a>
+<a href="#1189" id="1189">1189</a>
+<a href="#1190" id="1190">1190</a>
+<a href="#1191" id="1191">1191</a>
+<a href="#1192" id="1192">1192</a>
+<a href="#1193" id="1193">1193</a>
+<a href="#1194" id="1194">1194</a>
+<a href="#1195" id="1195">1195</a>
+<a href="#1196" id="1196">1196</a>
+<a href="#1197" id="1197">1197</a>
+<a href="#1198" id="1198">1198</a>
+<a href="#1199" id="1199">1199</a>
+<a href="#1200" id="1200">1200</a>
+<a href="#1201" id="1201">1201</a>
+<a href="#1202" id="1202">1202</a>
+<a href="#1203" id="1203">1203</a>
+<a href="#1204" id="1204">1204</a>
+<a href="#1205" id="1205">1205</a>
+<a href="#1206" id="1206">1206</a>
+<a href="#1207" id="1207">1207</a>
+<a href="#1208" id="1208">1208</a>
+<a href="#1209" id="1209">1209</a>
+<a href="#1210" id="1210">1210</a>
+<a href="#1211" id="1211">1211</a>
+<a href="#1212" id="1212">1212</a>
+<a href="#1213" id="1213">1213</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>std::sync::{Arc, Mutex, PoisonError};
 <span class="kw">use </span>std::time::{Duration, Instant};
@@ -1179,17 +1224,18 @@
 <span class="kw">use </span><span class="kw">crate</span>::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 <span class="kw">use </span><span class="kw">crate</span>::REJECT_ALL_SECS;
 
-<span class="doccomment">/// A monotonic expiration marker for `RateLimit`s.
+<span class="doccomment">/// A monotonic expiration marker for rate limits.
 ///
-/// `RetryAfter` marks an instant at which a rate limit expires, which is indicated by `expired`. It
-/// can convert into the remaining time until expiration.
+/// [`RetryAfter`] represents a point in time when a rate limit expires. It allows checking
+/// whether the rate limit is still active or has expired, and calculating the remaining time
+/// until expiration.
 </span><span class="attr">#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 </span><span class="kw">pub struct </span>RetryAfter {
     when: Instant,
 }
 
 <span class="kw">impl </span>RetryAfter {
-    <span class="doccomment">/// Creates a retry after instance.
+    <span class="doccomment">/// Creates a new [`RetryAfter`] instance that expires after the specified number of seconds.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>from_secs(seconds: u64) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>now = Instant::now();
@@ -1197,8 +1243,10 @@
         <span class="self">Self </span>{ when }
     }
 
-    <span class="doccomment">/// Returns the remaining duration until the rate limit expires using the passed instant as the
-    /// reference point.
+    <span class="doccomment">/// Returns the remaining duration until the rate limit expires using the specified instant
+    /// as the reference point.
+    ///
+    /// If the rate limit has already expired at the given instant, returns `None`.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>remaining_at(<span class="self">self</span>, at: Instant) -&gt; <span class="prelude-ty">Option</span>&lt;Duration&gt; {
         <span class="kw">if </span>at &gt;= <span class="self">self</span>.when {
@@ -1209,16 +1257,19 @@
     }
 
     <span class="doccomment">/// Returns the remaining duration until the rate limit expires.
+    ///
+    /// This uses the current instant as the reference point. If the rate limit has already
+    /// expired, returns `None`.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>remaining(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Duration&gt; {
         <span class="self">self</span>.remaining_at(Instant::now())
     }
 
-    <span class="doccomment">/// Returns the remaining seconds until the rate limit expires using the passed instant as the
-    /// reference point.
+    <span class="doccomment">/// Returns the remaining seconds until the rate limit expires using the specified instant
+    /// as the reference point.
     ///
-    /// This is a shortcut to `retry_after.remaining().as_secs()` with one exception: If the rate
-    /// limit has expired, this function returns `0`.
+    /// This method rounds up to the next second to ensure that rate limits are strictly enforced.
+    /// If the rate limit has already expired, returns `0`.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>remaining_seconds_at(<span class="self">self</span>, at: Instant) -&gt; u64 {
         <span class="kw">match </span><span class="self">self</span>.remaining_at(at) {
@@ -1230,18 +1281,21 @@
     }
 
     <span class="doccomment">/// Returns the remaining seconds until the rate limit expires.
+    ///
+    /// This uses the current instant as the reference point. If the rate limit
+    /// has already expired, returns `0`.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>remaining_seconds(<span class="self">self</span>) -&gt; u64 {
         <span class="self">self</span>.remaining_seconds_at(Instant::now())
     }
 
-    <span class="doccomment">/// Returns whether this rate limit has expired at the passed instant.
+    <span class="doccomment">/// Returns whether this rate limit has expired at the specified instant.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>expired_at(<span class="self">self</span>, at: Instant) -&gt; bool {
         <span class="self">self</span>.remaining_at(at).is_none()
     }
 
-    <span class="doccomment">/// Returns whether this rate limit has expired.
+    <span class="doccomment">/// Returns whether this rate limit has expired at the current instant.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>expired(<span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.remaining_at(Instant::now()).is_none()
@@ -1270,8 +1324,8 @@
     }
 }
 
-<span class="attr">#[derive(Debug)]
-</span><span class="doccomment">/// Error parsing a `RetryAfter`.
+<span class="doccomment">/// Error that occurs when parsing a [`RetryAfter`] from a string fails.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>InvalidRetryAfter {
     <span class="doccomment">/// The supplied delay in seconds was not valid.
     </span>InvalidDelay(std::num::ParseFloatError),
@@ -1287,11 +1341,13 @@
     }
 }
 
-<span class="doccomment">/// The scope that a rate limit applied to.
+<span class="doccomment">/// The scope that a rate limit applies to.
 ///
-/// As opposed to `QuotaScope`, which only declared the class of the scope, this also carries
-/// information about the scope instance. That is, the specific identifiers of the individual scopes
-/// that a rate limit applied to.
+/// Unlike [`QuotaScope`], which only declares the class of the scope, this enum carries
+/// the specific identifiers of the individual scopes that a rate limit applies to.
+///
+/// Rate limits can be applied at different levels of granularity, from global (affecting all data)
+/// down to a specific project key.
 </span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(test, derive(serde::Serialize))]
 </span><span class="kw">pub enum </span>RateLimitScope {
@@ -1306,8 +1362,11 @@
 }
 
 <span class="kw">impl </span>RateLimitScope {
-    <span class="doccomment">/// Extracts a rate limiting scope from the given item scoping for a specific quota.
-    </span><span class="kw">pub fn </span>for_quota(scoping: <span class="kw-2">&amp;</span>Scoping, scope: QuotaScope) -&gt; <span class="self">Self </span>{
+    <span class="doccomment">/// Creates a rate limiting scope from the given item scoping for a specific quota.
+    ///
+    /// This extracts the appropriate scope identifier based on the quota's scope type.
+    /// For unknown scopes, it assumes the most specific scope (Key).
+    </span><span class="kw">pub fn </span>for_quota(scoping: Scoping, scope: QuotaScope) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>scope {
             QuotaScope::Global =&gt; <span class="self">Self</span>::Global,
             QuotaScope::Organization =&gt; <span class="self">Self</span>::Organization(scoping.organization_id),
@@ -1319,6 +1378,8 @@
     }
 
     <span class="doccomment">/// Returns the canonical name of this scope.
+    ///
+    /// This corresponds to the name of the corresponding [`QuotaScope`].
     </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="self">Self</span>::Global =&gt; QuotaScope::Global.name(),
@@ -1329,18 +1390,23 @@
     }
 }
 
-<span class="doccomment">/// A bounded rate limit.
+<span class="doccomment">/// An active rate limit that restricts data ingestion.
+///
+/// A rate limit defines restrictions for specific data categories within a particular scope.
+/// It includes an expiration time after which the limit is no longer enforced.
+///
+/// Rate limits can be created from [`Quota`]s or directly constructed with the needed parameters.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(test, derive(serde::Serialize))]
 </span><span class="kw">pub struct </span>RateLimit {
-    <span class="doccomment">/// A set of data categories that this quota applies to. If missing or empty, this rate limit
-    /// applies to all data.
+    <span class="doccomment">/// A set of data categories that this quota applies to. If empty, this rate limit
+    /// applies to all data categories.
     </span><span class="kw">pub </span>categories: DataCategories,
 
     <span class="doccomment">/// The scope of this rate limit.
     </span><span class="kw">pub </span>scope: RateLimitScope,
 
-    <span class="doccomment">/// A machine readable reason indicating which quota caused it.
+    <span class="doccomment">/// A machine-readable reason indicating which quota caused this rate limit.
     </span><span class="kw">pub </span>reason_code: <span class="prelude-ty">Option</span>&lt;ReasonCode&gt;,
 
     <span class="doccomment">/// A marker when this rate limit expires.
@@ -1348,14 +1414,17 @@
 
     <span class="doccomment">/// The metric namespace of this rate limit.
     ///
-    /// Ignored on all data categories except for `MetricBucket`. If empty, this rate limit applies
-    /// to metrics of all namespaces.
+    /// Only relevant for data categories of type metric bucket. If empty,
+    /// this rate limit applies to metrics of all namespaces.
     </span><span class="kw">pub </span>namespaces: SmallVec&lt;[MetricNamespace; <span class="number">1</span>]&gt;,
 }
 
 <span class="kw">impl </span>RateLimit {
-    <span class="doccomment">/// Creates a new rate limit for the given `Quota`.
-    </span><span class="kw">pub fn </span>from_quota(quota: <span class="kw-2">&amp;</span>Quota, scoping: <span class="kw-2">&amp;</span>Scoping, retry_after: RetryAfter) -&gt; <span class="self">Self </span>{
+    <span class="doccomment">/// Creates a new rate limit from the given [`Quota`].
+    ///
+    /// This builds a rate limit with the appropriate scope derived from the quota and scoping
+    /// information. The categories and other properties are copied from the quota.
+    </span><span class="kw">pub fn </span>from_quota(quota: <span class="kw-2">&amp;</span>Quota, scoping: Scoping, retry_after: RetryAfter) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             categories: quota.categories.clone(),
             scope: RateLimitScope::for_quota(scoping, quota.scope),
@@ -1365,15 +1434,18 @@
         }
     }
 
-    <span class="doccomment">/// Checks whether the rate limit applies to the given item.
-    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
+    <span class="doccomment">/// Checks whether this rate limit applies to the given item.
+    ///
+    /// A rate limit applies if its scope matches the item's scope, and the item's
+    /// category and namespace match those of the rate limit.
+    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; bool {
         <span class="self">self</span>.matches_scope(scoping)
             &amp;&amp; scoping.matches_categories(<span class="kw-2">&amp;</span><span class="self">self</span>.categories)
             &amp;&amp; scoping.matches_namespaces(<span class="kw-2">&amp;</span><span class="self">self</span>.namespaces)
     }
 
     <span class="doccomment">/// Returns `true` if the rate limiting scope matches the given item.
-    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
+    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.scope {
             RateLimitScope::Global =&gt; <span class="bool-val">true</span>,
             RateLimitScope::Organization(org_id) =&gt; scoping.organization_id == org_id,
@@ -1385,9 +1457,11 @@
 
 <span class="doccomment">/// A collection of scoped rate limits.
 ///
-/// This collection may be empty, indicated by `is_ok`. If this instance carries rate limits, they
-/// can be iterated over using `iter`. Additionally, rate limits can be checked for items by
-/// invoking `check` with the respective `ItemScoping`.
+/// [`RateLimits`] manages a set of active rate limits that can be checked against
+/// incoming data.
+///
+/// The collection can be empty, indicated by [`is_ok`](Self::is_ok), meaning no rate limits
+/// are currently active.
 </span><span class="attr">#[derive(Clone, Debug, Default)]
 #[cfg_attr(test, derive(serde::Serialize))]
 </span><span class="kw">pub struct </span>RateLimits {
@@ -1395,7 +1469,7 @@
 }
 
 <span class="kw">impl </span>RateLimits {
-    <span class="doccomment">/// Creates an empty RateLimits instance.
+    <span class="doccomment">/// Creates an empty [`RateLimits`] instance.
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::default()
     }
@@ -1427,10 +1501,11 @@
         </span>}
     }
 
-    <span class="doccomment">/// Merges all limits into this instance.
+    <span class="doccomment">/// Merges all limits from another [`RateLimits`] instance into this one.
     ///
-    /// This keeps all existing rate limits, adding new ones, and updating ones with a longer
-    /// `retry_after` count. The resulting `RateLimits` contains the merged maximum.
+    /// This keeps all existing rate limits, adds new ones, and updates any existing ones
+    /// with a later expiration time. The resulting collection contains the maximum
+    /// constraints from both instances.
     </span><span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limits: <span class="self">Self</span>) {
         <span class="kw">for </span>limit <span class="kw">in </span>limits {
             <span class="self">self</span>.add(limit);
@@ -1438,17 +1513,24 @@
     }
 
     <span class="doccomment">/// Returns `true` if this instance contains no active limits.
+    ///
+    /// This is the opposite of [`is_limited`](Self::is_limited).
     </span><span class="kw">pub fn </span>is_ok(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         !<span class="self">self</span>.is_limited()
     }
 
-    <span class="doccomment">/// Returns `true` if this instance contains active rate limits.
+    <span class="doccomment">/// Returns `true` if this instance contains any active rate limits.
+    ///
+    /// A rate limit is considered active if it has not yet expired.
     </span><span class="kw">pub fn </span>is_limited(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">let </span>now = Instant::now();
         <span class="self">self</span>.iter().any(|limit| !limit.retry_after.expired_at(now))
     }
 
     <span class="doccomment">/// Removes expired rate limits from this instance.
+    ///
+    /// This is useful for cleaning up rate limits that are no longer relevant,
+    /// reducing memory usage and improving performance of subsequent operations.
     </span><span class="kw">pub fn </span>clean_expired(<span class="kw-2">&amp;mut </span><span class="self">self</span>, now: Instant) {
         <span class="self">self</span>.limits
             .retain(|limit| !limit.retry_after.expired_at(now));
@@ -1456,30 +1538,31 @@
 
     <span class="doccomment">/// Checks whether any rate limits apply to the given scoping.
     ///
-    /// If no limits match, then the returned `RateLimits` instance evaluates `is_ok`. Otherwise, it
-    /// contains rate limits that match the given scoping.
-    </span><span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
+    /// Returns a new [`RateLimits`] instance containing only the rate limits that match
+    /// the provided [`ItemScoping`]. If no limits match, the returned instance will be empty
+    /// and [`is_ok`](Self::is_ok) will return `true`.
+    </span><span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.check_with_quotas(<span class="kw-2">&amp;</span>[], scoping)
     }
 
-    <span class="doccomment">/// Checks whether any rate limits apply to the given scoping.
+    <span class="doccomment">/// Checks whether any rate limits or static quotas apply to the given scoping.
     ///
-    /// This is similar to `check`. Additionally, it checks for quotas with a static limit `0`, and
-    /// rejects items even if there is no active rate limit in this instance.
+    /// This is similar to [`check`](Self::check), but additionally checks for quotas with a static
+    /// limit of `0`, which reject items even if there is no active rate limit in this instance.
     ///
-    /// If no limits or quotas match, then the returned `RateLimits` instance evaluates `is_ok`.
-    /// Otherwise, it contains rate limits that match the given scoping.
+    /// Returns a new [`RateLimits`] instance containing the rate limits that match the provided
+    /// [`ItemScoping`]. If no limits or quotas match, the returned instance will be empty.
     </span><span class="kw">pub fn </span>check_with_quotas&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         quotas: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Quota&gt;,
-        scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;,
+        scoping: ItemScoping,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>applied_limits = <span class="self">Self</span>::new();
 
         <span class="kw">for </span>quota <span class="kw">in </span>quotas {
             <span class="kw">if </span>quota.limit == <span class="prelude-val">Some</span>(<span class="number">0</span>) &amp;&amp; quota.matches(scoping) {
                 <span class="kw">let </span>retry_after = RetryAfter::from_secs(REJECT_ALL_SECS);
-                applied_limits.add(RateLimit::from_quota(quota, <span class="kw-2">&amp;</span>scoping, retry_after));
+                applied_limits.add(RateLimit::from_quota(quota, <span class="kw-2">*</span>scoping, retry_after));
             }
         }
 
@@ -1492,32 +1575,34 @@
         applied_limits
     }
 
-    <span class="doccomment">/// Returns an iterator over the rate limits.
+    <span class="doccomment">/// Returns an iterator over all rate limits in this collection.
     </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RateLimitsIter&lt;<span class="lifetime">'_</span>&gt; {
         RateLimitsIter {
             iter: <span class="self">self</span>.limits.iter(),
         }
     }
 
-    <span class="doccomment">/// Returns the longest rate limit.
+    <span class="doccomment">/// Returns the rate limit with the latest expiration time.
     ///
-    /// If multiple rate limits have the same retry after count, any of the limits is returned.
+    /// If multiple rate limits have the same expiration time, any of them may be returned.
+    /// If the collection is empty, returns `None`.
     </span><span class="kw">pub fn </span>longest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RateLimit&gt; {
         <span class="self">self</span>.iter().max_by_key(|limit| limit.retry_after)
     }
 
-    <span class="doccomment">/// Returns `true` if there are any limits contained.
+    <span class="doccomment">/// Returns `true` if there are no rate limits in this collection.
     ///
-    /// This is equivalent to checking whether [`Self::longest`] returns `Some`
-    /// or [`Self::iter`] returns an iterator with at least one item.
+    /// Note that an empty collection is not the same as having no active limits.
+    /// Use [`is_ok`](Self::is_ok) to check if there are no active limits.
     </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.limits.is_empty()
     }
 }
 
-<span class="doccomment">/// Immutable rate limits iterator.
+<span class="doccomment">/// An iterator over rate limit references.
 ///
-/// This struct is created by the `iter` method on `RateLimits`.
+/// This struct is created by the [`iter`](RateLimits::iter) method on [`RateLimits`].
+/// It yields shared references to the rate limits in the collection.
 </span><span class="kw">pub struct </span>RateLimitsIter&lt;<span class="lifetime">'a</span>&gt; {
     iter: std::slice::Iter&lt;<span class="lifetime">'a</span>, RateLimit&gt;,
 }
@@ -1541,10 +1626,10 @@
     }
 }
 
-<span class="doccomment">/// An iterator that moves out of `RateLimtis`.
+<span class="doccomment">/// An iterator that consumes a [`RateLimits`] collection.
 ///
-/// This struct is created by the `into_iter` method on `RateLimits`, provided by the `IntoIterator`
-/// trait.
+/// This struct is created by the `into_iter` method on [`RateLimits`], provided by the
+/// [`IntoIterator`] trait. It yields owned rate limits by value.
 </span><span class="kw">pub struct </span>RateLimitsIntoIter {
     iter: std::vec::IntoIter&lt;RateLimit&gt;,
 }
@@ -1566,31 +1651,35 @@
     }
 }
 
-<span class="doccomment">/// Like [`RateLimits`], a collection of scoped rate limits but with all the checks
-/// necessary to cache the limits.
+<span class="doccomment">/// A thread-safe cache of rate limits with automatic expiration handling.
 ///
-/// The data structure makes sure no expired rate limits are enforced.
+/// [`CachedRateLimits`] wraps a [`RateLimits`] collection with a mutex to allow safe
+/// concurrent access from multiple threads. It automatically removes expired rate limits
+/// when retrieving the current limits.
+///
+/// This is useful for maintaining a shared set of rate limits across multiple
+/// processing threads or tasks.
 </span><span class="attr">#[derive(Debug, Default)]
 </span><span class="kw">pub struct </span>CachedRateLimits(Mutex&lt;Arc&lt;RateLimits&gt;&gt;);
 
 <span class="kw">impl </span>CachedRateLimits {
-    <span class="doccomment">/// Creates a new, empty instance without any rate limits enforced.
+    <span class="doccomment">/// Creates a new, empty instance without any rate limits.
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::default()
     }
 
-    <span class="doccomment">/// Adds a limit to this collection.
+    <span class="doccomment">/// Adds a rate limit to this collection.
     ///
-    /// See also: [`RateLimits::add`].
+    /// This is a thread-safe wrapper around [`RateLimits::add`].
     </span><span class="kw">pub fn </span>add(<span class="kw-2">&amp;</span><span class="self">self</span>, limit: RateLimit) {
         <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.<span class="number">0</span>.lock().unwrap_or_else(PoisonError::into_inner);
         <span class="kw">let </span>current = Arc::make_mut(<span class="kw-2">&amp;mut </span>inner);
         current.add(limit);
     }
 
-    <span class="doccomment">/// Merges more rate limits into this instance.
+    <span class="doccomment">/// Merges rate limits from another collection into this one.
     ///
-    /// See also: [`RateLimits::merge`].
+    /// This is a thread-safe wrapper around [`RateLimits::merge`].
     </span><span class="kw">pub fn </span>merge(<span class="kw-2">&amp;</span><span class="self">self</span>, limits: RateLimits) {
         <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.<span class="number">0</span>.lock().unwrap_or_else(PoisonError::into_inner);
         <span class="kw">let </span>current = Arc::make_mut(<span class="kw-2">&amp;mut </span>inner);
@@ -1599,9 +1688,10 @@
         }
     }
 
-    <span class="doccomment">/// Returns a reference to the contained rate limits.
+    <span class="doccomment">/// Returns a reference to the current rate limits.
     ///
-    /// This call guarantees that at the time of call no returned rate limit is expired.
+    /// This method automatically removes any expired rate limits before returning,
+    /// ensuring that only active limits are included in the result.
     </span><span class="kw">pub fn </span>current_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;RateLimits&gt; {
         <span class="kw">let </span>now = Instant::now();
         <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.<span class="number">0</span>.lock().unwrap_or_else(PoisonError::into_inner);
@@ -1675,7 +1765,7 @@
 
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1686,7 +1776,7 @@
 
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::Transaction,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1708,7 +1798,7 @@
 
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1719,7 +1809,7 @@
 
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">0</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1741,7 +1831,7 @@
 
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1752,7 +1842,7 @@
 
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">0</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1781,13 +1871,13 @@
 
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: <span class="kw-2">&amp;</span>scoping,
+            scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Custom),
         }));
 
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: <span class="kw-2">&amp;</span>scoping,
+            scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
         }));
 
@@ -1801,13 +1891,13 @@
 
         <span class="macro">assert!</span>(general_rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: <span class="kw-2">&amp;</span>scoping,
+            scoping,
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Spans),
         }));
 
         <span class="macro">assert!</span>(general_rate_limit.matches(ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: <span class="kw-2">&amp;</span>scoping,
+            scoping,
             namespace: MetricNamespaceScoping::None,
         }));
     }
@@ -1826,7 +1916,7 @@
 
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1837,7 +1927,7 @@
 
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">0</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"deadbeefdeadbeefdeadbeefdeadbeef"</span>).unwrap(),
@@ -2146,7 +2236,7 @@
 
         <span class="kw">let </span>applied_limits = rate_limits.check(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -2197,7 +2287,7 @@
 
         <span class="kw">let </span>item_scoping = ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),

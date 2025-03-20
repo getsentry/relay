@@ -1630,7 +1630,7 @@
         </span><span class="kw">if </span>!rate_limits.is_limited() {
             rate_limits.add(RateLimit {
                 categories: DataCategories::new(),
-                scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
+                scope: RateLimitScope::for_quota(<span class="kw-2">*</span>scoping, QuotaScope::Key),
                 reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"generic"</span>)),
                 retry_after: <span class="self">self</span>.retry_after,
                 namespaces: Default::default(),

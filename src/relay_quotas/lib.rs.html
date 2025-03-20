@@ -24,7 +24,9 @@
 <a href="#23" id="23">23</a>
 <a href="#24" id="24">24</a>
 <a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a></pre></div><pre class="rust"><code><span class="doccomment">//! Quotas and rate limiting for Relay.
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a></pre></div><pre class="rust"><code><span class="doccomment">//! Quotas and rate limiting for Relay.
 
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
@@ -45,6 +47,8 @@
 
 <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
 </span><span class="kw">mod </span>global;
+<span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
+</span><span class="kw">pub use </span><span class="self">self</span>::global::{GlobalLimiter, GlobalRateLimiter};
 
 <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
 </span><span class="kw">mod </span>redis;

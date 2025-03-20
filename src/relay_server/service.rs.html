@@ -521,7 +521,16 @@
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
 <a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -532,6 +541,8 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::cogs::{CogsService, CogsServiceRecorder};
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::services::global_rate_limits::GlobalRateLimitsService;
 <span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::RouterService;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
@@ -770,6 +781,11 @@
         <span class="kw">let </span>cogs = CogsService::new(<span class="kw-2">&amp;</span>config);
         <span class="kw">let </span>cogs = Cogs::new(CogsServiceRecorder::new(<span class="kw-2">&amp;</span>config, services.start(cogs)));
 
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span><span class="kw">let </span>global_rate_limits = redis_pools
+            .as_ref()
+            .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
+
         <span class="kw">let </span>processor_pool = create_processor_pool(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
         services.start_with(
             EnvelopeProcessorService::new(
@@ -787,6 +803,8 @@
                     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
                     </span>store_forwarder: store.clone(),
                     aggregator: aggregator.clone(),
+                    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+                    </span>global_rate_limits,
                 },
                 metric_outcomes.clone(),
             ),

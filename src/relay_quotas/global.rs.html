@@ -536,39 +536,87 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::{Mutex, PoisonError};
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::future::Future;
 
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
 <span class="kw">use </span>relay_redis::{PooledClient, RedisError, RedisScripts};
 
-<span class="kw">use </span><span class="kw">crate</span>::RedisQuota;
+<span class="kw">use </span><span class="kw">crate</span>::redis::RedisQuota;
+<span class="kw">use </span><span class="kw">crate</span>::RateLimitingError;
 
 <span class="doccomment">/// Default percentage of the quota limit to reserve from Redis as a local cache.
 </span><span class="kw">const </span>DEFAULT_BUDGET_RATIO: f32 = <span class="number">0.001</span>;
 
-<span class="doccomment">/// A rate limiter for global rate limits.
-</span><span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>GlobalRateLimits {
-    limits: Mutex&lt;hashbrown::HashMap&lt;Key, GlobalRateLimit&gt;&gt;,
+<span class="doccomment">/// A trait that exposes methods to check global rate limits.
+</span><span class="kw">pub trait </span>GlobalLimiter {
+    <span class="doccomment">/// Returns the [`RedisQuota`]s that should be rate limited.
+    </span><span class="kw">fn </span>check_global_rate_limits&lt;<span class="lifetime">'a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        global_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[RedisQuota&lt;<span class="lifetime">'a</span>&gt;],
+        quantity: usize,
+    ) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisQuota&lt;<span class="lifetime">'a</span>&gt;&gt;, RateLimitingError&gt;&gt; + Send;
 }
 
-<span class="kw">impl </span>GlobalRateLimits {
-    <span class="doccomment">/// Returns a vector of the [`RedisQuota`]'s that should be ratelimited.
+<span class="doccomment">/// A rate limiter for global rate limits.
+///
+/// This struct maintains local caches of rate limits to reduce the number of
+/// Redis operations required.
+</span><span class="attr">#[derive(Debug, Default)]
+</span><span class="kw">pub struct </span>GlobalRateLimiter {
+    limits: hashbrown::HashMap&lt;Key, GlobalRateLimit&gt;,
+}
+
+<span class="kw">impl </span>GlobalRateLimiter {
+    <span class="doccomment">/// Returns the [`RedisQuota`]s that should be rate limited.
     ///
-    /// We don't know if an item should be ratelimited or not until we've checked all the quotas.
-    /// Therefore we only start decrementing the budgets of the various quotas when we know
-    /// that None of the quotas hit the ratelimit.
+    /// This method checks all quotas against their limits and returns those that
+    /// exceed their limits. The rate limits are checked globally using Redis.
+    ///
+    /// Budgets are only decremented when none of the quotas hit their rate limits,
+    /// which ensures consistent behavior across all quotas.
     </span><span class="kw">pub fn </span>filter_rate_limited&lt;<span class="lifetime">'a</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         client: <span class="kw-2">&amp;mut </span>PooledClient,
         quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[RedisQuota&lt;<span class="lifetime">'a</span>&gt;],
         quantity: usize,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span>RedisQuota&lt;<span class="lifetime">'a</span>&gt;&gt;, RedisError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>guard = <span class="self">self</span>.limits.lock().unwrap_or_else(PoisonError::into_inner);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>ratelimited = <span class="macro">vec!</span>[];
-        <span class="kw">let </span><span class="kw-2">mut </span>not_ratelimited = <span class="macro">vec!</span>[];
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisQuota&lt;<span class="lifetime">'a</span>&gt;&gt;, RateLimitingError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>rate_limited = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>not_rate_limited = <span class="macro">vec!</span>[];
 
         <span class="kw">let </span>min_by_keyref = quotas
             .iter()
@@ -576,65 +624,31 @@
             .min_by_key(|<span class="kw">_</span>, q| q.limit());
 
         <span class="kw">for </span>(key, quota) <span class="kw">in </span>min_by_keyref {
-            <span class="kw">let </span>val = guard.entry_ref(<span class="kw-2">&amp;</span>key).or_default();
+            <span class="kw">let </span>global_rate_limit = <span class="self">self</span>.limits.entry_ref(<span class="kw-2">&amp;</span>key).or_default();
 
-            <span class="kw">if </span>val.is_rate_limited(client, quota, key, quantity <span class="kw">as </span>u64)<span class="question-mark">? </span>{
-                ratelimited.push(quota);
+            <span class="kw">if </span>global_rate_limit.check_rate_limited(client, quota, key, quantity <span class="kw">as </span>u64)<span class="question-mark">? </span>{
+                rate_limited.push(quota);
             } <span class="kw">else </span>{
-                not_ratelimited.push(quota);
+                not_rate_limited.push(quota);
             }
         }
 
-        <span class="kw">if </span>ratelimited.is_empty() {
-            <span class="kw">for </span>quota <span class="kw">in </span>not_ratelimited {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = guard.get_mut(<span class="kw-2">&amp;</span>KeyRef::new(quota)) {
+        <span class="kw">if </span>rate_limited.is_empty() {
+            <span class="kw">for </span>quota <span class="kw">in </span>not_rate_limited {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = <span class="self">self</span>.limits.get_mut(<span class="kw-2">&amp;</span>KeyRef::new(quota)) {
                     val.budget -= quantity <span class="kw">as </span>u64;
                 }
             }
         }
 
-        <span class="prelude-val">Ok</span>(ratelimited)
+        <span class="prelude-val">Ok</span>(rate_limited)
     }
 }
 
-<span class="doccomment">/// Key for storing global quota-budgets locally.
+<span class="doccomment">/// Reference to a rate limit key without requiring string allocation.
 ///
-/// Note: must not be used in redis. For that, use RedisQuota.key().
-</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-</span><span class="kw">struct </span>Key {
-    prefix: String,
-    window: u64,
-    namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
-}
-
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>Key {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
-        Key {
-            prefix: value.prefix.to_owned(),
-            window: value.window,
-            namespace: value.namespace,
-        }
-    }
-}
-
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>RedisKey(String);
-
-<span class="kw">impl </span>RedisKey {
-    <span class="kw">fn </span>new(key: <span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;, slot: u64) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(<span class="macro">format!</span>(
-            <span class="string">"global_quota:{id}{window}{namespace:?}:{slot}"</span>,
-            id = key.prefix,
-            window = key.window,
-            namespace = key.namespace,
-            slot = slot,
-        ))
-    }
-}
-
-<span class="doccomment">/// Used to look up a hashmap of [`keys`](Key) without a string allocation.
-///
-/// This works due to the [`hashbrown::Equivalent`] trait.
+/// This struct is used to look up rate limits in a hashmap efficiently by
+/// implementing the [`hashbrown::Equivalent`] trait.
 </span><span class="attr">#[derive(Clone, Copy, Hash, Debug, Eq, PartialEq, Ord, PartialOrd)]
 </span><span class="kw">struct </span>KeyRef&lt;<span class="lifetime">'a</span>&gt; {
     prefix: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
@@ -668,14 +682,53 @@
     }
 }
 
+<span class="doccomment">/// Key for storing global quota-budgets locally.
+///
+/// This is used to identify unique rate limits in the local cache.
+/// Note that this is distinct from the keys used in Redis.
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+</span><span class="kw">struct </span>Key {
+    prefix: String,
+    window: u64,
+    namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
+}
+
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>Key {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
+        Key {
+            prefix: value.prefix.to_owned(),
+            window: value.window,
+            namespace: value.namespace,
+        }
+    }
+}
+
+<span class="doccomment">/// Redis key representation for global rate limits.
+///
+/// This struct formats rate limit keys for use in Redis operations.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>RedisKey(String);
+
+<span class="kw">impl </span>RedisKey {
+    <span class="kw">fn </span>new(key: <span class="kw-2">&amp;</span>KeyRef&lt;<span class="lifetime">'_</span>&gt;, slot: u64) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(<span class="macro">format!</span>(
+            <span class="string">"global_quota:{id}{window}{namespace:?}:{slot}"</span>,
+            id = key.prefix,
+            window = key.window,
+            namespace = key.namespace,
+            slot = slot,
+        ))
+    }
+}
+
 <span class="doccomment">/// A single global rate limit.
 ///
-/// When we want to ratelimit across all relay-instances, we need to use Redis to synchronize.
-/// Calling Redis every time we want to check if an item should be ratelimited would be very expensive,
-/// which is why we have this cache. It works by 'taking' a certain budget from Redis, by pre-incrementing
-/// a global counter. We put the amount we pre-incremented into this local cache and count down until
-/// we have no more budget, then we ask for more from Redis. If we find the global counter is above
-/// the quota limit, we will ratelimit the item.
+/// This struct implements a local cache of a global rate limit. It reserves a budget
+/// from Redis that can be consumed locally, reducing the number of Redis operations
+/// required. When the local budget is exhausted, a new budget is requested from Redis.
+///
+/// This approach significantly reduces the overhead of checking rate limits while
+/// still maintaining global synchronization across multiple instances.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>GlobalRateLimit {
     budget: u64,
@@ -684,7 +737,8 @@
 }
 
 <span class="kw">impl </span>GlobalRateLimit {
-    <span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
+    <span class="doccomment">/// Creates a new [`GlobalRateLimit`] with empty budget.
+    </span><span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             budget: <span class="number">0</span>,
             last_seen_redis_value: <span class="number">0</span>,
@@ -692,14 +746,18 @@
         }
     }
 
-    <span class="doccomment">/// Returns `true` if quota should be ratelimited.
-    </span><span class="kw">pub fn </span>is_rate_limited(
+    <span class="doccomment">/// Checks if the quota should be rate limited.
+    ///
+    /// Returns `true` if the quota has exceeded its limit and should be rate limited.
+    /// This method handles time slot transitions and requests additional budget from
+    /// Redis when necessary.
+    </span><span class="kw">pub fn </span>check_rate_limited(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         client: <span class="kw-2">&amp;mut </span>PooledClient,
         quota: <span class="kw-2">&amp;</span>RedisQuota,
         key: KeyRef&lt;<span class="lifetime">'_</span>&gt;,
         quantity: u64,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, RedisError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, RateLimitingError&gt; {
         <span class="kw">let </span>quota_slot = quota.slot();
 
         <span class="comment">// There is 2 cases we are handling here:
@@ -721,13 +779,19 @@
         }
 
         <span class="kw">let </span>redis_key = key.redis_key(quota_slot);
-        <span class="kw">let </span>reserved = <span class="self">self</span>.try_reserve(client, quantity, quota, redis_key)<span class="question-mark">?</span>;
+        <span class="kw">let </span>reserved = <span class="self">self
+            </span>.try_reserve(client, quantity, quota, redis_key)
+            .map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
         <span class="self">self</span>.budget += reserved;
 
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.budget &lt; quantity)
     }
 
-    <span class="kw">fn </span>try_reserve(
+    <span class="doccomment">/// Attempts to reserve budget from Redis for this rate limit.
+    ///
+    /// This method calculates how much budget to request based on the current needs
+    /// and quota limits, then communicates with Redis to reserve this budget.
+    </span><span class="kw">fn </span>try_reserve(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         client: <span class="kw-2">&amp;mut </span>PooledClient,
         quantity: u64,
@@ -760,7 +824,12 @@
         <span class="prelude-val">Ok</span>(budget)
     }
 
-    <span class="kw">fn </span>default_request_size(<span class="kw-2">&amp;</span><span class="self">self</span>, quantity: u64, quota: <span class="kw-2">&amp;</span>RedisQuota) -&gt; u64 {
+    <span class="doccomment">/// Calculates the default amount of budget to request from Redis.
+    ///
+    /// This method determines an appropriate budget size based on the quota limit
+    /// and the configured budget ratio, balancing Redis communication overhead
+    /// against local memory usage.
+    </span><span class="kw">fn </span>default_request_size(<span class="kw-2">&amp;</span><span class="self">self</span>, quantity: u64, quota: <span class="kw-2">&amp;</span>RedisQuota) -&gt; u64 {
         <span class="kw">match </span>quota.limit {
             <span class="prelude-val">Some</span>(limit) =&gt; (limit <span class="kw">as </span>f32 * DEFAULT_BUDGET_RATIO) <span class="kw">as </span>u64,
             <span class="comment">// On average `DEFAULT_BUDGET_RATIO` percent calls go to Redis for an infinite budget.
@@ -780,14 +849,13 @@
     <span class="kw">use </span>std::collections::BTreeSet;
     <span class="kw">use </span>std::time::Duration;
 
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use </span>relay_base_schema::data_category::DataCategory;
     <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
     <span class="kw">use </span>relay_redis::{RedisConfigOptions, RedisPool};
 
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use crate</span>::{DataCategories, Quota, QuotaScope, Scoping};
 
     <span class="kw">fn </span>build_redis_pool() -&gt; RedisPool {
@@ -825,7 +893,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_multiple_ratelimits() {
+    </span><span class="kw">fn </span>test_multiple_rate_limits() {
         <span class="kw">let </span>scoping = build_scoping();
 
         <span class="kw">let </span>quota1 = build_quota(<span class="number">10</span>, <span class="number">100</span>);
@@ -841,13 +909,13 @@
 
         <span class="kw">let </span>pool = build_redis_pool();
         <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
-        <span class="kw">let </span>counter = GlobalRateLimits::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>counter = GlobalRateLimiter::default();
 
         <span class="kw">let </span>rate_limited_quotas = counter
             .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quotas, quantity)
             .unwrap();
 
-        <span class="comment">// Only the quotas that are less than the quantity gets ratelimited.
+        <span class="comment">// Only the quotas that are less than the quantity gets rate_limited.
         </span><span class="macro">assert_eq!</span>(
             BTreeSet::from([<span class="number">100</span>, <span class="number">150</span>]),
             rate_limited_quotas
@@ -879,7 +947,7 @@
 
         <span class="kw">let </span>pool = build_redis_pool();
         <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
-        <span class="kw">let </span>counter = GlobalRateLimits::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>counter = GlobalRateLimiter::default();
 
         <span class="kw">let </span>rate_limited_quotas = counter
             .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quotas, (bigger_limit * <span class="number">2</span>) <span class="kw">as </span>usize)
@@ -894,7 +962,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_global_ratelimit() {
+    </span><span class="kw">fn </span>test_global_rate_limit() {
         <span class="kw">let </span>limit = <span class="number">200</span>;
 
         <span class="kw">let </span>quota = build_quota(<span class="number">10</span>, limit);
@@ -903,23 +971,23 @@
 
         <span class="kw">let </span>pool = build_redis_pool();
         <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
-        <span class="kw">let </span>counter = GlobalRateLimits::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>counter = GlobalRateLimiter::default();
 
-        <span class="kw">let </span>expected_ratelimit_result = [<span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>].to_vec();
+        <span class="kw">let </span>expected_rate_limit_result = [<span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>].to_vec();
 
         <span class="comment">// The limit is 200, while we take 90 at a time. So the first two times we call, we'll
         // still be under the limit. 90 &lt; 200 -&gt; 180 &lt; 200 -&gt; 270 &gt; 200 -&gt; 360 &gt; 200.
-        </span><span class="kw">for </span>should_ratelimit <span class="kw">in </span>expected_ratelimit_result {
-            <span class="kw">let </span>is_ratelimited = counter
+        </span><span class="kw">for </span>should_rate_limit <span class="kw">in </span>expected_rate_limit_result {
+            <span class="kw">let </span>is_rate_limited = counter
                 .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, <span class="number">90</span>)
                 .unwrap();
 
-            <span class="macro">assert_eq!</span>(should_ratelimit, !is_ratelimited.is_empty());
+            <span class="macro">assert_eq!</span>(should_rate_limit, !is_rate_limited.is_empty());
         }
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_global_ratelimit_over_under() {
+    </span><span class="kw">fn </span>test_global_rate_limit_over_under() {
         <span class="kw">let </span>limit = <span class="number">10</span>;
 
         <span class="kw">let </span>quota = build_quota(<span class="number">10</span>, limit);
@@ -927,7 +995,7 @@
 
         <span class="kw">let </span>pool = build_redis_pool();
         <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
-        <span class="kw">let </span>rl = GlobalRateLimits::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>rl = GlobalRateLimiter::default();
 
         <span class="kw">let </span>redis_quota = [build_redis_quota(<span class="kw-2">&amp;</span>quota, <span class="kw-2">&amp;</span>scoping)];
         <span class="macro">assert!</span>(!rl
@@ -942,7 +1010,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_multiple_global_ratelimit() {
+    </span><span class="kw">fn </span>test_multiple_global_rate_limit() {
         <span class="kw">let </span>limit = <span class="number">91_337</span>;
 
         <span class="kw">let </span>quota = build_quota(<span class="number">10</span>, limit <span class="kw">as </span>u64);
@@ -952,8 +1020,8 @@
         <span class="kw">let </span>pool = build_redis_pool();
         <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
 
-        <span class="kw">let </span>counter1 = GlobalRateLimits::default();
-        <span class="kw">let </span>counter2 = GlobalRateLimits::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>counter1 = GlobalRateLimiter::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>counter2 = GlobalRateLimiter::default();
 
         <span class="kw">let </span><span class="kw-2">mut </span>total = <span class="number">0</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>total_counter_1 = <span class="number">0</span>;
@@ -994,7 +1062,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_global_ratelimit_slots() {
+    </span><span class="kw">fn </span>test_global_rate_limit_slots() {
         <span class="kw">let </span>limit = <span class="number">200</span>;
         <span class="kw">let </span>window = <span class="number">10</span>;
 
@@ -1006,7 +1074,7 @@
         <span class="kw">let </span>pool = build_redis_pool();
         <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
 
-        <span class="kw">let </span>rl = GlobalRateLimits::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>rl = GlobalRateLimiter::default();
 
         <span class="kw">let </span>redis_quota = [RedisQuota::new(<span class="kw-2">&amp;</span>quota, item_scoping, ts).unwrap()];
         <span class="macro">assert!</span>(rl
@@ -1037,7 +1105,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_global_ratelimit_infinite() {
+    </span><span class="kw">fn </span>test_global_rate_limit_infinite() {
         <span class="kw">let </span>limit = <span class="prelude-val">None</span>;
 
         <span class="kw">let </span>timestamp = UnixTimestamp::now();
@@ -1049,7 +1117,7 @@
         <span class="kw">let </span>pool = build_redis_pool();
         <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
 
-        <span class="kw">let </span>rl = GlobalRateLimits::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>rl = GlobalRateLimiter::default();
 
         <span class="kw">let </span>quantity = <span class="number">2</span>;
         <span class="kw">let </span>redis_threshold = (quantity <span class="kw">as </span>f32 / DEFAULT_BUDGET_RATIO) <span class="kw">as </span>u64;
@@ -1063,7 +1131,7 @@
 
         <span class="comment">// Grab a new rate limiter and make sure even with the infinite limit,
         // the quantity was still synchronized via Redis.
-        </span><span class="kw">let </span>rl = GlobalRateLimits::default();
+        </span><span class="kw">let </span><span class="kw-2">mut </span>rl = GlobalRateLimiter::default();
 
         quota.limit = <span class="prelude-val">Some</span>(redis_threshold);
         <span class="kw">let </span>redis_quota = RedisQuota::new(<span class="kw-2">&amp;</span>quota, item_scoping, timestamp).unwrap();

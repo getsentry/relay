@@ -1388,7 +1388,7 @@
 <span class="kw">impl</span>&lt;T&gt; Sender&lt;T&gt; {
     <span class="doccomment">/// Sends the response value and closes the [`Request`].
     ///
-    /// This silenly drops the value if the request has been dropped.
+    /// This silently drops the value if the request has been dropped.
     </span><span class="kw">pub fn </span>send(<span class="self">self</span>, value: T) {
         <span class="self">self</span>.<span class="number">0</span>.send(value).ok();
     }

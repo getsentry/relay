@@ -949,7 +949,50 @@
 <a href="#948" id="948">948</a>
 <a href="#949" id="949">949</a>
 <a href="#950" id="950">950</a>
-<a href="#951" id="951">951</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
@@ -961,9 +1004,11 @@
 <span class="attr">#[doc(inline)]
 </span><span class="kw">pub use </span>relay_base_schema::data_category::DataCategory;
 
-<span class="doccomment">/// Data scoping information.
+<span class="doccomment">/// Data scoping information for rate limiting and quota enforcement.
 ///
-/// This structure holds information of all scopes required for attributing an item to quotas.
+/// [`Scoping`] holds all the identifiers needed to attribute data to specific
+/// organizations, projects, and keys. This allows the rate limiting and quota
+/// systems to enforce limits at the appropriate scope levels.
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 </span><span class="kw">pub struct </span>Scoping {
     <span class="doccomment">/// The organization id.
@@ -980,56 +1025,61 @@
 }
 
 <span class="kw">impl </span>Scoping {
-    <span class="doccomment">/// Returns an `ItemScoping` for this scope.
+    <span class="doccomment">/// Creates an [`ItemScoping`] for a specific data category in this scope.
     ///
-    /// The item scoping will contain a reference to this scope and the information passed to this
-    /// function. This is a cheap operation to allow rate limiting for an individual item.
-    </span><span class="kw">pub fn </span>item(<span class="kw-2">&amp;</span><span class="self">self</span>, category: DataCategory) -&gt; ItemScoping&lt;<span class="lifetime">'_</span>&gt; {
+    /// The returned item scoping contains a reference to this scope and the provided
+    /// data category. This is a cheap operation that allows for efficient rate limiting
+    /// of individual items.
+    </span><span class="kw">pub fn </span>item(<span class="kw-2">&amp;</span><span class="self">self</span>, category: DataCategory) -&gt; ItemScoping {
         ItemScoping {
             category,
-            scoping: <span class="self">self</span>,
+            scoping: <span class="kw-2">*</span><span class="self">self</span>,
             namespace: MetricNamespaceScoping::None,
         }
     }
 
-    <span class="doccomment">/// Returns an `ItemScoping` for metric buckets in this scope.
+    <span class="doccomment">/// Creates an [`ItemScoping`] specifically for metric buckets in this scope.
     ///
-    /// The item scoping will contain a reference to this scope, the category
-    /// [`MetricBucket](DataCategory::MetricBucket), and the information passed to this function.
-    /// This is a cheap operation to allow rate limiting for an individual item.
-    </span><span class="kw">pub fn </span>metric_bucket(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; ItemScoping&lt;<span class="lifetime">'_</span>&gt; {
+    /// The returned item scoping contains a reference to this scope, the
+    /// [`DataCategory::MetricBucket`] category, and the provided metric namespace.
+    /// This is specialized for handling metrics with namespaces.
+    </span><span class="kw">pub fn </span>metric_bucket(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; ItemScoping {
         ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: <span class="self">self</span>,
+            scoping: <span class="kw-2">*</span><span class="self">self</span>,
             namespace: MetricNamespaceScoping::Some(namespace),
         }
     }
 }
 
-<span class="doccomment">/// Item scoping of metric namespaces.
+<span class="doccomment">/// Describes the metric namespace scoping of an item.
 ///
-/// This enum is used in [`ItemScoping`] to declare the contents of an item's metric namespace.
-</span><span class="attr">#[derive(Clone, Copy, Debug, Default, PartialEq, Hash, PartialOrd)]
+/// This enum is used within [`ItemScoping`] to represent the metric namespace of an item.
+/// It handles the different cases: no namespace, a specific namespace, or any namespace.
+</span><span class="attr">#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd)]
 </span><span class="kw">pub enum </span>MetricNamespaceScoping {
-    <span class="doccomment">/// This item does not contain metrics of any namespace. This should only be used for non-metric
-    /// items.
+    <span class="doccomment">/// The item does not contain metrics of any namespace.
+    ///
+    /// This should only be used for non-metric items.
     </span><span class="attr">#[default]
     </span><span class="prelude-val">None</span>,
 
-    <span class="doccomment">/// This item contains metrics of a specific namespace.
+    <span class="doccomment">/// The item contains metrics of a specific namespace.
     </span><span class="prelude-val">Some</span>(MetricNamespace),
 
-    <span class="doccomment">/// This item contains metrics of any namespace.
+    <span class="doccomment">/// The item contains metrics of any namespace.
     ///
-    /// The namespace of metrics contained in this item is not known. This can be used to check rate
-    /// limits or quotas of any namespace.
+    /// The specific namespace is not known or relevant. This can be used to check rate
+    /// limits or quotas that should apply to any namespace.
     </span>Any,
 }
 
 <span class="kw">impl </span>MetricNamespaceScoping {
-    <span class="doccomment">/// Returns `true` if the given namespace matches the namespace of the item.
+    <span class="doccomment">/// Checks if the given namespace matches this namespace scoping.
     ///
-    /// If the self is `Any`, this method returns `true` for any namespace.
+    /// Returns `true` in the following cases:
+    /// - If `self` is [`MetricNamespaceScoping::Some`] with the same namespace
+    /// - If `self` is [`MetricNamespaceScoping::Any`], matching any namespace
     </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; bool {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::None =&gt; <span class="bool-val">false</span>,
@@ -1045,39 +1095,35 @@
     }
 }
 
-<span class="doccomment">/// Data categorization and scoping information.
+<span class="doccomment">/// Data categorization and scoping information for a single item.
 ///
-/// `ItemScoping` is always attached to a `Scope` and references it internally. It is a cheap,
-/// copyable type intended for the use with `RateLimits` and `RateLimiter`. It implements
-/// `Deref&lt;Target = Scoping&gt;` and `AsRef&lt;Scoping&gt;` for ease of use.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>ItemScoping&lt;<span class="lifetime">'a</span>&gt; {
+/// [`ItemScoping`] combines a data category, scoping information, and optional
+/// metric namespace to fully define an item for rate limiting purposes.
+</span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+</span><span class="kw">pub struct </span>ItemScoping {
     <span class="doccomment">/// The data category of the item.
     </span><span class="kw">pub </span>category: DataCategory,
 
     <span class="doccomment">/// Scoping of the data.
-    </span><span class="kw">pub </span>scoping: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Scoping,
+    </span><span class="kw">pub </span>scoping: Scoping,
 
     <span class="doccomment">/// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     </span><span class="kw">pub </span>namespace: MetricNamespaceScoping,
 }
 
-<span class="kw">impl </span>AsRef&lt;Scoping&gt; <span class="kw">for </span>ItemScoping&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Scoping {
-        <span class="self">self</span>.scoping
-    }
-}
-
-<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>ItemScoping&lt;<span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>ItemScoping {
     <span class="kw">type </span>Target = Scoping;
 
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
-        <span class="self">self</span>.scoping
+        <span class="kw-2">&amp;</span><span class="self">self</span>.scoping
     }
 }
 
-<span class="kw">impl </span>ItemScoping&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="doccomment">/// Returns the identifier of the given scope.
+<span class="kw">impl </span>ItemScoping {
+    <span class="doccomment">/// Returns the identifier for the given quota scope.
+    ///
+    /// Maps the quota scope type to the corresponding identifier from this scoping,
+    /// or `None` if the scope type doesn't have an applicable identifier.
     </span><span class="kw">pub fn </span>scope_id(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: QuotaScope) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
         <span class="kw">match </span>scope {
             QuotaScope::Global =&gt; <span class="prelude-val">None</span>,
@@ -1120,13 +1166,16 @@
 }
 
 <span class="doccomment">/// The unit in which a data category is measured.
+///
+/// This enum specifies how quantities for different data categories are measured,
+/// which affects how quota limits are interpreted and enforced.
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 </span><span class="kw">pub enum </span>CategoryUnit {
-    <span class="doccomment">/// Counts the number of items.
+    <span class="doccomment">/// Counts the number of discrete items.
     </span>Count,
     <span class="doccomment">/// Counts the number of bytes across items.
     </span>Bytes,
-    <span class="doccomment">/// Counts the accumulated times across items.
+    <span class="doccomment">/// Counts the accumulated time in milliseconds across items.
     </span>Milliseconds,
 }
 
@@ -1168,40 +1217,48 @@
 
 <span class="doccomment">/// An efficient container for data categories that avoids allocations.
 ///
-/// `DataCategories` is to be treated like a set.
+/// [`DataCategories`] is a small-vector based collection of [`DataCategory`] values.
+/// It's optimized for the common case of having only a few categories, avoiding heap
+/// allocations in these scenarios.
 </span><span class="kw">pub type </span>DataCategories = SmallVec&lt;[DataCategory; <span class="number">8</span>]&gt;;
 
-<span class="doccomment">/// The scope that a quota applies to.
+<span class="doccomment">/// The scope at which a quota is applied.
 ///
-/// Except for the `Unknown` variant, this type directly translates to the variants of
-/// `RateLimitScope` which are used by rate limits.
+/// Defines the granularity at which quotas are enforced, from global (affecting all data)
+/// down to individual project keys. This enum only defines the type of scope,
+/// not the specific instance.
+///
+/// This type is directly related to [`crate::rate_limit::RateLimitScope`], which
+/// includes the specific scope identifiers.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>QuotaScope {
-    <span class="doccomment">/// Global scope, matches everything.
+    <span class="doccomment">/// Global scope, matching all data regardless of origin.
     </span>Global,
-    <span class="doccomment">/// The organization that this project belongs to.
+    <span class="doccomment">/// The organization level.
     ///
     /// This is the top-level scope.
     </span>Organization,
 
-    <span class="doccomment">/// The project.
+    <span class="doccomment">/// The project level.
     ///
-    /// This is a sub-scope of `Organization`.
+    /// Projects are contained within organizations.
     </span>Project,
 
-    <span class="doccomment">/// A project key, which corresponds to a DSN entry.
+    <span class="doccomment">/// The project key level (corresponds to a DSN).
     ///
-    /// This is a sub-scope of `Project`.
+    /// This is the most specific scope level and is contained within projects.
     </span>Key,
 
-    <span class="doccomment">/// Any other scope that is not known by this Relay.
+    <span class="doccomment">/// Any scope type not recognized by this Relay.
     </span><span class="attr">#[serde(other)]
     </span>Unknown,
 }
 
 <span class="kw">impl </span>QuotaScope {
-    <span class="doccomment">/// Returns the quota scope corresponding to the given name.
+    <span class="doccomment">/// Returns the quota scope corresponding to the given name string.
+    ///
+    /// If the string doesn't match any known scope, returns [`QuotaScope::Unknown`].
     </span><span class="kw">pub fn </span>from_name(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>string {
             <span class="string">"global" </span>=&gt; <span class="self">Self</span>::Global,
@@ -1212,7 +1269,9 @@
         }
     }
 
-    <span class="doccomment">/// Returns the canonical name of this scope.
+    <span class="doccomment">/// Returns the canonical string name of this scope.
+    ///
+    /// This is the lowercase string representation used in serialization.
     </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Global =&gt; <span class="string">"global"</span>,
@@ -1242,15 +1301,19 @@
     QuotaScope::Organization
 }
 
-<span class="doccomment">/// A machine readable, freeform reason code for rate limits.
+<span class="doccomment">/// A machine-readable reason code for rate limits.
+///
+/// Reason codes provide a standardized way to communicate why a particular
+/// item was rate limited.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Hash)]
 </span><span class="kw">pub struct </span>ReasonCode(String);
 
 <span class="kw">impl </span>ReasonCode {
     <span class="doccomment">/// Creates a new reason code from a string.
     ///
-    /// This method is only to be used by tests. Reason codes should only be deserialized from
-    /// quotas, but never constructed manually.
+    /// This method is primarily intended for testing. In production, reason codes
+    /// should typically be deserialized from quota configurations rather than
+    /// constructed manually.
     </span><span class="kw">pub fn </span>new&lt;S: Into&lt;String&gt;&gt;(code: S) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(code.into())
     }
@@ -1267,54 +1330,74 @@
     }
 }
 
-<span class="doccomment">/// Configuration for a data ingestion quota (rate limiting).
+<span class="doccomment">/// Configuration for a data ingestion quota.
 ///
-/// Sentry applies multiple quotas to incoming data before accepting it, some of which can be
-/// configured by the customer. Each piece of data (such as event, attachment) will be counted
-/// against all quotas that it matches with based on the `category`.
-</span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+/// A quota defines restrictions on data ingestion based on data categories, scopes,
+/// and time windows. The system applies multiple quotas to incoming data, and items
+/// are counted against all matching quotas based on their categories.
+///
+/// Quotas can either:
+/// - Reject all data (`limit` = 0)
+/// - Limit data to a specific quantity per time window (`limit` &gt; 0)
+/// - Count data without limiting it (`limit` = None)
+///
+/// Different quotas may apply at different scope levels (organization, project, key).
+</span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Quota {
-    <span class="doccomment">/// The unique identifier for counting this quota. Required, except for quotas with a `limit` of
-    /// `0`, since they are statically enforced.
+    <span class="doccomment">/// The unique identifier for counting this quota.
+    ///
+    /// Required for all quotas except those with `limit` = 0, which are statically enforced.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>id: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
-    <span class="doccomment">/// A set of data categories that this quota applies to. If missing or empty, this quota
-    /// applies to all data.
+    <span class="doccomment">/// Data categories this quota applies to.
+    ///
+    /// If missing or empty, this quota applies to all data categories.
     </span><span class="attr">#[serde(default = <span class="string">"DataCategories::new"</span>)]
     </span><span class="kw">pub </span>categories: DataCategories,
 
-    <span class="doccomment">/// A scope for this quota. This quota is enforced separately within each instance of this scope
-    /// (e.g. for each project key separately). Defaults to `QuotaScope::Organization`.
+    <span class="doccomment">/// The scope level at which this quota is enforced.
+    ///
+    /// The quota is enforced separately within each instance of this scope
+    /// (e.g., for each project key separately). Defaults to [`QuotaScope::Organization`].
     </span><span class="attr">#[serde(default = <span class="string">"default_scope"</span>)]
     </span><span class="kw">pub </span>scope: QuotaScope,
 
-    <span class="doccomment">/// Identifier of the scope to apply to. If set, then this quota will only apply to the
-    /// specified scope instance (e.g. a project key). Requires `scope` to be set explicitly.
+    <span class="doccomment">/// Specific scope instance identifier this quota applies to.
+    ///
+    /// If set, this quota only applies to the specified scope instance
+    /// (e.g., a specific project key). Requires `scope` to be set explicitly.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>scope_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
-    <span class="doccomment">/// Maximum number of matching events allowed. Can be `0` to reject all events, `None` for an
-    /// unlimited counted quota, or a positive number for enforcement. Requires `window` if the
-    /// limit is not `0`.
+    <span class="doccomment">/// Maximum number of events allowed within the time window.
     ///
-    /// For attachments, this limit expresses the number of allowed bytes.
+    /// Possible values:
+    /// - `Some(0)`: Reject all matching events
+    /// - `Some(n)`: Allow up to n events per time window
+    /// - `None`: Unlimited quota (counts but doesn't limit)
+    ///
+    /// Requires `window` to be set if the limit is not 0.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>limit: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
-    <span class="doccomment">/// The time window in seconds to enforce this quota in. Required in all cases except `limit=0`,
-    /// since those quotas are not measured.
+    <span class="doccomment">/// The time window in seconds for quota enforcement.
+    ///
+    /// Required in all cases except `limit` = 0, since those quotas
+    /// are not measured over time.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>window: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
-    <span class="doccomment">/// The namespace the quota applies to.
+    <span class="doccomment">/// The metric namespace this quota applies to.
     ///
-    /// If `None`, it will match any namespace.
+    /// If `None`, it matches any namespace.
     </span><span class="kw">pub </span>namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
 
-    <span class="doccomment">/// A machine readable reason returned when this quota is exceeded. Required in all cases except
-    /// `limit=None`, since unlimited quotas can never be exceeded.
+    <span class="doccomment">/// A machine-readable reason code returned when this quota is exceeded.
+    ///
+    /// Required for all quotas except those with `limit` = None, since
+    /// unlimited quotas can never be exceeded.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>reason_code: <span class="prelude-ty">Option</span>&lt;ReasonCode&gt;,
 }
@@ -1322,8 +1405,8 @@
 <span class="kw">impl </span>Quota {
     <span class="doccomment">/// Returns whether this quota is valid for tracking.
     ///
-    /// There are a few conditions at which quotas are invalid:
-    ///  - The quota only applies to `Unknown` data categories.
+    /// A quota is considered invalid if any of the following conditions are true:
+    ///  - The quota only applies to [`DataCategory::Unknown`] data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
     ///  - The quota references an unsupported namespace.
     </span><span class="kw">pub fn </span>is_valid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -1351,7 +1434,7 @@
     ///  - there is no `scope_id` constraint
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
-    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
+    </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; bool {
         <span class="kw">if </span><span class="self">self</span>.scope == QuotaScope::Global {
             <span class="kw">return </span><span class="bool-val">true</span>;
         }
@@ -1374,7 +1457,10 @@
     }
 
     <span class="doccomment">/// Checks whether the quota's constraints match the current item.
-    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
+    ///
+    /// This method determines if this quota should be applied to a given item
+    /// based on its scope, categories, and namespace.
+    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping) -&gt; bool {
         <span class="self">self</span>.matches_scope(scoping)
             &amp;&amp; scoping.matches_categories(<span class="kw-2">&amp;</span><span class="self">self</span>.categories)
             &amp;&amp; scoping.matches_namespaces(<span class="kw-2">&amp;</span><span class="self">self</span>.namespace)
@@ -1685,7 +1771,7 @@
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1710,7 +1796,7 @@
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1735,7 +1821,7 @@
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1746,7 +1832,7 @@
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Transaction,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1771,7 +1857,7 @@
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1796,7 +1882,7 @@
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1807,7 +1893,7 @@
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">0</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1832,7 +1918,7 @@
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1843,7 +1929,7 @@
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">0</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1868,7 +1954,7 @@
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1879,7 +1965,7 @@
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -1890,7 +1976,7 @@
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: <span class="kw-2">&amp;</span>Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
