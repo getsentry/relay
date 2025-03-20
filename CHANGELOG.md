@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))s
+- Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))
 
 **Internal**:
 
