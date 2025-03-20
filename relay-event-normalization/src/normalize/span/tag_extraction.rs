@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
-    Timestamp, TraceContext,
+    AppContext, Breakdowns, BrowserContext, Event, Measurement, OsContext, ProfileContext,
+    SentryTags, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
@@ -399,6 +399,34 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
 /// Extracts measurements that should only be saved on segment spans.
 fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> {
     let mut measurements = BTreeMap::new();
+
+    if let Some(breakdowns) = event.breakdowns.value() {
+        for (breakdown, measurement_list) in breakdowns.iter() {
+            if let Some(measurement_list) = measurement_list.value() {
+                for (measurement_name, annotated) in measurement_list.iter() {
+                    if measurement_name == "total.time" {
+                        continue;
+                    }
+
+                    let Some(measurement) = annotated.value() else {
+                        continue;
+                    };
+
+                    let Some(value) = measurement.value.value().copied() else {
+                        continue;
+                    };
+
+                    measurements.insert(
+                        format!("{breakdown}.{measurement_name}"),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::Duration(DurationUnit::MilliSecond).into(),
+                        },
+                    );
+                }
+            }
+        }
+    }
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
@@ -2303,6 +2331,81 @@ LIMIT 1
                 "messaging.message.retry.count": Measurement {
                     value: 3.0,
                     unit: None,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_extract_breakdown_tags() {
+        let json = r#"
+                {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "breakdowns": {
+                    "span_ops": {
+                        "ops.http": {
+                            "value": 1000,
+                            "unit": "millisecond"
+                        },
+                        "ops.resource": {
+                            "value": 420,
+                            "unit": "millisecond"
+                        },
+                        "ops.ui": {
+                            "value": 27000,
+                            "unit": "millisecond"
+                        },
+                        "total.time": {
+                            "value": 45000,
+                            "unit": "millisecond"
+                        }
+                    }
+                },
+                "spans": []
+            }
+        "#;
+
+        let event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        let mut spans = [Span::from(&event).into()];
+        extract_segment_span_tags(&event, &mut spans);
+        let segment_span: &Annotated<Span> = &spans[0];
+        let measurements = segment_span.value().unwrap().measurements.value().unwrap();
+
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "span_ops.ops.http": Measurement {
+                    value: 1000.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "span_ops.ops.resource": Measurement {
+                    value: 420.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "span_ops.ops.ui": Measurement {
+                    value: 27000.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
                 },
             },
         )

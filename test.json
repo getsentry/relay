@@ -1,0 +1,3379 @@
+{
+  "contexts": {
+    "trace": {
+      "parent_span_id": "af84de82a458feec",
+      "span_id": "8a40494853ebc883",
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "data": {
+        "sentry.origin": "auto.pageload.react.reactrouter_v6",
+        "sentry.op": "pageload",
+        "sentry.source": "route",
+        "sentry.sample_rate": 1,
+        "effectiveConnectionType": "4g",
+        "deviceMemory": "8 GB",
+        "hardwareConcurrency": "10",
+        "performance.timeOrigin": 1736879791.1209,
+        "performance.activationStart": 0,
+        "lcp.element": "unknown > TransactionHeader > unknown > unknown > TransactionName",
+        "lcp.loadTime": 0,
+        "lcp.renderTime": 2114.400000035763,
+        "lcp.size": 12276,
+        "cls.source.1": "unknown > TransactionHeader > unknown > ButtonBar > TransactionThresholdButton",
+        "cls.source.2": "unknown > TransactionHeader > unknown > ButtonBar > FeedbackWidgetButton",
+        "sentry.idle_span_finish_reason": "heartbeatFailed"
+      },
+      "op": "pageload",
+      "origin": "auto.pageload.react.reactrouter_v6"
+    },
+    "react": { "version": "18.2.0" },
+    "organization": { "id": "1", "slug": "sentry" },
+    "flags": {
+      "values": [
+        {
+          "flag": "feature.organizations:sentry-pride-logo-footer",
+          "result": false
+        },
+        { "flag": "feature.organizations:session-replay-sdk", "result": true },
+        {
+          "flag": "feature.organizations:session-replay-sdk-errors-only",
+          "result": true
+        },
+        {
+          "flag": "feature.organizations:session-replay-enable-canvas",
+          "result": true
+        },
+        { "flag": "feature.organizations:devtoolbar", "result": true },
+        {
+          "flag": "feature.organizations:navigation-sidebar-v2",
+          "result": false
+        },
+        { "flag": "feature.organizations:custom-metrics", "result": false },
+        { "flag": "feature.organizations:user-feedback-ui", "result": true },
+        { "flag": "feature.organizations:discover", "result": false },
+        { "flag": "feature.organizations:discover-query", "result": true },
+        { "flag": "feature.organizations:onboarding", "result": false },
+        { "flag": "feature.organizations:team-roles", "result": true },
+        { "flag": "feature.organizations:performance-view", "result": true },
+        {
+          "flag": "feature.organizations:performance-use-metrics",
+          "result": false
+        },
+        {
+          "flag": "feature.organizations:performance-transaction-name-only-search",
+          "result": false
+        },
+        { "flag": "feature.organizations:dynamic-sampling", "result": true },
+        { "flag": "feature.organizations:mep-rollout-flag", "result": true },
+        {
+          "flag": "feature.organizations:dashboards-metrics-transition",
+          "result": true
+        },
+        {
+          "flag": "feature.organizations:performance-remove-metrics-compatibility-fallback",
+          "result": true
+        },
+        { "flag": "feature.organizations:new-page-filter", "result": true },
+        { "flag": "feature.organizations:global-views", "result": true },
+        {
+          "flag": "feature.organizations:partner-billing-migration",
+          "result": false
+        },
+        {
+          "flag": "feature.organizations:continuous-profiling",
+          "result": true
+        },
+        {
+          "flag": "feature.organizations:performance-discover-dataset-selector",
+          "result": true
+        },
+        {
+          "flag": "feature.organizations:sentry-rollback-2024",
+          "result": true
+        },
+        { "flag": "feature.organizations:event-attachments", "result": true },
+        { "flag": "feature.organizations:trace-view-v1", "result": true },
+        { "flag": "feature.organizations:session-replay", "result": true },
+        { "flag": "feature.organizations:profiling", "result": true },
+        {
+          "flag": "feature.organizations:insights-initial-modules",
+          "result": true
+        },
+        { "flag": "feature.organizations:incidents", "result": true }
+      ]
+    }
+  },
+  "spans": [
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "ui.long-animation-frame",
+        "browser.script.invoker": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_teams_tsx-app_components_avatar_userAvatar_tsx-app_components_charts_compo-b8be7c.4b61f11f18d13f8e2260.js",
+        "browser.script.invoker_type": "classic-script",
+        "code.filepath": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_teams_tsx-app_components_avatar_userAvatar_tsx-app_components_charts_compo-b8be7c.4b61f11f18d13f8e2260.js",
+        "browser.script.source_char_position": 0
+      },
+      "description": "Main UI thread blocked",
+      "op": "ui.long-animation-frame",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8423e2eafe8be639",
+      "start_timestamp": 1736879792.5472999,
+      "timestamp": 1736879792.6053,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "ui.long-animation-frame",
+        "browser.script.invoker": "https://static.zdassets.com/web_widget/classic/latest/web-widget-main-b6408d4.js",
+        "browser.script.invoker_type": "classic-script",
+        "code.filepath": "https://static.zdassets.com/web_widget/classic/latest/web-widget-main-b6408d4.js",
+        "browser.script.source_char_position": 0
+      },
+      "description": "Main UI thread blocked",
+      "op": "ui.long-animation-frame",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b99590859289377c",
+      "start_timestamp": 1736879792.6064,
+      "timestamp": 1736879792.6604,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "ui.long-animation-frame",
+        "browser.script.invoker": "MessagePort.onmessage",
+        "browser.script.invoker_type": "event-listener",
+        "code.filepath": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_is-prop-valid_dist_emotion-is-prop-valid_esm_js-node_modules_cla-6f83e8.3e86fa041dabfff98c1c.js",
+        "code.function": "R",
+        "browser.script.source_char_position": 382222
+      },
+      "description": "Main UI thread blocked",
+      "op": "ui.long-animation-frame",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bce53e9afbd8d587",
+      "start_timestamp": 1736879792.6935,
+      "timestamp": 1736879792.7505,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://de.sentry.io/api/0/organizations/?member=1",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://de.sentry.io/api/0/organizations/?member=1",
+        "server.address": "de.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879792.761,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.9977
+      },
+      "description": "GET https://de.sentry.io/api/0/organizations/?member=1",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ad4359837c918574",
+      "start_timestamp": 1736879792.7603,
+      "status": "ok",
+      "timestamp": 1736879794.2933998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/?member=1",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/?member=1",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879792.7615,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879794.4265
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/?member=1",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "845079852115c5b3",
+      "start_timestamp": 1736879792.7612,
+      "status": "ok",
+      "timestamp": 1736879794.4271,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://sentry.io/api/0/assistant/",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://sentry.io/api/0/assistant/",
+        "server.address": "sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879792.7642,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879792.8314
+      },
+      "description": "GET https://sentry.io/api/0/assistant/",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "82797fb3904d705e",
+      "start_timestamp": 1736879792.7638,
+      "status": "ok",
+      "timestamp": 1736879792.8322,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.mount",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.mount",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "aa18ff9108cde3b6",
+      "start_timestamp": 1736879793.021,
+      "timestamp": 1736879793.0263999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/subscriptions/sentry/",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/subscriptions/sentry/",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.0261,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.2533998
+      },
+      "description": "GET https://us.sentry.io/api/0/subscriptions/sentry/",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bbb88ad6e1dafe3d",
+      "start_timestamp": 1736879793.0257998,
+      "status": "ok",
+      "timestamp": 1736879793.2542999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/promotions/trigger-check/",
+        "type": "fetch",
+        "http.method": "POST",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/promotions/trigger-check/",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 98,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.0291,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.2401
+      },
+      "description": "POST https://us.sentry.io/api/0/organizations/sentry/promotions/trigger-check/",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a8fe3332b7ac08d5",
+      "start_timestamp": 1736879793.0287998,
+      "status": "ok",
+      "timestamp": 1736879793.2461998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/user-rollback/",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/user-rollback/",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.0302,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.5997
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/user-rollback/",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8cfdcada3e4ce8ae",
+      "start_timestamp": 1736879793.0298998,
+      "status": "ok",
+      "timestamp": 1736879793.6216,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=rollback_2024_sidebar&organization_id=1",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=rollback_2024_sidebar&organization_id=1",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 101,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.0307,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.1605
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=rollback_2024_sidebar&organization_id=1",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b726b94e046253dd",
+      "start_timestamp": 1736879793.0303998,
+      "status": "ok",
+      "timestamp": 1736879793.215,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=rollback_2024_dropdown&organization_id=1",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=rollback_2024_dropdown&organization_id=1",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 102,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.0314,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.1012998
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=rollback_2024_dropdown&organization_id=1",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9339f07ce42a7dcc",
+      "start_timestamp": 1736879793.031,
+      "status": "ok",
+      "timestamp": 1736879793.2085998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://sentry.io/api/0/organizations/sentry/broadcasts/",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://sentry.io/api/0/organizations/sentry/broadcasts/",
+        "server.address": "sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 2,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.0322998,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.3352997
+      },
+      "description": "GET https://sentry.io/api/0/organizations/sentry/broadcasts/",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ac3309c2840de24c",
+      "start_timestamp": 1736879793.0321,
+      "status": "ok",
+      "timestamp": 1736879793.3360999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://t687h3m0nh65.statuspage.io/api/v2/incidents/unresolved.json",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://t687h3m0nh65.statuspage.io/api/v2/incidents/unresolved.json",
+        "server.address": "t687h3m0nh65.statuspage.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 173,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.033,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.2066998
+      },
+      "description": "GET https://t687h3m0nh65.statuspage.io/api/v2/incidents/unresolved.json",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8abe942885dfce6b",
+      "start_timestamp": 1736879793.0327997,
+      "status": "ok",
+      "timestamp": 1736879793.2238998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.mount",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.mount",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9e3b5dad4078d358",
+      "start_timestamp": 1736879793.075,
+      "status": "cancelled",
+      "timestamp": 1736879801.1848998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "/api/0/organizations/sentry/incidents/?limit=1&project=11276&queryReferrer=devtoolbar&status=open&statusPeriod=14d",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://sentry.sentry.io/api/0/organizations/sentry/incidents/?limit=1&project=11276&queryReferrer=devtoolbar&status=open&statusPeriod=14d",
+        "server.address": "sentry.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "3",
+        "network.protocol.name": "http",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.0832,
+        "http.request.domain_lookup_start": 1736879793.0832,
+        "http.request.domain_lookup_end": 1736879793.0832,
+        "http.request.connect_start": 1736879793.0832,
+        "http.request.secure_connection_start": 1736879793.0832,
+        "http.request.connection_end": 1736879793.0832,
+        "http.request.request_start": 1736879793.0840998,
+        "http.request.response_start": 1736879794.2591,
+        "http.request.response_end": 1736879794.2609
+      },
+      "description": "GET /api/0/organizations/sentry/incidents/?limit=1&project=11276&queryReferrer=devtoolbar&status=open&statusPeriod=14d",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9d9aa3e947b7d650",
+      "start_timestamp": 1736879793.0827,
+      "status": "ok",
+      "timestamp": 1736879794.3133,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "/api/0/organizations/sentry/sessions/?field=sum%28session%29&groupBy=session.status&interval=10m&project=11276&queryReferrer=devtoolbar&statsPeriod=24h",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://sentry.sentry.io/api/0/organizations/sentry/sessions/?field=sum%28session%29&groupBy=session.status&interval=10m&project=11276&queryReferrer=devtoolbar&statsPeriod=24h",
+        "server.address": "sentry.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "3",
+        "network.protocol.name": "http",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.0835,
+        "http.request.domain_lookup_start": 1736879793.0835,
+        "http.request.domain_lookup_end": 1736879793.0835,
+        "http.request.connect_start": 1736879793.0835,
+        "http.request.secure_connection_start": 1736879793.0835,
+        "http.request.connection_end": 1736879793.0835,
+        "http.request.request_start": 1736879793.0842998,
+        "http.request.response_start": 1736879793.5087,
+        "http.request.response_end": 1736879793.5091999
+      },
+      "description": "GET /api/0/organizations/sentry/sessions/?field=sum%28session%29&groupBy=session.status&interval=10m&project=11276&queryReferrer=devtoolbar&statsPeriod=24h",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ad0e7c3ae7fe13d6",
+      "start_timestamp": 1736879793.0832999,
+      "status": "ok",
+      "timestamp": 1736879793.6127,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.mount",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.mount",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "90894df1ce58d3b5",
+      "start_timestamp": 1736879793.0911999,
+      "timestamp": 1736879793.094,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.render",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.render",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9d97caeb8df3f6d8",
+      "start_timestamp": 1736879793.0263999,
+      "timestamp": 1736879793.0915,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.mount",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.mount",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "87cc4f901668d8ad",
+      "start_timestamp": 1736879793.1132998,
+      "timestamp": 1736879793.1797,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.render",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.render",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8caebf9cb65ead37",
+      "start_timestamp": 1736879793.094,
+      "timestamp": 1736879793.1137,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/key-transactions-list/?project=11276&team=myteams",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/key-transactions-list/?project=11276&team=myteams",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.1776,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.365
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/key-transactions-list/?project=11276&team=myteams",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9f3baa9e715b1fbf",
+      "start_timestamp": 1736879793.1771998,
+      "status": "ok",
+      "timestamp": 1736879793.3655999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/project-transaction-threshold-override/?project=11276&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/project-transaction-threshold-override/?project=11276&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 404,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.1782,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.3246999
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/project-transaction-threshold-override/?project=11276&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a9708dc27c307458",
+      "start_timestamp": 1736879793.178,
+      "status": "not_found",
+      "timestamp": 1736879793.3257,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/events-has-measurements/?project=11276&transaction=%22%2Fperformance%2Ftrace%2F%3AtraceSlug%2F%22&type=web",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/events-has-measurements/?project=11276&transaction=%22%2Fperformance%2Ftrace%2F%3AtraceSlug%2F%22&type=web",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 21,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.1795998,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.3797998
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/events-has-measurements/?project=11276&transaction=%22%2Fperformance%2Ftrace%2F%3AtraceSlug%2F%22&type=web",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b580518966dc6ebf",
+      "start_timestamp": 1736879793.1792998,
+      "status": "ok",
+      "timestamp": 1736879793.3804,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/events/?field=p100%28%29&field=p99%28%29&field=p95%28%29&field=p75%28%29&field=p50%28%29&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-events&sort=-p100%28%29&statsPeriod=1h",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/events/?field=p100%28%29&field=p99%28%29&field=p95%28%29&field=p75%28%29&field=p50%28%29&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-events&sort=-p100%28%29&statsPeriod=1h",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 478,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.1802998,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.4566
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/events/?field=p100%28%29&field=p99%28%29&field=p95%28%29&field=p75%28%29&field=p50%28%29&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-events&sort=-p100%28%29&statsPeriod=1h",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "86d27b40d96c44f2",
+      "start_timestamp": 1736879793.18,
+      "status": "ok",
+      "timestamp": 1736879793.4572997,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/user-teams/",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/user-teams/",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.1822999,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.4606
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/user-teams/",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b40ceb8f255cb50c",
+      "start_timestamp": 1736879793.182,
+      "status": "ok",
+      "timestamp": 1736879793.6081,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "ui.long-animation-frame",
+        "browser.script.invoker": "MessagePort.onmessage",
+        "browser.script.invoker_type": "event-listener",
+        "code.filepath": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_is-prop-valid_dist_emotion-is-prop-valid_esm_js-node_modules_cla-6f83e8.3e86fa041dabfff98c1c.js",
+        "code.function": "R",
+        "browser.script.source_char_position": 382222
+      },
+      "description": "Main UI thread blocked",
+      "op": "ui.long-animation-frame",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bc10a93a8db67726",
+      "start_timestamp": 1736879793.0853999,
+      "timestamp": 1736879793.2064,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/replay-count/?data_source=discover&project=-1&query=transaction%3A%5B%22%2Fperformance%2Ftrace%2F%3AtraceSlug%2F%22%5D&statsPeriod=90d",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/replay-count/?data_source=discover&project=-1&query=transaction%3A%5B%22%2Fperformance%2Ftrace%2F%3AtraceSlug%2F%22%5D&statsPeriod=90d",
+        "server.address": "us.sentry.io"
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/replay-count/?data_source=discover&project=-1&query=transaction%3A%5B%22%2Fperformance%2Ftrace%2F%3AtraceSlug%2F%22%5D&statsPeriod=90d",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b0b876832582f649",
+      "start_timestamp": 1736879793.2213998,
+      "status": "cancelled",
+      "timestamp": 1736879801.1848998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=deactivated_member_alert&feature=errors_overage_alert&feature=attachments_overage_alert&feature=transactions_overage_alert&feature=replays_overage_alert&feature=monitor_seats_overage_alert&feature=spans_overage_alert&feature=profile_duration_overage_alert&feature=errors_warning_alert&feature=attachments_warning_alert&feature=transactions_warning_alert&feature=replays_warning_alert&feature=monitor_seats_warning_alert&feature=spans_warning_alert&feature=profile_duration_warning_alert&feature=errors_product_trial_alert&feature=attachments_product_trial_alert&feature=transactions_product_trial_alert&feature=replays_product_trial_alert&feature=monitor_seats_product_trial_alert&feature=spans_product_trial_alert&feature=profile_duration_product_trial_alert&organization_id=1",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=deactivated_member_alert&feature=errors_overage_alert&feature=attachments_overage_alert&feature=transactions_overage_alert&feature=replays_overage_alert&feature=monitor_seats_overage_alert&feature=spans_overage_alert&feature=profile_duration_overage_alert&feature=errors_warning_alert&feature=attachments_warning_alert&feature=transactions_warning_alert&feature=replays_warning_alert&feature=monitor_seats_warning_alert&feature=spans_warning_alert&feature=profile_duration_warning_alert&feature=errors_product_trial_alert&feature=attachments_product_trial_alert&feature=transactions_product_trial_alert&feature=replays_product_trial_alert&feature=monitor_seats_product_trial_alert&feature=spans_product_trial_alert&feature=profile_duration_product_trial_alert&organization_id=1",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 15,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.2861,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.3572
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=deactivated_member_alert&feature=errors_overage_alert&feature=attachments_overage_alert&feature=transactions_overage_alert&feature=replays_overage_alert&feature=monitor_seats_overage_alert&feature=spans_overage_alert&feature=profile_duration_overage_alert&feature=errors_warning_alert&feature=attachments_warning_alert&feature=transactions_warning_alert&feature=replays_warning_alert&feature=monitor_seats_warning_alert&feature=spans_warning_alert&feature=profile_duration_warning_alert&feature=errors_product_trial_alert&feature=attachments_product_trial_alert&feature=transactions_product_trial_alert&feature=replays_product_trial_alert&feature=monitor_seats_product_trial_alert&feature=spans_product_trial_alert&feature=profile_duration_product_trial_alert&organization_id=1",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bc99d88db53da0ef",
+      "start_timestamp": 1736879793.2856,
+      "status": "ok",
+      "timestamp": 1736879793.3579,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/pendo-details/",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/pendo-details/",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 742,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.2903,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.7435
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/pendo-details/",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9b1610e7cd725edd",
+      "start_timestamp": 1736879793.2898998,
+      "status": "ok",
+      "timestamp": 1736879793.7442,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/customers/sentry/billing-config/?tier=am3",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/customers/sentry/billing-config/?tier=am3",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.2927,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.4587998
+      },
+      "description": "GET https://us.sentry.io/api/0/customers/sentry/billing-config/?tier=am3",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ac2a3d28858fc4f6",
+      "start_timestamp": 1736879793.2924,
+      "status": "ok",
+      "timestamp": 1736879793.4577,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/projects/sentry/javascript/transaction-threshold/configure/?project=11276",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/projects/sentry/javascript/transaction-threshold/configure/?project=11276",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 174,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.3269,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.4840999
+      },
+      "description": "GET https://us.sentry.io/api/0/projects/sentry/javascript/transaction-threshold/configure/?project=11276",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "974d92144ee74536",
+      "start_timestamp": 1736879793.3267,
+      "status": "ok",
+      "timestamp": 1736879793.6088998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.mount",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.mount",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "826c257e91a58325",
+      "start_timestamp": 1736879793.4805,
+      "timestamp": 1736879793.5419,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.render",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.render",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "abcf25d6b4ea241d",
+      "start_timestamp": 1736879793.1797,
+      "timestamp": 1736879793.481,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/events/?field=id&field=user.display&field=span_ops_breakdown.relative&field=transaction.duration&field=trace&field=timestamp&field=spans.browser&field=spans.db&field=spans.http&field=spans.resource&field=spans.ui&field=profile.id&field=profiler.id&field=thread.id&field=precise.start_ts&field=precise.finish_ts&field=replayId&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-events&sort=-timestamp&statsPeriod=1h",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/events/?field=id&field=user.display&field=span_ops_breakdown.relative&field=transaction.duration&field=trace&field=timestamp&field=spans.browser&field=spans.db&field=spans.http&field=spans.resource&field=spans.ui&field=profile.id&field=profiler.id&field=thread.id&field=precise.start_ts&field=precise.finish_ts&field=replayId&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-events&sort=-timestamp&statsPeriod=1h",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.5427997,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.8752997
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/events/?field=id&field=user.display&field=span_ops_breakdown.relative&field=transaction.duration&field=trace&field=timestamp&field=spans.browser&field=spans.db&field=spans.http&field=spans.resource&field=spans.ui&field=profile.id&field=profiler.id&field=thread.id&field=precise.start_ts&field=precise.finish_ts&field=replayId&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-events&sort=-timestamp&statsPeriod=1h",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a4f616a5995b6039",
+      "start_timestamp": 1736879793.5425,
+      "status": "ok",
+      "timestamp": 1736879793.8748999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/events/?cursor=0%3A0%3A0&field=count%28%29&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-summary&statsPeriod=1h",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/events/?cursor=0%3A0%3A0&field=count%28%29&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-summary&statsPeriod=1h",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 230,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.5433,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.8407998
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/events/?cursor=0%3A0%3A0&field=count%28%29&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-summary&statsPeriod=1h",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "956104d7c4be79a7",
+      "start_timestamp": 1736879793.543,
+      "status": "ok",
+      "timestamp": 1736879793.8416998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/recent-searches/?limit=10&type=1",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/recent-searches/?limit=10&type=1",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.5447998,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879793.7159
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/recent-searches/?limit=10&type=1",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b88904cb94bc9b9a",
+      "start_timestamp": 1736879793.5445,
+      "status": "ok",
+      "timestamp": 1736879793.7166998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/tags/?project=11276&statsPeriod=1h&use_cache=1",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/tags/?project=11276&statsPeriod=1h&use_cache=1",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879793.5456998,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879794.2863998
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/tags/?project=11276&statsPeriod=1h&use_cache=1",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bf775385952b2c6e",
+      "start_timestamp": 1736879793.5455,
+      "status": "ok",
+      "timestamp": 1736879794.3137,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "ui.long-animation-frame",
+        "browser.script.invoker": "MessagePort.onmessage",
+        "browser.script.invoker_type": "event-listener",
+        "code.filepath": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_is-prop-valid_dist_emotion-is-prop-valid_esm_js-node_modules_cla-6f83e8.3e86fa041dabfff98c1c.js",
+        "code.function": "R",
+        "browser.script.source_char_position": 382222
+      },
+      "description": "Main UI thread blocked",
+      "op": "ui.long-animation-frame",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a64ec5cbf1f23f2b",
+      "start_timestamp": 1736879793.4567997,
+      "timestamp": 1736879793.6067998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.react.profiler",
+        "sentry.op": "ui.react.render",
+        "ui.component_name": "LoadingIndicator"
+      },
+      "description": "<LoadingIndicator>",
+      "op": "ui.react.render",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "aed5b79bea8b3fef",
+      "start_timestamp": 1736879793.5419,
+      "timestamp": 1736879794.0221999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.react.profiler"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "ui.long-animation-frame",
+        "browser.script.invoker": "MessagePort.onmessage",
+        "browser.script.invoker_type": "event-listener",
+        "code.filepath": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_is-prop-valid_dist_emotion-is-prop-valid_esm_js-node_modules_cla-6f83e8.3e86fa041dabfff98c1c.js",
+        "code.function": "R",
+        "browser.script.source_char_position": 382222
+      },
+      "description": "Main UI thread blocked",
+      "op": "ui.long-animation-frame",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b03828bfe5669e85",
+      "start_timestamp": 1736879793.8741,
+      "timestamp": 1736879794.2911,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.http.browser",
+        "sentry.op": "http.client",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/replay-count/?data_source=discover&project=-1&query=replay_id%3A%5B14a3aa26078a48ec931c683cb76a1b3e%2Cad6c37a26963459aa5d95d93e3482a0f%2Cb8aa10ff30524ad191dcbb2ba70e5dfb%2Ca84e3c4e19d446e2ad31f6b2aae156e4%5D&statsPeriod=90d",
+        "type": "fetch",
+        "http.method": "GET",
+        "http.url": "https://us.sentry.io/api/0/organizations/sentry/replay-count/?data_source=discover&project=-1&query=replay_id%3A%5B14a3aa26078a48ec931c683cb76a1b3e%2Cad6c37a26963459aa5d95d93e3482a0f%2Cb8aa10ff30524ad191dcbb2ba70e5dfb%2Ca84e3c4e19d446e2ad31f6b2aae156e4%5D&statsPeriod=90d",
+        "server.address": "us.sentry.io",
+        "http.response.status_code": 200,
+        "http.response_content_length": 75,
+        "network.protocol.version": "unknown",
+        "network.protocol.name": "",
+        "http.request.redirect_start": 1736879791.1209,
+        "http.request.fetch_start": 1736879794.3121,
+        "http.request.domain_lookup_start": 1736879791.1209,
+        "http.request.domain_lookup_end": 1736879791.1209,
+        "http.request.connect_start": 1736879791.1209,
+        "http.request.secure_connection_start": 1736879791.1209,
+        "http.request.connection_end": 1736879791.1209,
+        "http.request.request_start": 1736879791.1209,
+        "http.request.response_start": 1736879791.1209,
+        "http.request.response_end": 1736879794.539
+      },
+      "description": "GET https://us.sentry.io/api/0/organizations/sentry/replay-count/?data_source=discover&project=-1&query=replay_id%3A%5B14a3aa26078a48ec931c683cb76a1b3e%2Cad6c37a26963459aa5d95d93e3482a0f%2Cb8aa10ff30524ad191dcbb2ba70e5dfb%2Ca84e3c4e19d446e2ad31f6b2aae156e4%5D&statsPeriod=90d",
+      "op": "http.client",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b945446824c7a8d1",
+      "start_timestamp": 1736879794.3116999,
+      "status": "ok",
+      "timestamp": 1736879794.5398998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.http.browser"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.unloadEvent"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.unloadEvent",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8461ab18a6266223",
+      "start_timestamp": 1736879792.0741,
+      "timestamp": 1736879792.0746,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.domContentLoadedEvent"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.domContentLoadedEvent",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b8b8ba964236736f",
+      "start_timestamp": 1736879792.3934999,
+      "timestamp": 1736879792.3937,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.loadEvent"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.loadEvent",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8b6316d4a7f28687",
+      "start_timestamp": 1736879792.8007,
+      "timestamp": 1736879792.8012,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.connect"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.connect",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "93e67464eb71b733",
+      "start_timestamp": 1736879791.1225998,
+      "timestamp": 1736879791.1225998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.TLS/SSL"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.TLS/SSL",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "978a86ee0bf99675",
+      "start_timestamp": 1736879791.1225998,
+      "timestamp": 1736879791.1225998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.cache"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.cache",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "80ac66d17c67b57a",
+      "start_timestamp": 1736879791.1225998,
+      "timestamp": 1736879791.1225998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.DNS"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.DNS",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9570dfb696bc5046",
+      "start_timestamp": 1736879791.1225998,
+      "timestamp": 1736879791.1225998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.request"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.request",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a31042c2e6885662",
+      "start_timestamp": 1736879791.1244,
+      "timestamp": 1736879792.0627,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.ui.browser.metrics",
+        "sentry.op": "browser.response"
+      },
+      "description": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+      "op": "browser.response",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b6fab2d4cb356e01",
+      "start_timestamp": 1736879792.0593,
+      "timestamp": 1736879792.0627,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.ui.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.link",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 41223,
+        "http.decoded_response_content_length": 129430,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/entrypoints-hashed/sentry-Y3ngaGGZ5XPSe7jhn4cwQRhpekoApMe_hmv7rqlqgFs.css",
+      "op": "resource.link",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9bf3050fe355b9a5",
+      "start_timestamp": 1736879792.353,
+      "timestamp": 1736879792.3553,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 33,
+        "http.decoded_response_content_length": 33,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/75b61d60b8bc8d5fa283256af443fc1e/sentry/js/ads.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "98575511ab9f19c9",
+      "start_timestamp": 1736879792.3530998,
+      "timestamp": 1736879792.3561997,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 33105,
+        "http.decoded_response_content_length": 104506,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/entrypoints-hashed/app-LvemAM0e04M9Bro0TCUkBahDQzNqhw8ujyzXqbfc9G0.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9f4551f702d8ddbe",
+      "start_timestamp": 1736879792.3530998,
+      "timestamp": 1736879792.3565998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 300,
+        "http.response_content_length": 172923,
+        "http.decoded_response_content_length": 722700,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "js.stripe.com",
+        "url.same_origin": false
+      },
+      "description": "https://js.stripe.com/v3/",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9b76c46dfd2b9fd4",
+      "start_timestamp": 1736879792.3530998,
+      "timestamp": 1736879792.3897998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.img",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 1009,
+        "http.decoded_response_content_length": 1009,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/75b61d60b8bc8d5fa283256af443fc1e/sentry/images/sentry-loader.svg",
+      "op": "resource.img",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8d871757ec93adf2",
+      "start_timestamp": 1736879792.3532,
+      "timestamp": 1736879792.3566,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 0,
+        "http.decoded_response_content_length": 0,
+        "http.response_delivery_type": "",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "static.zdassets.com",
+        "url.same_origin": false
+      },
+      "description": "https://static.zdassets.com/ekr/snippet.js?key=99cb65b7-1616-43cd-b8be-203f91ec932e",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a85e553493277187",
+      "start_timestamp": 1736879792.3532999,
+      "timestamp": 1736879792.3567998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "head-start",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8a63415cffed064c",
+      "start_timestamp": 1736879792.3839,
+      "timestamp": 1736879792.3839,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "measure"
+      },
+      "description": "app.page.body-load",
+      "op": "measure",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "96632bb0e992a995",
+      "start_timestamp": 1736879792.3839,
+      "timestamp": 1736879792.3932998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "measure"
+      },
+      "description": "app.page.bundle-load",
+      "op": "measure",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bc9293c82d4e5899",
+      "start_timestamp": 1736879792.3839,
+      "timestamp": 1736879792.6897,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 1390,
+        "http.decoded_response_content_length": 3048,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_bootstrap_index_tsx.b368e53fe6407255f764.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "85ebcb521215fda2",
+      "start_timestamp": 1736879792.3844,
+      "timestamp": 1736879792.3892,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 74901,
+        "http.decoded_response_content_length": 916322,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_moment-timezone_moment-timezone_js-node_modules_core-js_modules_es_set_d-07f255.ce007ebf53a3aa4b891f.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a4580b840a7252d0",
+      "start_timestamp": 1736879792.3845,
+      "timestamp": 1736879792.3943,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 15843,
+        "http.decoded_response_content_length": 44694,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_react__isolated-hnrs_dist_emotion-react-_isolated-hnrs_browser_e-ae2ae5.cdc94dee3326b41e1c64.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "984d807053a78157",
+      "start_timestamp": 1736879792.3846998,
+      "timestamp": 1736879792.3930998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 6204,
+        "http.decoded_response_content_length": 17015,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_sprintf-js_src_sprintf_js-node_modules_sentry_core_build_esm_exports_js--4b9bec.c44f5d1dbc7a43cc92cd.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8d173fef8fcf20de",
+      "start_timestamp": 1736879792.3848,
+      "timestamp": 1736879792.3959,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 6227,
+        "http.decoded_response_content_length": 17080,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_react_dist_emotion-element-c39617d8_browser_esm_js-node_modules_-0ea40b.2d79523beac892e7e1f2.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "939561a5206defbc",
+      "start_timestamp": 1736879792.3848999,
+      "timestamp": 1736879792.3963997,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 4281,
+        "http.decoded_response_content_length": 18585,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_bootstrap_initializeLocale_tsx.9d621ef4c422805987ee.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bf7c0dc3a1d618f6",
+      "start_timestamp": 1736879792.385,
+      "timestamp": 1736879792.3979,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 0,
+        "http.decoded_response_content_length": 0,
+        "http.response_delivery_type": "",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "cdn.pendo.io",
+        "url.same_origin": false
+      },
+      "description": "https://cdn.pendo.io/agent/static/dc5c6fad-c3ae-4441-49ce-0ae37103aed7/pendo.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "957138ebf8ff54d1",
+      "start_timestamp": 1736879792.3865,
+      "timestamp": 1736879792.4016998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "head-end",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a658382084ff55b7",
+      "start_timestamp": 1736879792.3866,
+      "timestamp": 1736879792.3866,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "body-end",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8d311dd039b41550",
+      "start_timestamp": 1736879792.3932998,
+      "timestamp": 1736879792.3932998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "paint"
+      },
+      "description": "first-paint",
+      "op": "paint",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "befb8f64401f4c49",
+      "start_timestamp": 1736879792.4164999,
+      "timestamp": 1736879792.4164999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "paint"
+      },
+      "description": "first-contentful-paint",
+      "op": "paint",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9df9c39c1c28962b",
+      "start_timestamp": 1736879792.4164999,
+      "timestamp": 1736879792.4164999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 6178,
+        "http.decoded_response_content_length": 18400,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_react-aria_i18n_dist_useNumberFormatter_mjs-node_modules_react-aria_slid-4c50f4.752a9cfb7d4689bf3f72.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bc4aea5cc5b60195",
+      "start_timestamp": 1736879792.4319,
+      "timestamp": 1736879792.4355,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 18927,
+        "http.decoded_response_content_length": 65385,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_react-aria_button_dist_useButton_mjs-node_modules_react-aria_i18n_dist_u-a3baac.ebaef70e4f0558da584a.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "86da15c987bd4840",
+      "start_timestamp": 1736879792.4320998,
+      "timestamp": 1736879792.4381998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 9896,
+        "http.decoded_response_content_length": 38241,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_react-aria_gridlist_dist_useGridList_mjs-node_modules_react-aria_gridlis-54d3f9.6256e706eba19e10f66b.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "925c82cc4687abf6",
+      "start_timestamp": 1736879792.4322,
+      "timestamp": 1736879792.4391,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 5836,
+        "http.decoded_response_content_length": 17677,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_intersection-observer_intersection-observer_js-node_modules_lodash_chunk-5808de.f1671277257743b7bd93.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "baffaa4037fbbd86",
+      "start_timestamp": 1736879792.4324,
+      "timestamp": 1736879792.444,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 266851,
+        "http.decoded_response_content_length": 824476,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_sentry_release-parser_lib_parser_js-node_modules_echarts_lib_chart_bar_i-52cca6.d6dc4998f6eb1078135a.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a68a9c040fdf6d19",
+      "start_timestamp": 1736879792.4325,
+      "timestamp": 1736879792.4582,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 5697,
+        "http.decoded_response_content_length": 15240,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_react-aria_menu_dist_useMenuItem_mjs-node_modules_react-aria_menu_dist_u-941176.953d6282215f56358f58.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b71ad49c6087d0e3",
+      "start_timestamp": 1736879792.4326,
+      "timestamp": 1736879792.4446,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 7393,
+        "http.decoded_response_content_length": 23639,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_echarts-for-react_lib_core_js-node_modules_echarts_core_js-node_modules_-fd58a4.51130d63464e2dd13b7c.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9929ad5efa296d28",
+      "start_timestamp": 1736879792.4327,
+      "timestamp": 1736879792.4452,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 206154,
+        "http.decoded_response_content_length": 685864,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_base64-arraybuffer_dist_base64-arraybuffer_es5_js-node_modules_date-fns_-d43422.e093f57fd129ce1133ae.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "97a06fae4aaa0a60",
+      "start_timestamp": 1736879792.4327,
+      "timestamp": 1736879792.4552,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 7180,
+        "http.decoded_response_content_length": 20182,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_downsample_methods_ASAP_js-node_modules_echarts_index_js-node_modules_lo-47426c.a21e06728d0c86a432d0.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "836a637644563df8",
+      "start_timestamp": 1736879792.4327998,
+      "timestamp": 1736879792.4452999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 126353,
+        "http.decoded_response_content_length": 391248,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_focus-trap_dist_focus-trap_esm_js-node_modules_lodash_startCase_js-node_-943c08.2fa455eb5a04c006372a.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bfdf37e76385406c",
+      "start_timestamp": 1736879792.4329,
+      "timestamp": 1736879792.4524999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 478198,
+        "http.decoded_response_content_length": 1512923,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_is-prop-valid_dist_emotion-is-prop-valid_esm_js-node_modules_cla-6f83e8.3e86fa041dabfff98c1c.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b30c19d57aa7d440",
+      "start_timestamp": 1736879792.4329,
+      "timestamp": 1736879792.4709,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 33333,
+        "http.decoded_response_content_length": 104714,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-getsentry_node_modules_amplitude_analytics-browser_lib_esm_index_js-node_modules_emot-bc14dc.7c8ae9a5d113f0876efc.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a4e59bb9e4bca12d",
+      "start_timestamp": 1736879792.4331,
+      "timestamp": 1736879792.4486,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 116761,
+        "http.decoded_response_content_length": 410185,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_emotion_styled_base_dist_emotion-styled-base_browser_esm_js-node_modules-34b6bb.6ae12c7ea3c8723317bf.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "99095a4fb43508c0",
+      "start_timestamp": 1736879792.4331,
+      "timestamp": 1736879792.455,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 3271,
+        "http.decoded_response_content_length": 8656,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_slider_index_tsx.ee3de25b9c9c9bfd8301.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ac2f3e8a6e9dd44c",
+      "start_timestamp": 1736879792.4332,
+      "timestamp": 1736879792.4459,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 7822,
+        "http.decoded_response_content_length": 30092,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_forms_fieldFromConfig_tsx.4a22ce76fce7212db503.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9d31d0e67ea8dd76",
+      "start_timestamp": 1736879792.4333,
+      "timestamp": 1736879792.4461,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 3056,
+        "http.decoded_response_content_length": 7864,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_checkbox_tsx-app_utils_useOverlay_tsx-app_views_settings_components_text_textB-bbcd76.6cf66c2dca27288d7ef8.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "896d16292a380460",
+      "start_timestamp": 1736879792.4334,
+      "timestamp": 1736879792.4538999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 9243,
+        "http.decoded_response_content_length": 31155,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_compactSelect_list_tsx.3f1774ba2e8e378df62e.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ba5761daf54d1764",
+      "start_timestamp": 1736879792.4334998,
+      "timestamp": 1736879792.4541998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 8057,
+        "http.decoded_response_content_length": 26902,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_layouts_thirds_tsx-app_components_loadingError_tsx-app_components_projects_mis-663f26.2bb2a1cc0ef1bcf5206e.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8024995729fb7a7f",
+      "start_timestamp": 1736879792.4336,
+      "timestamp": 1736879792.4552999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 4581,
+        "http.decoded_response_content_length": 13086,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_dropdownMenu_index_tsx-app_components_feedback_widget_useFeedback_tsx.fc48961d1705b3920d1a.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b2040fe3d6d7407f",
+      "start_timestamp": 1736879792.4336998,
+      "timestamp": 1736879792.4557,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 3055,
+        "http.decoded_response_content_length": 7939,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_acl_feature_tsx-app_components_acl_featureDisabled_tsx.9fa212495df3df8f541e.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b4bad50a9bf2da5a",
+      "start_timestamp": 1736879792.4338,
+      "timestamp": 1736879792.4558,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 232196,
+        "http.decoded_response_content_length": 866534,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_onboardingTasks_tsx-app_actionCreators_performance_tsx-app_components_acl_-90fcb1.0c1a88376598a16f9058.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9e5b1a644c5ed74d",
+      "start_timestamp": 1736879792.4338,
+      "timestamp": 1736879792.4706,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 105048,
+        "http.decoded_response_content_length": 361922,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_discoverHomepageQueries_tsx-app_actionCreators_discoverSavedQueries_tsx-ap-823769.399a2833ee6e93cf3435.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ac3dfbfc0f106935",
+      "start_timestamp": 1736879792.4338999,
+      "timestamp": 1736879792.4608998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 3429,
+        "http.decoded_response_content_length": 8871,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_charts_baseChart_tsx.6846dc052acdcabd3037.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "989a2f65d9fdc77a",
+      "start_timestamp": 1736879792.434,
+      "timestamp": 1736879792.4577,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 8121,
+        "http.decoded_response_content_length": 25033,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_charts_barChart_tsx-app_components_charts_components_grid_tsx-app_components_c-421593.9f07951887d1b169b573.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ab0ade8a93579634",
+      "start_timestamp": 1736879792.434,
+      "timestamp": 1736879792.4566,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 40368,
+        "http.decoded_response_content_length": 139519,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_lazyRender_tsx-app_components_noProjectMessage_tsx-app_components_organization-ac7509.ec2301033c32f627c3f5.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "895cb7972bde09d7",
+      "start_timestamp": 1736879792.4341,
+      "timestamp": 1736879792.4610999,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 5429,
+        "http.decoded_response_content_length": 16373,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_navigation_tsx-app_sentryPropTypeValidators_tsx-app_views_permissionDenied-d3b4b9.ea44904566f2a234f3c6.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9e133aee2da0083a",
+      "start_timestamp": 1736879792.4341998,
+      "timestamp": 1736879792.4595997,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 102944,
+        "http.decoded_response_content_length": 428896,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_redirectToProject_tsx-app_actionCreators_sudoModal_tsx-app_components_aler-64d098.55c1d4ed6418e4cff190.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "aeca215c5616aec5",
+      "start_timestamp": 1736879792.4343,
+      "timestamp": 1736879792.4692,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 1386,
+        "http.decoded_response_content_length": 3436,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_views_settings_components_settingsPageHeader_tsx.7520c16b282b09fb9391.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8118f6cd4d29dbb3",
+      "start_timestamp": 1736879792.4343998,
+      "timestamp": 1736879792.4613,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 1805,
+        "http.decoded_response_content_length": 4459,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_banner_tsx-app_utils_useDismissAlert_tsx.650d8910ec5040662994.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8a3f063df3a49e14",
+      "start_timestamp": 1736879792.4343998,
+      "timestamp": 1736879792.4613998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 9245,
+        "http.decoded_response_content_length": 28791,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_organization_tsx-app_components_deprecatedforms_selectField_tsx-app_compon-ca71ef.d48b2de5a25611789d0d.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b30e3743ae3589b4",
+      "start_timestamp": 1736879792.4345999,
+      "timestamp": 1736879792.4615,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 10376,
+        "http.decoded_response_content_length": 48237,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_forms_state_tsx-app_components_timeRangeSelector_timeRangeItemLabel_tsx-app_ic-199002.888ef3385acf58f65517.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "ab13503205b81625",
+      "start_timestamp": 1736879792.4345999,
+      "timestamp": 1736879792.4615998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 275234,
+        "http.decoded_response_content_length": 1257509,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_actionCreators_teams_tsx-app_components_avatar_userAvatar_tsx-app_components_charts_compo-b8be7c.4b61f11f18d13f8e2260.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b09a0770b0d23cfd",
+      "start_timestamp": 1736879792.4345999,
+      "timestamp": 1736879792.4726,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 17989,
+        "http.decoded_response_content_length": 60958,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_views_organizationStats_index_tsx.3d1562aec9a55ad8d884.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8627a0368cf8740d",
+      "start_timestamp": 1736879792.4347,
+      "timestamp": 1736879792.4621,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 96389,
+        "http.decoded_response_content_length": 359818,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/getsentry_static_getsentry_gsApp_registerHooks_tsx-getsentry_static_getsentry_images_dashboar-f6049c.fe8682e994fdc2ea5962.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b4140277b0b9db47",
+      "start_timestamp": 1736879792.4348,
+      "timestamp": 1736879792.4685,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 9419,
+        "http.decoded_response_content_length": 30621,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_moment-timezone_index_js-node_modules_reflux_src_index_js-node_modules_s-43d6de.73297034c668e796a510.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "9de34e455f78276f",
+      "start_timestamp": 1736879792.4348998,
+      "timestamp": 1736879792.4659998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 1154,
+        "http.decoded_response_content_length": 2819,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/getsentry_static_getsentry_gsApp_initializeBundleMetrics_tsx.9223a74de189f95d2bb3.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bf5fecfd6b6b3012",
+      "start_timestamp": 1736879792.435,
+      "timestamp": 1736879792.4661,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 5241,
+        "http.decoded_response_content_length": 21678,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_bootstrap_initializeMain_tsx.276932e068e14504ea06.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bc8918215d341d51",
+      "start_timestamp": 1736879792.4350998,
+      "timestamp": 1736879792.4664998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 8444,
+        "http.decoded_response_content_length": 31280,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_plugins_index_tsx.9c0faa55461d3b77aec7.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "801c82aeb80d9174",
+      "start_timestamp": 1736879792.6055,
+      "timestamp": 1736879792.6078,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 8937,
+        "http.decoded_response_content_length": 24493,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_bootstrap_initializeApp_tsx.6bc085d42544bdcf7b6b.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8b3f24fd57c4a884",
+      "start_timestamp": 1736879792.6057,
+      "timestamp": 1736879792.6079,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "sentry-tracing-init",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b396926348c793e7",
+      "start_timestamp": 1736879792.6875,
+      "timestamp": 1736879792.6875,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "sentry-app-init",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "957dfcae92edbf6c",
+      "start_timestamp": 1736879792.6897,
+      "timestamp": 1736879792.6897,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.other",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 628,
+        "http.decoded_response_content_length": 628,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/75b61d60b8bc8d5fa283256af443fc1e/sentry/images/favicon.png",
+      "op": "resource.other",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "8e99f23d22235001",
+      "start_timestamp": 1736879792.8065999,
+      "timestamp": 1736879792.8165,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 2242,
+        "http.decoded_response_content_length": 7160,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_views_performance_index_tsx.c323a4ecb21f7f42e1e9.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bd2ab3110ab4bdc3",
+      "start_timestamp": 1736879793.0205998,
+      "timestamp": 1736879793.0219998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 7546,
+        "http.decoded_response_content_length": 28909,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_devtoolbar_mount_tsx.868af20f644c21af6b1f.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b4f16f4e085de671",
+      "start_timestamp": 1736879793.0296,
+      "timestamp": 1736879793.0328,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.img",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 0,
+        "http.decoded_response_content_length": 0,
+        "http.response_delivery_type": "",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "us.sentry.io",
+        "url.same_origin": false
+      },
+      "description": "https://us.sentry.io/organization-avatar/9ff809a67d7e48dfb00d1d1a683fa5fb/?s=120",
+      "op": "resource.img",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a0e1604cfd582c97",
+      "start_timestamp": 1736879793.0342999,
+      "timestamp": 1736879793.1288998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 1843,
+        "http.decoded_response_content_length": 4980,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_breadcrumbs_tsx.508eb92b3f2ab28373f3.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "95fbfa57bd3b2ae4",
+      "start_timestamp": 1736879793.0744,
+      "timestamp": 1736879793.0767,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 6660,
+        "http.decoded_response_content_length": 18910,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_views_performance_transactionSummary_transactionEvents_eventsTable_tsx.36330846c7d1cdb308af.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "856041b6d47d33dc",
+      "start_timestamp": 1736879793.0746,
+      "timestamp": 1736879793.0769,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 18807,
+        "http.decoded_response_content_length": 68901,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_views_performance_transactionSummary_pageLayout_tsx.5e8251fbd16afac17caa.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b2d080f23b4d6b46",
+      "start_timestamp": 1736879793.0746999,
+      "timestamp": 1736879793.0772,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 5910,
+        "http.decoded_response_content_length": 17843,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/app_components_feedback_widget_feedbackWidgetButton_tsx-app_components_gridEditable_sortLink_-5501dd.ab18d55ec434afaf8c66.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b533a980082810b2",
+      "start_timestamp": 1736879793.0748,
+      "timestamp": 1736879793.0781,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "api-request-start-3258df84-e33f-f9fe-8c3a-84ce2a440506",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "95eabd5858a40572",
+      "start_timestamp": 1736879793.2213,
+      "timestamp": 1736879793.2213,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 5859,
+        "http.decoded_response_content_length": 16888,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "s1.sentry-cdn.com",
+        "url.same_origin": false
+      },
+      "description": "https://s1.sentry-cdn.com/_static/dist/sentry/chunks/vendors-node_modules_fuse_js_dist_fuse_esm_js.3393d95d4e349f3532af.js",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a310807201c2e71b",
+      "start_timestamp": 1736879793.5451999,
+      "timestamp": 1736879793.5482998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.img",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 0,
+        "http.decoded_response_content_length": 0,
+        "http.response_delivery_type": "",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "data.pendo.io",
+        "url.same_origin": false
+      },
+      "description": "https://data.pendo.io/data/ptm.gif/dc5c6fad-c3ae-4441-49ce-0ae37103aed7?v=2.260.1_prod&ct=1736879793753&jzb=eJxNkG9r4kAQxr_Lgr4Sk822iRsIRykWqlDOKhR6HLJJ1ppeko0zEyUVv7vDnoXum_nzyzw8T_6cBQ2dFamonSnFROTgTmhhS1XDW5moeJboRKvkPpyIY4UVOdhWJR_IaRTKUMWKr0xRuL6lG-BFDzV3e6IO0yBA2xIM01upXNBZ2DloTFvYAPumMTAE9sgYg18duE9bUCZllMTjQ29hyMZIhvC3hcqVmdyPCUyLpqDKtdkoevohxxNDX0fqwbfruv_gkV2xdIciPfuw3xHjZDaVoX-Rmt1JfeEPDbCZjcmfOVDb1_VE0P9BLDbLTfLSaH36qvN_q45ld2Aa62G8X7zHj68nPcfwgG8FQ7SIbNPjZakXdbQ0q7U8tFbNPeaE7Fuk_H_zgSz7Uzq-_L0Cg3SEvg",
+      "op": "resource.img",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "bbd49f9de2f1f595",
+      "start_timestamp": 1736879793.7542999,
+      "timestamp": 1736879793.8893998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.script",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 0,
+        "http.decoded_response_content_length": 0,
+        "http.response_delivery_type": "",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "data.pendo.io",
+        "url.same_origin": false
+      },
+      "description": "https://data.pendo.io/data/guide.js/dc5c6fad-c3ae-4441-49ce-0ae37103aed7?id=18&jzb=eJx1Vd1u4zgPfRcD0ys3iZ220w1QLLJNCgww3emOM9_F3gSMxSRqZMlLyd7Nt-i7D6U48c-2V7F4JJKHPGT-jWpppTP0RUSzKBmlk2QyvZtGcQR5birtTnY-V6T4a-9caWfjsUXt6DhqfqQZl0hbQwXoHMe2Kgqg4xhrhu3415LMK-buIUnSz3dXf1VIx4cr68DZFyRpxEOyv3IE2kLupNEPn9Knjjs-MRh-P03n4TNT1Y6PnJVR4n8tAV0pFUcFOhDgIJpd2PlPOWRYWTzRbk1kFLKhwGKDxGdpF0CHZyPYugVlMY6sOPwOBVq-1rB_hRpsTrJ0I43_uFcb_xcgZG5ne3l0e6NHWwX28M5dzeEGV8Ur6J3hhPZgM0ZWbbU4EUcVJ9ZAGVr7jvk7lgqOXeszOpL5XCG5iznn0N_-1kj20Tc_mt3FUdO9xpAkcbSVZN3SN3clC18vLmB6PUmuk5tVms4m97PbdPQ5Se4nv_x5ypn7fG7nF2srX71LHi9ktlIN7NKfQm7fK4WX2DcNn0DxROn8QnGFKtj5dFCvf2TR20XDbfdDS58I23ZK-wyanzF8jrwiCaz1y4WldkglSYtDpEPrheMP4ayyJWrhfTe2fHiJDRmqbYZUtzkxLc3ZQjFdbyorNdNdc7HXUG2ZgEdXkuUZbgRGSyB1nAtTcqJnHs44UM9ByF6rtWRpOy9xZNnXKJZEJiCGtcRla5G-uFocyMckpnOp7COfJNc3KriEmkeO43p-C5baV9wychpJQzvQ8v_gfc59j6Z399PQy296gVxAkflKtWXh0FIgPRla2B-lRdWWzK-GUMR5DVLBxk_sEMockFuA82rwJTvbl1q8Y50z1075KejqgxAdcBCkg_TCdN31A_FkeeWfBPcOmy48ZNTF-qx6TvsBbcmd_SBaiw1CtUAvTsdXP4hXTo081YXx7T5LgPM6GVptXPMuyU1RsjBRXB54zbH_LU9p2DEnjfVfSfsVrHs85gpZIn6gw1V-2iQh-Hom_Vye3T4q4GXFEgtRK-tMgbQwBch2V0qe9B0FlYb9riA_xDvp9tUmfpUEcckyJ1G5Y1wj5ag6BiFtbkh89OtnpnJ7Tqf2wg6DdQgDI8DuNwZINFtuOuXJCK84RgY8kH_4f8wGvU14JfPc_CaVkno3F4LHtrtO-8ATgquImzNYt3yjYzut_L0s_bJtnPH6LIG4qPPLEmUT_6_6_ic340kyTifpLRPgNP069v8Do_RuMkrW3GsRvb39BA5S8XQ&v=2.260.1_prod&ct=1736879793755",
+      "op": "resource.script",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "af31aa3ad29cc774",
+      "start_timestamp": 1736879793.7561,
+      "timestamp": 1736879793.8162,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "TransactionEvents-EventsTable-vcd-start",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "a7d18b6820d52c82",
+      "start_timestamp": 1736879793.8767,
+      "timestamp": 1736879793.8767,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "measure"
+      },
+      "description": "VCD [TransactionEvents-EventsTable] #1",
+      "op": "measure",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "afd6df0bf49f51f6",
+      "start_timestamp": 1736879793.8767,
+      "timestamp": 1736879794.2955,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "TransactionEvents-EventsTable-vcd-end-pretimeout",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "94513e5966f1ebbb",
+      "start_timestamp": 1736879794.1027,
+      "timestamp": 1736879794.1027,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "mark"
+      },
+      "description": "TransactionEvents-EventsTable-vcd-end",
+      "op": "mark",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "b9a27f4bf263ceaf",
+      "start_timestamp": 1736879794.2954998,
+      "timestamp": 1736879794.2954998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    },
+    {
+      "data": {
+        "sentry.origin": "auto.resource.browser.metrics",
+        "sentry.op": "resource.iframe",
+        "http.response_transfer_size": 0,
+        "http.response_content_length": 200,
+        "http.decoded_response_content_length": 200,
+        "http.response_delivery_type": "cache",
+        "resource.render_blocking_status": "non-blocking",
+        "url.scheme": "https",
+        "server.address": "js.stripe.com",
+        "url.same_origin": false
+      },
+      "description": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html#url=https%3A%2F%2Fsentry.sentry.io%2Fperformance%2Fsummary%2Fevents%2F%3Fproject%3D11276%26query%3D%26statsPeriod%3D1h%26transaction%3D%252Fperformance%252Ftrace%252F%253AtraceSlug%252F&title=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F%20%E2%80%94%20Events%20%E2%80%94%20sentry%20%E2%80%94%20javascript%20%E2%80%94%20Sentry&referrer=&muid=15feec80-e3a5-4123-8e6d-891a8b16e63f761fd5&sid=1316a518-d050-4664-91ff-b5c9e29071ac0e5eed&version=6&preview=false",
+      "op": "resource.iframe",
+      "parent_span_id": "8a40494853ebc883",
+      "span_id": "89683e0a26149f81",
+      "start_timestamp": 1736879797.4601998,
+      "timestamp": 1736879797.4657998,
+      "trace_id": "6ded0e93cab44a33be5e68c4bcea71f8",
+      "origin": "auto.resource.browser.metrics"
+    }
+  ],
+  "start_timestamp": 1736879791.1225998,
+  "timestamp": 1736879801.1848998,
+  "transaction": "/performance/summary/events/",
+  "type": "transaction",
+  "transaction_info": { "source": "route" },
+  "measurements": {
+    "lcp": { "value": 2114.400000035763, "unit": "millisecond" },
+    "cls": { "value": 0.06968744948332999, "unit": "" },
+    "ttfb": { "value": 938.4000000357628, "unit": "millisecond" },
+    "fp": { "value": 1295.6000000238419, "unit": "millisecond" },
+    "fcp": { "value": 1295.6000000238419, "unit": "millisecond" },
+    "connection.rtt": { "value": 50, "unit": "millisecond" },
+    "ttfb.requestTime": { "value": 934.9000000357628, "unit": "millisecond" },
+    "allResources.encoded": { "value": 2461847, "unit": "byte" },
+    "allResources.transfer": { "value": 0, "unit": "byte" },
+    "pre_bundle_load": { "value": 322.90008693933487, "unit": "millisecond" },
+    "bundle_load": { "value": 305.7999610900879, "unit": "millisecond" },
+    "visually_complete_with_data": {
+      "value": 3172.9001998901367,
+      "unit": "millisecond"
+    },
+    "init_to_vcd": { "value": 1605.8001518249512, "unit": "millisecond" }
+  },
+  "platform": "javascript",
+  "request": {
+    "url": "https://sentry.sentry.io/performance/summary/events/?project=11276&query=&statsPeriod=1h&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    }
+  },
+  "event_id": "70e59e1539f14a1a8bc17ce2aef494b9",
+  "environment": "prod",
+  "release": "frontend@514f7298e96ddc1627994d62ca8ac5f162d8a990",
+  "sdk": {
+    "integrations": [
+      "InboundFilters",
+      "FunctionToString",
+      "BrowserApiErrors",
+      "Breadcrumbs",
+      "GlobalHandlers",
+      "LinkedErrors",
+      "Dedupe",
+      "HttpContext",
+      "BrowserSession",
+      "ExtraErrorData",
+      "BrowserTracing",
+      "BrowserProfiling",
+      "ThirdPartyErrorsFilter",
+      "FeatureFlags",
+      "Feedback",
+      "ReplayCanvas",
+      "Replay"
+    ],
+    "name": "sentry.javascript.react",
+    "version": "8.48.0",
+    "packages": [{ "name": "npm:@sentry/react", "version": "8.48.0" }]
+  },
+  "tags": {
+    "sentry_version": "25.1.0.dev0",
+    "isCustomerDomain": "yes",
+    "customerDomain.organizationUrl": "https://sentry.sentry.io",
+    "customerDomain.sentryUrl": "https://sentry.io",
+    "customerDomain.subdomain": "sentry",
+    "plan": "am3_business_ent_auf",
+    "plan.name": "Business",
+    "plan.max_members": "null",
+    "plan.total_members": "379",
+    "plan.tier": "am3",
+    "organization": "1",
+    "organization.slug": "sentry",
+    "timeOrigin.mode": "timeOrigin",
+    "replayId": "298e6f10d71e4f9385c8d723059c4beb",
+    "hasAnyAssetTimings": true
+  },
+  "user": {
+    "ip_address": "24.226.123.86",
+    "email": "dominik.buszowiecki@sentry.io",
+    "id": 2010363,
+    "isStaff": true,
+    "name": "dominik.buszowiecki@sentry.io"
+  },
+  "breadcrumbs": [
+    {
+      "timestamp": 1736879792.832,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://sentry.io/api/0/assistant/",
+        "__span": "82797fb3904d705e",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.035,
+      "category": "console",
+      "data": { "logger": "replay" },
+      "level": "info",
+      "message": "[Replay] Using compression worker"
+    },
+    {
+      "timestamp": 1736879793.064,
+      "category": "console",
+      "data": { "logger": "replay" },
+      "level": "info",
+      "message": "[Replay] Loading existing session"
+    },
+    {
+      "timestamp": 1736879793.064,
+      "category": "console",
+      "data": { "logger": "replay" },
+      "level": "info",
+      "message": "[Replay] Starting replay in session mode"
+    },
+    {
+      "timestamp": 1736879793.207,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=rollback_2024_dropdown&organization_id=1",
+        "__span": "9339f07ce42a7dcc",
+        "status_code": 200,
+        "response_body_size": 102
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.214,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=rollback_2024_sidebar&organization_id=1",
+        "__span": "b726b94e046253dd",
+        "status_code": 200,
+        "response_body_size": 101
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.223,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://t687h3m0nh65.statuspage.io/api/v2/incidents/unresolved.json",
+        "__span": "8abe942885dfce6b",
+        "status_code": 200,
+        "response_body_size": 173
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.245,
+      "category": "fetch",
+      "data": {
+        "method": "POST",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/promotions/trigger-check/",
+        "__span": "a8fe3332b7ac08d5",
+        "status_code": 200,
+        "response_body_size": 98
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.253,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/subscriptions/sentry/",
+        "__span": "bbb88ad6e1dafe3d",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.325,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/project-transaction-threshold-override/?project=11276&transaction=%2Fperformance%2Ftrace%2F%3AtraceSlug%2F",
+        "__span": "a9708dc27c307458",
+        "status_code": 404,
+        "response_body_size": 0
+      },
+      "type": "http",
+      "level": "warning"
+    },
+    {
+      "timestamp": 1736879793.335,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://sentry.io/api/0/organizations/sentry/broadcasts/",
+        "__span": "ac3309c2840de24c",
+        "status_code": 200,
+        "response_body_size": 2
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.357,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/prompts-activity/?feature=deactivated_member_alert&feature=errors_overage_alert&feature=attachments_overage_alert&feature=transactions_overage_alert&feature=replays_overage_alert&feature=monitor_seats_overage_alert&feature=spans_overage_alert&feature=profile_duration_overage_alert&feature=errors_warning_alert&feature=attachments_warning_alert&feature=transactions_warning_alert&feature=replays_warning_alert&feature=monitor_seats_warning_alert&feature=spans_warning_alert&feature=profile_duration_warning_alert&feature=errors_product_trial_alert&feature=attachments_product_trial_alert&feature=transactions_product_trial_alert&feature=replays_product_trial_alert&feature=monitor_seats_product_trial_alert&feature=spans_product_trial_alert&feature=profile_duration_product_trial_alert&organization_id=1",
+        "__span": "bc99d88db53da0ef",
+        "status_code": 200,
+        "response_body_size": 15
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.365,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/key-transactions-list/?project=11276&team=myteams",
+        "__span": "9f3baa9e715b1fbf",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.38,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/events-has-measurements/?project=11276&transaction=%22%2Fperformance%2Ftrace%2F%3AtraceSlug%2F%22&type=web",
+        "__span": "b580518966dc6ebf",
+        "status_code": 200,
+        "response_body_size": 21
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.456,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/events/?field=p100%28%29&field=p99%28%29&field=p95%28%29&field=p75%28%29&field=p50%28%29&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-events&sort=-p100%28%29&statsPeriod=1h",
+        "__span": "86d27b40d96c44f2",
+        "status_code": 200,
+        "response_body_size": 478
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.457,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/customers/sentry/billing-config/?tier=am3",
+        "__span": "ac2a3d28858fc4f6",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.607,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/user-teams/",
+        "__span": "b40ceb8f255cb50c",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.608,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/projects/sentry/javascript/transaction-threshold/configure/?project=11276",
+        "__span": "974d92144ee74536",
+        "status_code": 200,
+        "response_body_size": 174
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.612,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "/api/0/organizations/sentry/sessions/?field=sum%28session%29&groupBy=session.status&interval=10m&project=11276&queryReferrer=devtoolbar&statsPeriod=24h",
+        "__span": "ad0e7c3ae7fe13d6",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.621,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/user-rollback/",
+        "__span": "8cfdcada3e4ce8ae",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.716,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/recent-searches/?limit=10&type=1",
+        "__span": "b88904cb94bc9b9a",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.743,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/pendo-details/",
+        "__span": "9b1610e7cd725edd",
+        "status_code": 200,
+        "response_body_size": 742
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.841,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/events/?cursor=0%3A0%3A0&field=count%28%29&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-summary&statsPeriod=1h",
+        "__span": "956104d7c4be79a7",
+        "status_code": 200,
+        "response_body_size": 230
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879793.874,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/events/?field=id&field=user.display&field=span_ops_breakdown.relative&field=transaction.duration&field=trace&field=timestamp&field=spans.browser&field=spans.db&field=spans.http&field=spans.resource&field=spans.ui&field=profile.id&field=profiler.id&field=thread.id&field=precise.start_ts&field=precise.finish_ts&field=replayId&per_page=50&project=11276&query=event.type%3Atransaction%20transaction%3A%2Fperformance%2Ftrace%2F%3AtraceSlug%2F&referrer=api.performance.transaction-events&sort=-timestamp&statsPeriod=1h",
+        "__span": "a4f616a5995b6039",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879794.293,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://de.sentry.io/api/0/organizations/?member=1",
+        "__span": "ad4359837c918574",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879794.313,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "/api/0/organizations/sentry/incidents/?limit=1&project=11276&queryReferrer=devtoolbar&status=open&statusPeriod=14d",
+        "__span": "9d9aa3e947b7d650",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879794.313,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/tags/?project=11276&statsPeriod=1h&use_cache=1",
+        "__span": "bf775385952b2c6e",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879794.426,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/?member=1",
+        "__span": "845079852115c5b3",
+        "status_code": 200
+      },
+      "type": "http"
+    },
+    {
+      "timestamp": 1736879794.539,
+      "category": "fetch",
+      "data": {
+        "method": "GET",
+        "url": "https://us.sentry.io/api/0/organizations/sentry/replay-count/?data_source=discover&project=-1&query=replay_id%3A%5B14a3aa26078a48ec931c683cb76a1b3e%2Cad6c37a26963459aa5d95d93e3482a0f%2Cb8aa10ff30524ad191dcbb2ba70e5dfb%2Ca84e3c4e19d446e2ad31f6b2aae156e4%5D&statsPeriod=90d",
+        "__span": "b945446824c7a8d1",
+        "status_code": 200,
+        "response_body_size": 75
+      },
+      "type": "http"
+    }
+  ]
+}
