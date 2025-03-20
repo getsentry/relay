@@ -7,6 +7,8 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from queue import Empty
+
+from pytest_localserver.http import itertools
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
@@ -861,27 +863,40 @@ def test_outcome_to_client_report(relay, mini_sentry):
 
     _send_event(downstream, event_type="transaction")
 
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
+    outcomes_batches = [
+        mini_sentry.captured_outcomes.get(timeout=3.2),
+        mini_sentry.captured_outcomes.get(timeout=3.2),
+    ]
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
     assert mini_sentry.captured_events.qsize() == 0
 
-    outcomes = outcomes_batch.get("outcomes")
-    assert len(outcomes) == 1
+    outcomes = list(
+        itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
+    )
+    outcomes.sort(key=lambda o: o["category"])
 
-    outcome = outcomes[0]
-
-    del outcome["timestamp"]
-
-    expected_outcome = {
-        "org_id": 1,
-        "project_id": 42,
-        "key_id": 123,
-        "outcome": 1,
-        "reason": "Sampled:3000",
-        "category": 9,
-        "quantity": 1,
-    }
-    assert outcome == expected_outcome
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "reason": "Sampled:3000",
+            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "reason": "Sampled:3000",
+            "category": DataCategory.SPAN_INDEXED.value,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_filtered_event_outcome_client_reports(relay, mini_sentry):
@@ -1017,26 +1032,39 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
     _send_event(upstream, event_type="transaction")
     _send_event(upstream, event_type="transaction")
 
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=1.2)
-    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+    outcomes_batches = [
+        mini_sentry.captured_outcomes.get(timeout=1.2),
+        mini_sentry.captured_outcomes.get(timeout=1.2),
+    ]
+    assert mini_sentry.captured_outcomes.qsize() == 0
+    assert mini_sentry.captured_events.qsize() == 0
 
-    outcomes = outcomes_batch.get("outcomes")
-    assert len(outcomes) == 1
-
-    outcome = outcomes[0]
-
-    del outcome["timestamp"]
-
-    expected_outcome = {
-        "org_id": 1,
-        "project_id": 42,
-        "key_id": 123,
-        "outcome": 1,
-        "reason": "Sampled:3000",
-        "category": 9,
-        "quantity": 2,
-    }
-    assert outcome == expected_outcome
+    outcomes = list(
+        itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
+    )
+    outcomes.sort(key=lambda o: o["category"])
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "reason": "Sampled:3000",
+            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "quantity": 2,
+        },
+        {
+            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "reason": "Sampled:3000",
+            "category": DataCategory.SPAN_INDEXED.value,
+            "quantity": 2,
+        },
+    ]
 
 
 def test_outcomes_aggregate_inbound_filters(
@@ -1133,26 +1161,38 @@ def test_graceful_shutdown(relay, mini_sentry):
     relay.shutdown(sig=signal.SIGTERM)
 
     # We should have outcomes almost immediately through force flush:
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+    outcomes_batches = [
+        mini_sentry.captured_outcomes.get(timeout=1.2),
+        mini_sentry.captured_outcomes.get(timeout=1.2),
+    ]
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
 
-    outcomes = outcomes_batch.get("outcomes")
-    assert len(outcomes) == 1
-
-    outcome = outcomes[0]
-
-    del outcome["timestamp"]
-
-    expected_outcome = {
-        "org_id": 1,
-        "project_id": 42,
-        "key_id": 123,
-        "outcome": 1,
-        "reason": "Sampled:3000",
-        "category": 9,
-        "quantity": 1,
-    }
-    assert outcome == expected_outcome
+    outcomes = list(
+        itertools.chain.from_iterable(o.get("outcomes") for o in outcomes_batches)
+    )
+    outcomes.sort(key=lambda o: o["category"])
+    assert outcomes == [
+        {
+            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "reason": "Sampled:3000",
+            "category": DataCategory.TRANSACTION_INDEXED.value,
+            "quantity": 1,
+        },
+        {
+            "timestamp": time_within_delta(delta=timedelta(minutes=2)),
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "reason": "Sampled:3000",
+            "category": DataCategory.SPAN_INDEXED.value,
+            "quantity": 1,
+        },
+    ]
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -1269,7 +1309,7 @@ def test_profile_outcomes(
     }[num_intermediate_relays]
     expected_outcomes = [
         {
-            "category": 4,  # attachment
+            "category": DataCategory.ATTACHMENT.value,  # attachment
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,
@@ -1279,7 +1319,7 @@ def test_profile_outcomes(
             "source": expected_source,
         },
         {
-            "category": 9,  # TransactionIndexed
+            "category": DataCategory.TRANSACTION_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,  # Filtered
@@ -1289,7 +1329,17 @@ def test_profile_outcomes(
             "source": expected_source,
         },
         {
-            "category": 22,  # attachment item
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,  # Filtered
+            "project_id": 42,
+            "quantity": 2,
+            "reason": "Sampled:3000",
+            "source": expected_source,
+        },
+        {
+            "category": DataCategory.ATTACHMENT_ITEM.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,
@@ -1926,9 +1976,11 @@ def test_span_outcomes(
         1: "pop-relay",
         2: "pop-relay",
     }[num_intermediate_relays]
-    expected_outcomes = [
+
+    assert outcomes == [
         {
-            "category": 9,  # Span
+            "timestamp": time_within_delta(),
+            "category": DataCategory.TRANSACTION_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 1,  # Filtered
@@ -1938,7 +1990,8 @@ def test_span_outcomes(
             "source": expected_source,
         },
         {
-            "category": 16,  # SpanIndexed
+            "timestamp": time_within_delta(),
+            "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
             "outcome": 0,  # Accepted
@@ -1946,11 +1999,18 @@ def test_span_outcomes(
             "quantity": 2,
             "source": "processing-relay",
         },
+        {
+            "timestamp": time_within_delta(),
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,  # Filtered
+            "project_id": 42,
+            "quantity": 2,
+            "reason": "Sampled:3000",
+            "source": expected_source,
+        },
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
-
-    assert outcomes == expected_outcomes, outcomes
 
 
 def test_span_outcomes_invalid(

@@ -21,7 +21,9 @@ use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::types::ClientSdk;
 use crate::utils::default_client_sdk;
+use crate::MAX_PROFILE_CHUNK_DURATION;
 
+const MAX_PROFILE_CHUNK_DURATION_SECS: f64 = MAX_PROFILE_CHUNK_DURATION.as_secs_f64();
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
     /// Random UUID identifying a chunk
@@ -99,6 +101,24 @@ pub struct ProfileData {
 }
 
 impl ProfileData {
+    fn is_above_max_duration(&self) -> bool {
+        if self.samples.is_empty() {
+            return false;
+        }
+        let mut min = self.samples[0].timestamp;
+        let mut max = self.samples[0].timestamp;
+
+        for sample in self.samples.iter().skip(1) {
+            if sample.timestamp < min {
+                min = sample.timestamp
+            } else if sample.timestamp > max {
+                max = sample.timestamp
+            }
+        }
+
+        let duration = max.saturating_sub(min);
+        duration.to_f64() > MAX_PROFILE_CHUNK_DURATION_SECS
+    }
     /// Ensures valid profile chunk or returns an error.
     ///
     /// Mutates the profile chunk. Removes invalid samples and threads.
@@ -117,6 +137,10 @@ impl ProfileData {
 
         if !self.all_frames_referenced_by_stacks_exist() {
             return Err(ProfileError::MalformedStacks);
+        }
+
+        if self.is_above_max_duration() {
+            return Err(ProfileError::DurationIsTooLong);
         }
 
         self.strip_pointer_authentication_code(platform);
@@ -191,12 +215,12 @@ mod tests {
                 Sample {
                     stack_id: 0,
                     thread_id: "1".into(),
-                    timestamp: FiniteF64::new(2000.0).unwrap(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
                 },
                 Sample {
                     stack_id: 0,
                     thread_id: "1".to_string(),
-                    timestamp: FiniteF64::new(1000.0).unwrap(),
+                    timestamp: FiniteF64::new(30.0).unwrap(),
                 },
             ],
             stacks: vec![vec![0]],
@@ -210,10 +234,90 @@ mod tests {
 
         assert_eq!(
             timestamps,
-            vec![
-                FiniteF64::new(1000.0).unwrap(),
-                FiniteF64::new(2000.0).unwrap(),
-            ]
+            vec![FiniteF64::new(30.0).unwrap(), FiniteF64::new(60.0).unwrap(),]
         );
+    }
+
+    #[test]
+    fn test_is_above_max_duration() {
+        struct TestStruct {
+            name: String,
+            profile: ProfileData,
+            want: bool,
+        }
+
+        let test_cases = [
+            TestStruct {
+                name: "not above max duration".to_string(),
+                profile: ProfileData {
+                    samples: vec![
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".into(),
+                            timestamp: FiniteF64::new(30.0).unwrap(),
+                        },
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".to_string(),
+                            timestamp: FiniteF64::new(60.0).unwrap(),
+                        },
+                    ],
+                    stacks: vec![vec![0]],
+                    frames: vec![Default::default()],
+                    ..Default::default()
+                },
+                want: false,
+            },
+            TestStruct {
+                name: "above max duration".to_string(),
+                profile: ProfileData {
+                    samples: vec![
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".into(),
+                            timestamp: FiniteF64::new(10.0).unwrap(),
+                        },
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".to_string(),
+                            timestamp: FiniteF64::new(80.0).unwrap(),
+                        },
+                    ],
+                    stacks: vec![vec![0]],
+                    frames: vec![Default::default()],
+                    ..Default::default()
+                },
+                want: true,
+            },
+            TestStruct {
+                name: "unsorted samples not above max duration".to_string(),
+                profile: ProfileData {
+                    samples: vec![
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".into(),
+                            timestamp: FiniteF64::new(50.0).unwrap(),
+                        },
+                        Sample {
+                            stack_id: 0,
+                            thread_id: "1".to_string(),
+                            timestamp: FiniteF64::new(20.0).unwrap(),
+                        },
+                    ],
+                    stacks: vec![vec![0]],
+                    frames: vec![Default::default()],
+                    ..Default::default()
+                },
+                want: false,
+            },
+        ];
+        for test in &test_cases {
+            assert_eq!(
+                test.profile.is_above_max_duration(),
+                test.want,
+                "test <{}> failed",
+                test.name
+            )
+        }
     }
 }

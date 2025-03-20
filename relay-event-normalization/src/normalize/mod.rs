@@ -450,6 +450,7 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 client_ip: Some(&ip_address),
+                infer_ip_address: true,
                 ..Default::default()
             },
         );
@@ -476,6 +477,7 @@ mod tests {
             &NormalizationConfig {
                 client_ip: Some(&ip_address),
                 geoip_lookup: Some(&geo),
+                infer_ip_address: true,
                 ..Default::default()
             },
         );
@@ -504,7 +506,66 @@ mod tests {
 
         let user = get_value!(event.user!);
         assert!(user.ip_address.value().is_none());
-        assert!(user.geo.value().is_none());
+        assert!(user.geo.value().is_some());
+    }
+
+    #[test]
+    fn test_geo_present_if_ip_inferring_disabled() {
+        let mut event = Annotated::new(Event {
+            user: Annotated::new(User {
+                ip_address: Annotated::new(IpAddr::auto()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                client_ip: Some(&ip_address),
+                geoip_lookup: Some(&geo),
+                infer_ip_address: false,
+                ..Default::default()
+            },
+        );
+
+        let user = get_value!(event.user!);
+        assert!(user.ip_address.value().unwrap().is_auto());
+        assert!(user.geo.value().is_some());
+    }
+
+    #[test]
+    fn test_geo_and_ip_present_if_ip_inferring_enabled() {
+        let mut event = Annotated::new(Event {
+            user: Annotated::new(User {
+                ip_address: Annotated::new(IpAddr::auto()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                client_ip: Some(&ip_address),
+                geoip_lookup: Some(&geo),
+                infer_ip_address: true,
+                ..Default::default()
+            },
+        );
+
+        let user = get_value!(event.user!);
+        assert_eq!(
+            user.ip_address.value(),
+            Some(&IpAddr::parse("2.125.160.216").unwrap())
+        );
+        assert!(user.geo.value().is_some());
     }
 
     #[test]

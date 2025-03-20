@@ -372,6 +372,7 @@ pub async fn handle_envelope(
         .project_cache_handle()
         .get(project_key)
         .check_envelope(managed_envelope)
+        .await
         .map_err(BadStoreRequest::EventRejected)?;
 
     let Some(mut managed_envelope) = checked.envelope else {

@@ -31,6 +31,14 @@ pub trait Filterable {
 
     /// The user agent of the client that sent the data.
     fn user_agent(&self) -> Option<&str>;
+
+    /// Retrieves a request headers from the item.
+    ///
+    /// For example this is used for localhost filtering by inspecting relevant headers that may
+    /// be included in the `request.headers` of an error.
+    ///
+    /// This **does not** return header information from the request that reached relay.
+    fn header(&self, header_name: &str) -> Option<&str>;
 }
 
 impl Filterable for Event {
@@ -73,6 +81,14 @@ impl Filterable for Event {
     fn user_agent(&self) -> Option<&str> {
         self.user_agent()
     }
+
+    fn header(&self, header_name: &str) -> Option<&str> {
+        self.request
+            .value()?
+            .headers
+            .value()?
+            .get_header(header_name)
+    }
 }
 
 impl Filterable for Replay {
@@ -108,6 +124,14 @@ impl Filterable for Replay {
 
     fn user_agent(&self) -> Option<&str> {
         self.user_agent()
+    }
+
+    fn header(&self, header_name: &str) -> Option<&str> {
+        self.request
+            .value()?
+            .headers
+            .value()?
+            .get_header(header_name)
     }
 }
 
@@ -146,5 +170,9 @@ impl Filterable for Span {
 
     fn user_agent(&self) -> Option<&str> {
         self.data.value()?.user_agent_original.as_str()
+    }
+
+    fn header(&self, _: &str) -> Option<&str> {
+        None
     }
 }

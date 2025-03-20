@@ -1,6 +1,7 @@
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use crate::OtelLog;
+use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{AttributeValue, OurLog, SpanId, TraceId};
 use relay_protocol::{Annotated, Object};
 
@@ -28,6 +29,10 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
         .unwrap_or_else(String::new);
 
     let mut attribute_data = Object::new();
+
+    // We ignore the passed observed time since Relay always acts as the collector in Sentry.
+    // We may change this in the future with forwarding Relays.
+    let observed_time_unix_nano = UnixTimestamp::now().as_nanos();
 
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
@@ -58,7 +63,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
 
     OurLog {
         timestamp_nanos: Annotated::new(otel_log.time_unix_nano),
-        observed_timestamp_nanos: Annotated::new(otel_log.observed_time_unix_nano),
+        observed_timestamp_nanos: Annotated::new(observed_time_unix_nano),
         trace_id: TraceId(trace_id).into(),
         span_id: Annotated::new(SpanId(span_id)),
         trace_flags: Annotated::new(0),
@@ -199,6 +204,63 @@ mod tests {
         assert_eq!(
             get_value!(annotated_log.attributes["db.statement"]!).string_value(),
             Some(&"SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into())
+        );
+    }
+
+    #[test]
+    fn parse_log_without_observed_time() {
+        let json_without_observed_time = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "0",
+            "severityNumber": 10,
+            "severityText": "Information",
+            "traceId": "5B8EFFF798038103D269B633813FC60C",
+            "spanId": "EEE19B7EC3C1B174",
+            "body": {
+                "stringValue": "Example log record"
+            },
+            "attributes": []
+        }"#;
+
+        let before_test = UnixTimestamp::now().as_nanos();
+        let otel_log: OtelLog = serde_json::from_str(json_without_observed_time).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log);
+        let after_test = UnixTimestamp::now().as_nanos();
+
+        let observed_time = our_log.observed_timestamp_nanos.value().unwrap();
+        assert!(*observed_time > 0);
+        assert!(*observed_time >= before_test);
+        assert!(*observed_time <= after_test);
+    }
+
+    #[test]
+    fn parse_log_ignores_observed_time() {
+        let json_with_observed_time = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 10,
+            "severityText": "Information",
+            "traceId": "5B8EFFF798038103D269B633813FC60C",
+            "spanId": "EEE19B7EC3C1B174",
+            "body": {
+                "stringValue": "Example log record"
+            },
+            "attributes": []
+        }"#;
+
+        let before_test = UnixTimestamp::now().as_nanos();
+        let otel_log: OtelLog = serde_json::from_str(json_with_observed_time).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log);
+        let after_test = UnixTimestamp::now().as_nanos();
+
+        let observed_time = our_log.observed_timestamp_nanos.value().unwrap();
+        assert!(*observed_time > 0);
+        assert!(*observed_time >= before_test);
+        assert!(*observed_time <= after_test);
+
+        assert_ne!(
+            our_log.observed_timestamp_nanos,
+            Annotated::new(1544712660300000000)
         );
     }
 }

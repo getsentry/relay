@@ -153,7 +153,29 @@ where
         let mut this = self.project();
 
         loop {
+            // We report before polling since we might have only blocking tasks meaning that the
+            // measure after the `poll_tasks_until_pending` will return 0, since all futures will
+            // be completed.
+            let before_len = this.tasks.len() as u64;
+            this.metrics
+                .active_tasks
+                .store(before_len, Ordering::Relaxed);
+
             this.tasks.as_mut().poll_tasks_until_pending(cx);
+
+            // We also want to report after polling since we might have finished polling some futures
+            // and some not.
+            let after_len = this.tasks.len() as u64;
+            this.metrics
+                .active_tasks
+                .store(after_len, Ordering::Relaxed);
+
+            // We calculate how many tasks have been driven to completion.
+            if let Some(finished_tasks) = before_len.checked_sub(after_len) {
+                this.metrics
+                    .finished_tasks
+                    .fetch_add(finished_tasks, Ordering::Relaxed);
+            }
 
             // If we can't get anymore tasks, and we don't have anything else to process, we report
             // ready. Otherwise, if we have something to process, we report pending.
@@ -172,10 +194,6 @@ where
             match this.rx.as_mut().poll_next(cx) {
                 Poll::Ready(Some(task)) => {
                     this.tasks.push(task);
-                    // We report how many tasks are being concurrently polled in this future.
-                    this.metrics
-                        .active_tasks
-                        .store(this.tasks.len() as u64, Ordering::Relaxed);
                 }
                 // The stream is exhausted and there are no remaining tasks.
                 Poll::Ready(None) if this.tasks.is_empty() => return Poll::Ready(()),
@@ -190,13 +208,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    use futures::{future::BoxFuture, FutureExt};
+    use std::future;
     use std::sync::atomic::AtomicBool;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
     };
-
-    use futures::{future::BoxFuture, FutureExt};
+    use std::time::Duration;
 
     use super::*;
 
@@ -479,16 +498,18 @@ mod tests {
         assert!(futures::executor::block_on(future).is_ok());
     }
 
-    #[test]
-    fn test_multiplexer_emits_metrics() {
+    #[tokio::test]
+    async fn test_multiplexer_emits_metrics() {
         let (tx, rx) = flume::bounded::<BoxFuture<'static, _>>(10);
         let metrics = mock_metrics();
 
-        tx.send(future_with(|| {})).unwrap();
+        tx.send(future::pending().boxed()).unwrap();
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new(
+        // We spawn the future, which will be indefinitely pending since it's never woken up.
+        #[allow(clippy::disallowed_methods)]
+        tokio::spawn(Multiplexed::new(
             "my_pool",
             1,
             rx.into_stream(),
@@ -496,7 +517,13 @@ mod tests {
             metrics.clone(),
         ));
 
-        // We expect that the metrics are updated with the newly added future.
+        // We sleep to let the pending be processed by the `Multiplexed` so that the metric is then
+        // correctly emitted.
+        tokio::time::sleep(Duration::from_millis(1)).await;
+
+        // We expect that now we have 1 active task, the one that is indefinitely pending.
         assert_eq!(metrics.active_tasks.load(Ordering::Relaxed), 1);
+        // An indefinitely pending task is never finished.
+        assert_eq!(metrics.finished_tasks.load(Ordering::Relaxed), 0);
     }
 }
