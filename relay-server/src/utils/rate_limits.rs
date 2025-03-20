@@ -199,7 +199,7 @@ pub struct EnvelopeSummary {
 
     /// The number of profile chunks in this envelope.
     pub profile_chunk_quantity: usize,
-    /// The number of profile chunks in this envelope.
+    /// The number of UI profile chunks in this envelope.
     pub profile_chunk_ui_quantity: usize,
 }
 
