@@ -10,9 +10,11 @@ use smallvec::SmallVec;
 #[doc(inline)]
 pub use relay_base_schema::data_category::DataCategory;
 
-/// Data scoping information.
+/// Data scoping information for rate limiting and quota enforcement.
 ///
-/// This structure holds information of all scopes required for attributing an item to quotas.
+/// [`Scoping`] holds all the identifiers needed to attribute data to specific
+/// organizations, projects, and keys. This allows the rate limiting and quota
+/// systems to enforce limits at the appropriate scope levels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Scoping {
     /// The organization id.
@@ -29,56 +31,61 @@ pub struct Scoping {
 }
 
 impl Scoping {
-    /// Returns an `ItemScoping` for this scope.
+    /// Creates an [`ItemScoping`] for a specific data category in this scope.
     ///
-    /// The item scoping will contain a reference to this scope and the information passed to this
-    /// function. This is a cheap operation to allow rate limiting for an individual item.
-    pub fn item(&self, category: DataCategory) -> ItemScoping<'_> {
+    /// The returned item scoping contains a reference to this scope and the provided
+    /// data category. This is a cheap operation that allows for efficient rate limiting
+    /// of individual items.
+    pub fn item(&self, category: DataCategory) -> ItemScoping {
         ItemScoping {
             category,
-            scoping: self,
+            scoping: *self,
             namespace: MetricNamespaceScoping::None,
         }
     }
 
-    /// Returns an `ItemScoping` for metric buckets in this scope.
+    /// Creates an [`ItemScoping`] specifically for metric buckets in this scope.
     ///
-    /// The item scoping will contain a reference to this scope, the category
-    /// [`MetricBucket](DataCategory::MetricBucket), and the information passed to this function.
-    /// This is a cheap operation to allow rate limiting for an individual item.
-    pub fn metric_bucket(&self, namespace: MetricNamespace) -> ItemScoping<'_> {
+    /// The returned item scoping contains a reference to this scope, the
+    /// [`DataCategory::MetricBucket`] category, and the provided metric namespace.
+    /// This is specialized for handling metrics with namespaces.
+    pub fn metric_bucket(&self, namespace: MetricNamespace) -> ItemScoping {
         ItemScoping {
             category: DataCategory::MetricBucket,
-            scoping: self,
+            scoping: *self,
             namespace: MetricNamespaceScoping::Some(namespace),
         }
     }
 }
 
-/// Item scoping of metric namespaces.
+/// Describes the metric namespace scoping of an item.
 ///
-/// This enum is used in [`ItemScoping`] to declare the contents of an item's metric namespace.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Hash, PartialOrd)]
+/// This enum is used within [`ItemScoping`] to represent the metric namespace of an item.
+/// It handles the different cases: no namespace, a specific namespace, or any namespace.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd)]
 pub enum MetricNamespaceScoping {
-    /// This item does not contain metrics of any namespace. This should only be used for non-metric
-    /// items.
+    /// The item does not contain metrics of any namespace.
+    ///
+    /// This should only be used for non-metric items.
     #[default]
     None,
 
-    /// This item contains metrics of a specific namespace.
+    /// The item contains metrics of a specific namespace.
     Some(MetricNamespace),
 
-    /// This item contains metrics of any namespace.
+    /// The item contains metrics of any namespace.
     ///
-    /// The namespace of metrics contained in this item is not known. This can be used to check rate
-    /// limits or quotas of any namespace.
+    /// The specific namespace is not known or relevant. This can be used to check rate
+    /// limits or quotas that should apply to any namespace.
     Any,
 }
 
 impl MetricNamespaceScoping {
-    /// Returns `true` if the given namespace matches the namespace of the item.
+    /// Checks if the given namespace matches this namespace scoping.
     ///
-    /// If the self is `Any`, this method returns `true` for any namespace.
+    /// Returns `true` in the following cases:
+    /// - If `self` is [`MetricNamespaceScoping::Some`] with the same namespace
+    /// - If `self` is [`MetricNamespaceScoping::Any`], matching any namespace
     pub fn matches(&self, namespace: MetricNamespace) -> bool {
         match self {
             Self::None => false,
@@ -94,39 +101,35 @@ impl From<MetricNamespace> for MetricNamespaceScoping {
     }
 }
 
-/// Data categorization and scoping information.
+/// Data categorization and scoping information for a single item.
 ///
-/// `ItemScoping` is always attached to a `Scope` and references it internally. It is a cheap,
-/// copyable type intended for the use with `RateLimits` and `RateLimiter`. It implements
-/// `Deref<Target = Scoping>` and `AsRef<Scoping>` for ease of use.
-#[derive(Clone, Copy, Debug)]
-pub struct ItemScoping<'a> {
+/// [`ItemScoping`] combines a data category, scoping information, and optional
+/// metric namespace to fully define an item for rate limiting purposes.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ItemScoping {
     /// The data category of the item.
     pub category: DataCategory,
 
     /// Scoping of the data.
-    pub scoping: &'a Scoping,
+    pub scoping: Scoping,
 
     /// Namespace for metric items, requiring [`DataCategory::MetricBucket`].
     pub namespace: MetricNamespaceScoping,
 }
 
-impl AsRef<Scoping> for ItemScoping<'_> {
-    fn as_ref(&self) -> &Scoping {
-        self.scoping
-    }
-}
-
-impl std::ops::Deref for ItemScoping<'_> {
+impl std::ops::Deref for ItemScoping {
     type Target = Scoping;
 
     fn deref(&self) -> &Self::Target {
-        self.scoping
+        &self.scoping
     }
 }
 
-impl ItemScoping<'_> {
-    /// Returns the identifier of the given scope.
+impl ItemScoping {
+    /// Returns the identifier for the given quota scope.
+    ///
+    /// Maps the quota scope type to the corresponding identifier from this scoping,
+    /// or `None` if the scope type doesn't have an applicable identifier.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
             QuotaScope::Global => None,
@@ -169,13 +172,16 @@ impl ItemScoping<'_> {
 }
 
 /// The unit in which a data category is measured.
+///
+/// This enum specifies how quantities for different data categories are measured,
+/// which affects how quota limits are interpreted and enforced.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CategoryUnit {
-    /// Counts the number of items.
+    /// Counts the number of discrete items.
     Count,
     /// Counts the number of bytes across items.
     Bytes,
-    /// Counts the accumulated times across items.
+    /// Counts the accumulated time in milliseconds across items.
     Milliseconds,
 }
 
@@ -218,40 +224,48 @@ impl CategoryUnit {
 
 /// An efficient container for data categories that avoids allocations.
 ///
-/// `DataCategories` is to be treated like a set.
+/// [`DataCategories`] is a small-vector based collection of [`DataCategory`] values.
+/// It's optimized for the common case of having only a few categories, avoiding heap
+/// allocations in these scenarios.
 pub type DataCategories = SmallVec<[DataCategory; 8]>;
 
-/// The scope that a quota applies to.
+/// The scope at which a quota is applied.
 ///
-/// Except for the `Unknown` variant, this type directly translates to the variants of
-/// `RateLimitScope` which are used by rate limits.
+/// Defines the granularity at which quotas are enforced, from global (affecting all data)
+/// down to individual project keys. This enum only defines the type of scope,
+/// not the specific instance.
+///
+/// This type is directly related to [`crate::rate_limit::RateLimitScope`], which
+/// includes the specific scope identifiers.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuotaScope {
-    /// Global scope, matches everything.
+    /// Global scope, matching all data regardless of origin.
     Global,
-    /// The organization that this project belongs to.
+    /// The organization level.
     ///
     /// This is the top-level scope.
     Organization,
 
-    /// The project.
+    /// The project level.
     ///
-    /// This is a sub-scope of `Organization`.
+    /// Projects are contained within organizations.
     Project,
 
-    /// A project key, which corresponds to a DSN entry.
+    /// The project key level (corresponds to a DSN).
     ///
-    /// This is a sub-scope of `Project`.
+    /// This is the most specific scope level and is contained within projects.
     Key,
 
-    /// Any other scope that is not known by this Relay.
+    /// Any scope type not recognized by this Relay.
     #[serde(other)]
     Unknown,
 }
 
 impl QuotaScope {
-    /// Returns the quota scope corresponding to the given name.
+    /// Returns the quota scope corresponding to the given name string.
+    ///
+    /// If the string doesn't match any known scope, returns [`QuotaScope::Unknown`].
     pub fn from_name(string: &str) -> Self {
         match string {
             "global" => Self::Global,
@@ -262,7 +276,9 @@ impl QuotaScope {
         }
     }
 
-    /// Returns the canonical name of this scope.
+    /// Returns the canonical string name of this scope.
+    ///
+    /// This is the lowercase string representation used in serialization.
     pub fn name(self) -> &'static str {
         match self {
             Self::Global => "global",
@@ -292,15 +308,19 @@ fn default_scope() -> QuotaScope {
     QuotaScope::Organization
 }
 
-/// A machine readable, freeform reason code for rate limits.
+/// A machine-readable reason code for rate limits.
+///
+/// Reason codes provide a standardized way to communicate why a particular
+/// item was rate limited.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Hash)]
 pub struct ReasonCode(String);
 
 impl ReasonCode {
     /// Creates a new reason code from a string.
     ///
-    /// This method is only to be used by tests. Reason codes should only be deserialized from
-    /// quotas, but never constructed manually.
+    /// This method is primarily intended for testing. In production, reason codes
+    /// should typically be deserialized from quota configurations rather than
+    /// constructed manually.
     pub fn new<S: Into<String>>(code: S) -> Self {
         Self(code.into())
     }
@@ -317,54 +337,74 @@ impl fmt::Display for ReasonCode {
     }
 }
 
-/// Configuration for a data ingestion quota (rate limiting).
+/// Configuration for a data ingestion quota.
 ///
-/// Sentry applies multiple quotas to incoming data before accepting it, some of which can be
-/// configured by the customer. Each piece of data (such as event, attachment) will be counted
-/// against all quotas that it matches with based on the `category`.
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+/// A quota defines restrictions on data ingestion based on data categories, scopes,
+/// and time windows. The system applies multiple quotas to incoming data, and items
+/// are counted against all matching quotas based on their categories.
+///
+/// Quotas can either:
+/// - Reject all data (`limit` = 0)
+/// - Limit data to a specific quantity per time window (`limit` > 0)
+/// - Count data without limiting it (`limit` = None)
+///
+/// Different quotas may apply at different scope levels (organization, project, key).
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Quota {
-    /// The unique identifier for counting this quota. Required, except for quotas with a `limit` of
-    /// `0`, since they are statically enforced.
+    /// The unique identifier for counting this quota.
+    ///
+    /// Required for all quotas except those with `limit` = 0, which are statically enforced.
     #[serde(default)]
     pub id: Option<String>,
 
-    /// A set of data categories that this quota applies to. If missing or empty, this quota
-    /// applies to all data.
+    /// Data categories this quota applies to.
+    ///
+    /// If missing or empty, this quota applies to all data categories.
     #[serde(default = "DataCategories::new")]
     pub categories: DataCategories,
 
-    /// A scope for this quota. This quota is enforced separately within each instance of this scope
-    /// (e.g. for each project key separately). Defaults to `QuotaScope::Organization`.
+    /// The scope level at which this quota is enforced.
+    ///
+    /// The quota is enforced separately within each instance of this scope
+    /// (e.g., for each project key separately). Defaults to [`QuotaScope::Organization`].
     #[serde(default = "default_scope")]
     pub scope: QuotaScope,
 
-    /// Identifier of the scope to apply to. If set, then this quota will only apply to the
-    /// specified scope instance (e.g. a project key). Requires `scope` to be set explicitly.
+    /// Specific scope instance identifier this quota applies to.
+    ///
+    /// If set, this quota only applies to the specified scope instance
+    /// (e.g., a specific project key). Requires `scope` to be set explicitly.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope_id: Option<String>,
 
-    /// Maximum number of matching events allowed. Can be `0` to reject all events, `None` for an
-    /// unlimited counted quota, or a positive number for enforcement. Requires `window` if the
-    /// limit is not `0`.
+    /// Maximum number of events allowed within the time window.
     ///
-    /// For attachments, this limit expresses the number of allowed bytes.
+    /// Possible values:
+    /// - `Some(0)`: Reject all matching events
+    /// - `Some(n)`: Allow up to n events per time window
+    /// - `None`: Unlimited quota (counts but doesn't limit)
+    ///
+    /// Requires `window` to be set if the limit is not 0.
     #[serde(default)]
     pub limit: Option<u64>,
 
-    /// The time window in seconds to enforce this quota in. Required in all cases except `limit=0`,
-    /// since those quotas are not measured.
+    /// The time window in seconds for quota enforcement.
+    ///
+    /// Required in all cases except `limit` = 0, since those quotas
+    /// are not measured over time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<u64>,
 
-    /// The namespace the quota applies to.
+    /// The metric namespace this quota applies to.
     ///
-    /// If `None`, it will match any namespace.
+    /// If `None`, it matches any namespace.
     pub namespace: Option<MetricNamespace>,
 
-    /// A machine readable reason returned when this quota is exceeded. Required in all cases except
-    /// `limit=None`, since unlimited quotas can never be exceeded.
+    /// A machine-readable reason code returned when this quota is exceeded.
+    ///
+    /// Required for all quotas except those with `limit` = None, since
+    /// unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<ReasonCode>,
 }
@@ -372,8 +412,8 @@ pub struct Quota {
 impl Quota {
     /// Returns whether this quota is valid for tracking.
     ///
-    /// There are a few conditions at which quotas are invalid:
-    ///  - The quota only applies to `Unknown` data categories.
+    /// A quota is considered invalid if any of the following conditions are true:
+    ///  - The quota only applies to [`DataCategory::Unknown`] data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
     ///  - The quota references an unsupported namespace.
     pub fn is_valid(&self) -> bool {
@@ -401,7 +441,7 @@ impl Quota {
     ///  - there is no `scope_id` constraint
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
-    fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
+    fn matches_scope(&self, scoping: ItemScoping) -> bool {
         if self.scope == QuotaScope::Global {
             return true;
         }
@@ -424,7 +464,10 @@ impl Quota {
     }
 
     /// Checks whether the quota's constraints match the current item.
-    pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
+    ///
+    /// This method determines if this quota should be applied to a given item
+    /// based on its scope, categories, and namespace.
+    pub fn matches(&self, scoping: ItemScoping) -> bool {
         self.matches_scope(scoping)
             && scoping.matches_categories(&self.categories)
             && scoping.matches_namespaces(&self.namespace)
@@ -735,7 +778,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -760,7 +803,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -785,7 +828,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -796,7 +839,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Transaction,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -821,7 +864,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -846,7 +889,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -857,7 +900,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -882,7 +925,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -893,7 +936,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -918,7 +961,7 @@ mod tests {
 
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -929,7 +972,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -940,7 +983,7 @@ mod tests {
 
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
-            scoping: &Scoping {
+            scoping: Scoping {
                 organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
