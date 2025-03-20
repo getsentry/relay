@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))
+
 **Internal**:
 
 - Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
