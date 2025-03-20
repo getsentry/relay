@@ -6,6 +6,10 @@
 
 - Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))
 
+**Bug Fixes**:
+
+- Separates profiles into backend and ui profiles. ([#4595](https://github.com/getsentry/relay/pull/4595))
+
 **Internal**:
 
 - Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))

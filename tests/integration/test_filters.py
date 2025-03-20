@@ -555,14 +555,14 @@ def android_profile_chunk_envelope(release):
     [
         pytest.param(sample_profile_v1_envelope, DataCategory.PROFILE, id="profile v1"),
         pytest.param(
-            sample_profile_v2_envelope, DataCategory.PROFILE_CHUNK, id="profile v2"
+            sample_profile_v2_envelope, DataCategory.PROFILE_CHUNK_UI, id="profile v2"
         ),
         pytest.param(
             android_profile_legacy_envelope, DataCategory.PROFILE, id="android legacy"
         ),
         pytest.param(
             android_profile_chunk_envelope,
-            DataCategory.PROFILE_CHUNK,
+            DataCategory.PROFILE_CHUNK_UI,
             id="android chunk",
         ),
     ],
@@ -612,6 +612,9 @@ def test_filters_are_applied_to_profiles(
             if outcome["category"] == data_category:
                 outcome.pop("timestamp")
                 outcomes.append(outcome)
+
+        print("=======")
+        print(outcomes)
 
         assert outcomes == [
             {
