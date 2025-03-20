@@ -5,6 +5,7 @@
 **Features**:
 
 - Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
+- Switch global rate limiter to a service. ([#4581](https://github.com/getsentry/relay/pull/4581))
 
 ## 25.3.0
 
@@ -18,6 +19,7 @@
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 - Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
+- Improve localhost detection by checking contained request headers in the error. ([#4580](https://github.com/getsentry/relay/pull/4580))
 
 **Bug Fixes**:
 

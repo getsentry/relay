@@ -87,7 +87,7 @@ impl UpstreamRateLimits {
         if !rate_limits.is_limited() {
             rate_limits.add(RateLimit {
                 categories: DataCategories::new(),
-                scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
+                scope: RateLimitScope::for_quota(*scoping, QuotaScope::Key),
                 reason_code: Some(ReasonCode::new("generic")),
                 retry_after: self.retry_after,
                 namespaces: Default::default(),
