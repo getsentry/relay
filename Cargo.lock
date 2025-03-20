@@ -3888,9 +3888,8 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "thiserror",
- "tokio",
  "thiserror 1.0.69",
+ "tokio",
  "uuid",
 ]
 
