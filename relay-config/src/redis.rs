@@ -273,11 +273,19 @@ pub(super) fn create_redis_pool(
     }
 }
 
-pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -> RedisPoolConfigs {
+pub(super) fn create_redis_pools(
+    configs: &RedisConfigs,
+    cpu_concurrency: u32,
+    max_pool_concurrency: u32,
+) -> RedisPoolConfigs {
     // Default `max_connections` for the `project_configs` pool.
     // In a unified config, this is used for all pools.
     let project_configs_default_connections =
         std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
+
+    // The number of default connections is equal to how many threads we have times the number of
+    // futures we can concurrently drive times some leeway since we might use more connections.
+    let default_connections = cpu_concurrency * max_pool_concurrency * 2;
 
     match configs {
         RedisConfigs::Unified(cfg) => {
@@ -291,8 +299,8 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
         } => {
             let project_configs =
                 create_redis_pool(project_configs, project_configs_default_connections);
-            let cardinality = create_redis_pool(cardinality, cpu_concurrency);
-            let quotas = create_redis_pool(quotas, cpu_concurrency);
+            let cardinality = create_redis_pool(cardinality, default_connections);
+            let quotas = create_redis_pool(quotas, default_connections);
             RedisPoolConfigs::Individual {
                 project_configs,
                 cardinality,
