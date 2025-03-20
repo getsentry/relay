@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))s
+
 **Internal**:
 
 - Switch global rate limiter to a service. ([#4581](https://github.com/getsentry/relay/pull/4581))
@@ -16,7 +20,7 @@
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
-- Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))
+
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 - Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
 - Improve localhost detection by checking contained request headers in the error. ([#4580](https://github.com/getsentry/relay/pull/4580))
