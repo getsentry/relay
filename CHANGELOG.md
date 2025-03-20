@@ -4,6 +4,7 @@
 
 **Internal**:
 
+- Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
 - Switch global rate limiter to a service. ([#4581](https://github.com/getsentry/relay/pull/4581))
 
 ## 25.3.0
