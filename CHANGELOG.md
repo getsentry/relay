@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
+
+
 ## 25.3.0
 
 **Features**:

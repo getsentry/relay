@@ -101,11 +101,20 @@ pub enum DataCategory {
     ///
     /// This is the category for logs for which we store log event total bytes for users.
     LogByte = 24,
-    /// ProfileDurationUi
+    /// Profile duration of a UI profile.
     ///
     /// This data category is used to count the number of milliseconds per indexed UI profile
     /// chunk.
+    ///
+    /// See also: [`Self::ProfileDuration`]
     ProfileDurationUi = 25,
+    /// UI Profile Chunk.
+    ///
+    /// This data category is used to count the number of milliseconds per indexed UI profile
+    /// chunk.
+    ///
+    /// See also: [`Self::ProfileChunk`]
+    ProfileChunkUi = 26,
 
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
@@ -145,6 +154,7 @@ impl DataCategory {
             "profile_duration" => Self::ProfileDuration,
             "profile_duration_ui" => Self::ProfileDurationUi,
             "profile_chunk" => Self::ProfileChunk,
+            "profile_chunk_ui" => Self::ProfileChunkUi,
             "metric_second" => Self::MetricSecond,
             "replay_video" => Self::DoNotUseReplayVideo,
             "uptime" => Self::Uptime,
@@ -180,6 +190,7 @@ impl DataCategory {
             Self::ProfileDuration => "profile_duration",
             Self::ProfileDurationUi => "profile_duration_ui",
             Self::ProfileChunk => "profile_chunk",
+            Self::ProfileChunkUi => "profile_chunk_ui",
             Self::MetricSecond => "metric_second",
             Self::Uptime => "uptime",
             Self::AttachmentItem => "attachment_item",
