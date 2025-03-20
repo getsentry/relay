@@ -19,7 +19,7 @@ def envelope_with_sentry_logs(payload: dict) -> Envelope:
     envelope.add_item(
         Item(
             type="log",
-            payload=PayloadRef(bytes=json.dumps(payload).encode()),
+            payload=PayloadRef(json=payload),
         )
     )
     return envelope
