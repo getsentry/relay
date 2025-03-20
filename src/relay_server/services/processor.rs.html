@@ -4326,7 +4326,15 @@
 <a href="#4325" id="4325">4325</a>
 <a href="#4326" id="4326">4326</a>
 <a href="#4327" id="4327">4327</a>
-<a href="#4328" id="4328">4328</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4328" id="4328">4328</a>
+<a href="#4329" id="4329">4329</a>
+<a href="#4330" id="4330">4330</a>
+<a href="#4331" id="4331">4331</a>
+<a href="#4332" id="4332">4332</a>
+<a href="#4333" id="4333">4333</a>
+<a href="#4334" id="4334">4334</a>
+<a href="#4335" id="4335">4335</a>
+<a href="#4336" id="4336">4336</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4427,6 +4435,8 @@
 <span class="kw">mod </span>transaction;
 <span class="kw">pub use </span>span::extract_transaction_span;
 
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">mod </span>playstation;
 <span class="kw">mod </span>standalone;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">mod </span>unreal;
@@ -5897,6 +5907,7 @@
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             unreal::expand(managed_envelope, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+            playstation::expand(managed_envelope, <span class="kw-2">&amp;</span>project_info)<span class="question-mark">?</span>;
         });
 
         <span class="kw">let </span>extraction_result = event::extract(
@@ -5910,6 +5921,11 @@
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) =
                 unreal::process(managed_envelope, <span class="kw-2">&amp;mut </span>event)<span class="question-mark">?
+            </span>{
+                event_fully_normalized = inner_event_fully_normalized;
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) =
+                playstation::process(managed_envelope, <span class="kw-2">&amp;mut </span>event)<span class="question-mark">?
             </span>{
                 event_fully_normalized = inner_event_fully_normalized;
             }

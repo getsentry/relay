@@ -2189,7 +2189,13 @@
 <a href="#2188" id="2188">2188</a>
 <a href="#2189" id="2189">2189</a>
 <a href="#2190" id="2190">2190</a>
-<a href="#2191" id="2191">2191</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
+<a href="#2191" id="2191">2191</a>
+<a href="#2192" id="2192">2192</a>
+<a href="#2193" id="2193">2193</a>
+<a href="#2194" id="2194">2194</a>
+<a href="#2195" id="2195">2195</a>
+<a href="#2196" id="2196">2196</a>
+<a href="#2197" id="2197">2197</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
 //! requests, each envelope has global headers and a set of items, such as the event payload, an
@@ -2606,6 +2612,9 @@
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
     </span>Breadcrumbs,
 
+    <span class="comment">// A prosperodump crash report (binary data)
+    </span>Prosperodump,
+
     <span class="doccomment">/// This is a binary attachment present in Unreal 4 events containing event context information.
     ///
     /// This can be deserialized using the `symbolic` crate see
@@ -2643,6 +2652,7 @@
             AttachmentType::Minidump =&gt; <span class="macro">write!</span>(f, <span class="string">"event.minidump"</span>),
             AttachmentType::AppleCrashReport =&gt; <span class="macro">write!</span>(f, <span class="string">"event.applecrashreport"</span>),
             AttachmentType::EventPayload =&gt; <span class="macro">write!</span>(f, <span class="string">"event.payload"</span>),
+            AttachmentType::Prosperodump =&gt; <span class="macro">write!</span>(f, <span class="string">"playstation.prosperodump"</span>),
             AttachmentType::Breadcrumbs =&gt; <span class="macro">write!</span>(f, <span class="string">"event.breadcrumbs"</span>),
             AttachmentType::UnrealContext =&gt; <span class="macro">write!</span>(f, <span class="string">"unreal.context"</span>),
             AttachmentType::UnrealLogs =&gt; <span class="macro">write!</span>(f, <span class="string">"unreal.logs"</span>),
@@ -2661,6 +2671,7 @@
             <span class="string">"event.minidump" </span>=&gt; AttachmentType::Minidump,
             <span class="string">"event.applecrashreport" </span>=&gt; AttachmentType::AppleCrashReport,
             <span class="string">"event.payload" </span>=&gt; AttachmentType::EventPayload,
+            <span class="string">"playstation.prosperodump" </span>=&gt; AttachmentType::Prosperodump,
             <span class="string">"event.breadcrumbs" </span>=&gt; AttachmentType::Breadcrumbs,
             <span class="string">"event.view_hierarchy" </span>=&gt; AttachmentType::ViewHierarchy,
             <span class="string">"unreal.context" </span>=&gt; AttachmentType::UnrealContext,
@@ -3125,6 +3136,7 @@
                     AttachmentType::AppleCrashReport
                     | AttachmentType::Minidump
                     | AttachmentType::EventPayload
+                    | AttachmentType::Prosperodump
                     | AttachmentType::Breadcrumbs =&gt; <span class="bool-val">true</span>,
                     AttachmentType::Attachment
                     | AttachmentType::UnrealContext

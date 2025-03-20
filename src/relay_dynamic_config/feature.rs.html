@@ -191,7 +191,12 @@
 <a href="#190" id="190">190</a>
 <a href="#191" id="191">191</a>
 <a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -254,6 +259,11 @@
     /// Serialized as `projects:relay-otel-endpoint`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:relay-otel-endpoint"</span>)]
     </span>OtelEndpoint,
+    <span class="doccomment">/// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
+    ///
+    /// Serialized as `project:relay-playstation-ingestion`.
+    </span><span class="attr">#[serde(rename = <span class="string">"projects:relay-playstation-ingestion"</span>)]
+    </span>PlaystationIngestion,
     <span class="doccomment">/// Discard transactions in a spans-only world.
     ///
     /// Serialized as `projects:discard-transaction`.

@@ -573,7 +573,7 @@
         .unwrap_or(filename)
 }
 
-<span class="kw">fn </span>infer_attachment_type(field_name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; AttachmentType {
+<span class="kw">fn </span>infer_attachment_type(field_name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, _file_name: <span class="kw-2">&amp;</span>str) -&gt; AttachmentType {
     <span class="kw">match </span>field_name.unwrap_or(<span class="string">""</span>) {
         MINIDUMP_FIELD_NAME =&gt; AttachmentType::Minidump,
         ITEM_NAME_BREADCRUMBS1 =&gt; AttachmentType::Breadcrumbs,

@@ -64,7 +64,7 @@
     path: AttachmentPath,
     multipart: Multipart&lt;<span class="lifetime">'static</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>items = utils::multipart_items(multipart, |<span class="kw">_</span>| AttachmentType::default()).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>items = utils::multipart_items(multipart, |<span class="kw">_</span>, <span class="kw">_</span>| AttachmentType::default()).<span class="kw">await</span><span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(path.event_id), meta);
     <span class="kw">for </span>item <span class="kw">in </span>items {

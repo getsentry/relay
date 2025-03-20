@@ -88,7 +88,9 @@
 <a href="#87" id="87">87</a>
 <a href="#88" id="88">88</a>
 <a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a></pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a></pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
 //!
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
@@ -105,6 +107,7 @@
 <span class="kw">mod </span>minidump;
 <span class="kw">mod </span>monitor;
 <span class="kw">mod </span>nel;
+<span class="kw">mod </span>playstation;
 <span class="kw">mod </span>project_configs;
 <span class="kw">mod </span>public_keys;
 <span class="kw">mod </span>security_report;
@@ -164,6 +167,7 @@
         <span class="comment">// No mandatory trailing slash here because people already use it like this.
         </span>.route(<span class="string">"/api/{project_id}/minidump"</span>, minidump::route(config))
         .route(<span class="string">"/api/{project_id}/minidump/"</span>, minidump::route(config))
+        .route(<span class="string">"/api/{project_id}/playstation/"</span>, playstation::route(config))
         .route(<span class="string">"/api/{project_id}/events/{event_id}/attachments/"</span>, post(attachments::handle))
         .route(<span class="string">"/api/{project_id}/unreal/{sentry_key}/"</span>, unreal::route(config))
         .route(<span class="string">"/api/{project_id}/otlp/v1/traces/"</span>, traces::route(config))

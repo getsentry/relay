@@ -1050,7 +1050,12 @@
 <a href="#1049" id="1049">1049</a>
 <a href="#1050" id="1050">1050</a>
 <a href="#1051" id="1051">1051</a>
-<a href="#1052" id="1052">1052</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1905,6 +1910,9 @@
     /// - `namespace`: the metric namespace.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>MetricDelayCount,
+    <span class="doccomment">/// The amount of times PlayStation processing was attempted.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>PlaystationProcessing,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1952,6 +1960,8 @@
             </span>RelayCounters::MetricDelaySum =&gt; <span class="string">"metrics.delay.sum"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayCounters::MetricDelayCount =&gt; <span class="string">"metrics.delay.count"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayCounters::PlaystationProcessing =&gt; <span class="string">"processing.playstation"</span>,
         }
     }
 }
