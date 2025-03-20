@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, Breakdowns, BrowserContext, Event, Measurement, OsContext, ProfileContext,
-    SentryTags, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
+    Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
@@ -400,6 +400,7 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
 fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> {
     let mut measurements = BTreeMap::new();
 
+    // Extract measurements from breakdowns, similar code to /metrics_extraction/transacitons/mod.rs
     if let Some(breakdowns) = event.breakdowns.value() {
         for (breakdown, measurement_list) in breakdowns.iter() {
             if let Some(measurement_list) = measurement_list.value() {
