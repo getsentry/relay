@@ -27,7 +27,6 @@
 - Emit filtered/sampled outcomes for spans attached to a dropped transaction. ([#4569](https://github.com/getsentry/relay/pull/4569))
 - Fix missing geo information for user when IP scrubbing was enabled. ([#4586](https://github.com/getsentry/relay/pull/4586))
 
-
 **Internal**:
 
 - Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
