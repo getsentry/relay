@@ -20,6 +20,7 @@ use relay_redis::{AsyncRedisClient, RedisConfigOptions};
 async fn build_redis_client() -> AsyncRedisClient {
     let url =
         std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+
     AsyncRedisClient::single(&url, &RedisConfigOptions::default())
         .await
         .unwrap()
@@ -33,6 +34,7 @@ async fn build_limiter(client: AsyncRedisClient, reset_redis: bool) -> RedisSetL
             .await
             .unwrap();
     }
+
     RedisSetLimiter::new(
         RedisSetLimiterOptions {
             cache_vacuum_interval: Duration::from_secs(180),

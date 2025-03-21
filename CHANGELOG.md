@@ -15,6 +15,7 @@
 
 - Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
 - Switch global rate limiter to a service. ([#4581](https://github.com/getsentry/relay/pull/4581))
+- Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
 
 ## 25.3.0
 
@@ -48,7 +49,6 @@
 - Expose metrics for the `AsyncPool`. ([#4538](https://github.com/getsentry/relay/pull/4538))
 - Expose service utilization metrics through the internal relay metric endpoint. ([#4543](https://github.com/getsentry/relay/pull/4543))
 - Always set observed time for OTel logs in Relay. ([#4559](https://github.com/getsentry/relay/pull/4559))
-- Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
 
 ## 25.2.0
 
