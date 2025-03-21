@@ -163,7 +163,9 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a></pre></div><pre class="rust"><code><span class="doccomment">//! Filters events coming from user agents known to be web crawlers.
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a></pre></div><pre class="rust"><code><span class="doccomment">//! Filters events coming from user agents known to be web crawlers.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
@@ -199,7 +201,8 @@
         Cloudflare-Healthchecks|    # Cloudflare Health Checks
         GTmetrix|                   # GTmetrix
         BrightEdgeOnCrawl|          # BrightEdge - see https://www.brightedge.com/news/press-releases/brightedge-acquires-oncrawl-future-proof-web-30-strategies
-        ELB-HealthChecker           # AWS Elastic Load Balancing Health Checks
+        ELB-HealthChecker|          # AWS Elastic Load Balancing Health Checks
+        naver.me/spd                # Yeti/1.1 - naver.me
     "
     </span>)
     .expect(<span class="string">"Invalid web crawlers filter Regex"</span>)
@@ -291,6 +294,7 @@
             <span class="string">"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 GTmetrix"</span>,
             <span class="string">"Mozilla/5.0 (compatible; BrightEdgeOnCrawl/1.0; +http://www.oncrawl.com)"</span>,
             <span class="string">"ELB-HealthChecker/2.0"</span>,
+            <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko; compatible; Yeti/1.1; +https://naver.me/spd) Chrome/127.0.0.0 Safari/537.36"</span>,
         ];
 
         <span class="kw">for </span>banned_user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>user_agents {
