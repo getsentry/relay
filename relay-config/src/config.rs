@@ -2425,6 +2425,7 @@ impl Config {
         Some(create_redis_pools(
             redis_configs,
             self.cpu_concurrency() as u32,
+            self.pool_concurrency() as u32,
         ))
     }
 
