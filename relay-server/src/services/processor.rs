@@ -20,7 +20,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
     normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
     EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
@@ -34,7 +34,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_protocol::{Annotated, Empty};
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -62,7 +62,8 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
+    self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
+    SamplingResult, TypedEnvelope,
 };
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
@@ -70,17 +71,15 @@ use relay_threading::AsyncPool;
 use {
     crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    crate::utils::{Enforcement, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
         RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
+    relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
+    relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::{RedisPool, RedisPools},
-    std::iter::Chain,
-    std::slice::Iter,
     std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -1245,7 +1244,6 @@ impl EnvelopeProcessorService {
         })
     }
 
-    #[cfg(feature = "processing")]
     async fn enforce_quotas<Group>(
         &self,
         managed_envelope: &mut TypedEnvelope<Group>,
@@ -1255,11 +1253,6 @@ impl EnvelopeProcessorService {
         rate_limits: Arc<RateLimits>,
     ) -> Result<Annotated<Event>, ProcessingError> {
         let global_config = self.inner.global_config.current();
-        let rate_limiter = match self.inner.rate_limiter.clone() {
-            Some(rate_limiter) => rate_limiter,
-            None => return Ok(event),
-        };
-
         // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
         // applied in the fast path, all cached quotas can be applied here.
         let cached_result = RateLimiter::Cached
@@ -1273,28 +1266,35 @@ impl EnvelopeProcessorService {
             )
             .await?;
 
-        // Enforce all quotas consistently with Redis.
-        let consistent_result = RateLimiter::Consistent(rate_limiter)
-            .enforce(
-                managed_envelope,
-                cached_result.event,
-                extracted_metrics,
-                &global_config,
-                project_info,
-                rate_limits,
-            )
-            .await?;
+        if_processing!(self.inner.config, {
+            let rate_limiter = match self.inner.rate_limiter.clone() {
+                Some(rate_limiter) => rate_limiter,
+                None => return Ok(cached_result.event),
+            };
 
-        // Update cached rate limits with the freshly computed ones.
-        if !consistent_result.rate_limits.is_empty() {
-            self.inner
-                .project_cache
-                .get(managed_envelope.scoping().project_key)
-                .rate_limits()
-                .merge(consistent_result.rate_limits);
-        }
+            // Enforce all quotas consistently with Redis.
+            let consistent_result = RateLimiter::Consistent(rate_limiter)
+                .enforce(
+                    managed_envelope,
+                    cached_result.event,
+                    extracted_metrics,
+                    &global_config,
+                    project_info,
+                    rate_limits,
+                )
+                .await?;
 
-        Ok(consistent_result.event)
+            // Update cached rate limits with the freshly computed ones.
+            if !consistent_result.rate_limits.is_empty() {
+                self.inner
+                    .project_cache
+                    .get(managed_envelope.scoping().project_key)
+                    .rate_limits()
+                    .merge(consistent_result.rate_limits);
+            }
+
+            Ok(consistent_result.event)
+        } else { Ok(cached_result.event) })
     }
 
     /// Extract transaction metrics.
@@ -1328,7 +1328,6 @@ impl EnvelopeProcessorService {
             };
             let global_config = match &global.metric_extraction {
                 ErrorBoundary::Ok(global_config) => global_config,
-                #[allow(unused_variables)]
                 ErrorBoundary::Err(e) => {
                     if_processing!(self.inner.config, {
                         // Config is invalid, but we will try to extract what we can with just the
@@ -1559,11 +1558,10 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
         let mut metrics = Metrics::default();
-        #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         // Events can also contain user reports.
@@ -1629,17 +1627,15 @@ impl EnvelopeProcessorService {
             );
         }
 
-        if_processing!(self.inner.config, {
-            event = self
-                .enforce_quotas(
-                    managed_envelope,
-                    event,
-                    &mut extracted_metrics,
-                    project_info.clone(),
-                    rate_limits,
-                )
-                .await?;
-        });
+        event = self
+            .enforce_quotas(
+                managed_envelope,
+                event,
+                &mut extracted_metrics,
+                project_info.clone(),
+                rate_limits,
+            )
+            .await?;
 
         if event.value().is_some() {
             event::scrub(&mut event, project_info.clone())?;
@@ -1677,7 +1673,7 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         mut sampling_project_info: Option<Arc<ProjectInfo>>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        rate_limits: Arc<RateLimits>,
         reservoir_counters: ReservoirCounters,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
@@ -1822,17 +1818,15 @@ impl EnvelopeProcessorService {
             //  - An empty envelope.
             //  - An envelope containing only processed profiles.
             // We need to make sure there are enough quotas for these profiles.
-            if_processing!(self.inner.config, {
-                event = self
-                    .enforce_quotas(
-                        managed_envelope,
-                        Annotated::empty(),
-                        &mut extracted_metrics,
-                        project_info.clone(),
-                        rate_limits,
-                    )
-                    .await?;
-            });
+            event = self
+                .enforce_quotas(
+                    managed_envelope,
+                    Annotated::empty(),
+                    &mut extracted_metrics,
+                    project_info.clone(),
+                    rate_limits,
+                )
+                .await?;
 
             return Ok(Some(extracted_metrics));
         }
@@ -1882,17 +1876,19 @@ impl EnvelopeProcessorService {
                     spans_extracted,
                 );
             }
+        });
 
-            event = self
-                .enforce_quotas(
-                    managed_envelope,
-                    event,
-                    &mut extracted_metrics,
-                    project_info.clone(),
-                    rate_limits,
-                )
-                .await?;
+        event = self
+            .enforce_quotas(
+                managed_envelope,
+                event,
+                &mut extracted_metrics,
+                project_info.clone(),
+                rate_limits,
+            )
+            .await?;
 
+        if_processing!(self.inner.config, {
             event = span::maybe_discard_transaction(managed_envelope, event, project_info);
         });
 
@@ -1925,6 +1921,7 @@ impl EnvelopeProcessorService {
         _rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         profile_chunk::filter(managed_envelope, project_info.clone());
+
         if_processing!(self.inner.config, {
             profile_chunk::process(
                 managed_envelope,
@@ -1932,16 +1929,16 @@ impl EnvelopeProcessorService {
                 &self.inner.global_config.current(),
                 &self.inner.config,
             );
-
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut ProcessingExtractedMetrics::new(),
-                project_info,
-                _rate_limits,
-            )
-            .await?;
         });
+
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut ProcessingExtractedMetrics::new(),
+            project_info,
+            _rate_limits,
+        )
+        .await?;
 
         Ok(None)
     }
@@ -1955,7 +1952,6 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         _rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         standalone::process(managed_envelope);
@@ -1968,16 +1964,14 @@ impl EnvelopeProcessorService {
             project_info.clone(),
         );
 
-        if_processing!(self.inner.config, {
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut extracted_metrics,
-                project_info.clone(),
-                _rate_limits,
-            )
-            .await?;
-        });
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut extracted_metrics,
+            project_info.clone(),
+            _rate_limits,
+        )
+        .await?;
 
         report::process_user_reports(managed_envelope);
         attachment::scrub(managed_envelope, project_info);
@@ -1990,7 +1984,7 @@ impl EnvelopeProcessorService {
         &self,
         managed_envelope: &mut TypedEnvelope<SessionGroup>,
         project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
@@ -2000,16 +1994,15 @@ impl EnvelopeProcessorService {
             project_info.clone(),
             &self.inner.config,
         );
-        if_processing!(self.inner.config, {
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut extracted_metrics,
-                project_info,
-                rate_limits,
-            )
-            .await?;
-        });
+
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut extracted_metrics,
+            project_info,
+            rate_limits,
+        )
+        .await?;
 
         Ok(Some(extracted_metrics))
     }
@@ -2020,21 +2013,18 @@ impl EnvelopeProcessorService {
         managed_envelope: &mut TypedEnvelope<ClientReportGroup>,
         config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
-        if_processing!(self.inner.config, {
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut extracted_metrics,
-                project_info.clone(),
-                rate_limits,
-            )
-            .await?;
-        });
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut extracted_metrics,
+            project_info.clone(),
+            rate_limits,
+        )
+        .await?;
 
         report::process_client_reports(
             managed_envelope,
@@ -2052,9 +2042,8 @@ impl EnvelopeProcessorService {
         managed_envelope: &mut TypedEnvelope<ReplayGroup>,
         config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         replay::process(
@@ -2065,16 +2054,14 @@ impl EnvelopeProcessorService {
             self.inner.geoip_lookup.as_ref(),
         )?;
 
-        if_processing!(self.inner.config, {
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut extracted_metrics,
-                project_info,
-                rate_limits,
-            )
-            .await?;
-        });
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut extracted_metrics,
+            project_info,
+            rate_limits,
+        )
+        .await?;
 
         Ok(Some(extracted_metrics))
     }
@@ -2082,27 +2069,25 @@ impl EnvelopeProcessorService {
     /// Processes cron check-ins.
     async fn process_checkins(
         &self,
-        #[allow(unused_variables)] managed_envelope: &mut TypedEnvelope<CheckInGroup>,
-        #[allow(unused_variables)] project_id: ProjectId,
-        #[allow(unused_variables)] project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        managed_envelope: &mut TypedEnvelope<CheckInGroup>,
+        _project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        #[allow(unused_mut)]
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut ProcessingExtractedMetrics::new(),
+            project_info,
+            rate_limits,
+        )
+        .await?;
 
         if_processing!(self.inner.config, {
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut extracted_metrics,
-                project_info,
-                rate_limits,
-            )
-            .await?;
-            self.normalize_checkins(managed_envelope, project_id);
+            self.normalize_checkins(managed_envelope, _project_id);
         });
 
-        Ok(Some(extracted_metrics))
+        Ok(None)
     }
 
     /// Process logs
@@ -2111,9 +2096,8 @@ impl EnvelopeProcessorService {
         &self,
         managed_envelope: &mut TypedEnvelope<LogGroup>,
         project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         ourlog::filter(
@@ -2122,17 +2106,20 @@ impl EnvelopeProcessorService {
             project_info.clone(),
             &self.inner.global_config.current(),
         );
+
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut extracted_metrics,
+            project_info.clone(),
+            rate_limits,
+        )
+        .await?;
+
         if_processing!(self.inner.config, {
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut extracted_metrics,
-                project_info.clone(),
-                rate_limits,
-            )
-            .await?;
             ourlog::process(managed_envelope, project_info.clone());
         });
+
         Ok(Some(extracted_metrics))
     }
 
@@ -2144,13 +2131,12 @@ impl EnvelopeProcessorService {
         &self,
         managed_envelope: &mut TypedEnvelope<SpanGroup>,
         config: Arc<Config>,
-        #[allow(unused_variables)] project_id: ProjectId,
+        _project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] sampling_project_info: Option<Arc<ProjectInfo>>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
-        #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
+        _sampling_project_info: Option<Arc<ProjectInfo>>,
+        rate_limits: Arc<RateLimits>,
+        _reservoir_counters: ReservoirCounters,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         span::filter(managed_envelope, config.clone(), project_info.clone());
@@ -2160,7 +2146,7 @@ impl EnvelopeProcessorService {
             let global_config = self.inner.global_config.current();
             let reservoir = self.new_reservoir_evaluator(
                 managed_envelope.scoping().organization_id,
-                reservoir_counters,
+                _reservoir_counters,
             );
 
             span::process(
@@ -2169,23 +2155,23 @@ impl EnvelopeProcessorService {
                 &mut extracted_metrics,
                 &global_config,
                 config,
-                project_id,
+                _project_id,
                 project_info.clone(),
-                sampling_project_info,
+                _sampling_project_info,
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
             )
             .await;
-
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut extracted_metrics,
-                project_info,
-                rate_limits,
-            )
-            .await?;
         });
+
+        self.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            &mut extracted_metrics,
+            project_info,
+            rate_limits,
+        )
+        .await?;
 
         Ok(Some(extracted_metrics))
     }
@@ -3228,14 +3214,15 @@ impl EnvelopeProcessorService {
 
     fn new_reservoir_evaluator(
         &self,
-        #[allow(unused_variables)] organization_id: OrganizationId,
+        _organization_id: OrganizationId,
         reservoir_counters: ReservoirCounters,
     ) -> ReservoirEvaluator {
-        #[allow(unused_mut)]
+        #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
+
         #[cfg(feature = "processing")]
         if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
-            reservoir.set_redis(organization_id, quotas_pool);
+            reservoir.set_redis(_organization_id, quotas_pool);
         }
 
         reservoir
@@ -3260,13 +3247,12 @@ impl Service for EnvelopeProcessorService {
 ///
 /// If the event is already `None` or it's rate limited, it will be `None`
 /// within the [`Annotated`].
-#[cfg(feature = "processing")]
 struct EnforcementResult {
     event: Annotated<Event>,
+    #[cfg_attr(not(feature = "processing"), expect(dead_code))]
     rate_limits: RateLimits,
 }
 
-#[cfg(feature = "processing")]
 impl EnforcementResult {
     /// Creates a new [`EnforcementResult`].
     pub fn new(event: Annotated<Event>, rate_limits: RateLimits) -> Self {
@@ -3274,20 +3260,19 @@ impl EnforcementResult {
     }
 }
 
-#[cfg(feature = "processing")]
 #[derive(Clone)]
 enum RateLimiter {
     Cached,
+    #[cfg(feature = "processing")]
     Consistent(Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>),
 }
 
-#[cfg(feature = "processing")]
 impl RateLimiter {
     async fn enforce<Group>(
         &self,
         managed_envelope: &mut TypedEnvelope<Group>,
         event: Annotated<Event>,
-        extracted_metrics: &mut ProcessingExtractedMetrics,
+        _extracted_metrics: &mut ProcessingExtractedMetrics,
         global_config: &GlobalConfig,
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
@@ -3311,18 +3296,21 @@ impl RateLimiter {
         let this = self.clone();
         let rate_limits_clone = rate_limits.clone();
         let mut envelope_limiter =
-            EnvelopeLimiter::new(CheckLimits::All, move |item_scope, quantity| {
+            EnvelopeLimiter::new(CheckLimits::All, move |item_scope, _quantity| {
                 let this = this.clone();
                 let rate_limits_clone = rate_limits_clone.clone();
 
                 async move {
                     match this {
+                        #[cfg(feature = "processing")]
                         RateLimiter::Consistent(rate_limiter) => Ok::<_, ProcessingError>(
                             rate_limiter
-                                .is_rate_limited(quotas, item_scope, quantity, false)
+                                .is_rate_limited(quotas, item_scope, _quantity, false)
                                 .await?,
                         ),
-                        _ => Ok(rate_limits_clone.check_with_quotas(quotas, item_scope)),
+                        _ => Ok::<_, ProcessingError>(
+                            rate_limits_clone.check_with_quotas(quotas, item_scope),
+                        ),
                     }
                 }
             });
@@ -3345,7 +3333,8 @@ impl RateLimiter {
         // Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
         // limiting of envelope items and metrics.
-        extracted_metrics.apply_enforcement(&enforcement, matches!(self, Self::Consistent(_)));
+        #[cfg(feature = "processing")]
+        _extracted_metrics.apply_enforcement(&enforcement, matches!(self, Self::Consistent(_)));
         enforcement.apply_with_outcomes(managed_envelope);
 
         if event_active {
@@ -3661,14 +3650,12 @@ impl UpstreamRequest for SendMetricsRequest {
 }
 
 /// Container for global and project level [`Quota`].
-#[cfg(feature = "processing")]
 #[derive(Copy, Clone, Debug)]
 struct CombinedQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],
 }
 
-#[cfg(feature = "processing")]
 impl<'a> CombinedQuotas<'a> {
     /// Returns a new [`CombinedQuotas`].
     pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
@@ -3689,10 +3676,9 @@ impl<'a> CombinedQuotas<'a> {
     }
 }
 
-#[cfg(feature = "processing")]
 impl<'a> IntoIterator for CombinedQuotas<'a> {
     type Item = &'a Quota;
-    type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
+    type IntoIter = std::iter::Chain<std::slice::Iter<'a, Quota>, std::slice::Iter<'a, Quota>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.global_quotas.iter().chain(self.project_quotas.iter())

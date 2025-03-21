@@ -360,7 +360,6 @@ pub enum RelayTimers {
     /// Not all events reach this point. After an event is rate limited for the first time, the rate
     /// limit is cached. Events coming in after this will be discarded earlier in the request queue
     /// and do not reach the processing queue.
-    #[cfg(feature = "processing")]
     EventProcessingRateLimiting,
     /// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
@@ -567,7 +566,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EventProcessingDeserialize => "event_processing.deserialize",
             RelayTimers::EventProcessingNormalization => "event_processing.normalization",
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
-            #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
             RelayTimers::EventProcessingSpanMetricsExtraction => {
