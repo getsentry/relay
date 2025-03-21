@@ -34,7 +34,8 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
         Cloudflare-Healthchecks|    # Cloudflare Health Checks
         GTmetrix|                   # GTmetrix
         BrightEdgeOnCrawl|          # BrightEdge - see https://www.brightedge.com/news/press-releases/brightedge-acquires-oncrawl-future-proof-web-30-strategies
-        ELB-HealthChecker           # AWS Elastic Load Balancing Health Checks
+        ELB-HealthChecker|          # AWS Elastic Load Balancing Health Checks
+        naver.me/spd                # Yeti/1.1 - naver.me
     "
     )
     .expect("Invalid web crawlers filter Regex")
@@ -126,6 +127,7 @@ mod tests {
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 GTmetrix",
             "Mozilla/5.0 (compatible; BrightEdgeOnCrawl/1.0; +http://www.oncrawl.com)",
             "ELB-HealthChecker/2.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko; compatible; Yeti/1.1; +https://naver.me/spd) Chrome/127.0.0.0 Safari/537.36",
         ];
 
         for banned_user_agent in &user_agents {

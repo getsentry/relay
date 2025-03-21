@@ -5,6 +5,7 @@
 **Features**:
 
 - Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))
+- Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
 
 **Internal**:
 
