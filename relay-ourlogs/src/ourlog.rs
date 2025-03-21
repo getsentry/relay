@@ -1,11 +1,17 @@
+use std::str::FromStr;
+
+use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use crate::OtelLog;
 use relay_common::time::UnixTimestamp;
-use relay_event_schema::protocol::{AttributeValue, OurLog, SpanId, TraceId};
+use relay_event_schema::protocol::{
+    AttributeValue, OurLog, OurLogLevel, SpanId, Timestamp, TraceId,
+};
 use relay_protocol::{Annotated, Object};
 
 /// Transform an OtelLog to a Sentry log.
+#[allow(deprecated)] // Remove the deprecated fields below from the log once we switch consumers.
 pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
     let OtelLog {
         severity_number,
@@ -14,11 +20,14 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
         attributes,
         trace_id,
         span_id,
+        time_unix_nano,
         ..
     } = otel_log;
 
-    let span_id = hex::encode(span_id);
-    let trace_id = hex::encode(trace_id);
+    let span_id = SpanId(hex::encode(span_id));
+    let trace_id = TraceId(hex::encode(trace_id));
+    let nanos = time_unix_nano;
+    let timestamp = Utc.timestamp_nanos(nanos as i64);
 
     let body = body
         .and_then(|v| v.value)
@@ -33,6 +42,29 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
     // We ignore the passed observed time since Relay always acts as the collector in Sentry.
     // We may change this in the future with forwarding Relays.
     let observed_time_unix_nano = UnixTimestamp::now().as_nanos();
+
+    attribute_data.insert(
+        "sentry.severity_text".to_string(),
+        Annotated::new(AttributeValue::StringValue(severity_text.clone())),
+    );
+    attribute_data.insert(
+        "sentry.severity_number".to_string(),
+        Annotated::new(AttributeValue::IntValue(severity_number as i64)),
+    );
+    attribute_data.insert(
+        "sentry.timestamp_nanos".to_string(),
+        Annotated::new(AttributeValue::StringValue(time_unix_nano.to_string())),
+    );
+    attribute_data.insert(
+        "sentry.observed_timestamp_nanos".to_string(),
+        Annotated::new(AttributeValue::StringValue(
+            observed_time_unix_nano.to_string(),
+        )),
+    );
+    attribute_data.insert(
+        "sentry.trace_flags".to_string(),
+        Annotated::new(AttributeValue::IntValue(0)),
+    );
 
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
@@ -61,27 +93,152 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
         }
     }
 
+    // Map severity_number to OurLogLevel, falling back to severity_text if it's not a number.
+    // Finally default to Info if severity_number is not in range and severity_text is not a valid
+    // log level.
+    let level = match severity_number {
+        1..=4 => OurLogLevel::Trace,
+        5..=8 => OurLogLevel::Debug,
+        9..=12 => OurLogLevel::Info,
+        13..=16 => OurLogLevel::Warn,
+        17..=20 => OurLogLevel::Error,
+        21..=24 => OurLogLevel::Fatal,
+        _ => OurLogLevel::from_str(&severity_text).unwrap_or(OurLogLevel::Info),
+    };
+
     OurLog {
-        timestamp_nanos: Annotated::new(otel_log.time_unix_nano),
-        observed_timestamp_nanos: Annotated::new(observed_time_unix_nano),
-        trace_id: TraceId(trace_id).into(),
-        span_id: Annotated::new(SpanId(span_id)),
+        timestamp: Annotated::new(Timestamp(timestamp)),
+        trace_id: Annotated::new(trace_id),
+        span_id: Annotated::new(span_id),
+        level: Annotated::new(level),
+        attributes: Annotated::new(attribute_data),
+        body: Annotated::new(body),
+        other: Object::default(),
         trace_flags: Annotated::new(0),
         severity_text: severity_text.into(),
         severity_number: Annotated::new(severity_number as i64),
-        attributes: attribute_data.into(),
-        body: Annotated::new(body),
-        ..Default::default()
+        timestamp_nanos: Annotated::new(otel_log.time_unix_nano),
+        observed_timestamp_nanos: Annotated::new(observed_time_unix_nano),
+    }
+}
+
+/// This fills attributes with OTel specific fields to be compatible with the otel schema.
+///
+/// This also currently backfills data into deprecated fields on the OurLog protocol in order to continue working with the snuba consumers.
+///
+/// This will need to transform all fields into attributes to be ported to using the generic trace items consumers once they're done.
+#[allow(deprecated)]
+pub fn ourlog_merge_otel(ourlog: Annotated<OurLog>) -> Annotated<OurLog> {
+    let mut ourlog = ourlog;
+    if let Some(ourlog_value) = ourlog.value_mut() {
+        if let Some(attributes) = ourlog_value.attributes.value_mut() {
+            attributes.insert(
+                "sentry.severity_number".to_string(),
+                Annotated::new(AttributeValue::IntValue(level_to_otel_severity_number(
+                    ourlog_value.level.value().cloned(),
+                ))),
+            );
+            attributes.insert(
+                "sentry.severity_text".to_string(),
+                Annotated::new(AttributeValue::StringValue(
+                    ourlog_value
+                        .level
+                        .value()
+                        .map(|level| level.to_string())
+                        .unwrap_or_else(|| "info".to_string()),
+                )),
+            );
+        }
+
+        if let Some(attributes) = ourlog_value.attributes.value() {
+            if ourlog_value.severity_text.value().is_none() {
+                if let Some(attr) = attributes.get("sentry.severity_text") {
+                    if let Some(val) = attr.value() {
+                        if let Some(str_val) = val.string_value() {
+                            ourlog_value.severity_text = Annotated::new(str_val.clone());
+                        }
+                    }
+                }
+            }
+
+            if ourlog_value.severity_number.value().is_none() {
+                if let Some(attr) = attributes.get("sentry.severity_number") {
+                    if let Some(val) = attr.value() {
+                        if let Some(int_val) = val.int_value() {
+                            ourlog_value.severity_number = Annotated::new(int_val);
+                        }
+                    }
+                }
+            }
+
+            if ourlog_value.trace_flags.value().is_none() {
+                if let Some(attr) = attributes.get("sentry.trace_flags") {
+                    if let Some(val) = attr.value() {
+                        if let Some(int_val) = val.int_value() {
+                            ourlog_value.trace_flags = Annotated::new(int_val);
+                        }
+                    }
+                }
+            }
+
+            if ourlog_value.observed_timestamp_nanos.value().is_none() {
+                if let Some(attr) = attributes.get("sentry.observed_timestamp_nanos") {
+                    if let Some(val) = attr.value() {
+                        if let Some(str_val) = val.string_value() {
+                            ourlog_value.observed_timestamp_nanos =
+                                Annotated::new(str_val.parse::<u64>().unwrap());
+                        }
+                    }
+                }
+            }
+
+            if ourlog_value.timestamp_nanos.value().is_none() {
+                if let Some(attr) = attributes.get("sentry.timestamp_nanos") {
+                    if let Some(val) = attr.value() {
+                        if let Some(str_val) = val.string_value() {
+                            ourlog_value.timestamp_nanos =
+                                Annotated::new(str_val.parse::<u64>().unwrap());
+                        }
+                    }
+                }
+            }
+        }
+
+        // We ignore the passed observed time since Relay always acts as the collector in Sentry.
+        // We may change this in the future with forwarding Relays.
+        let observed_time_unix_nano = UnixTimestamp::now().as_nanos();
+        ourlog_value.observed_timestamp_nanos = Annotated::new(observed_time_unix_nano);
+
+        if let Some(timestamp_nanos) = ourlog_value
+            .timestamp
+            .value()
+            .and_then(|timestamp| timestamp.0.timestamp_nanos_opt())
+        {
+            ourlog_value.timestamp_nanos = Annotated::new(timestamp_nanos as u64);
+        }
+    }
+    ourlog
+}
+
+fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
+    match level {
+        Some(OurLogLevel::Trace) => 1,
+        Some(OurLogLevel::Debug) => 5,
+        Some(OurLogLevel::Info) => 9,
+        Some(OurLogLevel::Warn) => 13,
+        Some(OurLogLevel::Error) => 17,
+        Some(OurLogLevel::Fatal) => 21,
+        _ => 25,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{get_path, get_value};
+    use relay_protocol::{get_path, get_value, SerializableAnnotated};
 
     #[test]
-    fn parse_log() {
+    fn parse_otel_log() {
         // https://github.com/open-telemetry/opentelemetry-proto/blob/c4214b8168d0ce2a5236185efb8a1c8950cccdd6/examples/logs.json
         let json = r#"{
             "timeUnixNano": "1544712660300000000",
@@ -161,7 +318,28 @@ mod tests {
     }
 
     #[test]
-    fn parse_log_with_db_attributes() {
+    fn parse_otellog_with_invalid_trace_id() {
+        let json = r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 10,
+            "severityText": "Information",
+            "traceId": "",
+            "spanId": "EEE19B7EC3C1B174"
+        }"#;
+
+        let otel_log: OtelLog = serde_json::from_str(json).unwrap();
+        let our_log = otel_to_sentry_log(otel_log);
+        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
+
+        assert_eq!(
+            get_path!(annotated_log.trace_id),
+            Some(&Annotated::new(TraceId("".into())))
+        );
+    }
+
+    #[test]
+    fn parse_otel_log_with_db_attributes() {
         let json = r#"{
             "timeUnixNano": "1544712660300000000",
             "observedTimeUnixNano": "1544712660300000000",
@@ -208,7 +386,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_log_without_observed_time() {
+    fn parse_otel_log_without_observed_time() {
         let json_without_observed_time = r#"{
             "timeUnixNano": "1544712660300000000",
             "observedTimeUnixNano": "0",
@@ -227,14 +405,20 @@ mod tests {
         let our_log: OurLog = otel_to_sentry_log(otel_log);
         let after_test = UnixTimestamp::now().as_nanos();
 
-        let observed_time = our_log.observed_timestamp_nanos.value().unwrap();
-        assert!(*observed_time > 0);
-        assert!(*observed_time >= before_test);
-        assert!(*observed_time <= after_test);
+        // Get the observed timestamp from attributes
+        let observed_timestamp = our_log
+            .attribute("sentry.observed_timestamp_nanos")
+            .and_then(|value| value.as_str().and_then(|s| s.parse::<u64>().ok()))
+            .unwrap_or(0);
+
+        assert!(observed_timestamp > 0);
+        assert!(observed_timestamp >= before_test);
+        assert!(observed_timestamp <= after_test);
     }
 
     #[test]
-    fn parse_log_ignores_observed_time() {
+    #[allow(deprecated)]
+    fn parse_otel_log_ignores_observed_time() {
         let json_with_observed_time = r#"{
             "timeUnixNano": "1544712660300000000",
             "observedTimeUnixNano": "1544712660300000000",
@@ -253,14 +437,142 @@ mod tests {
         let our_log: OurLog = otel_to_sentry_log(otel_log);
         let after_test = UnixTimestamp::now().as_nanos();
 
-        let observed_time = our_log.observed_timestamp_nanos.value().unwrap();
-        assert!(*observed_time > 0);
-        assert!(*observed_time >= before_test);
-        assert!(*observed_time <= after_test);
+        // Get the observed timestamp from attributes
+        let observed_timestamp = our_log
+            .attribute("sentry.observed_timestamp_nanos")
+            .and_then(|value| value.as_str().and_then(|s| s.parse::<u64>().ok()))
+            .unwrap_or(0);
 
-        assert_ne!(
-            our_log.observed_timestamp_nanos,
-            Annotated::new(1544712660300000000)
+        assert!(observed_timestamp > 0);
+        assert!(observed_timestamp >= before_test);
+        assert!(observed_timestamp <= after_test);
+        assert_ne!(observed_timestamp, 1544712660300000000);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn ourlog_merge_otel_log() {
+        let json = r#"{
+            "timestamp": 946684800.0,
+            "level": "info",
+            "trace_id": "5B8EFFF798038103D269B633813FC60C",
+            "span_id": "EEE19B7EC3C1B174",
+            "body": "Example log record",
+            "attributes": {
+                "foo": {
+                    "string_value": "9"
+                }
+            }
+        }"#;
+
+        let data = Annotated::<OurLog>::from_json(json).unwrap();
+        let mut merged_log = ourlog_merge_otel(data);
+        if let Some(log) = merged_log.value_mut() {
+            log.observed_timestamp_nanos = Annotated::new(1742481864000000000);
+        }
+
+        insta::assert_debug_snapshot!(merged_log, @r###"
+        OurLog {
+            timestamp: Timestamp(
+                2000-01-01T00:00:00Z,
+            ),
+            trace_id: TraceId(
+                "5b8efff798038103d269b633813fc60c",
+            ),
+            span_id: SpanId(
+                "eee19b7ec3c1b174",
+            ),
+            level: Info,
+            body: "Example log record",
+            attributes: {
+                "foo": StringValue(
+                    "9",
+                ),
+                "sentry.severity_number": IntValue(
+                    9,
+                ),
+                "sentry.severity_text": StringValue(
+                    "info",
+                ),
+            },
+            severity_number: 9,
+            severity_text: "info",
+            timestamp_nanos: 946684800000000000,
+            observed_timestamp_nanos: 1742481864000000000,
+            trace_flags: ~,
+            other: {},
+        }
+        "###);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn ourlog_merge_otel_log_with_timestamp() {
+        let mut attributes = Object::new();
+        attributes.insert(
+            "foo".to_string(),
+            Annotated::new(AttributeValue::StringValue("9".to_string())),
         );
+        let datetime = Utc.with_ymd_and_hms(2021, 11, 29, 0, 0, 0).unwrap();
+        let ourlog = OurLog {
+            timestamp: Annotated::new(Timestamp(datetime)),
+            attributes: Annotated::new(attributes),
+            ..Default::default()
+        };
+
+        let mut merged_log = ourlog_merge_otel(Annotated::new(ourlog));
+        if let Some(log) = merged_log.value_mut() {
+            log.observed_timestamp_nanos = Annotated::new(1742481864000000000);
+        }
+
+        insta::assert_debug_snapshot!(merged_log, @r###"
+        OurLog {
+            timestamp: Timestamp(
+                2021-11-29T00:00:00Z,
+            ),
+            trace_id: ~,
+            span_id: ~,
+            level: ~,
+            body: ~,
+            attributes: {
+                "foo": StringValue(
+                    "9",
+                ),
+                "sentry.severity_number": IntValue(
+                    25,
+                ),
+                "sentry.severity_text": StringValue(
+                    "info",
+                ),
+            },
+            severity_number: 25,
+            severity_text: "info",
+            timestamp_nanos: 1638144000000000000,
+            observed_timestamp_nanos: 1742481864000000000,
+            trace_flags: ~,
+            other: {},
+        }
+        "###);
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&merged_log), @r###"
+        {
+          "timestamp": 1638144000.0,
+          "attributes": {
+            "foo": {
+              "string_value": "9"
+            },
+            "sentry.severity_number": {
+              "int_value": 25
+            },
+            "sentry.severity_text": {
+              "string_value": "info"
+            }
+          },
+          "severity_number": 25,
+          "severity_text": "info",
+          "timestamp_nanos": 1638144000000000000,
+          "observed_timestamp_nanos": 1742481864000000000
+        }
+        "###);
     }
 }
