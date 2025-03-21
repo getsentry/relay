@@ -31,6 +31,7 @@
 //! ```
 
 use relay_base_schema::project::ProjectKey;
+use relay_profiling::ProfileType;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -596,6 +597,12 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     ingest_span_in_eap: bool,
 
+    /// Tracks whether the item is a backend or ui profile chunk.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    profile_type: Option<ProfileType>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -673,6 +680,7 @@ impl Item {
                 sampled: true,
                 fully_normalized: false,
                 ingest_span_in_eap: false,
+                profile_type: None,
             },
             payload: Bytes::new(),
         }
@@ -725,7 +733,11 @@ impl Item {
             ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, 1)],
             // NOTE: semantically wrong, but too expensive to parse.
             ItemType::OtelTracesData => smallvec![(DataCategory::Span, 1)],
-            ItemType::ProfileChunk => smallvec![(DataCategory::ProfileChunk, 1)], // TODO: should be seconds?
+            ItemType::ProfileChunk => match self.headers.profile_type {
+                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, 1)],
+                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, 1)],
+                None => smallvec![],
+            },
             ItemType::Unknown(_) => smallvec![],
         }
     }
@@ -888,6 +900,16 @@ impl Item {
     /// Set whether or not to ingest the span in EAP.
     pub fn set_ingest_span_in_eap(&mut self, ingest_span_in_eap: bool) {
         self.headers.ingest_span_in_eap = ingest_span_in_eap;
+    }
+
+    /// Returns the associated profile type of a profile chunk.
+    pub fn profile_type(&self) -> Option<ProfileType> {
+        self.headers.profile_type
+    }
+
+    /// Set the profile type of the profile chunk.
+    pub fn set_profile_type(&mut self, profile_type: ProfileType) {
+        self.headers.profile_type = Some(profile_type);
     }
 
     /// Gets the `sampled` flag.

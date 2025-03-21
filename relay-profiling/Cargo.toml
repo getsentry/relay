@@ -14,6 +14,7 @@ workspace = true
 
 [dependencies]
 android_trace_log = { workspace = true, features = ["serde"] }
+bytes = { workspace = true }
 chrono = { workspace = true }
 data-encoding = { workspace = true }
 itertools = { workspace = true }
