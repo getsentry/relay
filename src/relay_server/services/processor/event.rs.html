@@ -1497,7 +1497,7 @@
     <span class="comment">// Protect against blowing up during deserialization. Attachments can have a significantly
     // larger size than regular events and may cause significant processing delays.
     </span><span class="kw">if </span>item.len() &gt; config.max_event_size() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::PayloadTooLarge);
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::PayloadTooLarge(item.ty().to_owned()));
     }
 
     <span class="kw">let </span>payload = item.payload();
@@ -1520,7 +1520,7 @@
     // blowing up during deserialization. As approximation, we use the maximum event payload
     // size as bound, which is roughly in the right ballpark.
     </span><span class="kw">if </span>item.len() &gt; config.max_event_size() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::PayloadTooLarge);
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::PayloadTooLarge(item.ty().to_owned()));
     }
 
     <span class="kw">let </span>payload = item.payload();
