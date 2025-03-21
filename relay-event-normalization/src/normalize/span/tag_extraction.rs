@@ -409,7 +409,9 @@ fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> 
                         continue;
                     }
 
-                    let Some(measurement) = annotated.value() else {
+let Some(value) = annotated.value().and_then(|value| value.value.value()).copied() else {
+    continue;
+};
                         continue;
                     };
 
