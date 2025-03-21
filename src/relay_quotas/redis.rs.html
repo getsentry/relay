@@ -1099,7 +1099,10 @@
 <a href="#1098" id="1098">1098</a>
 <a href="#1099" id="1099">1099</a>
 <a href="#1100" id="1100">1100</a>
-<a href="#1101" id="1101">1101</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_log::protocol::value;
@@ -1372,7 +1375,6 @@
         quantity: usize,
         over_accept_once: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, RateLimitingError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.pool.client().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::now();
         <span class="kw">let </span><span class="kw-2">mut </span>invocation = <span class="self">self</span>.script.prepare_invoke();
         <span class="kw">let </span><span class="kw-2">mut </span>tracked_quotas = Vec::new();
@@ -1439,6 +1441,10 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(rate_limits);
         }
 
+        <span class="comment">// We get the redis client after the global rate limiting since we don't want to hold the
+        // client across await points, otherwise it might be held for too long, and we will run out
+        // of connections.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.pool.client().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
         <span class="kw">let </span>rejections: Vec&lt;bool&gt; = invocation
             .invoke(<span class="kw-2">&amp;mut </span>client.connection().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>)
             .map_err(RedisError::Redis)

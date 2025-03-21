@@ -588,9 +588,9 @@
     #[error(<span class="string">"could not initialize kafka producer: {0}"</span>)]
     </span>Kafka(String),
 
-    <span class="doccomment">/// Initializing the Redis cluster client failed.
+    <span class="doccomment">/// Initializing the Redis client failed.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    #[error(<span class="string">"could not initialize redis cluster client"</span>)]
+    #[error(<span class="string">"could not initialize redis client during startup"</span>)]
     </span>Redis,
 }
 

@@ -2574,7 +2574,8 @@
 <a href="#2573" id="2573">2573</a>
 <a href="#2574" id="2574">2574</a>
 <a href="#2575" id="2575">2575</a>
-<a href="#2576" id="2576">2576</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2576" id="2576">2576</a>
+<a href="#2577" id="2577">2577</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -5001,6 +5002,7 @@
         <span class="prelude-val">Some</span>(create_redis_pools(
             redis_configs,
             <span class="self">self</span>.cpu_concurrency() <span class="kw">as </span>u32,
+            <span class="self">self</span>.pool_concurrency() <span class="kw">as </span>u32,
         ))
     }
 
