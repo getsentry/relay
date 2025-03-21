@@ -234,8 +234,6 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> SpanLink {
         span_id: SpanId(hex::encode(otel_link.span_id)).into(),
         sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
         attributes,
-        // The parent span ID is not available over OTLP.
-        parent_span_id: Annotated::empty(),
         other: Default::default(),
     }
 }

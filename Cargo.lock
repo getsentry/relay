@@ -3828,6 +3828,7 @@ name = "relay-profiling"
 version = "25.3.0"
 dependencies = [
  "android_trace_log",
+ "bytes",
  "chrono",
  "data-encoding",
  "insta",

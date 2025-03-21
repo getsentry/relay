@@ -753,10 +753,6 @@ pub struct SpanLink {
     #[metastructure(required = true, trim = false)]
     pub span_id: Annotated<SpanId>,
 
-    /// The parent span id of the linked span
-    #[metastructure(trim = false)]
-    pub parent_span_id: Annotated<SpanId>,
-
     /// Whether the linked span was positively/negatively sampled
     #[metastructure(trim = false)]
     pub sampled: Annotated<bool>,
@@ -860,7 +856,6 @@ mod tests {
     {
       "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
       "span_id": "fa90fdead5f74052",
-      "parent_span_id": "fa90fdead5f74052",
       "sampled": true,
       "attributes": {
         "boolAttr": true,
@@ -888,7 +883,6 @@ mod tests {
         let links = Annotated::new(vec![Annotated::new(SpanLink {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
-            parent_span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             sampled: Annotated::new(true),
             attributes: Annotated::new({
                 let mut map: std::collections::BTreeMap<String, Annotated<Value>> = Object::new();
@@ -1210,7 +1204,6 @@ mod tests {
                 {
                     "trace_id": "5c79f60c11214eb38604f4ae0781bfb2",
                     "span_id": "ab90fdead5f74052",
-                    "parent_span_id": "eb90fdead5f74052",
                     "sampled": true,
                     "attributes": {
                         "sentry.link.type": "previous_trace"
@@ -1219,7 +1212,6 @@ mod tests {
                 {
                     "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
                     "span_id": "fa90fdead5f74052",
-                    "parent_span_id": "fa90fdead5f74052",
                     "sampled": true,
                     "attributes": {
                         "sentry.link.type": "next_trace"
@@ -1231,7 +1223,7 @@ mod tests {
         let span: Annotated<Span> = Annotated::from_json(span).unwrap();
         assert_eq!(
             span.to_json().unwrap(),
-            r#"{"links":[{"trace_id":"5c79f60c11214eb38604f4ae0781bfb2","span_id":"ab90fdead5f74052","parent_span_id":"eb90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"previous_trace"}},{"trace_id":"4c79f60c11214eb38604f4ae0781bfb2","span_id":"fa90fdead5f74052","parent_span_id":"fa90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"next_trace"}}]}"#
+            r#"{"links":[{"trace_id":"5c79f60c11214eb38604f4ae0781bfb2","span_id":"ab90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"previous_trace"}},{"trace_id":"4c79f60c11214eb38604f4ae0781bfb2","span_id":"fa90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"next_trace"}}]}"#
         );
     }
 }

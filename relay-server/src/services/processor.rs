@@ -477,7 +477,7 @@ pub enum ProcessingError {
     InvalidUnrealReport(#[source] Unreal4Error),
 
     #[error("event payload too large")]
-    PayloadTooLarge,
+    PayloadTooLarge(ItemType),
 
     #[error("invalid transaction event")]
     InvalidTransaction,
@@ -536,7 +536,9 @@ impl ProcessingError {
     fn to_outcome(&self) -> Option<Outcome> {
         match self {
             // General outcomes for invalid events
-            Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
+            Self::PayloadTooLarge(item_type) => {
+                Some(Outcome::Invalid(DiscardReason::TooLarge(item_type.into())))
+            }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
             Self::InvalidSecurityType(_) => {
@@ -588,7 +590,7 @@ impl ProcessingError {
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
-            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
+            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport),
             _ => ProcessingError::InvalidUnrealReport(err),
         }
     }
@@ -1922,15 +1924,25 @@ impl EnvelopeProcessorService {
         &self,
         managed_envelope: &mut TypedEnvelope<ProfileChunkGroup>,
         project_info: Arc<ProjectInfo>,
+        _rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         profile_chunk::filter(managed_envelope, project_info.clone());
         if_processing!(self.inner.config, {
             profile_chunk::process(
                 managed_envelope,
-                project_info,
+                project_info.clone(),
                 &self.inner.global_config.current(),
                 &self.inner.config,
             );
+
+            self.enforce_quotas(
+                managed_envelope,
+                Annotated::empty(),
+                &mut ProcessingExtractedMetrics::new(),
+                project_info,
+                _rate_limits,
+            )
+            .await?;
         });
 
         Ok(None)
@@ -1943,7 +1955,7 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        _rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
@@ -1964,7 +1976,7 @@ impl EnvelopeProcessorService {
                 Annotated::empty(),
                 &mut extracted_metrics,
                 project_info.clone(),
-                rate_limits,
+                _rate_limits,
             )
             .await?;
         });
@@ -2297,7 +2309,9 @@ impl EnvelopeProcessorService {
                 rate_limits,
                 reservoir_counters
             ),
-            ProcessingGroup::ProfileChunk => run!(process_profile_chunks, project_info),
+            ProcessingGroup::ProfileChunk => {
+                run!(process_profile_chunks, project_info, rate_limits)
+            }
             // Currently is not used.
             ProcessingGroup::Metrics => {
                 // In proxy mode we simply forward the metrics.
@@ -3650,7 +3664,7 @@ impl UpstreamRequest for SendMetricsRequest {
 
 /// Container for global and project level [`Quota`].
 #[cfg(feature = "processing")]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct CombinedQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],

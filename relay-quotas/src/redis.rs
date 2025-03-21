@@ -271,7 +271,6 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         quantity: usize,
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
-        let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
         let timestamp = UnixTimestamp::now();
         let mut invocation = self.script.prepare_invoke();
         let mut tracked_quotas = Vec::new();
@@ -338,6 +337,10 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
             return Ok(rate_limits);
         }
 
+        // We get the redis client after the global rate limiting since we don't want to hold the
+        // client across await points, otherwise it might be held for too long, and we will run out
+        // of connections.
+        let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
         let rejections: Vec<bool> = invocation
             .invoke(&mut client.connection().map_err(RateLimitingError::Redis)?)
             .map_err(RedisError::Redis)
