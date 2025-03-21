@@ -4,6 +4,7 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
+use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_event_schema::protocol::SpanKind;
 
 use crate::otel_trace::{
@@ -212,7 +213,9 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
-        kind: SpanKind::from(kind).into(),
+        kind: OtelSpanKind::try_from(kind)
+            .map_or(SpanKind::Unspecified, SpanKind::from)
+            .into(),
         links: sentry_links.into(),
         ..Default::default()
     }

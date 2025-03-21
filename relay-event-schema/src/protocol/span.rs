@@ -3,6 +3,7 @@ mod convert;
 use std::fmt;
 use std::str::FromStr;
 
+use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
@@ -847,12 +848,12 @@ impl FromValue for Route {
 #[derive(Clone, Debug, PartialEq, ProcessValue)]
 #[repr(i32)]
 pub enum SpanKind {
-    Unspecified = 0,
-    Internal = 1,
-    Server = 2,
-    Client = 3,
-    Producer = 4,
-    Consumer = 5,
+    Unspecified = OtelSpanKind::Unspecified as i32,
+    Internal = OtelSpanKind::Internal as i32,
+    Server = OtelSpanKind::Server as i32,
+    Client = OtelSpanKind::Client as i32,
+    Producer = OtelSpanKind::Producer as i32,
+    Consumer = OtelSpanKind::Consumer as i32,
 }
 
 impl SpanKind {
@@ -899,15 +900,15 @@ impl Default for SpanKind {
     }
 }
 
-impl From<i32> for SpanKind {
-    fn from(value: i32) -> Self {
-        match value {
-            1 => Self::Internal,
-            2 => Self::Server,
-            3 => Self::Client,
-            4 => Self::Producer,
-            5 => Self::Consumer,
-            _ => Self::Unspecified,
+impl From<OtelSpanKind> for SpanKind {
+    fn from(otel_kind: OtelSpanKind) -> Self {
+        match otel_kind {
+            OtelSpanKind::Unspecified => Self::Unspecified,
+            OtelSpanKind::Internal => Self::Internal,
+            OtelSpanKind::Server => Self::Server,
+            OtelSpanKind::Client => Self::Client,
+            OtelSpanKind::Producer => Self::Producer,
+            OtelSpanKind::Consumer => Self::Consumer,
         }
     }
 }
