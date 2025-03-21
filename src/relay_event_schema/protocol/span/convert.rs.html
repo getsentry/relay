@@ -272,11 +272,7 @@
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
+<a href="#274" id="274">274</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
@@ -388,7 +384,6 @@
                             {
                                 "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
                                 "span_id": "fa90fdead5f74052",
-                                "parent_span_id": "fa90fdead5f74053",
                                 "sampled": true,
                                 "attributes": {
                                     "sentry.link.type": "previous_trace"
@@ -522,9 +517,6 @@
                     ),
                     span_id: SpanId(
                         "fa90fdead5f74052",
-                    ),
-                    parent_span_id: SpanId(
-                        "fa90fdead5f74053",
                     ),
                     sampled: true,
                     attributes: {

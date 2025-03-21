@@ -856,9 +856,7 @@
 <a href="#855" id="855">855</a>
 <a href="#856" id="856">856</a>
 <a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#858" id="858">858</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
@@ -1094,8 +1092,6 @@
         span_id: SpanId(hex::encode(otel_link.span_id)).into(),
         sampled: (otel_link.flags &amp; W3C_TRACE_CONTEXT_SAMPLED != <span class="number">0</span>).into(),
         attributes,
-        <span class="comment">// The parent span ID is not available over OTLP.
-        </span>parent_span_id: Annotated::empty(),
         other: Default::default(),
     }
 }

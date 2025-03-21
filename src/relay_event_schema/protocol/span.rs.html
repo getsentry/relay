@@ -1227,15 +1227,7 @@
 <a href="#1226" id="1226">1226</a>
 <a href="#1227" id="1227">1227</a>
 <a href="#1228" id="1228">1228</a>
-<a href="#1229" id="1229">1229</a>
-<a href="#1230" id="1230">1230</a>
-<a href="#1231" id="1231">1231</a>
-<a href="#1232" id="1232">1232</a>
-<a href="#1233" id="1233">1233</a>
-<a href="#1234" id="1234">1234</a>
-<a href="#1235" id="1235">1235</a>
-<a href="#1236" id="1236">1236</a>
-<a href="#1237" id="1237">1237</a></pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
+<a href="#1229" id="1229">1229</a></pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="kw">use </span>relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
@@ -1990,10 +1982,6 @@
     </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>, trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>span_id: Annotated&lt;SpanId&gt;,
 
-    <span class="doccomment">/// The parent span id of the linked span
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
-    </span><span class="kw">pub </span>parent_span_id: Annotated&lt;SpanId&gt;,
-
     <span class="doccomment">/// Whether the linked span was positively/negatively sampled
     </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>sampled: Annotated&lt;bool&gt;,
@@ -2097,7 +2085,6 @@
     {
       "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
       "span_id": "fa90fdead5f74052",
-      "parent_span_id": "fa90fdead5f74052",
       "sampled": true,
       "attributes": {
         "boolAttr": true,
@@ -2125,7 +2112,6 @@
         <span class="kw">let </span>links = Annotated::new(<span class="macro">vec!</span>[Annotated::new(SpanLink {
             trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
             span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())),
-            parent_span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())),
             sampled: Annotated::new(<span class="bool-val">true</span>),
             attributes: Annotated::new({
                 <span class="kw">let </span><span class="kw-2">mut </span>map: std::collections::BTreeMap&lt;String, Annotated&lt;Value&gt;&gt; = Object::new();
@@ -2447,7 +2433,6 @@
                 {
                     "trace_id": "5c79f60c11214eb38604f4ae0781bfb2",
                     "span_id": "ab90fdead5f74052",
-                    "parent_span_id": "eb90fdead5f74052",
                     "sampled": true,
                     "attributes": {
                         "sentry.link.type": "previous_trace"
@@ -2456,7 +2441,6 @@
                 {
                     "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
                     "span_id": "fa90fdead5f74052",
-                    "parent_span_id": "fa90fdead5f74052",
                     "sampled": true,
                     "attributes": {
                         "sentry.link.type": "next_trace"
@@ -2468,7 +2452,7 @@
         <span class="kw">let </span>span: Annotated&lt;Span&gt; = Annotated::from_json(span).unwrap();
         <span class="macro">assert_eq!</span>(
             span.to_json().unwrap(),
-            <span class="string">r#"{"links":[{"trace_id":"5c79f60c11214eb38604f4ae0781bfb2","span_id":"ab90fdead5f74052","parent_span_id":"eb90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"previous_trace"}},{"trace_id":"4c79f60c11214eb38604f4ae0781bfb2","span_id":"fa90fdead5f74052","parent_span_id":"fa90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"next_trace"}}]}"#
+            <span class="string">r#"{"links":[{"trace_id":"5c79f60c11214eb38604f4ae0781bfb2","span_id":"ab90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"previous_trace"}},{"trace_id":"4c79f60c11214eb38604f4ae0781bfb2","span_id":"fa90fdead5f74052","sampled":true,"attributes":{"sentry.link.type":"next_trace"}}]}"#
         </span>);
     }
 }

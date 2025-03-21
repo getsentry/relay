@@ -320,9 +320,7 @@
 <a href="#319" id="319">319</a>
 <a href="#320" id="320">320</a>
 <a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#322" id="322">322</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, Error, FromValue, IntoValue, Object, Value};
@@ -532,7 +530,6 @@
     {
       "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
       "span_id": "ea90fdead5f74052",
-      "parent_span_id": "ea90fdead5f74053",
       "sampled": true,
       "attributes": {
         "sentry.link.type": "previous_trace"
@@ -576,7 +573,6 @@
             links: Annotated::new(Array::from(<span class="macro">vec!</span>[Annotated::new(SpanLink {
                 trace_id: Annotated::new(TraceId(<span class="string">"3c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
                 span_id: Annotated::new(SpanId(<span class="string">"ea90fdead5f74052"</span>.into())),
-                parent_span_id: Annotated::new(SpanId(<span class="string">"ea90fdead5f74053"</span>.into())),
                 sampled: Annotated::new(<span class="bool-val">true</span>),
                 attributes: Annotated::new({
                     <span class="kw">let </span><span class="kw-2">mut </span>map: std::collections::BTreeMap&lt;String, Annotated&lt;Value&gt;&gt; =
