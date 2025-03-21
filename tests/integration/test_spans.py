@@ -577,7 +577,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
-            "kind": "internal",
+            "kind": "unspecified",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,

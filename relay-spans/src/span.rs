@@ -4,7 +4,7 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
-use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
+use relay_event_schema::protocol::SpanKind;
 
 use crate::otel_trace::{
     status::StatusCode as OtelStatusCode, Span as OtelSpan, SpanFlags as OtelSpanFlags,
@@ -212,23 +212,9 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
-        kind: kind_int_to_string(kind).to_owned().into(),
+        kind: SpanKind::from(kind).into(),
         links: sentry_links.into(),
         ..Default::default()
-    }
-}
-
-/// String representation of an incoming OTel span kind.
-/// See <https://github.com/open-telemetry/opentelemetry-proto/blob/d7770822d70c7bd47a6891fc9faacc66fc4af3d3/opentelemetry/proto/trace/v1/trace.proto#L152-L178>
-fn kind_int_to_string(kind: i32) -> &'static str {
-    match kind.try_into() {
-        Ok(SpanKind::Unspecified) | Ok(SpanKind::Internal) => "internal",
-        Ok(SpanKind::Server) => "server",
-        Ok(SpanKind::Client) => "client",
-        Ok(SpanKind::Producer) => "producer",
-        Ok(SpanKind::Consumer) => "consumer",
-        // Fall back to the default kind value of internal
-        Err(_) => "internal",
     }
 }
 
@@ -758,7 +744,7 @@ mod tests {
             measurements: ~,
             platform: "php",
             was_transaction: ~,
-            kind: "internal",
+            kind: Unspecified,
             other: {},
         }
         "###);
@@ -807,7 +793,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
         let kind = event_span.kind.value().expect("kind should be set");
-        assert_eq!(kind, "client");
+        assert_eq!(kind, &SpanKind::Client);
     }
 
     #[test]

@@ -1,5 +1,8 @@
 mod convert;
 
+use std::fmt;
+use std::str::FromStr;
+
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
@@ -115,7 +118,7 @@ pub struct Span {
     //
     // See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
     #[metastructure(skip_serialization = "empty", trim = false)]
-    pub kind: Annotated<String>,
+    pub kind: Annotated<SpanKind>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -841,6 +844,113 @@ impl FromValue for Route {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, ProcessValue)]
+#[repr(i32)]
+pub enum SpanKind {
+    Unspecified = 0,
+    Internal = 1,
+    Server = 2,
+    Client = 3,
+    Producer = 4,
+    Consumer = 5,
+}
+
+impl SpanKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "unspecified",
+            Self::Internal => "internal",
+            Self::Server => "server",
+            Self::Client => "client",
+            Self::Producer => "producer",
+            Self::Consumer => "consumer",
+        }
+    }
+}
+
+impl Empty for SpanKind {
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug)]
+pub struct ParseSpanKindError;
+
+impl std::str::FromStr for SpanKind {
+    type Err = ParseSpanKindError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "unspecified" => SpanKind::Unspecified,
+            "internal" => SpanKind::Internal,
+            "server" => SpanKind::Server,
+            "client" => SpanKind::Client,
+            "producer" => SpanKind::Producer,
+            "consumer" => SpanKind::Consumer,
+            _ => return Err(ParseSpanKindError),
+        })
+    }
+}
+
+impl Default for SpanKind {
+    fn default() -> Self {
+        Self::Internal
+    }
+}
+
+impl From<i32> for SpanKind {
+    fn from(value: i32) -> Self {
+        match value {
+            1 => Self::Internal,
+            2 => Self::Server,
+            3 => Self::Client,
+            4 => Self::Producer,
+            5 => Self::Consumer,
+            _ => Self::Unspecified,
+        }
+    }
+}
+
+impl fmt::Display for SpanKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl FromValue for SpanKind {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        match value {
+            Annotated(Some(Value::String(s)), meta) => Annotated(SpanKind::from_str(&s).ok(), meta),
+            Annotated(_, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl IntoValue for SpanKind {
+    fn into_value(self) -> Value
+    where
+        Self: Sized,
+    {
+        Value::String(self.to_string())
+    }
+
+    fn serialize_payload<S>(
+        &self,
+        s: S,
+        _behavior: relay_protocol::SkipSerialization,
+    ) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: serde::Serializer,
+    {
+        s.serialize_str(self.as_str())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::protocol::Measurement;
@@ -881,7 +991,8 @@ mod tests {
       "value": 9001.0,
       "unit": "byte"
     }
-  }
+  },
+  "kind": "server"
 }"#;
         let mut measurements = Object::new();
         measurements.insert(
@@ -922,6 +1033,7 @@ mod tests {
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new("auto.http".to_owned()),
+            kind: Annotated::new(SpanKind::Server),
             measurements: Annotated::new(Measurements(measurements)),
             links,
             ..Default::default()
