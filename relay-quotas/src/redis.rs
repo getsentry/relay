@@ -369,736 +369,745 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::sync::Mutex;
-//     use std::time::{SystemTime, UNIX_EPOCH};
-//
-//     use relay_base_schema::metrics::MetricNamespace;
-//     use relay_base_schema::organization::OrganizationId;
-//     use relay_base_schema::project::{ProjectId, ProjectKey};
-//     use relay_redis::redis::Commands;
-//     use relay_redis::RedisConfigOptions;
-//     use smallvec::smallvec;
-//
-//     use super::*;
-//     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
-//     use crate::rate_limit::RateLimitScope;
-//     use crate::{GlobalRateLimiter, MetricNamespaceScoping};
-//
-//     struct MockGlobalLimiter {
-//         client: AsyncRedisClient,
-//         global_rate_limiter: Mutex<GlobalRateLimiter>,
-//     }
-//
-//     impl GlobalLimiter for MockGlobalLimiter {
-//         async fn check_global_rate_limits<'a>(
-//             &self,
-//             global_quotas: &'a [RedisQuota<'a>],
-//             quantity: usize,
-//         ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
-//             self.global_rate_limiter
-//                 .lock()
-//                 .unwrap()
-//                 .filter_rate_limited(&mut client, global_quotas, quantity)
-//         }
-//     }
-//
-//     fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
-//         let url = std::env::var("RELAY_REDIS_URL")
-//             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
-//         let pool = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
-//
-//         let global_limiter = MockGlobalLimiter {
-//             pool: pool.clone(),
-//             global_rate_limiter: Mutex::new(GlobalRateLimiter::default()),
-//         };
-//
-//         RedisRateLimiter {
-//             client: pool,
-//             script: RedisScripts::load_is_rate_limited(),
-//             max_limit: None,
-//             global_limiter,
-//         }
-//     }
-//
-//     #[tokio::test]
-//     async fn test_zero_size_quotas() {
-//         let quotas = &[
-//             Quota {
-//                 id: None,
-//                 categories: DataCategories::new(),
-//                 scope: QuotaScope::Organization,
-//                 scope_id: None,
-//                 limit: Some(0),
-//                 window: None,
-//                 reason_code: Some(ReasonCode::new("get_lost")),
-//                 namespace: None,
-//             },
-//             Quota {
-//                 id: Some("42".to_owned()),
-//                 categories: DataCategories::new(),
-//                 scope: QuotaScope::Organization,
-//                 scope_id: None,
-//                 limit: None,
-//                 window: Some(42),
-//                 reason_code: Some(ReasonCode::new("unlimited")),
-//                 namespace: None,
-//             },
-//         ];
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-//             .is_rate_limited(quotas, scoping, 1, false)
-//             .await
-//             .expect("rate limiting failed")
-//             .into_iter()
-//             .collect();
-//
-//         assert_eq!(
-//             rate_limits,
-//             vec![RateLimit {
-//                 categories: DataCategories::new(),
-//                 scope: RateLimitScope::Organization(OrganizationId::new(42)),
-//                 reason_code: Some(ReasonCode::new("get_lost")),
-//                 retry_after: rate_limits[0].retry_after,
-//                 namespaces: smallvec![],
-//             }]
-//         );
-//     }
-//
-//     /// Tests that a quota with and without namespace are counted separately.
-//     #[tokio::test]
-//     async fn test_non_global_namespace_quota() {
-//         let quota_limit = 5;
-//         let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
-//             Quota {
-//                 id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
-//                 categories: DataCategories::new(),
-//                 scope: QuotaScope::Organization,
-//                 scope_id: None,
-//                 limit: Some(quota_limit),
-//                 window: Some(600),
-//                 reason_code: Some(ReasonCode::new(format!("ns: {:?}", namespace))),
-//                 namespace,
-//             }
-//         };
-//
-//         let quotas = &[get_quota(None)];
-//         let quota_with_namespace = &[get_quota(Some(MetricNamespace::Transactions))];
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
-//         };
-//
-//         let rate_limiter = build_rate_limiter();
-//
-//         // First confirm normal behaviour without namespace.
-//         for i in 0..10 {
-//             let rate_limits: Vec<RateLimit> = rate_limiter
-//                 .is_rate_limited(quotas, scoping, 1, false)
-//                 .await
-//                 .expect("rate limiting failed")
-//                 .into_iter()
-//                 .collect();
-//
-//             if i < quota_limit {
-//                 assert_eq!(rate_limits, vec![]);
-//             } else {
-//                 assert_eq!(
-//                     rate_limits[0].reason_code,
-//                     Some(ReasonCode::new("ns: None"))
-//                 );
-//             }
-//         }
-//
-//         // Then, send identical quota with namespace and confirm it counts separately.
-//         for i in 0..10 {
-//             let rate_limits: Vec<RateLimit> = rate_limiter
-//                 .is_rate_limited(quota_with_namespace, scoping, 1, false)
-//                 .await
-//                 .expect("rate limiting failed")
-//                 .into_iter()
-//                 .collect();
-//
-//             if i < quota_limit {
-//                 assert_eq!(rate_limits, vec![]);
-//             } else {
-//                 assert_eq!(
-//                     rate_limits[0].reason_code,
-//                     Some(ReasonCode::new("ns: Some(Transactions)"))
-//                 );
-//             }
-//         }
-//     }
-//
-//     #[tokio::test]
-//     async fn test_simple_quota() {
-//         let quotas = &[Quota {
-//             id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
-//             categories: DataCategories::new(),
-//             scope: QuotaScope::Organization,
-//             scope_id: None,
-//             limit: Some(5),
-//             window: Some(60),
-//             reason_code: Some(ReasonCode::new("get_lost")),
-//             namespace: None,
-//         }];
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let rate_limiter = build_rate_limiter();
-//
-//         for i in 0..10 {
-//             let rate_limits: Vec<RateLimit> = rate_limiter
-//                 .is_rate_limited(quotas, scoping, 1, false)
-//                 .await
-//                 .expect("rate limiting failed")
-//                 .into_iter()
-//                 .collect();
-//
-//             if i >= 5 {
-//                 assert_eq!(
-//                     rate_limits,
-//                     vec![RateLimit {
-//                         categories: DataCategories::new(),
-//                         scope: RateLimitScope::Organization(OrganizationId::new(42)),
-//                         reason_code: Some(ReasonCode::new("get_lost")),
-//                         retry_after: rate_limits[0].retry_after,
-//                         namespaces: smallvec![],
-//                     }]
-//                 );
-//             } else {
-//                 assert_eq!(rate_limits, vec![]);
-//             }
-//         }
-//     }
-//
-//     #[tokio::test]
-//     async fn test_simple_global_quota() {
-//         let quotas = &[Quota {
-//             id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4())),
-//             categories: DataCategories::new(),
-//             scope: QuotaScope::Global,
-//             scope_id: None,
-//             limit: Some(5),
-//             window: Some(60),
-//             reason_code: Some(ReasonCode::new("get_lost")),
-//             namespace: None,
-//         }];
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let rate_limiter = build_rate_limiter();
-//
-//         for i in 0..10 {
-//             let rate_limits: Vec<RateLimit> = rate_limiter
-//                 .is_rate_limited(quotas, scoping, 1, false)
-//                 .await
-//                 .expect("rate limiting failed")
-//                 .into_iter()
-//                 .collect();
-//
-//             if i >= 5 {
-//                 assert_eq!(
-//                     rate_limits,
-//                     vec![RateLimit {
-//                         categories: DataCategories::new(),
-//                         scope: RateLimitScope::Global,
-//                         reason_code: Some(ReasonCode::new("get_lost")),
-//                         retry_after: rate_limits[0].retry_after,
-//                         namespaces: smallvec![],
-//                     }]
-//                 );
-//             } else {
-//                 assert_eq!(rate_limits, vec![]);
-//             }
-//         }
-//     }
-//
-//     #[tokio::test]
-//     async fn test_quantity_0() {
-//         let quotas = &[Quota {
-//             id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4())),
-//             categories: DataCategories::new(),
-//             scope: QuotaScope::Organization,
-//             scope_id: None,
-//             limit: Some(1),
-//             window: Some(60),
-//             reason_code: Some(ReasonCode::new("get_lost")),
-//             namespace: None,
-//         }];
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let rate_limiter = build_rate_limiter();
-//
-//         // limit is 1, so first call not rate limited
-//         assert!(!rate_limiter
-//             .is_rate_limited(quotas, scoping, 1, false)
-//             .await
-//             .unwrap()
-//             .is_limited());
-//
-//         // quota is now exhausted
-//         assert!(rate_limiter
-//             .is_rate_limited(quotas, scoping, 1, false)
-//             .await
-//             .unwrap()
-//             .is_limited());
-//
-//         // quota is exhausted, regardless of the quantity
-//         assert!(rate_limiter
-//             .is_rate_limited(quotas, scoping, 0, false)
-//             .await
-//             .unwrap()
-//             .is_limited());
-//
-//         // quota is exhausted, regardless of the quantity
-//         assert!(rate_limiter
-//             .is_rate_limited(quotas, scoping, 1, false)
-//             .await
-//             .unwrap()
-//             .is_limited());
-//     }
-//
-//     #[tokio::test]
-//     async fn test_quota_go_over() {
-//         let quotas = &[Quota {
-//             id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4())),
-//             categories: DataCategories::new(),
-//             scope: QuotaScope::Organization,
-//             scope_id: None,
-//             limit: Some(2),
-//             window: Some(60),
-//             reason_code: Some(ReasonCode::new("get_lost")),
-//             namespace: None,
-//         }];
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let rate_limiter = build_rate_limiter();
-//
-//         // limit is 2, so first call not rate limited
-//         let is_limited = rate_limiter
-//             .is_rate_limited(quotas, scoping, 1, true)
-//             .await
-//             .unwrap()
-//             .is_limited();
-//         assert!(!is_limited);
-//
-//         // go over limit, but first call is over-accepted
-//         let is_limited = rate_limiter
-//             .is_rate_limited(quotas, scoping, 2, true)
-//             .await
-//             .unwrap()
-//             .is_limited();
-//         assert!(!is_limited);
-//
-//         // quota is exhausted, regardless of the quantity
-//         let is_limited = rate_limiter
-//             .is_rate_limited(quotas, scoping, 0, true)
-//             .await
-//             .unwrap()
-//             .is_limited();
-//         assert!(is_limited);
-//
-//         // quota is exhausted, regardless of the quantity
-//         let is_limited = rate_limiter
-//             .is_rate_limited(quotas, scoping, 1, true)
-//             .await
-//             .unwrap()
-//             .is_limited();
-//         assert!(is_limited);
-//     }
-//
-//     #[tokio::test]
-//     async fn test_bails_immediately_without_any_quota() {
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-//             .is_rate_limited(&[], scoping, 1, false)
-//             .await
-//             .expect("rate limiting failed")
-//             .into_iter()
-//             .collect();
-//
-//         assert_eq!(rate_limits, vec![]);
-//     }
-//
-//     #[tokio::test]
-//     async fn test_limited_with_unlimited_quota() {
-//         let quotas = &[
-//             Quota {
-//                 id: Some("q0".to_string()),
-//                 categories: DataCategories::new(),
-//                 scope: QuotaScope::Organization,
-//                 scope_id: None,
-//                 limit: None,
-//                 window: Some(1),
-//                 reason_code: Some(ReasonCode::new("project_quota0")),
-//                 namespace: None,
-//             },
-//             Quota {
-//                 id: Some("q1".to_string()),
-//                 categories: DataCategories::new(),
-//                 scope: QuotaScope::Organization,
-//                 scope_id: None,
-//                 limit: Some(1),
-//                 window: Some(1),
-//                 reason_code: Some(ReasonCode::new("project_quota1")),
-//                 namespace: None,
-//             },
-//         ];
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let rate_limiter = build_rate_limiter();
-//
-//         for i in 0..1 {
-//             let rate_limits: Vec<RateLimit> = rate_limiter
-//                 .is_rate_limited(quotas, scoping, 1, false)
-//                 .await
-//                 .expect("rate limiting failed")
-//                 .into_iter()
-//                 .collect();
-//
-//             if i == 0 {
-//                 assert_eq!(rate_limits, &[]);
-//             } else {
-//                 assert_eq!(
-//                     rate_limits,
-//                     vec![RateLimit {
-//                         categories: DataCategories::new(),
-//                         scope: RateLimitScope::Organization(OrganizationId::new(42)),
-//                         reason_code: Some(ReasonCode::new("project_quota1")),
-//                         retry_after: rate_limits[0].retry_after,
-//                         namespaces: smallvec![],
-//                     }]
-//                 );
-//             }
-//         }
-//     }
-//
-//     #[tokio::test]
-//     async fn test_quota_with_quantity() {
-//         let quotas = &[Quota {
-//             id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4())),
-//             categories: DataCategories::new(),
-//             scope: QuotaScope::Organization,
-//             scope_id: None,
-//             limit: Some(500),
-//             window: Some(60),
-//             reason_code: Some(ReasonCode::new("get_lost")),
-//             namespace: None,
-//         }];
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(42),
-//                 project_id: ProjectId::new(43),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(44),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let rate_limiter = build_rate_limiter();
-//
-//         for i in 0..10 {
-//             let rate_limits: Vec<RateLimit> = rate_limiter
-//                 .is_rate_limited(quotas, scoping, 100, false)
-//                 .await
-//                 .expect("rate limiting failed")
-//                 .into_iter()
-//                 .collect();
-//
-//             if i >= 5 {
-//                 assert_eq!(
-//                     rate_limits,
-//                     vec![RateLimit {
-//                         categories: DataCategories::new(),
-//                         scope: RateLimitScope::Organization(OrganizationId::new(42)),
-//                         reason_code: Some(ReasonCode::new("get_lost")),
-//                         retry_after: rate_limits[0].retry_after,
-//                         namespaces: smallvec![],
-//                     }]
-//                 );
-//             } else {
-//                 assert_eq!(rate_limits, vec![]);
-//             }
-//         }
-//     }
-//
-//     #[tokio::test]
-//     async fn test_get_redis_key_scoped() {
-//         let quota = Quota {
-//             id: Some("foo".to_owned()),
-//             categories: DataCategories::new(),
-//             scope: QuotaScope::Project,
-//             scope_id: Some("42".to_owned()),
-//             window: Some(2),
-//             limit: Some(0),
-//             reason_code: None,
-//             namespace: None,
-//         };
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(69420),
-//                 project_id: ProjectId::new(42),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(4711),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let timestamp = UnixTimestamp::from_secs(123_123_123);
-//         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
-//         assert_eq!(redis_quota.key(), "quota:foo{69420}42:61561561");
-//     }
-//
-//     #[tokio::test]
-//     async fn test_get_redis_key_unscoped() {
-//         let quota = Quota {
-//             id: Some("foo".to_owned()),
-//             categories: DataCategories::new(),
-//             scope: QuotaScope::Organization,
-//             scope_id: None,
-//             window: Some(10),
-//             limit: Some(0),
-//             reason_code: None,
-//             namespace: None,
-//         };
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(69420),
-//                 project_id: ProjectId::new(42),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(4711),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let timestamp = UnixTimestamp::from_secs(234_531);
-//         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
-//         assert_eq!(redis_quota.key(), "quota:foo{69420}:23453");
-//     }
-//
-//     #[tokio::test]
-//     async fn test_large_redis_limit_large() {
-//         let quota = Quota {
-//             id: Some("foo".to_owned()),
-//             categories: DataCategories::new(),
-//             scope: QuotaScope::Organization,
-//             scope_id: None,
-//             window: Some(10),
-//             limit: Some(9223372036854775808), // i64::MAX + 1
-//             reason_code: None,
-//             namespace: None,
-//         };
-//
-//         let scoping = ItemScoping {
-//             category: DataCategory::Error,
-//             scoping: Scoping {
-//                 organization_id: OrganizationId::new(69420),
-//                 project_id: ProjectId::new(42),
-//                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-//                 key_id: Some(4711),
-//             },
-//             namespace: MetricNamespaceScoping::None,
-//         };
-//
-//         let timestamp = UnixTimestamp::from_secs(234_531);
-//         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
-//         assert_eq!(redis_quota.limit(), -1);
-//     }
-//
-//     #[tokio::test]
-//     #[allow(clippy::disallowed_names, clippy::let_unit_value)]
-//     async fn test_is_rate_limited_script() {
-//         let now = SystemTime::now()
-//             .duration_since(UNIX_EPOCH)
-//             .map(|duration| duration.as_secs())
-//             .unwrap();
-//
-//         let rate_limiter = build_rate_limiter();
-//         let mut client = rate_limiter.client.client().expect("get client");
-//         let mut conn = client.connection().expect("Redis connection");
-//
-//         // define a few keys with random seed such that they do not collide with repeated test runs
-//         let foo = format!("foo___{now}");
-//         let r_foo = format!("r:foo___{now}");
-//         let bar = format!("bar___{now}");
-//         let r_bar = format!("r:bar___{now}");
-//         let apple = format!("apple___{now}");
-//         let orange = format!("orange___{now}");
-//         let baz = format!("baz___{now}");
-//
-//         let script = RedisScripts::load_is_rate_limited();
-//
-//         let mut invocation = script.prepare_invoke();
-//         invocation
-//             .key(&foo) // key
-//             .key(&r_foo) // refund key
-//             .key(&bar) // key
-//             .key(&r_bar) // refund key
-//             .arg(1) // limit
-//             .arg(now + 60) // expiry
-//             .arg(1) // quantity
-//             .arg(false) // over accept once
-//             .arg(2) // limit
-//             .arg(now + 120) // expiry
-//             .arg(1) // quantity
-//             .arg(false); // over accept once
-//
-//         // The item should not be rate limited by either key.
-//         assert_eq!(
-//             invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
-//             vec![false, false]
-//         );
-//
-//         // The item should be rate limited by the first key (1).
-//         assert_eq!(
-//             invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
-//             vec![true, false]
-//         );
-//
-//         // The item should still be rate limited by the first key (1), but *not*
-//         // rate limited by the second key (2) even though this is the third time
-//         // we've checked the quotas. This ensures items that are rejected by a lower
-//         // quota don't affect unrelated items that share a parent quota.
-//         assert_eq!(
-//             invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
-//             vec![true, false]
-//         );
-//
-//         assert_eq!(conn.get::<_, String>(&foo).unwrap(), "1");
-//         let ttl: u64 = conn.ttl(&foo).unwrap();
-//         assert!(ttl >= 59);
-//         assert!(ttl <= 60);
-//
-//         assert_eq!(conn.get::<_, String>(&bar).unwrap(), "1");
-//         let ttl: u64 = conn.ttl(&bar).unwrap();
-//         assert!(ttl >= 119);
-//         assert!(ttl <= 120);
-//
-//         // make sure "refund/negative" keys haven't been incremented
-//         let () = conn.get(r_foo).unwrap();
-//         let () = conn.get(r_bar).unwrap();
-//
-//         // Test that refunded quotas work
-//         let () = conn.set(&apple, 5).unwrap();
-//
-//         let mut invocation = script.prepare_invoke();
-//         invocation
-//             .key(&orange) // key
-//             .key(&baz) // refund key
-//             .arg(1) // limit
-//             .arg(now + 60) // expiry
-//             .arg(1) // quantity
-//             .arg(false);
-//
-//         // increment
-//         assert_eq!(
-//             invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
-//             vec![false]
-//         );
-//
-//         // test that it's rate limited without refund
-//         assert_eq!(
-//             invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
-//             vec![true]
-//         );
-//
-//         let mut invocation = script.prepare_invoke();
-//         invocation
-//             .key(&orange) // key
-//             .key(&apple) // refund key
-//             .arg(1) // limit
-//             .arg(now + 60) // expiry
-//             .arg(1) // quantity
-//             .arg(false);
-//
-//         // test that refund key is used
-//         assert_eq!(
-//             invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
-//             vec![false]
-//         );
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
+    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
+    use crate::rate_limit::RateLimitScope;
+    use crate::{GlobalRateLimiter, MetricNamespaceScoping};
+    use relay_base_schema::metrics::MetricNamespace;
+    use relay_base_schema::organization::OrganizationId;
+    use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_redis::redis::Commands;
+    use relay_redis::RedisConfigOptions;
+    use smallvec::smallvec;
+    use tokio::sync::Mutex;
+
+    struct MockGlobalLimiter {
+        client: AsyncRedisClient,
+        global_rate_limiter: Mutex<GlobalRateLimiter>,
+    }
+
+    impl GlobalLimiter for MockGlobalLimiter {
+        async fn check_global_rate_limits<'a>(
+            &self,
+            global_quotas: &'a [RedisQuota<'a>],
+            quantity: usize,
+        ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
+            self.global_rate_limiter
+                .lock()
+                .await
+                .filter_rate_limited(&self.client, global_quotas, quantity)
+                .await
+        }
+    }
+
+    async fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
+        let url = std::env::var("RELAY_REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+        let client = AsyncRedisClient::single(&url, &RedisConfigOptions::default())
+            .await
+            .unwrap();
+
+        let global_limiter = MockGlobalLimiter {
+            client: client.clone(),
+            global_rate_limiter: Mutex::new(GlobalRateLimiter::default()),
+        };
+
+        RedisRateLimiter {
+            client,
+            script: RedisScripts::load_is_rate_limited(),
+            max_limit: None,
+            global_limiter,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_zero_size_quotas() {
+        let quotas = &[
+            Quota {
+                id: None,
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: None,
+                limit: Some(0),
+                window: None,
+                reason_code: Some(ReasonCode::new("get_lost")),
+                namespace: None,
+            },
+            Quota {
+                id: Some("42".to_owned()),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: None,
+                limit: None,
+                window: Some(42),
+                reason_code: Some(ReasonCode::new("unlimited")),
+                namespace: None,
+            },
+        ];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let rate_limits: Vec<RateLimit> = build_rate_limiter()
+            .await
+            .is_rate_limited(quotas, scoping, 1, false)
+            .await
+            .expect("rate limiting failed")
+            .into_iter()
+            .collect();
+
+        assert_eq!(
+            rate_limits,
+            vec![RateLimit {
+                categories: DataCategories::new(),
+                scope: RateLimitScope::Organization(OrganizationId::new(42)),
+                reason_code: Some(ReasonCode::new("get_lost")),
+                retry_after: rate_limits[0].retry_after,
+                namespaces: smallvec![],
+            }]
+        );
+    }
+
+    /// Tests that a quota with and without namespace are counted separately.
+    #[tokio::test]
+    async fn test_non_global_namespace_quota() {
+        let quota_limit = 5;
+        let get_quota = |namespace: Option<MetricNamespace>| -> Quota {
+            Quota {
+                id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: None,
+                limit: Some(quota_limit),
+                window: Some(600),
+                reason_code: Some(ReasonCode::new(format!("ns: {:?}", namespace))),
+                namespace,
+            }
+        };
+
+        let quotas = &[get_quota(None)];
+        let quota_with_namespace = &[get_quota(Some(MetricNamespace::Transactions))];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
+        };
+
+        let rate_limiter = build_rate_limiter().await;
+
+        // First confirm normal behaviour without namespace.
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .await
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i < quota_limit {
+                assert_eq!(rate_limits, vec![]);
+            } else {
+                assert_eq!(
+                    rate_limits[0].reason_code,
+                    Some(ReasonCode::new("ns: None"))
+                );
+            }
+        }
+
+        // Then, send identical quota with namespace and confirm it counts separately.
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quota_with_namespace, scoping, 1, false)
+                .await
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i < quota_limit {
+                assert_eq!(rate_limits, vec![]);
+            } else {
+                assert_eq!(
+                    rate_limits[0].reason_code,
+                    Some(ReasonCode::new("ns: Some(Transactions)"))
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_simple_quota() {
+        let quotas = &[Quota {
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(5),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let rate_limiter = build_rate_limiter().await;
+
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .await
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i >= 5 {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(OrganizationId::new(42)),
+                        reason_code: Some(ReasonCode::new("get_lost")),
+                        retry_after: rate_limits[0].retry_after,
+                        namespaces: smallvec![],
+                    }]
+                );
+            } else {
+                assert_eq!(rate_limits, vec![]);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_simple_global_quota() {
+        let quotas = &[Quota {
+            id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Global,
+            scope_id: None,
+            limit: Some(5),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let rate_limiter = build_rate_limiter().await;
+
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .await
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i >= 5 {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Global,
+                        reason_code: Some(ReasonCode::new("get_lost")),
+                        retry_after: rate_limits[0].retry_after,
+                        namespaces: smallvec![],
+                    }]
+                );
+            } else {
+                assert_eq!(rate_limits, vec![]);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_quantity_0() {
+        let quotas = &[Quota {
+            id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(1),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let rate_limiter = build_rate_limiter().await;
+
+        // limit is 1, so first call not rate limited
+        assert!(!rate_limiter
+            .is_rate_limited(quotas, scoping, 1, false)
+            .await
+            .unwrap()
+            .is_limited());
+
+        // quota is now exhausted
+        assert!(rate_limiter
+            .is_rate_limited(quotas, scoping, 1, false)
+            .await
+            .unwrap()
+            .is_limited());
+
+        // quota is exhausted, regardless of the quantity
+        assert!(rate_limiter
+            .is_rate_limited(quotas, scoping, 0, false)
+            .await
+            .unwrap()
+            .is_limited());
+
+        // quota is exhausted, regardless of the quantity
+        assert!(rate_limiter
+            .is_rate_limited(quotas, scoping, 1, false)
+            .await
+            .unwrap()
+            .is_limited());
+    }
+
+    #[tokio::test]
+    async fn test_quota_go_over() {
+        let quotas = &[Quota {
+            id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(2),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let rate_limiter = build_rate_limiter().await;
+
+        // limit is 2, so first call not rate limited
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, 1, true)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(!is_limited);
+
+        // go over limit, but first call is over-accepted
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, 2, true)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(!is_limited);
+
+        // quota is exhausted, regardless of the quantity
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, 0, true)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(is_limited);
+
+        // quota is exhausted, regardless of the quantity
+        let is_limited = rate_limiter
+            .is_rate_limited(quotas, scoping, 1, true)
+            .await
+            .unwrap()
+            .is_limited();
+        assert!(is_limited);
+    }
+
+    #[tokio::test]
+    async fn test_bails_immediately_without_any_quota() {
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let rate_limits: Vec<RateLimit> = build_rate_limiter()
+            .await
+            .is_rate_limited(&[], scoping, 1, false)
+            .await
+            .expect("rate limiting failed")
+            .into_iter()
+            .collect();
+
+        assert_eq!(rate_limits, vec![]);
+    }
+
+    #[tokio::test]
+    async fn test_limited_with_unlimited_quota() {
+        let quotas = &[
+            Quota {
+                id: Some("q0".to_string()),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: None,
+                limit: None,
+                window: Some(1),
+                reason_code: Some(ReasonCode::new("project_quota0")),
+                namespace: None,
+            },
+            Quota {
+                id: Some("q1".to_string()),
+                categories: DataCategories::new(),
+                scope: QuotaScope::Organization,
+                scope_id: None,
+                limit: Some(1),
+                window: Some(1),
+                reason_code: Some(ReasonCode::new("project_quota1")),
+                namespace: None,
+            },
+        ];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let rate_limiter = build_rate_limiter().await;
+
+        for i in 0..1 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .await
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i == 0 {
+                assert_eq!(rate_limits, &[]);
+            } else {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(OrganizationId::new(42)),
+                        reason_code: Some(ReasonCode::new("project_quota1")),
+                        retry_after: rate_limits[0].retry_after,
+                        namespaces: smallvec![],
+                    }]
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_quota_with_quantity() {
+        let quotas = &[Quota {
+            id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(500),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(42),
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let rate_limiter = build_rate_limiter().await;
+
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 100, false)
+                .await
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i >= 5 {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(OrganizationId::new(42)),
+                        reason_code: Some(ReasonCode::new("get_lost")),
+                        retry_after: rate_limits[0].retry_after,
+                        namespaces: smallvec![],
+                    }]
+                );
+            } else {
+                assert_eq!(rate_limits, vec![]);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_redis_key_scoped() {
+        let quota = Quota {
+            id: Some("foo".to_owned()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Project,
+            scope_id: Some("42".to_owned()),
+            window: Some(2),
+            limit: Some(0),
+            reason_code: None,
+            namespace: None,
+        };
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(69420),
+                project_id: ProjectId::new(42),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(4711),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let timestamp = UnixTimestamp::from_secs(123_123_123);
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
+        assert_eq!(redis_quota.key(), "quota:foo{69420}42:61561561");
+    }
+
+    #[tokio::test]
+    async fn test_get_redis_key_unscoped() {
+        let quota = Quota {
+            id: Some("foo".to_owned()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            window: Some(10),
+            limit: Some(0),
+            reason_code: None,
+            namespace: None,
+        };
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(69420),
+                project_id: ProjectId::new(42),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(4711),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let timestamp = UnixTimestamp::from_secs(234_531);
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
+        assert_eq!(redis_quota.key(), "quota:foo{69420}:23453");
+    }
+
+    #[tokio::test]
+    async fn test_large_redis_limit_large() {
+        let quota = Quota {
+            id: Some("foo".to_owned()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            window: Some(10),
+            limit: Some(9223372036854775808), // i64::MAX + 1
+            reason_code: None,
+            namespace: None,
+        };
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: Scoping {
+                organization_id: OrganizationId::new(69420),
+                project_id: ProjectId::new(42),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(4711),
+            },
+            namespace: MetricNamespaceScoping::None,
+        };
+
+        let timestamp = UnixTimestamp::from_secs(234_531);
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
+        assert_eq!(redis_quota.limit(), -1);
+    }
+
+    #[tokio::test]
+    #[allow(clippy::disallowed_names, clippy::let_unit_value)]
+    async fn test_is_rate_limited_script() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap();
+
+        let rate_limiter = build_rate_limiter().await;
+        let mut conn = rate_limiter.client.get_connection();
+
+        // define a few keys with random seed such that they do not collide with repeated test runs
+        let foo = format!("foo___{now}");
+        let r_foo = format!("r:foo___{now}");
+        let bar = format!("bar___{now}");
+        let r_bar = format!("r:bar___{now}");
+        let apple = format!("apple___{now}");
+        let orange = format!("orange___{now}");
+        let baz = format!("baz___{now}");
+
+        let script = RedisScripts::load_is_rate_limited();
+
+        let mut invocation = script.prepare_invoke();
+        invocation
+            .key(&foo) // key
+            .key(&r_foo) // refund key
+            .key(&bar) // key
+            .key(&r_bar) // refund key
+            .arg(1) // limit
+            .arg(now + 60) // expiry
+            .arg(1) // quantity
+            .arg(false) // over accept once
+            .arg(2) // limit
+            .arg(now + 120) // expiry
+            .arg(1) // quantity
+            .arg(false); // over accept once
+
+        // The item should not be rate limited by either key.
+        assert_eq!(
+            invocation.invoke_async::<Vec<bool>>(&mut conn).unwrap(),
+            vec![false, false]
+        );
+
+        // The item should be rate limited by the first key (1).
+        assert_eq!(
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
+            vec![true, false]
+        );
+
+        // The item should still be rate limited by the first key (1), but *not*
+        // rate limited by the second key (2) even though this is the third time
+        // we've checked the quotas. This ensures items that are rejected by a lower
+        // quota don't affect unrelated items that share a parent quota.
+        assert_eq!(
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
+            vec![true, false]
+        );
+
+        assert_eq!(conn.get::<_, String>(&foo).unwrap(), "1");
+        let ttl: u64 = conn.ttl(&foo).unwrap();
+        assert!(ttl >= 59);
+        assert!(ttl <= 60);
+
+        assert_eq!(conn.get::<_, String>(&bar).unwrap(), "1");
+        let ttl: u64 = conn.ttl(&bar).unwrap();
+        assert!(ttl >= 119);
+        assert!(ttl <= 120);
+
+        // make sure "refund/negative" keys haven't been incremented
+        let () = conn.get(r_foo).unwrap();
+        let () = conn.get(r_bar).unwrap();
+
+        // Test that refunded quotas work
+        let () = conn.set(&apple, 5).unwrap();
+
+        let mut invocation = script.prepare_invoke();
+        invocation
+            .key(&orange) // key
+            .key(&baz) // refund key
+            .arg(1) // limit
+            .arg(now + 60) // expiry
+            .arg(1) // quantity
+            .arg(false);
+
+        // increment
+        assert_eq!(
+            invocation.invoke_async::<Vec<bool>>(&mut conn).unwrap(),
+            vec![false]
+        );
+
+        // test that it's rate limited without refund
+        assert_eq!(
+            invocation.invoke_async::<Vec<bool>>(&mut conn).unwrap(),
+            vec![true]
+        );
+
+        let mut invocation = script.prepare_invoke();
+        invocation
+            .key(&orange) // key
+            .key(&apple) // refund key
+            .arg(1) // limit
+            .arg(now + 60) // expiry
+            .arg(1) // quantity
+            .arg(false);
+
+        // test that refund key is used
+        assert_eq!(
+            invocation.invoke_async::<Vec<bool>>(&mut conn).unwrap(),
+            vec![false]
+        );
+    }
+}

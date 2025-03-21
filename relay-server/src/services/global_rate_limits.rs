@@ -1,11 +1,10 @@
 use relay_quotas::{
     GlobalLimiter, GlobalRateLimiter, OwnedRedisQuota, RateLimitingError, RedisQuota,
 };
-use relay_redis::{AsyncRedisClient, RedisPool};
+use relay_redis::AsyncRedisClient;
 use relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, MessageResponse, Receiver, Sender, Service,
 };
-use std::sync::{Arc, Mutex};
 
 /// A request to check which quotas are rate limited by the global rate limiter.
 ///
