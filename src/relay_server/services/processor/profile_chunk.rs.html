@@ -81,7 +81,19 @@
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profile chunks processor code.
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profile chunks processor code.
 
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
 <span class="kw">use </span>std::sync::Arc;
@@ -97,6 +109,7 @@
     <span class="kw">crate</span>::services::processor::ProfileChunkGroup,
     relay_config::Config,
     relay_dynamic_config::GlobalConfig,
+    relay_profiling::ProfileError,
 };
 
 <span class="doccomment">/// Removes profile chunks from the envelope if the feature is not enabled.
@@ -123,45 +136,56 @@
 ) {
     <span class="kw">let </span>client_ip = managed_envelope.envelope().meta().client_addr();
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>project_info.config.filter_settings;
+
     <span class="kw">let </span>continuous_profiling_enabled =
         <span class="kw">if </span>project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
             project_info.has_feature(Feature::ContinuousProfilingBeta)
         } <span class="kw">else </span>{
             project_info.has_feature(Feature::ContinuousProfiling)
         };
+
     managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         ItemType::ProfileChunk =&gt; {
             <span class="kw">if </span>!continuous_profiling_enabled {
                 <span class="kw">return </span>ItemAction::DropSilently;
             }
 
-            <span class="kw">match </span>relay_profiling::expand_profile_chunk(
-                <span class="kw-2">&amp;</span>item.payload(),
-                client_ip,
-                filter_settings,
-                global_config,
-            ) {
-                <span class="prelude-val">Ok</span>(payload) =&gt; {
-                    <span class="kw">if </span>payload.len() &lt;= config.max_profile_size() {
-                        item.set_payload(ContentType::Json, payload);
-                        ItemAction::Keep
-                    } <span class="kw">else </span>{
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(
-                                relay_profiling::ProfileError::ExceedSizeLimit,
-                            ),
-                        )))
-                    }
-                }
-                <span class="prelude-val">Err</span>(relay_profiling::ProfileError::Filtered(filter_stat_key)) =&gt; {
-                    ItemAction::Drop(Outcome::Filtered(filter_stat_key))
-                }
-                <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
-                ))),
+            <span class="kw">let </span>chunk = <span class="kw">match </span>relay_profiling::ProfileChunk::new(item.payload()) {
+                <span class="prelude-val">Ok</span>(chunk) =&gt; chunk,
+                <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span>error_to_action(err),
+            };
+            <span class="comment">// Important: set the profile type to get outcomes in the correct category.
+            </span>item.set_profile_type(chunk.profile_type());
+
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = chunk.filter(client_ip, filter_settings, global_config) {
+                <span class="kw">return </span>error_to_action(err);
             }
+
+            <span class="kw">let </span>payload = <span class="kw">match </span>chunk.expand() {
+                <span class="prelude-val">Ok</span>(expanded) =&gt; expanded,
+                <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span>error_to_action(err),
+            };
+
+            <span class="kw">if </span>payload.len() &gt; config.max_profile_size() {
+                <span class="kw">return </span>error_to_action(relay_profiling::ProfileError::ExceedSizeLimit);
+            }
+
+            item.set_payload(ContentType::Json, payload);
+            ItemAction::Keep
         }
         <span class="kw">_ </span>=&gt; ItemAction::Keep,
     });
+}
+
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">fn </span>error_to_action(err: ProfileError) -&gt; ItemAction {
+    <span class="kw">match </span>err {
+        ProfileError::Filtered(filter_stat_key) =&gt; {
+            ItemAction::Drop(Outcome::Filtered(filter_stat_key))
+        }
+        err =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+            relay_profiling::discard_reason(err),
+        ))),
+    }
 }
 </code></pre></div></section></main></body></html>

@@ -372,7 +372,46 @@
 <a href="#371" id="371">371</a>
 <a href="#372" id="372">372</a>
 <a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
 //! ingestion as JSON objects with some metadata. They are sent alongside a transaction (usually in
@@ -416,6 +455,8 @@
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::time::Duration;
+
+<span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>url::Url;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
@@ -453,6 +494,12 @@
 ///
 /// Same format as event IDs.
 </span><span class="kw">pub type </span>ProfileId = EventId;
+
+<span class="attr">#[derive(Debug, Clone, Copy)]
+</span><span class="kw">pub enum </span>ProfileType {
+    Backend,
+    Ui,
+}
 
 <span class="attr">#[derive(Debug, Deserialize)]
 </span><span class="kw">struct </span>MinimalProfile {
@@ -649,41 +696,72 @@
     }
 }
 
-<span class="kw">pub fn </span>expand_profile_chunk(
-    payload: <span class="kw-2">&amp;</span>[u8],
-    client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
-    filter_settings: <span class="kw-2">&amp;</span>ProjectFiltersConfig,
-    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ProfileError&gt; {
-    <span class="kw">let </span>profile = <span class="kw">match </span>minimal_profile_from_json(payload) {
-        <span class="prelude-val">Ok</span>(profile) =&gt; profile,
-        <span class="prelude-val">Err</span>(err) =&gt; {
-            <span class="macro">relay_log::warn!</span>(
-                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                from = <span class="string">"minimal"</span>,
-                <span class="string">"invalid profile chunk"</span>,
-            );
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
-        }
-    };
+<span class="doccomment">/// Intermediate type for all processing on a profile chunk.
+</span><span class="kw">pub struct </span>ProfileChunk {
+    profile: MinimalProfile,
+    payload: Bytes,
+}
 
-    <span class="kw">if let </span><span class="prelude-val">Err</span>(filter_stat_key) = relay_filter::should_filter(
-        <span class="kw-2">&amp;</span>profile,
-        client_ip,
-        filter_settings,
-        global_config.filters(),
-    ) {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::Filtered(filter_stat_key));
+<span class="kw">impl </span>ProfileChunk {
+    <span class="doccomment">/// Parses a new [`Self`] from raw bytes.
+    </span><span class="kw">pub fn </span>new(payload: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ProfileError&gt; {
+        <span class="kw">match </span>minimal_profile_from_json(<span class="kw-2">&amp;</span>payload) {
+            <span class="prelude-val">Ok</span>(profile) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ profile, payload }),
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">relay_log::debug!</span>(
+                    error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    from = <span class="string">"minimal"</span>,
+                    <span class="string">"invalid profile chunk"</span>,
+                );
+                <span class="prelude-val">Err</span>(ProfileError::InvalidJson(err))
+            }
+        }
     }
 
-    <span class="kw">match </span>(profile.platform.as_str(), profile.version) {
-        (<span class="string">"android"</span>, <span class="kw">_</span>) =&gt; android::chunk::parse(payload),
-        (<span class="kw">_</span>, sample::Version::V2) =&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>profile = sample::v2::parse(payload)<span class="question-mark">?</span>;
-            profile.normalize()<span class="question-mark">?</span>;
-            serde_json::to_vec(<span class="kw-2">&amp;</span>profile).map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)
+    <span class="doccomment">/// Returns the [`ProfileType`] this chunk belongs to.
+    ///
+    /// The profile type is currently determined based on the contained profile
+    /// platform. It determines the data category this profile chunk belongs to.
+    ///
+    /// This needs to be synchronized with the implementation in Sentry:
+    /// &lt;https://github.com/getsentry/sentry/blob/ed2e1c8bcd0d633e6f828fcfbeefbbdd98ef3dba/src/sentry/profiles/task.py#L995&gt;
+    </span><span class="kw">pub fn </span>profile_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProfileType {
+        <span class="kw">match </span><span class="self">self</span>.profile.platform.as_str() {
+            <span class="string">"cocoa" </span>| <span class="string">"android" </span>| <span class="string">"javascript" </span>=&gt; ProfileType::Ui,
+            <span class="kw">_ </span>=&gt; ProfileType::Backend,
         }
-        (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
+    }
+
+    <span class="doccomment">/// Applies inbound filters to the profile chunk.
+    ///
+    /// The profile needs to be filtered (rejected) when this returns an error.
+    </span><span class="kw">pub fn </span>filter(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
+        filter_settings: <span class="kw-2">&amp;</span>ProjectFiltersConfig,
+        global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProfileError&gt; {
+        relay_filter::should_filter(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.profile,
+            client_ip,
+            filter_settings,
+            global_config.filters(),
+        )
+        .map_err(ProfileError::Filtered)
+    }
+
+    <span class="doccomment">/// Normalizes and 'expands' the profile chunk into its normalized form Sentry expects.
+    </span><span class="kw">pub fn </span>expand(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ProfileError&gt; {
+        <span class="kw">match </span>(<span class="self">self</span>.profile.platform.as_str(), <span class="self">self</span>.profile.version) {
+            (<span class="string">"android"</span>, <span class="kw">_</span>) =&gt; android::chunk::parse(<span class="kw-2">&amp;</span><span class="self">self</span>.payload),
+            (<span class="kw">_</span>, sample::Version::V2) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>profile = sample::v2::parse(<span class="kw-2">&amp;</span><span class="self">self</span>.payload)<span class="question-mark">?</span>;
+                profile.normalize()<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(serde_json::to_vec(<span class="kw-2">&amp;</span>profile)
+                    .map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)<span class="question-mark">?</span>)
+            }
+            (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
+        }
     }
 }
 

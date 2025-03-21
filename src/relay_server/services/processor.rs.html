@@ -4334,7 +4334,19 @@
 <a href="#4333" id="4333">4333</a>
 <a href="#4334" id="4334">4334</a>
 <a href="#4335" id="4335">4335</a>
-<a href="#4336" id="4336">4336</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4336" id="4336">4336</a>
+<a href="#4337" id="4337">4337</a>
+<a href="#4338" id="4338">4338</a>
+<a href="#4339" id="4339">4339</a>
+<a href="#4340" id="4340">4340</a>
+<a href="#4341" id="4341">4341</a>
+<a href="#4342" id="4342">4342</a>
+<a href="#4343" id="4343">4343</a>
+<a href="#4344" id="4344">4344</a>
+<a href="#4345" id="4345">4345</a>
+<a href="#4346" id="4346">4346</a>
+<a href="#4347" id="4347">4347</a>
+<a href="#4348" id="4348">4348</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -6258,15 +6270,25 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ProfileChunkGroup&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
+        _rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
         profile_chunk::filter(managed_envelope, project_info.clone());
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             profile_chunk::process(
                 managed_envelope,
-                project_info,
+                project_info.clone(),
                 <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
                 <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
             );
+
+            <span class="self">self</span>.enforce_quotas(
+                managed_envelope,
+                Annotated::empty(),
+                <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics::new(),
+                project_info,
+                _rate_limits,
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
         });
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
@@ -6279,7 +6301,7 @@
         config: Arc&lt;Config&gt;,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
+        _rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
@@ -6300,7 +6322,7 @@
                 Annotated::empty(),
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 project_info.clone(),
-                rate_limits,
+                _rate_limits,
             )
             .<span class="kw">await</span><span class="question-mark">?</span>;
         });
@@ -6633,7 +6655,9 @@
                 rate_limits,
                 reservoir_counters
             ),
-            ProcessingGroup::ProfileChunk =&gt; <span class="macro">run!</span>(process_profile_chunks, project_info),
+            ProcessingGroup::ProfileChunk =&gt; {
+                <span class="macro">run!</span>(process_profile_chunks, project_info, rate_limits)
+            }
             <span class="comment">// Currently is not used.
             </span>ProcessingGroup::Metrics =&gt; {
                 <span class="comment">// In proxy mode we simply forward the metrics.
@@ -7986,7 +8010,7 @@
 
 <span class="doccomment">/// Container for global and project level [`Quota`].
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 </span><span class="kw">struct </span>CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
     global_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Quota],
     project_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Quota],

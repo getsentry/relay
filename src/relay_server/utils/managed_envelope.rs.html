@@ -586,7 +586,15 @@
 <a href="#585" id="585">585</a>
 <a href="#586" id="586">586</a>
 <a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a></pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a></pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::fmt::{Debug, Display};
 <span class="kw">use </span>std::marker::PhantomData;
@@ -1055,6 +1063,14 @@
                 outcome.clone(),
                 DataCategory::ProfileChunk,
                 <span class="self">self</span>.context.summary.profile_chunk_quantity,
+            );
+        }
+
+        <span class="kw">if </span><span class="self">self</span>.context.summary.profile_chunk_ui_quantity &gt; <span class="number">0 </span>{
+            <span class="self">self</span>.track_outcome(
+                outcome.clone(),
+                DataCategory::ProfileChunkUi,
+                <span class="self">self</span>.context.summary.profile_chunk_ui_quantity,
             );
         }
 

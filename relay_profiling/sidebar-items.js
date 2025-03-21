@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ProfileError"],"fn":["discard_reason","expand_profile","expand_profile_chunk","parse_metadata"],"type":["ProfileId"]};
+window.SIDEBAR_ITEMS = {"enum":["ProfileError","ProfileType"],"fn":["discard_reason","expand_profile","parse_metadata"],"struct":["ProfileChunk"],"type":["ProfileId"]};
