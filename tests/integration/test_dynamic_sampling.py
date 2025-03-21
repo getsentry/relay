@@ -492,7 +492,9 @@ def test_uses_trace_public_key(mini_sentry, relay):
         mini_sentry.captured_events.get(timeout=1)
 
     # and it should create an outcome
-    outcomes = mini_sentry.captured_outcomes.get(timeout=2)
+    outcomes = mini_sentry.captured_outcomes.get(timeout=2)  # Spans
+    assert outcomes is not None
+    outcomes = mini_sentry.captured_outcomes.get(timeout=2)  # Transactions
     assert outcomes is not None
     with pytest.raises(queue.Empty):
         mini_sentry.captured_outcomes.get(timeout=1)
@@ -586,6 +588,14 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     itself to 1.0. The chances of this test passing without the adjustment in
     place are very low (but not 0).
     """
+
+    def assert_client_reports():
+        # Relay is sending a client report, skip over it (1 for transactions, 1 for spans)
+        for _ in range(2):
+            received_envelope = mini_sentry.captured_events.get(timeout=1)
+            assert received_envelope.get_transaction_event() is None
+            assert received_envelope.get_event() is None
+
     project_id = 42
     relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
@@ -604,18 +614,12 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     )
 
     relay.send_envelope(project_id, envelope)
-
-    received_envelope = mini_sentry.captured_events.get(timeout=1)
-    received_envelope.get_transaction_event()
+    assert_client_reports()
 
     envelope, trace_id, event_id = event_factory(public_key, client_sample_rate=1.0)
 
     relay.send_envelope(project_id, envelope)
-
-    # Relay is sending a client report, skip over it
-    received_envelope = mini_sentry.captured_events.get(timeout=1)
-    assert received_envelope.get_transaction_event() is None
-    assert received_envelope.get_event() is None
+    assert_client_reports()
 
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)

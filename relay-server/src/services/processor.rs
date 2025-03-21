@@ -98,6 +98,8 @@ mod span;
 mod transaction;
 pub use span::extract_transaction_span;
 
+#[cfg(feature = "processing")]
+mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -1124,7 +1126,7 @@ struct InnerProcessor {
     quotas_client: Option<AsyncRedisClient>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
-    rate_limiter: Option<Arc<RedisRateLimiter>>,
+    rate_limiter: Option<Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>>,
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
@@ -1164,6 +1166,18 @@ impl EnvelopeProcessorService {
             None => (None, None),
         };
 
+        #[cfg(feature = "processing")]
+        let rate_limiter = if let (Some(quotas), Some(global_rate_limits)) =
+            (quotas.clone(), &addrs.global_rate_limits)
+        {
+            Some(Arc::new(
+                RedisRateLimiter::new(quotas, global_rate_limits.clone().into())
+                    .max_limit(config.max_rate_limit()),
+            ))
+        } else {
+            None
+        };
+
         let inner = InnerProcessor {
             pool,
             global_config,
@@ -1172,9 +1186,7 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             quotas_client: quotas.clone(),
             #[cfg(feature = "processing")]
-            rate_limiter: quotas.map(|quotas| {
-                Arc::new(RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit()))
-            }),
+            rate_limiter,
             addrs,
             geoip_lookup,
             #[cfg(feature = "processing")]
@@ -1423,15 +1435,7 @@ impl EnvelopeProcessorService {
         };
 
         let request_meta = managed_envelope.envelope().meta();
-        let client_ipaddr = request_meta
-            .client_addr()
-            .filter(|_| {
-                !project_info
-                    .config
-                    .datascrubbing_settings
-                    .scrub_ip_addresses
-            })
-            .map(IpAddr::from);
+        let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         let transaction_aggregator_config = self
             .inner
@@ -1474,6 +1478,11 @@ impl EnvelopeProcessorService {
                 protocol_version: Some(request_meta.version().to_string()),
                 grouping_config: project_info.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
+                // if the setting is enabled we do not want to infer the ip address
+                infer_ip_address: !project_info
+                    .config
+                    .datascrubbing_settings
+                    .scrub_ip_addresses,
                 client_sample_rate: managed_envelope
                     .envelope()
                     .dsc()
@@ -1557,6 +1566,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
+            playstation::expand(managed_envelope, &project_info)?;
         });
 
         let extraction_result = event::extract(
@@ -1570,6 +1580,11 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             if let Some(inner_event_fully_normalized) =
                 unreal::process(managed_envelope, &mut event)?
+            {
+                event_fully_normalized = inner_event_fully_normalized;
+            }
+            if let Some(inner_event_fully_normalized) =
+                playstation::process(managed_envelope, &mut event)?
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }
@@ -1795,7 +1810,12 @@ impl EnvelopeProcessorService {
                 spans_extracted,
             )?;
 
-            dynamic_sampling::drop_unsampled_items(managed_envelope, event, outcome);
+            dynamic_sampling::drop_unsampled_items(
+                managed_envelope,
+                event,
+                outcome,
+                spans_extracted,
+            );
 
             // At this point we have:
             //  - An empty envelope.
@@ -1901,15 +1921,25 @@ impl EnvelopeProcessorService {
         &self,
         managed_envelope: &mut TypedEnvelope<ProfileChunkGroup>,
         project_info: Arc<ProjectInfo>,
+        _rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         profile_chunk::filter(managed_envelope, project_info.clone());
         if_processing!(self.inner.config, {
             profile_chunk::process(
                 managed_envelope,
-                project_info,
+                project_info.clone(),
                 &self.inner.global_config.current(),
                 &self.inner.config,
             );
+
+            self.enforce_quotas(
+                managed_envelope,
+                Annotated::empty(),
+                &mut ProcessingExtractedMetrics::new(),
+                project_info,
+                _rate_limits,
+            )
+            .await?;
         });
 
         Ok(None)
@@ -1922,7 +1952,7 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        _rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
@@ -1943,7 +1973,7 @@ impl EnvelopeProcessorService {
                 Annotated::empty(),
                 &mut extracted_metrics,
                 project_info.clone(),
-                rate_limits,
+                _rate_limits,
             )
             .await?;
         });
@@ -2276,7 +2306,9 @@ impl EnvelopeProcessorService {
                 rate_limits,
                 reservoir_counters
             ),
-            ProcessingGroup::ProfileChunk => run!(process_profile_chunks, project_info),
+            ProcessingGroup::ProfileChunk => {
+                run!(process_profile_chunks, project_info, rate_limits)
+            }
             // Currently is not used.
             ProcessingGroup::Metrics => {
                 // In proxy mode we simply forward the metrics.
@@ -3147,7 +3179,7 @@ impl EnvelopeProcessorService {
         self.inner.rate_limiter.is_some()
     }
 
-    async fn handle_message(&self, message: EnvelopeProcessor) {
+    fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
         let feature_weights = self.feature_weights(&message);
 
@@ -3255,7 +3287,7 @@ impl EnforcementResult {
 #[derive(Clone)]
 enum RateLimiter {
     Cached,
-    Consistent(Arc<RedisRateLimiter>),
+    Consistent(Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>),
 }
 
 #[cfg(feature = "processing")]
@@ -3639,7 +3671,7 @@ impl UpstreamRequest for SendMetricsRequest {
 
 /// Container for global and project level [`Quota`].
 #[cfg(feature = "processing")]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct CombinedQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],

@@ -156,12 +156,23 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_LOG_BYTE = 24,
   /**
-   * ProfileDurationUi
+   * Profile duration of a UI profile.
    *
    * This data category is used to count the number of milliseconds per indexed UI profile
    * chunk.
+   *
+   * See also: [`Self::ProfileDuration`]
    */
   RELAY_DATA_CATEGORY_PROFILE_DURATION_UI = 25,
+  /**
+   * UI Profile Chunk.
+   *
+   * This data category is used to count the number of milliseconds per indexed UI profile
+   * chunk.
+   *
+   * See also: [`Self::ProfileChunk`]
+   */
+  RELAY_DATA_CATEGORY_PROFILE_CHUNK_UI = 26,
   /**
    * Any other data category not known by this Relay.
    */

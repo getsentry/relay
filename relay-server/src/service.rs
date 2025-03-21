@@ -9,6 +9,8 @@ use crate::services::buffer::{
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
+#[cfg(feature = "processing")]
+use crate::services::global_rate_limits::GlobalRateLimitsService;
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
@@ -54,9 +56,9 @@ pub enum ServiceError {
     #[error("could not initialize kafka producer: {0}")]
     Kafka(String),
 
-    /// Initializing the Redis cluster client failed.
+    /// Initializing the Redis client failed.
     #[cfg(feature = "processing")]
-    #[error("could not initialize redis cluster client")]
+    #[error("could not initialize redis client during startup")]
     Redis,
 }
 
@@ -249,6 +251,11 @@ impl ServiceState {
         let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
 
+        #[cfg(feature = "processing")]
+        let global_rate_limits = redis_pools
+            .as_ref()
+            .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
+
         let processor_pool = create_processor_pool(&config)?;
         services.start_with(
             EnvelopeProcessorService::new(
@@ -266,6 +273,8 @@ impl ServiceState {
                     #[cfg(feature = "processing")]
                     store_forwarder: store.clone(),
                     aggregator: aggregator.clone(),
+                    #[cfg(feature = "processing")]
+                    global_rate_limits,
                 },
                 metric_outcomes.clone(),
             ),

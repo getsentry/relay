@@ -63,6 +63,12 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
+    #[error("invalid prosperodump")]
+    InvalidProsperodump,
+
+    #[error("missing prosperodump")]
+    MissingProsperodump,
+
     #[error("invalid compression container")]
     InvalidCompressionContainer(#[source] std::io::Error),
 

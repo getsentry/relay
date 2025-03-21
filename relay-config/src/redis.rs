@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// In this case, we fall back to the old default.
 pub(crate) const DEFAULT_MIN_MAX_CONNECTIONS: u32 = 24;
 
-/// By default, the `min_idle` count of the Redis client is set to the calculated
+/// By default, the `min_idle` count of the Redis pool is set to the calculated
 /// amount of max connections divided by this value and rounded up.
 ///
 /// To express this value as a percentage of max connections,
@@ -16,24 +16,23 @@ pub(crate) const DEFAULT_MIN_IDLE_RATIO: u32 = 5;
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
 pub struct PartialRedisConfigOptions {
-    /// Maximum number of connections managed by the client.
+    /// Maximum number of connections managed by the pool.
     ///
     /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_connections: Option<u32>,
-    /// Minimum amount of idle connections kept alive in the client.
+    /// Minimum amount of idle connections kept alive in the pool.
     ///
     /// If not set it will default to 20% of [`Self::max_connections`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min_idle: Option<u32>,
-    /// Sets the connection timeout used by the client, in seconds.
+    /// Sets the connection timeout used by the pool, in seconds.
     ///
-    /// Calls to `ConnectionManager::new_with_config` will wait this long for a connection to
-    /// become available before returning an error.
+    /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
     pub connection_timeout: u64,
-    /// Sets the maximum lifetime of connections in the client, in seconds.
+    /// Sets the maximum lifetime of connections in the pool, in seconds.
     pub max_lifetime: u64,
-    /// Sets the idle timeout used by the client, in seconds.
+    /// Sets the idle timeout used by the pool, in seconds.
     pub idle_timeout: u64,
     /// Sets the read timeout out on the connection, in seconds.
     pub read_timeout: u64,
@@ -66,7 +65,7 @@ enum RedisConfigFromFile {
         /// This can also be a single node which is configured in cluster mode.
         cluster_nodes: Vec<String>,
 
-        /// Additional configuration options for the redis client.
+        /// Additional configuration options for the redis client and a connections pool.
         #[serde(flatten)]
         options: PartialRedisConfigOptions,
     },
@@ -86,7 +85,7 @@ enum RedisConfigFromFile {
         /// Contains the `redis://` url to the node.
         server: String,
 
-        /// Additional configuration options for the redis client.
+        /// Additional configuration options for the redis client and a connections pool.
         #[serde(flatten)]
         options: PartialRedisConfigOptions,
     },
@@ -165,19 +164,19 @@ impl From<RedisConfigFromFile> for RedisConfig {
     }
 }
 
-/// Configurations for the various Redis clients used by Relay.
+/// Configurations for the various Redis pools used by Relay.
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum RedisConfigs {
-    /// All clients should be configured the same way.
+    /// All pools should be configured the same way.
     Unified(RedisConfig),
-    /// Individual configurations for each client.
+    /// Individual configurations for each pool.
     Individual {
-        /// Configuration for `project_configs`.
+        /// Configuration for the `project_configs` pool.
         project_configs: Box<RedisConfig>,
-        /// Configuration for `cardinality`.
+        /// Configuration for the `cardinality` pool.
         cardinality: Box<RedisConfig>,
-        /// Configuration for `quotas`.
+        /// Configuration for the `quotas` pool.
         quotas: Box<RedisConfig>,
     },
 }
@@ -206,24 +205,23 @@ pub enum RedisConfigRef<'a> {
     },
 }
 
-/// Helper struct bundling connections and options for the various Redis clients.
+/// Helper struct bundling connections and options for the various Redis pools.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
-pub enum RedisConfigsRef<'a> {
-    /// Use one client for everything.
+pub enum RedisPoolConfigs<'a> {
+    /// Use one pool for everything.
     Unified(RedisConfigRef<'a>),
-    /// Use an individual client for each use case.
+    /// Use an individual pool for each use case.
     Individual {
-        /// Configuration for `project_configs`.
+        /// Configuration for the `project_configs` pool.
         project_configs: RedisConfigRef<'a>,
-        /// Configuration for `cardinality`.
+        /// Configuration for the `cardinality` pool.
         cardinality: RedisConfigRef<'a>,
-        /// Configuration for `quotas`.
+        /// Configuration for the `quotas` pool.
         quotas: RedisConfigRef<'a>,
     },
 }
 
-/// Builds [`RedisConfigOptions`] given [`PartialRedisConfigOptions`].
 fn build_redis_config_options(
     options: &PartialRedisConfigOptions,
     default_connections: u32,
@@ -290,6 +288,10 @@ pub(super) fn build_redis_configs(
     let project_configs_default_connections =
         std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
 
+    // The number of default connections is equal to how many threads we have times the number of
+    // futures we can concurrently drive times some leeway since we might use more connections.
+    let default_connections = cpu_concurrency * max_pool_concurrency * 2;
+
     match configs {
         RedisConfigs::Unified(cfg) => {
             let config = build_redis_config(cfg, project_configs_default_connections);
@@ -302,8 +304,8 @@ pub(super) fn build_redis_configs(
         } => {
             let project_configs =
                 build_redis_config(project_configs, project_configs_default_connections);
-            let cardinality = build_redis_config(cardinality, cpu_concurrency);
-            let quotas = build_redis_config(quotas, cpu_concurrency);
+            let cardinality = build_redis_config(cardinality, default_connections);
+            let quotas = build_redis_config(quotas, default_connections);
             RedisConfigsRef::Individual {
                 project_configs,
                 cardinality,

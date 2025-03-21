@@ -61,6 +61,11 @@ pub enum Feature {
     /// Serialized as `projects:relay-otel-endpoint`.
     #[serde(rename = "projects:relay-otel-endpoint")]
     OtelEndpoint,
+    /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
+    ///
+    /// Serialized as `project:relay-playstation-ingestion`.
+    #[serde(rename = "projects:relay-playstation-ingestion")]
+    PlaystationIngestion,
     /// Discard transactions in a spans-only world.
     ///
     /// Serialized as `projects:discard-transaction`.
@@ -97,11 +102,16 @@ pub enum Feature {
     /// Serialized as `organizations:indexed-spans-extraction`.
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
-    /// Indicate if the EAP consumers should ingest a span.
+    /// Indicate if the EAP consumers should ingest a span for a given organization.
     ///
     /// Serialized as `organizations:ingest-spans-in-eap`
     #[serde(rename = "organizations:ingest-spans-in-eap")]
-    IngestSpansInEap,
+    IngestSpansInEapForOrganization,
+    /// Indicate if the EAP consumers should ingest a span for a given project.
+    ///
+    /// Serialized as `projects:ingest-spans-in-eap`
+    #[serde(rename = "projects:ingest-spans-in-eap")]
+    IngestSpansInEapForProject,
     /// Enable log ingestion for our log product (this is not internal logging).
     ///
     /// Serialized as `organizations:ourlogs-ingestion`.
