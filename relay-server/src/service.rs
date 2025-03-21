@@ -56,9 +56,9 @@ pub enum ServiceError {
     #[error("could not initialize kafka producer: {0}")]
     Kafka(String),
 
-    /// Initializing the Redis cluster client failed.
+    /// Initializing the Redis client failed.
     #[cfg(feature = "processing")]
-    #[error("could not initialize redis cluster client")]
+    #[error("could not initialize redis client during startup")]
     Redis,
 }
 

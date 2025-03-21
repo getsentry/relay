@@ -99,6 +99,8 @@ mod span;
 mod transaction;
 pub use span::extract_transaction_span;
 
+#[cfg(feature = "processing")]
+mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -1571,6 +1573,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
+            playstation::expand(managed_envelope, &project_info)?;
         });
 
         let extraction_result = event::extract(
@@ -1584,6 +1587,11 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             if let Some(inner_event_fully_normalized) =
                 unreal::process(managed_envelope, &mut event)?
+            {
+                event_fully_normalized = inner_event_fully_normalized;
+            }
+            if let Some(inner_event_fully_normalized) =
+                playstation::process(managed_envelope, &mut event)?
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }
@@ -1916,15 +1924,25 @@ impl EnvelopeProcessorService {
         &self,
         managed_envelope: &mut TypedEnvelope<ProfileChunkGroup>,
         project_info: Arc<ProjectInfo>,
+        _rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         profile_chunk::filter(managed_envelope, project_info.clone());
         if_processing!(self.inner.config, {
             profile_chunk::process(
                 managed_envelope,
-                project_info,
+                project_info.clone(),
                 &self.inner.global_config.current(),
                 &self.inner.config,
             );
+
+            self.enforce_quotas(
+                managed_envelope,
+                Annotated::empty(),
+                &mut ProcessingExtractedMetrics::new(),
+                project_info,
+                _rate_limits,
+            )
+            .await?;
         });
 
         Ok(None)
@@ -1937,7 +1955,7 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+        _rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
@@ -1958,7 +1976,7 @@ impl EnvelopeProcessorService {
                 Annotated::empty(),
                 &mut extracted_metrics,
                 project_info.clone(),
-                rate_limits,
+                _rate_limits,
             )
             .await?;
         });
@@ -2291,7 +2309,9 @@ impl EnvelopeProcessorService {
                 rate_limits,
                 reservoir_counters
             ),
-            ProcessingGroup::ProfileChunk => run!(process_profile_chunks, project_info),
+            ProcessingGroup::ProfileChunk => {
+                run!(process_profile_chunks, project_info, rate_limits)
+            }
             // Currently is not used.
             ProcessingGroup::Metrics => {
                 // In proxy mode we simply forward the metrics.
@@ -3644,7 +3664,7 @@ impl UpstreamRequest for SendMetricsRequest {
 
 /// Container for global and project level [`Quota`].
 #[cfg(feature = "processing")]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct CombinedQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],

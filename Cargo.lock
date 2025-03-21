@@ -3466,7 +3466,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.6"
+version = "0.9.7"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3828,6 +3828,7 @@ name = "relay-profiling"
 version = "25.3.0"
 dependencies = [
  "android_trace_log",
+ "bytes",
  "chrono",
  "data-encoding",
  "insta",

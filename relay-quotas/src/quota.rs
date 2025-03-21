@@ -207,6 +207,7 @@ impl CategoryUnit {
             | DataCategory::MetricBucket
             | DataCategory::UserReportV2
             | DataCategory::ProfileChunk
+            | DataCategory::ProfileChunkUi
             | DataCategory::Uptime
             | DataCategory::MetricSecond
             | DataCategory::AttachmentItem
