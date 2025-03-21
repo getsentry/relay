@@ -452,6 +452,7 @@ def make_otel_span(start, end):
                                 "name": "my 2nd OTel span",
                                 "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
                                 "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
+                                "kind": 4,
                                 "attributes": [
                                     {
                                         "key": "sentry.exclusive_time_nano",
@@ -529,6 +530,7 @@ def test_span_ingestion(
         name="my 3rd protobuf OTel span",
         start_time_unix_nano=int(start.timestamp() * 1e9),
         end_time_unix_nano=int(end.timestamp() * 1e9),
+        kind=5,
         attributes=[
             KeyValue(
                 key="sentry.exclusive_time_nano",
@@ -575,6 +577,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
+            "kind": "unspecified",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -658,6 +661,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
+            "kind": "producer",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -710,6 +714,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": False,
             "is_remote": False,
+            "kind": "consumer",
             "organization_id": 1,
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
