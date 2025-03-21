@@ -252,7 +252,7 @@ impl ServiceState {
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
 
         #[cfg(feature = "processing")]
-        let global_rate_limits = redis_pools
+        let global_rate_limits = redis_clients
             .as_ref()
             .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
 

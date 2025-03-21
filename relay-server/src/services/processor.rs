@@ -68,6 +68,7 @@ use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
+    crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
@@ -1101,6 +1102,8 @@ pub struct Addrs {
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
+    #[cfg(feature = "processing")]
+    pub global_rate_limits: Option<Addr<GlobalRateLimits>>,
 }
 
 impl Default for Addrs {
@@ -1112,6 +1115,8 @@ impl Default for Addrs {
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            global_rate_limits: None,
         }
     }
 }
@@ -3179,7 +3184,7 @@ impl EnvelopeProcessorService {
         self.inner.rate_limiter.is_some()
     }
 
-    fn handle_message(&self, message: EnvelopeProcessor) {
+    async fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
         let feature_weights = self.feature_weights(&message);
 

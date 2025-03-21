@@ -208,7 +208,7 @@ pub enum RedisConfigRef<'a> {
 /// Helper struct bundling connections and options for the various Redis pools.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
-pub enum RedisPoolConfigs<'a> {
+pub enum RedisConfigsRef<'a> {
     /// Use one pool for everything.
     Unified(RedisConfigRef<'a>),
     /// Use an individual pool for each use case.
@@ -226,6 +226,7 @@ fn build_redis_config_options(
     options: &PartialRedisConfigOptions,
     default_connections: u32,
 ) -> RedisConfigOptions {
+    // TODO: remove options that are not used anymore.
     let max_connections = options.max_connections.unwrap_or(default_connections);
     let min_idle = options
         .min_idle
@@ -282,6 +283,7 @@ pub(super) fn build_redis_config(
 pub(super) fn build_redis_configs(
     configs: &RedisConfigs,
     cpu_concurrency: u32,
+    pool_concurrency: u32,
 ) -> RedisConfigsRef<'_> {
     // Default `max_connections` for the `project_configs` client.
     // In a unified config, this is used for all clients.
@@ -290,7 +292,7 @@ pub(super) fn build_redis_configs(
 
     // The number of default connections is equal to how many threads we have times the number of
     // futures we can concurrently drive times some leeway since we might use more connections.
-    let default_connections = cpu_concurrency * max_pool_concurrency * 2;
+    let default_connections = cpu_concurrency * pool_concurrency * 2;
 
     match configs {
         RedisConfigs::Unified(cfg) => {
