@@ -68,7 +68,6 @@ use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
-    crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
@@ -78,7 +77,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
-    relay_redis::{RedisPool, RedisPools},
+    relay_redis::{AsyncRedisClient, RedisClients},
     std::iter::Chain,
     std::slice::Iter,
     std::time::Instant,
@@ -1102,8 +1101,6 @@ pub struct Addrs {
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
-    #[cfg(feature = "processing")]
-    pub global_rate_limits: Option<Addr<GlobalRateLimits>>,
 }
 
 impl Default for Addrs {
@@ -1115,8 +1112,6 @@ impl Default for Addrs {
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
-            #[cfg(feature = "processing")]
-            global_rate_limits: None,
         }
     }
 }
@@ -1128,7 +1123,7 @@ struct InnerProcessor {
     project_cache: ProjectCacheHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
-    quotas_pool: Option<RedisPool>,
+    quotas_client: Option<AsyncRedisClient>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>>,
@@ -1147,7 +1142,7 @@ impl EnvelopeProcessorService {
         global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
         cogs: Cogs,
-        #[cfg(feature = "processing")] redis: Option<RedisPools>,
+        #[cfg(feature = "processing")] redis: Option<RedisClients>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
@@ -1163,7 +1158,7 @@ impl EnvelopeProcessorService {
 
         #[cfg(feature = "processing")]
         let (cardinality, quotas) = match redis {
-            Some(RedisPools {
+            Some(RedisClients {
                 cardinality,
                 quotas,
                 ..
@@ -1189,7 +1184,7 @@ impl EnvelopeProcessorService {
             project_cache,
             cogs,
             #[cfg(feature = "processing")]
-            quotas_pool: quotas,
+            quotas_client: quotas.clone(),
             #[cfg(feature = "processing")]
             rate_limiter,
             addrs,
@@ -1626,7 +1621,8 @@ impl EnvelopeProcessorService {
                 &mut event,
                 sampling_project_info,
                 &self.inner.config,
-            );
+            )
+            .await;
         }
 
         if_processing!(self.inner.config, {
@@ -1771,14 +1767,17 @@ impl EnvelopeProcessorService {
 
         relay_cogs::with!(cogs, "dynamic_sampling_run", {
             let sampling_result = match run_dynamic_sampling {
-                true => dynamic_sampling::run(
-                    managed_envelope,
-                    &mut event,
-                    config.clone(),
-                    project_info.clone(),
-                    sampling_project_info,
-                    &reservoir,
-                ),
+                true => {
+                    dynamic_sampling::run(
+                        managed_envelope,
+                        &mut event,
+                        config.clone(),
+                        project_info.clone(),
+                        sampling_project_info,
+                        &reservoir,
+                    )
+                    .await
+                }
                 false => SamplingResult::Pending,
             };
         });
@@ -2744,7 +2743,7 @@ impl EnvelopeProcessorService {
         project_info: &ProjectInfo,
         mut buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
-        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+        let Some(rate_limiter) = &self.inner.rate_limiter else {
             return buckets;
         };
 
@@ -2807,7 +2806,7 @@ impl EnvelopeProcessorService {
 
         let scoping = *bucket_limiter.scoping();
 
-        if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
+        if let Some(rate_limiter) = &self.inner.rate_limiter {
             let global_config = self.inner.global_config.current();
             let quotas = CombinedQuotas::new(&global_config, bucket_limiter.quotas());
 
@@ -2873,7 +2872,7 @@ impl EnvelopeProcessorService {
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
     #[cfg(feature = "processing")]
-    fn cardinality_limit_buckets(
+    async fn cardinality_limit_buckets(
         &self,
         scoping: Scoping,
         limits: &[CardinalityLimit],
@@ -2895,7 +2894,10 @@ impl EnvelopeProcessorService {
             project_id: scoping.project_id,
         };
 
-        let limits = match limiter.check_cardinality_limits(scope, limits, buckets) {
+        let limits = match limiter
+            .check_cardinality_limits(scope, limits, buckets)
+            .await
+        {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(
@@ -2980,7 +2982,9 @@ impl EnvelopeProcessorService {
                 .await;
 
             let limits = project_info.get_cardinality_limits();
-            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
+            let buckets = self
+                .cardinality_limit_buckets(scoping, limits, buckets)
+                .await;
 
             if buckets.is_empty() {
                 continue;
@@ -3175,7 +3179,7 @@ impl EnvelopeProcessorService {
         self.inner.rate_limiter.is_some()
     }
 
-    async fn handle_message(&self, message: EnvelopeProcessor) {
+    fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
         let feature_weights = self.feature_weights(&message);
 
@@ -3234,8 +3238,8 @@ impl EnvelopeProcessorService {
         #[allow(unused_mut)]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
         #[cfg(feature = "processing")]
-        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
-            reservoir.set_redis(organization_id, quotas_pool);
+        if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
+            reservoir.set_redis(organization_id, quotas_client);
         }
 
         reservoir
@@ -3250,7 +3254,12 @@ impl Service for EnvelopeProcessorService {
             let service = self.clone();
             self.inner
                 .pool
-                .spawn_async(async move { service.handle_message(message).await }.boxed())
+                .spawn_async(
+                    async move {
+                        service.handle_message(message).await;
+                    }
+                    .boxed(),
+                )
                 .await;
         }
     }

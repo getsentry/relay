@@ -69,7 +69,8 @@ pub async fn process(
         project_info.clone(),
         sampling_project_info,
         reservoir_counters,
-    );
+    )
+    .await;
 
     let span_metrics_extraction_config = match project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),

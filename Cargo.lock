@@ -3496,6 +3496,7 @@ dependencies = [
 name = "relay-cardinality"
 version = "25.3.0"
 dependencies = [
+ "async-trait",
  "criterion",
  "hash32",
  "hashbrown 0.14.5",
@@ -3508,6 +3509,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+ "tokio",
  "uuid",
 ]
 
@@ -3939,6 +3941,7 @@ dependencies = [
  "serde",
  "serde_json",
  "similar-asserts",
+ "tokio",
  "uuid",
 ]
 

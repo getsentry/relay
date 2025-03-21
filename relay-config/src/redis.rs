@@ -242,7 +242,10 @@ fn build_redis_config_options(
     }
 }
 
-pub(super) fn create_redis_pool(
+/// Builds a [`RedisConfigsRef`] given a [`RedisConfig`].
+///
+/// The returned config contains more options for setting up Redis.
+pub(super) fn build_redis_config(
     config: &RedisConfig,
     default_connections: u32,
 ) -> RedisConfigRef<'_> {
@@ -257,7 +260,7 @@ pub(super) fn create_redis_pool(
         RedisConfig::MultiWrite { configs } => RedisConfigRef::MultiWrite {
             configs: configs
                 .iter()
-                .map(|c| create_redis_pool(c, default_connections))
+                .map(|c| build_redis_config(c, default_connections))
                 .collect(),
         },
         RedisConfig::Single(SingleRedisConfig::Detailed { server, options }) => {
@@ -273,13 +276,15 @@ pub(super) fn create_redis_pool(
     }
 }
 
-pub(super) fn create_redis_pools(
+/// Builds a [`RedisConfigsRef`] given a [`RedisConfigs`].
+///
+/// The returned configs contain more options for setting up Redis.
+pub(super) fn build_redis_configs(
     configs: &RedisConfigs,
     cpu_concurrency: u32,
-    max_pool_concurrency: u32,
-) -> RedisPoolConfigs {
-    // Default `max_connections` for the `project_configs` pool.
-    // In a unified config, this is used for all pools.
+) -> RedisConfigsRef<'_> {
+    // Default `max_connections` for the `project_configs` client.
+    // In a unified config, this is used for all clients.
     let project_configs_default_connections =
         std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
 
@@ -289,8 +294,8 @@ pub(super) fn create_redis_pools(
 
     match configs {
         RedisConfigs::Unified(cfg) => {
-            let pool = create_redis_pool(cfg, project_configs_default_connections);
-            RedisPoolConfigs::Unified(pool)
+            let config = build_redis_config(cfg, project_configs_default_connections);
+            RedisConfigsRef::Unified(config)
         }
         RedisConfigs::Individual {
             project_configs,
@@ -298,10 +303,10 @@ pub(super) fn create_redis_pools(
             quotas,
         } => {
             let project_configs =
-                create_redis_pool(project_configs, project_configs_default_connections);
-            let cardinality = create_redis_pool(cardinality, default_connections);
-            let quotas = create_redis_pool(quotas, default_connections);
-            RedisPoolConfigs::Individual {
+                build_redis_config(project_configs, project_configs_default_connections);
+            let cardinality = build_redis_config(cardinality, default_connections);
+            let quotas = build_redis_config(quotas, default_connections);
+            RedisConfigsRef::Individual {
                 project_configs,
                 cardinality,
                 quotas,
