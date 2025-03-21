@@ -17,6 +17,7 @@
 - Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
 - Switch global rate limiter to a service. ([#4581](https://github.com/getsentry/relay/pull/4581))
 - Remove `parent_span_link` from `SpanLink` struct. ([#4594](https://github.com/getsentry/relay/pull/4594))
+- Extract transaction breakdowns into measurements. ([#4600](https://github.com/getsentry/relay/pull/4600))
 
 ## 25.3.0
 
