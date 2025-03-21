@@ -126,9 +126,6 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                 }
                 key if key.starts_with("db") => {
                     op = op.or(Some("db".to_string()));
-                    if key == "db.statement" {
-                        description = description.or_else(|| otel_value_to_string(value));
-                    }
                 }
                 "http.method" | "http.request.method" => {
                     let http_op = match kind {
@@ -667,6 +664,7 @@ mod tests {
                 code_function: ~,
                 code_namespace: ~,
                 db_operation: ~,
+                db_query_text: ~,
                 db_system: ~,
                 db_collection_name: ~,
                 environment: "prod",

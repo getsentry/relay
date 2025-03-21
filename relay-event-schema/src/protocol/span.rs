@@ -393,6 +393,13 @@ pub struct SpanData {
     #[metastructure(field = "db.operation")]
     pub db_operation: Annotated<Value>,
 
+    /// The database query being executed.
+    ///
+    /// E.g. SELECT * FROM wuser_table where username = ?; SET mykey ?
+    /// See [OpenTelemetry docs for a list of well-known identifiers](https://opentelemetry.io/docs/specs/semconv/database/database-spans/#common-attributes).
+    #[metastructure(field = "db.query.text", legacy_alias = "db.statement")]
+    pub db_query_text: Annotated<String>,
+
     /// An identifier for the database management system (DBMS) product being used.
     ///
     /// See [OpenTelemetry docs for a list of well-known identifiers](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem).
@@ -1022,6 +1029,7 @@ mod tests {
         let data = r#"{
         "foo": 2,
         "bar": "3",
+        "db.query.text": "SELECT * FROM table",
         "db.system": "mysql",
         "code.filepath": "task.py",
         "code.lineno": 123,
@@ -1066,6 +1074,7 @@ mod tests {
                 "ns",
             ),
             db_operation: ~,
+            db_query_text: "SELECT * FROM table",
             db_system: String(
                 "mysql",
             ),
