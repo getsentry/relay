@@ -94,4 +94,4 @@ def test_pool_utilization(mini_sentry, relay):
     parsed = parse_prometheus(response.text)
     assert response.status_code == 200
 
-    assert 0 <= int(parsed["relay_async_pool_utilization"]) <= 100
+    assert 0 <= int(parsed["relay_worker_pool_utilization"]) <= 100

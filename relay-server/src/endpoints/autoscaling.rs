@@ -42,8 +42,8 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
     }
     append_data_row(
         &mut result,
-        "async_pool_utilization",
-        data.async_pool_utilization,
+        "worker_pool_utilization",
+        data.worker_pool_utilization,
         &[],
     );
     result
@@ -134,7 +134,7 @@ mod test {
                 ServiceUtilization("test", 10),
                 ServiceUtilization("envelope", 50),
             ],
-            async_pool_utilization: 61,
+            worker_pool_utilization: 61,
         };
         let result = super::to_prometheus_string(&data);
         assert_eq!(

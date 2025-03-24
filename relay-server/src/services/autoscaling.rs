@@ -53,14 +53,14 @@ impl Service for AutoscalingMetricService {
                                 .iter()
                                 .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
                                 .collect();
-                            let async_pool_utilization = self.async_pool.metrics().utilization() as u8;
+                            let worker_pool_utilization = self.async_pool.metrics().utilization() as u8;
                             sender.send(AutoscalingData {
                                 memory_usage: memory_usage.used_percent(),
                                 up: self.up,
                                 total_size: self.envelope_buffer.total_storage_size(),
                                 item_count: self.envelope_buffer.item_count(),
                                 services_metrics: metrics,
-                                async_pool_utilization,
+                                worker_pool_utilization,
                             });
                         }
                     }
@@ -99,7 +99,7 @@ pub struct AutoscalingData {
     pub up: u8,
     pub total_size: u64,
     pub item_count: u64,
-    pub async_pool_utilization: u8,
+    pub worker_pool_utilization: u8,
     pub services_metrics: Vec<ServiceUtilization>,
 }
 
