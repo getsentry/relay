@@ -145,7 +145,7 @@ relay_spool_item_count 10
 relay_spool_total_size 30
 relay_utilization{relay_service="test"} 10
 relay_utilization{relay_service="envelope"} 50
-relay_async_pool_utilization 61
+relay_worker_pool_utilization 61
 "#
         );
     }
