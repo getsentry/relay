@@ -380,7 +380,7 @@ mod tests {
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_redis::redis::Commands;
+    use relay_redis::redis::AsyncCommands;
     use relay_redis::RedisConfigOptions;
     use smallvec::smallvec;
     use tokio::sync::Mutex;
@@ -1032,7 +1032,10 @@ mod tests {
 
         // The item should not be rate limited by either key.
         assert_eq!(
-            invocation.invoke_async::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![false, false]
         );
 
@@ -1057,22 +1060,22 @@ mod tests {
             vec![true, false]
         );
 
-        assert_eq!(conn.get::<_, String>(&foo).unwrap(), "1");
-        let ttl: u64 = conn.ttl(&foo).unwrap();
+        assert_eq!(conn.get::<_, String>(&foo).await.unwrap(), "1");
+        let ttl: u64 = conn.ttl(&foo).await.unwrap();
         assert!(ttl >= 59);
         assert!(ttl <= 60);
 
-        assert_eq!(conn.get::<_, String>(&bar).unwrap(), "1");
-        let ttl: u64 = conn.ttl(&bar).unwrap();
+        assert_eq!(conn.get::<_, String>(&bar).await.unwrap(), "1");
+        let ttl: u64 = conn.ttl(&bar).await.unwrap();
         assert!(ttl >= 119);
         assert!(ttl <= 120);
 
         // make sure "refund/negative" keys haven't been incremented
-        let () = conn.get(r_foo).unwrap();
-        let () = conn.get(r_bar).unwrap();
+        let () = conn.get(r_foo).await.unwrap();
+        let () = conn.get(r_bar).await.unwrap();
 
         // Test that refunded quotas work
-        let () = conn.set(&apple, 5).unwrap();
+        let () = conn.set(&apple, 5).await.unwrap();
 
         let mut invocation = script.prepare_invoke();
         invocation
@@ -1085,13 +1088,19 @@ mod tests {
 
         // increment
         assert_eq!(
-            invocation.invoke_async::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![false]
         );
 
         // test that it's rate limited without refund
         assert_eq!(
-            invocation.invoke_async::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![true]
         );
 
@@ -1106,7 +1115,10 @@ mod tests {
 
         // test that refund key is used
         assert_eq!(
-            invocation.invoke_async::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![false]
         );
     }
