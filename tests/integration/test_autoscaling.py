@@ -85,3 +85,13 @@ def test_service_utilization_metrics(mini_sentry, relay):
     assert (
         0 <= int(parsed['relay_utilization{relay_service="AggregatorService"}']) <= 100
     )
+
+
+def test_pool_utilization(mini_sentry, relay):
+    relay = relay(mini_sentry)
+
+    response = relay.get("/api/relay/autoscaling/")
+    parsed = parse_prometheus(response.text)
+    assert response.status_code == 200
+
+    assert 0 <= int(parsed["relay_pool_utilization"]) <= 100
