@@ -96,7 +96,16 @@
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::PartitionedEnvelopeBuffer;
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::PartitionedEnvelopeBuffer;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::EnvelopeProcessorServicePool;
 <span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
 <span class="kw">use </span>relay_system::{AsyncResponse, Controller, FromMessage, Handle, Interface, Sender, Service};
 
@@ -110,6 +119,8 @@
     </span>handle: Handle,
     <span class="doccomment">/// This will always report `1` unless the instance is shutting down.
     </span>up: u8,
+    <span class="doccomment">/// Gives access to AsyncPool metrics.
+    </span>async_pool: EnvelopeProcessorServicePool,
 }
 
 <span class="kw">impl </span>AutoscalingMetricService {
@@ -117,11 +128,13 @@
         memory_stat: MemoryStat,
         envelope_buffer: PartitionedEnvelopeBuffer,
         handle: Handle,
+        async_pool: EnvelopeProcessorServicePool,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             memory_stat,
             envelope_buffer,
             handle,
+            async_pool,
             up: <span class="number">1</span>,
         }
     }
@@ -146,12 +159,14 @@
                                 .iter()
                                 .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
                                 .collect();
+                            <span class="kw">let </span>worker_pool_utilization = <span class="self">self</span>.async_pool.metrics().utilization() <span class="kw">as </span>u8;
                             sender.send(AutoscalingData {
                                 memory_usage: memory_usage.used_percent(),
                                 up: <span class="self">self</span>.up,
                                 total_size: <span class="self">self</span>.envelope_buffer.total_storage_size(),
                                 item_count: <span class="self">self</span>.envelope_buffer.item_count(),
-                                services_metrics: metrics
+                                services_metrics: metrics,
+                                worker_pool_utilization,
                             });
                         }
                     }
@@ -190,6 +205,7 @@
     <span class="kw">pub </span>up: u8,
     <span class="kw">pub </span>total_size: u64,
     <span class="kw">pub </span>item_count: u64,
+    <span class="kw">pub </span>worker_pool_utilization: u8,
     <span class="kw">pub </span>services_metrics: Vec&lt;ServiceUtilization&gt;,
 }
 

@@ -530,7 +530,8 @@
 <a href="#529" id="529">529</a>
 <a href="#530" id="530">530</a>
 <a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -835,6 +836,7 @@
             memory_stat.clone(),
             envelope_buffer.clone(),
             handle.clone(),
+            processor_pool.clone(),
         ));
 
         services.start(RelayStats::new(
