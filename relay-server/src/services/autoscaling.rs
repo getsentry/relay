@@ -13,8 +13,8 @@ pub struct AutoscalingMetricService {
     handle: Handle,
     /// This will always report `1` unless the instance is shutting down.
     up: u8,
-
-    processor_pool: EnvelopeProcessorServicePool,
+    /// Gives access to AsyncPool metrics.
+    async_pool: EnvelopeProcessorServicePool,
 }
 
 impl AutoscalingMetricService {
@@ -22,13 +22,13 @@ impl AutoscalingMetricService {
         memory_stat: MemoryStat,
         envelope_buffer: PartitionedEnvelopeBuffer,
         handle: Handle,
-        processor_pool: EnvelopeProcessorServicePool,
+        async_pool: EnvelopeProcessorServicePool,
     ) -> Self {
         Self {
             memory_stat,
             envelope_buffer,
             handle,
-            processor_pool,
+            async_pool,
             up: 1,
         }
     }
@@ -53,14 +53,14 @@ impl Service for AutoscalingMetricService {
                                 .iter()
                                 .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
                                 .collect();
-                            let pool_utilization = self.processor_pool.metrics().utilization() as u8;
+                            let pool_utilization = self.async_pool.metrics().utilization() as u8;
                             sender.send(AutoscalingData {
                                 memory_usage: memory_usage.used_percent(),
                                 up: self.up,
                                 total_size: self.envelope_buffer.total_storage_size(),
                                 item_count: self.envelope_buffer.item_count(),
                                 services_metrics: metrics,
-                                pool_utilization
+                                async_pool_utilization
                             });
                         }
                     }
@@ -99,7 +99,7 @@ pub struct AutoscalingData {
     pub up: u8,
     pub total_size: u64,
     pub item_count: u64,
-    pub pool_utilization: u8,
+    pub async_pool_utilization: u8,
     pub services_metrics: Vec<ServiceUtilization>,
 }
 
