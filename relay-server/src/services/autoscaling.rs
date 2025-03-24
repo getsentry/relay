@@ -53,7 +53,7 @@ impl Service for AutoscalingMetricService {
                                 .iter()
                                 .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
                                 .collect();
-                            let pool_utilization = self.async_pool.metrics().utilization() as u8;
+                            let async_pool_utilization = self.async_pool.metrics().utilization() as u8;
                             sender.send(AutoscalingData {
                                 memory_usage: memory_usage.used_percent(),
                                 up: self.up,
