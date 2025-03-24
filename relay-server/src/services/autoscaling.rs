@@ -60,7 +60,7 @@ impl Service for AutoscalingMetricService {
                                 total_size: self.envelope_buffer.total_storage_size(),
                                 item_count: self.envelope_buffer.item_count(),
                                 services_metrics: metrics,
-                                async_pool_utilization
+                                async_pool_utilization,
                             });
                         }
                     }
