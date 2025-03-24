@@ -305,6 +305,7 @@ impl ServiceState {
             memory_stat.clone(),
             envelope_buffer.clone(),
             handle.clone(),
+            processor_pool.clone(),
         ));
 
         services.start(RelayStats::new(

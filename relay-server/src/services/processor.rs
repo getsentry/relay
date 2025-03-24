@@ -477,7 +477,7 @@ pub enum ProcessingError {
     InvalidUnrealReport(#[source] Unreal4Error),
 
     #[error("event payload too large")]
-    PayloadTooLarge,
+    PayloadTooLarge(ItemType),
 
     #[error("invalid transaction event")]
     InvalidTransaction,
@@ -536,7 +536,9 @@ impl ProcessingError {
     fn to_outcome(&self) -> Option<Outcome> {
         match self {
             // General outcomes for invalid events
-            Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
+            Self::PayloadTooLarge(item_type) => {
+                Some(Outcome::Invalid(DiscardReason::TooLarge(item_type.into())))
+            }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
             Self::InvalidSecurityType(_) => {
@@ -588,7 +590,7 @@ impl ProcessingError {
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
-            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
+            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport),
             _ => ProcessingError::InvalidUnrealReport(err),
         }
     }
