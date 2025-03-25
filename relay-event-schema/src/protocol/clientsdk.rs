@@ -1,4 +1,8 @@
-use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{
+    Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
+};
+use serde::{Serialize, Serializer};
+use std::str::FromStr;
 
 use crate::processor::ProcessValue;
 use crate::protocol::IpAddr;
@@ -10,6 +14,89 @@ pub struct ClientSdkPackage {
     pub name: Annotated<String>,
     /// Version of the package.
     pub version: Annotated<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParseSettingError;
+
+/// A collection of settings that are used to control behaviour in relay through flags.
+///
+/// The settings aim to replace magic values in fields which need special treatment,
+/// for example `{{auto}}` in the user.ip_address. The SDK would instead send `auto_infer_ip`
+/// to toggle the behaviour.
+#[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct ClientSdkSettings {
+    pub auto_infer_ip: Annotated<AutoInferSetting>,
+}
+
+/// Describes if relay should infer the ip address from the request connection headers.
+#[derive(Debug, Clone, PartialEq, ProcessValue)]
+pub enum AutoInferSetting {
+    /// Derive the IP address from the connection information.
+    Auto,
+
+    /// Do not derive the IP address, keep what was being sent by the client.
+    Never,
+}
+
+impl Empty for AutoInferSetting {
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl AutoInferSetting {
+    pub fn as_str(&self) -> &str {
+        match self {
+            AutoInferSetting::Auto => "auto",
+            AutoInferSetting::Never => "never",
+        }
+    }
+}
+
+impl FromStr for AutoInferSetting {
+    type Err = ParseSettingError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "auto" => Ok(AutoInferSetting::Auto),
+            "never" => Ok(AutoInferSetting::Never),
+            _ => Err(ParseSettingError),
+        }
+    }
+}
+
+impl FromValue for AutoInferSetting {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        match String::from_value(value) {
+            Annotated(Some(value), mut meta) => match value.parse() {
+                Ok(auto_infer_ip) => Annotated(Some(auto_infer_ip), meta),
+                Err(_) => {
+                    meta.add_error(ErrorKind::InvalidData);
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl IntoValue for AutoInferSetting {
+    fn into_value(self) -> Value {
+        Value::String(self.as_str().to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(self.as_str(), s)
+    }
 }
 
 /// The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.
@@ -67,6 +154,10 @@ pub struct ClientSdkInfo {
     /// the value appears nowhere in the UI.
     #[metastructure(pii = "true", skip_serialization = "empty", omit_from_schema)]
     pub client_ip: Annotated<IpAddr>,
+
+    /// Settings that are used to control behaviour of relay.
+    #[metastructure(skip_serialization = "empty")]
+    pub settings: Annotated<ClientSdkSettings>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -133,6 +224,7 @@ mod tests {
                 }),
             ]),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            settings: Annotated::empty(),
             other: {
                 let mut map = Map::new();
                 map.insert(
@@ -152,7 +244,10 @@ mod tests {
         let json = r#"{
   "name": "sentry.rust",
   "version": "1.0.0",
-  "client_ip": "127.0.0.1"
+  "client_ip": "127.0.0.1",
+  "settings": {
+    "auto_infer_ip": "auto"
+  }
 }"#;
         let sdk = Annotated::new(ClientSdkInfo {
             name: Annotated::new("sentry.rust".to_string()),
@@ -161,6 +256,9 @@ mod tests {
             features: Annotated::empty(),
             packages: Annotated::empty(),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            settings: Annotated::new(ClientSdkSettings {
+                auto_infer_ip: Annotated::new(AutoInferSetting::Auto),
+            }),
             other: Default::default(),
         });
 
