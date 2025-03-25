@@ -183,9 +183,15 @@ symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
 syn = { version = "2.0.90" }
 synstructure = { version = "0.13.1" }
+<<<<<<< Updated upstream
 # This dependency was added through git since we are experimenting with a fork of sysinfo which adds additional
 # capabilities of reading cgroups memory stats. Such stats are used in Relay to correctly determine memory usage.
 sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "15b3be3273ba286740122fed7bb7dccd2a79dc8f" }
+=======
+# This dependency should be bumped to the next version once it's out. The next version must contain the commit with hash
+# `e2e5d530600f96bdd79652c856918da23e5dd938`.
+sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938" }
+>>>>>>> Stashed changes
 tempfile = "3.14.0"
 thiserror = "1.0.69"
 tikv-jemallocator = "0.6.0"
