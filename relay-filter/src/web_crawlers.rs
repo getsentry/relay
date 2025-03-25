@@ -132,6 +132,8 @@ mod tests {
             "Mozilla/5.0 (compatible; BrightEdgeOnCrawl/1.0; +http://www.oncrawl.com)",
             "ELB-HealthChecker/2.0",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko; compatible; Yeti/1.1; +https://naver.me/spd) Chrome/127.0.0.0 Safari/537.36",
+            "Mozilla/5.0; ClaudeBot",
+            "Mozilla/5.0; CCBot",
             "; OAI-SearchBot/1.0; +https://openai.com/searchbot",
             "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot",
         ];
