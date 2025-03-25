@@ -2252,9 +2252,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.167"
+version = "0.2.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09d6582e104315a817dff97f75133544b2e094ee22447d2acf4a74e189ba06fc"
+checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -2727,6 +2727,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "objc2-core-foundation"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "daeaf60f25471d26948a1c2f840e3f7d86f4109e3af4e8e4b5cd70c39690d925"
+dependencies = [
+ "bitflags 2.6.0",
 ]
 
 [[package]]
@@ -5154,14 +5163,13 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.30.13"
-source = "git+https://github.com/getsentry/sysinfo.git?rev=e2e5d530600f96bdd79652c856918da23e5dd938#e2e5d530600f96bdd79652c856918da23e5dd938"
+version = "0.33.1"
+source = "git+https://github.com/getsentry/sysinfo.git?rev=15b3be3273ba286740122fed7bb7dccd2a79dc8f#15b3be3273ba286740122fed7bb7dccd2a79dc8f"
 dependencies = [
- "bstr",
- "core-foundation-sys",
  "libc",
  "memchr",
  "ntapi",
+ "objc2-core-foundation",
  "rayon",
  "windows 0.56.0",
 ]
