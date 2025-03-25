@@ -7,6 +7,7 @@
 - Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))
 - Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
 - Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
+- Make default Apple device class high ([#4529](https://github.com/getsentry/relay/pull/4529))
 
 **Bug Fixes**:
 
