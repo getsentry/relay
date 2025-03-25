@@ -34,7 +34,7 @@ def test_sqlite_spooling_metrics(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         {
-            "spool": {"envelopes": {"path": db_file_path, "batch_size_bytes": 0}},
+            "spool": {"envelopes": {"path": db_file_path, "batch_size_bytes": 1}},
         },
     )
 
