@@ -85,7 +85,7 @@ impl MemoryStat {
 
     /// Refreshes the memory readings.
     fn refresh_memory(system: &mut System) -> Memory {
-        system.refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
+        system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
         let memory = match system.cgroup_limits() {
             Some(cgroup) => Memory {
                 used: cgroup.rss,

@@ -178,7 +178,7 @@ mod tests {
     use super::*;
 
     use relay_event_schema::protocol::{Event, LenientString};
-    use relay_protocol::Annotated;
+    use relay_protocol::{Annotated, FromValue as _};
 
     fn mock_filters() -> GenericFiltersMap {
         vec![
@@ -765,5 +765,43 @@ mod tests {
             expected3.into()
         ]
         .into_iter()));
+    }
+
+    #[test]
+    fn test_os_name_not_filter() {
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: vec![GenericFilterConfig {
+                id: "os_name".to_owned(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.contexts.os.name", "fooBar").negate()),
+            }]
+            .into(),
+        };
+
+        let cases = [("fooBar", false), ("foobar", true), ("other", true)];
+        for (name, filters) in cases {
+            let event = Event::from_value(
+                serde_json::json!({
+                    "contexts": {
+                        "os": {
+                            "name": name,
+                        },
+                    },
+                })
+                .into(),
+            );
+
+            let expected = if filters {
+                Err(FilterStatKey::GenericFilter("os_name".to_string()))
+            } else {
+                Ok(())
+            };
+
+            assert_eq!(
+                should_filter(event.value().unwrap(), &config, None),
+                expected
+            );
+        }
     }
 }
