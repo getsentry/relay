@@ -85,6 +85,34 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     conn.close()
 
 
+def test_batch_size_bytes_asserted(mini_sentry, relay):
+    from time import sleep
+
+    # Create a temporary directory for the sqlite db.
+    db_file_path = os.path.join(tempfile.mkdtemp(), "database.db")
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        sleep(1)  # Causes the process to wait for one second before shutting down
+        return get_project_config_original()
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"shutdown_timeout": 2},
+            # Arbitrarily chosen high value to always fail.
+            "spool": {"envelopes": {"path": db_file_path, "batch_size_bytes": "10tb"}},
+        },
+    )
+
+    # TODO: check that relay didn't start. add
+
+
 @pytest.mark.skip("Flaky test")
 def test_forced_shutdown(mini_sentry, relay):
     from time import sleep
