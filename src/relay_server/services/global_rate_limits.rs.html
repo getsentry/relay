@@ -262,23 +262,13 @@
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
 <a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_quotas::{
+<a href="#264" id="264">264</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_quotas::{
     GlobalLimiter, GlobalRateLimiter, OwnedRedisQuota, RateLimitingError, RedisQuota,
 };
-<span class="kw">use </span>relay_redis::RedisPool;
+<span class="kw">use </span>relay_redis::AsyncRedisClient;
 <span class="kw">use </span>relay_system::{
     Addr, AsyncResponse, FromMessage, Interface, MessageResponse, Receiver, Sender, Service,
 };
-<span class="kw">use </span>std::sync::{Arc, Mutex};
 
 <span class="doccomment">/// A request to check which quotas are rate limited by the global rate limiter.
 ///
@@ -378,10 +368,10 @@
 <span class="doccomment">/// Service implementing the [`GlobalRateLimits`] interface.
 ///
 /// This service provides global rate limiting functionality that is synchronized
-/// across multiple instances using a [`RedisPool`].
+/// across multiple instances using a [`AsyncRedisClient`].
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>GlobalRateLimitsService {
-    pool: RedisPool,
+    client: AsyncRedisClient,
     limiter: GlobalRateLimiter,
 }
 
@@ -390,23 +380,23 @@
     ///
     /// The service will use the pool to communicate with Redis for synchronizing
     /// rate limits across multiple instances.
-    </span><span class="kw">pub fn </span>new(pool: RedisPool) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(client: AsyncRedisClient) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            pool,
+            client,
             limiter: GlobalRateLimiter::default(),
         }
     }
 
     <span class="doccomment">/// Handles a [`GlobalRateLimits`] message.
     </span><span class="kw">async fn </span>handle_message(
-        pool: RedisPool,
-        limiter: Arc&lt;Mutex&lt;GlobalRateLimiter&gt;&gt;,
+        client: <span class="kw-2">&amp;</span>AsyncRedisClient,
+        limiter: <span class="kw-2">&amp;mut </span>GlobalRateLimiter,
         message: GlobalRateLimits,
     ) {
         <span class="kw">match </span>message {
             GlobalRateLimits::CheckRateLimited(check_rate_limited, sender) =&gt; {
                 <span class="kw">let </span>result =
-                    <span class="self">Self</span>::handle_check_rate_limited(pool, limiter, check_rate_limited).<span class="kw">await</span>;
+                    <span class="self">Self</span>::handle_check_rate_limited(client, limiter, check_rate_limited).<span class="kw">await</span>;
                 sender.send(result);
             }
         }
@@ -417,44 +407,33 @@
     /// This function uses `spawn_blocking` to suspend on synchronous work that is offloaded to
     /// a specialized thread pool.
     </span><span class="kw">async fn </span>handle_check_rate_limited(
-        pool: RedisPool,
-        limiter: Arc&lt;Mutex&lt;GlobalRateLimiter&gt;&gt;,
+        client: <span class="kw-2">&amp;</span>AsyncRedisClient,
+        limiter: <span class="kw-2">&amp;mut </span>GlobalRateLimiter,
         check_rate_limited: CheckRateLimited,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;OwnedRedisQuota&gt;, RateLimitingError&gt; {
-        tokio::task::spawn_blocking(<span class="kw">move </span>|| {
-            <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>client) = pool.client() <span class="kw">else </span>{
-                <span class="macro">relay_log::error!</span>(
-                    <span class="string">"The redis client could not be created from the global rate limits service"
-                </span>);
-                <span class="kw">return </span><span class="prelude-val">Err</span>(RateLimitingError::UnreachableGlobalRateLimits);
-            };
-            <span class="kw">let </span><span class="kw-2">mut </span>limiter = limiter.lock().unwrap();
-            <span class="kw">let </span>quotas = check_rate_limited
-                .global_quotas
-                .iter()
-                .map(|q| q.build_ref())
-                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-            limiter
-                .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>quotas, check_rate_limited.quantity)
-                .map(|q| q.into_iter().map(|q| q.build_owned()).collect())
-        })
-        .<span class="kw">await
-        </span>.unwrap_or_else(|<span class="kw">_</span>| <span class="prelude-val">Err</span>(RateLimitingError::UnreachableGlobalRateLimits))
+        <span class="kw">let </span>quotas = check_rate_limited
+            .global_quotas
+            .iter()
+            .map(|q| q.build_ref())
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+
+        limiter
+            .filter_rate_limited(client, <span class="kw-2">&amp;</span>quotas, check_rate_limited.quantity)
+            .<span class="kw">await
+            </span>.map(|q| q.into_iter().map(|q| q.build_owned()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;())
     }
 }
 
 <span class="kw">impl </span>Service <span class="kw">for </span>GlobalRateLimitsService {
     <span class="kw">type </span>Interface = GlobalRateLimits;
 
-    <span class="kw">async fn </span>run(<span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="kw">let </span>limiter = Arc::new(Mutex::new(<span class="self">self</span>.limiter));
-
+    <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">loop </span>{
             <span class="kw">let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await else </span>{
                 <span class="kw">break</span>;
             };
 
-            <span class="self">Self</span>::handle_message(<span class="self">self</span>.pool.clone(), limiter.clone(), message).<span class="kw">await</span>;
+            <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>.client, <span class="kw-2">&amp;mut </span><span class="self">self</span>.limiter, message).<span class="kw">await</span>;
         }
     }
 }
@@ -468,16 +447,18 @@
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
     <span class="kw">use </span>relay_quotas::{DataCategories, Quota, QuotaScope, RedisQuota, Scoping};
-    <span class="kw">use </span>relay_redis::{RedisConfigOptions, RedisPool};
+    <span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisConfigOptions};
     <span class="kw">use </span>relay_system::Service;
 
     <span class="kw">use </span><span class="kw">crate</span>::services::global_rate_limits::{CheckRateLimited, GlobalRateLimitsService};
 
-    <span class="kw">fn </span>build_redis_pool() -&gt; RedisPool {
+    <span class="kw">async fn </span>build_redis_client() -&gt; AsyncRedisClient {
         <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
             .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
 
-        RedisPool::single(<span class="kw-2">&amp;</span>url, RedisConfigOptions::default()).unwrap()
+        AsyncRedisClient::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>RedisConfigOptions::default())
+            .<span class="kw">await
+            </span>.unwrap()
     }
 
     <span class="kw">fn </span>build_quota(window: u64, limit: <span class="kw">impl </span>Into&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;&gt;) -&gt; Quota {
@@ -500,7 +481,8 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_global_rate_limits_service() {
-        <span class="kw">let </span>service = GlobalRateLimitsService::new(build_redis_pool());
+        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
+        <span class="kw">let </span>service = GlobalRateLimitsService::new(client);
         <span class="kw">let </span>tx = service.start_detached();
 
         <span class="kw">let </span>scoping = Scoping {

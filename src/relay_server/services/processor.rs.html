@@ -4334,7 +4334,22 @@
 <a href="#4333" id="4333">4333</a>
 <a href="#4334" id="4334">4334</a>
 <a href="#4335" id="4335">4335</a>
-<a href="#4336" id="4336">4336</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4336" id="4336">4336</a>
+<a href="#4337" id="4337">4337</a>
+<a href="#4338" id="4338">4338</a>
+<a href="#4339" id="4339">4339</a>
+<a href="#4340" id="4340">4340</a>
+<a href="#4341" id="4341">4341</a>
+<a href="#4342" id="4342">4342</a>
+<a href="#4343" id="4343">4343</a>
+<a href="#4344" id="4344">4344</a>
+<a href="#4345" id="4345">4345</a>
+<a href="#4346" id="4346">4346</a>
+<a href="#4347" id="4347">4347</a>
+<a href="#4348" id="4348">4348</a>
+<a href="#4349" id="4349">4349</a>
+<a href="#4350" id="4350">4350</a>
+<a href="#4351" id="4351">4351</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4415,7 +4430,7 @@
     },
     relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
-    relay_redis::{RedisPool, RedisPools},
+    relay_redis::{AsyncRedisClient, RedisClients},
     std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -5465,7 +5480,7 @@
     project_cache: ProjectCacheHandle,
     cogs: Cogs,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>quotas_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+    </span>quotas_client: <span class="prelude-ty">Option</span>&lt;AsyncRedisClient&gt;,
     addrs: Addrs,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;Arc&lt;RedisRateLimiter&lt;GlobalRateLimitsServiceHandle&gt;&gt;&gt;,
@@ -5484,7 +5499,7 @@
         global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
         cogs: Cogs,
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisClients&gt;,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -&gt; <span class="self">Self </span>{
@@ -5500,7 +5515,7 @@
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>(cardinality, quotas) = <span class="kw">match </span>redis {
-            <span class="prelude-val">Some</span>(RedisPools {
+            <span class="prelude-val">Some</span>(RedisClients {
                 cardinality,
                 quotas,
                 ..
@@ -5526,7 +5541,7 @@
             project_cache,
             cogs,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>quotas_pool: quotas,
+            </span>quotas_client: quotas.clone(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>rate_limiter,
             addrs,
@@ -5666,7 +5681,8 @@
             };
             <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>global.metric_extraction {
                 ErrorBoundary::Ok(global_config) =&gt; global_config,
-                ErrorBoundary::Err(e) =&gt; {
+                <span class="attr">#[allow(unused_variables)]
+                </span>ErrorBoundary::Err(e) =&gt; {
                     <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
                         <span class="comment">// Config is invalid, but we will try to extract what we can with just the
                         // project config.
@@ -5962,7 +5978,8 @@
                 <span class="kw-2">&amp;mut </span>event,
                 sampling_project_info,
                 <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-            );
+            )
+            .<span class="kw">await</span>;
         }
 
         event = <span class="self">self
@@ -6105,14 +6122,17 @@
 
         <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"dynamic_sampling_run"</span>, {
             <span class="kw">let </span>sampling_result = <span class="kw">match </span>run_dynamic_sampling {
-                <span class="bool-val">true </span>=&gt; dynamic_sampling::run(
-                    managed_envelope,
-                    <span class="kw-2">&amp;mut </span>event,
-                    config.clone(),
-                    project_info.clone(),
-                    sampling_project_info,
-                    <span class="kw-2">&amp;</span>reservoir,
-                ),
+                <span class="bool-val">true </span>=&gt; {
+                    dynamic_sampling::run(
+                        managed_envelope,
+                        <span class="kw-2">&amp;mut </span>event,
+                        config.clone(),
+                        project_info.clone(),
+                        sampling_project_info,
+                        <span class="kw-2">&amp;</span>reservoir,
+                    )
+                    .<span class="kw">await
+                </span>}
                 <span class="bool-val">false </span>=&gt; SamplingResult::Pending,
             };
         });
@@ -7068,7 +7088,7 @@
         project_info: <span class="kw-2">&amp;</span>ProjectInfo,
         <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
     ) -&gt; Vec&lt;Bucket&gt; {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() <span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="kw-2">&amp;</span><span class="self">self</span>.inner.rate_limiter <span class="kw">else </span>{
             <span class="kw">return </span>buckets;
         };
 
@@ -7197,7 +7217,7 @@
 
     <span class="doccomment">/// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>cardinality_limit_buckets(
+    </span><span class="kw">async fn </span>cardinality_limit_buckets(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
@@ -7219,7 +7239,10 @@
             project_id: scoping.project_id,
         };
 
-        <span class="kw">let </span>limits = <span class="kw">match </span>limiter.check_cardinality_limits(scope, limits, buckets) {
+        <span class="kw">let </span>limits = <span class="kw">match </span>limiter
+            .check_cardinality_limits(scope, limits, buckets)
+            .<span class="kw">await
+        </span>{
             <span class="prelude-val">Ok</span>(limits) =&gt; limits,
             <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
                 <span class="macro">relay_log::error!</span>(
@@ -7304,7 +7327,9 @@
                 .<span class="kw">await</span>;
 
             <span class="kw">let </span>limits = project_info.get_cardinality_limits();
-            <span class="kw">let </span>buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets);
+            <span class="kw">let </span>buckets = <span class="self">self
+                </span>.cardinality_limit_buckets(scoping, limits, buckets)
+                .<span class="kw">await</span>;
 
             <span class="kw">if </span>buckets.is_empty() {
                 <span class="kw">continue</span>;
@@ -7559,8 +7584,8 @@
         </span><span class="kw">let </span><span class="kw-2">mut </span>reservoir = ReservoirEvaluator::new(reservoir_counters);
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(quotas_pool) = <span class="self">self</span>.inner.quotas_pool.as_ref() {
-            reservoir.set_redis(_organization_id, quotas_pool);
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(quotas_client) = <span class="self">self</span>.inner.quotas_client.as_ref() {
+            reservoir.set_redis(_organization_id, quotas_client);
         }
 
         reservoir
@@ -7575,7 +7600,12 @@
             <span class="kw">let </span>service = <span class="self">self</span>.clone();
             <span class="self">self</span>.inner
                 .pool
-                .spawn_async(<span class="kw">async move </span>{ service.handle_message(message).<span class="kw">await </span>}.boxed())
+                .spawn_async(
+                    <span class="kw">async move </span>{
+                        service.handle_message(message).<span class="kw">await</span>;
+                    }
+                    .boxed(),
+                )
                 .<span class="kw">await</span>;
         }
     }

@@ -1447,7 +1447,8 @@
 <a href="#1446" id="1446">1446</a>
 <a href="#1447" id="1447">1447</a>
 <a href="#1448" id="1448">1448</a>
-<a href="#1449" id="1449">1449</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1518,7 +1519,8 @@
         project_info.clone(),
         sampling_project_info,
         reservoir_counters,
-    );
+    )
+    .<span class="kw">await</span>;
 
     <span class="kw">let </span>span_metrics_extraction_config = <span class="kw">match </span>project_info.config.metric_extraction {
         ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; <span class="prelude-val">Some</span>(config),

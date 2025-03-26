@@ -1102,12 +1102,33 @@
 <a href="#1101" id="1101">1101</a>
 <a href="#1102" id="1102">1102</a>
 <a href="#1103" id="1103">1103</a>
-<a href="#1104" id="1104">1104</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_log::protocol::value;
 <span class="kw">use </span>relay_redis::redis::Script;
-<span class="kw">use </span>relay_redis::{RedisError, RedisPool, RedisScripts};
+<span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 <span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::global::GlobalLimiter;
@@ -1326,7 +1347,7 @@
 ///
 /// Requires the `redis` feature.
 </span><span class="kw">pub struct </span>RedisRateLimiter&lt;T&gt; {
-    pool: RedisPool,
+    client: AsyncRedisClient,
     script: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Script,
     max_limit: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     global_limiter: T,
@@ -1334,9 +1355,9 @@
 
 <span class="kw">impl</span>&lt;T: GlobalLimiter&gt; RedisRateLimiter&lt;T&gt; {
     <span class="doccomment">/// Creates a new [`RedisRateLimiter`] instance.
-    </span><span class="kw">pub fn </span>new(pool: RedisPool, global_limiter: T) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(client: AsyncRedisClient, global_limiter: T) -&gt; <span class="self">Self </span>{
         RedisRateLimiter {
-            pool,
+            client,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: <span class="prelude-val">None</span>,
             global_limiter,
@@ -1444,10 +1465,11 @@
         <span class="comment">// We get the redis client after the global rate limiting since we don't want to hold the
         // client across await points, otherwise it might be held for too long, and we will run out
         // of connections.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.pool.client().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span><span class="kw-2">mut </span>connection = <span class="self">self</span>.client.get_connection();
         <span class="kw">let </span>rejections: Vec&lt;bool&gt; = invocation
-            .invoke(<span class="kw-2">&amp;mut </span>client.connection().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>)
-            .map_err(RedisError::Redis)
+            .invoke_async(<span class="kw-2">&amp;mut </span>connection)
+            .<span class="kw">await
+            </span>.map_err(RedisError::Redis)
             .map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
 
         <span class="kw">for </span>(quota, is_rejected) <span class="kw">in </span>tracked_quotas.iter().zip(rejections) {
@@ -1474,23 +1496,22 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>std::sync::Mutex;
     <span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
-
-    <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
-    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
-    <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
-    <span class="kw">use </span>relay_redis::redis::Commands;
-    <span class="kw">use </span>relay_redis::RedisConfigOptions;
-    <span class="kw">use </span>smallvec::smallvec;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     <span class="kw">use </span><span class="kw">crate</span>::rate_limit::RateLimitScope;
     <span class="kw">use crate</span>::{GlobalRateLimiter, MetricNamespaceScoping};
+    <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
+    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
+    <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
+    <span class="kw">use </span>relay_redis::redis::AsyncCommands;
+    <span class="kw">use </span>relay_redis::RedisConfigOptions;
+    <span class="kw">use </span>smallvec::smallvec;
+    <span class="kw">use </span>tokio::sync::Mutex;
 
     <span class="kw">struct </span>MockGlobalLimiter {
-        pool: RedisPool,
+        client: AsyncRedisClient,
         global_rate_limiter: Mutex&lt;GlobalRateLimiter&gt;,
     }
 
@@ -1500,26 +1521,28 @@
             global_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[RedisQuota&lt;<span class="lifetime">'a</span>&gt;],
             quantity: usize,
         ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisQuota&lt;<span class="lifetime">'a</span>&gt;&gt;, RateLimitingError&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.pool.client().unwrap();
             <span class="self">self</span>.global_rate_limiter
                 .lock()
-                .unwrap()
-                .filter_rate_limited(<span class="kw-2">&amp;mut </span>client, global_quotas, quantity)
-        }
+                .<span class="kw">await
+                </span>.filter_rate_limited(<span class="kw-2">&amp;</span><span class="self">self</span>.client, global_quotas, quantity)
+                .<span class="kw">await
+        </span>}
     }
 
-    <span class="kw">fn </span>build_rate_limiter() -&gt; RedisRateLimiter&lt;MockGlobalLimiter&gt; {
+    <span class="kw">async fn </span>build_rate_limiter() -&gt; RedisRateLimiter&lt;MockGlobalLimiter&gt; {
         <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
             .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
-        <span class="kw">let </span>pool = RedisPool::single(<span class="kw-2">&amp;</span>url, RedisConfigOptions::default()).unwrap();
+        <span class="kw">let </span>client = AsyncRedisClient::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>RedisConfigOptions::default())
+            .<span class="kw">await
+            </span>.unwrap();
 
         <span class="kw">let </span>global_limiter = MockGlobalLimiter {
-            pool: pool.clone(),
+            client: client.clone(),
             global_rate_limiter: Mutex::new(GlobalRateLimiter::default()),
         };
 
         RedisRateLimiter {
-            pool,
+            client,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: <span class="prelude-val">None</span>,
             global_limiter,
@@ -1563,7 +1586,8 @@
         };
 
         <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = build_rate_limiter()
-            .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+            .<span class="kw">await
+            </span>.is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
             .<span class="kw">await
             </span>.expect(<span class="string">"rate limiting failed"</span>)
             .into_iter()
@@ -1612,7 +1636,7 @@
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
         };
 
-        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter().<span class="kw">await</span>;
 
         <span class="comment">// First confirm normal behaviour without namespace.
         </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
@@ -1677,7 +1701,7 @@
             namespace: MetricNamespaceScoping::None,
         };
 
-        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter().<span class="kw">await</span>;
 
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
             <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
@@ -1728,7 +1752,7 @@
             namespace: MetricNamespaceScoping::None,
         };
 
-        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter().<span class="kw">await</span>;
 
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
             <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
@@ -1779,7 +1803,7 @@
             namespace: MetricNamespaceScoping::None,
         };
 
-        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter().<span class="kw">await</span>;
 
         <span class="comment">// limit is 1, so first call not rate limited
         </span><span class="macro">assert!</span>(!rate_limiter
@@ -1834,7 +1858,7 @@
             namespace: MetricNamespaceScoping::None,
         };
 
-        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter().<span class="kw">await</span>;
 
         <span class="comment">// limit is 2, so first call not rate limited
         </span><span class="kw">let </span>is_limited = rate_limiter
@@ -1883,7 +1907,8 @@
         };
 
         <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = build_rate_limiter()
-            .is_rate_limited(<span class="kw-2">&amp;</span>[], scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+            .<span class="kw">await
+            </span>.is_rate_limited(<span class="kw-2">&amp;</span>[], scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
             .<span class="kw">await
             </span>.expect(<span class="string">"rate limiting failed"</span>)
             .into_iter()
@@ -1928,7 +1953,7 @@
             namespace: MetricNamespaceScoping::None,
         };
 
-        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter().<span class="kw">await</span>;
 
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">1 </span>{
             <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
@@ -1979,7 +2004,7 @@
             namespace: MetricNamespaceScoping::None,
         };
 
-        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+        <span class="kw">let </span>rate_limiter = build_rate_limiter().<span class="kw">await</span>;
 
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
             <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
@@ -2101,9 +2126,8 @@
             .map(|duration| duration.as_secs())
             .unwrap();
 
-        <span class="kw">let </span>rate_limiter = build_rate_limiter();
-        <span class="kw">let </span><span class="kw-2">mut </span>client = rate_limiter.pool.client().expect(<span class="string">"get client"</span>);
-        <span class="kw">let </span><span class="kw-2">mut </span>conn = client.connection().expect(<span class="string">"Redis connection"</span>);
+        <span class="kw">let </span>rate_limiter = build_rate_limiter().<span class="kw">await</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>conn = rate_limiter.client.get_connection();
 
         <span class="comment">// define a few keys with random seed such that they do not collide with repeated test runs
         </span><span class="kw">let </span>foo = <span class="macro">format!</span>(<span class="string">"foo___{now}"</span>);
@@ -2133,13 +2157,19 @@
 
         // The item should not be rate limited by either key.
         </span><span class="macro">assert_eq!</span>(
-            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
+            invocation
+                .invoke_async::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn)
+                .<span class="kw">await
+                </span>.unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">false</span>, <span class="bool-val">false</span>]
         );
 
         <span class="comment">// The item should be rate limited by the first key (1).
         </span><span class="macro">assert_eq!</span>(
-            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
+            invocation
+                .invoke_async::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn)
+                .<span class="kw">await
+                </span>.unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">true</span>, <span class="bool-val">false</span>]
         );
 
@@ -2148,26 +2178,29 @@
         // we've checked the quotas. This ensures items that are rejected by a lower
         // quota don't affect unrelated items that share a parent quota.
         </span><span class="macro">assert_eq!</span>(
-            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
+            invocation
+                .invoke_async::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn)
+                .<span class="kw">await
+                </span>.unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">true</span>, <span class="bool-val">false</span>]
         );
 
-        <span class="macro">assert_eq!</span>(conn.get::&lt;<span class="kw">_</span>, String&gt;(<span class="kw-2">&amp;</span>foo).unwrap(), <span class="string">"1"</span>);
-        <span class="kw">let </span>ttl: u64 = conn.ttl(<span class="kw-2">&amp;</span>foo).unwrap();
+        <span class="macro">assert_eq!</span>(conn.get::&lt;<span class="kw">_</span>, String&gt;(<span class="kw-2">&amp;</span>foo).<span class="kw">await</span>.unwrap(), <span class="string">"1"</span>);
+        <span class="kw">let </span>ttl: u64 = conn.ttl(<span class="kw-2">&amp;</span>foo).<span class="kw">await</span>.unwrap();
         <span class="macro">assert!</span>(ttl &gt;= <span class="number">59</span>);
         <span class="macro">assert!</span>(ttl &lt;= <span class="number">60</span>);
 
-        <span class="macro">assert_eq!</span>(conn.get::&lt;<span class="kw">_</span>, String&gt;(<span class="kw-2">&amp;</span>bar).unwrap(), <span class="string">"1"</span>);
-        <span class="kw">let </span>ttl: u64 = conn.ttl(<span class="kw-2">&amp;</span>bar).unwrap();
+        <span class="macro">assert_eq!</span>(conn.get::&lt;<span class="kw">_</span>, String&gt;(<span class="kw-2">&amp;</span>bar).<span class="kw">await</span>.unwrap(), <span class="string">"1"</span>);
+        <span class="kw">let </span>ttl: u64 = conn.ttl(<span class="kw-2">&amp;</span>bar).<span class="kw">await</span>.unwrap();
         <span class="macro">assert!</span>(ttl &gt;= <span class="number">119</span>);
         <span class="macro">assert!</span>(ttl &lt;= <span class="number">120</span>);
 
         <span class="comment">// make sure "refund/negative" keys haven't been incremented
-        </span><span class="kw">let </span>() = conn.get(r_foo).unwrap();
-        <span class="kw">let </span>() = conn.get(r_bar).unwrap();
+        </span><span class="kw">let </span>() = conn.get(r_foo).<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span>() = conn.get(r_bar).<span class="kw">await</span>.unwrap();
 
         <span class="comment">// Test that refunded quotas work
-        </span><span class="kw">let </span>() = conn.set(<span class="kw-2">&amp;</span>apple, <span class="number">5</span>).unwrap();
+        </span><span class="kw">let </span>() = conn.set(<span class="kw-2">&amp;</span>apple, <span class="number">5</span>).<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>invocation = script.prepare_invoke();
         invocation
@@ -2180,13 +2213,19 @@
 
         <span class="comment">// increment
         </span><span class="macro">assert_eq!</span>(
-            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
+            invocation
+                .invoke_async::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn)
+                .<span class="kw">await
+                </span>.unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">false</span>]
         );
 
         <span class="comment">// test that it's rate limited without refund
         </span><span class="macro">assert_eq!</span>(
-            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
+            invocation
+                .invoke_async::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn)
+                .<span class="kw">await
+                </span>.unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">true</span>]
         );
 
@@ -2201,7 +2240,10 @@
 
         <span class="comment">// test that refund key is used
         </span><span class="macro">assert_eq!</span>(
-            invocation.invoke::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn).unwrap(),
+            invocation
+                .invoke_async::&lt;Vec&lt;bool&gt;&gt;(<span class="kw-2">&amp;mut </span>conn)
+                .<span class="kw">await
+                </span>.unwrap(),
             <span class="macro">vec!</span>[<span class="bool-val">false</span>]
         );
     }

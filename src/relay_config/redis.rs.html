@@ -751,7 +751,14 @@
 <a href="#750" id="750">750</a>
 <a href="#751" id="751">751</a>
 <a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::RedisConfigOptions;
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::RedisConfigOptions;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
@@ -961,7 +968,7 @@
 <span class="doccomment">/// Helper struct bundling connections and options for the various Redis pools.
 </span><span class="attr">#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
-</span><span class="kw">pub enum </span>RedisPoolConfigs&lt;<span class="lifetime">'a</span>&gt; {
+</span><span class="kw">pub enum </span>RedisConfigsRef&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Use one pool for everything.
     </span>Unified(RedisConfigRef&lt;<span class="lifetime">'a</span>&gt;),
     <span class="doccomment">/// Use an individual pool for each use case.
@@ -979,7 +986,8 @@
     options: <span class="kw-2">&amp;</span>PartialRedisConfigOptions,
     default_connections: u32,
 ) -&gt; RedisConfigOptions {
-    <span class="kw">let </span>max_connections = options.max_connections.unwrap_or(default_connections);
+    <span class="comment">// TODO: remove options that are not used anymore.
+    </span><span class="kw">let </span>max_connections = options.max_connections.unwrap_or(default_connections);
     <span class="kw">let </span>min_idle = options
         .min_idle
         .unwrap_or_else(|| max_connections.div_ceil(DEFAULT_MIN_IDLE_RATIO));
@@ -995,7 +1003,10 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>create_redis_pool(
+<span class="doccomment">/// Builds a [`RedisConfigsRef`] given a [`RedisConfig`].
+///
+/// The returned config contains more options for setting up Redis.
+</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>build_redis_config(
     config: <span class="kw-2">&amp;</span>RedisConfig,
     default_connections: u32,
 ) -&gt; RedisConfigRef&lt;<span class="lifetime">'_</span>&gt; {
@@ -1010,7 +1021,7 @@
         RedisConfig::MultiWrite { configs } =&gt; RedisConfigRef::MultiWrite {
             configs: configs
                 .iter()
-                .map(|c| create_redis_pool(c, default_connections))
+                .map(|c| build_redis_config(c, default_connections))
                 .collect(),
         },
         RedisConfig::Single(SingleRedisConfig::Detailed { server, options }) =&gt; {
@@ -1026,24 +1037,27 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>create_redis_pools(
+<span class="doccomment">/// Builds a [`RedisConfigsRef`] given a [`RedisConfigs`].
+///
+/// The returned configs contain more options for setting up Redis.
+</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>build_redis_configs(
     configs: <span class="kw-2">&amp;</span>RedisConfigs,
     cpu_concurrency: u32,
-    max_pool_concurrency: u32,
-) -&gt; RedisPoolConfigs {
-    <span class="comment">// Default `max_connections` for the `project_configs` pool.
-    // In a unified config, this is used for all pools.
+    pool_concurrency: u32,
+) -&gt; RedisConfigsRef&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="comment">// Default `max_connections` for the `project_configs` client.
+    // In a unified config, this is used for all clients.
     </span><span class="kw">let </span>project_configs_default_connections =
         std::cmp::max(cpu_concurrency * <span class="number">2</span>, DEFAULT_MIN_MAX_CONNECTIONS);
 
     <span class="comment">// The number of default connections is equal to how many threads we have times the number of
     // futures we can concurrently drive times some leeway since we might use more connections.
-    </span><span class="kw">let </span>default_connections = cpu_concurrency * max_pool_concurrency * <span class="number">2</span>;
+    </span><span class="kw">let </span>default_connections = cpu_concurrency * pool_concurrency * <span class="number">2</span>;
 
     <span class="kw">match </span>configs {
         RedisConfigs::Unified(cfg) =&gt; {
-            <span class="kw">let </span>pool = create_redis_pool(cfg, project_configs_default_connections);
-            RedisPoolConfigs::Unified(pool)
+            <span class="kw">let </span>config = build_redis_config(cfg, project_configs_default_connections);
+            RedisConfigsRef::Unified(config)
         }
         RedisConfigs::Individual {
             project_configs,
@@ -1051,10 +1065,10 @@
             quotas,
         } =&gt; {
             <span class="kw">let </span>project_configs =
-                create_redis_pool(project_configs, project_configs_default_connections);
-            <span class="kw">let </span>cardinality = create_redis_pool(cardinality, default_connections);
-            <span class="kw">let </span>quotas = create_redis_pool(quotas, default_connections);
-            RedisPoolConfigs::Individual {
+                build_redis_config(project_configs, project_configs_default_connections);
+            <span class="kw">let </span>cardinality = build_redis_config(cardinality, default_connections);
+            <span class="kw">let </span>quotas = build_redis_config(quotas, default_connections);
+            RedisConfigsRef::Individual {
                 project_configs,
                 cardinality,
                 quotas,

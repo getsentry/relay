@@ -394,11 +394,10 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a></pre></div><pre class="rust"><code><span class="kw">use </span>parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-<span class="kw">use </span>std::fmt;
+<a href="#396" id="396">396</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span>parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_statsd::metric;
 
@@ -406,7 +405,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{CardinalityLimiterCounters, CardinalityLimiterTimers};
 <span class="kw">use </span><span class="kw">crate</span>::window::Slot;
 
-<span class="doccomment">/// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
+<span class="doccomment">/// Cached outcome, whether the item can be accepted, rejected or the cache has no information about
 /// this hash.
 </span><span class="attr">#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 </span><span class="kw">pub enum </span>CacheOutcome {
@@ -473,8 +472,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Cache {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">let </span>inner = <span class="self">self</span>.inner.read();
-        f.debug_tuple(<span class="string">"Cache"</span>).field(<span class="kw-2">&amp;</span>inner.cache).finish()
+        f.debug_tuple(<span class="string">"Cache"</span>).finish()
     }
 }
 
@@ -771,7 +769,7 @@
         }
 
         {
-            <span class="comment">// Fast forward time far in the future, should vacuum old values.
+            <span class="comment">// Fast-forward time far in the future, should vacuum old values.
             </span><span class="kw">let </span><span class="kw-2">mut </span>cache = cache.update(<span class="kw-2">&amp;</span>scope2, future);
             cache.accept(<span class="number">22</span>);
         }
