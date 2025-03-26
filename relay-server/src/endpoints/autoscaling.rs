@@ -46,6 +46,12 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
         data.worker_pool_utilization,
         &[],
     );
+    append_data_row(
+        &mut result,
+        "runtime_utilization",
+        data.runtime_utilization,
+        &[],
+    );
     result
 }
 
@@ -135,6 +141,7 @@ mod test {
                 ServiceUtilization("envelope", 50),
             ],
             worker_pool_utilization: 61,
+            runtime_utilization: 41,
         };
         let result = super::to_prometheus_string(&data);
         assert_eq!(
@@ -146,6 +153,7 @@ relay_spool_total_size 30
 relay_utilization{relay_service="test"} 10
 relay_utilization{relay_service="envelope"} 50
 relay_worker_pool_utilization 61
+relay_runtime_utilization 41
 "#
         );
     }
