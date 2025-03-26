@@ -1021,7 +1021,21 @@
 <a href="#1020" id="1020">1020</a>
 <a href="#1021" id="1021">1021</a>
 <a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::num::NonZeroU8;
@@ -1300,16 +1314,30 @@
         }
     }
 
-    <span class="doccomment">/// Waits until preconditions for unspooling are met.
+    <span class="doccomment">/// Waits until the system is ready to unspool envelopes.
     ///
-    /// - We should not pop from disk into memory when relay's overall memory capacity
-    ///   has been reached.
-    /// - We need a valid global config to unspool.
+    /// This function ensures that unspooling only happens when it's safe and appropriate to do so.
+    /// It continuously checks specific system conditions and only returns when they are all satisfied.
+    ///
+    /// # Preconditions for Unspooling
+    ///
+    /// 1. **Memory Availability**:
+    ///    - If the system is using **disk spooling**, we must avoid unspooling when
+    ///      memory usage has reached its configured capacity.
+    ///      This prevents overloading memory and ensures that downstream services can process
+    ///      in-flight envelopes at their own pace.
+    ///    - If the system is using **memory spooling only** (i.e., no disk),
+    ///      we *must not* block unspooling, even when memory has reached its configured capacity.
+    ///      Blocking in this case would lead to a **deadlock**, since new envelopes
+    ///      would continue accumulating in the buffer's memory and will never be unspooled and
+    ///      processed downstream.
+    ///
+    /// 2. **Global Configuration Availability**:
+    ///    - Unspooling requires a valid, ready-to-use global configuration.
+    ///      If the configuration is not yet initialized or ready, unspooling must wait.
     </span><span class="kw">async fn </span>system_ready(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer, dequeue: bool) {
         <span class="kw">loop </span>{
-            <span class="comment">// We should not unspool from external storage if memory capacity has been reached.
-            // But if buffer storage is in memory, unspooling can reduce memory usage.
-            </span><span class="kw">let </span>memory_ready = buffer.is_memory() || <span class="self">self</span>.memory_ready();
+            <span class="kw">let </span>memory_ready = buffer.is_memory() || <span class="self">self</span>.memory_ready();
             <span class="kw">let </span>global_config_ready = <span class="self">self</span>.global_config_rx.borrow().is_ready();
 
             <span class="kw">if </span>memory_ready &amp;&amp; global_config_ready &amp;&amp; dequeue {

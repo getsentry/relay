@@ -2575,7 +2575,26 @@
 <a href="#2574" id="2574">2574</a>
 <a href="#2575" id="2575">2575</a>
 <a href="#2576" id="2576">2576</a>
-<a href="#2577" id="2577">2577</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2577" id="2577">2577</a>
+<a href="#2578" id="2578">2578</a>
+<a href="#2579" id="2579">2579</a>
+<a href="#2580" id="2580">2580</a>
+<a href="#2581" id="2581">2581</a>
+<a href="#2582" id="2582">2582</a>
+<a href="#2583" id="2583">2583</a>
+<a href="#2584" id="2584">2584</a>
+<a href="#2585" id="2585">2585</a>
+<a href="#2586" id="2586">2586</a>
+<a href="#2587" id="2587">2587</a>
+<a href="#2588" id="2588">2588</a>
+<a href="#2589" id="2589">2589</a>
+<a href="#2590" id="2590">2590</a>
+<a href="#2591" id="2591">2591</a>
+<a href="#2592" id="2592">2592</a>
+<a href="#2593" id="2593">2593</a>
+<a href="#2594" id="2594">2594</a>
+<a href="#2595" id="2595">2595</a>
+<a href="#2596" id="2596">2596</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -3543,8 +3562,27 @@
     ///
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
-    /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
-    /// is using too much memory (influenced by [`Self::batch_size_bytes`]).
+    /// Warning: This threshold can cause the buffer service to deadlock when the buffer consumes
+    /// excessive memory (as influenced by [`Self::batch_size_bytes`]).
+    ///
+    /// This scenario arises when the buffer stops spooling due to reaching the
+    /// [`Self::max_backpressure_memory_percent`] limit, but the batch threshold for spooling
+    /// ([`Self::batch_size_bytes`]) is never reached. As a result, no data is spooled, memory usage
+    /// continues to grow, and the system becomes deadlocked.
+    ///
+    /// ### Example
+    /// Suppose the system has 1GB of available memory and is configured to spool only after
+    /// accumulating 10GB worth of envelopes. If Relay consumes 900MB of memory, it will stop
+    /// unspooling due to reaching the [`Self::max_backpressure_memory_percent`] threshold.
+    ///
+    /// However, because the buffer hasn't accumulated the 10GB needed to trigger spooling,
+    /// no data will be offloaded. Memory usage keeps increasing until it hits the
+    /// [`Health::max_memory_percent`] threshold, e.g., at 950MB. At this point:
+    ///
+    /// - No more envelopes are accepted.
+    /// - The buffer remains stuck, as unspooling won’t resume until memory drops below 900MB which
+    ///   will not happen.
+    /// - A deadlock occurs, with the system unable to recover without manual intervention.
     ///
     /// Defaults to 90% (5% less than max memory).
     </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_memory_percent"</span>)]
