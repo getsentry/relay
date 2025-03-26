@@ -1053,9 +1053,7 @@
 <a href="#1052" id="1052">1052</a>
 <a href="#1053" id="1053">1053</a>
 <a href="#1054" id="1054">1054</a>
-<a href="#1055" id="1055">1055</a>
-<a href="#1056" id="1056">1056</a>
-<a href="#1057" id="1057">1057</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1055" id="1055">1055</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1417,7 +1415,6 @@
     /// Not all events reach this point. After an event is rate limited for the first time, the rate
     /// limit is cached. Events coming in after this will be discarded earlier in the request queue
     /// and do not reach the processing queue.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>EventProcessingRateLimiting,
     <span class="doccomment">/// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
@@ -1624,8 +1621,7 @@
             RelayTimers::EventProcessingDeserialize =&gt; <span class="string">"event_processing.deserialize"</span>,
             RelayTimers::EventProcessingNormalization =&gt; <span class="string">"event_processing.normalization"</span>,
             RelayTimers::EventProcessingFiltering =&gt; <span class="string">"event_processing.filtering"</span>,
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">"event_processing.rate_limiting"</span>,
+            RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">"event_processing.rate_limiting"</span>,
             RelayTimers::EventProcessingPii =&gt; <span class="string">"event_processing.pii"</span>,
             RelayTimers::EventProcessingSpanMetricsExtraction =&gt; {
                 <span class="string">"event_processing.span_metrics_extraction"

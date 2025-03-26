@@ -4334,21 +4334,7 @@
 <a href="#4333" id="4333">4333</a>
 <a href="#4334" id="4334">4334</a>
 <a href="#4335" id="4335">4335</a>
-<a href="#4336" id="4336">4336</a>
-<a href="#4337" id="4337">4337</a>
-<a href="#4338" id="4338">4338</a>
-<a href="#4339" id="4339">4339</a>
-<a href="#4340" id="4340">4340</a>
-<a href="#4341" id="4341">4341</a>
-<a href="#4342" id="4342">4342</a>
-<a href="#4343" id="4343">4343</a>
-<a href="#4344" id="4344">4344</a>
-<a href="#4345" id="4345">4345</a>
-<a href="#4346" id="4346">4346</a>
-<a href="#4347" id="4347">4347</a>
-<a href="#4348" id="4348">4348</a>
-<a href="#4349" id="4349">4349</a>
-<a href="#4350" id="4350">4350</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4336" id="4336">4336</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4370,7 +4356,7 @@
 <span class="kw">use </span>relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-<span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
+<span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig};
 <span class="kw">use </span>relay_event_normalization::{
     normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
     EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
@@ -4384,7 +4370,7 @@
 <span class="kw">use </span>relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 <span class="kw">use </span>relay_pii::PiiConfigError;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty};
-<span class="kw">use </span>relay_quotas::{DataCategory, RateLimits, Scoping};
+<span class="kw">use </span>relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -4412,7 +4398,8 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
+    <span class="self">self</span>, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
+    SamplingResult, TypedEnvelope,
 };
 <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_threading::AsyncPool;
@@ -4420,17 +4407,15 @@
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
-    <span class="kw">crate</span>::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    <span class="kw">crate</span>::utils::{Enforcement, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
         RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
+    relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
+    relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::{RedisPool, RedisPools},
-    std::iter::Chain,
-    std::slice::Iter,
     std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -5597,8 +5582,7 @@
         })
     }
 
-    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">async fn </span>enforce_quotas&lt;Group&gt;(
+    <span class="kw">async fn </span>enforce_quotas&lt;Group&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
         event: Annotated&lt;Event&gt;,
@@ -5607,11 +5591,6 @@
         rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Annotated&lt;Event&gt;, ProcessingError&gt; {
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
-        <span class="kw">let </span>rate_limiter = <span class="kw">match </span><span class="self">self</span>.inner.rate_limiter.clone() {
-            <span class="prelude-val">Some</span>(rate_limiter) =&gt; rate_limiter,
-            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(event),
-        };
-
         <span class="comment">// Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
         // applied in the fast path, all cached quotas can be applied here.
         </span><span class="kw">let </span>cached_result = RateLimiter::Cached
@@ -5625,28 +5604,35 @@
             )
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="comment">// Enforce all quotas consistently with Redis.
-        </span><span class="kw">let </span>consistent_result = RateLimiter::Consistent(rate_limiter)
-            .enforce(
-                managed_envelope,
-                cached_result.event,
-                extracted_metrics,
-                <span class="kw-2">&amp;</span>global_config,
-                project_info,
-                rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+            <span class="kw">let </span>rate_limiter = <span class="kw">match </span><span class="self">self</span>.inner.rate_limiter.clone() {
+                <span class="prelude-val">Some</span>(rate_limiter) =&gt; rate_limiter,
+                <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(cached_result.event),
+            };
 
-        <span class="comment">// Update cached rate limits with the freshly computed ones.
-        </span><span class="kw">if </span>!consistent_result.rate_limits.is_empty() {
-            <span class="self">self</span>.inner
-                .project_cache
-                .get(managed_envelope.scoping().project_key)
-                .rate_limits()
-                .merge(consistent_result.rate_limits);
-        }
+            <span class="comment">// Enforce all quotas consistently with Redis.
+            </span><span class="kw">let </span>consistent_result = RateLimiter::Consistent(rate_limiter)
+                .enforce(
+                    managed_envelope,
+                    cached_result.event,
+                    extracted_metrics,
+                    <span class="kw-2">&amp;</span>global_config,
+                    project_info,
+                    rate_limits,
+                )
+                .<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(consistent_result.event)
+            <span class="comment">// Update cached rate limits with the freshly computed ones.
+            </span><span class="kw">if </span>!consistent_result.rate_limits.is_empty() {
+                <span class="self">self</span>.inner
+                    .project_cache
+                    .get(managed_envelope.scoping().project_key)
+                    .rate_limits()
+                    .merge(consistent_result.rate_limits);
+            }
+
+            <span class="prelude-val">Ok</span>(consistent_result.event)
+        } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(cached_result.event) })
     }
 
     <span class="doccomment">/// Extract transaction metrics.
@@ -5680,8 +5666,7 @@
             };
             <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>global.metric_extraction {
                 ErrorBoundary::Ok(global_config) =&gt; global_config,
-                <span class="attr">#[allow(unused_variables)]
-                </span>ErrorBoundary::Err(e) =&gt; {
+                ErrorBoundary::Err(e) =&gt; {
                     <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
                         <span class="comment">// Config is invalid, but we will try to extract what we can with just the
                         // project config.
@@ -5911,12 +5896,11 @@
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
         <span class="kw">let </span><span class="kw-2">mut </span>metrics = Metrics::default();
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
 
         <span class="comment">// Events can also contain user reports.
         </span>report::process_user_reports(managed_envelope);
@@ -5981,17 +5965,15 @@
             );
         }
 
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            event = <span class="self">self
-                </span>.enforce_quotas(
-                    managed_envelope,
-                    event,
-                    <span class="kw-2">&amp;mut </span>extracted_metrics,
-                    project_info.clone(),
-                    rate_limits,
-                )
-                .<span class="kw">await</span><span class="question-mark">?</span>;
-        });
+        event = <span class="self">self
+            </span>.enforce_quotas(
+                managed_envelope,
+                event,
+                <span class="kw-2">&amp;mut </span>extracted_metrics,
+                project_info.clone(),
+                rate_limits,
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="kw">if </span>event.value().is_some() {
             event::scrub(<span class="kw-2">&amp;mut </span>event, project_info.clone())<span class="question-mark">?</span>;
@@ -6029,7 +6011,7 @@
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         <span class="kw-2">mut </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
         reservoir_counters: ReservoirCounters,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
@@ -6174,17 +6156,15 @@
             //  - An empty envelope.
             //  - An envelope containing only processed profiles.
             // We need to make sure there are enough quotas for these profiles.
-            </span><span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                event = <span class="self">self
-                    </span>.enforce_quotas(
-                        managed_envelope,
-                        Annotated::empty(),
-                        <span class="kw-2">&amp;mut </span>extracted_metrics,
-                        project_info.clone(),
-                        rate_limits,
-                    )
-                    .<span class="kw">await</span><span class="question-mark">?</span>;
-            });
+            </span>event = <span class="self">self
+                </span>.enforce_quotas(
+                    managed_envelope,
+                    Annotated::empty(),
+                    <span class="kw-2">&amp;mut </span>extracted_metrics,
+                    project_info.clone(),
+                    rate_limits,
+                )
+                .<span class="kw">await</span><span class="question-mark">?</span>;
 
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics));
         }
@@ -6234,17 +6214,19 @@
                     spans_extracted,
                 );
             }
+        });
 
-            event = <span class="self">self
-                </span>.enforce_quotas(
-                    managed_envelope,
-                    event,
-                    <span class="kw-2">&amp;mut </span>extracted_metrics,
-                    project_info.clone(),
-                    rate_limits,
-                )
-                .<span class="kw">await</span><span class="question-mark">?</span>;
+        event = <span class="self">self
+            </span>.enforce_quotas(
+                managed_envelope,
+                event,
+                <span class="kw-2">&amp;mut </span>extracted_metrics,
+                project_info.clone(),
+                rate_limits,
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
 
+        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             event = span::maybe_discard_transaction(managed_envelope, event, project_info);
         });
 
@@ -6277,6 +6259,7 @@
         _rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
         profile_chunk::filter(managed_envelope, project_info.clone());
+
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             profile_chunk::process(
                 managed_envelope,
@@ -6284,16 +6267,16 @@
                 <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
                 <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
             );
-
-            <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics::new(),
-                project_info,
-                _rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
         });
+
+        <span class="self">self</span>.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics::new(),
+            project_info,
+            _rate_limits,
+        )
+        .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
@@ -6307,8 +6290,7 @@
         project_info: Arc&lt;ProjectInfo&gt;,
         _rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
 
         standalone::process(managed_envelope);
 
@@ -6320,16 +6302,14 @@
             project_info.clone(),
         );
 
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info.clone(),
-                _rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
-        });
+        <span class="self">self</span>.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            <span class="kw-2">&amp;mut </span>extracted_metrics,
+            project_info.clone(),
+            _rate_limits,
+        )
+        .<span class="kw">await</span><span class="question-mark">?</span>;
 
         report::process_user_reports(managed_envelope);
         attachment::scrub(managed_envelope, project_info);
@@ -6342,7 +6322,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SessionGroup&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
 
@@ -6352,16 +6332,15 @@
             project_info.clone(),
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
         );
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info,
-                rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
-        });
+
+        <span class="self">self</span>.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            <span class="kw-2">&amp;mut </span>extracted_metrics,
+            project_info,
+            rate_limits,
+        )
+        .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
@@ -6372,21 +6351,18 @@
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ClientReportGroup&gt;,
         config: Arc&lt;Config&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
 
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info.clone(),
-                rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
-        });
+        <span class="self">self</span>.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            <span class="kw-2">&amp;mut </span>extracted_metrics,
+            project_info.clone(),
+            rate_limits,
+        )
+        .<span class="kw">await</span><span class="question-mark">?</span>;
 
         report::process_client_reports(
             managed_envelope,
@@ -6404,10 +6380,9 @@
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ReplayGroup&gt;,
         config: Arc&lt;Config&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
 
         replay::process(
             managed_envelope,
@@ -6417,16 +6392,14 @@
             <span class="self">self</span>.inner.geoip_lookup.as_ref(),
         )<span class="question-mark">?</span>;
 
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info,
-                rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
-        });
+        <span class="self">self</span>.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            <span class="kw-2">&amp;mut </span>extracted_metrics,
+            project_info,
+            rate_limits,
+        )
+        .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
@@ -6434,27 +6407,25 @@
     <span class="doccomment">/// Processes cron check-ins.
     </span><span class="kw">async fn </span>process_checkins(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="attr">#[allow(unused_variables)] </span>managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;CheckInGroup&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>project_id: ProjectId,
-        <span class="attr">#[allow(unused_variables)] </span>project_info: Arc&lt;ProjectInfo&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
+        managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;CheckInGroup&gt;,
+        _project_id: ProjectId,
+        project_info: Arc&lt;ProjectInfo&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
+        <span class="self">self</span>.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics::new(),
+            project_info,
+            rate_limits,
+        )
+        .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info,
-                rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="self">self</span>.normalize_checkins(managed_envelope, project_id);
+            <span class="self">self</span>.normalize_checkins(managed_envelope, _project_id);
         });
 
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
 
     <span class="doccomment">/// Process logs
@@ -6463,10 +6434,9 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;LogGroup&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
 
         ourlog::filter(
             managed_envelope,
@@ -6474,17 +6444,20 @@
             project_info.clone(),
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
         );
+
+        <span class="self">self</span>.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            <span class="kw-2">&amp;mut </span>extracted_metrics,
+            project_info.clone(),
+            rate_limits,
+        )
+        .<span class="kw">await</span><span class="question-mark">?</span>;
+
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info.clone(),
-                rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
             ourlog::process(managed_envelope, project_info.clone());
         });
+
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
 
@@ -6496,14 +6469,13 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SpanGroup&gt;,
         config: Arc&lt;Config&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>project_id: ProjectId,
+        _project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>reservoir_counters: ReservoirCounters,
+        _sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
+        _reservoir_counters: ReservoirCounters,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
 
         span::filter(managed_envelope, config.clone(), project_info.clone());
         span::convert_otel_traces_data(managed_envelope);
@@ -6512,7 +6484,7 @@
             <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
             <span class="kw">let </span>reservoir = <span class="self">self</span>.new_reservoir_evaluator(
                 managed_envelope.scoping().organization_id,
-                reservoir_counters,
+                _reservoir_counters,
             );
 
             span::process(
@@ -6521,23 +6493,23 @@
                 <span class="kw-2">&amp;mut </span>extracted_metrics,
                 <span class="kw-2">&amp;</span>global_config,
                 config,
-                project_id,
+                _project_id,
                 project_info.clone(),
-                sampling_project_info,
+                _sampling_project_info,
                 <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 <span class="kw-2">&amp;</span>reservoir,
             )
             .<span class="kw">await</span>;
-
-            <span class="self">self</span>.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
-                project_info,
-                rate_limits,
-            )
-            .<span class="kw">await</span><span class="question-mark">?</span>;
         });
+
+        <span class="self">self</span>.enforce_quotas(
+            managed_envelope,
+            Annotated::empty(),
+            <span class="kw-2">&amp;mut </span>extracted_metrics,
+            project_info,
+            rate_limits,
+        )
+        .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
@@ -7580,14 +7552,15 @@
 
     <span class="kw">fn </span>new_reservoir_evaluator(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="attr">#[allow(unused_variables)] </span>organization_id: OrganizationId,
+        _organization_id: OrganizationId,
         reservoir_counters: ReservoirCounters,
     ) -&gt; ReservoirEvaluator {
-        <span class="attr">#[allow(unused_mut)]
+        <span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(unused_mut))]
         </span><span class="kw">let </span><span class="kw-2">mut </span>reservoir = ReservoirEvaluator::new(reservoir_counters);
+
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(quotas_pool) = <span class="self">self</span>.inner.quotas_pool.as_ref() {
-            reservoir.set_redis(organization_id, quotas_pool);
+            reservoir.set_redis(_organization_id, quotas_pool);
         }
 
         reservoir
@@ -7612,34 +7585,32 @@
 ///
 /// If the event is already `None` or it's rate limited, it will be `None`
 /// within the [`Annotated`].
-</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">struct </span>EnforcementResult {
     event: Annotated&lt;Event&gt;,
-    rate_limits: RateLimits,
+    <span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(dead_code))]
+    </span>rate_limits: RateLimits,
 }
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">impl </span>EnforcementResult {
+<span class="kw">impl </span>EnforcementResult {
     <span class="doccomment">/// Creates a new [`EnforcementResult`].
     </span><span class="kw">pub fn </span>new(event: Annotated&lt;Event&gt;, rate_limits: RateLimits) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ event, rate_limits }
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-#[derive(Clone)]
+<span class="attr">#[derive(Clone)]
 </span><span class="kw">enum </span>RateLimiter {
     Cached,
-    Consistent(Arc&lt;RedisRateLimiter&lt;GlobalRateLimitsServiceHandle&gt;&gt;),
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>Consistent(Arc&lt;RedisRateLimiter&lt;GlobalRateLimitsServiceHandle&gt;&gt;),
 }
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">impl </span>RateLimiter {
+<span class="kw">impl </span>RateLimiter {
     <span class="kw">async fn </span>enforce&lt;Group&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
         event: Annotated&lt;Event&gt;,
-        extracted_metrics: <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics,
+        _extracted_metrics: <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics,
         global_config: <span class="kw-2">&amp;</span>GlobalConfig,
         project_info: Arc&lt;ProjectInfo&gt;,
         rate_limits: Arc&lt;RateLimits&gt;,
@@ -7663,18 +7634,21 @@
         </span><span class="kw">let </span>this = <span class="self">self</span>.clone();
         <span class="kw">let </span>rate_limits_clone = rate_limits.clone();
         <span class="kw">let </span><span class="kw-2">mut </span>envelope_limiter =
-            EnvelopeLimiter::new(CheckLimits::All, <span class="kw">move </span>|item_scope, quantity| {
+            EnvelopeLimiter::new(CheckLimits::All, <span class="kw">move </span>|item_scope, _quantity| {
                 <span class="kw">let </span>this = this.clone();
                 <span class="kw">let </span>rate_limits_clone = rate_limits_clone.clone();
 
                 <span class="kw">async move </span>{
                     <span class="kw">match </span>this {
-                        RateLimiter::Consistent(rate_limiter) =&gt; <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProcessingError&gt;(
+                        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+                        </span>RateLimiter::Consistent(rate_limiter) =&gt; <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProcessingError&gt;(
                             rate_limiter
-                                .is_rate_limited(quotas, item_scope, quantity, <span class="bool-val">false</span>)
+                                .is_rate_limited(quotas, item_scope, _quantity, <span class="bool-val">false</span>)
                                 .<span class="kw">await</span><span class="question-mark">?</span>,
                         ),
-                        <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(rate_limits_clone.check_with_quotas(quotas, item_scope)),
+                        <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProcessingError&gt;(
+                            rate_limits_clone.check_with_quotas(quotas, item_scope),
+                        ),
                     }
                 }
             });
@@ -7697,7 +7671,8 @@
         <span class="comment">// Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
         // limiting of envelope items and metrics.
-        </span>extracted_metrics.apply_enforcement(<span class="kw-2">&amp;</span>enforcement, <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Consistent(<span class="kw">_</span>)));
+        </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span>_extracted_metrics.apply_enforcement(<span class="kw-2">&amp;</span>enforcement, <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Consistent(<span class="kw">_</span>)));
         enforcement.apply_with_outcomes(managed_envelope);
 
         <span class="kw">if </span>event_active {
@@ -8013,15 +7988,13 @@
 }
 
 <span class="doccomment">/// Container for global and project level [`Quota`].
-</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-#[derive(Copy, Clone, Debug)]
+</span><span class="attr">#[derive(Copy, Clone, Debug)]
 </span><span class="kw">struct </span>CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
     global_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Quota],
     project_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Quota],
 }
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Returns a new [`CombinedQuotas`].
     </span><span class="kw">pub fn </span>new(global_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>GlobalConfig, project_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Quota]) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
@@ -8041,10 +8014,9 @@
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span>CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span>CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Quota;
-    <span class="kw">type </span>IntoIter = Chain&lt;Iter&lt;<span class="lifetime">'a</span>, Quota&gt;, Iter&lt;<span class="lifetime">'a</span>, Quota&gt;&gt;;
+    <span class="kw">type </span>IntoIter = std::iter::Chain&lt;std::slice::Iter&lt;<span class="lifetime">'a</span>, Quota&gt;, std::slice::Iter&lt;<span class="lifetime">'a</span>, Quota&gt;&gt;;
 
     <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
         <span class="self">self</span>.global_quotas.iter().chain(<span class="self">self</span>.project_quotas.iter())
