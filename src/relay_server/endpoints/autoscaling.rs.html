@@ -150,7 +150,15 @@
 <a href="#149" id="149">149</a>
 <a href="#150" id="150">150</a>
 <a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::http::StatusCode;
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::http::StatusCode;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::autoscaling::{AutoscalingData, AutoscalingMessageKind};
 <span class="kw">use </span>std::fmt::Display;
@@ -196,6 +204,12 @@
         <span class="kw-2">&amp;mut </span>result,
         <span class="string">"worker_pool_utilization"</span>,
         data.worker_pool_utilization,
+        <span class="kw-2">&amp;</span>[],
+    );
+    append_data_row(
+        <span class="kw-2">&amp;mut </span>result,
+        <span class="string">"runtime_utilization"</span>,
+        data.runtime_utilization,
         <span class="kw-2">&amp;</span>[],
     );
     result
@@ -287,6 +301,7 @@
                 ServiceUtilization(<span class="string">"envelope"</span>, <span class="number">50</span>),
             ],
             worker_pool_utilization: <span class="number">61</span>,
+            runtime_utilization: <span class="number">41</span>,
         };
         <span class="kw">let </span>result = <span class="kw">super</span>::to_prometheus_string(<span class="kw-2">&amp;</span>data);
         <span class="macro">assert_eq!</span>(
@@ -298,6 +313,7 @@ relay_spool_total_size 30
 relay_utilization{relay_service="test"} 10
 relay_utilization{relay_service="envelope"} 50
 relay_worker_pool_utilization 61
+relay_runtime_utilization 41
 "#
         </span>);
     }

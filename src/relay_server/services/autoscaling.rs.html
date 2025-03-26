@@ -104,10 +104,47 @@
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::PartitionedEnvelopeBuffer;
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::PartitionedEnvelopeBuffer;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::EnvelopeProcessorServicePool;
 <span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
-<span class="kw">use </span>relay_system::{AsyncResponse, Controller, FromMessage, Handle, Interface, Sender, Service};
+<span class="kw">use </span>relay_system::{
+    AsyncResponse, Controller, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
+};
+<span class="kw">use </span>tokio::time::Instant;
 
 <span class="doccomment">/// Service that tracks internal relay metrics so that they can be exposed.
 </span><span class="kw">pub struct </span>AutoscalingMetricService {
@@ -117,6 +154,10 @@
     </span>envelope_buffer: PartitionedEnvelopeBuffer,
     <span class="doccomment">/// Runtime handle to expose service utilization metrics.
     </span>handle: Handle,
+    <span class="doccomment">/// Gives access to runtime metrics.
+    </span>runtime_metrics: RuntimeMetrics,
+    <span class="doccomment">/// The last time the runtime utilization was checked.
+    </span>last_runtime_check: Instant,
     <span class="doccomment">/// This will always report `1` unless the instance is shutting down.
     </span>up: u8,
     <span class="doccomment">/// Gives access to AsyncPool metrics.
@@ -130,10 +171,13 @@
         handle: Handle,
         async_pool: EnvelopeProcessorServicePool,
     ) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>runtime_metrics = handle.metrics();
         <span class="self">Self </span>{
             memory_stat,
             envelope_buffer,
             handle,
+            runtime_metrics,
+            last_runtime_check: Instant::now(),
             async_pool,
             up: <span class="number">1</span>,
         }
@@ -160,6 +204,8 @@
                                 .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
                                 .collect();
                             <span class="kw">let </span>worker_pool_utilization = <span class="self">self</span>.async_pool.metrics().utilization() <span class="kw">as </span>u8;
+                            <span class="kw">let </span>runtime_utilization = <span class="self">self</span>.runtime_utilization();
+
                             sender.send(AutoscalingData {
                                 memory_usage: memory_usage.used_percent(),
                                 up: <span class="self">self</span>.up,
@@ -167,12 +213,33 @@
                                 item_count: <span class="self">self</span>.envelope_buffer.item_count(),
                                 services_metrics: metrics,
                                 worker_pool_utilization,
+                                runtime_utilization
                             });
                         }
                     }
                 }
             }
         }
+    }
+}
+
+<span class="kw">impl </span>AutoscalingMetricService {
+    <span class="kw">fn </span>runtime_utilization(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; u8 {
+        <span class="kw">let </span>last_checked = <span class="self">self</span>.last_runtime_check.elapsed().as_secs_f64();
+        <span class="comment">// Prevent division by 0 in case it's checked in rapid succession.
+        </span><span class="kw">if </span>last_checked &lt; <span class="number">0.001 </span>{
+            <span class="kw">return </span><span class="number">0</span>;
+        }
+        <span class="kw">let </span>avg_utilization = (<span class="number">0</span>..<span class="self">self</span>.runtime_metrics.num_workers())
+            .map(|worker_id| <span class="self">self</span>.runtime_metrics.worker_total_busy_duration(worker_id))
+            .map(|busy| busy.as_secs_f64())
+            .sum::&lt;f64&gt;()
+            / last_checked
+            / (<span class="self">self</span>.runtime_metrics.num_workers() <span class="kw">as </span>f64);
+
+        <span class="self">self</span>.last_runtime_check = Instant::now();
+
+        (avg_utilization * <span class="number">100.0</span>).min(<span class="number">100.0</span>) <span class="kw">as </span>u8
     }
 }
 
@@ -207,6 +274,7 @@
     <span class="kw">pub </span>item_count: u64,
     <span class="kw">pub </span>worker_pool_utilization: u8,
     <span class="kw">pub </span>services_metrics: Vec&lt;ServiceUtilization&gt;,
+    <span class="kw">pub </span>runtime_utilization: u8,
 }
 
 <span class="kw">pub struct </span>ServiceUtilization(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, <span class="kw">pub </span>u8);
