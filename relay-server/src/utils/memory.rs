@@ -83,6 +83,17 @@ impl MemoryStat {
         **self.0.memory.load()
     }
 
+    /// Returns a copy of the memory data at this point in time.
+    ///
+    /// Unlike [`Self::memory`], this method unconditionally refreshes the memory state
+    /// and returns the most up-to-date readings. Use it when you need an accurate
+    /// snapshot of memory at the exact time of the call. Avoid using it unless
+    /// strictly necessary, as it may impact performance.
+    pub fn current_memory(&self) -> Memory {
+        self.update();
+        **self.0.memory.load()
+    }
+
     /// Refreshes the memory readings.
     fn refresh_memory(system: &mut System) -> Memory {
         system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
@@ -101,6 +112,18 @@ impl MemoryStat {
         metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
 
         memory
+    }
+
+    /// Updates the memory readings unconditionally.
+    fn update(&self) {
+        let mut system = self
+            .0
+            .system
+            .lock()
+            .unwrap_or_else(|system| system.into_inner());
+
+        let updated_memory = Self::refresh_memory(&mut system);
+        self.0.memory.store(Arc::new(updated_memory));
     }
 
     /// Updates the memory readings if at least `refresh_frequency_ms` has passed.
@@ -126,14 +149,7 @@ impl MemoryStat {
             return;
         }
 
-        let mut system = self
-            .0
-            .system
-            .lock()
-            .unwrap_or_else(|system| system.into_inner());
-
-        let updated_memory = Self::refresh_memory(&mut system);
-        self.0.memory.store(Arc::new(updated_memory));
+        self.update();
     }
 }
 

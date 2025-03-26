@@ -137,6 +137,25 @@ fn create_store_pool(config: &Config) -> Result<StoreServicePool> {
     Ok(pool)
 }
 
+/// Validates that the `batch_size_bytes` of the configuration is correct and doesn't lead to
+/// deadlocks in the buffer.
+fn assert_batch_size_bytes(config: &Config, memory_stat: &MemoryStat) {
+    let memory = memory_stat.current_memory();
+    // We expect the batch size for the spooler to be 10% of the memory threshold over which the
+    // buffer stops unspooling.
+    //
+    // The 10% threshold was arbitrarily chosen to give the system leeway when spooling.
+    let configured_batch_size_bytes = config.spool_envelopes_batch_size_bytes() as f32;
+    let maximum_batch_size_bytes =
+        memory.total as f32 * config.spool_max_backpressure_memory_percent() * 0.1;
+    assert!(
+        configured_batch_size_bytes <= maximum_batch_size_bytes,
+        "The configured batch_size_bytes is {} bytes but it must be <= than {} bytes",
+        configured_batch_size_bytes,
+        maximum_batch_size_bytes
+    )
+}
+
 #[derive(Debug)]
 struct StateInner {
     config: Arc<Config>,
@@ -180,6 +199,9 @@ impl ServiceState {
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
         // configuration object down the line.
         let memory_stat = MemoryStat::new(config.memory_stat_refresh_frequency_ms());
+
+        // We assert the batch size in bytes to avoid a deadlock in the buffer.
+        assert_batch_size_bytes(&config, &memory_stat);
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
