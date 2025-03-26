@@ -91,7 +91,6 @@ impl AutoscalingMetricService {
             return 0;
         }
         let avg_utilization = (0..self.runtime_metrics.num_workers())
-            .into_iter()
             .map(|worker_id| self.runtime_metrics.worker_total_busy_duration(worker_id))
             .map(|busy| busy.as_secs_f64())
             .sum::<f64>()
