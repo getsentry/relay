@@ -79,7 +79,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
-    relay_redis::{RedisPool, RedisPools},
+    relay_redis::{AsyncRedisClient, RedisClients},
     std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -1129,7 +1129,7 @@ struct InnerProcessor {
     project_cache: ProjectCacheHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
-    quotas_pool: Option<RedisPool>,
+    quotas_client: Option<AsyncRedisClient>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>>,
@@ -1148,7 +1148,7 @@ impl EnvelopeProcessorService {
         global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
         cogs: Cogs,
-        #[cfg(feature = "processing")] redis: Option<RedisPools>,
+        #[cfg(feature = "processing")] redis: Option<RedisClients>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
@@ -1164,7 +1164,7 @@ impl EnvelopeProcessorService {
 
         #[cfg(feature = "processing")]
         let (cardinality, quotas) = match redis {
-            Some(RedisPools {
+            Some(RedisClients {
                 cardinality,
                 quotas,
                 ..
@@ -1190,7 +1190,7 @@ impl EnvelopeProcessorService {
             project_cache,
             cogs,
             #[cfg(feature = "processing")]
-            quotas_pool: quotas,
+            quotas_client: quotas.clone(),
             #[cfg(feature = "processing")]
             rate_limiter,
             addrs,
@@ -1330,6 +1330,7 @@ impl EnvelopeProcessorService {
             };
             let global_config = match &global.metric_extraction {
                 ErrorBoundary::Ok(global_config) => global_config,
+                #[allow(unused_variables)]
                 ErrorBoundary::Err(e) => {
                     if_processing!(self.inner.config, {
                         // Config is invalid, but we will try to extract what we can with just the
@@ -1626,7 +1627,8 @@ impl EnvelopeProcessorService {
                 &mut event,
                 sampling_project_info,
                 &self.inner.config,
-            );
+            )
+            .await;
         }
 
         event = self
@@ -1769,14 +1771,17 @@ impl EnvelopeProcessorService {
 
         relay_cogs::with!(cogs, "dynamic_sampling_run", {
             let sampling_result = match run_dynamic_sampling {
-                true => dynamic_sampling::run(
-                    managed_envelope,
-                    &mut event,
-                    config.clone(),
-                    project_info.clone(),
-                    sampling_project_info,
-                    &reservoir,
-                ),
+                true => {
+                    dynamic_sampling::run(
+                        managed_envelope,
+                        &mut event,
+                        config.clone(),
+                        project_info.clone(),
+                        sampling_project_info,
+                        &reservoir,
+                    )
+                    .await
+                }
                 false => SamplingResult::Pending,
             };
         });
@@ -2732,7 +2737,7 @@ impl EnvelopeProcessorService {
         project_info: &ProjectInfo,
         mut buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
-        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+        let Some(rate_limiter) = &self.inner.rate_limiter else {
             return buckets;
         };
 
@@ -2861,7 +2866,7 @@ impl EnvelopeProcessorService {
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
     #[cfg(feature = "processing")]
-    fn cardinality_limit_buckets(
+    async fn cardinality_limit_buckets(
         &self,
         scoping: Scoping,
         limits: &[CardinalityLimit],
@@ -2883,7 +2888,10 @@ impl EnvelopeProcessorService {
             project_id: scoping.project_id,
         };
 
-        let limits = match limiter.check_cardinality_limits(scope, limits, buckets) {
+        let limits = match limiter
+            .check_cardinality_limits(scope, limits, buckets)
+            .await
+        {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(
@@ -2968,7 +2976,9 @@ impl EnvelopeProcessorService {
                 .await;
 
             let limits = project_info.get_cardinality_limits();
-            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
+            let buckets = self
+                .cardinality_limit_buckets(scoping, limits, buckets)
+                .await;
 
             if buckets.is_empty() {
                 continue;
@@ -3223,8 +3233,8 @@ impl EnvelopeProcessorService {
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
 
         #[cfg(feature = "processing")]
-        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
-            reservoir.set_redis(_organization_id, quotas_pool);
+        if let Some(quotas_client) = self.inner.quotas_client.as_ref() {
+            reservoir.set_redis(_organization_id, quotas_client);
         }
 
         reservoir
@@ -3239,7 +3249,12 @@ impl Service for EnvelopeProcessorService {
             let service = self.clone();
             self.inner
                 .pool
-                .spawn_async(async move { service.handle_message(message).await }.boxed())
+                .spawn_async(
+                    async move {
+                        service.handle_message(message).await;
+                    }
+                    .boxed(),
+                )
                 .await;
         }
     }

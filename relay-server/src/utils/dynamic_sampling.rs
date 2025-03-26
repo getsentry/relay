@@ -69,7 +69,7 @@ impl From<ControlFlow<SamplingMatch, SamplingEvaluator<'_>>> for SamplingResult 
 /// Runs dynamic sampling if the dsc and root project state are not None and returns whether the
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
-pub fn is_trace_fully_sampled(
+pub async fn is_trace_fully_sampled(
     root_project_config: &SamplingConfig,
     dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
@@ -77,7 +77,7 @@ pub fn is_trace_fully_sampled(
     // whether the head of the trace was kept or dropped on the client side.
     // In addition, if the head of the trace was dropped on the client we will immediately mark
     // the trace as not fully sampled.
-    if !(dsc.sampled?) {
+    if !dsc.sampled? {
         return Some(false);
     }
 
@@ -85,7 +85,7 @@ pub fn is_trace_fully_sampled(
 
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
-    let evaluation = evaluator.match_rules(dsc.trace_id, dsc, rules);
+    let evaluation = evaluator.match_rules(dsc.trace_id, dsc, rules).await;
     Some(SamplingResult::from(evaluation).decision().is_keep())
 }
 
@@ -180,38 +180,40 @@ mod tests {
         }
     }
 
-    #[test]
+    #[tokio::test]
     /// Tests that an event is kept when there is a match and we have 100% sample rate.
-    fn test_match_rules_return_keep_with_match_and_100_sample_rate() {
+    async fn test_match_rules_return_keep_with_match_and_100_sample_rate() {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
         let rules = [mocked_sampling_rule(1, RuleType::Transaction, 1.0)];
         let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(seed, &event, rules.iter())
+            .await
             .into();
 
         assert!(result.is_match());
         assert!(result.decision().is_keep());
     }
-    #[test]
+    #[tokio::test]
     /// Tests that an event is dropped when there is a match and we have 0% sample rate.
-    fn test_match_rules_return_drop_with_match_and_0_sample_rate() {
+    async fn test_match_rules_return_drop_with_match_and_0_sample_rate() {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
         let rules = [mocked_sampling_rule(1, RuleType::Transaction, 0.0)];
         let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(seed, &event, rules.iter())
+            .await
             .into();
 
         assert!(result.is_match());
         assert!(result.decision().is_drop());
     }
 
-    #[test]
+    #[tokio::test]
     /// Tests that an event is kept when there is no match.
-    fn test_match_rules_return_keep_with_no_match() {
+    async fn test_match_rules_return_keep_with_no_match() {
         let rules = [SamplingRule {
             condition: RuleCondition::eq_ignore_case("event.transaction", "foo"),
             sampling_value: SamplingValue::SampleRate { value: 0.5 },
@@ -226,28 +228,30 @@ mod tests {
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(seed, &event, rules.iter())
+            .await
             .into();
 
         assert!(result.is_no_match());
         assert!(result.decision().is_keep());
     }
 
-    #[test]
+    #[tokio::test]
     /// Tests that an event is kept when there is a trace match and we have 100% sample rate.
-    fn test_match_rules_with_traces_rules_return_keep_when_match() {
+    async fn test_match_rules_with_traces_rules_return_keep_when_match() {
         let rules = [mocked_sampling_rule(1, RuleType::Trace, 1.0)];
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(Uuid::default(), &dsc, rules.iter())
+            .await
             .into();
 
         assert!(result.is_match());
         assert!(result.decision().is_keep());
     }
 
-    #[test]
-    fn test_is_trace_fully_sampled_return_true_with_unsupported_rules() {
+    #[tokio::test]
+    async fn test_is_trace_fully_sampled_return_true_with_unsupported_rules() {
         let config = SamplingConfig {
             rules: vec![
                 mocked_sampling_rule(1, RuleType::Unsupported, 1.0),
@@ -259,12 +263,12 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(None, None, None, None, Some(true));
 
         // If processing is enabled, we simply log an error and otherwise proceed as usual.
-        assert_eq!(is_trace_fully_sampled(&config, &dsc), Some(false));
+        assert_eq!(is_trace_fully_sampled(&config, &dsc).await, Some(false));
     }
 
-    #[test]
+    #[tokio::test]
     /// Tests that a trace is marked as fully sampled correctly when dsc and project state are set.
-    fn test_is_trace_fully_sampled_with_valid_dsc_and_sampling_config() {
+    async fn test_is_trace_fully_sampled_with_valid_dsc_and_sampling_config() {
         // We test with `sampled = true` and 100% rule.
 
         let config = SamplingConfig {
@@ -275,7 +279,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&config, &dsc).await.unwrap();
         assert!(result);
 
         // We test with `sampled = true` and 0% rule.
@@ -287,7 +291,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&config, &dsc).await.unwrap();
         assert!(!result);
 
         // We test with `sampled = false` and 100% rule.
@@ -299,13 +303,13 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&config, &dsc).await.unwrap();
         assert!(!result);
     }
 
-    #[test]
+    #[tokio::test]
     /// Tests that a trace is not marked as fully sampled or not if inputs are invalid.
-    fn test_is_trace_fully_sampled_with_invalid_inputs() {
+    async fn test_is_trace_fully_sampled_with_invalid_inputs() {
         // We test with missing `sampled`.
         let config = SamplingConfig {
             rules: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
@@ -313,7 +317,7 @@ mod tests {
         };
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = is_trace_fully_sampled(&config, &dsc);
+        let result = is_trace_fully_sampled(&config, &dsc).await;
         assert!(result.is_none());
     }
 }
