@@ -3,7 +3,7 @@
 # - https://www.notion.so/sentry/GoCD-New-Service-Quickstart-6d8db7a6964049b3b0e78b8a4b52e25d
 format_version: 10
 pipelines:
-  deploy-relay-processing-experimental-us-internal:
+  deploy-relay-pop-experimental-us-internal:
     environment_variables:
       GCP_PROJECT: internal-sentry
       GKE_CLUSTER: zdpwkxst
@@ -33,7 +33,7 @@ pipelines:
                 # Required for checkruns.
                 GITHUB_TOKEN: "{{SECRET:[devinfra-github][token]}}"
               timeout: 1800
-              elastic_profile_id: relay
+              elastic_profile_id: relay-pop
               tasks:
                 - script: |
                     /devinfra/scripts/checks/githubactions/checkruns.py \
@@ -54,24 +54,24 @@ pipelines:
             create_sentry_release:
               environment_variables:
                 SENTRY_ORG: sentry
-                SENTRY_PROJECT: relay
+                SENTRY_PROJECT: relay-pop
                 SENTRY_URL: "https://sentry.my.sentry.io/"
                 # Temporary; self-service encrypted secrets aren't implemented yet.
                 # This should really be rotated to an internal integration token.
                 SENTRY_AUTH_TOKEN: "{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}"
               timeout: 1200
-              elastic_profile_id: relay
+              elastic_profile_id: relay-pop
               tasks:
                 - script: |
                     ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}" "relay"
 
             deploy:
               timeout: 1200
-              elastic_profile_id: relay
+              elastic_profile_id: relay-pop
               tasks:
                 - script: |
                     /devinfra/scripts/k8s/k8stunnel \
                     && /devinfra/scripts/k8s/k8s-deploy.py \
-                    --label-selector="service=relay,deploy_if_canary=true" \
-                    --image="us-central1-docker.pkg.dev/sentryio/relay/relay:${GO_REVISION_RELAY_REPO}" \
+                    --label-selector="service=relay-pop,env=canary" \
+                    --image="us-central1-docker.pkg.dev/sentryio/relay/relay-pop:${GO_REVISION_RELAY_REPO}" \
                     --container-name="relay"

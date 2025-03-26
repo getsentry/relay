@@ -6,6 +6,7 @@
 
 - Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))
 - Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
+- Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
 
 **Bug Fixes**:
 
@@ -16,6 +17,10 @@
 - Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
 - Switch global rate limiter to a service. ([#4581](https://github.com/getsentry/relay/pull/4581))
 - Always enforce cached rate limits in processor. ([#4603](https://github.com/getsentry/relay/pull/4603))
+- Remove `parent_span_link` from `SpanLink` struct. ([#4594](https://github.com/getsentry/relay/pull/4594))
+- Extract transaction breakdowns into measurements. ([#4600](https://github.com/getsentry/relay/pull/4600))
+- Expose worker pool metrics in autoscaler endpoint ([#4605](https://github.com/getsentry/relay/pull/4605))
+- Bump the revision of `sysinfo` to the revision at `15b3be3273ba286740122fed7bb7dccd2a79dc8f`.  ([#4613](https://github.com/getsentry/relay/pull/4613))
 
 ## 25.3.0
 
