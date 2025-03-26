@@ -277,7 +277,7 @@ impl EnvelopeBufferService {
         }
     }
 
-    /// Waits until the system is ready to unspool envelopes from disk into memory.
+    /// Waits until the system is ready to unspool envelopes.
     ///
     /// This function ensures that unspooling only happens when it's safe and appropriate to do so.
     /// It continuously checks specific system conditions and only returns when they are all satisfied.
