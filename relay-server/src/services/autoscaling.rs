@@ -94,13 +94,13 @@ impl AutoscalingMetricService {
             .into_iter()
             .map(|worker_id| self.runtime_metrics.worker_total_busy_duration(worker_id))
             .map(|busy| busy.as_secs_f64())
-            .sum()
+            .sum::<f64>()
             / last_checked
             / (self.runtime_metrics.num_workers() as f64);
 
         self.last_runtime_check = Instant::now();
 
-        (avg_utilization * 100).min(100.0)
+        (avg_utilization * 100.0).min(100.0) as u8
     }
 }
 
