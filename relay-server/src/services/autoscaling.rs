@@ -85,28 +85,22 @@ impl Service for AutoscalingMetricService {
 
 impl AutoscalingMetricService {
     fn runtime_utilization(&mut self) -> u8 {
-        let mut total_worker_busy_duration: f64 = 0.0;
         let last_checked = self.last_runtime_check.elapsed().as_secs_f64();
         // Prevent division by 0 in case it's checked in rapid succession.
         if last_checked < 0.001 {
             return 0;
         }
-        for worker_id in 0..self.runtime_metrics.num_workers() {
-            let worker_busy_duration = self
-                .runtime_metrics
-                .worker_total_busy_duration(worker_id)
-                .as_secs_f64();
-            // `worker_total_busy_duration` gives us the time spent busy since the last call.
-            // To normalize this into a percentage we need to divide by the last time we checked.
-            total_worker_busy_duration += worker_busy_duration / last_checked;
-        }
+        let avg_utilization = (0..self.runtime_metrics.num_workers())
+            .into_iter()
+            .map(|worker_id| self.runtime_metrics.worker_total_busy_duration(worker_id))
+            .map(|busy| busy.as_secs_f64())
+            .sum()
+            / last_checked
+            / (self.runtime_metrics.num_workers() as f64);
 
         self.last_runtime_check = Instant::now();
 
-        let avg_utilization = (total_worker_busy_duration * 100.0
-            / (self.runtime_metrics.num_workers() as f64))
-            .min(100.0);
-        avg_utilization as u8
+        (avg_utilization * 100).min(100.0)
     }
 }
 
