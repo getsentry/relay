@@ -60,7 +60,7 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
                 }
             },
             ItemType::Log => match Annotated::<OurLog>::from_json_bytes(&item.payload()) {
-                Ok(our_log) => our_log,
+                Ok(our_log) => relay_ourlogs::ourlog_merge_otel(our_log),
                 Err(err) => {
                     relay_log::debug!("failed to parse Sentry Log: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));
