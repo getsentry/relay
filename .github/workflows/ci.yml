@@ -368,7 +368,7 @@ jobs:
           name: ${{ matrix.image_name }}-docker-image
           path: "${{ matrix.image_name }}-docker-image"
 
-  build-and-push-internal-docker:
+  publish-to-ar-internal:
     timeout-minutes: 5
     needs: [build-setup, build]
 
@@ -386,7 +386,7 @@ jobs:
     env:
       PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
       # This name is made up we might want to go with a different one
-      INTERNAL_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal/relay/${{ matrix.image_name }}"
+      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
@@ -417,8 +417,8 @@ jobs:
         run: |
           docker buildx build \
             --platform "${PLATFORMS}" \
-            --tag "${INTERNAL_DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${INTERNAL_DOCKER_IMAGE}:latest" ) \
+            --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
+            $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
             --file Dockerfile.release \
             --push \
             .
