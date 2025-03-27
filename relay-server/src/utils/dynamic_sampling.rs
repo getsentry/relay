@@ -5,6 +5,7 @@ use chrono::Utc;
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
 use relay_event_schema::protocol::{Event, TraceContext};
+use relay_protocol::Value;
 use relay_sampling::config::{RuleType, SamplingConfig};
 use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMatch};
@@ -94,9 +95,6 @@ pub async fn is_trace_fully_sampled(
 /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
 /// trace ID in its trace context. All optional fields in the dynamic sampling context are
 /// populated with the corresponding attributes from the event payload if they are available.
-///
-/// Since sampling information is not available in the event payload, the `sample_rate` field
-/// cannot be set when computing the dynamic sampling context from a transaction event.
 pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSamplingContext> {
     if event.ty.value() != Some(&EventType::Transaction) {
         return None;
@@ -105,6 +103,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     let trace = event.context::<TraceContext>()?;
     let trace_id = trace.trace_id.value()?.0.parse().ok()?;
     let user = event.user.value();
+    let sample_rate = sample_rate_from_event(event);
 
     Some(DynamicSamplingContext {
         trace_id,
@@ -113,7 +112,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
         environment: event.environment.value().cloned(),
         transaction: event.transaction.value().cloned(),
         replay_id: None,
-        sample_rate: None,
+        sample_rate,
         user: TraceUserContext {
             user_segment: user
                 .and_then(|u| u.segment.value().cloned())
@@ -128,8 +127,37 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     })
 }
 
+/// Extracts a sample rate from a transaction event, for cases where the sample
+/// rate wasn't provided inside the envelope's DSC (Dynamic Sampling Context).
+pub fn sample_rate_from_event(event: &Event) -> Option<f64> {
+    let trace_context = event.context::<TraceContext>()?;
+
+    if let Some(sample_rate) = trace_context.client_sample_rate.value() {
+        return Some(*sample_rate);
+    }
+
+    // Electron SDKs v5+ are not setting sample rates in DSC, but do have them
+    // in a non-standard place in trace context.
+    // See <https://github.com/getsentry/sentry-electron/issues/1114>.
+    if let Some(sample_rate) = trace_context
+        .data
+        .value()
+        .and_then(|data| data.other.get("sentry.sample_rate"))
+        .and_then(|rate| rate.value())
+        .and_then(|rate| match rate {
+            Value::F64(r) => Some(r),
+            _ => None,
+        })
+    {
+        return Some(*sample_rate);
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
+    use relay_event_schema::protocol::{Contexts, TraceId, User};
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
@@ -319,5 +347,74 @@ mod tests {
 
         let result = is_trace_fully_sampled(&config, &dsc).await;
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_dsc_from_event() {
+        let public_key = "e12d836b15bb49d7bbf99e64295d995b".parse().unwrap();
+
+        let mut event = Event {
+            ty: EventType::Transaction.into(),
+            release: Annotated::new("v1.0".to_owned().into()),
+            environment: "staging".to_owned().into(),
+            transaction: "transaction_name".to_owned().into(),
+            user: Annotated::new(User {
+                id: Annotated::new("id".to_owned().into()),
+                segment: "segment".to_owned().into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let contexts = event.contexts.get_or_insert_with(Contexts::default);
+        let trace_context = contexts.get_or_default::<TraceContext>();
+        trace_context.trace_id = TraceId("89143b0763095bd9c9955e8175d1fb23".to_owned()).into();
+        trace_context.client_sample_rate = 0.5.into();
+
+        let dsc = dsc_from_event(public_key, &event).expect("dsc should be extracted");
+
+        assert_eq!(
+            dsc,
+            DynamicSamplingContext {
+                trace_id: Uuid::parse_str("89143b0763095bd9c9955e8175d1fb23").unwrap(),
+                public_key,
+                sample_rate: Some(0.5),
+                release: Some("v1.0".to_owned()),
+                environment: Some("staging".to_owned()),
+                transaction: Some("transaction_name".to_owned()),
+                user: TraceUserContext {
+                    user_segment: "segment".to_owned(),
+                    user_id: "id".to_owned()
+                },
+                replay_id: None,
+                sampled: None,
+                other: Default::default(),
+            }
+        )
+    }
+
+    #[test]
+    fn test_sample_rate_from_event_extracts_from_context_data() {
+        let mut event = Event::default();
+        let contexts = event.contexts.get_or_insert_with(Contexts::default);
+        let trace_context = contexts.get_or_default::<TraceContext>();
+        let data = trace_context.data.get_or_insert_with(Default::default);
+        data.other
+            .insert("sentry.sample_rate".to_owned(), Value::F64(0.5).into());
+
+        let sample_rate = sample_rate_from_event(&event).unwrap();
+
+        assert_eq!(sample_rate, 0.5);
+    }
+
+    #[test]
+    fn test_sample_rate_from_event_extracts_from_context_rate() {
+        let mut event = Event::default();
+        let contexts = event.contexts.get_or_insert_with(Contexts::default);
+        let trace_context = contexts.get_or_default::<TraceContext>();
+        trace_context.client_sample_rate = 0.1.into();
+
+        let sample_rate = sample_rate_from_event(&event).unwrap();
+
+        assert_eq!(sample_rate, 0.1);
     }
 }

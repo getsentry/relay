@@ -51,6 +51,7 @@ pub fn validate_and_set_dsc(
     sampling_project_info: Option<Arc<ProjectInfo>>,
 ) -> Option<Arc<ProjectInfo>> {
     if managed_envelope.envelope().dsc().is_some() && sampling_project_info.is_some() {
+        apply_legacy_sample_rate(managed_envelope, event);
         return sampling_project_info;
     }
 
@@ -69,6 +70,29 @@ pub fn validate_and_set_dsc(
     }
 
     sampling_project_info
+}
+
+fn apply_legacy_sample_rate(
+    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+    event: &mut Annotated<Event>,
+) {
+    let Some(dsc) = managed_envelope.envelope().dsc() else {
+        return;
+    };
+
+    // Don't override sample rates already given in the DSC.
+    if dsc.sample_rate.is_some() {
+        return;
+    }
+
+    let Some(event) = event.value() else {
+        return;
+    };
+    if let sample_rate @ Some(_) = utils::sample_rate_from_event(event) {
+        let mut new_dsc = dsc.clone();
+        new_dsc.sample_rate = sample_rate;
+        managed_envelope.envelope_mut().set_dsc(new_dsc);
+    }
 }
 
 /// Computes the sampling decision on the incoming event
@@ -278,6 +302,7 @@ mod tests {
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
+    use relay_sampling::dsc::TraceUserContext;
     use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
     use relay_system::Addr;
     use uuid::Uuid;
@@ -285,7 +310,7 @@ mod tests {
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup, SpanGroup};
-    use crate::services::projects::project::ProjectInfo;
+    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
@@ -826,5 +851,142 @@ mod tests {
         let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span).await;
         // Default sampling rate is 0.0, and the reservoir does not apply to spans:
         assert_eq!(result.decision(), SamplingDecision::Drop);
+    }
+
+    fn transaction_with_inline_sample_rate(sample_rate: f64) -> Annotated<Event> {
+        Annotated::from_json(&format!(
+            r#"{{
+                "type": "transaction",
+                "contexts": {{
+                    "trace": {{
+                        "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+                        "client_sample_rate": {}
+                    }}
+                }}
+            }}"#,
+            sample_rate
+        ))
+        .ok()
+        .unwrap()
+    }
+
+    fn managed_transaction_envelope() -> TypedEnvelope<TransactionGroup> {
+        ManagedEnvelope::new(
+            Envelope::from_request(
+                Some(EventId::new()),
+                RequestMeta::new(
+                    "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+                        .parse()
+                        .unwrap(),
+                ),
+            ),
+            Addr::dummy(),
+            Addr::dummy(),
+            ProcessingGroup::Transaction,
+        )
+        .try_into()
+        .unwrap()
+    }
+
+    #[test]
+    fn extracts_sample_rate_without_dsc() {
+        let mut managed_envelope = managed_transaction_envelope();
+        let event_sample_rate = 0.5;
+        let mut event = transaction_with_inline_sample_rate(event_sample_rate);
+
+        assert!(managed_envelope.envelope().dsc().is_none());
+
+        validate_and_set_dsc(
+            &mut managed_envelope,
+            &mut event,
+            ProjectInfo {
+                public_keys: smallvec::smallvec![PublicKeyConfig {
+                    public_key: "e12d836b15bb49d7bbf99e64295d995b".parse().unwrap(),
+                    numeric_id: None,
+                }],
+                ..Default::default()
+            }
+            .into(),
+            Some(ProjectInfo::default().into()),
+        );
+
+        assert_eq!(
+            managed_envelope.envelope().dsc().unwrap().sample_rate,
+            Some(event_sample_rate)
+        );
+    }
+
+    #[test]
+    fn extracts_sample_rate_when_missing_from_dsc() {
+        let mut managed_envelope = managed_transaction_envelope();
+        let event_sample_rate = 0.5;
+        let mut event = transaction_with_inline_sample_rate(event_sample_rate);
+
+        managed_envelope
+            .envelope_mut()
+            .set_dsc(DynamicSamplingContext {
+                sample_rate: None,
+
+                trace_id: Uuid::new_v4(),
+                public_key: "abd0f232775f45feab79864e580d160b".parse().unwrap(),
+                release: None,
+                environment: None,
+                transaction: Some("my_transaction".into()),
+                user: TraceUserContext::default(),
+                replay_id: None,
+                sampled: None,
+                other: BTreeMap::default(),
+            });
+
+        assert_eq!(managed_envelope.envelope().dsc().unwrap().sample_rate, None);
+
+        validate_and_set_dsc(
+            &mut managed_envelope,
+            &mut event,
+            ProjectInfo::default().into(),
+            Some(ProjectInfo::default().into()),
+        );
+
+        assert_eq!(
+            managed_envelope.envelope().dsc().unwrap().sample_rate,
+            Some(event_sample_rate)
+        );
+    }
+
+    #[test]
+    fn does_not_override_dsc_sample_rate() {
+        let event_sample_rate = 0.5;
+        let dsc_sample_rate = 0.1;
+
+        let mut managed_envelope = managed_transaction_envelope();
+        let mut event = transaction_with_inline_sample_rate(event_sample_rate);
+
+        managed_envelope
+            .envelope_mut()
+            .set_dsc(DynamicSamplingContext {
+                sample_rate: Some(dsc_sample_rate),
+
+                trace_id: Uuid::new_v4(),
+                public_key: "abd0f232775f45feab79864e580d160b".parse().unwrap(),
+                release: None,
+                environment: None,
+                transaction: Some("my_transaction".into()),
+                user: TraceUserContext::default(),
+                replay_id: None,
+                sampled: None,
+                other: BTreeMap::default(),
+            });
+
+        validate_and_set_dsc(
+            &mut managed_envelope,
+            &mut event,
+            ProjectInfo::default().into(),
+            Some(ProjectInfo::default().into()),
+        );
+
+        assert_eq!(
+            managed_envelope.envelope().dsc().unwrap().sample_rate,
+            Some(dsc_sample_rate)
+        );
     }
 }
