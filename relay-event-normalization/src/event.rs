@@ -15,10 +15,10 @@ use relay_base_schema::metrics::{
 };
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event,
-    EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    NelContext, PerformanceScoreContext, ReplayContext, Request, Span, SpanStatus, Tags, Timestamp,
-    TraceContext, User, VALID_PLATFORMS,
+    AsPair, AutoInferSetting, ClientSdkInfo, ClientSdkSettings, Context, ContextInner, Contexts,
+    DebugImage, DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level,
+    LogEntry, Measurement, Measurements, NelContext, PerformanceScoreContext, ReplayContext,
+    Request, Span, SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Getter, Meta, Object, Remark, RemarkType, Value,
@@ -266,6 +266,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         &mut event.user,
         event.platform.as_str(),
         client_ip,
+        event.client_sdk.value(),
     );
 
     if let Some(geoip_lookup) = config.geoip_lookup {
@@ -416,7 +417,29 @@ pub fn normalize_ip_addresses(
     user: &mut Annotated<User>,
     platform: Option<&str>,
     client_ip: Option<&IpAddr>,
+    client_sdk_settings: Option<&ClientSdkInfo>,
 ) {
+    let auto_infer_ip = client_sdk_settings
+        .and_then(|c| c.settings.0.as_ref())
+        .and_then(|c| c.auto_infer_ip.0.as_ref());
+
+    // If auto_infer_ip is set to Never then we just remove auto and don't continue
+    if let Some(AutoInferSetting::Never) = auto_infer_ip {
+        // No user means there is also no IP so we can stop here
+        let Some(user) = user.0.as_mut() else {
+            return;
+        };
+        // If there is no IP we can also stop
+        let Some(ip) = user.ip_address.0.as_ref() else {
+            return;
+        };
+        // If it's auto or empty then we can also stop
+        if ip.is_auto() || ip.is_empty() {
+            user.ip_address.0 = None;
+            return;
+        }
+    }
+
     // NOTE: This is highly order dependent, in the sense that both the statements within this
     // function need to be executed in a certain order, and that other normalization code
     // (geoip lookup) needs to run after this.
@@ -445,6 +468,8 @@ pub fn normalize_ip_addresses(
                 if user_ip.is_auto() {
                     client_ip.clone_into(user_ip)
                 }
+            } else if let Some(AutoInferSetting::Auto) = auto_infer_ip {
+                user.ip_address.0 = Some(client_ip.to_owned());
             }
         }
     }
