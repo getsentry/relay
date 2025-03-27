@@ -4,6 +4,8 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
+use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
+use relay_event_schema::protocol::SpanKind;
 
 use crate::otel_trace::{
     status::StatusCode as OtelStatusCode, Span as OtelSpan, SpanFlags as OtelSpanFlags,
@@ -211,6 +213,9 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
+        kind: OtelSpanKind::try_from(kind)
+            .map_or(SpanKind::Unspecified, SpanKind::from)
+            .into(),
         links: sentry_links.into(),
         ..Default::default()
     }
@@ -740,6 +745,7 @@ mod tests {
             measurements: ~,
             platform: "php",
             was_transaction: ~,
+            kind: Unspecified,
             other: {},
         }
         "###);
@@ -773,6 +779,22 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
         assert_eq!(event_span.is_remote, Annotated::new(false));
+    }
+
+    #[test]
+    fn extract_span_kind() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "startTimeUnixNano": "123000000000",
+            "endTimeUnixNano": "123500000000",
+            "kind": 3
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let kind = event_span.kind.value().expect("kind should be set");
+        assert_eq!(kind, &SpanKind::Client);
     }
 
     #[test]

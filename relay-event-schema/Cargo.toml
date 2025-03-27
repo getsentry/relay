@@ -18,6 +18,7 @@ chrono = { workspace = true, features = ["clock"] }
 cookie = { workspace = true, features = ["percent-encode"] }
 debugid = { workspace = true, features = ["serde"] }
 enumset = { workspace = true }
+opentelemetry-proto = { workspace = true, features = ["gen-tonic", "trace"] }
 relay-common = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-event-derive = { workspace = true }
