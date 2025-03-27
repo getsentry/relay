@@ -303,7 +303,18 @@
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
 <a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::statsd::RelayGauges;
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::statsd::RelayGauges;
 <span class="kw">use </span>arc_swap::ArcSwap;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
@@ -382,6 +393,12 @@
         }))
     }
 
+    <span class="doccomment">/// Returns the current memory data without instantiating [`MemoryStat`].
+    </span><span class="kw">pub fn </span>current_memory() -&gt; Memory {
+        <span class="kw">let </span><span class="kw-2">mut </span>system = System::new();
+        <span class="self">Self</span>::refresh_memory(<span class="kw-2">&amp;mut </span>system)
+    }
+
     <span class="doccomment">/// Returns a copy of the most up-to-date memory data.
     </span><span class="kw">pub fn </span>memory(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Memory {
         <span class="self">self</span>.try_update();
@@ -408,6 +425,18 @@
         memory
     }
 
+    <span class="doccomment">/// Updates the memory readings unconditionally.
+    </span><span class="kw">fn </span>update(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="kw">let </span><span class="kw-2">mut </span>system = <span class="self">self
+            </span>.<span class="number">0
+            </span>.system
+            .lock()
+            .unwrap_or_else(|system| system.into_inner());
+
+        <span class="kw">let </span>updated_memory = <span class="self">Self</span>::refresh_memory(<span class="kw-2">&amp;mut </span>system);
+        <span class="self">self</span>.<span class="number">0</span>.memory.store(Arc::new(updated_memory));
+    }
+
     <span class="doccomment">/// Updates the memory readings if at least `refresh_frequency_ms` has passed.
     </span><span class="kw">fn </span>try_update(<span class="kw-2">&amp;</span><span class="self">self</span>) {
         <span class="kw">let </span>last_update = <span class="self">self</span>.<span class="number">0</span>.last_update.load(Ordering::Relaxed);
@@ -431,14 +460,7 @@
             <span class="kw">return</span>;
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>system = <span class="self">self
-            </span>.<span class="number">0
-            </span>.system
-            .lock()
-            .unwrap_or_else(|system| system.into_inner());
-
-        <span class="kw">let </span>updated_memory = <span class="self">Self</span>::refresh_memory(<span class="kw-2">&amp;mut </span>system);
-        <span class="self">self</span>.<span class="number">0</span>.memory.store(Arc::new(updated_memory));
+        <span class="self">self</span>.update();
     }
 }
 
