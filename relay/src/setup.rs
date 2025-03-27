@@ -2,6 +2,32 @@
 use anyhow::Context;
 use anyhow::Result;
 use relay_config::{Config, RelayMode};
+use relay_server::MemoryStat;
+
+/// Validates that the `batch_size_bytes` of the configuration is correct and doesn't lead to
+/// deadlocks in the buffer.
+fn assert_batch_size_bytes(config: &Config) -> Result<()> {
+    // We create a temporary memory reading used just for the config check.
+    let memory = MemoryStat::new(0).current_memory();
+
+    // We expect the batch size for the spooler to be 10% of the memory threshold over which the
+    // buffer stops unspooling.
+    //
+    // The 10% threshold was arbitrarily chosen to give the system leeway when spooling.
+    let configured_batch_size_bytes = config.spool_envelopes_batch_size_bytes() as f32;
+    let maximum_batch_size_bytes =
+        memory.total as f32 * config.spool_max_backpressure_memory_percent() * 0.1;
+
+    if configured_batch_size_bytes > maximum_batch_size_bytes {
+        anyhow::bail!(
+            "the configured `batch_size_bytes` is {} bytes but it must be <= than {} bytes",
+            configured_batch_size_bytes,
+            maximum_batch_size_bytes
+        )
+    }
+
+    Ok(())
+}
 
 pub fn check_config(config: &Config) -> Result<()> {
     if config.relay_mode() == RelayMode::Managed && config.credentials().is_none() {
@@ -30,6 +56,8 @@ pub fn check_config(config: &Config) -> Result<()> {
                 .with_context(|| format!("invalid kafka configuration for topic '{topic:?}'"))?;
         }
     }
+
+    assert_batch_size_bytes(config)?;
 
     Ok(())
 }

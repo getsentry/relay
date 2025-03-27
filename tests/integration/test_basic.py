@@ -101,6 +101,8 @@ def test_batch_size_bytes_asserted(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
+    mini_sentry.fail_on_relay_error = False
+
     relay = relay(
         mini_sentry,
         {
@@ -108,9 +110,11 @@ def test_batch_size_bytes_asserted(mini_sentry, relay):
             # Arbitrarily chosen high value to always fail.
             "spool": {"envelopes": {"path": db_file_path, "batch_size_bytes": "10tb"}},
         },
+        wait_health_check=False,
     )
 
-    # TODO: check that relay didn't start. add
+    # Assert that the process exited with an error (non-zero exit code)
+    assert relay.wait_for_exit() != 0, "Expected Relay to not start, but it started"
 
 
 @pytest.mark.skip("Flaky test")
