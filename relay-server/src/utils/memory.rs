@@ -77,7 +77,7 @@ impl MemoryStat {
         }))
     }
 
-    /// Returns the current [`Memory`] data without instantiating [`MemoryStat`].
+    /// Returns the current memory data without instantiating [`MemoryStat`].
     pub fn current_memory() -> Memory {
         let mut system = System::new();
         Self::refresh_memory(&mut system)
