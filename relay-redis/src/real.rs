@@ -1,11 +1,15 @@
+use deadpool::managed::BuildError;
+use deadpool_redis::cluster::{
+    Config as ClusterConfig, Connection as ClusterConnection, Pool as ClusterPool,
+    PoolError as ClusterPoolError,
+};
+use deadpool_redis::redis::{Cmd, Pipeline, RedisFuture, Value};
+use deadpool_redis::{
+    Config as SingleConfig, ConfigError, Connection as SingleConnection, Pool as SinglePool,
+    PoolError as SinglePoolError,
+};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use std::time::Duration;
-
-use redis::aio::{ConnectionManager, ConnectionManagerConfig};
-use redis::cluster::ClusterClientBuilder;
-use redis::cluster_async::ClusterConnection;
-use redis::{Client, Cmd, Pipeline, RedisFuture, Value};
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
@@ -27,6 +31,18 @@ pub enum RedisError {
     #[error("failed to communicate with redis")]
     Redis(#[source] redis::RedisError),
 
+    #[error("failed to create redis pool: {0}")]
+    CreatePool(#[from] BuildError),
+
+    #[error("failed to configure redis: {0}")]
+    ConfigError(#[from] ConfigError),
+
+    #[error("failed")]
+    SingleRedis(#[from] SinglePoolError),
+
+    #[error("failed ")]
+    ClusterRedis(#[from] ClusterPoolError),
+
     /// Multi write is not supported for the specified part.
     #[error("multi write is not supported for {0}")]
     MultiWriteNotSupported(&'static str),
@@ -36,11 +52,11 @@ pub enum RedisError {
 #[derive(Debug, Clone)]
 pub struct RedisClients {
     /// The pool used for project configurations
-    pub project_configs: AsyncRedisClient,
+    pub project_configs: AsyncRedisPool,
     /// The pool used for cardinality limits.
-    pub cardinality: AsyncRedisClient,
+    pub cardinality: AsyncRedisPool,
     /// The pool used for rate limiting/quotas.
-    pub quotas: AsyncRedisClient,
+    pub quotas: AsyncRedisPool,
 }
 
 /// Stats about how the Redis client is performing.
@@ -52,38 +68,49 @@ pub struct RedisClientStats {
     pub idle_connections: u32,
 }
 
-/// Asynchronous redis client that wraps an [`AsyncRedisConnection`].
-#[derive(Debug, Clone)]
-pub struct AsyncRedisClient {
-    connection: AsyncRedisConnection,
+/// A wrapper type for async redis connections.
+#[derive(Clone)]
+pub enum AsyncRedisPool {
+    /// Contains a connection pool to a redis cluster.
+    Cluster(ClusterPool),
+    /// Contains a connection pool to a single redis instance.
+    Single(SinglePool),
 }
 
-impl AsyncRedisClient {
-    /// Creates a new [`AsyncRedisClient`] from an [`AsyncRedisConnection`].
-    fn new(connection: AsyncRedisConnection) -> Self {
-        Self { connection }
-    }
+impl AsyncRedisPool {
+    // TODO:
+    //  - Add all options to the builders.
 
-    /// Creates a new [`AsyncRedisClient`] in cluster mode.
-    pub async fn cluster<'a>(
+    pub fn cluster<'a>(
         servers: impl IntoIterator<Item = &'a str>,
         opts: &RedisConfigOptions,
     ) -> Result<Self, RedisError> {
-        AsyncRedisConnection::cluster(servers, opts)
-            .await
-            .map(AsyncRedisClient::new)
+        let servers = servers
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>();
+        let builder = ClusterConfig::from_urls(servers)
+            .builder()?
+            .max_size(opts.max_connections as usize);
+        let pool = builder.build()?;
+        Ok(AsyncRedisPool::Cluster(pool))
     }
 
-    /// Creates a new [`AsyncRedisClient`] in single mode.
-    pub async fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
-        AsyncRedisConnection::single(server, opts)
-            .await
-            .map(AsyncRedisClient::new)
+    pub fn single<'a>(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
+        let builder = SingleConfig::from_url(server)
+            .builder()?
+            .max_size(opts.max_connections as usize);
+        let pool = builder.build()?;
+        Ok(AsyncRedisPool::Single(pool))
     }
 
-    /// Returns a shared [`AsyncRedisConnection`].
-    pub fn get_connection(&self) -> AsyncRedisConnection {
-        self.connection.clone()
+    pub async fn get_connection(&self) -> Result<AsyncRedisConnection, RedisError> {
+        let connection = match self {
+            Self::Cluster(pool) => AsyncRedisConnection::Cluster(pool.get().await?),
+            Self::Single(pool) => AsyncRedisConnection::Single(pool.get().await?),
+        };
+
+        Ok(connection)
     }
 
     /// Return [`RedisClientStats`] for [`AsyncRedisClient`].
@@ -98,46 +125,22 @@ impl AsyncRedisClient {
     }
 }
 
+impl fmt::Debug for AsyncRedisPool {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AsyncRedisPool::Cluster(_) => write!(f, "AsyncRedisPool::Cluster"),
+            AsyncRedisPool::Single(_) => write!(f, "AsyncRedisPool::Single"),
+        }
+    }
+}
+
 /// A wrapper type for async redis connections.
-#[derive(Clone)]
 pub enum AsyncRedisConnection {
-    /// Variant for [`ClusterConnection`].
     Cluster(ClusterConnection),
-    /// Variant for [`ConnectionManager`] using [`redis::aio::MultiplexedConnection`].
-    Single(ConnectionManager),
+    Single(SingleConnection),
 }
 
-impl AsyncRedisConnection {
-    /// Creates an [`AsyncRedisConnection`] in cluster mode.
-    pub async fn cluster<'a>(
-        servers: impl IntoIterator<Item = &'a str>,
-        opts: &RedisConfigOptions,
-    ) -> Result<Self, RedisError> {
-        // connection timeout is set in `base_pool_builder` on the pool level
-        let client = ClusterClientBuilder::new(servers)
-            .response_timeout(Duration::from_secs(opts.read_timeout))
-            .connection_timeout(Duration::from_secs(opts.connection_timeout))
-            .build()
-            .map_err(RedisError::Redis)?;
-        let connection = client
-            .get_async_connection()
-            .await
-            .map_err(RedisError::Redis)?;
-        Ok(Self::Cluster(connection))
-    }
-
-    /// Create an [`AsyncRedisConnection`] in single mode.
-    pub async fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
-        let client = Client::open(server).map_err(RedisError::Redis)?;
-        let config = ConnectionManagerConfig::new()
-            .set_response_timeout(Duration::from_secs(opts.read_timeout))
-            .set_connection_timeout(Duration::from_secs(opts.connection_timeout));
-        let connection_manager = ConnectionManager::new_with_config(client, config)
-            .await
-            .map_err(RedisError::Redis)?;
-        Ok(Self::Single(connection_manager))
-    }
-}
+impl AsyncRedisConnection {}
 
 impl Debug for AsyncRedisConnection {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -149,7 +152,7 @@ impl Debug for AsyncRedisConnection {
     }
 }
 
-impl redis::aio::ConnectionLike for AsyncRedisConnection {
+impl deadpool_redis::redis::aio::ConnectionLike for AsyncRedisConnection {
     fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
         match self {
             Self::Cluster(conn) => conn.req_packed_command(cmd),

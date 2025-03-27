@@ -1,6 +1,6 @@
 use relay_redis::{
     redis::{self, FromRedisValue, Script},
-    AsyncRedisConnection, RedisScripts,
+    AsyncRedisConnectionOld, RedisScripts,
 };
 
 use crate::Result;
@@ -113,7 +113,7 @@ impl CardinalityScript {
     }
 
     /// Makes sure the script is loaded in Redis.
-    async fn load_redis(&self, con: &mut AsyncRedisConnection) -> Result<()> {
+    async fn load_redis(&self, con: &mut AsyncRedisConnectionOld) -> Result<()> {
         self.0
             .prepare_invoke()
             .load_async(con)
@@ -173,7 +173,7 @@ impl CardinalityScriptPipeline<'_> {
     /// Returns one result for each script invocation.
     pub async fn invoke(
         &self,
-        con: &mut AsyncRedisConnection,
+        con: &mut AsyncRedisConnectionOld,
     ) -> Result<Vec<CardinalityScriptResult>> {
         match self.pipe.query_async(con).await {
             Ok(result) => Ok(result),
@@ -201,7 +201,7 @@ mod tests {
     impl CardinalityScript {
         async fn invoke_one(
             &self,
-            con: &mut AsyncRedisConnection,
+            con: &mut AsyncRedisConnectionOld,
             limit: u32,
             expire: u64,
             hashes: impl Iterator<Item = u32>,
@@ -236,7 +236,7 @@ mod tests {
             .into_iter()
     }
 
-    async fn assert_ttls(connection: &mut AsyncRedisConnection, prefix: Uuid) {
+    async fn assert_ttls(connection: &mut AsyncRedisConnectionOld, prefix: Uuid) {
         let keys = redis::cmd("KEYS")
             .arg(format!("{prefix}-*"))
             .query_async::<Vec<String>>(connection)

@@ -1,6 +1,6 @@
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_redis::{AsyncRedisClient, RedisError};
+use relay_redis::{AsyncRedisClient, AsyncRedisPool, RedisError};
 use relay_statsd::metric;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use relay_redis::redis::cmd;
 #[derive(Clone, Debug)]
 pub struct RedisProjectSource {
     config: Arc<Config>,
-    redis: AsyncRedisClient,
+    redis: AsyncRedisPool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -50,7 +50,7 @@ fn parse_redis_response(raw_response: &[u8]) -> Result<ParsedProjectState, Redis
 }
 
 impl RedisProjectSource {
-    pub fn new(config: Arc<Config>, redis: AsyncRedisClient) -> Self {
+    pub fn new(config: Arc<Config>, redis: AsyncRedisPool) -> Self {
         RedisProjectSource { config, redis }
     }
 
@@ -63,7 +63,7 @@ impl RedisProjectSource {
         key: ProjectKey,
         revision: Revision,
     ) -> Result<SourceProjectState, RedisProjectError> {
-        let mut connection = self.redis.get_connection();
+        let mut connection = self.redis.get_connection().await?;
         // Only check for the revision if we were passed a revision.
         if let Some(revision) = revision.as_str() {
             let current_revision: Option<String> = cmd("GET")

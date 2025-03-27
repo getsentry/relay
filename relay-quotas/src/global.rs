@@ -2,7 +2,7 @@ use std::future::Future;
 
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
-use relay_redis::{AsyncRedisClient, AsyncRedisConnection, RedisError, RedisScripts};
+use relay_redis::{AsyncRedisClient, AsyncRedisConnectionOld, RedisError, RedisScripts};
 
 use crate::redis::RedisQuota;
 use crate::RateLimitingError;
@@ -186,7 +186,7 @@ impl GlobalRateLimit {
     /// Redis when necessary.
     pub async fn check_rate_limited(
         &mut self,
-        connection: &mut AsyncRedisConnection,
+        connection: &mut AsyncRedisConnectionOld,
         quota: &RedisQuota<'_>,
         key: KeyRef<'_>,
         quantity: u64,
@@ -227,7 +227,7 @@ impl GlobalRateLimit {
     /// and quota limits, then communicates with Redis to reserve this budget.
     async fn try_reserve(
         &mut self,
-        connection: &mut AsyncRedisConnection,
+        connection: &mut AsyncRedisConnectionOld,
         quantity: u64,
         quota: &RedisQuota<'_>,
         redis_key: RedisKey,

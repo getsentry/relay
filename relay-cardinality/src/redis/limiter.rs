@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use relay_redis::{AsyncRedisClient, AsyncRedisConnection};
+use relay_redis::{AsyncRedisClient, AsyncRedisConnectionOld};
 use relay_statsd::metric;
 use std::time::Duration;
 
@@ -55,7 +55,7 @@ impl RedisSetLimiter {
     /// Returns an iterator over all entries which have been accepted.
     async fn check_limits(
         &self,
-        connection: &mut AsyncRedisConnection,
+        connection: &mut AsyncRedisConnectionOld,
         state: &mut LimitState<'_>,
         timestamp: UnixTimestamp,
     ) -> Result<Vec<CheckedLimits>> {
