@@ -20,7 +20,7 @@ fn assert_batch_size_bytes(config: &Config) -> Result<()> {
 
     if configured_batch_size_bytes > maximum_batch_size_bytes {
         anyhow::bail!(
-            "the configured `batch_size_bytes` is {} bytes but it must be <= than {} bytes",
+            "the configured `spool.envelopes.batch_size_bytes` is {} bytes but it must be <= than {} bytes",
             configured_batch_size_bytes,
             maximum_batch_size_bytes
         )
