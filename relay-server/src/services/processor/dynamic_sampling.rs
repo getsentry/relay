@@ -85,13 +85,12 @@ fn apply_legacy_sample_rate(
         return;
     }
 
-    let Some(event) = event.value() else {
-        return;
-    };
-    if let sample_rate @ Some(_) = utils::sample_rate_from_event(event) {
-        let mut new_dsc = dsc.clone();
-        new_dsc.sample_rate = sample_rate;
-        managed_envelope.envelope_mut().set_dsc(new_dsc);
+    if let Some(event) = event.value() {
+        if let sample_rate @ Some(_) = utils::sample_rate_from_event(event) {
+            let mut new_dsc = dsc.clone();
+            new_dsc.sample_rate = sample_rate;
+            managed_envelope.envelope_mut().set_dsc(new_dsc);
+        }
     }
 }
 
