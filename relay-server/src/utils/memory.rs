@@ -77,20 +77,15 @@ impl MemoryStat {
         }))
     }
 
+    /// Returns the current [`Memory`] data without instantiating [`MemoryStat`].
+    pub fn current_memory() -> Memory {
+        let mut system = System::new();
+        Self::refresh_memory(&mut system)
+    }
+
     /// Returns a copy of the most up-to-date memory data.
     pub fn memory(&self) -> Memory {
         self.try_update();
-        **self.0.memory.load()
-    }
-
-    /// Returns a copy of the memory data at this point in time.
-    ///
-    /// Unlike [`Self::memory`], this method unconditionally refreshes the memory state
-    /// and returns the most up-to-date readings. Use it when you need an accurate
-    /// snapshot of memory at the exact time of the call. Avoid using it unless
-    /// strictly necessary, as it may impact performance.
-    pub fn current_memory(&self) -> Memory {
-        self.update();
         **self.0.memory.load()
     }
 

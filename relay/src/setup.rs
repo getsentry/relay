@@ -8,7 +8,7 @@ use relay_server::MemoryStat;
 /// deadlocks in the buffer.
 fn assert_batch_size_bytes(config: &Config) -> Result<()> {
     // We create a temporary memory reading used just for the config check.
-    let memory = MemoryStat::new(0).current_memory();
+    let memory = MemoryStat::current_memory();
 
     // We expect the batch size for the spooler to be 10% of the memory threshold over which the
     // buffer stops unspooling.
