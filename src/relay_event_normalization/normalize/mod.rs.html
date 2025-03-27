@@ -1881,7 +1881,10 @@
 <a href="#1880" id="1880">1880</a>
 <a href="#1881" id="1881">1881</a>
 <a href="#1882" id="1882">1882</a>
-<a href="#1883" id="1883">1883</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricUnit;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
@@ -3666,6 +3669,7 @@
                 measurements: ~,
                 platform: ~,
                 was_transaction: ~,
+                kind: ~,
                 other: {},
             },
         ]
@@ -3687,7 +3691,7 @@
             ..Default::default()
         };
         normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r#"
+        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
         [
             Span {
                 timestamp: ~,
@@ -3712,10 +3716,11 @@
                 measurements: ~,
                 platform: ~,
                 was_transaction: ~,
+                kind: ~,
                 other: {},
             },
         ]
-        "#</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -3733,7 +3738,7 @@
             ..Default::default()
         };
         normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r#"
+        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
         [
             Span {
                 timestamp: ~,
@@ -3758,10 +3763,11 @@
                 measurements: ~,
                 platform: ~,
                 was_transaction: ~,
+                kind: ~,
                 other: {},
             },
         ]
-        "#</span>);
+        "###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

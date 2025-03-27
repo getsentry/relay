@@ -272,7 +272,9 @@
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
@@ -344,6 +346,7 @@
             measurements: measurements.clone(),
             platform: platform.clone(),
             was_transaction: <span class="bool-val">true</span>.into(),
+            kind: Default::default(),
             other: Default::default(),
         }
     }
@@ -541,6 +544,7 @@
             ),
             platform: "php",
             was_transaction: true,
+            kind: ~,
             other: {},
         }
         "###</span>);

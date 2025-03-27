@@ -1625,7 +1625,9 @@
 <a href="#1624" id="1624">1624</a>
 <a href="#1625" id="1625">1625</a>
 <a href="#1626" id="1626">1626</a>
-<a href="#1627" id="1627">1627</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
+<a href="#1627" id="1627">1627</a>
+<a href="#1628" id="1628">1628</a>
+<a href="#1629" id="1629">1629</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
 </span><span class="kw">use </span>relay_base_schema::organization::OrganizationId;
@@ -2977,6 +2979,8 @@
 
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"none_or_empty_object"</span>)]
     </span>data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>kind: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
     <span class="attr">#[serde(borrow, default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>measurements: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;Cow&lt;<span class="lifetime">'a</span>, str&gt;, <span class="prelude-ty">Option</span>&lt;SpanMeasurement&gt;&gt;&gt;,
     <span class="attr">#[serde(default)]
