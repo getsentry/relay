@@ -51,7 +51,7 @@ pub fn validate_and_set_dsc(
     sampling_project_info: Option<Arc<ProjectInfo>>,
 ) -> Option<Arc<ProjectInfo>> {
     if managed_envelope.envelope().dsc().is_some() && sampling_project_info.is_some() {
-        apply_legacy_sample_rate(managed_envelope, event);
+        maybe_apply_legacy_sample_rate(managed_envelope, event);
         return sampling_project_info;
     }
 
@@ -72,7 +72,7 @@ pub fn validate_and_set_dsc(
     sampling_project_info
 }
 
-fn apply_legacy_sample_rate(
+fn maybe_apply_legacy_sample_rate(
     managed_envelope: &mut TypedEnvelope<TransactionGroup>,
     event: &mut Annotated<Event>,
 ) {
