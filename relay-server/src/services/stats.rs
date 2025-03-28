@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::{AsyncRedisClient, RedisClientStats, RedisClients};
+use relay_redis::{AsyncRedisPool, RedisClientStats, RedisClients};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
 use relay_threading::AsyncPool;
@@ -151,7 +151,7 @@ impl RelayStats {
     }
 
     #[cfg(feature = "processing")]
-    fn async_redis_connection(client: &AsyncRedisClient, name: &str) {
+    fn async_redis_connection(client: &AsyncRedisPool, name: &str) {
         Self::stats_metrics(client.stats(), name);
     }
 

@@ -15,32 +15,35 @@ use crate::config::RedisConfigOptions;
 
 pub use deadpool_redis::redis;
 
-/// An error returned from `RedisPool`.
+/// An error type that represents various failure modes when interacting with Redis.
 #[derive(Debug, Error)]
 pub enum RedisError {
-    /// Failure to configure Redis.
+    /// An error that occurs during Redis configuration.
     #[error("failed to configure redis")]
     Configuration,
 
-    #[error("failed to communicate with redis")]
+    /// An error that occurs during communication with Redis.
+    #[error("failed to communicate with redis: {0}")]
     Redis(#[source] redis::RedisError),
 
-    /// Failure in Redis communication.
-    #[error("failed to interact with the redis pool")]
+    /// An error that occurs when interacting with the Redis connection pool.
+    #[error("failed to interact with the redis pool: {0}")]
     Pool(#[source] PoolError<redis::RedisError>),
 
+    /// An error that occurs when creating a Redis connection pool.
     #[error("failed to create redis pool: {0}")]
     CreatePool(#[from] BuildError),
 
+    /// An error that occurs when configuring Redis.
     #[error("failed to configure redis: {0}")]
     ConfigError(#[from] ConfigError),
 
-    /// Multi write is not supported for the specified part.
+    /// An error that occurs when attempting multi-write operations on unsupported components.
     #[error("multi write is not supported for {0}")]
     MultiWriteNotSupported(&'static str),
 }
 
-/// The various [`AsyncRedisClient`]s used by Relay.
+/// A collection of Redis clients used by Relay for different purposes.
 #[derive(Debug, Clone)]
 pub struct RedisClients {
     /// The pool used for project configurations
@@ -51,7 +54,7 @@ pub struct RedisClients {
     pub quotas: AsyncRedisPool,
 }
 
-/// Stats about how the Redis client is performing.
+/// Statistics about the Redis client's connection pool state.
 #[derive(Debug)]
 pub struct RedisClientStats {
     /// The number of connections currently being managed by the pool.
@@ -60,19 +63,20 @@ pub struct RedisClientStats {
     pub idle_connections: u32,
 }
 
-/// A wrapper type for async redis connections.
+/// A connection pool that can manage either a single Redis instance or a Redis cluster.
 #[derive(Clone)]
 pub enum AsyncRedisPool {
-    /// Contains a connection pool to a redis cluster.
+    /// Contains a connection pool to a Redis cluster.
     Cluster(ClusterPool),
-    /// Contains a connection pool to a single redis instance.
+    /// Contains a connection pool to a single Redis instance.
     Single(SinglePool),
 }
 
 impl AsyncRedisPool {
-    // TODO:
-    //  - Add all options to the builders.
-
+    /// Creates a new connection pool for a Redis cluster.
+    ///
+    /// This method initializes a connection pool that can communicate with multiple Redis nodes
+    /// in a cluster configuration. The pool is configured with the specified servers and options.
     pub fn cluster<'a>(
         servers: impl IntoIterator<Item = &'a str>,
         opts: &RedisConfigOptions,
@@ -88,7 +92,11 @@ impl AsyncRedisPool {
         Ok(AsyncRedisPool::Cluster(pool))
     }
 
-    pub fn single<'a>(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
+    /// Creates a new connection pool for a single Redis instance.
+    ///
+    /// This method initializes a connection pool that communicates with a single Redis server.
+    /// The pool is configured with the specified server URL and options.
+    pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         let builder = SingleConfig::from_url(server)
             .builder()?
             .max_size(opts.max_connections as usize);
@@ -96,6 +104,10 @@ impl AsyncRedisPool {
         Ok(AsyncRedisPool::Single(pool))
     }
 
+    /// Acquires a connection from the pool.
+    ///
+    /// Returns a new [`AsyncRedisConnection`] that can be used to execute Redis commands.
+    /// The connection is automatically returned to the pool when dropped.
     pub async fn get_connection(&self) -> Result<AsyncRedisConnection, RedisError> {
         let connection = match self {
             Self::Cluster(pool) => {
@@ -109,14 +121,16 @@ impl AsyncRedisPool {
         Ok(connection)
     }
 
-    /// Return [`RedisClientStats`] for [`AsyncRedisClient`].
-    ///
-    /// It will always return 0 for `idle_connections` and 1 for `connections` since we
-    /// are re-using the same connection.
+    /// Returns statistics about the current state of the connection pool.
     pub fn stats(&self) -> RedisClientStats {
+        let status = match self {
+            Self::Cluster(pool) => pool.status(),
+            Self::Single(pool) => pool.status(),
+        };
+
         RedisClientStats {
-            idle_connections: 0,
-            connections: 1,
+            idle_connections: status.available as u32,
+            connections: status.size as u32,
         }
     }
 }
@@ -130,9 +144,11 @@ impl fmt::Debug for AsyncRedisPool {
     }
 }
 
-/// A wrapper type for async redis connections.
+/// A connection to either a single Redis instance or a Redis cluster.
 pub enum AsyncRedisConnection {
+    /// A connection to a Redis cluster.
     Cluster(ClusterConnection),
+    /// A connection to a single Redis instance.
     Single(SingleConnection),
 }
 
@@ -148,7 +164,7 @@ impl Debug for AsyncRedisConnection {
     }
 }
 
-impl deadpool_redis::redis::aio::ConnectionLike for AsyncRedisConnection {
+impl redis::aio::ConnectionLike for AsyncRedisConnection {
     fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
         match self {
             Self::Cluster(conn) => conn.req_packed_command(cmd),

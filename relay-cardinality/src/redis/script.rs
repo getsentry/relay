@@ -1,6 +1,6 @@
 use relay_redis::{
     redis::{self, FromRedisValue, Script},
-    AsyncRedisConnectionOld, RedisScripts,
+    AsyncRedisConnection, RedisScripts,
 };
 
 use crate::Result;
@@ -113,7 +113,7 @@ impl CardinalityScript {
     }
 
     /// Makes sure the script is loaded in Redis.
-    async fn load_redis(&self, con: &mut AsyncRedisConnectionOld) -> Result<()> {
+    async fn load_redis(&self, con: &mut AsyncRedisConnection) -> Result<()> {
         self.0
             .prepare_invoke()
             .load_async(con)
@@ -173,7 +173,7 @@ impl CardinalityScriptPipeline<'_> {
     /// Returns one result for each script invocation.
     pub async fn invoke(
         &self,
-        con: &mut AsyncRedisConnectionOld,
+        con: &mut AsyncRedisConnection,
     ) -> Result<Vec<CardinalityScriptResult>> {
         match self.pipe.query_async(con).await {
             Ok(result) => Ok(result),
@@ -193,7 +193,7 @@ impl CardinalityScriptPipeline<'_> {
 
 #[cfg(test)]
 mod tests {
-    use relay_redis::{AsyncRedisClient, RedisConfigOptions};
+    use relay_redis::{AsyncRedisPool, RedisConfigOptions};
     use uuid::Uuid;
 
     use super::*;
@@ -201,7 +201,7 @@ mod tests {
     impl CardinalityScript {
         async fn invoke_one(
             &self,
-            con: &mut AsyncRedisConnectionOld,
+            con: &mut AsyncRedisConnection,
             limit: u32,
             expire: u64,
             hashes: impl Iterator<Item = u32>,
@@ -218,7 +218,7 @@ mod tests {
         }
     }
 
-    async fn build_redis_client() -> AsyncRedisClient {
+    fn build_redis_client() -> AsyncRedisPool {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
@@ -226,7 +226,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        AsyncRedisClient::single(&url, &opts).await.unwrap()
+        AsyncRedisPool::single(&url, &opts).unwrap()
     }
 
     fn keys(prefix: Uuid, keys: &[&str]) -> impl Iterator<Item = String> {
@@ -236,7 +236,7 @@ mod tests {
             .into_iter()
     }
 
-    async fn assert_ttls(connection: &mut AsyncRedisConnectionOld, prefix: Uuid) {
+    async fn assert_ttls(connection: &mut AsyncRedisConnection, prefix: Uuid) {
         let keys = redis::cmd("KEYS")
             .arg(format!("{prefix}-*"))
             .query_async::<Vec<String>>(connection)
@@ -256,8 +256,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_below_limit_perfect_cardinality_ttl() {
-        let client = build_redis_client().await;
-        let mut connection = client.get_connection();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
 
@@ -280,8 +280,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_script() {
-        let client = build_redis_client().await;
-        let mut connection = client.get_connection();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
         let keys = keys(Uuid::new_v4(), &["a", "b", "c"]);
@@ -299,8 +299,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_calls_in_pipeline() {
-        let client = build_redis_client().await;
-        let mut connection = client.get_connection();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
         let k2 = keys(Uuid::new_v4(), &["a", "b", "c"]);

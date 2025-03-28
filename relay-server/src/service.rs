@@ -441,8 +441,8 @@ pub async fn create_redis_clients(
             quotas,
         } => {
             let project_configs = create_async_redis_pool(&project_configs)?;
-            let cardinality = create_async_redis_pool(&cardinality).await?;
-            let quotas = create_async_redis_pool(&quotas).await?;
+            let cardinality = create_async_redis_pool(&cardinality)?;
+            let quotas = create_async_redis_pool(&quotas)?;
 
             Ok(RedisClients {
                 project_configs,

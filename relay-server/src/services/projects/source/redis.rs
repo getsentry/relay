@@ -1,6 +1,6 @@
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_redis::{AsyncRedisClient, AsyncRedisPool, RedisError};
+use relay_redis::{AsyncRedisPool, RedisError};
 use relay_statsd::metric;
 use std::fmt::Debug;
 use std::sync::Arc;
