@@ -2,7 +2,7 @@ use std::future::Future;
 
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
-use relay_redis::{AsyncRedisClient, AsyncRedisConnectionOld, RedisError, RedisScripts};
+use relay_redis::{AsyncRedisConnection, AsyncRedisPool, RedisError, RedisScripts};
 
 use crate::redis::RedisQuota;
 use crate::RateLimitingError;
@@ -39,11 +39,11 @@ impl GlobalRateLimiter {
     /// which ensures consistent behavior across all quotas.
     pub async fn filter_rate_limited<'a>(
         &mut self,
-        client: &AsyncRedisClient,
+        client: &AsyncRedisPool,
         quotas: &'a [RedisQuota<'a>],
         quantity: usize,
     ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
-        let mut connection = client.get_connection();
+        let mut connection = client.get_connection().await?;
 
         let mut rate_limited = vec![];
         let mut not_rate_limited = vec![];
@@ -186,7 +186,7 @@ impl GlobalRateLimit {
     /// Redis when necessary.
     pub async fn check_rate_limited(
         &mut self,
-        connection: &mut AsyncRedisConnectionOld,
+        connection: &mut AsyncRedisConnection,
         quota: &RedisQuota<'_>,
         key: KeyRef<'_>,
         quantity: u64,
@@ -227,7 +227,7 @@ impl GlobalRateLimit {
     /// and quota limits, then communicates with Redis to reserve this budget.
     async fn try_reserve(
         &mut self,
-        connection: &mut AsyncRedisConnectionOld,
+        connection: &mut AsyncRedisConnection,
         quantity: u64,
         quota: &RedisQuota<'_>,
         redis_key: RedisKey,
@@ -288,18 +288,16 @@ mod tests {
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_common::time::UnixTimestamp;
-    use relay_redis::{AsyncRedisClient, RedisConfigOptions};
+    use relay_redis::{AsyncRedisPool, RedisConfigOptions};
 
     use super::*;
     use crate::{DataCategories, Quota, QuotaScope, Scoping};
 
-    async fn build_redis_client() -> AsyncRedisClient {
+    fn build_redis_client() -> AsyncRedisPool {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        AsyncRedisClient::single(&url, &RedisConfigOptions::default())
-            .await
-            .unwrap()
+        AsyncRedisPool::single(&url, &RedisConfigOptions::default()).unwrap()
     }
 
     fn build_quota(window: u64, limit: impl Into<Option<u64>>) -> Quota {
@@ -344,7 +342,7 @@ mod tests {
             build_redis_quota(&quota3, &scoping),
         ];
 
-        let client = build_redis_client().await;
+        let client = build_redis_client();
         let mut counter = GlobalRateLimiter::default();
 
         let rate_limited_quotas = counter
@@ -382,7 +380,7 @@ mod tests {
             build_redis_quota(&bigger_quota, &scoping),
         ];
 
-        let client = build_redis_client().await;
+        let client = build_redis_client();
         let mut counter = GlobalRateLimiter::default();
 
         let rate_limited_quotas = counter
@@ -406,7 +404,7 @@ mod tests {
         let scoping = build_scoping();
         let redis_quota = [build_redis_quota(&quota, &scoping)];
 
-        let client = build_redis_client().await;
+        let client = build_redis_client();
         let mut counter = GlobalRateLimiter::default();
 
         let expected_rate_limit_result = [false, false, true, true].to_vec();
@@ -430,7 +428,7 @@ mod tests {
         let quota = build_quota(10, limit);
         let scoping = build_scoping();
 
-        let client = build_redis_client().await;
+        let client = build_redis_client();
         let mut rl = GlobalRateLimiter::default();
 
         let redis_quota = [build_redis_quota(&quota, &scoping)];
@@ -455,7 +453,7 @@ mod tests {
         let scoping = build_scoping();
         let quota = [build_redis_quota(&quota, &scoping)];
 
-        let client = build_redis_client().await;
+        let client = build_redis_client();
 
         let mut counter1 = GlobalRateLimiter::default();
         let mut counter2 = GlobalRateLimiter::default();
@@ -510,7 +508,7 @@ mod tests {
         let scoping = build_scoping();
         let item_scoping = scoping.item(DataCategory::MetricBucket);
 
-        let client = build_redis_client().await;
+        let client = build_redis_client();
 
         let mut rl = GlobalRateLimiter::default();
 
@@ -556,7 +554,7 @@ mod tests {
         let scoping = build_scoping();
         let item_scoping = scoping.item(DataCategory::MetricBucket);
 
-        let client = build_redis_client().await;
+        let client = build_redis_client();
 
         let mut rl = GlobalRateLimiter::default();
 

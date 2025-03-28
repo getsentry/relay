@@ -3,7 +3,7 @@ use std::fmt::{self, Debug};
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
-use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
+use relay_redis::{AsyncRedisPool, RedisError, RedisScripts};
 use thiserror::Error;
 
 use crate::global::GlobalLimiter;
@@ -21,7 +21,11 @@ const GRACE: u64 = 60;
 pub enum RateLimitingError {
     /// Failed to communicate with Redis.
     #[error("failed to communicate with redis")]
-    Redis(#[source] RedisError),
+    Redis(
+        #[from]
+        #[source]
+        RedisError,
+    ),
 
     /// Failed to check global rate limits via the service.
     #[error("failed to check global rate limits")]
@@ -222,7 +226,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 ///
 /// Requires the `redis` feature.
 pub struct RedisRateLimiter<T> {
-    client: AsyncRedisClient,
+    client: AsyncRedisPool,
     script: &'static Script,
     max_limit: Option<u64>,
     global_limiter: T,
@@ -230,7 +234,7 @@ pub struct RedisRateLimiter<T> {
 
 impl<T: GlobalLimiter> RedisRateLimiter<T> {
     /// Creates a new [`RedisRateLimiter`] instance.
-    pub fn new(client: AsyncRedisClient, global_limiter: T) -> Self {
+    pub fn new(client: AsyncRedisPool, global_limiter: T) -> Self {
         RedisRateLimiter {
             client,
             script: RedisScripts::load_is_rate_limited(),
@@ -340,12 +344,11 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         // We get the redis client after the global rate limiting since we don't want to hold the
         // client across await points, otherwise it might be held for too long, and we will run out
         // of connections.
-        let mut connection = self.client.get_connection();
+        let mut connection = self.client.get_connection().await?;
         let rejections: Vec<bool> = invocation
             .invoke_async(&mut connection)
             .await
-            .map_err(RedisError::Redis)
-            .map_err(RateLimitingError::Redis)?;
+            .map_err(RedisError::Redis)?;
 
         for (quota, is_rejected) in tracked_quotas.iter().zip(rejections) {
             if is_rejected {
@@ -386,7 +389,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     struct MockGlobalLimiter {
-        client: AsyncRedisClient,
+        client: AsyncRedisPool,
         global_rate_limiter: Mutex<GlobalRateLimiter>,
     }
 
@@ -404,12 +407,10 @@ mod tests {
         }
     }
 
-    async fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
+    fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
-        let client = AsyncRedisClient::single(&url, &RedisConfigOptions::default())
-            .await
-            .unwrap();
+        let client = AsyncRedisPool::single(&url, &RedisConfigOptions::default()).unwrap();
 
         let global_limiter = MockGlobalLimiter {
             client: client.clone(),
@@ -461,7 +462,6 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-            .await
             .is_rate_limited(quotas, scoping, 1, false)
             .await
             .expect("rate limiting failed")
@@ -511,7 +511,7 @@ mod tests {
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
         };
 
-        let rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter();
 
         // First confirm normal behaviour without namespace.
         for i in 0..10 {
@@ -576,7 +576,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter();
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
@@ -627,7 +627,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter();
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
@@ -678,7 +678,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter();
 
         // limit is 1, so first call not rate limited
         assert!(!rate_limiter
@@ -733,7 +733,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter();
 
         // limit is 2, so first call not rate limited
         let is_limited = rate_limiter
@@ -782,7 +782,6 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
-            .await
             .is_rate_limited(&[], scoping, 1, false)
             .await
             .expect("rate limiting failed")
@@ -828,7 +827,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter();
 
         for i in 0..1 {
             let rate_limits: Vec<RateLimit> = rate_limiter
@@ -879,7 +878,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter();
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
@@ -1001,8 +1000,8 @@ mod tests {
             .map(|duration| duration.as_secs())
             .unwrap();
 
-        let rate_limiter = build_rate_limiter().await;
-        let mut conn = rate_limiter.client.get_connection();
+        let rate_limiter = build_rate_limiter();
+        let mut conn = rate_limiter.client.get_connection().await.unwrap();
 
         // define a few keys with random seed such that they do not collide with repeated test runs
         let foo = format!("foo___{now}");

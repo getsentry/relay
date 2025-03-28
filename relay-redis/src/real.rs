@@ -1,20 +1,19 @@
-use deadpool::managed::BuildError;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
+
+use deadpool::managed::{BuildError, PoolError};
 use deadpool_redis::cluster::{
     Config as ClusterConfig, Connection as ClusterConnection, Pool as ClusterPool,
-    PoolError as ClusterPoolError,
 };
 use deadpool_redis::redis::{Cmd, Pipeline, RedisFuture, Value};
 use deadpool_redis::{
     Config as SingleConfig, ConfigError, Connection as SingleConnection, Pool as SinglePool,
-    PoolError as SinglePoolError,
 };
-use std::fmt;
-use std::fmt::{Debug, Formatter};
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
 
-pub use redis;
+pub use deadpool_redis::redis;
 
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]
@@ -23,25 +22,18 @@ pub enum RedisError {
     #[error("failed to configure redis")]
     Configuration,
 
-    /// Failure in r2d2 pool.
-    #[error("failed to pool redis connection")]
-    Pool(#[source] r2d2::Error),
-
-    /// Failure in Redis communication.
     #[error("failed to communicate with redis")]
     Redis(#[source] redis::RedisError),
+
+    /// Failure in Redis communication.
+    #[error("failed to interact with the redis pool")]
+    Pool(#[source] PoolError<redis::RedisError>),
 
     #[error("failed to create redis pool: {0}")]
     CreatePool(#[from] BuildError),
 
     #[error("failed to configure redis: {0}")]
     ConfigError(#[from] ConfigError),
-
-    #[error("failed")]
-    SingleRedis(#[from] SinglePoolError),
-
-    #[error("failed ")]
-    ClusterRedis(#[from] ClusterPoolError),
 
     /// Multi write is not supported for the specified part.
     #[error("multi write is not supported for {0}")]
@@ -106,8 +98,12 @@ impl AsyncRedisPool {
 
     pub async fn get_connection(&self) -> Result<AsyncRedisConnection, RedisError> {
         let connection = match self {
-            Self::Cluster(pool) => AsyncRedisConnection::Cluster(pool.get().await?),
-            Self::Single(pool) => AsyncRedisConnection::Single(pool.get().await?),
+            Self::Cluster(pool) => {
+                AsyncRedisConnection::Cluster(pool.get().await.map_err(RedisError::Pool)?)
+            }
+            Self::Single(pool) => {
+                AsyncRedisConnection::Single(pool.get().await.map_err(RedisError::Pool)?)
+            }
         };
 
         Ok(connection)

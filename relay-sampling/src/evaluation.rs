@@ -14,7 +14,7 @@ use rand_pcg::Pcg32;
 use relay_base_schema::organization::OrganizationId;
 use relay_protocol::Getter;
 #[cfg(feature = "redis")]
-use relay_redis::AsyncRedisClient;
+use relay_redis::AsyncRedisPool;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -51,7 +51,7 @@ pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 pub struct ReservoirEvaluator<'a> {
     counters: ReservoirCounters,
     #[cfg(feature = "redis")]
-    org_id_and_client: Option<(OrganizationId, &'a AsyncRedisClient)>,
+    org_id_and_client: Option<(OrganizationId, &'a AsyncRedisPool)>,
     // Using PhantomData because the lifetimes are behind a feature flag.
     _phantom: std::marker::PhantomData<&'a ()>,
 }
@@ -76,10 +76,10 @@ impl ReservoirEvaluator<'_> {
     async fn redis_incr(
         &self,
         key: &ReservoirRuleKey,
-        client: &AsyncRedisClient,
+        client: &AsyncRedisPool,
         rule_expiry: Option<&DateTime<Utc>>,
     ) -> anyhow::Result<i64> {
-        let mut connection = client.get_connection();
+        let mut connection = client.get_connection().await?;
 
         let val = redis_sampling::increment_redis_reservoir_count(&mut connection, key).await?;
         redis_sampling::set_redis_expiry(&mut connection, key, rule_expiry).await?;
@@ -147,7 +147,7 @@ impl<'a> ReservoirEvaluator<'a> {
     /// Sets the Redis pool and organization ID for the [`ReservoirEvaluator`].
     ///
     /// These values are needed to synchronize with Redis.
-    pub fn set_redis(&mut self, org_id: OrganizationId, client: &'a AsyncRedisClient) {
+    pub fn set_redis(&mut self, org_id: OrganizationId, client: &'a AsyncRedisPool) {
         self.org_id_and_client = Some((org_id, client));
     }
 }

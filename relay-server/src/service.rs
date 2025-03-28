@@ -39,7 +39,6 @@ use relay_config::{RedisConfigRef, RedisConfigsRef};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
-use relay_redis::AsyncRedisClient;
 use relay_redis::AsyncRedisPool;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
@@ -430,11 +429,10 @@ pub async fn create_redis_clients(
     match configs {
         RedisConfigsRef::Unified(unified) => {
             let client = create_async_redis_pool(&unified)?;
-            let old_client = create_async_redis_client(&unified).await?;
             Ok(RedisClients {
-                project_configs: client,
-                cardinality: old_client.clone(),
-                quotas: old_client,
+                project_configs: client.clone(),
+                cardinality: client.clone(),
+                quotas: client,
             })
         }
         RedisConfigsRef::Individual {
@@ -443,32 +441,14 @@ pub async fn create_redis_clients(
             quotas,
         } => {
             let project_configs = create_async_redis_pool(&project_configs)?;
-            let cardinality = create_async_redis_client(&cardinality).await?;
-            let quotas = create_async_redis_client(&quotas).await?;
+            let cardinality = create_async_redis_pool(&cardinality).await?;
+            let quotas = create_async_redis_pool(&quotas).await?;
 
             Ok(RedisClients {
                 project_configs,
                 cardinality,
                 quotas,
             })
-        }
-    }
-}
-
-#[cfg(feature = "processing")]
-async fn create_async_redis_client(
-    config: &RedisConfigRef<'_>,
-) -> Result<AsyncRedisClient, RedisError> {
-    match config {
-        RedisConfigRef::Cluster {
-            cluster_nodes,
-            options,
-        } => AsyncRedisClient::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).await,
-        RedisConfigRef::Single { server, options } => {
-            AsyncRedisClient::single(server, options).await
-        }
-        RedisConfigRef::MultiWrite { .. } => {
-            Err(RedisError::MultiWriteNotSupported("projectconfig"))
         }
     }
 }
@@ -503,10 +483,10 @@ async fn initialize_redis_scripts_for_clients(
 
 #[cfg(feature = "processing")]
 async fn initialize_redis_scripts(
-    client: &AsyncRedisClient,
+    client: &AsyncRedisPool,
     scripts: &[&Script; 3],
 ) -> Result<(), RedisError> {
-    let mut connection = client.get_connection();
+    let mut connection = client.get_connection().await?;
 
     for script in scripts {
         // We load on all instances without checking if the script is already in cache because of a
