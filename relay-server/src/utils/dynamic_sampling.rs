@@ -132,10 +132,6 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
 pub fn sample_rate_from_event(event: &Event) -> Option<f64> {
     let trace_context = event.context::<TraceContext>()?;
 
-    if let Some(sample_rate) = trace_context.client_sample_rate.value() {
-        return Some(*sample_rate);
-    }
-
     // Electron SDKs v5+ are not setting sample rates in DSC, but do have them
     // in a non-standard place in trace context.
     // See <https://github.com/getsentry/sentry-electron/issues/1114>.
@@ -368,7 +364,6 @@ mod tests {
         let contexts = event.contexts.get_or_insert_with(Contexts::default);
         let trace_context = contexts.get_or_default::<TraceContext>();
         trace_context.trace_id = TraceId("89143b0763095bd9c9955e8175d1fb23".to_owned()).into();
-        trace_context.client_sample_rate = 0.5.into();
 
         let dsc = dsc_from_event(public_key, &event).expect("dsc should be extracted");
 
@@ -377,7 +372,7 @@ mod tests {
             DynamicSamplingContext {
                 trace_id: Uuid::parse_str("89143b0763095bd9c9955e8175d1fb23").unwrap(),
                 public_key,
-                sample_rate: Some(0.5),
+                sample_rate: None,
                 release: Some("v1.0".to_owned()),
                 environment: Some("staging".to_owned()),
                 transaction: Some("transaction_name".to_owned()),
@@ -404,17 +399,5 @@ mod tests {
         let sample_rate = sample_rate_from_event(&event).unwrap();
 
         assert_eq!(sample_rate, 0.5);
-    }
-
-    #[test]
-    fn test_sample_rate_from_event_extracts_from_context_rate() {
-        let mut event = Event::default();
-        let contexts = event.contexts.get_or_insert_with(Contexts::default);
-        let trace_context = contexts.get_or_default::<TraceContext>();
-        trace_context.client_sample_rate = 0.1.into();
-
-        let sample_rate = sample_rate_from_event(&event).unwrap();
-
-        assert_eq!(sample_rate, 0.1);
     }
 }

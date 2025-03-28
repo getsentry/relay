@@ -2113,3 +2113,109 @@ def test_scrubs_ip_addresses(
     assert child_span == expected
 
     spans_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "has_dsc,dsc_sample_rate,trace_context_to_merge,expected_sample_rate",
+    [
+        # Should use DSC sample rate
+        (True, 0.1, None, 0.1),
+        # DSC sample rate overrides trace context
+        (True, 0.1, {"data": {"sentry.sample_rate": 0.5}}, 0.1),
+        # If no DSC sample rate, take it from trace context
+        (True, None, {"data": {"sentry.sample_rate": 0.9}}, 0.9),
+        (False, None, {"data": {"sentry.sample_rate": 0.9}}, 0.9),
+        # No sample rate if none given in DSC or trace context
+        (True, None, None, None),
+        (False, None, None, None),
+    ],
+)
+def test_transaction_client_sample_rate(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    has_dsc,
+    dsc_sample_rate,
+    trace_context_to_merge,
+    expected_sample_rate,
+):
+    spans_consumer = spans_consumer()
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:indexed-spans-extraction",
+    ]
+    public_key = project_config["publicKeys"][0]["publicKey"]
+
+    duration = timedelta(milliseconds=500)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = Envelope(
+        headers={
+            "event_id": "7adcd42f9d344fa18ba11f4878176f29",
+            "trace": (
+                {
+                    "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                    "public_key": public_key,
+                    "sample_rate": dsc_sample_rate,
+                }
+                if has_dsc
+                else None
+            ),
+        }
+    )
+    envelope.add_item(
+        Item(
+            type="transaction",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "type": "transaction",
+                        "timestamp": end.timestamp() + 1,
+                        "start_timestamp": start.timestamp(),
+                        "spans": [
+                            {
+                                "op": "default",
+                                "span_id": "a68cff94913ebb08",
+                                "start_timestamp": start.timestamp(),
+                                "timestamp": end.timestamp() + 1,
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                            },
+                        ],
+                        "contexts": {
+                            "trace": {
+                                "op": "hi",
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                                "span_id": "968cff94913ebb07",
+                            }
+                            | (trace_context_to_merge or {})
+                        },
+                        "transaction": "my_transaction",
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    spans = spans_consumer.get_spans(timeout=10.0, n=2)
+
+    for span in spans:
+        span.pop("received", None)
+
+    spans.sort(key=lambda msg: msg["span_id"])
+
+    if expected_sample_rate:
+        assert [
+            span.get("measurements", {}).get("client_sample_rate", {}).get("value")
+            for span in spans
+        ] == [expected_sample_rate, expected_sample_rate]
+    else:
+        assert "measurements" not in span
+
+    spans_consumer.assert_empty()

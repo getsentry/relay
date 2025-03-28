@@ -859,7 +859,9 @@ mod tests {
                 "contexts": {{
                     "trace": {{
                         "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-                        "client_sample_rate": {}
+                        "data": {{
+                            "sentry.sample_rate": {}
+                        }}
                     }}
                 }}
             }}"#,

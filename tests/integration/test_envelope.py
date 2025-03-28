@@ -478,3 +478,64 @@ def test_buffer_envelopes_without_global_config(
         envelopes.append(events_consumer.get_event(timeout=2))
     events_consumer.assert_empty()
     assert len(envelopes) == envelope_qty
+
+
+@pytest.mark.parametrize(
+    "has_dsc,dsc_sample_rate,trace_context_to_merge,expected_sample_rate",
+    [
+        # Should use DSC sample rate
+        (True, 0.1, None, 0.1),
+        # DSC sample rate overrides trace context
+        (True, 0.1, {"data": {"sentry.sample_rate": 0.5}}, 0.1),
+        # If no DSC sample rate, do *not* take it from trace context
+        # (this is different behaviour than spans)
+        (True, None, {"data": {"sentry.sample_rate": 0.9}}, None),
+        (False, None, {"data": {"sentry.sample_rate": 0.9}}, None),
+        # No sample rate if none given in DSC or trace context
+        (True, None, None, None),
+        (False, None, None, None),
+    ],
+)
+def test_sample_rate(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    has_dsc,
+    dsc_sample_rate,
+    trace_context_to_merge,
+    expected_sample_rate,
+):
+    events_consumer = transactions_consumer()
+
+    relay = relay_with_processing()
+    project_config = mini_sentry.add_full_project_config(42)
+    public_key = project_config["publicKeys"][0]["publicKey"]
+
+    transaction_item = generate_transaction_item()
+    if trace_context_to_merge:
+        transaction_item["contexts"]["trace"].update(trace_context_to_merge)
+
+    headers = (
+        {
+            "trace": {
+                "trace_id": transaction_item["event_id"],
+                "public_key": public_key,
+                "sample_rate": dsc_sample_rate,
+            }
+        }
+        if has_dsc
+        else None
+    )
+
+    envelope = Envelope(headers=headers)
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(42, envelope)
+
+    event, _ = events_consumer.get_event()
+
+    if expected_sample_rate:
+        assert (
+            event["contexts"]["trace"].get("client_sample_rate") == expected_sample_rate
+        )
+    else:
+        assert "client_sample_rate" not in event["contexts"]["trace"]
