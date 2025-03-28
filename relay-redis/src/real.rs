@@ -85,7 +85,8 @@ impl AsyncRedisPool {
 
         // We use our custom cluster manager which performs recycling in a different way from the
         // default manager.
-        let manager = CustomClusterManager::new(servers, false).map_err(RedisError::Redis)?;
+        let manager = CustomClusterManager::new(servers, false, opts.refresh_interval)
+            .map_err(RedisError::Redis)?;
 
         // TODO: correctly configure the connection.
         let pool = Pool::builder(manager)
@@ -105,7 +106,8 @@ impl AsyncRedisPool {
     pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         // We use our custom single manager which performs recycling in a different way from the
         // default manager.
-        let manager = CustomSingleManager::new(server).map_err(RedisError::Redis)?;
+        let manager =
+            CustomSingleManager::new(server, opts.refresh_interval).map_err(RedisError::Redis)?;
 
         // TODO: correctly configure the connection.
         let pool = Pool::builder(manager)

@@ -21,6 +21,12 @@ pub struct RedisConfigOptions {
     pub read_timeout: u64,
     /// Sets the write timeout on the connection, in seconds.
     pub write_timeout: u64,
+    /// Sets the number of times after which the connection will check whether it is active when
+    /// being recycled.
+    ///
+    /// An interval of 1, means that the connection will check whether it is active every time it
+    /// is recycled.
+    pub refresh_interval: usize,
 }
 
 impl Default for RedisConfigOptions {
@@ -33,6 +39,7 @@ impl Default for RedisConfigOptions {
             idle_timeout: 60,
             read_timeout: 3,
             write_timeout: 3,
+            refresh_interval: 10_000,
         }
     }
 }
