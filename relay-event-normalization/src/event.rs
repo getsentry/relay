@@ -15,10 +15,10 @@ use relay_base_schema::metrics::{
 };
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, AutoInferSetting, ClientSdkInfo, ClientSdkSettings, Context, ContextInner, Contexts,
-    DebugImage, DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level,
-    LogEntry, Measurement, Measurements, NelContext, PerformanceScoreContext, ReplayContext,
-    Request, Span, SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
+    AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
+    DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry,
+    Measurement, Measurements, NelContext, PerformanceScoreContext, ReplayContext, Request, Span,
+    SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Getter, Meta, Object, Remark, RemarkType, Value,
@@ -471,6 +471,9 @@ pub fn normalize_ip_addresses(
             } else if let Some(AutoInferSetting::Auto) = auto_infer_ip {
                 user.ip_address.0 = Some(client_ip.to_owned());
             }
+        } else if let Some(AutoInferSetting::Auto) = auto_infer_ip {
+            let user = user.get_or_insert_with(User::default);
+            user.ip_address.0 = Some(client_ip.to_owned());
         }
     }
 

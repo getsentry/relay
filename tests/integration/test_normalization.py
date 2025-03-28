@@ -598,3 +598,38 @@ def test_auto_infer_setting_objective_c(
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected
+
+
+@pytest.mark.parametrize(
+    "platform, auto_infer_ip, expected",
+    [
+        ("javascript", "never", None),
+        ("javascript", "auto", "2.125.160.216"),
+        ("javascript", None, None),
+        ("cocoa", "never", None),
+        ("cocoa", "auto", "2.125.160.216"),
+        ("cocoa", None, None),
+        ("objc", "never", None),
+        ("objc", "auto", "2.125.160.216"),
+        ("objc", None, None),
+        ("platform", "never", None),
+        ("platform", "auto", "2.125.160.216"),
+        ("platform", None, None),
+    ],
+)
+def test_auto_infer_without_user(mini_sentry, relay, platform, auto_infer_ip, expected):
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "sdk": {"settings": {"auto_infer_ip": auto_infer_ip}},
+        },
+        headers={"X-Forwarded-For": "2.125.160.216"},
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event.get("user", {}).get("ip_address", None) == expected
