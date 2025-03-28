@@ -2,6 +2,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use deadpool::managed;
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleResult};
+use deadpool_redis::cluster::Manager as ClusterManager;
+use deadpool_redis::Manager as SingleManager;
 
 use crate::redis;
 use crate::redis::aio::MultiplexedConnection;
@@ -17,6 +19,7 @@ pub type ClusterPool = Pool<CustomClusterManager, CustomClusterConnection>;
 /// A connection pool for single Redis instance deployments.
 pub type SinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
 
+#[derive(Debug)]
 struct IntervalCounter {
     value: AtomicUsize,
     max_value: usize,
@@ -46,10 +49,10 @@ impl IntervalCounter {
     }
 }
 
-/// A wrapper around a managed Redis cluster connection.
+/// A managed Redis cluster connection that implements [`redis::aio::ConnectionLike`].
 ///
-/// This type implements [`ConnectionLike`] and provides access to the underlying
-/// Redis cluster connection while managing its lifecycle.
+/// This type provides access to the underlying Redis cluster connection while managing its lifecycle.
+/// It is designed to be used with connection pools to efficiently handle Redis cluster operations.
 pub struct CustomClusterConnection(Object<CustomClusterManager>);
 
 impl redis::aio::ConnectionLike for CustomClusterConnection {
@@ -74,10 +77,11 @@ impl redis::aio::ConnectionLike for CustomClusterConnection {
 /// Manages Redis cluster connections and their lifecycle.
 ///
 /// This manager handles the creation and recycling of Redis cluster connections,
-/// ensuring proper connection health through periodic PING checks.
+/// ensuring proper connection health through periodic PING checks. It supports both
+/// primary and replica nodes, with optional read-from-replicas functionality.
+#[derive(Debug)]
 pub struct CustomClusterManager {
-    client: ClusterClient,
-    ping_number: AtomicUsize,
+    manager: ClusterManager,
     interval_counter: IntervalCounter,
 }
 
@@ -85,31 +89,16 @@ impl CustomClusterManager {
     /// Creates a new cluster manager for the specified Redis nodes.
     ///
     /// The manager will attempt to connect to each node in the provided list and
-    /// maintain connections to the Redis cluster. If `read_from_replicas` is true,
-    /// read operations may be distributed across replica nodes to improve performance.
+    /// maintain connections to the Redis cluster.
     pub fn new<T: IntoConnectionInfo>(
         params: Vec<T>,
         read_from_replicas: bool,
         refresh_interval: usize,
     ) -> RedisResult<Self> {
-        let mut client = ClusterClientBuilder::new(params);
-        if read_from_replicas {
-            client = client.read_from_replicas();
-        }
         Ok(Self {
-            client: client.build()?,
-            ping_number: AtomicUsize::new(0),
+            manager: ClusterManager::new(params, read_from_replicas)?,
             interval_counter: IntervalCounter::new(refresh_interval),
         })
-    }
-}
-
-impl std::fmt::Debug for CustomClusterManager {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Manager")
-            .field("client", &format!("{:p}", &self.client))
-            .field("ping_number", &self.ping_number)
-            .finish()
     }
 }
 
@@ -118,14 +107,13 @@ impl Manager for CustomClusterManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<ClusterConnection, RedisError> {
-        let conn = self.client.get_async_connection().await?;
-        Ok(conn)
+        self.manager.create().await
     }
 
     async fn recycle(
         &self,
         conn: &mut ClusterConnection,
-        _: &Metrics,
+        metrics: &Metrics,
     ) -> RecycleResult<RedisError> {
         // If the interval has been reached, we optimistically assume the connection is active
         // without doing an actual `PING`.
@@ -133,16 +121,7 @@ impl Manager for CustomClusterManager {
             return Ok(());
         }
 
-        let ping_number = self.ping_number.fetch_add(1, Ordering::Relaxed).to_string();
-        let n = redis::cmd("PING")
-            .arg(&ping_number)
-            .query_async::<String>(conn)
-            .await?;
-        if n == ping_number {
-            Ok(())
-        } else {
-            Err(managed::RecycleError::message("Invalid PING response"))
-        }
+        self.manager.recycle(conn, metrics).await
     }
 }
 
@@ -152,10 +131,10 @@ impl From<Object<CustomClusterManager>> for CustomClusterConnection {
     }
 }
 
-/// A wrapper around a managed Redis connection.
+/// A managed Redis connection that implements [`redis::aio::ConnectionLike`].
 ///
-/// This type implements [`ConnectionLike`] and provides access to the underlying
-/// Redis connection while managing its lifecycle.
+/// This type provides access to the underlying Redis connection while managing its lifecycle.
+/// It is designed to be used with connection pools to efficiently handle Redis operations.
 pub struct CustomSingleConnection(Object<CustomSingleManager>);
 
 impl redis::aio::ConnectionLike for CustomSingleConnection {
@@ -180,10 +159,10 @@ impl redis::aio::ConnectionLike for CustomSingleConnection {
 /// Manages single Redis instance connections and their lifecycle.
 ///
 /// This manager handles the creation and recycling of Redis connections,
-/// ensuring proper connection health through periodic PING checks.
+/// ensuring proper connection health through periodic PING checks. It supports
+/// multiplexed connections for efficient handling of multiple operations.
 pub struct CustomSingleManager {
-    client: Client,
-    ping_number: AtomicUsize,
+    manager: SingleManager,
     interval_counter: IntervalCounter,
 }
 
@@ -194,8 +173,7 @@ impl CustomSingleManager {
     /// instance, handling connection lifecycle and health checks.
     pub fn new<T: IntoConnectionInfo>(params: T, refresh_interval: usize) -> RedisResult<Self> {
         Ok(Self {
-            client: Client::open(params)?,
-            ping_number: AtomicUsize::new(0),
+            manager: SingleManager::new(params)?,
             interval_counter: IntervalCounter::new(refresh_interval),
         })
     }
@@ -206,14 +184,13 @@ impl Manager for CustomSingleManager {
     type Error = RedisError;
 
     async fn create(&self) -> Result<MultiplexedConnection, RedisError> {
-        let conn = self.client.get_multiplexed_async_connection().await?;
-        Ok(conn)
+        self.manager.create().await
     }
 
     async fn recycle(
         &self,
         conn: &mut MultiplexedConnection,
-        _: &Metrics,
+        metrics: &Metrics,
     ) -> RecycleResult<RedisError> {
         // If the interval has been reached, we optimistically assume the connection is active
         // without doing an actual `PING`.
@@ -221,20 +198,7 @@ impl Manager for CustomSingleManager {
             return Ok(());
         }
 
-        let ping_number = self.ping_number.fetch_add(1, Ordering::Relaxed).to_string();
-        // Using pipeline to avoid roundtrip for UNWATCH
-        let (n,) = Pipeline::with_capacity(2)
-            .cmd("UNWATCH")
-            .ignore()
-            .cmd("PING")
-            .arg(&ping_number)
-            .query_async::<(String,)>(conn)
-            .await?;
-        if n == ping_number {
-            Ok(())
-        } else {
-            Err(managed::RecycleError::message("Invalid PING response"))
-        }
+        self.manager.recycle(conn, metrics).await
     }
 }
 
