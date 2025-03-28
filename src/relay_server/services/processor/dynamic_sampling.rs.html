@@ -828,7 +828,12 @@
 <a href="#827" id="827">827</a>
 <a href="#828" id="828">828</a>
 <a href="#829" id="829">829</a>
-<a href="#830" id="830">830</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -874,32 +879,37 @@
 /// The function will return the sampling project information of the root project for the event. If
 /// no sampling project information is specified, the project information of the event’s project
 /// will be returned.
-</span><span class="kw">pub fn </span>validate_and_set_dsc(
-    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
+</span><span class="kw">pub fn </span>validate_and_set_dsc&lt;T&gt;(
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;T&gt;,
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt; {
-    <span class="kw">if </span>managed_envelope.envelope().dsc().is_some() &amp;&amp; sampling_project_info.is_some() {
+    <span class="kw">let </span>original_dsc = managed_envelope.envelope().dsc();
+    <span class="kw">if </span>original_dsc.is_some() &amp;&amp; sampling_project_info.is_some() {
         <span class="kw">return </span>sampling_project_info;
     }
 
     <span class="comment">// The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
-    </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = event.value() <span class="kw">else </span>{
-        <span class="kw">return </span>sampling_project_info;
-    };
-    <span class="kw">let </span><span class="prelude-val">Some</span>(key_config) = project_info.get_public_key_config() <span class="kw">else </span>{
-        <span class="kw">return </span>sampling_project_info;
-    };
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = event.value() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(key_config) = project_info.get_public_key_config() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>dsc) = utils::dsc_from_event(key_config.public_key, event) {
+                <span class="comment">// All other information in the DSC must be discarded, but the sample rate was
+                // actually applied by the client and is therefore correct.
+                </span><span class="kw">let </span>original_sample_rate = original_dsc.and_then(|dsc| dsc.sample_rate);
+                dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = utils::dsc_from_event(key_config.public_key, event) {
-        managed_envelope.envelope_mut().set_dsc(dsc);
-        <span class="kw">return </span><span class="prelude-val">Some</span>(project_info.clone());
+                managed_envelope.envelope_mut().set_dsc(dsc);
+                <span class="kw">return </span><span class="prelude-val">Some</span>(project_info.clone());
+            }
+        }
     }
 
-    sampling_project_info
-}
+    <span class="comment">// If we cannot compute a new DSC but the old one is incorrect, we need to remove it.
+    </span>managed_envelope.envelope_mut().remove_dsc();
+    <span class="prelude-val">None
+</span>}
 
 <span class="doccomment">/// Computes the sampling decision on the incoming event
 </span><span class="kw">pub async fn </span>run&lt;Group&gt;(

@@ -2217,7 +2217,12 @@
 <a href="#2216" id="2216">2216</a>
 <a href="#2217" id="2217">2217</a>
 <a href="#2218" id="2218">2218</a>
-<a href="#2219" id="2219">2219</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
+<a href="#2219" id="2219">2219</a>
+<a href="#2220" id="2220">2220</a>
+<a href="#2221" id="2221">2221</a>
+<a href="#2222" id="2222">2222</a>
+<a href="#2223" id="2223">2223</a>
+<a href="#2224" id="2224">2224</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
 //! requests, each envelope has global headers and a set of items, such as the event payload, an
@@ -3580,6 +3585,11 @@
     <span class="doccomment">/// Overrides the dynamic sampling context in envelope headers.
     </span><span class="kw">pub fn </span>set_dsc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dsc: DynamicSamplingContext) {
         <span class="self">self</span>.headers.trace = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(dsc));
+    }
+
+    <span class="doccomment">/// Removes the dynamic sampling context from envelope headers.
+    </span><span class="kw">pub fn </span>remove_dsc(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.headers.trace = <span class="prelude-val">None</span>;
     }
 
     <span class="doccomment">/// Features required to process this envelope.

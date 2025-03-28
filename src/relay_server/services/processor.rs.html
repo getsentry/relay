@@ -4349,7 +4349,22 @@
 <a href="#4348" id="4348">4348</a>
 <a href="#4349" id="4349">4349</a>
 <a href="#4350" id="4350">4350</a>
-<a href="#4351" id="4351">4351</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4351" id="4351">4351</a>
+<a href="#4352" id="4352">4352</a>
+<a href="#4353" id="4353">4353</a>
+<a href="#4354" id="4354">4354</a>
+<a href="#4355" id="4355">4355</a>
+<a href="#4356" id="4356">4356</a>
+<a href="#4357" id="4357">4357</a>
+<a href="#4358" id="4358">4358</a>
+<a href="#4359" id="4359">4359</a>
+<a href="#4360" id="4360">4360</a>
+<a href="#4361" id="4361">4361</a>
+<a href="#4362" id="4362">4362</a>
+<a href="#4363" id="4363">4363</a>
+<a href="#4364" id="4364">4364</a>
+<a href="#4365" id="4365">4365</a>
+<a href="#4366" id="4366">4366</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -5911,7 +5926,7 @@
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ErrorGroup&gt;,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
-        sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+        <span class="kw-2">mut </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
         rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
@@ -5952,6 +5967,12 @@
             }
         });
 
+        sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+            managed_envelope,
+            <span class="kw-2">&amp;mut </span>event,
+            project_info.clone(),
+            sampling_project_info,
+        );
         event::finalize(
             managed_envelope,
             <span class="kw-2">&amp;mut </span>event,
@@ -6073,6 +6094,15 @@
             profile::transfer_id(<span class="kw-2">&amp;mut </span>event, profile_id);
         });
 
+        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"dynamic_sampling_dsc"</span>, {
+            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+                managed_envelope,
+                <span class="kw-2">&amp;mut </span>event,
+                project_info.clone(),
+                sampling_project_info,
+            );
+        });
+
         <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"event_finalize"</span>, {
             event::finalize(
                 managed_envelope,
@@ -6090,15 +6120,6 @@
                 project_info.clone(),
                 event_fully_normalized,
             )<span class="question-mark">?</span>;
-        });
-
-        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"dynamic_sampling_dsc"</span>, {
-            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-                managed_envelope,
-                <span class="kw-2">&amp;mut </span>event,
-                project_info.clone(),
-                sampling_project_info.clone(),
-            );
         });
 
         <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"filter"</span>, {
@@ -8328,6 +8349,8 @@
     <span class="attr">#[tokio::test]
     #[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">async fn </span>test_materialize_dsc() {
+        <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::PublicKeyConfig;
+
         <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()
             .unwrap();
@@ -8353,11 +8376,18 @@
             ProcessingGroup::Error,
         );
 
+        <span class="kw">let </span><span class="kw-2">mut </span>project_info = ProjectInfo::default();
+        project_info.public_keys.push(PublicKeyConfig {
+            public_key: ProjectKey::parse(<span class="string">"e12d836b15bb49d7bbf99e64295d995b"</span>).unwrap(),
+            numeric_id: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+        });
+        <span class="kw">let </span>project_info = Arc::new(project_info);
+
         <span class="kw">let </span>process_message = ProcessEnvelope {
             envelope: managed_envelope,
-            project_info: Arc::new(ProjectInfo::default()),
+            project_info: project_info.clone(),
             rate_limits: Default::default(),
-            sampling_project_info: <span class="prelude-val">None</span>,
+            sampling_project_info: <span class="prelude-val">Some</span>(project_info),
             reservoir_counters: ReservoirCounters::default(),
         };
 
