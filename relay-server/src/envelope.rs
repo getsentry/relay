@@ -1363,6 +1363,11 @@ impl Envelope {
         self.headers.trace = Some(ErrorBoundary::Ok(dsc));
     }
 
+    /// Removes the dynamic sampling context from envelope headers.
+    pub fn remove_dsc(&mut self) {
+        self.headers.trace = None;
+    }
+
     /// Features required to process this envelope.
     pub fn required_features(&self) -> &[Feature] {
         &self.headers.required_features
