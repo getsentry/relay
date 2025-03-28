@@ -107,7 +107,7 @@ impl From<Addr<GlobalRateLimits>> for GlobalRateLimitsServiceHandle {
 /// across multiple instances using a [`AsyncRedisPool`].
 #[derive(Debug)]
 pub struct GlobalRateLimitsService {
-    client: AsyncRedisPool,
+    pool: AsyncRedisPool,
     limiter: GlobalRateLimiter,
 }
 
@@ -116,7 +116,7 @@ impl GlobalRateLimitsService {
     ///
     /// The service will use the pool to communicate with Redis for synchronizing
     /// rate limits across multiple instances.
-    pub fn new(client: AsyncRedisPool) -> Self {
+    pub fn new(pool: AsyncRedisPool) -> Self {
         Self {
             client,
             limiter: GlobalRateLimiter::default(),
@@ -125,7 +125,7 @@ impl GlobalRateLimitsService {
 
     /// Handles a [`GlobalRateLimits`] message.
     async fn handle_message(
-        client: &AsyncRedisPool,
+        pool: &AsyncRedisPool,
         limiter: &mut GlobalRateLimiter,
         message: GlobalRateLimits,
     ) {
@@ -143,7 +143,7 @@ impl GlobalRateLimitsService {
     /// This function uses `spawn_blocking` to suspend on synchronous work that is offloaded to
     /// a specialized thread pool.
     async fn handle_check_rate_limited(
-        client: &AsyncRedisPool,
+        pool: &AsyncRedisPool,
         limiter: &mut GlobalRateLimiter,
         check_rate_limited: CheckRateLimited,
     ) -> Result<Vec<OwnedRedisQuota>, RateLimitingError> {
@@ -188,7 +188,7 @@ mod tests {
 
     use crate::services::global_rate_limits::{CheckRateLimited, GlobalRateLimitsService};
 
-    fn build_redis_client() -> AsyncRedisPool {
+    fn build_redis_pool() -> AsyncRedisPool {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
@@ -215,7 +215,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_global_rate_limits_service() {
-        let client = build_redis_client();
+        let client = build_redis_pool();
         let service = GlobalRateLimitsService::new(client);
         let tx = service.start_detached();
 

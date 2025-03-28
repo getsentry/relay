@@ -483,10 +483,10 @@ async fn initialize_redis_scripts_for_clients(
 
 #[cfg(feature = "processing")]
 async fn initialize_redis_scripts(
-    client: &AsyncRedisPool,
+    pool: &AsyncRedisPool,
     scripts: &[&Script; 3],
 ) -> Result<(), RedisError> {
-    let mut connection = client.get_connection().await?;
+    let mut connection = pool.get_connection().await?;
 
     for script in scripts {
         // We load on all instances without checking if the script is already in cache because of a

@@ -76,10 +76,10 @@ impl ReservoirEvaluator<'_> {
     async fn redis_incr(
         &self,
         key: &ReservoirRuleKey,
-        client: &AsyncRedisPool,
+        pool: &AsyncRedisPool,
         rule_expiry: Option<&DateTime<Utc>>,
     ) -> anyhow::Result<i64> {
-        let mut connection = client.get_connection().await?;
+        let mut connection = pool.get_connection().await?;
 
         let val = redis_sampling::increment_redis_reservoir_count(&mut connection, key).await?;
         redis_sampling::set_redis_expiry(&mut connection, key, rule_expiry).await?;

@@ -218,7 +218,7 @@ mod tests {
         }
     }
 
-    fn build_redis_client() -> AsyncRedisPool {
+    fn build_redis_pool() -> AsyncRedisPool {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
@@ -256,8 +256,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_below_limit_perfect_cardinality_ttl() {
-        let client = build_redis_client();
-        let mut connection = client.get_connection().await.unwrap();
+        let pool = build_redis_pool();
+        let mut connection = pool.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
 
@@ -280,8 +280,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_script() {
-        let client = build_redis_client();
-        let mut connection = client.get_connection().await.unwrap();
+        let pool = build_redis_pool();
+        let mut connection = pool.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
         let keys = keys(Uuid::new_v4(), &["a", "b", "c"]);
@@ -299,8 +299,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_calls_in_pipeline() {
-        let client = build_redis_client();
-        let mut connection = client.get_connection().await.unwrap();
+        let pool = build_redis_pool();
+        let mut connection = pool.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
         let k2 = keys(Uuid::new_v4(), &["a", "b", "c"]);

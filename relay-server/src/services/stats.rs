@@ -151,7 +151,7 @@ impl RelayStats {
     }
 
     #[cfg(feature = "processing")]
-    fn async_redis_connection(client: &AsyncRedisPool, name: &str) {
+    fn async_redis_connection(pool: &AsyncRedisPool, name: &str) {
         Self::stats_metrics(client.stats(), name);
     }
 
