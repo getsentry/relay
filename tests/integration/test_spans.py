@@ -2125,6 +2125,10 @@ def test_scrubs_ip_addresses(
         # If no DSC sample rate, take it from trace context
         (True, None, {"data": {"sentry.sample_rate": 0.9}}, 0.9),
         (False, None, {"data": {"sentry.sample_rate": 0.9}}, 0.9),
+        # Setting client_sample_rate in trace context does nothing.
+        (True, 0.1, {"client_sample_rate": 0.5}, 0.1),
+        (True, None, {"client_sample_rate": 0.5}, None),
+        (False, None, {"client_sample_rate": 0.5}, None),
         # No sample rate if none given in DSC or trace context
         (True, None, None, None),
         (False, None, None, None),

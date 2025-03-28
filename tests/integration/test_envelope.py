@@ -491,6 +491,10 @@ def test_buffer_envelopes_without_global_config(
         # (this is different behaviour than spans)
         (True, None, {"data": {"sentry.sample_rate": 0.9}}, None),
         (False, None, {"data": {"sentry.sample_rate": 0.9}}, None),
+        # Sent client sample rate is overriden with DSC sample rate
+        (True, 0.1, {"client_sample_rate": 0.5}, 0.1),
+        (True, None, {"client_sample_rate": 0.5}, None),
+        (False, None, {"client_sample_rate": 0.5}, None),
         # No sample rate if none given in DSC or trace context
         (True, None, None, None),
         (False, None, None, None),
