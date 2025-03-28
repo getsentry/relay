@@ -114,6 +114,10 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                 quote! {
                     __state.enter_nothing(Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)))
                 }
+            } else if field_attrs.flatten {
+                quote! {
+                    __state.enter_nothing(Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)))
+                }
             } else if is_tuple_struct {
                 quote! {
                     __state.enter_index(
@@ -301,6 +305,7 @@ struct FieldAttrs {
     additional_properties: bool,
     omit_from_schema: bool,
     field_name: String,
+    flatten: bool,
     required: Option<bool>,
     nonempty: Option<bool>,
     trim_whitespace: Option<bool>,
@@ -463,6 +468,8 @@ fn parse_field_attributes(
             } else if ident == "field" {
                 let s = meta.value()?.parse::<LitStr>()?;
                 rv.field_name = s.value();
+            } else if ident == "flatten" {
+                rv.flatten = true;
             } else if ident == "required" {
                 let s = meta.value()?.parse::<LitBool>()?;
                 rv.required = Some(s.value());

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use crate::annotated::{Annotated, MetaMap, MetaTree};
-use crate::value::{Val, Value};
+use crate::value::{Object, Val, Value};
 
 /// A value that can be empty.
 pub trait Empty {
@@ -86,6 +86,18 @@ pub trait FromValue: Debug {
         Self: Sized;
 }
 
+/// Implemented for all meta structures which can be created from key value pairs.
+///
+/// Only meta structures which implement [`FromObjectRef`] can be flattened.
+pub trait FromObjectRef: FromValue {
+    /// Creates a meta structure from key value pairs.
+    ///
+    /// The implementation is supposed remove used fields from the passed `value`.
+    fn from_object_ref(value: &mut Object<Value>) -> Self
+    where
+        Self: Sized;
+}
+
 /// Implemented for all meta structures.
 pub trait IntoValue: Debug + Empty {
     /// Boxes the meta structure back into a value.
@@ -123,6 +135,14 @@ pub trait IntoValue: Debug + Empty {
             },
         }
     }
+}
+
+/// Implemented for all meta structures which can be serialized into an object.
+///
+/// Only meta structures which implement [`IntoValueObject`] can be flattened.
+pub trait IntoValueObject: IntoValue {
+    /// Boxes the meta structure back into an object of values.
+    fn into_object_fields(self) -> Object<Value>;
 }
 
 /// A type-erased iterator over a collection of [`Getter`]s.
