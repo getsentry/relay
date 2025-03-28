@@ -1,16 +1,14 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use deadpool::managed;
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleResult};
 use deadpool_redis::cluster::Manager as ClusterManager;
 use deadpool_redis::Manager as SingleManager;
 
 use crate::redis;
 use crate::redis::aio::MultiplexedConnection;
-use crate::redis::cluster::{ClusterClient, ClusterClientBuilder};
 use crate::redis::cluster_async::ClusterConnection;
 use crate::redis::{
-    Client, Cmd, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, Value,
+    Cmd, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, Value,
 };
 
 /// A connection pool for Redis cluster deployments.
@@ -19,6 +17,11 @@ pub type ClusterPool = Pool<CustomClusterManager, CustomClusterConnection>;
 /// A connection pool for single Redis instance deployments.
 pub type SinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
 
+/// A counter that triggers at regular intervals.
+///
+/// [`IntervalCounter`] provides a thread-safe way to determine when a specific interval
+/// has been reached. It's useful for operations that should occur periodically but not
+/// on every call, such as connection health checks or cache refreshes.
 #[derive(Debug)]
 struct IntervalCounter {
     value: AtomicUsize,
@@ -26,6 +29,9 @@ struct IntervalCounter {
 }
 
 impl IntervalCounter {
+    /// Creates a new [`IntervalCounter`] with the specified interval.
+    ///
+    /// The counter will trigger (return `true` from [`Self::is_reached`]) every `max_size` calls.
     fn new(max_size: usize) -> Self {
         Self {
             value: AtomicUsize::new(0),
@@ -33,6 +39,11 @@ impl IntervalCounter {
         }
     }
 
+    /// Checks if the interval has been reached and advances the counter.
+    ///
+    /// Returns `true` when the counter reaches zero, which happens every `max_value` calls.
+    /// This method uses relaxed memory ordering as precise synchronization is not required
+    /// for this use case.
     fn is_reached(&self) -> bool {
         let mut reached = false;
         let value = self.value.load(Ordering::Relaxed);
@@ -40,8 +51,8 @@ impl IntervalCounter {
             reached = true;
         };
 
-        // We do not want to use CAS since it's unnecessary overhead because we don't need any
-        // synchronization.
+        // We do not perform a CAS operation since we do not care about consistency, and we need
+        // performance.
         let next_value = (value + 1) % self.max_value;
         self.value.store(next_value, Ordering::Relaxed);
 
