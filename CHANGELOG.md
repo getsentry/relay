@@ -8,11 +8,11 @@
 - Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
 - Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
 - Filter out certain AI crawlers. ([#4608](https://github.com/getsentry/relay/pull/4608))
-- Respect client sample rates sent by older SDKs. ([#4620](https://github.com/getsentry/relay/pull/4620))
 
 **Bug Fixes**:
 
 - Separates profiles into backend and ui profiles. ([#4595](https://github.com/getsentry/relay/pull/4595))
+- Add a workaround for missing DSC sample rates from the Electron SDK. ([#4620](https://github.com/getsentry/relay/pull/4620))
 
 **Internal**:
 
