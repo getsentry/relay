@@ -1,17 +1,14 @@
-use std::fmt;
-use std::fmt::{Debug, Formatter};
-
-use deadpool::managed::{BuildError, PoolError};
-use deadpool_redis::cluster::{
-    Config as ClusterConfig, Connection as ClusterConnection, Pool as ClusterPool,
-};
+use deadpool::managed::{BuildError, Pool, PoolError};
 use deadpool_redis::redis::{Cmd, Pipeline, RedisFuture, Value};
-use deadpool_redis::{
-    Config as SingleConfig, ConfigError, Connection as SingleConnection, Pool as SinglePool,
-};
+use deadpool_redis::ConfigError;
+use std::time::Duration;
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
+use crate::pool::{
+    ClusterPool, CustomClusterConnection, CustomClusterManager, CustomSingleConnection,
+    CustomSingleManager, SinglePool,
+};
 
 pub use deadpool_redis::redis;
 
@@ -85,10 +82,19 @@ impl AsyncRedisPool {
             .into_iter()
             .map(|s| s.to_string())
             .collect::<Vec<_>>();
-        let builder = ClusterConfig::from_urls(servers)
-            .builder()?
-            .max_size(opts.max_connections as usize);
-        let pool = builder.build()?;
+
+        // We use our custom cluster manager which performs recycling in a different way from the
+        // default manager.
+        let manager = CustomClusterManager::new(servers, false).map_err(RedisError::Redis)?;
+
+        // TODO: correctly configure the connection.
+        let pool = Pool::builder(manager)
+            .max_size(opts.max_connections as usize)
+            .wait_timeout(Some(Duration::from_secs(1)))
+            .create_timeout(Some(Duration::from_secs(1)))
+            .recycle_timeout(Some(Duration::from_secs(1)))
+            .build()?;
+
         Ok(AsyncRedisPool::Cluster(pool))
     }
 
@@ -97,10 +103,18 @@ impl AsyncRedisPool {
     /// This method initializes a connection pool that communicates with a single Redis server.
     /// The pool is configured with the specified server URL and options.
     pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
-        let builder = SingleConfig::from_url(server)
-            .builder()?
-            .max_size(opts.max_connections as usize);
-        let pool = builder.build()?;
+        // We use our custom single manager which performs recycling in a different way from the
+        // default manager.
+        let manager = CustomSingleManager::new(server).map_err(RedisError::Redis)?;
+
+        // TODO: correctly configure the connection.
+        let pool = Pool::builder(manager)
+            .max_size(opts.max_connections as usize)
+            .wait_timeout(Some(Duration::from_secs(1)))
+            .create_timeout(Some(Duration::from_secs(1)))
+            .recycle_timeout(Some(Duration::from_secs(1)))
+            .build()?;
+
         Ok(AsyncRedisPool::Single(pool))
     }
 
@@ -135,8 +149,8 @@ impl AsyncRedisPool {
     }
 }
 
-impl fmt::Debug for AsyncRedisPool {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for AsyncRedisPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AsyncRedisPool::Cluster(_) => write!(f, "AsyncRedisPool::Cluster"),
             AsyncRedisPool::Single(_) => write!(f, "AsyncRedisPool::Single"),
@@ -147,15 +161,15 @@ impl fmt::Debug for AsyncRedisPool {
 /// A connection to either a single Redis instance or a Redis cluster.
 pub enum AsyncRedisConnection {
     /// A connection to a Redis cluster.
-    Cluster(ClusterConnection),
+    Cluster(CustomClusterConnection),
     /// A connection to a single Redis instance.
-    Single(SingleConnection),
+    Single(CustomSingleConnection),
 }
 
 impl AsyncRedisConnection {}
 
-impl Debug for AsyncRedisConnection {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for AsyncRedisConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
             Self::Cluster(_) => "Cluster",
             Self::Single(_) => "Single",
