@@ -3983,6 +3983,8 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "processing")]
     async fn test_materialize_dsc() {
+        use crate::services::projects::project::PublicKeyConfig;
+
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
@@ -4008,11 +4010,18 @@ mod tests {
             ProcessingGroup::Error,
         );
 
+        let mut project_info = ProjectInfo::default();
+        project_info.public_keys.push(PublicKeyConfig {
+            public_key: ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+            numeric_id: Some(1),
+        });
+        let project_info = Arc::new(project_info);
+
         let process_message = ProcessEnvelope {
             envelope: managed_envelope,
-            project_info: Arc::new(ProjectInfo::default()),
+            project_info: project_info.clone(),
             rate_limits: Default::default(),
-            sampling_project_info: None,
+            sampling_project_info: Some(project_info),
             reservoir_counters: ReservoirCounters::default(),
         };
 
