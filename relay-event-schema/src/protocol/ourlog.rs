@@ -44,7 +44,7 @@ pub struct OurLog {
 
     /// Arbitrary attributes on a log.
     #[metastructure(pii = "true", trim = false)]
-    pub attributes: Annotated<Object<AttributeValue>>,
+    pub attributes: Annotated<Object<OurlogAttributeValue>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe", trim = false)]
@@ -52,7 +52,7 @@ pub struct OurLog {
 }
 
 #[derive(Debug, Clone, PartialEq, ProcessValue)]
-pub enum AttributeValue {
+pub enum OurlogAttributeValue {
     #[metastructure(field = "string_value", pii = "true")]
     StringValue(String),
     #[metastructure(field = "int_value", pii = "true")]
@@ -67,23 +67,23 @@ pub enum AttributeValue {
     Unknown(String),
 }
 
-impl IntoValue for AttributeValue {
+impl IntoValue for OurlogAttributeValue {
     fn into_value(self) -> Value {
         let mut map = Object::new();
         match self {
-            AttributeValue::StringValue(v) => {
+            OurlogAttributeValue::StringValue(v) => {
                 map.insert("string_value".to_string(), Annotated::new(Value::String(v)));
             }
-            AttributeValue::IntValue(v) => {
+            OurlogAttributeValue::IntValue(v) => {
                 map.insert("int_value".to_string(), Annotated::new(Value::I64(v)));
             }
-            AttributeValue::DoubleValue(v) => {
+            OurlogAttributeValue::DoubleValue(v) => {
                 map.insert("double_value".to_string(), Annotated::new(Value::F64(v)));
             }
-            AttributeValue::BoolValue(v) => {
+            OurlogAttributeValue::BoolValue(v) => {
                 map.insert("bool_value".to_string(), Annotated::new(Value::Bool(v)));
             }
-            AttributeValue::Unknown(v) => {
+            OurlogAttributeValue::Unknown(v) => {
                 map.insert("unknown".to_string(), Annotated::new(Value::String(v)));
             }
         }
@@ -97,19 +97,19 @@ impl IntoValue for AttributeValue {
     {
         let mut map = s.serialize_map(None)?;
         match self {
-            AttributeValue::StringValue(v) => {
+            OurlogAttributeValue::StringValue(v) => {
                 map.serialize_entry("string_value", v)?;
             }
-            AttributeValue::IntValue(v) => {
+            OurlogAttributeValue::IntValue(v) => {
                 map.serialize_entry("int_value", v)?;
             }
-            AttributeValue::DoubleValue(v) => {
+            OurlogAttributeValue::DoubleValue(v) => {
                 map.serialize_entry("double_value", v)?;
             }
-            AttributeValue::BoolValue(v) => {
+            OurlogAttributeValue::BoolValue(v) => {
                 map.serialize_entry("bool_value", v)?;
             }
-            AttributeValue::Unknown(v) => {
+            OurlogAttributeValue::Unknown(v) => {
                 map.serialize_entry("unknown", v)?;
             }
         }
@@ -117,54 +117,54 @@ impl IntoValue for AttributeValue {
     }
 }
 
-impl AttributeValue {
+impl OurlogAttributeValue {
     pub fn string_value(&self) -> Option<&String> {
         match self {
-            AttributeValue::StringValue(s) => Some(s),
+            OurlogAttributeValue::StringValue(s) => Some(s),
             _ => None,
         }
     }
     pub fn int_value(&self) -> Option<i64> {
         match self {
-            AttributeValue::IntValue(i) => Some(*i),
+            OurlogAttributeValue::IntValue(i) => Some(*i),
             _ => None,
         }
     }
     pub fn double_value(&self) -> Option<f64> {
         match self {
-            AttributeValue::DoubleValue(d) => Some(*d),
+            OurlogAttributeValue::DoubleValue(d) => Some(*d),
             _ => None,
         }
     }
     pub fn bool_value(&self) -> Option<bool> {
         match self {
-            AttributeValue::BoolValue(b) => Some(*b),
+            OurlogAttributeValue::BoolValue(b) => Some(*b),
             _ => None,
         }
     }
 }
 
-impl Empty for AttributeValue {
+impl Empty for OurlogAttributeValue {
     #[inline]
     fn is_empty(&self) -> bool {
         matches!(self, Self::Unknown(_))
     }
 }
 
-impl FromValue for AttributeValue {
+impl FromValue for OurlogAttributeValue {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), meta) => {
-                Annotated(Some(AttributeValue::StringValue(value)), meta)
+                Annotated(Some(OurlogAttributeValue::StringValue(value)), meta)
             }
             Annotated(Some(Value::I64(value)), meta) => {
-                Annotated(Some(AttributeValue::IntValue(value)), meta)
+                Annotated(Some(OurlogAttributeValue::IntValue(value)), meta)
             }
             Annotated(Some(Value::F64(value)), meta) => {
-                Annotated(Some(AttributeValue::DoubleValue(value)), meta)
+                Annotated(Some(OurlogAttributeValue::DoubleValue(value)), meta)
             }
             Annotated(Some(Value::Bool(value)), meta) => {
-                Annotated(Some(AttributeValue::BoolValue(value)), meta)
+                Annotated(Some(OurlogAttributeValue::BoolValue(value)), meta)
             }
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected(
@@ -211,19 +211,19 @@ mod tests {
         let mut attributes = Object::new();
         attributes.insert(
             "string.attribute".into(),
-            Annotated::new(AttributeValue::StringValue("some string".into())),
+            Annotated::new(OurlogAttributeValue::StringValue("some string".into())),
         );
         attributes.insert(
             "boolean.attribute".into(),
-            Annotated::new(AttributeValue::BoolValue(true)),
+            Annotated::new(OurlogAttributeValue::BoolValue(true)),
         );
         attributes.insert(
             "int.attribute".into(),
-            Annotated::new(AttributeValue::IntValue(10)),
+            Annotated::new(OurlogAttributeValue::IntValue(10)),
         );
         attributes.insert(
             "double.attribute".into(),
-            Annotated::new(AttributeValue::DoubleValue(637.704)),
+            Annotated::new(OurlogAttributeValue::DoubleValue(637.704)),
         );
 
         let log = Annotated::new(OurLog {

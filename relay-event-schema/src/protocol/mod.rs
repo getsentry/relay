@@ -1,5 +1,6 @@
 //! Implements the sentry event protocol.
 
+mod attribute;
 mod base;
 mod breadcrumb;
 mod breakdowns;
@@ -38,6 +39,7 @@ mod utils;
 #[doc(inline)]
 pub use relay_base_schema::{events::*, spans::*};
 
+pub use self::attribute::*;
 pub use self::breadcrumb::*;
 pub use self::breakdowns::*;
 pub use self::client_report::*;

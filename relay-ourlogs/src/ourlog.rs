@@ -2,7 +2,7 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use crate::OtelLog;
 use relay_common::time::UnixTimestamp;
-use relay_event_schema::protocol::{AttributeValue, OurLog, SpanId, TraceId};
+use relay_event_schema::protocol::{OurLog, OurlogAttributeValue, SpanId, TraceId};
 use relay_protocol::{Annotated, Object};
 
 /// Transform an OtelLog to a Sentry log.
@@ -40,22 +40,25 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
             match value {
                 OtelValue::ArrayValue(_) => {}
                 OtelValue::BoolValue(v) => {
-                    attribute_data.insert(key, Annotated::new(AttributeValue::BoolValue(v)));
+                    attribute_data.insert(key, Annotated::new(OurlogAttributeValue::BoolValue(v)));
                 }
                 OtelValue::BytesValue(v) => {
                     if let Ok(v) = String::from_utf8(v) {
-                        attribute_data.insert(key, Annotated::new(AttributeValue::StringValue(v)));
+                        attribute_data
+                            .insert(key, Annotated::new(OurlogAttributeValue::StringValue(v)));
                     }
                 }
                 OtelValue::DoubleValue(v) => {
-                    attribute_data.insert(key, Annotated::new(AttributeValue::DoubleValue(v)));
+                    attribute_data
+                        .insert(key, Annotated::new(OurlogAttributeValue::DoubleValue(v)));
                 }
                 OtelValue::IntValue(v) => {
-                    attribute_data.insert(key, Annotated::new(AttributeValue::IntValue(v)));
+                    attribute_data.insert(key, Annotated::new(OurlogAttributeValue::IntValue(v)));
                 }
                 OtelValue::KvlistValue(_) => {}
                 OtelValue::StringValue(v) => {
-                    attribute_data.insert(key, Annotated::new(AttributeValue::StringValue(v)));
+                    attribute_data
+                        .insert(key, Annotated::new(OurlogAttributeValue::StringValue(v)));
                 }
             }
         }
