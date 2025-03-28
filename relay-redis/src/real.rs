@@ -43,13 +43,13 @@ pub enum RedisError {
     MultiWriteNotSupported(&'static str),
 }
 
-/// A collection of Redis clients used by Relay for different purposes.
+/// A collection of Redis pools used by Relay for different purposes.
 ///
 /// This struct manages separate Redis connection pools for different functionalities
 /// within the Relay system, such as project configurations, cardinality limits,
 /// and rate limiting.
 #[derive(Debug, Clone)]
-pub struct RedisClients {
+pub struct RedisPools {
     /// The pool used for project configurations
     pub project_configs: AsyncRedisPool,
     /// The pool used for cardinality limits.
@@ -58,12 +58,12 @@ pub struct RedisClients {
     pub quotas: AsyncRedisPool,
 }
 
-/// Statistics about the Redis client's connection pool state.
+/// Statistics about the Redis pool's connection pool state.
 ///
 /// Provides information about the current state of Redis connection pools,
 /// including the number of active and idle connections.
 #[derive(Debug)]
-pub struct RedisClientStats {
+pub struct RedisPoolStats {
     /// The number of connections currently being managed by the pool.
     pub connections: u32,
     /// The number of idle connections.
@@ -148,13 +148,13 @@ impl AsyncRedisPool {
     ///
     /// Provides information about the number of active and idle connections in the pool,
     /// which can be useful for monitoring and debugging purposes.
-    pub fn stats(&self) -> RedisClientStats {
+    pub fn stats(&self) -> RedisPoolStats {
         let status = match self {
             Self::Cluster(pool) => pool.status(),
             Self::Single(pool) => pool.status(),
         };
 
-        RedisClientStats {
+        RedisPoolStats {
             idle_connections: status.available as u32,
             connections: status.size as u32,
         }

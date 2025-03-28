@@ -459,16 +459,20 @@ quotas:
             },
         });
 
-        assert_json_snapshot!(config, @r###"
+        assert_json_snapshot!(config, @r#"
         {
           "server": "redis://127.0.0.1:6379",
           "connection_timeout": 5,
           "max_lifetime": 300,
           "idle_timeout": 60,
           "read_timeout": 3,
-          "write_timeout": 3
+          "write_timeout": 3,
+          "wait_timeout": 3,
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "refresh_interval": 10000
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -481,16 +485,20 @@ quotas:
             },
         }));
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "server": "redis://127.0.0.1:6379",
           "connection_timeout": 5,
           "max_lifetime": 300,
           "idle_timeout": 60,
           "read_timeout": 3,
-          "write_timeout": 3
+          "write_timeout": 3,
+          "wait_timeout": 3,
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "refresh_interval": 10000
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -656,7 +664,7 @@ read_timeout: 10
             },
         };
 
-        assert_json_snapshot!(config, @r###"
+        assert_json_snapshot!(config, @r#"
         {
           "cluster_nodes": [
             "redis://127.0.0.1:6379",
@@ -666,9 +674,13 @@ read_timeout: 10
           "max_lifetime": 300,
           "idle_timeout": 60,
           "read_timeout": 33,
-          "write_timeout": 3
+          "write_timeout": 3,
+          "wait_timeout": 3,
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "refresh_interval": 10000
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -684,7 +696,7 @@ read_timeout: 10
             },
         });
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "cluster_nodes": [
             "redis://127.0.0.1:6379",
@@ -694,9 +706,13 @@ read_timeout: 10
           "max_lifetime": 300,
           "idle_timeout": 60,
           "read_timeout": 33,
-          "write_timeout": 3
+          "write_timeout": 3,
+          "wait_timeout": 3,
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "refresh_interval": 10000
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -739,7 +755,7 @@ read_timeout: 10
             }),
         };
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "project_configs": {
             "server": "redis://127.0.0.1:6379",
@@ -748,7 +764,11 @@ read_timeout: 10
             "max_lifetime": 300,
             "idle_timeout": 60,
             "read_timeout": 3,
-            "write_timeout": 3
+            "write_timeout": 3,
+            "wait_timeout": 3,
+            "create_timeout": 3,
+            "recycle_timeout": 2,
+            "refresh_interval": 10000
           },
           "cardinality": {
             "server": "redis://127.0.0.1:6379",
@@ -756,7 +776,11 @@ read_timeout: 10
             "max_lifetime": 300,
             "idle_timeout": 60,
             "read_timeout": 3,
-            "write_timeout": 3
+            "write_timeout": 3,
+            "wait_timeout": 3,
+            "create_timeout": 3,
+            "recycle_timeout": 2,
+            "refresh_interval": 10000
           },
           "quotas": {
             "configs": [
@@ -770,7 +794,11 @@ read_timeout: 10
                 "max_lifetime": 300,
                 "idle_timeout": 60,
                 "read_timeout": 3,
-                "write_timeout": 3
+                "write_timeout": 3,
+                "wait_timeout": 3,
+                "create_timeout": 3,
+                "recycle_timeout": 2,
+                "refresh_interval": 10000
               },
               {
                 "server": "redis://127.0.0.1:6379",
@@ -779,11 +807,15 @@ read_timeout: 10
                 "max_lifetime": 300,
                 "idle_timeout": 60,
                 "read_timeout": 3,
-                "write_timeout": 3
+                "write_timeout": 3,
+                "wait_timeout": 3,
+                "create_timeout": 3,
+                "recycle_timeout": 2,
+                "refresh_interval": 10000
               }
             ]
           }
         }
-        "###);
+        "#);
     }
 }
