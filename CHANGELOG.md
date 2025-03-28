@@ -12,6 +12,7 @@
 **Bug Fixes**:
 
 - Separates profiles into backend and ui profiles. ([#4595](https://github.com/getsentry/relay/pull/4595))
+- Add a workaround for missing DSC sample rates from the Electron SDK. ([#4620](https://github.com/getsentry/relay/pull/4620))
 
 **Internal**:
 
