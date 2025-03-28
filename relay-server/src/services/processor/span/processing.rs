@@ -660,6 +660,12 @@ fn normalize(
     );
     span.sentry_tags = Annotated::new(tags);
 
+    // This inference depends on `sentry_tags.category`, which is set during tag
+    // extraction above. Please be careful if trying to reorder this operation.
+    if span.description.value().is_empty() {
+        span.description = infer_span_description(span).into();
+    }
+
     normalize_performance_score(span, performance_score);
     if let Some(model_costs_config) = ai_model_costs {
         extract_ai_measurements(span, model_costs_config);
@@ -817,6 +823,17 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     }
 
     Ok(())
+}
+
+// Infer a span's `description` based on its attributes. Note that tag
+// extraction must have already run before this is called, as it relies on the
+// values of `span.sentry_tags`.
+fn infer_span_description(span: &Span) -> Option<String> {
+    let category = span.sentry_tags.value()?.category.value()?;
+    match category.as_str() {
+        "db" => span.data.value()?.db_query_text.value()?.to_owned().into(),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -1445,6 +1462,30 @@ mod tests {
         assert_eq!(
             get_value!(span.profile_id!),
             &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn infers_db_span_description() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "db.query.text": "SELECT * FROM users WHERE id = 1",
+                "sentry.category": "db"
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            get_value!(span.description!).as_str(),
+            "SELECT * FROM users WHERE id = 1"
         );
     }
 }
