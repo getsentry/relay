@@ -118,7 +118,7 @@ impl GlobalRateLimitsService {
     /// rate limits across multiple instances.
     pub fn new(pool: AsyncRedisPool) -> Self {
         Self {
-            client,
+            pool,
             limiter: GlobalRateLimiter::default(),
         }
     }
@@ -132,7 +132,7 @@ impl GlobalRateLimitsService {
         match message {
             GlobalRateLimits::CheckRateLimited(check_rate_limited, sender) => {
                 let result =
-                    Self::handle_check_rate_limited(client, limiter, check_rate_limited).await;
+                    Self::handle_check_rate_limited(pool, limiter, check_rate_limited).await;
                 sender.send(result);
             }
         }
@@ -154,7 +154,7 @@ impl GlobalRateLimitsService {
             .collect::<Vec<_>>();
 
         limiter
-            .filter_rate_limited(client, &quotas, check_rate_limited.quantity)
+            .filter_rate_limited(pool, &quotas, check_rate_limited.quantity)
             .await
             .map(|q| q.into_iter().map(|q| q.build_owned()).collect::<Vec<_>>())
     }
@@ -169,7 +169,7 @@ impl Service for GlobalRateLimitsService {
                 break;
             };
 
-            Self::handle_message(&self.client, &mut self.limiter, message).await;
+            Self::handle_message(&self.pool, &mut self.limiter, message).await;
         }
     }
 }
@@ -215,8 +215,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_global_rate_limits_service() {
-        let client = build_redis_pool();
-        let service = GlobalRateLimitsService::new(client);
+        let pool = build_redis_pool();
+        let service = GlobalRateLimitsService::new(pool);
         let tx = service.start_detached();
 
         let scoping = Scoping {
