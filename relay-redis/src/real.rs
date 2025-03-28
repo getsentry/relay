@@ -1,6 +1,6 @@
-use deadpool::managed::{BuildError, Pool, PoolError};
+use deadpool::managed::{BuildError, Manager, Object, Pool, PoolError};
 use deadpool_redis::redis::{Cmd, Pipeline, RedisFuture, Value};
-use deadpool_redis::ConfigError;
+use deadpool_redis::{ConfigError, Runtime};
 use std::time::Duration;
 use thiserror::Error;
 
@@ -104,12 +104,7 @@ impl AsyncRedisPool {
         let manager = CustomClusterManager::new(servers, false, opts.refresh_interval)
             .map_err(RedisError::Redis)?;
 
-        let pool = Pool::builder(manager)
-            .max_size(opts.max_connections as usize)
-            .wait_timeout(Some(Duration::from_secs(opts.wait_timeout)))
-            .create_timeout(Some(Duration::from_secs(opts.create_timeout)))
-            .recycle_timeout(Some(Duration::from_secs(opts.recycle_timeout)))
-            .build()?;
+        let pool = Self::build_pool(manager, opts)?;
 
         Ok(AsyncRedisPool::Cluster(pool))
     }
@@ -127,12 +122,7 @@ impl AsyncRedisPool {
         let manager =
             CustomSingleManager::new(server, opts.refresh_interval).map_err(RedisError::Redis)?;
 
-        let pool = Pool::builder(manager)
-            .max_size(opts.max_connections as usize)
-            .wait_timeout(Some(Duration::from_secs(opts.wait_timeout)))
-            .create_timeout(Some(Duration::from_secs(opts.create_timeout)))
-            .recycle_timeout(Some(Duration::from_secs(opts.recycle_timeout)))
-            .build()?;
+        let pool = Self::build_pool(manager, opts)?;
 
         Ok(AsyncRedisPool::Single(pool))
     }
@@ -168,6 +158,20 @@ impl AsyncRedisPool {
             idle_connections: status.available as u32,
             connections: status.size as u32,
         }
+    }
+
+    /// Builds a [`Pool`] given a type implementing [`Manager`] and [`RedisConfigOptions`].
+    fn build_pool<M: Manager, W: From<Object<M>>>(
+        manager: M,
+        opts: &RedisConfigOptions,
+    ) -> Result<Pool<M, W>, BuildError> {
+        Pool::builder(manager)
+            .max_size(opts.max_connections as usize)
+            .wait_timeout(Some(Duration::from_secs(opts.wait_timeout)))
+            .create_timeout(Some(Duration::from_secs(opts.create_timeout)))
+            .recycle_timeout(Some(Duration::from_secs(opts.recycle_timeout)))
+            .runtime(Runtime::Tokio1)
+            .build()
     }
 }
 
