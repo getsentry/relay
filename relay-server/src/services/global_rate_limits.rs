@@ -107,7 +107,7 @@ impl From<Addr<GlobalRateLimits>> for GlobalRateLimitsServiceHandle {
 /// across multiple instances using a [`AsyncRedisClient`].
 #[derive(Debug)]
 pub struct GlobalRateLimitsService {
-    pool: AsyncRedisClient,
+    client: AsyncRedisClient,
     limiter: GlobalRateLimiter,
 }
 
@@ -116,23 +116,23 @@ impl GlobalRateLimitsService {
     ///
     /// The service will use the pool to communicate with Redis for synchronizing
     /// rate limits across multiple instances.
-    pub fn new(pool: AsyncRedisClient) -> Self {
+    pub fn new(client: AsyncRedisClient) -> Self {
         Self {
-            pool,
+            client,
             limiter: GlobalRateLimiter::default(),
         }
     }
 
     /// Handles a [`GlobalRateLimits`] message.
     async fn handle_message(
-        pool: &AsyncRedisClient,
+        client: &AsyncRedisClient,
         limiter: &mut GlobalRateLimiter,
         message: GlobalRateLimits,
     ) {
         match message {
             GlobalRateLimits::CheckRateLimited(check_rate_limited, sender) => {
                 let result =
-                    Self::handle_check_rate_limited(pool, limiter, check_rate_limited).await;
+                    Self::handle_check_rate_limited(client, limiter, check_rate_limited).await;
                 sender.send(result);
             }
         }
@@ -143,7 +143,7 @@ impl GlobalRateLimitsService {
     /// This function uses `spawn_blocking` to suspend on synchronous work that is offloaded to
     /// a specialized thread pool.
     async fn handle_check_rate_limited(
-        pool: &AsyncRedisClient,
+        client: &AsyncRedisClient,
         limiter: &mut GlobalRateLimiter,
         check_rate_limited: CheckRateLimited,
     ) -> Result<Vec<OwnedRedisQuota>, RateLimitingError> {
@@ -154,7 +154,7 @@ impl GlobalRateLimitsService {
             .collect::<Vec<_>>();
 
         limiter
-            .filter_rate_limited(pool, &quotas, check_rate_limited.quantity)
+            .filter_rate_limited(client, &quotas, check_rate_limited.quantity)
             .await
             .map(|q| q.into_iter().map(|q| q.build_owned()).collect::<Vec<_>>())
     }
@@ -169,7 +169,7 @@ impl Service for GlobalRateLimitsService {
                 break;
             };
 
-            Self::handle_message(&self.pool, &mut self.limiter, message).await;
+            Self::handle_message(&self.client, &mut self.limiter, message).await;
         }
     }
 }
@@ -216,7 +216,7 @@ mod tests {
     #[tokio::test]
     async fn test_global_rate_limits_service() {
         let client = build_redis_client();
-        let service = GlobalRateLimitsService::new(pool);
+        let service = GlobalRateLimitsService::new(client);
         let tx = service.start_detached();
 
         let scoping = Scoping {

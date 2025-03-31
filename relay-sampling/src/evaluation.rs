@@ -76,7 +76,7 @@ impl ReservoirEvaluator<'_> {
     async fn redis_incr(
         &self,
         key: &ReservoirRuleKey,
-        pool: &AsyncRedisClient,
+        client: &AsyncRedisClient,
         rule_expiry: Option<&DateTime<Utc>>,
     ) -> anyhow::Result<i64> {
         let mut connection = client.get_connection().await?;

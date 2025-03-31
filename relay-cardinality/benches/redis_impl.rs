@@ -24,7 +24,7 @@ fn build_redis_client() -> AsyncRedisClient {
     AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap()
 }
 
-async fn build_limiter(pool: AsyncRedisClient, reset_redis: bool) -> RedisSetLimiter {
+async fn build_limiter(client: AsyncRedisClient, reset_redis: bool) -> RedisSetLimiter {
     let mut connection = client.get_connection().await.unwrap();
     if reset_redis {
         relay_redis::redis::cmd("FLUSHALL")
@@ -37,7 +37,7 @@ async fn build_limiter(pool: AsyncRedisClient, reset_redis: bool) -> RedisSetLim
         RedisSetLimiterOptions {
             cache_vacuum_interval: Duration::from_secs(180),
         },
-        pool,
+        client,
     )
 }
 

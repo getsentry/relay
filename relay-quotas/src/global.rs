@@ -39,7 +39,7 @@ impl GlobalRateLimiter {
     /// which ensures consistent behavior across all quotas.
     pub async fn filter_rate_limited<'a>(
         &mut self,
-        pool: &AsyncRedisClient,
+        client: &AsyncRedisClient,
         quotas: &'a [RedisQuota<'a>],
         quantity: usize,
     ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {

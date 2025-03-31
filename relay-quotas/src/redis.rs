@@ -226,7 +226,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 ///
 /// Requires the `redis` feature.
 pub struct RedisRateLimiter<T> {
-    pool: AsyncRedisClient,
+    client: AsyncRedisClient,
     script: &'static Script,
     max_limit: Option<u64>,
     global_limiter: T,
@@ -234,9 +234,9 @@ pub struct RedisRateLimiter<T> {
 
 impl<T: GlobalLimiter> RedisRateLimiter<T> {
     /// Creates a new [`RedisRateLimiter`] instance.
-    pub fn new(pool: AsyncRedisClient, global_limiter: T) -> Self {
+    pub fn new(client: AsyncRedisClient, global_limiter: T) -> Self {
         RedisRateLimiter {
-            pool,
+            client,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limiter,
@@ -389,7 +389,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     struct MockGlobalLimiter {
-        pool: AsyncRedisClient,
+        client: AsyncRedisClient,
         global_rate_limiter: Mutex<GlobalRateLimiter>,
     }
 
@@ -402,7 +402,7 @@ mod tests {
             self.global_rate_limiter
                 .lock()
                 .await
-                .filter_rate_limited(&self.pool, global_quotas, quantity)
+                .filter_rate_limited(&self.client, global_quotas, quantity)
                 .await
         }
     }
@@ -410,15 +410,15 @@ mod tests {
     fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
-        let pool = AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap();
+        let client = AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap();
 
         let global_limiter = MockGlobalLimiter {
-            pool: pool.clone(),
+            client: client.clone(),
             global_rate_limiter: Mutex::new(GlobalRateLimiter::default()),
         };
 
         RedisRateLimiter {
-            pool,
+            client,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limiter,
