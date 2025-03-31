@@ -564,7 +564,7 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                 }
             };
 
-            s.gen_impl(quote! {
+            let into_value = s.gen_impl(quote! {
                 #[automatically_derived]
                 gen impl ::relay_protocol::IntoValue for @Self {
                     fn into_value(self) -> ::relay_protocol::Value {
@@ -590,7 +590,9 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                         __child_meta
                     }
                 }
+            });
 
+            let into_object_ref = (!is_tuple_struct).then(|| s.gen_impl(quote! {
                 #[automatically_derived]
                 gen impl ::relay_protocol::IntoObjectRef for @Self {
                     fn into_object_ref(self, __map: &mut ::relay_protocol::Object<::relay_protocol::Value>) {
@@ -598,7 +600,12 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                         #to_value_body;
                     }
                 }
-            })
+            }));
+
+            quote! {
+                #into_value
+                #into_object_ref
+            }
         }
     })
 }
