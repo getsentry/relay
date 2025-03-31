@@ -15,6 +15,16 @@ workspace = true
 [dependencies]
 deadpool = { workspace = true, optional = true }
 deadpool-redis = { workspace = true, optional = true, features = ["rt_tokio_1", "cluster", "script"] }
+redis = { workspace = true, optional = true, features = [
+    "cluster",
+    "r2d2",
+    "tls-native-tls",
+    "keep-alive",
+    "script",
+    "tokio-native-tls-comp",
+    "cluster-async",
+    "connection-manager"
+], default-features = false }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

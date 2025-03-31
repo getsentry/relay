@@ -410,6 +410,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "backon"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "970d91570c01a8a5959b36ad7dd1c30642df24b6b3068710066f6809f7033bb7"
+dependencies = [
+ "fastrand",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1061,7 +1070,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c136f185b3ca9d1f4e4e19c11570e1002f4bfdd592d589053e225716d613851f"
 dependencies = [
  "deadpool",
- "redis",
+ "redis 0.29.2",
 ]
 
 [[package]]
@@ -3263,6 +3272,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74765f6d916ee2faa39bc8e68e4f3ed8949b48cccdac59983d287a7cb71ce9c5"
 
 [[package]]
+name = "r2d2"
+version = "0.8.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51de85fb3fb6524929c8a2eb85e6b6d363de4e8c48f9e2c2eac4944abc181c93"
+dependencies = [
+ "log",
+ "parking_lot",
+ "scheduled-thread-pool",
+]
+
+[[package]]
 name = "rand"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3391,6 +3411,38 @@ dependencies = [
  "num_enum",
  "openssl-sys",
  "pkg-config",
+]
+
+[[package]]
+name = "redis"
+version = "0.27.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09d8f99a4090c89cc489a94833c901ead69bfbf3877b4867d5482e321ee875bc"
+dependencies = [
+ "arc-swap",
+ "async-trait",
+ "backon",
+ "bytes",
+ "combine",
+ "crc16",
+ "futures",
+ "futures-util",
+ "itertools 0.13.0",
+ "itoa",
+ "log",
+ "native-tls",
+ "num-bigint",
+ "percent-encoding",
+ "pin-project-lite",
+ "r2d2",
+ "rand 0.8.5",
+ "ryu",
+ "sha1_smol",
+ "socket2",
+ "tokio",
+ "tokio-native-tls",
+ "tokio-util",
+ "url",
 ]
 
 [[package]]
@@ -3964,6 +4016,7 @@ version = "25.3.0"
 dependencies = [
  "deadpool",
  "deadpool-redis",
+ "redis 0.27.6",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -4395,6 +4448,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f29ebaa345f945cec9fbbc532eb307f0fdad8161f281b6369539c8d84876b3d"
 dependencies = [
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "scheduled-thread-pool"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cbc66816425a074528352f5789333ecff06ca41b36b0b0efdfbb29edc391a19"
+dependencies = [
+ "parking_lot",
 ]
 
 [[package]]

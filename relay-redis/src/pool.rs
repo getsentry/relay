@@ -12,10 +12,10 @@ use crate::redis::{
 };
 
 /// A connection pool for Redis cluster deployments.
-pub type ClusterPool = Pool<CustomClusterManager, CustomClusterConnection>;
+pub type CustomClusterPool = Pool<CustomClusterManager, CustomClusterConnection>;
 
 /// A connection pool for single Redis instance deployments.
-pub type SinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
+pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
 
 /// A counter that triggers at regular intervals.
 ///

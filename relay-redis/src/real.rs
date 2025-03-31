@@ -1,16 +1,13 @@
 use deadpool::managed::{BuildError, Manager, Object, Pool, PoolError};
-use deadpool_redis::redis::{Cmd, Pipeline, RedisFuture, Value};
 use deadpool_redis::{ConfigError, Runtime};
+use redis::{Cmd, Pipeline, RedisFuture, Value};
 use std::time::Duration;
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
-use crate::pool::{
-    ClusterPool, CustomClusterConnection, CustomClusterManager, CustomSingleConnection,
-    CustomSingleManager, SinglePool,
-};
+use crate::pool;
 
-pub use deadpool_redis::redis;
+pub use redis;
 
 /// An error type that represents various failure modes when interacting with Redis.
 ///
@@ -77,9 +74,9 @@ pub struct RedisClientStats {
 #[derive(Clone)]
 pub enum AsyncRedisClient {
     /// Contains a connection pool to a Redis cluster.
-    Cluster(ClusterPool),
+    Cluster(pool::CustomClusterPool),
     /// Contains a connection pool to a single Redis instance.
-    Single(SinglePool),
+    Single(pool::CustomSinglePool),
 }
 
 impl AsyncRedisClient {
@@ -101,7 +98,7 @@ impl AsyncRedisClient {
 
         // We use our custom cluster manager which performs recycling in a different way from the
         // default manager.
-        let manager = CustomClusterManager::new(servers, false, opts.refresh_interval)
+        let manager = pool::CustomClusterManager::new(servers, false, opts.refresh_interval)
             .map_err(RedisError::Redis)?;
 
         let pool = Self::build_pool(manager, opts)?;
@@ -119,8 +116,8 @@ impl AsyncRedisClient {
     pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         // We use our custom single manager which performs recycling in a different way from the
         // default manager.
-        let manager =
-            CustomSingleManager::new(server, opts.refresh_interval).map_err(RedisError::Redis)?;
+        let manager = pool::CustomSingleManager::new(server, opts.refresh_interval)
+            .map_err(RedisError::Redis)?;
 
         let pool = Self::build_pool(manager, opts)?;
 
@@ -192,9 +189,9 @@ impl std::fmt::Debug for AsyncRedisClient {
 /// regardless of the underlying connection type.
 pub enum AsyncRedisConnection {
     /// A connection to a Redis cluster.
-    Cluster(CustomClusterConnection),
+    Cluster(pool::CustomClusterConnection),
     /// A connection to a single Redis instance.
-    Single(CustomSingleConnection),
+    Single(pool::CustomSingleConnection),
 }
 
 impl std::fmt::Debug for AsyncRedisConnection {

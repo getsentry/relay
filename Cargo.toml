@@ -153,6 +153,7 @@ rand = "0.8.5"
 rand_pcg = "0.3.1"
 rdkafka = "0.36.2"
 rdkafka-sys = "4.8.0"
+redis = { version = "0.27.6", default-features = false }
 regex = "1.11.1"
 regex-lite = "0.1.6"
 reqwest = "0.12.9"
