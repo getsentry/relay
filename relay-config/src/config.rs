@@ -23,7 +23,7 @@ use uuid::Uuid;
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
-use crate::{create_redis_pools, RedisConfig, RedisConfigs, RedisPoolConfigs};
+use crate::{build_redis_configs, RedisConfig, RedisConfigs, RedisConfigsRef};
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
@@ -226,6 +226,8 @@ pub struct OverridableConfig {
     pub instance: Option<String>,
     /// The log level of this relay.
     pub log_level: Option<String>,
+    /// The log format of this relay.
+    pub log_format: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
     /// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
@@ -617,6 +619,8 @@ pub struct Limits {
     /// The maximum payload size for a profile
     pub max_profile_size: ByteSize,
     /// The maximum payload size for a span.
+    pub max_log_size: ByteSize,
+    /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
     /// The maximum payload size for a statsd metric.
     pub max_statsd_size: ByteSize,
@@ -634,6 +638,13 @@ pub struct Limits {
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     pub max_thread_count: usize,
+    /// Controls the maximum concurrency of each worker thread.
+    ///
+    /// Increasing the concurrency, can lead to a better utilization of worker threads by
+    /// increasing the amount of I/O done concurrently.
+    //
+    /// Currently has no effect on defaults to `1`.
+    pub max_pool_concurrency: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     pub query_timeout: u64,
@@ -642,7 +653,7 @@ pub struct Limits {
     pub shutdown_timeout: u64,
     /// Server keep-alive timeout in seconds.
     ///
-    /// By default keep-alive is set to a 5 seconds.
+    /// By default, keep-alive is set to 5 seconds.
     pub keepalive_timeout: u64,
     /// Server idle timeout in seconds.
     ///
@@ -683,6 +694,7 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
+            max_log_size: ByteSize::mebibytes(1),
             max_span_size: ByteSize::mebibytes(1),
             max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
@@ -690,6 +702,7 @@ impl Default for Limits {
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
             max_thread_count: num_cpus::get(),
+            max_pool_concurrency: 1,
             query_timeout: 30,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
@@ -717,13 +730,14 @@ pub struct Routing {
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HttpEncoding {
     /// Identity function without no compression.
     ///
     /// This is the default encoding and does not require the presence of the `content-encoding`
     /// HTTP header.
+    #[default]
     Identity,
     /// Compression using a [zlib](https://en.wikipedia.org/wiki/Zlib) structure with
     /// [deflate](https://en.wikipedia.org/wiki/DEFLATE) encoding.
@@ -775,12 +789,6 @@ impl HttpEncoding {
     }
 }
 
-impl Default for HttpEncoding {
-    fn default() -> Self {
-        Self::Identity
-    }
-}
-
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -825,7 +833,7 @@ pub struct Http {
     pub project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
-    /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
+    /// By default, Relay applies `zstd` content encoding to compress upstream requests. Compression
     /// can be disabled to reduce CPU consumption, but at the expense of increased network traffic.
     ///
     /// This setting applies to all store requests of SDK data, including events, transactions,
@@ -837,6 +845,7 @@ pub struct Http {
     ///  - `deflate`: Compression using a zlib header with deflate encoding.
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
+    ///  - `zstd`: Compression using the zstd algorithm.
     pub encoding: HttpEncoding,
     /// Submit metrics globally through a shared endpoint.
     ///
@@ -858,7 +867,7 @@ impl Default for Http {
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             retry_delay: default_retry_delay(),
             project_failure_interval: default_project_failure_interval(),
-            encoding: HttpEncoding::Gzip,
+            encoding: HttpEncoding::Zstd,
             global_metrics: false,
         }
     }
@@ -957,8 +966,27 @@ pub struct EnvelopeSpool {
     ///
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
-    /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
-    /// is using too much memory (influenced by [`Self::batch_size_bytes`]).
+    /// Warning: This threshold can cause the buffer service to deadlock when the buffer consumes
+    /// excessive memory (as influenced by [`Self::batch_size_bytes`]).
+    ///
+    /// This scenario arises when the buffer stops spooling due to reaching the
+    /// [`Self::max_backpressure_memory_percent`] limit, but the batch threshold for spooling
+    /// ([`Self::batch_size_bytes`]) is never reached. As a result, no data is spooled, memory usage
+    /// continues to grow, and the system becomes deadlocked.
+    ///
+    /// ### Example
+    /// Suppose the system has 1GB of available memory and is configured to spool only after
+    /// accumulating 10GB worth of envelopes. If Relay consumes 900MB of memory, it will stop
+    /// unspooling due to reaching the [`Self::max_backpressure_memory_percent`] threshold.
+    ///
+    /// However, because the buffer hasn't accumulated the 10GB needed to trigger spooling,
+    /// no data will be offloaded. Memory usage keeps increasing until it hits the
+    /// [`Health::max_memory_percent`] threshold, e.g., at 950MB. At this point:
+    ///
+    /// - No more envelopes are accepted.
+    /// - The buffer remains stuck, as unspooling won’t resume until memory drops below 900MB which
+    ///   will not happen.
+    /// - A deadlock occurs, with the system unable to recover without manual intervention.
     ///
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
@@ -1638,6 +1666,10 @@ impl Config {
             self.values.logging.level = log_level.parse()?;
         }
 
+        if let Some(log_format) = overrides.log_format {
+            self.values.logging.format = log_format.parse()?;
+        }
+
         if let Some(upstream) = overrides.upstream {
             relay.upstream = upstream
                 .parse::<UpstreamDescriptor>()
@@ -2213,6 +2245,11 @@ impl Config {
         self.values.limits.max_check_in_size.as_bytes()
     }
 
+    /// Returns the maximum payload size of a log in bytes.
+    pub fn max_log_size(&self) -> usize {
+        self.values.limits.max_log_size.as_bytes()
+    }
+
     /// Returns the maximum payload size of a span in bytes.
     pub fn max_span_size(&self) -> usize {
         self.values.limits.max_span_size.as_bytes()
@@ -2335,6 +2372,11 @@ impl Config {
         self.values.limits.max_thread_count
     }
 
+    /// Returns the number of tasks that can run concurrently in the worker pool.
+    pub fn pool_concurrency(&self) -> usize {
+        self.values.limits.max_pool_concurrency
+    }
+
     /// Returns the maximum size of a project config query.
     pub fn query_batch_size(&self) -> usize {
         self.values.cache.batch_size
@@ -2396,12 +2438,13 @@ impl Config {
 
     /// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
-    pub fn redis(&self) -> Option<RedisPoolConfigs> {
+    pub fn redis(&self) -> Option<RedisConfigsRef> {
         let redis_configs = self.values.processing.redis.as_ref()?;
 
-        Some(create_redis_pools(
+        Some(build_redis_configs(
             redis_configs,
             self.cpu_concurrency() as u32,
+            self.pool_concurrency() as u32,
         ))
     }
 

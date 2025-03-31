@@ -103,6 +103,23 @@ impl ProjectConfig {
         for flag in GRADUATED_FEATURE_FLAGS {
             self.features.0.insert(*flag);
         }
+
+        // Check if indexed and non-indexed are double-counting towards the same ID.
+        // This is probably not intended behavior.
+        for quota in &self.quotas {
+            if let Some(id) = &quota.id {
+                for category in &quota.categories {
+                    if let Some(indexed) = category.index_category() {
+                        if quota.categories.contains(&indexed) {
+                            relay_log::error!(
+                                tags.id = id,
+                                "Categories {category} and {indexed} share the same quota ID. This will double-count items.",
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

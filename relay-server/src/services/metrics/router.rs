@@ -4,7 +4,7 @@
 use relay_config::aggregator::Condition;
 use relay_config::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_metrics::MetricNamespace;
-use relay_system::{Addr, NoResponse, Recipient, Service, ServiceRunner};
+use relay_system::{Addr, NoResponse, Recipient, Service, ServiceSpawnExt as _};
 
 use crate::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
@@ -19,6 +19,7 @@ use crate::utils;
 /// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
 /// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
 pub struct RouterService {
+    handle: relay_system::Handle,
     default: AggregatorService,
     secondary: Vec<(AggregatorService, Condition)>,
 }
@@ -26,6 +27,7 @@ pub struct RouterService {
 impl RouterService {
     /// Create a new router service.
     pub fn new(
+        handle: relay_system::Handle,
         default_config: AggregatorServiceConfig,
         secondary_configs: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
@@ -40,7 +42,11 @@ impl RouterService {
         }
 
         let default = AggregatorService::new(default_config, receiver, project_cache);
-        Self { default, secondary }
+        Self {
+            handle,
+            default,
+            secondary,
+        }
     }
 
     pub fn handle(&self) -> RouterHandle {
@@ -57,10 +63,10 @@ impl Service for RouterService {
     type Interface = Aggregator;
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut router = StartedRouter::start_in(self, &mut ServiceRunner::new());
+        let mut router = StartedRouter::start(self);
         relay_log::info!("metrics router started");
 
-        // Note that currently this loop never exists and will run till the tokio runtime shuts
+        // Note that currently this loop never exits and will run till the tokio runtime shuts
         // down. This is about to change with the refactoring for the shutdown process.
         loop {
             tokio::select! {
@@ -84,8 +90,12 @@ struct StartedRouter {
 }
 
 impl StartedRouter {
-    fn start_in(router: RouterService, runner: &mut ServiceRunner) -> Self {
-        let RouterService { default, secondary } = router;
+    fn start(router: RouterService) -> Self {
+        let RouterService {
+            default,
+            secondary,
+            handle,
+        } = router;
 
         let secondary = secondary
             .into_iter()
@@ -95,12 +105,12 @@ impl StartedRouter {
                     .filter(|&namespace| condition.matches(Some(namespace)))
                     .collect();
 
-                (runner.start(aggregator), namespaces)
+                (handle.start(aggregator), namespaces)
             })
             .collect();
 
         Self {
-            default: runner.start(default),
+            default: handle.start(default),
             secondary,
         }
     }

@@ -31,6 +31,7 @@
 //! ```
 
 use relay_base_schema::project::ProjectKey;
+use relay_profiling::ProfileType;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -117,6 +118,10 @@ pub enum ItemType {
     ReplayVideo,
     /// Monitor check-in encoded as JSON.
     CheckIn,
+    /// A log from the [OTEL Log format](https://opentelemetry.io/docs/specs/otel/logs/data-model/#log-and-event-record-definition)
+    OtelLog,
+    /// A log for the log product, not internal logs.
+    Log,
     /// A standalone span.
     Span,
     /// A standalone OpenTelemetry span serialized as JSON.
@@ -174,6 +179,8 @@ impl ItemType {
             Self::ReplayRecording => "replay_recording",
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
+            Self::Log => "log",
+            Self::OtelLog => "otel_log",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
@@ -227,6 +234,8 @@ impl std::str::FromStr for ItemType {
             "replay_recording" => Self::ReplayRecording,
             "replay_video" => Self::ReplayVideo,
             "check_in" => Self::CheckIn,
+            "log" => Self::Log,
+            "otel_log" => Self::OtelLog,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
             "otel_traces_data" => Self::OtelTracesData,
@@ -407,6 +416,9 @@ pub enum AttachmentType {
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
     Breadcrumbs,
 
+    // A prosperodump crash report (binary data)
+    Prosperodump,
+
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     ///
     /// This can be deserialized using the `symbolic` crate see
@@ -444,6 +456,7 @@ impl fmt::Display for AttachmentType {
             AttachmentType::Minidump => write!(f, "event.minidump"),
             AttachmentType::AppleCrashReport => write!(f, "event.applecrashreport"),
             AttachmentType::EventPayload => write!(f, "event.payload"),
+            AttachmentType::Prosperodump => write!(f, "playstation.prosperodump"),
             AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
@@ -462,6 +475,7 @@ impl std::str::FromStr for AttachmentType {
             "event.minidump" => AttachmentType::Minidump,
             "event.applecrashreport" => AttachmentType::AppleCrashReport,
             "event.payload" => AttachmentType::EventPayload,
+            "playstation.prosperodump" => AttachmentType::Prosperodump,
             "event.breadcrumbs" => AttachmentType::Breadcrumbs,
             "event.view_hierarchy" => AttachmentType::ViewHierarchy,
             "unreal.context" => AttachmentType::UnrealContext,
@@ -583,6 +597,12 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     ingest_span_in_eap: bool,
 
+    /// Tracks whether the item is a backend or ui profile chunk.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    profile_type: Option<ProfileType>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -660,6 +680,7 @@ impl Item {
                 sampled: true,
                 fully_normalized: false,
                 ingest_span_in_eap: false,
+                profile_type: None,
             },
             payload: Bytes::new(),
         }
@@ -696,20 +717,27 @@ impl Item {
                 CountFor::Outcomes => smallvec![],
             },
             ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
+            ItemType::Log | ItemType::OtelLog => smallvec![
+                (DataCategory::LogByte, self.len().max(1)),
+                (DataCategory::LogItem, 1)
+            ],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, 1)],
             ItemType::Profile => smallvec![(DataCategory::Profile, 1)],
-            ItemType::ReplayEvent | ItemType::ReplayRecording => {
+            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
                 smallvec![(DataCategory::Replay, 1)]
             }
-            ItemType::ReplayVideo => smallvec![(DataCategory::ReplayVideo, 1)],
             ItemType::ClientReport => smallvec![],
             ItemType::CheckIn => smallvec![(DataCategory::Monitor, 1)],
             ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, 1)],
             // NOTE: semantically wrong, but too expensive to parse.
             ItemType::OtelTracesData => smallvec![(DataCategory::Span, 1)],
-            ItemType::ProfileChunk => smallvec![(DataCategory::ProfileChunk, 1)], // TODO: should be seconds?
+            ItemType::ProfileChunk => match self.headers.profile_type {
+                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, 1)],
+                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, 1)],
+                None => smallvec![],
+            },
             ItemType::Unknown(_) => smallvec![],
         }
     }
@@ -874,6 +902,16 @@ impl Item {
         self.headers.ingest_span_in_eap = ingest_span_in_eap;
     }
 
+    /// Returns the associated profile type of a profile chunk.
+    pub fn profile_type(&self) -> Option<ProfileType> {
+        self.headers.profile_type
+    }
+
+    /// Set the profile type of the profile chunk.
+    pub fn set_profile_type(&mut self, profile_type: ProfileType) {
+        self.headers.profile_type = Some(profile_type);
+    }
+
     /// Gets the `sampled` flag.
     pub fn sampled(&self) -> bool {
         self.headers.sampled
@@ -923,6 +961,7 @@ impl Item {
                     AttachmentType::AppleCrashReport
                     | AttachmentType::Minidump
                     | AttachmentType::EventPayload
+                    | AttachmentType::Prosperodump
                     | AttachmentType::Breadcrumbs => true,
                     AttachmentType::Attachment
                     | AttachmentType::UnrealContext
@@ -953,6 +992,8 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
+            | ItemType::Log
+            | ItemType::OtelLog
             | ItemType::OtelSpan
             | ItemType::OtelTracesData
             | ItemType::ProfileChunk => false,
@@ -987,6 +1028,7 @@ impl Item {
             ItemType::Profile => true,
             ItemType::CheckIn => false,
             ItemType::Span => false,
+            ItemType::Log | ItemType::OtelLog => false,
             ItemType::OtelSpan => false,
             ItemType::OtelTracesData => false,
             ItemType::ProfileChunk => false,
@@ -1319,6 +1361,11 @@ impl Envelope {
     /// Overrides the dynamic sampling context in envelope headers.
     pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
         self.headers.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
+    /// Removes the dynamic sampling context from envelope headers.
+    pub fn remove_dsc(&mut self) {
+        self.headers.trace = None;
     }
 
     /// Features required to process this envelope.

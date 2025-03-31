@@ -39,6 +39,11 @@ impl StackProvider for MemoryStackProvider {
         0
     }
 
+    fn total_size(&self) -> Option<u64> {
+        // We can't reliably tell how much memory is used so just return None.
+        None
+    }
+
     fn stack_type<'a>(&self) -> &'a str {
         "memory"
     }

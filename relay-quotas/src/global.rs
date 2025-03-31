@@ -1,36 +1,52 @@
-use std::sync::{Mutex, PoisonError};
+use std::future::Future;
 
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
-use relay_redis::{PooledClient, RedisError, RedisScripts};
+use relay_redis::{AsyncRedisClient, AsyncRedisConnection, RedisError, RedisScripts};
 
-use crate::RedisQuota;
+use crate::redis::RedisQuota;
+use crate::RateLimitingError;
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 
-/// A rate limiter for global rate limits.
-#[derive(Default)]
-pub struct GlobalRateLimits {
-    limits: Mutex<hashbrown::HashMap<Key, GlobalRateLimit>>,
+/// A trait that exposes methods to check global rate limits.
+pub trait GlobalLimiter {
+    /// Returns the [`RedisQuota`]s that should be rate limited.
+    fn check_global_rate_limits<'a>(
+        &self,
+        global_quotas: &'a [RedisQuota<'a>],
+        quantity: usize,
+    ) -> impl Future<Output = Result<Vec<&'a RedisQuota<'a>>, RateLimitingError>> + Send;
 }
 
-impl GlobalRateLimits {
-    /// Returns a vector of the [`RedisQuota`]'s that should be ratelimited.
+/// A rate limiter for global rate limits.
+///
+/// This struct maintains local caches of rate limits to reduce the number of
+/// Redis operations required.
+#[derive(Debug, Default)]
+pub struct GlobalRateLimiter {
+    limits: hashbrown::HashMap<Key, GlobalRateLimit>,
+}
+
+impl GlobalRateLimiter {
+    /// Returns the [`RedisQuota`]s that should be rate limited.
     ///
-    /// We don't know if an item should be ratelimited or not until we've checked all the quotas.
-    /// Therefore we only start decrementing the budgets of the various quotas when we know
-    /// that None of the quotas hit the ratelimit.
-    pub fn filter_rate_limited<'a>(
-        &self,
-        client: &mut PooledClient,
+    /// This method checks all quotas against their limits and returns those that
+    /// exceed their limits. The rate limits are checked globally using Redis.
+    ///
+    /// Budgets are only decremented when none of the quotas hit their rate limits,
+    /// which ensures consistent behavior across all quotas.
+    pub async fn filter_rate_limited<'a>(
+        &mut self,
+        client: &AsyncRedisClient,
         quotas: &'a [RedisQuota<'a>],
         quantity: usize,
-    ) -> Result<Vec<&RedisQuota<'a>>, RedisError> {
-        let mut guard = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
+    ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
+        let mut connection = client.get_connection();
 
-        let mut ratelimited = vec![];
-        let mut not_ratelimited = vec![];
+        let mut rate_limited = vec![];
+        let mut not_rate_limited = vec![];
 
         let min_by_keyref = quotas
             .iter()
@@ -38,65 +54,34 @@ impl GlobalRateLimits {
             .min_by_key(|_, q| q.limit());
 
         for (key, quota) in min_by_keyref {
-            let val = guard.entry_ref(&key).or_default();
+            let global_rate_limit = self.limits.entry_ref(&key).or_default();
 
-            if val.is_rate_limited(client, quota, key, quantity as u64)? {
-                ratelimited.push(quota);
+            if global_rate_limit
+                .check_rate_limited(&mut connection, quota, key, quantity as u64)
+                .await?
+            {
+                rate_limited.push(quota);
             } else {
-                not_ratelimited.push(quota);
+                not_rate_limited.push(quota);
             }
         }
 
-        if ratelimited.is_empty() {
-            for quota in not_ratelimited {
-                if let Some(val) = guard.get_mut(&KeyRef::new(quota)) {
+        if rate_limited.is_empty() {
+            for quota in not_rate_limited {
+                if let Some(val) = self.limits.get_mut(&KeyRef::new(quota)) {
                     val.budget -= quantity as u64;
                 }
             }
         }
 
-        Ok(ratelimited)
+        Ok(rate_limited)
     }
 }
 
-/// Key for storing global quota-budgets locally.
+/// Reference to a rate limit key without requiring string allocation.
 ///
-/// Note: must not be used in redis. For that, use RedisQuota.key().
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Key {
-    prefix: String,
-    window: u64,
-    namespace: Option<MetricNamespace>,
-}
-
-impl From<&KeyRef<'_>> for Key {
-    fn from(value: &KeyRef<'_>) -> Self {
-        Key {
-            prefix: value.prefix.to_owned(),
-            window: value.window,
-            namespace: value.namespace,
-        }
-    }
-}
-
-#[derive(Debug)]
-struct RedisKey(String);
-
-impl RedisKey {
-    fn new(key: &KeyRef<'_>, slot: u64) -> Self {
-        Self(format!(
-            "global_quota:{id}{window}{namespace:?}:{slot}",
-            id = key.prefix,
-            window = key.window,
-            namespace = key.namespace,
-            slot = slot,
-        ))
-    }
-}
-
-/// Used to look up a hashmap of [`keys`](Key) without a string allocation.
-///
-/// This works due to the [`hashbrown::Equivalent`] trait.
+/// This struct is used to look up rate limits in a hashmap efficiently by
+/// implementing the [`hashbrown::Equivalent`] trait.
 #[derive(Clone, Copy, Hash, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct KeyRef<'a> {
     prefix: &'a str,
@@ -130,14 +115,53 @@ impl hashbrown::Equivalent<Key> for KeyRef<'_> {
     }
 }
 
+/// Key for storing global quota-budgets locally.
+///
+/// This is used to identify unique rate limits in the local cache.
+/// Note that this is distinct from the keys used in Redis.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct Key {
+    prefix: String,
+    window: u64,
+    namespace: Option<MetricNamespace>,
+}
+
+impl From<&KeyRef<'_>> for Key {
+    fn from(value: &KeyRef<'_>) -> Self {
+        Key {
+            prefix: value.prefix.to_owned(),
+            window: value.window,
+            namespace: value.namespace,
+        }
+    }
+}
+
+/// Redis key representation for global rate limits.
+///
+/// This struct formats rate limit keys for use in Redis operations.
+#[derive(Debug)]
+struct RedisKey(String);
+
+impl RedisKey {
+    fn new(key: &KeyRef<'_>, slot: u64) -> Self {
+        Self(format!(
+            "global_quota:{id}{window}{namespace:?}:{slot}",
+            id = key.prefix,
+            window = key.window,
+            namespace = key.namespace,
+            slot = slot,
+        ))
+    }
+}
+
 /// A single global rate limit.
 ///
-/// When we want to ratelimit across all relay-instances, we need to use Redis to synchronize.
-/// Calling Redis every time we want to check if an item should be ratelimited would be very expensive,
-/// which is why we have this cache. It works by 'taking' a certain budget from Redis, by pre-incrementing
-/// a global counter. We put the amount we pre-incremented into this local cache and count down until
-/// we have no more budget, then we ask for more from Redis. If we find the global counter is above
-/// the quota limit, we will ratelimit the item.
+/// This struct implements a local cache of a global rate limit. It reserves a budget
+/// from Redis that can be consumed locally, reducing the number of Redis operations
+/// required. When the local budget is exhausted, a new budget is requested from Redis.
+///
+/// This approach significantly reduces the overhead of checking rate limits while
+/// still maintaining global synchronization across multiple instances.
 #[derive(Debug)]
 struct GlobalRateLimit {
     budget: u64,
@@ -146,6 +170,7 @@ struct GlobalRateLimit {
 }
 
 impl GlobalRateLimit {
+    /// Creates a new [`GlobalRateLimit`] with empty budget.
     fn new() -> Self {
         Self {
             budget: 0,
@@ -154,14 +179,18 @@ impl GlobalRateLimit {
         }
     }
 
-    /// Returns `true` if quota should be ratelimited.
-    pub fn is_rate_limited(
+    /// Checks if the quota should be rate limited.
+    ///
+    /// Returns `true` if the quota has exceeded its limit and should be rate limited.
+    /// This method handles time slot transitions and requests additional budget from
+    /// Redis when necessary.
+    pub async fn check_rate_limited(
         &mut self,
-        client: &mut PooledClient,
-        quota: &RedisQuota,
+        connection: &mut AsyncRedisConnection,
+        quota: &RedisQuota<'_>,
         key: KeyRef<'_>,
         quantity: u64,
-    ) -> Result<bool, RedisError> {
+    ) -> Result<bool, RateLimitingError> {
         let quota_slot = quota.slot();
 
         // There is 2 cases we are handling here:
@@ -183,17 +212,24 @@ impl GlobalRateLimit {
         }
 
         let redis_key = key.redis_key(quota_slot);
-        let reserved = self.try_reserve(client, quantity, quota, redis_key)?;
+        let reserved = self
+            .try_reserve(connection, quantity, quota, redis_key)
+            .await
+            .map_err(RateLimitingError::Redis)?;
         self.budget += reserved;
 
         Ok(self.budget < quantity)
     }
 
-    fn try_reserve(
+    /// Attempts to reserve budget from Redis for this rate limit.
+    ///
+    /// This method calculates how much budget to request based on the current needs
+    /// and quota limits, then communicates with Redis to reserve this budget.
+    async fn try_reserve(
         &mut self,
-        client: &mut PooledClient,
+        connection: &mut AsyncRedisConnection,
         quantity: u64,
-        quota: &RedisQuota,
+        quota: &RedisQuota<'_>,
         redis_key: RedisKey,
     ) -> Result<u64, RedisError> {
         let min_required_budget = quantity.saturating_sub(self.budget);
@@ -214,7 +250,8 @@ impl GlobalRateLimit {
             .arg(budget_to_reserve)
             .arg(quota.limit())
             .arg(quota.key_expiry())
-            .invoke(&mut client.connection()?)
+            .invoke_async(connection)
+            .await
             .map_err(RedisError::Redis)?;
 
         self.last_seen_redis_value = value;
@@ -222,6 +259,11 @@ impl GlobalRateLimit {
         Ok(budget)
     }
 
+    /// Calculates the default amount of budget to request from Redis.
+    ///
+    /// This method determines an appropriate budget size based on the quota limit
+    /// and the configured budget ratio, balancing Redis communication overhead
+    /// against local memory usage.
     fn default_request_size(&self, quantity: u64, quota: &RedisQuota) -> u64 {
         match quota.limit {
             Some(limit) => (limit as f32 * DEFAULT_BUDGET_RATIO) as u64,
@@ -242,21 +284,22 @@ mod tests {
     use std::collections::BTreeSet;
     use std::time::Duration;
 
-    use super::*;
-
     use relay_base_schema::data_category::DataCategory;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_common::time::UnixTimestamp;
-    use relay_redis::{RedisConfigOptions, RedisPool};
+    use relay_redis::{AsyncRedisClient, RedisConfigOptions};
 
+    use super::*;
     use crate::{DataCategories, Quota, QuotaScope, Scoping};
 
-    fn build_redis_pool() -> RedisPool {
+    async fn build_redis_client() -> AsyncRedisClient {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        RedisPool::single(&url, RedisConfigOptions::default()).unwrap()
+        AsyncRedisClient::single(&url, &RedisConfigOptions::default())
+            .await
+            .unwrap()
     }
 
     fn build_quota(window: u64, limit: impl Into<Option<u64>>) -> Quota {
@@ -286,8 +329,8 @@ mod tests {
         RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
     }
 
-    #[test]
-    fn test_multiple_ratelimits() {
+    #[tokio::test]
+    async fn test_multiple_rate_limits() {
         let scoping = build_scoping();
 
         let quota1 = build_quota(10, 100);
@@ -301,15 +344,15 @@ mod tests {
             build_redis_quota(&quota3, &scoping),
         ];
 
-        let pool = build_redis_pool();
-        let mut client = pool.client().unwrap();
-        let counter = GlobalRateLimits::default();
+        let client = build_redis_client().await;
+        let mut counter = GlobalRateLimiter::default();
 
         let rate_limited_quotas = counter
-            .filter_rate_limited(&mut client, &redis_quotas, quantity)
+            .filter_rate_limited(&client, &redis_quotas, quantity)
+            .await
             .unwrap();
 
-        // Only the quotas that are less than the quantity gets ratelimited.
+        // Only the quotas that are less than the quantity gets rate_limited.
         assert_eq!(
             BTreeSet::from([100, 150]),
             rate_limited_quotas
@@ -321,8 +364,8 @@ mod tests {
 
     /// Checks that if two quotas are identical but with different limits, we only use
     /// the one with the smaller limit.
-    #[test]
-    fn test_use_smaller_limit() {
+    #[tokio::test]
+    async fn test_use_smaller_limit() {
         let smaller_limit = 100;
         let bigger_limit = 200;
 
@@ -339,12 +382,12 @@ mod tests {
             build_redis_quota(&bigger_quota, &scoping),
         ];
 
-        let pool = build_redis_pool();
-        let mut client = pool.client().unwrap();
-        let counter = GlobalRateLimits::default();
+        let client = build_redis_client().await;
+        let mut counter = GlobalRateLimiter::default();
 
         let rate_limited_quotas = counter
-            .filter_rate_limited(&mut client, &redis_quotas, (bigger_limit * 2) as usize)
+            .filter_rate_limited(&client, &redis_quotas, (bigger_limit * 2) as usize)
+            .await
             .unwrap();
 
         assert_eq!(rate_limited_quotas.len(), 1);
@@ -355,67 +398,67 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_global_ratelimit() {
+    #[tokio::test]
+    async fn test_global_rate_limit() {
         let limit = 200;
 
         let quota = build_quota(10, limit);
         let scoping = build_scoping();
         let redis_quota = [build_redis_quota(&quota, &scoping)];
 
-        let pool = build_redis_pool();
-        let mut client = pool.client().unwrap();
-        let counter = GlobalRateLimits::default();
+        let client = build_redis_client().await;
+        let mut counter = GlobalRateLimiter::default();
 
-        let expected_ratelimit_result = [false, false, true, true].to_vec();
+        let expected_rate_limit_result = [false, false, true, true].to_vec();
 
         // The limit is 200, while we take 90 at a time. So the first two times we call, we'll
         // still be under the limit. 90 < 200 -> 180 < 200 -> 270 > 200 -> 360 > 200.
-        for should_ratelimit in expected_ratelimit_result {
-            let is_ratelimited = counter
-                .filter_rate_limited(&mut client, &redis_quota, 90)
+        for should_rate_limit in expected_rate_limit_result {
+            let is_rate_limited = counter
+                .filter_rate_limited(&client, &redis_quota, 90)
+                .await
                 .unwrap();
 
-            assert_eq!(should_ratelimit, !is_ratelimited.is_empty());
+            assert_eq!(should_rate_limit, !is_rate_limited.is_empty());
         }
     }
 
-    #[test]
-    fn test_global_ratelimit_over_under() {
+    #[tokio::test]
+    async fn test_global_rate_limit_over_under() {
         let limit = 10;
 
         let quota = build_quota(10, limit);
         let scoping = build_scoping();
 
-        let pool = build_redis_pool();
-        let mut client = pool.client().unwrap();
-        let rl = GlobalRateLimits::default();
+        let client = build_redis_client().await;
+        let mut rl = GlobalRateLimiter::default();
 
         let redis_quota = [build_redis_quota(&quota, &scoping)];
         assert!(!rl
-            .filter_rate_limited(&mut client, &redis_quota, 11)
+            .filter_rate_limited(&client, &redis_quota, 11)
+            .await
             .unwrap()
             .is_empty());
 
         assert!(rl
-            .filter_rate_limited(&mut client, &redis_quota, 10)
+            .filter_rate_limited(&client, &redis_quota, 10)
+            .await
             .unwrap()
             .is_empty());
     }
 
-    #[test]
-    fn test_multiple_global_ratelimit() {
+    #[tokio::test]
+    async fn test_multiple_global_rate_limit() {
         let limit = 91_337;
 
         let quota = build_quota(10, limit as u64);
         let scoping = build_scoping();
         let quota = [build_redis_quota(&quota, &scoping)];
 
-        let pool = build_redis_pool();
-        let mut client = pool.client().unwrap();
+        let client = build_redis_client().await;
 
-        let counter1 = GlobalRateLimits::default();
-        let counter2 = GlobalRateLimits::default();
+        let mut counter1 = GlobalRateLimiter::default();
+        let mut counter2 = GlobalRateLimiter::default();
 
         let mut total = 0;
         let mut total_counter_1 = 0;
@@ -424,7 +467,8 @@ mod tests {
             let quantity = i % 17;
 
             if counter1
-                .filter_rate_limited(&mut client, &quota, quantity)
+                .filter_rate_limited(&client, &quota, quantity)
+                .await
                 .unwrap()
                 .is_empty()
             {
@@ -433,7 +477,8 @@ mod tests {
             }
 
             if counter2
-                .filter_rate_limited(&mut client, &quota, quantity)
+                .filter_rate_limited(&client, &quota, quantity)
+                .await
                 .unwrap()
                 .is_empty()
             {
@@ -455,8 +500,8 @@ mod tests {
         assert!(diff <= limit as f32 * DEFAULT_BUDGET_RATIO);
     }
 
-    #[test]
-    fn test_global_ratelimit_slots() {
+    #[tokio::test]
+    async fn test_global_rate_limit_slots() {
         let limit = 200;
         let window = 10;
 
@@ -465,19 +510,20 @@ mod tests {
         let scoping = build_scoping();
         let item_scoping = scoping.item(DataCategory::MetricBucket);
 
-        let pool = build_redis_pool();
-        let mut client = pool.client().unwrap();
+        let client = build_redis_client().await;
 
-        let rl = GlobalRateLimits::default();
+        let mut rl = GlobalRateLimiter::default();
 
         let redis_quota = [RedisQuota::new(&quota, item_scoping, ts).unwrap()];
         assert!(rl
-            .filter_rate_limited(&mut client, &redis_quota, 200)
+            .filter_rate_limited(&client, &redis_quota, 200)
+            .await
             .unwrap()
             .is_empty());
 
         assert!(!rl
-            .filter_rate_limited(&mut client, &redis_quota, 1)
+            .filter_rate_limited(&client, &redis_quota, 1)
+            .await
             .unwrap()
             .is_empty());
 
@@ -488,18 +534,20 @@ mod tests {
                     .unwrap(),
             ];
         assert!(rl
-            .filter_rate_limited(&mut client, &redis_quota, 200)
+            .filter_rate_limited(&client, &redis_quota, 200)
+            .await
             .unwrap()
             .is_empty());
 
         assert!(!rl
-            .filter_rate_limited(&mut client, &redis_quota, 1)
+            .filter_rate_limited(&client, &redis_quota, 1)
+            .await
             .unwrap()
             .is_empty());
     }
 
-    #[test]
-    fn test_global_ratelimit_infinite() {
+    #[tokio::test]
+    async fn test_global_rate_limit_infinite() {
         let limit = None;
 
         let timestamp = UnixTimestamp::now();
@@ -508,30 +556,31 @@ mod tests {
         let scoping = build_scoping();
         let item_scoping = scoping.item(DataCategory::MetricBucket);
 
-        let pool = build_redis_pool();
-        let mut client = pool.client().unwrap();
+        let client = build_redis_client().await;
 
-        let rl = GlobalRateLimits::default();
+        let mut rl = GlobalRateLimiter::default();
 
         let quantity = 2;
         let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64;
         for _ in 0..redis_threshold + 10 {
             let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
             assert!(rl
-                .filter_rate_limited(&mut client, &[redis_quota], quantity)
+                .filter_rate_limited(&client, &[redis_quota], quantity)
+                .await
                 .unwrap()
                 .is_empty());
         }
 
         // Grab a new rate limiter and make sure even with the infinite limit,
         // the quantity was still synchronized via Redis.
-        let rl = GlobalRateLimits::default();
+        let mut rl = GlobalRateLimiter::default();
 
         quota.limit = Some(redis_threshold);
         let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
 
         assert!(!rl
-            .filter_rate_limited(&mut client, &[redis_quota], quantity)
+            .filter_rate_limited(&client, &[redis_quota], quantity)
+            .await
             .unwrap()
             .is_empty());
     }

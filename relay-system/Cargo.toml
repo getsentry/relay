@@ -4,13 +4,16 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Foundational system components for Relay's services"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.1.0"
+version = "25.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
 [lints]
 workspace = true
+
+[features]
+test = []
 
 [dependencies]
 futures = { workspace = true }
@@ -25,3 +28,4 @@ pin-project-lite = { workspace = true }
 insta = { workspace = true }
 relay-statsd = { workspace = true, features = ["test"] }
 tokio = { workspace = true, features = ["test-util"] }
+futures =  { workspace = true, features = ["async-await"] }

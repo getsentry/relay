@@ -2,8 +2,8 @@
 
 use std::error::Error;
 use std::num::NonZeroU8;
-use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,9 +11,11 @@ use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
 use relay_config::Config;
+use relay_system::Receiver;
+use relay_system::ServiceSpawn;
+use relay_system::ServiceSpawnExt as _;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_system::{Controller, Shutdown};
-use relay_system::{Receiver, ServiceRunner};
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
@@ -27,7 +29,7 @@ use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope, ProcessingG
 use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
 use crate::services::test_store::TestStore;
 use crate::statsd::RelayCounters;
-use crate::statsd::RelayTimers;
+
 use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
@@ -58,14 +60,6 @@ mod testutils;
 pub enum EnvelopeBuffer {
     /// A fresh envelope that gets pushed into the buffer by the request handler.
     Push(Box<Envelope>),
-}
-
-impl EnvelopeBuffer {
-    fn name(&self) -> &'static str {
-        match &self {
-            EnvelopeBuffer::Push(_) => "push",
-        }
-    }
 }
 
 impl Interface for EnvelopeBuffer {}
@@ -99,7 +93,7 @@ impl PartitionedEnvelopeBuffer {
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
-        runner: &mut ServiceRunner,
+        services: &dyn ServiceSpawn,
     ) -> Self {
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
@@ -115,7 +109,7 @@ impl PartitionedEnvelopeBuffer {
                     test_store: test_store.clone(),
                 },
             )
-            .start_in(runner);
+            .start_in(services);
 
             envelope_buffers.push(envelope_buffer);
         }
@@ -151,6 +145,17 @@ impl PartitionedEnvelopeBuffer {
         self.buffers.iter().all(|buffer| buffer.has_capacity())
     }
 
+    pub fn item_count(&self) -> u64 {
+        self.buffers.iter().map(|buffer| buffer.item_count()).sum()
+    }
+
+    pub fn total_storage_size(&self) -> u64 {
+        self.buffers
+            .iter()
+            .map(|buffer| buffer.storage_size())
+            .sum()
+    }
+
     /// Builds a hasher with fixed seeds for consistent partitioning across Relay instances.
     fn build_hasher() -> RandomState {
         const K0: u64 = 0xd34db33f11223344;
@@ -162,6 +167,13 @@ impl PartitionedEnvelopeBuffer {
     }
 }
 
+#[derive(Debug)]
+pub struct EnvelopeBufferMetrics {
+    has_capacity: AtomicBool,
+    item_count: AtomicU64,
+    storage_size: AtomicU64,
+}
+
 /// Contains the services [`Addr`] and a watch channel to observe its state.
 ///
 /// This allows outside observers to check the capacity without having to send a message.
@@ -171,7 +183,7 @@ impl PartitionedEnvelopeBuffer {
 #[derive(Debug, Clone)]
 pub struct ObservableEnvelopeBuffer {
     addr: Addr<EnvelopeBuffer>,
-    has_capacity: Arc<AtomicBool>,
+    metrics: Arc<EnvelopeBufferMetrics>,
 }
 
 impl ObservableEnvelopeBuffer {
@@ -182,7 +194,15 @@ impl ObservableEnvelopeBuffer {
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
     pub fn has_capacity(&self) -> bool {
-        self.has_capacity.load(Ordering::Relaxed)
+        self.metrics.has_capacity.load(Ordering::Relaxed)
+    }
+
+    pub fn item_count(&self) -> u64 {
+        self.metrics.item_count.load(Ordering::Relaxed)
+    }
+
+    pub fn storage_size(&self) -> u64 {
+        self.metrics.storage_size.load(Ordering::Relaxed)
     }
 }
 
@@ -205,7 +225,7 @@ pub struct EnvelopeBufferService {
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
     services: Services,
-    has_capacity: Arc<AtomicBool>,
+    metrics: Arc<EnvelopeBufferMetrics>,
     sleep: Duration,
 }
 
@@ -230,17 +250,22 @@ impl EnvelopeBufferService {
             memory_stat,
             global_config_rx,
             services,
-            has_capacity: Arc::new(AtomicBool::new(true)),
+            metrics: Arc::new(EnvelopeBufferMetrics {
+                has_capacity: AtomicBool::new(true),
+                item_count: AtomicU64::new(0),
+                storage_size: AtomicU64::new(0),
+            }),
             sleep: Duration::ZERO,
         }
     }
 
-    /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    pub fn start_in(self, runner: &mut ServiceRunner) -> ObservableEnvelopeBuffer {
-        let has_capacity = self.has_capacity.clone();
+    /// Returns both the [`Addr`] to this service, and references to spooler metrics.
+    pub fn start_in(self, services: &dyn ServiceSpawn) -> ObservableEnvelopeBuffer {
+        let metrics = self.metrics.clone();
 
-        let addr = runner.start(self);
-        ObservableEnvelopeBuffer { addr, has_capacity }
+        let addr = services.start(self);
+
+        ObservableEnvelopeBuffer { addr, metrics }
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
@@ -252,15 +277,29 @@ impl EnvelopeBufferService {
         }
     }
 
-    /// Waits until preconditions for unspooling are met.
+    /// Waits until the system is ready to unspool envelopes.
     ///
-    /// - We should not pop from disk into memory when relay's overall memory capacity
-    ///   has been reached.
-    /// - We need a valid global config to unspool.
+    /// This function ensures that unspooling only happens when it's safe and appropriate to do so.
+    /// It continuously checks specific system conditions and only returns when they are all satisfied.
+    ///
+    /// # Preconditions for Unspooling
+    ///
+    /// 1. **Memory Availability**:
+    ///    - If the system is using **disk spooling**, we must avoid unspooling when
+    ///      memory usage has reached its configured capacity.
+    ///      This prevents overloading memory and ensures that downstream services can process
+    ///      in-flight envelopes at their own pace.
+    ///    - If the system is using **memory spooling only** (i.e., no disk),
+    ///      we *must not* block unspooling, even when memory has reached its configured capacity.
+    ///      Blocking in this case would lead to a **deadlock**, since new envelopes
+    ///      would continue accumulating in the buffer's memory and will never be unspooled and
+    ///      processed downstream.
+    ///
+    /// 2. **Global Configuration Availability**:
+    ///    - Unspooling requires a valid, ready-to-use global configuration.
+    ///      If the configuration is not yet initialized or ready, unspooling must wait.
     async fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
         loop {
-            // We should not unspool from external storage if memory capacity has been reached.
-            // But if buffer storage is in memory, unspooling can reduce memory usage.
             let memory_ready = buffer.is_memory() || self.memory_ready();
             let global_config_ready = self.global_config_rx.borrow().is_ready();
 
@@ -501,7 +540,7 @@ impl EnvelopeBufferService {
             let Ok(CheckedEnvelope {
                 envelope: Some(managed_envelope),
                 ..
-            }) = own_project.check_envelope(managed_envelope)
+            }) = own_project.check_envelope(managed_envelope).await
             else {
                 continue; // Outcomes are emitted by `check_envelope`.
             };
@@ -520,8 +559,15 @@ impl EnvelopeBufferService {
     }
 
     fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
-        self.has_capacity
+        self.metrics
+            .has_capacity
             .store(buffer.has_capacity(), Ordering::Relaxed);
+        self.metrics
+            .storage_size
+            .store(buffer.total_size().unwrap_or(0), Ordering::Relaxed);
+        self.metrics
+            .item_count
+            .store(buffer.item_count(), Ordering::Relaxed);
     }
 }
 
@@ -541,7 +587,6 @@ impl Service for EnvelopeBufferService {
         let services = self.services.clone();
 
         let dequeue = Arc::<AtomicBool>::new(true.into());
-        let dequeue1 = dequeue.clone();
 
         let mut buffer =
             PolymorphicEnvelopeBuffer::from_config(self.partition_id, &config, memory_checker)
@@ -557,31 +602,32 @@ impl Service for EnvelopeBufferService {
         let mut project_changes = self.services.project_cache_handle.changes();
 
         #[cfg(unix)]
-        relay_system::spawn!(async move {
-            use tokio::signal::unix::{signal, SignalKind};
-            let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
-                return;
-            };
-            while let Some(()) = signal.recv().await {
-                let deq = !dequeue1.load(Ordering::Relaxed);
-                dequeue1.store(deq, Ordering::Relaxed);
-                relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
-            }
-        });
+        {
+            let dequeue1 = dequeue.clone();
+            relay_system::spawn!(async move {
+                use tokio::signal::unix::{signal, SignalKind};
+                let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
+                    return;
+                };
+                while let Some(()) = signal.recv().await {
+                    let deq = !dequeue1.load(Ordering::Relaxed);
+                    dequeue1.store(deq, Ordering::Relaxed);
+                    relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
+                }
+            });
+        }
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
             let mut sleep = DEFAULT_SLEEP;
-            let start = Instant::now();
+
             tokio::select! {
                 // NOTE: we do not select a bias here.
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop", partition_id = &partition_tag);
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", partition_id = &partition_tag, {
-                        match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
+                    match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
                             Ok(new_sleep) => {
                                 sleep = new_sleep;
                             }
@@ -591,12 +637,10 @@ impl Service for EnvelopeBufferService {
                                 "failed to pop envelope"
                             );
                         }
-                    }});
+                    }
                 }
                 change = project_changes.recv() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "project_change", partition_id = &partition_tag);
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "project_change", partition_id = &partition_tag, {
-                        match change {
+                    match change {
                             Ok(ProjectChange::Ready(project_key)) => {
                                 buffer.mark_ready(&project_key, true);
                             },
@@ -607,30 +651,20 @@ impl Service for EnvelopeBufferService {
                         };
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
-                    });
                 }
                 Some(message) = rx.recv() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "handle_message", partition_id = &partition_tag);
-                    let message_name = message.name();
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = message_name, partition_id = &partition_tag, {
-                        Self::handle_message(&mut buffer, message).await;
+                    Self::handle_message(&mut buffer, message).await;
                         sleep = Duration::ZERO;
-                    });
                 }
                 shutdown = shutdown.notified() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "shutdown", partition_id = &partition_tag);
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "shutdown", partition_id = &partition_tag, {
-                        // In case the shutdown was handled, we break out of the loop signaling that
+                    // In case the shutdown was handled, we break out of the loop signaling that
                         // there is no need to process anymore envelopes.
                         if Self::handle_shutdown(&mut buffer, shutdown).await {
                             break;
                         }
-                    });
                 }
                 Ok(()) = global_config_rx.changed() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "global_config_change", partition_id = &partition_tag);
                     sleep = Duration::ZERO;
-
                 }
                 else => break,
             }
@@ -643,8 +677,22 @@ impl Service for EnvelopeBufferService {
     }
 }
 
+/// The spooler uses internal time based mechanics and to not make the tests actually wait
+/// it's good to use `#[tokio::test(start_paused = true)]`. For memory based spooling, this will
+/// just work.
+///
+/// However, testing the sqlite spooler will not behave correctly when using `start_paused`
+/// because the sqlite pool uses the timeout provided by tokio for connection establishing but
+/// the work that happens during connection will run outside of tokio in its own threadpool.
+/// During connection the tokio runtime will have no work, triggering the [auto advance](https://docs.rs/tokio/latest/tokio/time/fn.pause.html#auto-advance)
+/// feature of the runtime, which causes the timeout to resolve immediately, preventing
+/// the connection to be established (`SqliteStore(SqlxSetupFailed(PoolTimedOut))`).
+///
+/// To test sqlite based spooling it is necessary to manually pause the time using
+/// `tokio::time::pause` *after* the connection is established.
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::services::projects::project::{ProjectInfo, ProjectState};
     use crate::testutils::new_envelope;
     use crate::MemoryStat;
@@ -652,11 +700,10 @@ mod tests {
     use relay_base_schema::project::ProjectKey;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use relay_system::TokioServiceSpawn;
     use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
-
-    use super::*;
 
     struct EnvelopeBufferServiceResult {
         service: EnvelopeBufferService,
@@ -714,11 +761,10 @@ mod tests {
             outcome_aggregator_rx: _outcome_aggregator_rx,
         } = envelope_buffer_service(None, global_config::Status::Pending);
 
-        service.has_capacity.store(false, Ordering::Relaxed);
+        service.metrics.has_capacity.store(false, Ordering::Relaxed);
 
-        let ObservableEnvelopeBuffer { has_capacity, .. } =
-            service.start_in(&mut ServiceRunner::new());
-        assert!(!has_capacity.load(Ordering::Relaxed));
+        let ObservableEnvelopeBuffer { metrics, .. } = service.start_in(&TokioServiceSpawn);
+        assert!(!metrics.has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
@@ -727,7 +773,7 @@ mod tests {
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
-        assert!(has_capacity.load(Ordering::Relaxed));
+        assert!(metrics.has_capacity.load(Ordering::Relaxed));
     }
 
     #[tokio::test(start_paused = true)]
@@ -807,7 +853,7 @@ mod tests {
         assert_eq!(envelope_processor_rx.len(), 0);
     }
 
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn pop_requires_memory_capacity() {
         let EnvelopeBufferServiceResult {
             service,
@@ -831,6 +877,8 @@ mod tests {
         );
 
         let addr = service.start_detached();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::pause();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -840,6 +888,40 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
         assert_eq!(envelope_processor_rx.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_metrics() {
+        let EnvelopeBufferServiceResult {
+            service,
+            envelope_processor_rx: _envelope_processor_rx,
+            project_cache_handle: _project_cache_handle,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+            global_tx: _global_tx,
+        } = envelope_buffer_service(
+            Some(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    }
+                }
+            })),
+            global_config::Status::Pending,
+        );
+
+        let addr = service.start_in(&TokioServiceSpawn);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 0);
+
+        for _ in 0..10 {
+            let envelope = new_envelope(false, "foo");
+            addr.addr().send(EnvelopeBuffer::Push(envelope.clone()));
+        }
+
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+
+        assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 10);
     }
 
     #[tokio::test(start_paused = true)]
@@ -884,7 +966,6 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_partitioned_buffer() {
-        let mut runner = ServiceRunner::new();
         let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
         )));
@@ -920,8 +1001,8 @@ mod tests {
         );
 
         // Start both services and create partitioned buffer
-        let observable1 = buffer1.start_in(&mut runner);
-        let observable2 = buffer2.start_in(&mut runner);
+        let observable1 = buffer1.start_in(&TokioServiceSpawn);
+        let observable2 = buffer2.start_in(&TokioServiceSpawn);
 
         let partitioned = PartitionedEnvelopeBuffer {
             buffers: Arc::new(vec![observable1, observable2]),

@@ -50,6 +50,11 @@ impl From<&Event> for Span {
             trace_id: trace.map(|c| c.trace_id.clone()).unwrap_or_default(),
             segment_id: trace.map(|c| c.span_id.clone()).unwrap_or_default(),
             is_segment: true.into(),
+            // NB: Technically, this span may not be an actual remote span if this is a child
+            // transaction created within the same service as its parent. We still set `is_remote`
+            // as the best proxy to ensure this span will be detected as a segment by the spans
+            // pipeline.
+            is_remote: true.into(),
             status: trace.map(|c| c.status.clone()).unwrap_or_default(),
             description: transaction.clone(),
             tags: tags.clone().map_value(|t| t.into()),
@@ -59,11 +64,13 @@ impl From<&Event> for Span {
                 .map(|c| c.profile_id.clone())
                 .unwrap_or_default(),
             data,
+            links: trace.map(|c| c.links.clone()).unwrap_or_default(),
             sentry_tags: Default::default(),
             received: received.clone(),
             measurements: measurements.clone(),
             platform: platform.clone(),
             was_transaction: true.into(),
+            kind: Default::default(),
             other: Default::default(),
         }
     }
@@ -99,7 +106,17 @@ mod tests {
                         "parent_span_id": "FA90FDEAD5F74051",
                         "data": {
                             "custom_attribute": 42
-                        }
+                        },
+                        "links": [
+                            {
+                                "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                                "span_id": "fa90fdead5f74052",
+                                "sampled": true,
+                                "attributes": {
+                                    "sentry.link.type": "previous_trace"
+                                }
+                            }
+                        ]
                     }
                 },
                 "measurements": {
@@ -134,6 +151,7 @@ mod tests {
                 "fa90fdead5f74052",
             ),
             is_segment: true,
+            is_remote: true,
             status: Ok,
             description: "my 1st transaction",
             tags: ~,
@@ -202,6 +220,8 @@ mod tests {
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
                 messaging_message_id: ~,
+                messaging_operation_name: ~,
+                messaging_operation_type: ~,
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
@@ -217,6 +237,23 @@ mod tests {
                     ),
                 },
             },
+            links: [
+                SpanLink {
+                    trace_id: TraceId(
+                        "4c79f60c11214eb38604f4ae0781bfb2",
+                    ),
+                    span_id: SpanId(
+                        "fa90fdead5f74052",
+                    ),
+                    sampled: true,
+                    attributes: {
+                        "sentry.link.type": String(
+                            "previous_trace",
+                        ),
+                    },
+                    other: {},
+                },
+            ],
             sentry_tags: ~,
             received: ~,
             measurements: Measurements(
@@ -231,6 +268,7 @@ mod tests {
             ),
             platform: "php",
             was_transaction: true,
+            kind: ~,
             other: {},
         }
         "###);

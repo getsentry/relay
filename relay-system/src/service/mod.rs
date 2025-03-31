@@ -7,15 +7,23 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use futures::future::Shared;
-use futures::stream::FuturesUnordered;
-use futures::{FutureExt, StreamExt};
+use futures::future::{BoxFuture, Shared};
+use futures::FutureExt;
 use tokio::sync::{mpsc, oneshot};
-use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior;
 
 use crate::statsd::SystemGauges;
 use crate::{spawn, TaskId};
+
+mod monitor;
+mod registry;
+mod status;
+
+pub(crate) use self::registry::Registry as ServiceRegistry;
+pub use self::registry::{ServiceId, ServiceMetrics, ServicesMetrics};
+pub use self::status::{
+    ServiceError, ServiceJoinHandle, ServiceStatusError, ServiceStatusJoinHandle,
+};
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -194,7 +202,7 @@ impl<T> fmt::Debug for Sender<T> {
 impl<T> Sender<T> {
     /// Sends the response value and closes the [`Request`].
     ///
-    /// This silenly drops the value if the request has been dropped.
+    /// This silently drops the value if the request has been dropped.
     pub fn send(self, value: T) {
         self.0.send(value).ok();
     }
@@ -820,7 +828,7 @@ where
 ///
 /// This channel is meant to be polled in a [`Service`].
 ///
-/// Instances are created automatically when [spawning](ServiceRunner::start) a service, or can be
+/// Instances are created automatically when [spawning](ServiceSpawn) a service, or can be
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 pub struct Receiver<I: Interface> {
     rx: mpsc::UnboundedReceiver<I>,
@@ -905,7 +913,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 /// Individual messages can have a response which will be sent once the message is handled by the
 /// service. The sender can asynchronously await the responses of such messages.
 ///
-/// To start a service, create a service runner and call [`ServiceRunner::start`].
+/// To start a service, create a service runner and call [`ServiceSpawnExt::start`].
 ///
 /// # Implementing Services
 ///
@@ -914,8 +922,8 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 /// synchronous, so that this needs to spawn at least one task internally:
 ///
 /// ```no_run
-/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service, ServiceRunner};
-///
+/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service, ServiceSpawnExt};
+/// # fn test(services: &dyn relay_system::ServiceSpawn) {
 /// struct MyMessage;
 ///
 /// impl Interface for MyMessage {}
@@ -940,7 +948,8 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 ///     }
 /// }
 ///
-/// let addr = ServiceRunner::new().start(MyService);
+/// let addr = services.start(MyService);
+/// # }
 /// ```
 ///
 /// ## Debounce and Caching
@@ -1022,43 +1031,70 @@ pub trait Service: Sized {
     }
 }
 
-/// Keeps track of running services.
+/// The [`ServiceSpawn`] trait allows for starting a [`Service`] on an executor that will run them to completion.
 ///
-/// Exposes information about crashed services.
-#[derive(Debug, Default)]
-pub struct ServiceRunner(FuturesUnordered<JoinHandle<()>>);
+/// Often you want to spawn your service directly via [`ServiceSpawnExt`].
+pub trait ServiceSpawn {
+    /// Starts the service on the executor.
+    fn start_obj(&self, service: ServiceObj);
+}
 
-impl ServiceRunner {
-    /// Creates a new service runner.
-    pub fn new() -> Self {
-        Self(FuturesUnordered::new())
-    }
+/// Extension trait for [`ServiceSpawn`], providing more convenient methods to spawn a service.
+pub trait ServiceSpawnExt {
+    /// Starts a service and starts tracking its join handle, exposing an [`Addr`] for message passing.
+    fn start<S: Service>(&self, service: S) -> Addr<S::Interface>;
 
-    /// Starts a service and starts tracking its join handle, exposing an [Addr] for message passing.
-    pub fn start<S: Service>(&mut self, service: S) -> Addr<S::Interface> {
-        let (addr, rx) = channel(S::name());
+    /// Starts a service and starts tracking its join handle, given a predefined receiver.
+    fn start_with<S: Service>(&self, service: S, rx: Receiver<S::Interface>);
+}
+
+impl<T: ServiceSpawn + ?Sized> ServiceSpawnExt for T {
+    fn start<S: Service>(&self, service: S) -> Addr<S::Interface> {
+        let (addr, rx) = crate::channel(S::name());
         self.start_with(service, rx);
         addr
     }
 
-    /// Starts a service and starts tracking its join handle, given a predefined receiver.
-    pub fn start_with<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
-        self.0
-            .push(spawn(TaskId::for_service::<S>(), service.run(rx)));
+    fn start_with<S: Service>(&self, service: S, rx: Receiver<S::Interface>) {
+        self.start_obj(ServiceObj::new(service, rx));
+    }
+}
+
+/// Type erased [`Service`].
+///
+/// Used to start a service using [`ServiceSpawn`] and usually not directly interacted with.
+/// Use [`ServiceSpawnExt`] when possible instead.
+pub struct ServiceObj {
+    name: &'static str,
+    future: BoxFuture<'static, ()>,
+}
+
+impl ServiceObj {
+    /// Creates a new bundled type erased [`Service`], that can be started using [`ServiceSpawn`].
+    pub fn new<S: Service>(service: S, rx: Receiver<S::Interface>) -> Self {
+        Self {
+            name: S::name(),
+            future: service.run(rx).boxed(),
+        }
     }
 
-    /// Awaits until all services have finished.
+    /// Returns the name of the service.
     ///
-    /// Panics if one of the spawned services has panicked.
-    pub async fn join(&mut self) {
-        while let Some(res) = self.0.next().await {
-            if let Err(e) = res {
-                if e.is_panic() {
-                    // Re-trigger panic to terminate the process:
-                    std::panic::resume_unwind(e.into_panic());
-                }
-            }
-        }
+    /// The name of the service is inferred from [`Service::name`].
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+}
+
+#[cfg(feature = "test")]
+/// A [`ServiceSpawn`] implementation which spawns a service on the current Tokio runtime.
+pub struct TokioServiceSpawn;
+
+#[cfg(feature = "test")]
+impl ServiceSpawn for TokioServiceSpawn {
+    #[track_caller]
+    fn start_obj(&self, service: ServiceObj) {
+        crate::spawn!(service.future);
     }
 }
 

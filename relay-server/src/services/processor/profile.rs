@@ -182,6 +182,7 @@ mod tests {
 
     #[cfg(feature = "processing")]
     use insta::assert_debug_snapshot;
+    use relay_cogs::Token;
     #[cfg(not(feature = "processing"))]
     use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::EventId;
@@ -303,7 +304,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         let ctx = envelope_response.envelope.unwrap();
         let new_envelope = ctx.envelope();
 
@@ -434,7 +438,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         let ctx = envelope_response.envelope.unwrap();
         let new_envelope = ctx.envelope();
 
@@ -504,7 +511,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         assert!(envelope_response.envelope.is_none());
     }
 
@@ -576,7 +586,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         let ctx = envelope_response.envelope.unwrap();
         let new_envelope = ctx.envelope();
 

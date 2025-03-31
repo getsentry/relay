@@ -4,6 +4,21 @@ use relay_system::RuntimeMetrics;
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
+    /// Tracks the number of futures waiting to be executed in the pool's queue.
+    ///
+    /// Useful for understanding the backlog of work and identifying potential bottlenecks.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
+    AsyncPoolQueueSize,
+    /// Tracks the utilization of the async pool.
+    ///
+    /// The utilization is a value between 0.0 and 100.0 which determines how busy is the pool
+    /// w.r.t. to its provisioned capacity.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
+    AsyncPoolUtilization,
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
@@ -42,11 +57,19 @@ pub enum RelayGauges {
     /// - `namespace`: the metric namespace.
     #[cfg(feature = "processing")]
     MetricDelayMax,
+    /// Estimated percentage [0-100] of how busy Relay's internal services are.
+    ///
+    /// This metric is tagged with:
+    /// - `service`: the service name.
+    /// - `instance_id`: a for the service name unique identifier for the running service
+    ServiceUtilization,
 }
 
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
+            RelayGauges::AsyncPoolQueueSize => "async_pool.queue_size",
+            RelayGauges::AsyncPoolUtilization => "async_pool.utilization",
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",
@@ -63,6 +86,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ServerActiveConnections => "server.http.connections",
             #[cfg(feature = "processing")]
             RelayGauges::MetricDelayMax => "metrics.delay.max",
+            RelayGauges::ServiceUtilization => "service.utilization",
         }
     }
 }
@@ -336,7 +360,6 @@ pub enum RelayTimers {
     /// Not all events reach this point. After an event is rate limited for the first time, the rate
     /// limit is cached. Events coming in after this will be discarded earlier in the request queue
     /// and do not reach the processing queue.
-    #[cfg(feature = "processing")]
     EventProcessingRateLimiting,
     /// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
@@ -509,16 +532,6 @@ pub enum RelayTimers {
     StoreServiceDuration,
     /// Timing in milliseconds for the time it takes for initialize the buffer.
     BufferInitialization,
-    /// Timing in milliseconds for the time the buffer service is waiting for input.
-    ///
-    /// This metric is tagged with:
-    /// - `input`: The type of input that broke the idling.
-    BufferIdle,
-    /// Timing in milliseconds for the time the buffer service spends handling input.
-    ///
-    /// This metric is tagged with:
-    /// - `input`: The type of input that the service is handling.
-    BufferBusy,
     /// Timing in milliseconds for the time it takes for the buffer to pack & spool a batch.
     ///
     /// Contains the time it takes to pack multiple envelopes into a single memory blob.
@@ -553,7 +566,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EventProcessingDeserialize => "event_processing.deserialize",
             RelayTimers::EventProcessingNormalization => "event_processing.normalization",
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
-            #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
             RelayTimers::EventProcessingSpanMetricsExtraction => {
@@ -585,8 +597,6 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
             RelayTimers::BufferInitialization => "buffer.initialization.duration",
-            RelayTimers::BufferIdle => "buffer.idle",
-            RelayTimers::BufferBusy => "buffer.busy",
             RelayTimers::BufferSpool => "buffer.spool.duration",
             RelayTimers::BufferSqlWrite => "buffer.write.duration",
             RelayTimers::BufferUnspool => "buffer.unspool.duration",
@@ -605,6 +615,11 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Tracks the number of tasks driven to completion by the async pool.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
+    AsyncPoolFinishedTasks,
     /// Number of Events that had corrupted (unprintable) event attributes.
     ///
     /// This currently checks for `environment` and `release`, for which we know that
@@ -645,7 +660,6 @@ pub enum RelayCounters {
     /// Number of times one or more projects of an envelope were pending when trying to pop
     /// their envelope.
     BufferProjectPending,
-    ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
@@ -837,11 +851,15 @@ pub enum RelayCounters {
     /// - `namespace`: the metric namespace.
     #[cfg(feature = "processing")]
     MetricDelayCount,
+    /// The amount of times PlayStation processing was attempted.
+    #[cfg(feature = "processing")]
+    PlaystationProcessing,
 }
 
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            RelayCounters::AsyncPoolFinishedTasks => "async_pool.finished_tasks",
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
@@ -883,6 +901,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelaySum => "metrics.delay.sum",
             #[cfg(feature = "processing")]
             RelayCounters::MetricDelayCount => "metrics.delay.count",
+            #[cfg(feature = "processing")]
+            RelayCounters::PlaystationProcessing => "processing.playstation",
         }
     }
 }

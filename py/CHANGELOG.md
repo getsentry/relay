@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.7
+
+- Remove unused capability to block metric names and tags. ([#4536](https://github.com/getsentry/relay/pull/4536))
+- Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
+- Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
+
 ## 0.9.6
 
 - Add a new data category for UI profiling. ([#4468](https://github.com/getsentry/relay/pull/4468))

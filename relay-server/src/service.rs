@@ -3,22 +3,27 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::services::autoscaling::{AutoscalingMetricService, AutoscalingMetrics};
 use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
+#[cfg(feature = "processing")]
+use crate::services::global_rate_limits::GlobalRateLimitsService;
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
-use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
+use crate::services::processor::{
+    self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
+};
 use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
-use crate::services::store::StoreService;
+use crate::services::store::{StoreService, StoreServicePool};
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
@@ -27,18 +32,17 @@ use anyhow::Context;
 use anyhow::Result;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
-use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::Config;
 #[cfg(feature = "processing")]
-use relay_config::{RedisConfigRef, RedisPoolConfigs};
+use relay_config::{RedisConfigRef, RedisConfigsRef};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
 #[cfg(feature = "processing")]
-use relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
-use relay_system::{channel, Addr, Service, ServiceRunner};
+use relay_redis::{RedisClients, RedisError, RedisScripts};
+use relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt as _};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, thiserror::Error)]
@@ -52,9 +56,9 @@ pub enum ServiceError {
     #[error("could not initialize kafka producer: {0}")]
     Kafka(String),
 
-    /// Initializing the Redis cluster client failed.
+    /// Initializing the Redis client failed.
     #[cfg(feature = "processing")]
-    #[error("could not initialize redis cluster client")]
+    #[error("could not initialize redis client during startup")]
     Redis,
 }
 
@@ -71,6 +75,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
+    pub autoscaling: Addr<AutoscalingMetrics>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -95,7 +100,7 @@ pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runti
         .build()
 }
 
-fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
+fn create_processor_pool(config: &Config) -> Result<EnvelopeProcessorServicePool> {
     // Adjust thread count for small cpu counts to not have too many idle cores
     // and distribute workload better.
     let thread_count = match config.cpu_concurrency() {
@@ -105,17 +110,17 @@ fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
     };
     relay_log::info!("starting {thread_count} envelope processing workers");
 
-    let pool = crate::utils::ThreadPoolBuilder::new("processor")
+    let pool = crate::utils::ThreadPoolBuilder::new("processor", tokio::runtime::Handle::current())
         .num_threads(thread_count)
+        .max_concurrency(config.pool_concurrency())
         .thread_kind(ThreadKind::Worker)
-        .runtime(tokio::runtime::Handle::current())
         .build()?;
 
     Ok(pool)
 }
 
 #[cfg(feature = "processing")]
-fn create_store_pool(config: &Config) -> Result<ThreadPool> {
+fn create_store_pool(config: &Config) -> Result<StoreServicePool> {
     // Spawn a store worker for every 12 threads in the processor pool.
     // This ratio was found empirically and may need adjustments in the future.
     //
@@ -124,9 +129,9 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
     let thread_count = config.cpu_concurrency().div_ceil(12);
     relay_log::info!("starting {thread_count} store workers");
 
-    let pool = crate::utils::ThreadPoolBuilder::new("store")
+    let pool = crate::utils::ThreadPoolBuilder::new("store", tokio::runtime::Handle::current())
         .num_threads(thread_count)
-        .runtime(tokio::runtime::Handle::current())
+        .max_concurrency(config.pool_concurrency())
         .build()?;
 
     Ok(pool)
@@ -148,16 +153,16 @@ pub struct ServiceState {
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
     pub async fn start(
-        rt_metrics: relay_system::RuntimeMetrics,
+        handle: &relay_system::Handle,
+        services: &dyn ServiceSpawn,
         config: Arc<Config>,
-    ) -> Result<(Self, ServiceRunner)> {
-        let mut runner = ServiceRunner::new();
-        let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
-        let test_store = runner.start(TestStoreService::new(config.clone()));
+    ) -> Result<Self> {
+        let upstream_relay = services.start(UpstreamRelayService::new(config.clone()));
+        let test_store = services.start(TestStoreService::new(config.clone()));
 
         #[cfg(feature = "processing")]
-        let redis_pools = match config.redis().filter(|_| config.processing_enabled()) {
-            Some(config) => Some(create_redis_pools(config).await),
+        let redis_clients = match config.redis().filter(|_| config.processing_enabled()) {
+            Some(config) => Some(create_redis_clients(config).await),
             None => None,
         }
         .transpose()
@@ -168,8 +173,10 @@ impl ServiceState {
         // initialization to work properly since it assumes that scripts are loaded across all Redis
         // instances.
         #[cfg(feature = "processing")]
-        if let Some(redis_pools) = &redis_pools {
-            initialize_redis_scripts_for_pools(redis_pools).context(ServiceError::Redis)?;
+        if let Some(redis_clients) = &redis_clients {
+            initialize_redis_scripts_for_clients(redis_clients)
+                .await
+                .context(ServiceError::Redis)?;
         }
 
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
@@ -179,13 +186,13 @@ impl ServiceState {
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
         let (processor, processor_rx) = channel(EnvelopeProcessorService::name());
-        let outcome_producer = runner.start(OutcomeProducerService::create(
+        let outcome_producer = services.start(OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
             processor.clone(),
         )?);
         let outcome_aggregator =
-            runner.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
+            services.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -193,27 +200,28 @@ impl ServiceState {
         // The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
         // service fail if the service is not running.
-        let global_config = runner.start(global_config);
+        let global_config = services.start(global_config);
 
         let project_source = ProjectSource::start_in(
-            &mut runner,
+            services,
             Arc::clone(&config),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
-            redis_pools.clone(),
+            redis_clients.clone(),
         )
         .await;
         let project_cache_handle =
-            ProjectCacheService::new(Arc::clone(&config), project_source).start_in(&mut runner);
+            ProjectCacheService::new(Arc::clone(&config), project_source).start_in(services);
 
         let aggregator = RouterService::new(
+            handle.clone(),
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             Some(processor.clone().recipient()),
             project_cache_handle.clone(),
         );
         let aggregator_handle = aggregator.handle();
-        let aggregator = runner.start(aggregator);
+        let aggregator = services.start(aggregator);
 
         let metric_stats = MetricStats::new(
             config.clone(),
@@ -224,32 +232,40 @@ impl ServiceState {
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
 
         #[cfg(feature = "processing")]
+        let store_pool = create_store_pool(&config)?;
+        #[cfg(feature = "processing")]
         let store = config
             .processing_enabled()
             .then(|| {
                 StoreService::create(
-                    create_store_pool(&config)?,
+                    store_pool.clone(),
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| runner.start(s))
+                .map(|s| services.start(s))
             })
             .transpose()?;
 
         let cogs = CogsService::new(&config);
-        let cogs = Cogs::new(CogsServiceRecorder::new(&config, runner.start(cogs)));
+        let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
 
-        runner.start_with(
+        #[cfg(feature = "processing")]
+        let global_rate_limits = redis_clients
+            .as_ref()
+            .map(|p| services.start(GlobalRateLimitsService::new(p.quotas.clone())));
+
+        let processor_pool = create_processor_pool(&config)?;
+        services.start_with(
             EnvelopeProcessorService::new(
-                create_processor_pool(&config)?,
+                processor_pool.clone(),
                 config.clone(),
                 global_config_handle,
                 project_cache_handle.clone(),
                 cogs,
                 #[cfg(feature = "processing")]
-                redis_pools.clone(),
+                redis_clients.clone(),
                 processor::Addrs {
                     outcome_aggregator: outcome_aggregator.clone(),
                     upstream_relay: upstream_relay.clone(),
@@ -257,6 +273,8 @@ impl ServiceState {
                     #[cfg(feature = "processing")]
                     store_forwarder: store.clone(),
                     aggregator: aggregator.clone(),
+                    #[cfg(feature = "processing")]
+                    global_rate_limits,
                 },
                 metric_outcomes.clone(),
             ),
@@ -272,10 +290,10 @@ impl ServiceState {
             processor.clone(),
             outcome_aggregator.clone(),
             test_store.clone(),
-            &mut runner,
+            services,
         );
 
-        let health_check = runner.start(HealthCheckService::new(
+        let health_check = services.start(HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
@@ -283,15 +301,25 @@ impl ServiceState {
             envelope_buffer.clone(),
         ));
 
-        runner.start(RelayStats::new(
-            config.clone(),
-            rt_metrics,
-            upstream_relay.clone(),
-            #[cfg(feature = "processing")]
-            redis_pools.clone(),
+        let autoscaling = services.start(AutoscalingMetricService::new(
+            memory_stat.clone(),
+            envelope_buffer.clone(),
+            handle.clone(),
+            processor_pool.clone(),
         ));
 
-        let relay_cache = runner.start(RelayCacheService::new(
+        services.start(RelayStats::new(
+            config.clone(),
+            handle.clone(),
+            upstream_relay.clone(),
+            #[cfg(feature = "processing")]
+            redis_clients.clone(),
+            processor_pool,
+            #[cfg(feature = "processing")]
+            store_pool,
+        ));
+
+        let relay_cache = services.start(RelayCacheService::new(
             config.clone(),
             upstream_relay.clone(),
         ));
@@ -307,6 +335,7 @@ impl ServiceState {
             project_cache_handle,
             upstream_relay,
             envelope_buffer,
+            autoscaling,
         };
 
         let state = StateInner {
@@ -315,12 +344,9 @@ impl ServiceState {
             registry,
         };
 
-        Ok((
-            ServiceState {
-                inner: Arc::new(state),
-            },
-            runner,
-        ))
+        Ok(ServiceState {
+            inner: Arc::new(state),
+        })
     }
 
     /// Returns a reference to the Relay configuration.
@@ -333,6 +359,10 @@ impl ServiceState {
     /// thresholds set in the [`Config`].
     pub fn memory_checker(&self) -> &MemoryChecker {
         &self.inner.memory_checker
+    }
+
+    pub fn autoscaling(&self) -> &Addr<AutoscalingMetrics> {
+        &self.inner.registry.autoscaling
     }
 
     /// Returns the V2 envelope buffer, if present.
@@ -386,56 +416,36 @@ impl ServiceState {
     }
 }
 
-#[cfg(feature = "processing")]
-fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisError> {
-    match redis_config {
-        RedisConfigRef::Cluster {
-            cluster_nodes,
-            options,
-        } => RedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options),
-        RedisConfigRef::MultiWrite { configs } => {
-            let mut configs = configs.into_iter();
-            let primary = create_redis_pool(configs.next().ok_or(RedisError::Configuration)?)?;
-            let secondaries = configs
-                .map(|s| create_redis_pool(s).map_err(|_| RedisError::Configuration))
-                .collect::<Result<Vec<_>, _>>()?;
-
-            RedisPool::multi_write(primary, secondaries)
-        }
-        RedisConfigRef::Single { server, options } => RedisPool::single(server, options),
-    }
-}
-
-/// Creates Redis pools from the given `configs`.
+/// Creates Redis clients from the given `configs`.
 ///
-/// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
-/// for cardinality and quotas, meaning that they really use the same pool.
-/// `project_config` uses an async pool so it cannot be shared with the other two.
+/// If `configs` is [`Unified`](RedisConfigsRef::Unified), one client is created and then cloned
+/// for project configs, cardinality, and quotas, meaning that they really use the same client.
 ///
-/// If it is [`Individual`](RedisPoolConfigs::Individual), an actual separate pool
+/// If it is [`Individual`](RedisConfigsRef::Individual), an actual separate client
 /// is created for each use case.
 #[cfg(feature = "processing")]
-pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPools, RedisError> {
+pub async fn create_redis_clients(
+    configs: RedisConfigsRef<'_>,
+) -> Result<RedisClients, RedisError> {
     match configs {
-        RedisPoolConfigs::Unified(pool) => {
-            let project_configs = create_async_connection(&pool).await?;
-            let pool = create_redis_pool(pool)?;
-            Ok(RedisPools {
-                project_configs,
-                cardinality: pool.clone(),
-                quotas: pool.clone(),
+        RedisConfigsRef::Unified(unified) => {
+            let client = create_async_redis_client(&unified).await?;
+            Ok(RedisClients {
+                project_configs: client.clone(),
+                cardinality: client.clone(),
+                quotas: client,
             })
         }
-        RedisPoolConfigs::Individual {
+        RedisConfigsRef::Individual {
             project_configs,
             cardinality,
             quotas,
         } => {
-            let project_configs = create_async_connection(&project_configs).await?;
-            let cardinality = create_redis_pool(cardinality)?;
-            let quotas = create_redis_pool(quotas)?;
+            let project_configs = create_async_redis_client(&project_configs).await?;
+            let cardinality = create_async_redis_client(&cardinality).await?;
+            let quotas = create_async_redis_client(&quotas).await?;
 
-            Ok(RedisPools {
+            Ok(RedisClients {
                 project_configs,
                 cardinality,
                 quotas,
@@ -445,7 +455,7 @@ pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPo
 }
 
 #[cfg(feature = "processing")]
-async fn create_async_connection(
+async fn create_async_redis_client(
     config: &RedisConfigRef<'_>,
 ) -> Result<AsyncRedisClient, RedisError> {
     match config {
@@ -463,33 +473,33 @@ async fn create_async_connection(
 }
 
 #[cfg(feature = "processing")]
-fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
-    let cardinality = redis_pools.cardinality.client()?;
-    let quotas = redis_pools.quotas.client()?;
-
+async fn initialize_redis_scripts_for_clients(
+    redis_clients: &RedisClients,
+) -> Result<(), RedisError> {
     let scripts = RedisScripts::all();
 
-    let pools = [cardinality, quotas];
-    for pool in pools {
-        initialize_redis_scripts(pool, &scripts)?;
+    let clients = [&redis_clients.cardinality, &redis_clients.quotas];
+    for client in clients {
+        initialize_redis_scripts(client, &scripts).await?;
     }
 
     Ok(())
 }
 
 #[cfg(feature = "processing")]
-fn initialize_redis_scripts(
-    mut pooled_client: PooledClient,
+async fn initialize_redis_scripts(
+    client: &AsyncRedisClient,
     scripts: &[&Script; 3],
 ) -> Result<(), RedisError> {
-    let mut connection = pooled_client.connection()?;
+    let mut connection = client.get_connection();
 
     for script in scripts {
         // We load on all instances without checking if the script is already in cache because of a
         // limitation in the connection implementation.
         script
             .prepare_invoke()
-            .load(&mut connection)
+            .load_async(&mut connection)
+            .await
             .map_err(RedisError::Redis)?;
     }
 

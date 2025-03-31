@@ -50,6 +50,39 @@ pub enum LogFormat {
     Json,
 }
 
+/// The logging format parse error.
+#[derive(Clone, Debug)]
+pub struct FormatParseError(String);
+
+impl Display for FormatParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            r#"error parsing "{}" as format: expected one of "auto", "pretty", "simplified", "json""#,
+            self.0
+        )
+    }
+}
+
+impl FromStr for LogFormat {
+    type Err = FormatParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let result = match s {
+            "" => LogFormat::Auto,
+            s if s.eq_ignore_ascii_case("auto") => LogFormat::Auto,
+            s if s.eq_ignore_ascii_case("pretty") => LogFormat::Pretty,
+            s if s.eq_ignore_ascii_case("simplified") => LogFormat::Simplified,
+            s if s.eq_ignore_ascii_case("json") => LogFormat::Json,
+            s => return Err(FormatParseError(s.into())),
+        };
+
+        Ok(result)
+    }
+}
+
+impl std::error::Error for FormatParseError {}
+
 /// The logging level parse error.
 #[derive(Clone, Debug)]
 pub struct LevelParseError(String);

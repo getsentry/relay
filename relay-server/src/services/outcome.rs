@@ -12,6 +12,13 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, mem};
 
+use crate::envelope::ItemType;
+#[cfg(feature = "processing")]
+use crate::service::ServiceError;
+use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
+use crate::services::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::statsd::RelayCounters;
+use crate::utils::SleepHandle;
 use chrono::{DateTime, SecondsFormat, Utc};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -28,13 +35,6 @@ use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "processing")]
-use crate::service::ServiceError;
-use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
-use crate::services::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
-use crate::statsd::RelayCounters;
-use crate::utils::SleepHandle;
 
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -205,6 +205,9 @@ impl Outcome {
     /// Returns the `reason` code field of this outcome.
     pub fn to_reason(&self) -> Option<Cow<'_, str>> {
         match self {
+            Outcome::Invalid(DiscardReason::TooLarge(too_large_reason)) => Some(Cow::Owned(
+                format!("too_large:{}", too_large_reason.as_str()),
+            )),
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
             Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
@@ -356,7 +359,7 @@ pub enum DiscardReason {
     EmptyEnvelope,
 
     /// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
-    TooLarge,
+    TooLarge(DiscardItemType),
 
     /// (Legacy) A store request was received with an invalid method.
     ///
@@ -455,6 +458,9 @@ pub enum DiscardReason {
     /// (Relay) Profiling related discard reasons
     Profiling(&'static str),
 
+    /// (Relay) A log that is not valid after normalization.
+    InvalidLog,
+
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
 
@@ -473,7 +479,7 @@ impl DiscardReason {
             DiscardReason::AuthVersion => "auth_version",
             DiscardReason::AuthClient => "auth_client",
             DiscardReason::NoData => "no_data",
-            DiscardReason::TooLarge => "too_large",
+            DiscardReason::TooLarge(discard) => discard.as_str(),
             DiscardReason::DisallowedMethod => "disallowed_method",
             DiscardReason::ContentType => "content_type",
             DiscardReason::MultiProjectId => "multi_project_id",
@@ -507,6 +513,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
             DiscardReason::Profiling(reason) => reason,
+            DiscardReason::InvalidLog => "invalid_log",
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
             DiscardReason::TransactionAttachment => "transaction_attachment",
@@ -517,6 +524,149 @@ impl DiscardReason {
 impl fmt::Display for DiscardReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
+    }
+}
+
+/// Similar to [`ItemType`] but it does not have any additional information in the
+/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
+/// The variants should be the same as [`ItemType`].
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum DiscardItemType {
+    /// Event payload encoded in JSON.
+    Event,
+    /// Transaction event payload encoded in JSON.
+    Transaction,
+    /// Security report event payload encoded in JSON.
+    Security,
+    /// Raw payload of an arbitrary attachment.
+    Attachment,
+    /// Multipart form data collected into a stream of JSON tuples.
+    FormData,
+    /// Security report as sent by the browser in JSON.
+    RawSecurity,
+    /// NEL report as sent by the browser.
+    Nel,
+    /// Raw compressed UE4 crash report.
+    UnrealReport,
+    /// User feedback encoded as JSON.
+    UserReport,
+    /// Session update data.
+    Session,
+    /// Aggregated session data.
+    Sessions,
+    /// Individual metrics in text encoding.
+    Statsd,
+    /// Buckets of preaggregated metrics encoded as JSON.
+    MetricBuckets,
+    /// Client internal report (eg: outcomes).
+    ClientReport,
+    /// Profile event payload encoded as JSON.
+    Profile,
+    /// Replay metadata and breadcrumb payload.
+    ReplayEvent,
+    /// Replay Recording data.
+    ReplayRecording,
+    /// Replay Video data.
+    ReplayVideo,
+    /// Monitor check-in encoded as JSON.
+    CheckIn,
+    /// A log from the [OTEL Log format](https://opentelemetry.io/docs/specs/otel/logs/data-model/#log-and-event-record-definition)
+    OtelLog,
+    /// A log for the log product, not internal logs.
+    Log,
+    /// A standalone span.
+    Span,
+    /// A standalone OpenTelemetry span serialized as JSON.
+    OtelSpan,
+    /// An OTLP TracesData container.
+    OtelTracesData,
+    /// UserReport as an Event
+    UserReportV2,
+    /// ProfileChunk is a chunk of a profiling session.
+    ProfileChunk,
+    /// A new item type that is yet unknown by this version of Relay.
+    ///
+    /// By default, items of this type are forwarded without modification. Processing Relays and
+    /// Relays explicitly configured to do so will instead drop those items. This allows
+    /// forward-compatibility with new item types where we expect outdated Relays.
+    Unknown,
+    // Keep `Unknown` last in the list. Add new items above `Unknown`.
+}
+
+impl DiscardItemType {
+    /// Returns the enum variant as string representation in snake case.
+    ///
+    /// For example, `DiscardItemType::UserReportV2` gets converted into `user_report_v2`.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Event => "event",
+            Self::Transaction => "transaction",
+            Self::Security => "security",
+            Self::Attachment => "attachment",
+            Self::FormData => "form_data",
+            Self::RawSecurity => "raw_security",
+            Self::Nel => "nel",
+            Self::UnrealReport => "unreal_report",
+            Self::UserReport => "user_report",
+            Self::Session => "session",
+            Self::Sessions => "sessions",
+            Self::Statsd => "statsd",
+            Self::MetricBuckets => "metric_buckets",
+            Self::ClientReport => "client_report",
+            Self::Profile => "profile",
+            Self::ReplayEvent => "replay_event",
+            Self::ReplayRecording => "replay_recording",
+            Self::ReplayVideo => "replay_video",
+            Self::CheckIn => "check_in",
+            Self::OtelLog => "otel_log",
+            Self::Log => "log",
+            Self::Span => "span",
+            Self::OtelSpan => "otel_span",
+            Self::OtelTracesData => "otel_traces_data",
+            Self::UserReportV2 => "user_report_v2",
+            Self::ProfileChunk => "profile_chunk",
+        }
+    }
+}
+
+impl From<&ItemType> for DiscardItemType {
+    fn from(value: &ItemType) -> Self {
+        match value {
+            ItemType::Event => DiscardItemType::Event,
+            ItemType::Transaction => DiscardItemType::Transaction,
+            ItemType::Security => DiscardItemType::Security,
+            ItemType::Attachment => DiscardItemType::Attachment,
+            ItemType::FormData => DiscardItemType::FormData,
+            ItemType::RawSecurity => DiscardItemType::RawSecurity,
+            ItemType::Nel => DiscardItemType::Nel,
+            ItemType::UnrealReport => DiscardItemType::UnrealReport,
+            ItemType::UserReport => DiscardItemType::UserReport,
+            ItemType::Session => DiscardItemType::Session,
+            ItemType::Sessions => DiscardItemType::Sessions,
+            ItemType::Statsd => DiscardItemType::Statsd,
+            ItemType::MetricBuckets => DiscardItemType::MetricBuckets,
+            ItemType::ClientReport => DiscardItemType::ClientReport,
+            ItemType::Profile => DiscardItemType::Profile,
+            ItemType::ReplayEvent => DiscardItemType::ReplayEvent,
+            ItemType::ReplayRecording => DiscardItemType::ReplayRecording,
+            ItemType::ReplayVideo => DiscardItemType::ReplayVideo,
+            ItemType::CheckIn => DiscardItemType::CheckIn,
+            ItemType::OtelLog => DiscardItemType::OtelLog,
+            ItemType::Log => DiscardItemType::Log,
+            ItemType::Span => DiscardItemType::Span,
+            ItemType::OtelSpan => DiscardItemType::OtelSpan,
+            ItemType::OtelTracesData => DiscardItemType::OtelTracesData,
+            ItemType::UserReportV2 => DiscardItemType::UserReportV2,
+            ItemType::ProfileChunk => DiscardItemType::ProfileChunk,
+            ItemType::Unknown(_) => DiscardItemType::Unknown,
+        }
+    }
+}
+
+impl From<ItemType> for DiscardItemType {
+    fn from(value: ItemType) -> Self {
+        From::from(&value)
     }
 }
 
@@ -750,7 +900,10 @@ impl ClientReportOutcomeProducer {
             Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
             Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
             _ => {
-                // Cannot convert this outcome to a client report.
+                relay_log::debug!(
+                    "Outcome '{}' cannot be converted to client report",
+                    msg.outcome
+                );
                 return;
             }
         };
@@ -1070,6 +1223,22 @@ mod tests {
         assert_eq!(
             MatchedRuleIds::parse(&serialized).unwrap(),
             MatchedRuleIds([1000, 1004, 1400, 1500, 0].map(RuleId).into())
+        );
+    }
+
+    #[test]
+    fn test_outcome_discard_reason() {
+        assert_eq!(
+            Some(Cow::from("too_large:attachment")),
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment)).to_reason()
+        );
+        assert_eq!(
+            Some(Cow::from("too_large:unknown")),
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Unknown)).to_reason()
+        );
+        assert_eq!(
+            Some(Cow::from("too_large:unreal_report")),
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::UnrealReport)).to_reason()
         );
     }
 }

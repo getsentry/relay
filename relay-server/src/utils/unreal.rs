@@ -8,13 +8,14 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use symbolic_unreal::{
-    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
+    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4FileType, Unreal4LogEntry,
 };
 
 use crate::constants::{
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,
 };
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::services::processor::ProcessingError;
 
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
@@ -50,7 +51,7 @@ pub fn expand_unreal_envelope(
     unreal_item: Item,
     envelope: &mut Envelope,
     config: &Config,
-) -> Result<(), Unreal4Error> {
+) -> Result<(), ProcessingError> {
     let payload = unreal_item.payload();
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
@@ -90,8 +91,8 @@ pub fn expand_unreal_envelope(
         envelope.add_item(item);
     }
 
-    if super::check_envelope_size_limits(config, envelope).is_err() {
-        return Err(Unreal4ErrorKind::TooLarge.into());
+    if let Err(offender) = super::check_envelope_size_limits(config, envelope) {
+        return Err(ProcessingError::PayloadTooLarge(offender));
     }
 
     Ok(())
@@ -222,7 +223,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     if let Some(login_id) = &runtime_props.login_id {
         let id = event.user.get_or_insert_with(User::default).id.value_mut();
 
-        if id.as_ref().map_or(true, |s| s.is_empty()) {
+        if id.as_ref().is_none_or(|s| s.is_empty()) {
             *id = Some(login_id.clone().into());
         }
     }

@@ -13,7 +13,7 @@ use relay_event_schema::protocol::{
     AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
     Timestamp, TraceContext,
 };
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -400,6 +400,35 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
 fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> {
     let mut measurements = BTreeMap::new();
 
+    // Extract breakdowns into measurements, similar to /metrics_extraction/transacitons/mod.rs
+    if let Some(breakdowns) = event.breakdowns.value() {
+        for (breakdown, measurement_list) in breakdowns.iter() {
+            if let Some(measurement_list) = measurement_list.value() {
+                for (measurement_name, annotated) in measurement_list.iter() {
+                    if measurement_name == "total.time" {
+                        continue;
+                    }
+
+                    let Some(value) = annotated
+                        .value()
+                        .and_then(|value| value.value.value())
+                        .copied()
+                    else {
+                        continue;
+                    };
+
+                    measurements.insert(
+                        format!("{breakdown}.{measurement_name}"),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::Duration(DurationUnit::MilliSecond).into(),
+                        },
+                    );
+                }
+            }
+        }
+    }
+
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
             if op == "queue.publish" || op == "queue.process" {
@@ -443,6 +472,8 @@ fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> 
 struct SegmentTags {
     messaging_destination_name: Annotated<String>,
     messaging_message_id: Annotated<String>,
+    messaging_operation_name: Annotated<String>,
+    messaging_operation_type: Annotated<String>,
 }
 
 impl SegmentTags {
@@ -450,9 +481,13 @@ impl SegmentTags {
         let Self {
             messaging_destination_name,
             messaging_message_id,
+            messaging_operation_name,
+            messaging_operation_type,
         } = self.clone();
         tags.messaging_destination_name = messaging_destination_name;
         tags.messaging_message_id = messaging_message_id;
+        tags.messaging_operation_name = messaging_operation_name;
+        tags.messaging_operation_type = messaging_operation_type;
     }
 }
 
@@ -466,6 +501,8 @@ fn extract_segment_tags(event: &Event) -> SegmentTags {
                 if let Some(data) = trace_context.data.value() {
                     tags.messaging_destination_name = data.messaging_destination_name.clone();
                     tags.messaging_message_id = data.messaging_message_id.clone();
+                    tags.messaging_operation_name = data.messaging_operation_name.clone();
+                    tags.messaging_operation_type = data.messaging_operation_type.clone();
                 }
             }
         }
@@ -510,14 +547,10 @@ pub fn extract_tags(
 
         span_tags.op = span_op.to_owned().into();
 
-        let category = span_op_to_category(&span_op);
-        if let Some(category) = category {
-            span_tags.category = category.to_owned().into();
-        }
+        let category = category_for_span(span);
 
         let (scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
-
-        let action = match (category, span_op.as_str(), &scrubbed_description) {
+        let action = match (category.as_deref(), span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
@@ -549,6 +582,23 @@ pub fn extract_tags(
             }
             _ => None,
         };
+
+        if category.as_deref() == Some("ai") {
+            if let Some(ai_pipeline_name) = span
+                .data
+                .value()
+                .and_then(|data| data.ai_pipeline_name.value())
+                .and_then(|val| val.as_str())
+            {
+                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
+                ai_pipeline_group.truncate(16);
+                span_tags.ai_pipeline_group = ai_pipeline_group.into();
+            }
+        }
+
+        if let Some(category) = category {
+            span_tags.category = category.into_owned().into();
+        }
 
         if let Some(act) = action {
             span_tags.action = act.into();
@@ -677,6 +727,20 @@ pub fn extract_tags(
             {
                 span_tags.messaging_message_id = message_id.to_owned().into();
             }
+            if let Some(operation_name) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_operation_name.as_str())
+            {
+                span_tags.messaging_operation_name = operation_name.to_owned().into();
+            }
+            if let Some(operation_type) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_operation_type.as_str())
+            {
+                span_tags.messaging_operation_type = operation_type.to_owned().into();
+            }
         }
 
         if let Some(scrubbed_desc) = scrubbed_description {
@@ -702,19 +766,6 @@ pub fn extract_tags(
             }
 
             span_tags.description = truncated.into();
-        }
-
-        if category == Some("ai") {
-            if let Some(ai_pipeline_name) = span
-                .data
-                .value()
-                .and_then(|data| data.ai_pipeline_name.value())
-                .and_then(|val| val.as_str())
-            {
-                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
-                ai_pipeline_group.truncate(16);
-                span_tags.ai_pipeline_group = ai_pipeline_group.into();
-            }
         }
 
         if span_op.starts_with("resource.") {
@@ -1128,6 +1179,52 @@ fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> 
     None
 }
 
+fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
+    // Allow clients to explicitly set the category via attribute.
+    if let Some(Value::String(category)) = span
+        .data
+        .value()
+        .and_then(|v| v.other.get("sentry.category"))
+        .and_then(|c| c.value())
+    {
+        return Some(category.to_owned().into());
+    }
+
+    // If we're given an op, derive the category from that.
+    if let Some(unsanitized_span_op) = span.op.value() {
+        let span_op = unsanitized_span_op.to_lowercase();
+        if let Some(category) = span_op_to_category(&span_op) {
+            return Some(category.to_owned().into());
+        }
+    }
+
+    // Derive the category from the span's attributes.
+    let span_data = span.data.value()?;
+
+    fn value_is_set(value: &Annotated<Value>) -> bool {
+        value.value().is_some_and(|v| !v.is_empty())
+    }
+
+    if value_is_set(&span_data.db_system) {
+        Some("db".into())
+    } else if value_is_set(&span_data.http_request_method) {
+        Some("http".into())
+    } else if value_is_set(&span_data.ui_component_name) {
+        Some("ui".into())
+    } else if value_is_set(&span_data.resource_render_blocking_status) {
+        Some("resource".into())
+    } else if span_data
+        .other
+        .get("sentry.origin")
+        .and_then(|v| v.as_str())
+        .is_some_and(|v| v == "auto.ui.browser.metrics")
+    {
+        Some("browser".into())
+    } else {
+        None
+    }
+}
+
 /// Returns the category of a span from its operation. The mapping is available in:
 /// <https://develop.sentry.dev/sdk/performance/span-operations/>
 fn span_op_to_category(op: &str) -> Option<&str> {
@@ -1173,8 +1270,8 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
-    use relay_event_schema::protocol::Request;
-    use relay_protocol::{get_value, Getter};
+    use relay_event_schema::protocol::{Request, SpanData};
+    use relay_protocol::{get_value, Getter, Object};
 
     use super::*;
     use crate::span::description::{scrub_queries, Mode};
@@ -2142,7 +2239,9 @@ LIMIT 1
                 "data": {
                     "messaging.destination.name": "default",
                     "messaging.message.id": "abc123",
-                    "messaging.message.body.size": 100
+                    "messaging.message.body.size": 100,
+                    "messaging.operation.name": "publish",
+                    "messaging.operation.type": "create"
                 }
             }
         "#;
@@ -2159,6 +2258,14 @@ LIMIT 1
         assert_eq!(
             tags.messaging_message_id.value(),
             Some(&"abc123".to_string())
+        );
+        assert_eq!(
+            tags.messaging_operation_name.value(),
+            Some(&"publish".to_string())
+        );
+        assert_eq!(
+            tags.messaging_operation_type.value(),
+            Some(&"create".to_string())
         );
     }
 
@@ -2180,7 +2287,9 @@ LIMIT 1
                             "messaging.message.id": "abc123",
                             "messaging.message.receive.latency": 456,
                             "messaging.message.body.size": 100,
-                            "messaging.message.retry.count": 3
+                            "messaging.message.retry.count": 3,
+                            "messaging.operation.name": "publish",
+                            "messaging.operation.type": "create"
                         }
                     }
                 }
@@ -2200,6 +2309,8 @@ LIMIT 1
         let measurements = segment_span.value().unwrap().measurements.value().unwrap();
 
         assert_eq!(tags.messaging_destination_name.as_str(), Some("default"));
+        assert_eq!(tags.messaging_operation_name.as_str(), Some("publish"));
+        assert_eq!(tags.messaging_operation_type.as_str(), Some("create"));
 
         assert_eq!(tags.messaging_message_id.as_str(), Some("abc123"));
 
@@ -2228,6 +2339,81 @@ LIMIT 1
     }
 
     #[test]
+    fn test_extract_breakdown_tags() {
+        let json = r#"
+                {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "breakdowns": {
+                    "span_ops": {
+                        "ops.http": {
+                            "value": 1000,
+                            "unit": "millisecond"
+                        },
+                        "ops.resource": {
+                            "value": 420,
+                            "unit": "millisecond"
+                        },
+                        "ops.ui": {
+                            "value": 27000,
+                            "unit": "millisecond"
+                        },
+                        "total.time": {
+                            "value": 45000,
+                            "unit": "millisecond"
+                        }
+                    }
+                },
+                "spans": []
+            }
+        "#;
+
+        let event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        let mut spans = [Span::from(&event).into()];
+        extract_segment_span_tags(&event, &mut spans);
+        let segment_span: &Annotated<Span> = &spans[0];
+        let measurements = segment_span.value().unwrap().measurements.value().unwrap();
+
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "span_ops.ops.http": Measurement {
+                    value: 1000.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "span_ops.ops.resource": Measurement {
+                    value: 420.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "span_ops.ops.ui": Measurement {
+                    value: 27000.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
     fn test_does_not_extract_segment_tags_and_measurements_on_child_spans() {
         let json = r#"
             {
@@ -2245,7 +2431,9 @@ LIMIT 1
                             "messaging.message.id": "abc123",
                             "messaging.message.receive.latency": 456,
                             "messaging.message.body.size": 100,
-                            "messaging.message.retry.count": 3
+                            "messaging.message.retry.count": 3,
+                            "messaging.operation.name": "publish",
+                            "messaging.operation.type": "create"
                         }
                     }
                 },
@@ -2711,5 +2899,104 @@ LIMIT 1
 
         assert_eq!(get_value!(span.sentry_tags.thread_id!), "42",);
         assert_eq!(get_value!(span.sentry_tags.thread_name!), "main",);
+    }
+
+    #[test]
+    fn span_category_from_explicit_attribute_overrides_op() {
+        let span = Span {
+            op: "app.start".to_owned().into(),
+            data: SpanData {
+                other: Object::from([(
+                    "sentry.category".into(),
+                    Value::String("db".into()).into(),
+                )]),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("db".into()));
+    }
+
+    #[test]
+    fn span_category_from_op_overrides_inference() {
+        let span = Span {
+            op: "app.start".to_owned().into(),
+            data: SpanData {
+                db_system: Value::String("postgresql".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("app".into()));
+    }
+
+    #[test]
+    fn infers_db_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                db_system: Value::String("postgresql".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("db".into()));
+    }
+
+    #[test]
+    fn infers_http_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                http_request_method: Value::String("POST".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("http".into()));
+    }
+
+    #[test]
+    fn infers_ui_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                ui_component_name: Value::String("MainComponent".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("ui".into()));
+    }
+
+    #[test]
+    fn infers_resource_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                resource_render_blocking_status: Value::String("true".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("resource".into()));
+    }
+
+    #[test]
+    fn infers_browser_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                other: Object::from([(
+                    "sentry.origin".into(),
+                    Value::String("auto.ui.browser.metrics".into()).into(),
+                )]),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("browser".into()));
     }
 }

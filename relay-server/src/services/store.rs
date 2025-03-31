@@ -10,12 +10,15 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, FiniteF64, GaugeValue,
@@ -24,20 +27,19 @@ use relay_metrics::{
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use relay_threading::AsyncPool;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::{FormDataIter, ThreadPool, TypedEnvelope, WorkerGroup};
+use crate::utils::{FormDataIter, TypedEnvelope};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -91,6 +93,9 @@ pub struct StoreMetrics {
     pub retention: u16,
 }
 
+/// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
+pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
+
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub enum Store {
@@ -128,7 +133,7 @@ impl FromMessage<StoreMetrics> for Store {
 
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
-    workers: WorkerGroup,
+    pool: StoreServicePool,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -138,7 +143,7 @@ pub struct StoreService {
 
 impl StoreService {
     pub fn create(
-        pool: ThreadPool,
+        pool: StoreServicePool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
@@ -146,7 +151,7 @@ impl StoreService {
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
-            workers: WorkerGroup::new(pool),
+            pool,
             config,
             global_config,
             outcome_aggregator,
@@ -289,6 +294,7 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, received_at, event_id, retention, item)?
                 }
+                ItemType::Log => self.produce_log(scoping, received_at, retention, item)?,
                 ItemType::ProfileChunk => self.produce_profile_chunk(
                     scoping.organization_id,
                     scoping.project_id,
@@ -770,7 +776,9 @@ impl StoreService {
             self.outcome_aggregator.send(TrackOutcome {
                 category: DataCategory::Replay,
                 event_id,
-                outcome: Outcome::Invalid(DiscardReason::TooLarge),
+                outcome: Outcome::Invalid(DiscardReason::TooLarge(
+                    DiscardItemType::ReplayRecording,
+                )),
                 quantity: 1,
                 remote_addr: None,
                 scoping,
@@ -939,6 +947,81 @@ impl StoreService {
             scoping,
             timestamp: received_at,
         });
+        Ok(())
+    }
+
+    fn produce_log(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        relay_log::trace!("Producing log");
+        let payload = item.payload();
+        let payload_len = payload.len();
+
+        let d = &mut Deserializer::from_slice(&payload);
+
+        let mut log: LogKafkaMessage = match serde_path_to_error::deserialize(d) {
+            Ok(log) => log,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse log"
+                );
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::LogItem,
+                    event_id: None,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
+                    quantity: 1,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::LogByte,
+                    event_id: None,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
+                    quantity: payload.len() as u32,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+                return Ok(());
+            }
+        };
+
+        log.organization_id = scoping.organization_id.value();
+        log.project_id = scoping.project_id.value();
+        log.retention_days = retention_days;
+        log.received = safe_timestamp(received_at);
+        let message = KafkaMessage::Log {
+            headers: BTreeMap::from([("project_id".to_string(), scoping.project_id.to_string())]),
+            message: log,
+        };
+
+        self.produce(KafkaTopic::OurLogs, message)?;
+
+        // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogItem,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: 1,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogByte,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: payload_len as u32,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
 
         Ok(())
     }
@@ -973,8 +1056,10 @@ impl Service for StoreService {
 
         while let Some(message) = rx.recv().await {
             let service = Arc::clone(&this);
-            this.workers
-                .spawn(move || service.handle_message(message))
+            // For now, we run each task synchronously, in the future we might explore how to make
+            // the store async.
+            this.pool
+                .spawn_async(async move { service.handle_message(message) }.boxed())
                 .await;
         }
 
@@ -1260,9 +1345,13 @@ struct SpanKafkaMessage<'a> {
     exclusive_time_ms: f64,
     #[serde(default)]
     is_segment: bool,
+    #[serde(default)]
+    is_remote: bool,
 
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     data: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    kind: Option<&'a str>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(default)]
@@ -1303,6 +1392,35 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct LogKafkaMessage<'a> {
+    #[serde(default)]
+    organization_id: u64,
+    #[serde(default)]
+    project_id: u64,
+    #[serde(default)]
+    timestamp_nanos: u64,
+    #[serde(default)]
+    observed_timestamp_nanos: u64,
+    #[serde(default)]
+    retention_days: u16,
+    #[serde(default)]
+    received: u64,
+    body: &'a RawValue,
+
+    trace_id: EventId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    span_id: Option<&'a str>,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
+    severity_text: Option<Cow<'a, str>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    severity_number: Option<i32>,
+    #[serde(default, skip_serializing_if = "none_or_empty_object")]
+    attributes: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trace_flags: Option<u64>,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
@@ -1346,6 +1464,12 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
     },
+    Log {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: LogKafkaMessage<'a>,
+    },
     ProfileChunk(ProfileChunkKafkaMessage),
 }
 
@@ -1368,6 +1492,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
+            KafkaMessage::Log { .. } => "log",
             KafkaMessage::Span { .. } => "span",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
         }
@@ -1381,6 +1506,7 @@ impl Message for KafkaMessage<'_> {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
+            Self::Span { message, .. } => message.trace_id.0,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1390,12 +1516,10 @@ impl Message for KafkaMessage<'_> {
 
             // Random partitioning
             Self::Profile(_)
-            | Self::Span { .. }
+            | Self::Log { .. }
             | Self::ReplayRecordingNotChunked(_)
-            | Self::ProfileChunk(_) => Uuid::nil(),
-
-            // TODO(ja): Determine a partitioning key
-            Self::Metric { .. } => Uuid::nil(),
+            | Self::ProfileChunk(_)
+            | Self::Metric { .. } => Uuid::nil(),
         };
 
         if uuid.is_nil() {
@@ -1419,6 +1543,12 @@ impl Message for KafkaMessage<'_> {
                 }
                 None
             }
+            KafkaMessage::Log { headers, .. } => {
+                if !headers.is_empty() {
+                    return Some(headers);
+                }
+                None
+            }
             KafkaMessage::Span { headers, .. } => {
                 if !headers.is_empty() {
                     return Some(headers);
@@ -1439,6 +1569,9 @@ impl Message for KafkaMessage<'_> {
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Log { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             _ => rmp_serde::to_vec_named(&self)

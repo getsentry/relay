@@ -1,10 +1,10 @@
 use std::fmt;
 use std::str::FromStr;
 
-use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Error, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
-use crate::protocol::{OperationType, OriginType, SpanData, SpanStatus};
+use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
 
 /// A 32-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
@@ -138,6 +138,10 @@ pub struct TraceContext {
     #[metastructure(pii = "maybe", skip_serialization = "null")]
     pub data: Annotated<SpanData>,
 
+    /// Links to other spans from the trace's root span.
+    #[metastructure(pii = "maybe", skip_serialization = "null")]
+    pub links: Annotated<Array<SpanLink>>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
@@ -200,6 +204,16 @@ mod tests {
     },
     "custom_field_empty": ""
   },
+  "links": [
+    {
+      "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+      "span_id": "ea90fdead5f74052",
+      "sampled": true,
+      "attributes": {
+        "sentry.link.type": "previous_trace"
+      }
+    }
+  ],
   "other": "value",
   "type": "trace"
 }"#;
@@ -234,6 +248,21 @@ mod tests {
                 )]),
                 ..Default::default()
             }),
+            links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
+                trace_id: Annotated::new(TraceId("3c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("ea90fdead5f74052".into())),
+                sampled: Annotated::new(true),
+                attributes: Annotated::new({
+                    let mut map: std::collections::BTreeMap<String, Annotated<Value>> =
+                        Object::new();
+                    map.insert(
+                        "sentry.link.type".into(),
+                        Annotated::new(Value::String("previous_trace".into())),
+                    );
+                    map
+                }),
+                ..Default::default()
+            })])),
             other: {
                 let mut map = Object::new();
                 map.insert(

@@ -87,7 +87,7 @@ pub enum DataCategory {
     /// Replay Video
     ///
     /// This is the data category for Session Replays produced via a video recording.
-    ReplayVideo = 20,
+    DoNotUseReplayVideo = 20,
     /// This is the data category for Uptime monitors.
     Uptime = 21,
     /// Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
@@ -101,11 +101,20 @@ pub enum DataCategory {
     ///
     /// This is the category for logs for which we store log event total bytes for users.
     LogByte = 24,
-    /// ProfileDurationUi
+    /// Profile duration of a UI profile.
     ///
     /// This data category is used to count the number of milliseconds per indexed UI profile
     /// chunk.
+    ///
+    /// See also: [`Self::ProfileDuration`]
     ProfileDurationUi = 25,
+    /// UI Profile Chunk.
+    ///
+    /// This data category is used to count the number of milliseconds per indexed UI profile
+    /// chunk.
+    ///
+    /// See also: [`Self::ProfileChunk`]
+    ProfileChunkUi = 26,
 
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
@@ -145,8 +154,9 @@ impl DataCategory {
             "profile_duration" => Self::ProfileDuration,
             "profile_duration_ui" => Self::ProfileDurationUi,
             "profile_chunk" => Self::ProfileChunk,
+            "profile_chunk_ui" => Self::ProfileChunkUi,
             "metric_second" => Self::MetricSecond,
-            "replay_video" => Self::ReplayVideo,
+            "replay_video" => Self::DoNotUseReplayVideo,
             "uptime" => Self::Uptime,
             "attachment_item" => Self::AttachmentItem,
             _ => Self::Unknown,
@@ -166,6 +176,7 @@ impl DataCategory {
             Self::Profile => "profile",
             Self::ProfileIndexed => "profile_indexed",
             Self::Replay => "replay",
+            Self::DoNotUseReplayVideo => "replay_video",
             Self::TransactionProcessed => "transaction_processed",
             Self::TransactionIndexed => "transaction_indexed",
             Self::Monitor => "monitor",
@@ -179,8 +190,8 @@ impl DataCategory {
             Self::ProfileDuration => "profile_duration",
             Self::ProfileDurationUi => "profile_duration_ui",
             Self::ProfileChunk => "profile_chunk",
+            Self::ProfileChunkUi => "profile_chunk_ui",
             Self::MetricSecond => "metric_second",
-            Self::ReplayVideo => "replay_video",
             Self::Uptime => "uptime",
             Self::AttachmentItem => "attachment_item",
             Self::Unknown => "unknown",

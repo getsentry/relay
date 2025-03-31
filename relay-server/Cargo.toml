@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.1.0"
+version = "25.3.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -13,16 +13,16 @@ publish = false
 [features]
 default = []
 processing = [
-    "dep:minidump",
-    "dep:symbolic-common",
-    "dep:symbolic-unreal",
-    "relay-cardinality/redis",
-    "relay-config/processing",
-    "relay-kafka/producer",
-    "relay-metrics/redis",
-    "relay-quotas/redis",
-    "relay-redis/impl",
-    "relay-sampling/redis",
+  "dep:minidump",
+  "dep:symbolic-common",
+  "dep:symbolic-unreal",
+  "relay-cardinality/redis",
+  "relay-config/processing",
+  "relay-kafka/producer",
+  "relay-metrics/redis",
+  "relay-quotas/redis",
+  "relay-redis/impl",
+  "relay-sampling/redis",
 ]
 
 [lints]
@@ -56,12 +56,12 @@ mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
+opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
-rayon = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
@@ -75,6 +75,7 @@ relay-event-schema = { workspace = true }
 relay-filter = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 relay-log = { workspace = true, features = ["sentry"] }
+relay-ourlogs = { workspace = true }
 relay-metrics = { workspace = true }
 relay-monitors = { workspace = true }
 relay-pii = { workspace = true }
@@ -87,27 +88,29 @@ relay-sampling = { workspace = true }
 relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }
+relay-threading = { workspace = true }
 reqwest = { workspace = true, features = [
-    "gzip",
-    "hickory-dns",
-    "stream",
-    "native-tls-vendored",
+  "gzip",
+  "hickory-dns",
+  "stream",
+  "native-tls-vendored",
 ] }
 rmp-serde = { workspace = true }
+sentry = { workspace = true, features = ["tower-http"] }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
 socket2 = { workspace = true }
 sqlx = { workspace = true, features = [
-    "macros",
-    "migrate",
-    "sqlite",
-    "runtime-tokio",
+  "macros",
+  "migrate",
+  "sqlite",
+  "runtime-tokio",
 ], default-features = false }
 symbolic-common = { workspace = true, optional = true, default-features = false }
 symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
-    "serde",
+  "serde",
 ] }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
@@ -115,18 +118,18 @@ tokio = { workspace = true, features = ["sync", "time"] }
 tokio-util = { workspace = true, default-features = false }
 tower = { workspace = true, default-features = false, features = ["limit"] }
 tower-http = { workspace = true, default-features = false, features = [
-    "catch-panic",
-    "compression-br",
-    "compression-deflate",
-    "compression-gzip",
-    "compression-zstd",
-    "cors",
-    "decompression-br",
-    "decompression-deflate",
-    "decompression-gzip",
-    "decompression-zstd",
-    "set-header",
-    "trace",
+  "catch-panic",
+  "compression-br",
+  "compression-deflate",
+  "compression-gzip",
+  "compression-zstd",
+  "cors",
+  "decompression-br",
+  "decompression-deflate",
+  "decompression-gzip",
+  "decompression-zstd",
+  "set-header",
+  "trace",
 ] }
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
@@ -139,6 +142,7 @@ criterion = { workspace = true }
 http = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
+relay-system = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }

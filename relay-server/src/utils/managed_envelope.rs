@@ -414,6 +414,21 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.log_item_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::LogItem,
+                self.context.summary.log_item_quantity,
+            );
+        }
+        if self.context.summary.log_byte_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::LogByte,
+                self.context.summary.log_byte_quantity,
+            );
+        }
+
         // Track outcomes for attached secondary transactions, e.g. extracted from metrics.
         //
         // Primary transaction count is already tracked through the event category
@@ -452,6 +467,14 @@ impl ManagedEnvelope {
                 outcome.clone(),
                 DataCategory::ProfileChunk,
                 self.context.summary.profile_chunk_quantity,
+            );
+        }
+
+        if self.context.summary.profile_chunk_ui_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::ProfileChunkUi,
+                self.context.summary.profile_chunk_ui_quantity,
             );
         }
 

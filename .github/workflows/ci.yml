@@ -38,7 +38,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install Rust Toolchain
-        run: rustup toolchain install stable --profile minimal --component clippy rustfmt rust-docs --no-self-update
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup component add clippy rustfmt rust-docs --toolchain stable
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -245,7 +247,7 @@ jobs:
     name: Build Relay Binary
     runs-on: |-
       ${{fromJson('{
-        "x86_64-unknown-linux-gnu": "ubuntu-20.04",
+        "x86_64-unknown-linux-gnu": "ubuntu-22.04",
         "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm"
       }')[matrix.target] }}
 
@@ -369,7 +371,7 @@ jobs:
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     name: Publish Relay to DockerHub
 
     strategy:
@@ -605,7 +607,6 @@ jobs:
         uses: ./.github/actions/setup-sentry
         with:
           workdir: sentry
-          use-new-devservices: true
           mode: symbolicator
 
       - name: Download Docker Image
@@ -651,7 +652,7 @@ jobs:
       steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         name: Checkout repository
-      - uses: getsentry/action-validate-devservices-config@6477ef1e9c96e456bfad726006e731f89fcd81db
+      - uses: getsentry/action-validate-devservices-config@02a078d1280293e6598cabfbd318a01609c12c83
         name: Validate devservices config
         with:
           requirements-file-path: requirements-dev.txt

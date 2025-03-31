@@ -10,7 +10,7 @@ use parser::normalize_parsed_queries;
 use regex::Regex;
 
 /// Removes SQL comments starting with "--" or "#".
-static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n)").unwrap());
+static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n|$)").unwrap());
 
 /// Removes MySQL inline comments.
 static INLINE_COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\*(?:.|\n)*?\*/").unwrap());
@@ -699,6 +699,12 @@ mod tests {
             inner join foo on foo.id = foo_id
         ",
         "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe JOIN foo ON id = foo_id"
+    );
+
+    scrub_sql_test!(
+        comment_after_named_param_without_ending_line_break,
+        "SELECT * FROM comments LIMIT %(param_1)s -- comment",
+        "SELECT * FROM comments LIMIT %s"
     );
 
     scrub_sql_test!(

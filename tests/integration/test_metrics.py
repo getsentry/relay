@@ -1013,6 +1013,9 @@ def test_transaction_metrics_extraction_external_relays(
     }
     external.send_transaction(project_id, tx, item_headers, trace_info)
 
+    # Client reports.
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
 
@@ -1576,9 +1579,13 @@ def test_generic_metric_extraction(mini_sentry, relay):
     relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
 
+    # Skip client reports
     envelope = mini_sentry.captured_events.get(timeout=3)
+    assert envelope.get_event() is None
     envelope = mini_sentry.captured_events.get(timeout=3)
+    assert envelope.get_event() is None
 
+    envelope = mini_sentry.captured_events.get(timeout=3)
     for item in envelope.items:
         # Transaction items should be sampled and not among the envelope items.
         assert item.headers.get("type") != "transaction"
@@ -1912,42 +1919,6 @@ def test_missing_global_filters_enables_metric_extraction(
     assert metrics_consumer.get_metrics()
 
 
-def test_metrics_with_denied_names(
-    mini_sentry, relay_with_processing, metrics_consumer
-):
-    metrics_consumer = metrics_consumer()
-
-    mini_sentry.global_config["options"]["relay.metric-stats.rollout-rate"] = 1.0
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    project_config = mini_sentry.project_configs[project_id]["config"]
-    project_config["features"] = ["organizations:custom-metrics"]
-    project_config["metrics"] = {
-        "deniedNames": ["d:custom/cpu_time*"],
-    }
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-
-    relay.send_metrics(project_id, "custom/cpu_time@millisecond:10|d|#foo:bar")
-
-    metrics = metrics_by_name(metrics_consumer, 1)
-    volume_metric = metrics["c:metric_stats/volume@none"]
-    assert volume_metric["value"] == 1.0
-    assert volume_metric["tags"]["mri"] == "d:custom/cpu_time@millisecond"
-    assert volume_metric["tags"]["outcome.id"] == "1"
-    assert volume_metric["tags"]["outcome.reason"] == "denied-name"
-
-    relay.send_metrics(project_id, "custom/memory_usage@byte:10|d|#foo:bar")
-
-    metrics = metrics_by_name(metrics_consumer, 2)
-    volume_metric = metrics["c:metric_stats/volume@none"]
-    assert volume_metric["value"] == 1.0
-    assert volume_metric["tags"]["mri"] == "d:custom/memory_usage@byte"
-    assert volume_metric["tags"]["outcome.id"] == "0"
-    assert "d:custom/memory_usage@byte" in metrics
-
-
 @pytest.mark.parametrize("mode", ["default", "chain"])
 def test_metrics_received_at(
     mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
@@ -2044,7 +2015,7 @@ def test_histogram_outliers(mini_sentry, relay):
     relay.send_event(42, event)
 
     tags = {}
-    for _ in range(2):
+    for _ in range(3):
         envelope = mini_sentry.captured_events.get()
         for item in envelope:
             if item.type == "metric_buckets":

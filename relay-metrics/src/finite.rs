@@ -72,7 +72,7 @@ impl FiniteF64 {
         Self((self.0 + other.0).clamp(f64::MIN, f64::MAX))
     }
 
-    /// Adds two numbers, saturating at the maximum and minimum representable values.
+    /// Subtracts two numbers, saturating at the maximum and minimum representable values.
     pub fn saturating_sub(self, other: Self) -> Self {
         Self((self.0 - other.0).clamp(f64::MIN, f64::MAX))
     }

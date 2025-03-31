@@ -205,7 +205,7 @@ impl Processor for PiiProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let ip_was_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
+        let ip_was_valid = user.ip_address.value().is_none_or(IpAddr::is_valid);
 
         // Recurse into the user and does PII processing on fields.
         user.process_child_values(self, state)?;
@@ -214,7 +214,7 @@ impl Processor for PiiProcessor<'_> {
             || user.username.value().is_some()
             || user.email.value().is_some();
 
-        let ip_is_still_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
+        let ip_is_still_valid = user.ip_address.value().is_none_or(IpAddr::is_valid);
 
         // If the IP address has become invalid as part of PII processing, we move it into the user
         // ID. That ensures people can do IP hashing and still have a correct users-affected count.
@@ -227,6 +227,10 @@ impl Processor for PiiProcessor<'_> {
         // wiped out in renormalization anyway.
         if ip_was_valid && !has_other_fields && !ip_is_still_valid {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
+            user.ip_address.meta_mut().add_remark(Remark::new(
+                RemarkType::Removed,
+                "pii:ip_address".to_string(),
+            ));
         }
 
         Ok(())
@@ -529,7 +533,6 @@ fn apply_regex_to_chunks<'a>(
             insert_replacement_chunks(rule, &search_string, &mut rv);
         }
     }
-
     rv
 }
 
