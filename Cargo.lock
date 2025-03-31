@@ -1070,7 +1070,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c136f185b3ca9d1f4e4e19c11570e1002f4bfdd592d589053e225716d613851f"
 dependencies = [
  "deadpool",
- "redis 0.29.2",
+ "redis",
 ]
 
 [[package]]
@@ -3415,19 +3415,18 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.27.6"
+version = "0.29.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09d8f99a4090c89cc489a94833c901ead69bfbf3877b4867d5482e321ee875bc"
+checksum = "b110459d6e323b7cda23980c46c77157601199c9da6241552b284cd565a7a133"
 dependencies = [
  "arc-swap",
- "async-trait",
  "backon",
  "bytes",
  "combine",
  "crc16",
- "futures",
+ "futures-channel",
+ "futures-sink",
  "futures-util",
- "itertools 0.13.0",
  "itoa",
  "log",
  "native-tls",
@@ -3435,38 +3434,12 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "r2d2",
- "rand 0.8.5",
- "ryu",
- "sha1_smol",
- "socket2",
- "tokio",
- "tokio-native-tls",
- "tokio-util",
- "url",
-]
-
-[[package]]
-name = "redis"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b110459d6e323b7cda23980c46c77157601199c9da6241552b284cd565a7a133"
-dependencies = [
- "arc-swap",
- "bytes",
- "combine",
- "crc16",
- "futures-sink",
- "futures-util",
- "itoa",
- "log",
- "num-bigint",
- "percent-encoding",
- "pin-project-lite",
  "rand 0.9.0",
  "ryu",
  "sha1_smol",
  "socket2",
  "tokio",
+ "tokio-native-tls",
  "tokio-util",
  "url",
 ]
@@ -4016,7 +3989,7 @@ version = "25.3.0"
 dependencies = [
  "deadpool",
  "deadpool-redis",
- "redis 0.27.6",
+ "redis",
  "serde",
  "thiserror 1.0.69",
 ]

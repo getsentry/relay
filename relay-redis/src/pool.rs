@@ -45,18 +45,8 @@ impl IntervalCounter {
     /// This method uses relaxed memory ordering as precise synchronization is not required
     /// for this use case.
     fn is_reached(&self) -> bool {
-        let mut reached = false;
-        let value = self.value.load(Ordering::Relaxed);
-        if value == 0 {
-            reached = true;
-        };
-
-        // We do not perform a CAS operation since we do not care about consistency, and we need
-        // performance.
-        let next_value = (value + 1) % self.max_value;
-        self.value.store(next_value, Ordering::Relaxed);
-
-        reached
+        let prev = self.value.fetch_add(1, Ordering::Relaxed);
+        (prev + 1) % self.max_value == 0
     }
 }
 
