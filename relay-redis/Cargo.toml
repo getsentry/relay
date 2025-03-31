@@ -30,4 +30,4 @@ thiserror = { workspace = true }
 
 [features]
 default = []
-impl = ["dep:deadpool", "dep:deadpool-redis"]
+impl = ["dep:deadpool", "dep:deadpool-redis", "dep:redis"]
