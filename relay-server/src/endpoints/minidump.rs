@@ -28,6 +28,11 @@ use crate::utils;
 /// Sentry requires
 const MINIDUMP_FIELD_NAME: &str = "upload_file_minidump";
 
+/// The field name of a view hierarchy file in the multipart form-data upload.
+/// It matches the expected file name of the view hierarchy, as outlined in RFC#33
+/// https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md
+const VIEW_HIERARCHY_FIELD_NAME: &str = "view-hierarchy.json";
+
 /// File name for a standalone minidump upload.
 ///
 /// In contrast to the field name, this is used when a standalone minidump is uploaded not in a
@@ -119,15 +124,13 @@ fn remove_container_extension(filename: &str) -> &str {
         .unwrap_or(filename)
 }
 
-fn infer_attachment_type(field_name: Option<&str>, file_name: &str) -> AttachmentType {
-    if file_name == "view-hierarchy.json" {
-        return AttachmentType::ViewHierarchy;
-    }
+fn infer_attachment_type(field_name: Option<&str>, _file_name: &str) -> AttachmentType {
     match field_name.unwrap_or("") {
         MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
         ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
         ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
         ITEM_NAME_EVENT => AttachmentType::EventPayload,
+        VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
         _ => AttachmentType::Attachment,
     }
 }
@@ -377,7 +380,7 @@ mod tests {
             Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
             \x82\xa5level\xa5fatal\xa8platform\xa6native\x0d\x0a\
             -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
-            Content-Disposition: form-data; name=\"view-hierarchy\"; filename=\"view-hierarchy.json\"\x0d\x0a\
+            Content-Disposition: form-data; name=\"view-hierarchy.json\"; filename=\"view-hierarchy.json\"\x0d\x0a\
             Content-Type: application/json\x0d\x0a\x0d\x0a\
             {\"rendering_system\":\"android_view_system\",\"windows\":[{\"type\":\"com.android.internal.policy.DecorView\",\"width\":768.0,\"height\":1280.0,\"x\":0.0,\"y\":0.0,\"visibility\":\"visible\",\"alpha\":1.0}]}\x0d\x0a\
             -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw-----\x0d\x0a";
