@@ -32,6 +32,8 @@ pub fn filter(
     global_config: &GlobalConfig,
 ) {
     let logging_disabled = should_filter(&config, &project_info, Feature::OurLogsIngestion);
+    let project_logging_disabled =
+        should_filter(&config, &project_info, Feature::OurLogsIngestionForProject);
     let logs_sampled = global_config
         .options
         .ourlogs_ingestion_sample_rate
@@ -39,7 +41,7 @@ pub fn filter(
         .unwrap_or(true);
 
     managed_envelope.retain_items(|_| {
-        if logging_disabled || !logs_sampled {
+        if logging_disabled || project_logging_disabled || !logs_sampled {
             ItemAction::DropSilently
         } else {
             ItemAction::Keep

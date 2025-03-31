@@ -117,6 +117,12 @@ pub enum Feature {
     /// Serialized as `organizations:ourlogs-ingestion`.
     #[serde(rename = "organizations:ourlogs-ingestion")]
     OurLogsIngestion,
+    /// Controls log ingestion on a per project basis, only used to disable log ingestion for infrastructure concerns.
+    /// Set to true by default, use the organization feature flag to control the default behavior.
+    ///
+    /// Serialized as `projects:ourlogs-ingestion`.
+    #[serde(rename = "projects:ourlogs-ingestion")]
+    OurLogsIngestionForProject,
     /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
