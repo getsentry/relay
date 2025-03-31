@@ -75,7 +75,7 @@ impl Default for PartialRedisConfigOptions {
             wait_timeout: 3,
             create_timeout: 3,
             recycle_timeout: 2,
-            refresh_interval: 10_000,
+            refresh_interval: 100,
         }
     }
 }
