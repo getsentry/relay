@@ -30,7 +30,7 @@ const MINIDUMP_FIELD_NAME: &str = "upload_file_minidump";
 
 /// The field name of a view hierarchy file in the multipart form-data upload.
 /// It matches the expected file name of the view hierarchy, as outlined in RFC#33
-/// https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md
+/// <https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md>
 const VIEW_HIERARCHY_FIELD_NAME: &str = "view-hierarchy.json";
 
 /// File name for a standalone minidump upload.
