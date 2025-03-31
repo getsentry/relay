@@ -748,7 +748,74 @@
 <a href="#747" id="747">747</a>
 <a href="#748" id="748">748</a>
 <a href="#749" id="749">749</a>
-<a href="#750" id="750">750</a></pre></div><pre class="rust"><code><span class="doccomment">//! Derives for Relay's protocol traits.
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a></pre></div><pre class="rust"><code><span class="doccomment">//! Derives for Relay's protocol traits.
 
 </span><span class="attr">#![doc(
     html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
@@ -819,6 +886,10 @@
             <span class="kw">if </span>field_attrs.additional_properties {
                 cond = <span class="macro">quote!</span> {
                     #cond &amp;&amp; #bi.values().all(|v| v.skip_serialization(#skip_serialization_attr))
+                };
+            } <span class="kw">else if </span>field_attrs.flatten {
+                cond = <span class="macro">quote!</span> {
+                    #cond &amp;&amp; ::relay_protocol::Empty::is_deep_empty(#ident)
                 };
             } <span class="kw">else </span>{
                 cond = <span class="macro">quote!</span> {
@@ -1091,8 +1162,9 @@
             }
 
             (<span class="macro">quote!</span> {
-                <span class="kw">let </span>#bi = __obj.into_iter().map(|(__key, __value)| (__key, ::relay_protocol::FromValue::from_value(__value))).collect();
+                <span class="kw">let </span>#bi = ::std::mem::take(__obj).into_iter().map(|(__key, __value)| (__key, ::relay_protocol::FromValue::from_value(__value))).collect();
             }).to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
+
             (<span class="macro">quote!</span> {
                 __map.extend(#bi.into_iter().map(|(__key, __value)| (
                     __key,
@@ -1110,6 +1182,7 @@
                 }
             })
             .to_tokens(<span class="kw-2">&amp;mut </span>serialize_body);
+
             (<span class="macro">quote!</span> {
                 <span class="kw">for </span>(__key, __value) <span class="kw">in </span>#bi.iter() {
                     <span class="kw">let </span>__inner_tree = ::relay_protocol::IntoValue::extract_meta_tree(__value);
@@ -1117,6 +1190,29 @@
                         __child_meta.insert(__key.to_string(), __inner_tree);
                     }
                 }
+            })
+            .to_tokens(<span class="kw-2">&amp;mut </span>extract_child_meta_body);
+        } <span class="kw">else if </span>field_attrs.flatten {
+            <span class="kw">if </span>is_tuple_struct {
+                <span class="macro">panic!</span>(<span class="string">"flatten not allowed in tuple struct"</span>);
+            }
+
+            (<span class="macro">quote!</span> {
+                <span class="kw">let </span>#bi = ::relay_protocol::FromObjectRef::from_object_ref(__obj);
+            })
+            .to_tokens(<span class="kw-2">&amp;mut </span>from_value_body);
+
+            (<span class="macro">quote!</span> {
+                ::relay_protocol::IntoObjectRef::into_object_ref(#bi, __map);
+            })
+            .to_tokens(<span class="kw-2">&amp;mut </span>to_value_body);
+
+            (<span class="macro">quote!</span> {
+                ::relay_protocol::IntoValue::serialize_payload(#bi, ::serde::__private::ser::FlatMapSerializer(<span class="kw-2">&amp;mut </span>__map_serializer), __behavior)<span class="question-mark">?</span>;
+            }).to_tokens(<span class="kw-2">&amp;mut </span>serialize_body);
+
+            (<span class="macro">quote!</span> {
+                __child_meta.extend(::relay_protocol::IntoValue::extract_child_meta(#bi));
             })
             .to_tokens(<span class="kw-2">&amp;mut </span>extract_child_meta_body);
         } <span class="kw">else </span>{
@@ -1192,47 +1288,66 @@
     <span class="prelude-val">Ok</span>(<span class="kw">match </span>t {
         Trait::From =&gt; {
             <span class="kw">let </span>bindings_count = variant.bindings().len();
-            <span class="kw">let </span>valid_match_arm = <span class="kw">if </span>is_tuple_struct {
-                <span class="macro">quote!</span> {
-                    ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(::relay_protocol::Value::Array(<span class="kw-2">mut </span>__arr)), <span class="kw-2">mut </span>__meta) =&gt; {
-                        <span class="kw">if </span>__arr.len() != #bindings_count {
-                            __meta.add_error(Error::expected(<span class="macro">concat!</span>(<span class="string">"a "</span>, <span class="macro">stringify!</span>(#bindings_count), <span class="string">"-tuple"</span>)));
-                            __meta.set_original_value(<span class="prelude-val">Some</span>(__arr));
-                            Annotated(<span class="prelude-val">None</span>, __meta)
-                        } <span class="kw">else </span>{
-                            <span class="kw">let </span><span class="kw-2">mut </span>__arr = __arr.into_iter();
-                            #from_value_body;
-                            ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(#to_structure_assemble_pat), __meta)
-                        }
-                    }
-                }
-            } <span class="kw">else </span>{
-                <span class="macro">quote!</span> {
-                    ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(::relay_protocol::Value::Object(<span class="kw-2">mut </span>__obj)), __meta) =&gt; {
-                        #from_value_body;
-                        ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(#to_structure_assemble_pat), __meta)
-                    }
-                }
-            };
-
-            s.gen_impl(<span class="macro">quote!</span> {
-                <span class="attr">#[automatically_derived]
-                </span>gen <span class="kw">impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
-                    <span class="kw">fn </span>from_value(
-                        __value: ::relay_protocol::Annotated&lt;::relay_protocol::Value&gt;,
-                    ) -&gt; ::relay_protocol::Annotated&lt;<span class="self">Self</span>&gt; {
-                        <span class="kw">match </span>__value {
-                            #valid_match_arm
-                            ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta) =&gt; ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta),
-                            ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(__value), <span class="kw-2">mut </span>__meta) =&gt; {
-                                __meta.add_error(::relay_protocol::Error::expected(#expectation));
-                                __meta.set_original_value(<span class="prelude-val">Some</span>(__value));
-                                ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta)
+            <span class="kw">if </span>is_tuple_struct {
+                s.gen_impl(<span class="macro">quote!</span> {
+                    <span class="attr">#[automatically_derived]
+                    </span>gen <span class="kw">impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+                        <span class="kw">fn </span>from_value(
+                            __value: ::relay_protocol::Annotated&lt;::relay_protocol::Value&gt;,
+                        ) -&gt; ::relay_protocol::Annotated&lt;<span class="self">Self</span>&gt; {
+                            <span class="kw">match </span>__value {
+                                ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(::relay_protocol::Value::Array(<span class="kw-2">mut </span>__arr)), <span class="kw-2">mut </span>__meta) =&gt; {
+                                    <span class="kw">if </span>__arr.len() != #bindings_count {
+                                        __meta.add_error(Error::expected(<span class="macro">concat!</span>(<span class="string">"a "</span>, <span class="macro">stringify!</span>(#bindings_count), <span class="string">"-tuple"</span>)));
+                                        __meta.set_original_value(<span class="prelude-val">Some</span>(__arr));
+                                        Annotated(<span class="prelude-val">None</span>, __meta)
+                                    } <span class="kw">else </span>{
+                                        <span class="kw">let </span><span class="kw-2">mut </span>__arr = __arr.into_iter();
+                                        #from_value_body;
+                                        ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(#to_structure_assemble_pat), __meta)
+                                    }
+                                }
+                                ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta) =&gt; ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta),
+                                ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(__value), <span class="kw-2">mut </span>__meta) =&gt; {
+                                    __meta.add_error(::relay_protocol::Error::expected(#expectation));
+                                    __meta.set_original_value(<span class="prelude-val">Some</span>(__value));
+                                    ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta)
+                                }
                             }
                         }
                     }
-                }
-            })
+                })
+            } <span class="kw">else </span>{
+                s.gen_impl(<span class="macro">quote!</span> {
+                    <span class="attr">#[automatically_derived]
+                    </span>gen <span class="kw">impl </span>::relay_protocol::FromValue <span class="kw">for </span>@<span class="self">Self </span>{
+                        <span class="kw">fn </span>from_value(
+                            <span class="kw-2">mut </span>__value: ::relay_protocol::Annotated&lt;::relay_protocol::Value&gt;,
+                        ) -&gt; ::relay_protocol::Annotated&lt;<span class="self">Self</span>&gt; {
+                            <span class="kw">match </span>__value {
+                                ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(::relay_protocol::Value::Object(<span class="kw-2">ref mut </span>__obj)), __meta) =&gt; {
+                                    #from_value_body;
+                                    ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(#to_structure_assemble_pat), __meta)
+                                },
+                                ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta) =&gt; ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta),
+                                ::relay_protocol::Annotated(<span class="prelude-val">Some</span>(__value), <span class="kw-2">mut </span>__meta) =&gt; {
+                                    __meta.add_error(::relay_protocol::Error::expected(#expectation));
+                                    __meta.set_original_value(<span class="prelude-val">Some</span>(__value));
+                                    ::relay_protocol::Annotated(<span class="prelude-val">None</span>, __meta)
+                                }
+                            }
+                        }
+                    }
+
+                    <span class="attr">#[automatically_derived]
+                    </span>gen <span class="kw">impl </span>::relay_protocol::FromObjectRef <span class="kw">for </span>@<span class="self">Self </span>{
+                        <span class="kw">fn </span>from_object_ref(__obj: <span class="kw-2">&amp;mut </span>relay_protocol::Object&lt;::relay_protocol::Value&gt;) -&gt; <span class="self">Self </span>{
+                            #from_value_body;
+                            #to_structure_assemble_pat
+                        }
+                    }
+                })
+            }
         }
         Trait::To =&gt; {
             <span class="kw">let </span>into_value = <span class="kw">if </span>is_tuple_struct {
@@ -1244,10 +1359,11 @@
                 }
             } <span class="kw">else </span>{
                 <span class="macro">quote!</span> {
-                    <span class="kw">let </span><span class="kw-2">mut </span>__map = ::relay_protocol::Object::new();
+                    <span class="kw">let </span><span class="kw-2">mut </span>__map_ret = ::relay_protocol::Object::new();
                     <span class="kw">let </span>#to_value_pat = <span class="self">self</span>;
+                    <span class="kw">let </span><span class="kw-2">mut </span>__map = <span class="kw-2">&amp;mut </span>__map_ret;
                     #to_value_body;
-                    ::relay_protocol::Value::Object(__map)
+                    ::relay_protocol::Value::Object(__map_ret)
                 }
             };
 
@@ -1265,7 +1381,7 @@
                 }
             };
 
-            s.gen_impl(<span class="macro">quote!</span> {
+            <span class="kw">let </span>into_value = s.gen_impl(<span class="macro">quote!</span> {
                 <span class="attr">#[automatically_derived]
                 </span>gen <span class="kw">impl </span>::relay_protocol::IntoValue <span class="kw">for </span>@<span class="self">Self </span>{
                     <span class="kw">fn </span>into_value(<span class="self">self</span>) -&gt; ::relay_protocol::Value {
@@ -1291,7 +1407,22 @@
                         __child_meta
                     }
                 }
-            })
+            });
+
+            <span class="kw">let </span>into_object_ref = (!is_tuple_struct).then(|| s.gen_impl(<span class="macro">quote!</span> {
+                <span class="attr">#[automatically_derived]
+                </span>gen <span class="kw">impl </span>::relay_protocol::IntoObjectRef <span class="kw">for </span>@<span class="self">Self </span>{
+                    <span class="kw">fn </span>into_object_ref(<span class="self">self</span>, __map: <span class="kw-2">&amp;mut </span>::relay_protocol::Object&lt;::relay_protocol::Value&gt;) {
+                        <span class="kw">let </span>#to_value_pat = <span class="self">self</span>;
+                        #to_value_body;
+                    }
+                }
+            }));
+
+            <span class="macro">quote!</span> {
+                #into_value
+                #into_object_ref
+            }
         }
     })
 }
@@ -1339,6 +1470,7 @@
 </span><span class="kw">struct </span>FieldAttrs {
     additional_properties: bool,
     field_name: String,
+    flatten: bool,
     legacy_aliases: Vec&lt;String&gt;,
     skip_serialization: SkipSerialization,
 }
@@ -1415,6 +1547,8 @@
                 <span class="comment">// Skip
             </span>} <span class="kw">else if </span>ident == <span class="string">"field" </span>{
                 rv.field_name = meta.value()<span class="question-mark">?</span>.parse::&lt;LitStr&gt;()<span class="question-mark">?</span>.value();
+            } <span class="kw">else if </span>ident == <span class="string">"flatten" </span>{
+                rv.flatten = <span class="bool-val">true</span>;
             } <span class="kw">else if </span>ident == <span class="string">"legacy_alias" </span>{
                 rv.legacy_aliases
                     .push(meta.value()<span class="question-mark">?</span>.parse::&lt;LitStr&gt;()<span class="question-mark">?</span>.value());

@@ -571,7 +571,23 @@
 <a href="#570" id="570">570</a>
 <a href="#571" id="571">571</a>
 <a href="#572" id="572">572</a>
-<a href="#573" id="573">573</a></pre></div><pre class="rust"><code><span class="doccomment">//! Derive for visitor traits on the Event schema.
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a></pre></div><pre class="rust"><code><span class="doccomment">//! Derive for visitor traits on the Event schema.
 //!
 //! This derive provides the `ProcessValue` trait. It must be used within the `relay-event-schema`
 //! crate.
@@ -687,6 +703,10 @@
                 <span class="macro">quote!</span> {
                     __state.enter_nothing(<span class="prelude-val">Some</span>(::std::borrow::Cow::Borrowed(<span class="kw-2">&amp;</span>#field_attrs_name)))
                 }
+            } <span class="kw">else if </span>field_attrs.flatten {
+                <span class="macro">quote!</span> {
+                    __state.enter_nothing(<span class="prelude-val">Some</span>(::std::borrow::Cow::Borrowed(<span class="kw-2">&amp;</span>#field_attrs_name)))
+                }
             } <span class="kw">else if </span>is_tuple_struct {
                 <span class="macro">quote!</span> {
                     __state.enter_index(
@@ -708,6 +728,15 @@
             <span class="kw">if </span>field_attrs.additional_properties {
                 (<span class="macro">quote!</span> {
                     __processor.process_other(#ident, <span class="kw-2">&amp;</span>#enter_state)<span class="question-mark">?</span>;
+                })
+                .to_tokens(<span class="kw-2">&amp;mut </span>body);
+            } <span class="kw">else if </span>field_attrs.flatten {
+                (<span class="macro">quote!</span> {
+                    <span class="kw">crate</span>::processor::ProcessValue::process_child_values(
+                        #ident,
+                        __processor,
+                       <span class="kw-2">&amp;</span>#enter_state
+                    )<span class="question-mark">?</span>;
                 })
                 .to_tokens(<span class="kw-2">&amp;mut </span>body);
             } <span class="kw">else </span>{
@@ -874,6 +903,7 @@
     additional_properties: bool,
     omit_from_schema: bool,
     field_name: String,
+    flatten: bool,
     required: <span class="prelude-ty">Option</span>&lt;bool&gt;,
     nonempty: <span class="prelude-ty">Option</span>&lt;bool&gt;,
     trim_whitespace: <span class="prelude-ty">Option</span>&lt;bool&gt;,
@@ -1036,6 +1066,8 @@
             } <span class="kw">else if </span>ident == <span class="string">"field" </span>{
                 <span class="kw">let </span>s = meta.value()<span class="question-mark">?</span>.parse::&lt;LitStr&gt;()<span class="question-mark">?</span>;
                 rv.field_name = s.value();
+            } <span class="kw">else if </span>ident == <span class="string">"flatten" </span>{
+                rv.flatten = <span class="bool-val">true</span>;
             } <span class="kw">else if </span>ident == <span class="string">"required" </span>{
                 <span class="kw">let </span>s = meta.value()<span class="question-mark">?</span>.parse::&lt;LitBool&gt;()<span class="question-mark">?</span>;
                 rv.required = <span class="prelude-val">Some</span>(s.value());
