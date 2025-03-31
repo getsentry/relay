@@ -21,7 +21,7 @@ use uuid::Uuid;
 /// Because SDKs need to funnel this data through the baggage header, this needs to be
 /// representable as `HashMap<String, String>`, meaning no nested dictionaries/objects, arrays or
 /// other non-string values.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynamicSamplingContext {
     /// ID created by clients to represent the current call flow.
     pub trace_id: Uuid,
@@ -87,7 +87,7 @@ fn or_none(string: &impl AsRef<str>) -> Option<&str> {
 }
 
 /// User-related information in a [`DynamicSamplingContext`].
-#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct TraceUserContext {
     /// The value of the `user.segment` property.
     #[serde(default, skip_serializing_if = "String::is_empty")]

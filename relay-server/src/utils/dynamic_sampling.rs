@@ -367,24 +367,29 @@ mod tests {
 
         let dsc = dsc_from_event(public_key, &event).expect("dsc should be extracted");
 
-        assert_eq!(
-            dsc,
-            DynamicSamplingContext {
-                trace_id: Uuid::parse_str("89143b0763095bd9c9955e8175d1fb23").unwrap(),
-                public_key,
-                sample_rate: None,
-                release: Some("v1.0".to_owned()),
-                environment: Some("staging".to_owned()),
-                transaction: Some("transaction_name".to_owned()),
-                user: TraceUserContext {
-                    user_segment: "segment".to_owned(),
-                    user_id: "id".to_owned()
-                },
-                replay_id: None,
-                sampled: None,
-                other: Default::default(),
-            }
-        )
+        insta::assert_debug_snapshot!(dsc, @r###"
+        DynamicSamplingContext {
+            trace_id: 89143b07-6309-5bd9-c995-5e8175d1fb23,
+            public_key: ProjectKey("e12d836b15bb49d7bbf99e64295d995b"),
+            release: Some(
+                "v1.0",
+            ),
+            environment: Some(
+                "staging",
+            ),
+            transaction: Some(
+                "transaction_name",
+            ),
+            sample_rate: None,
+            user: TraceUserContext {
+                user_segment: "segment",
+                user_id: "id",
+            },
+            replay_id: None,
+            sampled: None,
+            other: {},
+        }
+        "###);
     }
 
     #[test]
