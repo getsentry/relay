@@ -12,6 +12,7 @@
 **Bug Fixes**:
 
 - Separates profiles into backend and ui profiles. ([#4595](https://github.com/getsentry/relay/pull/4595))
+- Normalize trace context information before writing it into transaction and span data. This ensures the correct sampling rates are stored for extrapolation in Sentry. ([#4625](https://github.com/getsentry/relay/pull/4625))
 
 **Internal**:
 
@@ -24,6 +25,7 @@
 - Expose runtime utilization metric in autoscaler endpoint. ([#4606](https://github.com/getsentry/relay/pull/4606))
 - Bump the revision of `sysinfo` to the revision at `15b3be3273ba286740122fed7bb7dccd2a79dc8f`. ([#4613](https://github.com/getsentry/relay/pull/4613))
 - Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
+- Validate the spooling memory configuration on startup. ([#4617](https://github.com/getsentry/relay/pull/4617))
 - Use `deadpool` to pool Redis connections. ([#4622](https://github.com/getsentry/relay/pull/4622))
 
 ## 25.3.0

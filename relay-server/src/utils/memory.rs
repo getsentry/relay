@@ -77,6 +77,12 @@ impl MemoryStat {
         }))
     }
 
+    /// Returns the current memory data without instantiating [`MemoryStat`].
+    pub fn current_memory() -> Memory {
+        let mut system = System::new();
+        Self::refresh_memory(&mut system)
+    }
+
     /// Returns a copy of the most up-to-date memory data.
     pub fn memory(&self) -> Memory {
         self.try_update();
@@ -103,6 +109,18 @@ impl MemoryStat {
         memory
     }
 
+    /// Updates the memory readings unconditionally.
+    fn update(&self) {
+        let mut system = self
+            .0
+            .system
+            .lock()
+            .unwrap_or_else(|system| system.into_inner());
+
+        let updated_memory = Self::refresh_memory(&mut system);
+        self.0.memory.store(Arc::new(updated_memory));
+    }
+
     /// Updates the memory readings if at least `refresh_frequency_ms` has passed.
     fn try_update(&self) {
         let last_update = self.0.last_update.load(Ordering::Relaxed);
@@ -126,14 +144,7 @@ impl MemoryStat {
             return;
         }
 
-        let mut system = self
-            .0
-            .system
-            .lock()
-            .unwrap_or_else(|system| system.into_inner());
-
-        let updated_memory = Self::refresh_memory(&mut system);
-        self.0.memory.store(Arc::new(updated_memory));
+        self.update();
     }
 }
 
