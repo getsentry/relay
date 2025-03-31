@@ -120,12 +120,14 @@ fn remove_container_extension(filename: &str) -> &str {
 }
 
 fn infer_attachment_type(field_name: Option<&str>, file_name: &str) -> AttachmentType {
+    if file_name == "view-hierarchy.json" {
+        return AttachmentType::ViewHierarchy;
+    }
     match field_name.unwrap_or("") {
         MINIDUMP_FIELD_NAME => AttachmentType::Minidump,
         ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
         ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
         ITEM_NAME_EVENT => AttachmentType::EventPayload,
-        _ if file_name == "view-hierarchy.json" => AttachmentType::ViewHierarchy,
         _ => AttachmentType::Attachment,
     }
 }
