@@ -197,8 +197,6 @@ pub enum AsyncRedisConnection {
     Single(CustomSingleConnection),
 }
 
-impl AsyncRedisConnection {}
-
 impl std::fmt::Debug for AsyncRedisConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
