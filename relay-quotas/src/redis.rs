@@ -3,7 +3,7 @@ use std::fmt::{self, Debug};
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
-use relay_redis::{AsyncRedisPool, RedisError, RedisScripts};
+use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
 use crate::global::GlobalLimiter;
@@ -226,7 +226,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 ///
 /// Requires the `redis` feature.
 pub struct RedisRateLimiter<T> {
-    pool: AsyncRedisPool,
+    pool: AsyncRedisClient,
     script: &'static Script,
     max_limit: Option<u64>,
     global_limiter: T,
@@ -234,7 +234,7 @@ pub struct RedisRateLimiter<T> {
 
 impl<T: GlobalLimiter> RedisRateLimiter<T> {
     /// Creates a new [`RedisRateLimiter`] instance.
-    pub fn new(pool: AsyncRedisPool, global_limiter: T) -> Self {
+    pub fn new(pool: AsyncRedisClient, global_limiter: T) -> Self {
         RedisRateLimiter {
             pool,
             script: RedisScripts::load_is_rate_limited(),
@@ -344,7 +344,7 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         // We get the redis client after the global rate limiting since we don't want to hold the
         // client across await points, otherwise it might be held for too long, and we will run out
         // of connections.
-        let mut connection = self.pool.get_connection().await?;
+        let mut connection = self.client.get_connection().await?;
         let rejections: Vec<bool> = invocation
             .invoke_async(&mut connection)
             .await
@@ -389,7 +389,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     struct MockGlobalLimiter {
-        pool: AsyncRedisPool,
+        pool: AsyncRedisClient,
         global_rate_limiter: Mutex<GlobalRateLimiter>,
     }
 
@@ -410,7 +410,7 @@ mod tests {
     fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
-        let pool = AsyncRedisPool::single(&url, &RedisConfigOptions::default()).unwrap();
+        let pool = AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap();
 
         let global_limiter = MockGlobalLimiter {
             pool: pool.clone(),
@@ -1001,7 +1001,7 @@ mod tests {
             .unwrap();
 
         let rate_limiter = build_rate_limiter();
-        let mut conn = rate_limiter.pool.get_connection().await.unwrap();
+        let mut conn = rate_limiter.client.get_connection().await.unwrap();
 
         // define a few keys with random seed such that they do not collide with repeated test runs
         let foo = format!("foo___{now}");

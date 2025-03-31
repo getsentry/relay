@@ -14,18 +14,18 @@ use relay_cardinality::{
     CardinalityLimit, CardinalityReport, CardinalityScope, RedisSetLimiter, RedisSetLimiterOptions,
     SlidingWindow,
 };
-use relay_redis::{AsyncRedisPool, RedisConfigOptions};
+use relay_redis::{AsyncRedisClient, RedisConfigOptions};
 
 // Async helper functions remain unchanged
-fn build_redis_pool() -> AsyncRedisPool {
+fn build_redis_client() -> AsyncRedisClient {
     let url =
         std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-    AsyncRedisPool::single(&url, &RedisConfigOptions::default()).unwrap()
+    AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap()
 }
 
-async fn build_limiter(pool: AsyncRedisPool, reset_redis: bool) -> RedisSetLimiter {
-    let mut connection = pool.get_connection().await.unwrap();
+async fn build_limiter(pool: AsyncRedisClient, reset_redis: bool) -> RedisSetLimiter {
+    let mut connection = client.get_connection().await.unwrap();
     if reset_redis {
         relay_redis::redis::cmd("FLUSHALL")
             .exec_async(&mut connection)
@@ -184,7 +184,7 @@ pub fn bench_simple(c: &mut Criterion) {
 
     // Create Tokio runtime
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let redis = build_redis_pool();
+    let redis = build_redis_client();
 
     for (name, params) in [("Simple", simple), ("Names", names)] {
         let mut g = c.benchmark_group(name);
@@ -210,7 +210,7 @@ pub fn bench_simple(c: &mut Criterion) {
 
 pub fn bench_big_set_small_queries(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let client = build_redis_pool();
+    let client = build_redis_client();
     let params = Params::new(10_000, 1000, 50, 0);
 
     let mut g = c.benchmark_group("Big set small queries");
@@ -235,7 +235,7 @@ pub fn bench_big_set_small_queries(c: &mut Criterion) {
 
 pub fn bench_high_cardinality(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let client = build_redis_pool();
+    let client = build_redis_client();
     let params = Params::new(10_000, 1000, 50, 0);
 
     let mut g = c.benchmark_group("High Cardinality");
@@ -258,7 +258,7 @@ pub fn bench_high_cardinality(c: &mut Criterion) {
 
 pub fn bench_cache_never_full(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let client = build_redis_pool();
+    let client = build_redis_client();
     let params = Params::new(10_000, 1_000, 50, 0);
 
     let mut g = c.benchmark_group("Cache Never Full");
@@ -283,7 +283,7 @@ pub fn bench_cache_never_full(c: &mut Criterion) {
 
 pub fn bench_cache_worst_case(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let client = build_redis_pool();
+    let client = build_redis_client();
     let params = Params::new(10_000, 1000, 50, 0);
 
     let mut g = c.benchmark_group("Cache Worst Case");

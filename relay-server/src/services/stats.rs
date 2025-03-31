@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::{AsyncRedisPool, RedisPoolStats, RedisPools};
+use relay_redis::{AsyncRedisClient, RedisClientStats, RedisClients};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
 use relay_threading::AsyncPool;
@@ -23,7 +23,7 @@ pub struct RelayStats {
     rt_metrics: RuntimeMetrics,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    redis_pools: Option<RedisPools>,
+    redis_clients: Option<RedisClients>,
     processor_pool: EnvelopeProcessorServicePool,
     #[cfg(feature = "processing")]
     store_pool: StoreServicePool,
@@ -34,7 +34,7 @@ impl RelayStats {
         config: Arc<Config>,
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
+        #[cfg(feature = "processing")] redis_clients: Option<RedisClients>,
         processor_pool: EnvelopeProcessorServicePool,
         #[cfg(feature = "processing")] store_pool: StoreServicePool,
     ) -> Self {
@@ -44,7 +44,7 @@ impl RelayStats {
             rt_metrics: runtime.metrics(),
             runtime,
             #[cfg(feature = "processing")]
-            redis_pools,
+            redis_clients,
             processor_pool,
             #[cfg(feature = "processing")]
             store_pool,
@@ -151,12 +151,12 @@ impl RelayStats {
     }
 
     #[cfg(feature = "processing")]
-    fn async_redis_connection(pool: &AsyncRedisPool, name: &str) {
+    fn async_redis_connection(pool: &AsyncRedisClient, name: &str) {
         Self::stats_metrics(pool.stats(), name);
     }
 
     #[cfg(feature = "processing")]
-    fn stats_metrics(stats: RedisPoolStats, name: &str) {
+    fn stats_metrics(stats: RedisClientStats, name: &str) {
         metric!(
             gauge(RelayGauges::RedisPoolConnections) = u64::from(stats.connections),
             pool = name
@@ -168,15 +168,15 @@ impl RelayStats {
     }
 
     #[cfg(not(feature = "processing"))]
-    async fn redis_pools(&self) {}
+    async fn redis_clients(&self) {}
 
     #[cfg(feature = "processing")]
-    async fn redis_pools(&self) {
-        if let Some(RedisPools {
+    async fn redis_clients(&self) {
+        if let Some(RedisClients {
             project_configs,
             cardinality,
             quotas,
-        }) = self.redis_pools.as_ref()
+        }) = self.redis_clients.as_ref()
         {
             Self::async_redis_connection(project_configs, "project_configs");
             Self::async_redis_connection(cardinality, "cardinality");
@@ -221,7 +221,7 @@ impl Service for RelayStats {
                 self.upstream_status(),
                 self.service_metrics(),
                 self.tokio_metrics(),
-                self.redis_pools(),
+                self.redis_clients(),
                 self.async_pools_metrics()
             );
             ticker.tick().await;

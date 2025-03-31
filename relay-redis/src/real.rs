@@ -43,52 +43,52 @@ pub enum RedisError {
     MultiWriteNotSupported(&'static str),
 }
 
-/// A collection of Redis pools used by Relay for different purposes.
+/// A collection of Redis clients used by Relay for different purposes.
 ///
-/// This struct manages separate Redis connection pools for different functionalities
+/// This struct manages separate Redis connection clients for different functionalities
 /// within the Relay system, such as project configurations, cardinality limits,
 /// and rate limiting.
 #[derive(Debug, Clone)]
-pub struct RedisPools {
-    /// The pool used for project configurations
-    pub project_configs: AsyncRedisPool,
-    /// The pool used for cardinality limits.
-    pub cardinality: AsyncRedisPool,
-    /// The pool used for rate limiting/quotas.
-    pub quotas: AsyncRedisPool,
+pub struct RedisClients {
+    /// The client used for project configurations
+    pub project_configs: AsyncRedisClient,
+    /// The client used for cardinality limits.
+    pub cardinality: AsyncRedisClient,
+    /// The client used for rate limiting/quotas.
+    pub quotas: AsyncRedisClient,
 }
 
-/// Statistics about the Redis pool's connection pool state.
+/// Statistics about the Redis client's connection client state.
 ///
-/// Provides information about the current state of Redis connection pools,
+/// Provides information about the current state of Redis connection clients,
 /// including the number of active and idle connections.
 #[derive(Debug)]
-pub struct RedisPoolStats {
+pub struct RedisClientStats {
     /// The number of connections currently being managed by the pool.
     pub connections: u32,
     /// The number of idle connections.
     pub idle_connections: u32,
 }
 
-/// A connection pool that can manage either a single Redis instance or a Redis cluster.
+/// A connection client that can manage either a single Redis instance or a Redis cluster.
 ///
 /// This enum provides a unified interface for Redis operations, supporting both
 /// single-instance and cluster configurations.
 #[derive(Clone)]
-pub enum AsyncRedisPool {
+pub enum AsyncRedisClient {
     /// Contains a connection pool to a Redis cluster.
     Cluster(ClusterPool),
     /// Contains a connection pool to a single Redis instance.
     Single(SinglePool),
 }
 
-impl AsyncRedisPool {
-    /// Creates a new connection pool for a Redis cluster.
+impl AsyncRedisClient {
+    /// Creates a new connection client for a Redis cluster.
     ///
-    /// This method initializes a connection pool that can communicate with multiple Redis nodes
-    /// in a cluster configuration. The pool is configured with the specified servers and options.
+    /// This method initializes a connection client that can communicate with multiple Redis nodes
+    /// in a cluster configuration. The client is configured with the specified servers and options.
     ///
-    /// The pool uses a custom cluster manager that implements a specific connection recycling
+    /// The client uses a custom cluster manager that implements a specific connection recycling
     /// strategy, ensuring optimal performance and reliability in cluster environments.
     pub fn cluster<'a>(
         servers: impl IntoIterator<Item = &'a str>,
@@ -106,15 +106,15 @@ impl AsyncRedisPool {
 
         let pool = Self::build_pool(manager, opts)?;
 
-        Ok(AsyncRedisPool::Cluster(pool))
+        Ok(AsyncRedisClient::Cluster(pool))
     }
 
-    /// Creates a new connection pool for a single Redis instance.
+    /// Creates a new connection client for a single Redis instance.
     ///
-    /// This method initializes a connection pool that communicates with a single Redis server.
-    /// The pool is configured with the specified server URL and options.
+    /// This method initializes a connection client that communicates with a single Redis server.
+    /// The client is configured with the specified server URL and options.
     ///
-    /// The pool uses a custom single manager that implements a specific connection recycling
+    /// The client uses a custom single manager that implements a specific connection recycling
     /// strategy, ensuring optimal performance and reliability in single-instance environments.
     pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         // We use our custom single manager which performs recycling in a different way from the
@@ -124,7 +124,7 @@ impl AsyncRedisPool {
 
         let pool = Self::build_pool(manager, opts)?;
 
-        Ok(AsyncRedisPool::Single(pool))
+        Ok(AsyncRedisClient::Single(pool))
     }
 
     /// Acquires a connection from the pool.
@@ -148,13 +148,13 @@ impl AsyncRedisPool {
     ///
     /// Provides information about the number of active and idle connections in the pool,
     /// which can be useful for monitoring and debugging purposes.
-    pub fn stats(&self) -> RedisPoolStats {
+    pub fn stats(&self) -> RedisClientStats {
         let status = match self {
             Self::Cluster(pool) => pool.status(),
             Self::Single(pool) => pool.status(),
         };
 
-        RedisPoolStats {
+        RedisClientStats {
             idle_connections: status.available as u32,
             connections: status.size as u32,
         }
@@ -175,11 +175,11 @@ impl AsyncRedisPool {
     }
 }
 
-impl std::fmt::Debug for AsyncRedisPool {
+impl std::fmt::Debug for AsyncRedisClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AsyncRedisPool::Cluster(_) => write!(f, "AsyncRedisPool::Cluster"),
-            AsyncRedisPool::Single(_) => write!(f, "AsyncRedisPool::Single"),
+            AsyncRedisClient::Cluster(_) => write!(f, "AsyncRedisPool::Cluster"),
+            AsyncRedisClient::Single(_) => write!(f, "AsyncRedisPool::Single"),
         }
     }
 }

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use relay_redis::{AsyncRedisConnection, AsyncRedisPool};
+use relay_redis::{AsyncRedisClient, AsyncRedisConnection};
 use relay_statsd::metric;
 use std::time::Duration;
 
@@ -26,7 +26,7 @@ pub struct RedisSetLimiterOptions {
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
-    redis: AsyncRedisPool,
+    redis: AsyncRedisClient,
     script: CardinalityScript,
     cache: Cache,
     #[cfg(test)]
@@ -38,7 +38,7 @@ pub struct RedisSetLimiter {
 /// A Redis based limiter using Redis sets to track cardinality and membership.
 impl RedisSetLimiter {
     /// Creates a new [`RedisSetLimiter`].
-    pub fn new(options: RedisSetLimiterOptions, redis: AsyncRedisPool) -> Self {
+    pub fn new(options: RedisSetLimiterOptions, redis: AsyncRedisClient) -> Self {
         Self {
             redis,
             script: CardinalityScript::load(),
@@ -290,7 +290,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        let redis = AsyncRedisPool::single(&url, &opts).unwrap();
+        let redis = AsyncRedisClient::single(&url, &opts).unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {

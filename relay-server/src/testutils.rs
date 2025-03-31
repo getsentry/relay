@@ -17,7 +17,7 @@ use relay_test::mock_service;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::metrics::{MetricOutcomes, MetricStats};
 #[cfg(feature = "processing")]
-use crate::service::create_redis_pools;
+use crate::service::create_redis_clients;
 use crate::services::global_config::GlobalConfigHandle;
 #[cfg(feature = "processing")]
 use crate::services::global_rate_limits::GlobalRateLimitsService;
@@ -114,15 +114,15 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
-    let redis_pools = match config.redis() {
-        Some(pool) => Some(create_redis_pools(pool).await),
+    let redis_clients = match config.redis() {
+        Some(configs) => Some(create_redis_clients(configs).await),
         None => None,
     }
     .transpose()
     .unwrap();
 
     #[cfg(feature = "processing")]
-    let global_rate_limits = redis_pools
+    let global_rate_limits = redis_clients
         .as_ref()
         .map(|p| GlobalRateLimitsService::new(p.quotas.clone()).start_detached());
 
@@ -136,7 +136,7 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         ProjectCacheHandle::for_test(),
         Cogs::noop(),
         #[cfg(feature = "processing")]
-        redis_pools,
+        redis_clients,
         processor::Addrs {
             outcome_aggregator,
             upstream_relay,
@@ -156,8 +156,8 @@ pub async fn create_test_processor_with_addrs(
     addrs: processor::Addrs,
 ) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
-    let redis_pools = match config.redis() {
-        Some(pools) => Some(create_redis_pools(pools).await),
+    let redis_clients = match config.redis() {
+        Some(configs) => Some(create_redis_clients(configs).await),
         None => None,
     }
     .transpose()
@@ -173,7 +173,7 @@ pub async fn create_test_processor_with_addrs(
         ProjectCacheHandle::for_test(),
         Cogs::noop(),
         #[cfg(feature = "processing")]
-        redis_pools,
+        redis_clients,
         addrs,
         metric_outcomes,
     )

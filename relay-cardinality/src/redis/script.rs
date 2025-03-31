@@ -193,7 +193,7 @@ impl CardinalityScriptPipeline<'_> {
 
 #[cfg(test)]
 mod tests {
-    use relay_redis::{AsyncRedisPool, RedisConfigOptions};
+    use relay_redis::{AsyncRedisClient, RedisConfigOptions};
     use uuid::Uuid;
 
     use super::*;
@@ -218,7 +218,7 @@ mod tests {
         }
     }
 
-    fn build_redis_pool() -> AsyncRedisPool {
+    fn build_redis_client() -> AsyncRedisClient {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
@@ -226,7 +226,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        AsyncRedisPool::single(&url, &opts).unwrap()
+        AsyncRedisClient::single(&url, &opts).unwrap()
     }
 
     fn keys(prefix: Uuid, keys: &[&str]) -> impl Iterator<Item = String> {
@@ -256,8 +256,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_below_limit_perfect_cardinality_ttl() {
-        let pool = build_redis_pool();
-        let mut connection = pool.get_connection().await.unwrap();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
 
@@ -280,8 +280,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_script() {
-        let pool = build_redis_pool();
-        let mut connection = pool.get_connection().await.unwrap();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
         let keys = keys(Uuid::new_v4(), &["a", "b", "c"]);
@@ -299,8 +299,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_calls_in_pipeline() {
-        let pool = build_redis_pool();
-        let mut connection = pool.get_connection().await.unwrap();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
         let k2 = keys(Uuid::new_v4(), &["a", "b", "c"]);
