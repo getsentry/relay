@@ -44,36 +44,41 @@ use crate::utils::{self, SamplingResult, TypedEnvelope};
 /// The function will return the sampling project information of the root project for the event. If
 /// no sampling project information is specified, the project information of the event’s project
 /// will be returned.
-pub fn validate_and_set_dsc(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+pub fn validate_and_set_dsc<T>(
+    managed_envelope: &mut TypedEnvelope<T>,
     event: &mut Annotated<Event>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
 ) -> Option<Arc<ProjectInfo>> {
-    if managed_envelope.envelope().dsc().is_some() && sampling_project_info.is_some() {
+    let original_dsc = managed_envelope.envelope().dsc();
+    if original_dsc.is_some() && sampling_project_info.is_some() {
         maybe_apply_legacy_sample_rate(managed_envelope, event);
         return sampling_project_info;
     }
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
-    let Some(event) = event.value() else {
-        return sampling_project_info;
-    };
-    let Some(key_config) = project_info.get_public_key_config() else {
-        return sampling_project_info;
-    };
+    if let Some(event) = event.value() {
+        if let Some(key_config) = project_info.get_public_key_config() {
+            if let Some(mut dsc) = utils::dsc_from_event(key_config.public_key, event) {
+                // All other information in the DSC must be discarded, but the sample rate was
+                // actually applied by the client and is therefore correct.
+                let original_sample_rate = original_dsc.and_then(|dsc| dsc.sample_rate);
+                dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
 
-    if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
-        managed_envelope.envelope_mut().set_dsc(dsc);
-        return Some(project_info.clone());
+                managed_envelope.envelope_mut().set_dsc(dsc);
+                return Some(project_info.clone());
+            }
+        }
     }
 
-    sampling_project_info
+    // If we cannot compute a new DSC but the old one is incorrect, we need to remove it.
+    managed_envelope.envelope_mut().remove_dsc();
+    None
 }
 
-fn maybe_apply_legacy_sample_rate(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+fn maybe_apply_legacy_sample_rate<T>(
+    managed_envelope: &mut TypedEnvelope<T>,
     event: &mut Annotated<Event>,
 ) {
     let Some(dsc) = managed_envelope.envelope().dsc() else {
