@@ -386,11 +386,9 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
             .to_tokens(&mut from_value_body);
 
             (quote! {
-                __map.extend(::relay_protocol::IntoValueObject::into_object_fields(#bi).into_iter().map(|(__key, __value)| (
-                    __key.to_owned(),
-                    __value,
-                )));
-            }).to_tokens(&mut to_value_body);
+                ::relay_protocol::IntoObjectRef::into_object_ref(#bi, __map);
+            })
+            .to_tokens(&mut to_value_body);
 
             (quote! {
                 ::relay_protocol::IntoValue::serialize_payload(#bi, ::serde::__private::ser::FlatMapSerializer(&mut __map_serializer), __behavior)?;
@@ -527,7 +525,6 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                     #[automatically_derived]
                     gen impl ::relay_protocol::FromObjectRef for @Self {
                         fn from_object_ref(__obj: &mut relay_protocol::Object<::relay_protocol::Value>) -> Self {
-                            // panic!("FROM OBJECT REF {}", ::std::any::type_name::<Self>());
                             #from_value_body;
                             #to_structure_assemble_pat
                         }
@@ -545,10 +542,11 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                 }
             } else {
                 quote! {
-                    let mut __map = ::relay_protocol::Object::new();
+                    let mut __map_ret = ::relay_protocol::Object::new();
                     let #to_value_pat = self;
+                    let mut __map = &mut __map_ret;
                     #to_value_body;
-                    ::relay_protocol::Value::Object(__map)
+                    ::relay_protocol::Value::Object(__map_ret)
                 }
             };
 
@@ -594,9 +592,10 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                 }
 
                 #[automatically_derived]
-                gen impl ::relay_protocol::IntoValueObject for @Self {
-                    fn into_object_fields(self) -> ::relay_protocol::Object<::relay_protocol::Value> {
-                        todo!();
+                gen impl ::relay_protocol::IntoObjectRef for @Self {
+                    fn into_object_ref(self, __map: &mut ::relay_protocol::Object<::relay_protocol::Value>) {
+                        let #to_value_pat = self;
+                        #to_value_body;
                     }
                 }
             })

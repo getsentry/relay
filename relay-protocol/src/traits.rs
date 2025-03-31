@@ -139,10 +139,13 @@ pub trait IntoValue: Debug + Empty {
 
 /// Implemented for all meta structures which can be serialized into an object.
 ///
-/// Only meta structures which implement [`IntoValueObject`] can be flattened.
-pub trait IntoValueObject: IntoValue {
+/// Only meta structures which implement [`IntoObjectRef`] can be flattened.
+pub trait IntoObjectRef: IntoValue {
     /// Boxes the meta structure back into an object of values.
-    fn into_object_fields(self) -> Object<Value>;
+    ///
+    /// All fields contained need to be added to the passed `obj`.
+    /// This is the inverse operation to [`FromObjectRef::from_object_ref`].
+    fn into_object_ref(self, obj: &mut Object<Value>);
 }
 
 /// A type-erased iterator over a collection of [`Getter`]s.
