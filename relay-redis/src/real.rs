@@ -65,6 +65,12 @@ pub struct RedisClientStats {
     pub connections: u32,
     /// The number of idle connections.
     pub idle_connections: u32,
+    /// The maximum number of connections in the pool.
+    pub max_connections: u32,
+    /// The number of futures that are currently waiting to get a connection from the pool.
+    ///
+    /// This number increases when there are not enough connections in the pool.
+    pub waiting_for_connection: u32,
 }
 
 /// A connection client that can manage either a single Redis instance or a Redis cluster.
@@ -154,6 +160,8 @@ impl AsyncRedisClient {
         RedisClientStats {
             idle_connections: status.available as u32,
             connections: status.size as u32,
+            max_connections: status.max_size as u32,
+            waiting_for_connection: status.waiting as u32,
         }
     }
 
