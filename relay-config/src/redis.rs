@@ -470,7 +470,7 @@ quotas:
           "wait_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "refresh_interval": 10000
+          "refresh_interval": 100
         }
         "#);
     }
@@ -496,7 +496,7 @@ quotas:
           "wait_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "refresh_interval": 10000
+          "refresh_interval": 100
         }
         "#);
     }
@@ -678,7 +678,7 @@ read_timeout: 10
           "wait_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "refresh_interval": 10000
+          "refresh_interval": 100
         }
         "#);
     }
@@ -710,7 +710,7 @@ read_timeout: 10
           "wait_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "refresh_interval": 10000
+          "refresh_interval": 100
         }
         "#);
     }
@@ -768,7 +768,7 @@ read_timeout: 10
             "wait_timeout": 3,
             "create_timeout": 3,
             "recycle_timeout": 2,
-            "refresh_interval": 10000
+            "refresh_interval": 100
           },
           "cardinality": {
             "server": "redis://127.0.0.1:6379",
@@ -780,7 +780,7 @@ read_timeout: 10
             "wait_timeout": 3,
             "create_timeout": 3,
             "recycle_timeout": 2,
-            "refresh_interval": 10000
+            "refresh_interval": 100
           },
           "quotas": {
             "configs": [
@@ -798,7 +798,7 @@ read_timeout: 10
                 "wait_timeout": 3,
                 "create_timeout": 3,
                 "recycle_timeout": 2,
-                "refresh_interval": 10000
+                "refresh_interval": 100
               },
               {
                 "server": "redis://127.0.0.1:6379",
@@ -811,7 +811,7 @@ read_timeout: 10
                 "wait_timeout": 3,
                 "create_timeout": 3,
                 "recycle_timeout": 2,
-                "refresh_interval": 10000
+                "refresh_interval": 100
               }
             ]
           }
