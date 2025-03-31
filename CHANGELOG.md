@@ -26,6 +26,7 @@
 - Bump the revision of `sysinfo` to the revision at `15b3be3273ba286740122fed7bb7dccd2a79dc8f`. ([#4613](https://github.com/getsentry/relay/pull/4613))
 - Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
 - Validate the spooling memory configuration on startup. ([#4617](https://github.com/getsentry/relay/pull/4617))
+- Add feature flag to control ourlogs ingestion. ([#4631](https://github.com/getsentry/relay/pull/4631))
 
 ## 25.3.0
 
