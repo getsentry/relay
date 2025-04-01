@@ -25,17 +25,17 @@ pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
 /// on every call, such as connection health checks or cache refreshes.
 #[derive(Debug)]
 struct IntervalCounter {
-    value: AtomicUsize,
+    value: usize,
     max_value: usize,
 }
 
 impl IntervalCounter {
     /// Creates a new [`IntervalCounter`] with the specified interval.
     ///
-    /// The counter will trigger (return `true` from [`Self::is_reached`]) every `max_size` calls.
+    /// The counter will trigger (return `true` from [`Self::reached`]) every `max_size` calls.
     fn new(max_size: usize) -> Self {
         Self {
-            value: AtomicUsize::new(0),
+            value: 0,
             max_value: max_size,
         }
     }
@@ -45,9 +45,10 @@ impl IntervalCounter {
     /// Returns `true` when the counter reaches zero, which happens every `max_value` calls.
     /// This method uses relaxed memory ordering as precise synchronization is not required
     /// for this use case.
-    fn is_reached(&self) -> bool {
-        let prev = self.value.fetch_add(1, Ordering::Relaxed);
-        (prev + 1) % self.max_value == 0
+    fn reached(&mut self) -> bool {
+        let reached = self.value == 0;
+        self.value = (self.value + 1) % self.max_value;
+        reached
     }
 }
 
@@ -170,7 +171,7 @@ impl Manager for CustomClusterManager {
     ) -> RecycleResult<RedisError> {
         // If the interval has been reached, we optimistically assume the connection is active
         // without doing an actual `PING`.
-        if !conn.counter.is_reached() {
+        if !conn.counter.reached() {
             return Ok(());
         }
 
@@ -250,7 +251,7 @@ impl Manager for CustomSingleManager {
     ) -> RecycleResult<RedisError> {
         // If the interval has been reached, we optimistically assume the connection is active
         // without doing an actual `PING`.
-        if !conn.counter.is_reached() {
+        if !conn.counter.reached() {
             return Ok(());
         }
 
