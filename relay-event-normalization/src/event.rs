@@ -449,25 +449,38 @@ pub fn normalize_ip_addresses(
         .and_then(|r| r.env.value())
         .and_then(|env| env.get("REMOTE_ADDR"))
         .and_then(Annotated::<Value>::as_str)
-        .and_then(|ip| IpAddr::parse(ip).ok())
-        .filter(|ip| !ip.is_auto());
+        .and_then(|ip| IpAddr::parse(ip).ok());
 
     // IP address in REMOTE_ADDR will have precedence over client_ip because it's explicitly
     // sent while client_ip is taken from X-Forwarded-For headers or the connection IP.
     let inferred_ip = remote_addr_ip.as_ref().or(client_ip);
 
-    let user = user.value_mut().get_or_insert_with(User::default);
-    let should_be_inferred = match user.ip_address.value() {
-        Some(ip) => ip.is_auto(),
+    // We will infer IP addresses if:
+    // * The IP address is {{auto}}
+    // * the auto_infer_ip setting is set to "auto"
+    let should_be_inferred = match user.value() {
+        Some(user) => match user.ip_address.value() {
+            Some(ip) => ip.is_auto(),
+            None => matches!(auto_infer_ip, Some(AutoInferSetting::Auto)),
+        },
         None => matches!(auto_infer_ip, Some(AutoInferSetting::Auto)),
     };
 
     if should_be_inferred {
-        user.ip_address.set_value(inferred_ip.cloned());
+        if let Some(ip) = inferred_ip {
+            let user = user.get_or_insert_with(User::default);
+            user.ip_address.set_value(Some(ip.to_owned()));
+        }
     }
 
-    // Legacy behaviour where None means {{auto}} for some SDKs.
-    if let Some(client_ip) = client_ip {
+    // Legacy behaviour:
+    // * Backfill if there is a REMOTE_ADDR and the user.ip_address was not backfilled until now
+    // * Empty means {{auto}} for some SDKs
+    if let Some(http_ip) = remote_addr_ip {
+        let user = user.get_or_insert_with(User::default);
+        user.ip_address.value_mut().get_or_insert(http_ip);
+    } else if let Some(client_ip) = inferred_ip {
+        let user = user.get_or_insert_with(User::default);
         // auto is already handled above
         if user.ip_address.value().is_none() {
             // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.

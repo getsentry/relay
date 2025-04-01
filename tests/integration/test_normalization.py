@@ -626,7 +626,7 @@ def test_auto_infer_without_user(mini_sentry, relay, platform, auto_infer_ip, ex
 
 @pytest.mark.parametrize(
     "auto_infer_ip, expected",
-    [("auto", "111.222.111.222"), ("never", None), (None, None)],
+    [("auto", "111.222.111.222"), ("never", None), (None, "111.222.111.222")],
 )
 def test_auto_infer_remote_addr_env(mini_sentry, relay, auto_infer_ip, expected):
     project_id = 42
