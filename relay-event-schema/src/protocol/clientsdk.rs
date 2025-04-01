@@ -26,30 +26,54 @@ pub struct ParseSettingError;
 /// to toggle the behaviour.
 #[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct ClientSdkSettings {
-    pub auto_infer_ip: Annotated<AutoInferSetting>,
+    infer_ip: Annotated<AutoInferSetting>,
 }
 
-/// Describes if relay should infer the ip address from the request connection headers.
-#[derive(Debug, Clone, PartialEq, ProcessValue)]
+impl ClientSdkSettings {
+    pub fn infer_ip(&self) -> AutoInferSetting {
+        self.infer_ip.value().copied().unwrap_or_default()
+    }
+}
+
+/// Used to control the IP inference setting in relay. This is used as an alternative to magic
+/// values like {{auto}} in the user.ip_address field.
+#[derive(Debug, Copy, Clone, PartialEq, Default, ProcessValue)]
 pub enum AutoInferSetting {
     /// Derive the IP address from the connection information.
     Auto,
 
     /// Do not derive the IP address, keep what was being sent by the client.
     Never,
+
+    /// Default option if nothing else is specified.
+    ///
+    /// Enables the legacy behavior which is driven by values in the ip_address field of the
+    /// user.
+    ///
+    /// The legacy behavior can be summarized as follows:
+    /// If the ip_address field of the user is set to {{auto}}, it will set the inferred IP
+    /// address to the field unless the flag is set to prevent storing IP addresses.
+    /// For the platforms javascript, cocoa and objective-c, it will also set the inferred IP
+    /// address if the user ip_address is null/missing.
+    ///
+    /// If there is no client IP and the user has no real IP address, then it will use
+    /// the IP address from REMOTE_ADDR.
+    #[default]
+    Legacy,
 }
 
 impl Empty for AutoInferSetting {
     fn is_empty(&self) -> bool {
-        false
+        matches!(self, AutoInferSetting::Legacy)
     }
 }
 
 impl AutoInferSetting {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             AutoInferSetting::Auto => "auto",
             AutoInferSetting::Never => "never",
+            AutoInferSetting::Legacy => "legacy",
         }
     }
 }
@@ -61,6 +85,7 @@ impl FromStr for AutoInferSetting {
         match s {
             "auto" => Ok(AutoInferSetting::Auto),
             "never" => Ok(AutoInferSetting::Never),
+            "legacy" => Ok(AutoInferSetting::Legacy),
             _ => Err(ParseSettingError),
         }
     }
@@ -257,7 +282,7 @@ mod tests {
             packages: Annotated::empty(),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
             settings: Annotated::new(ClientSdkSettings {
-                auto_infer_ip: Annotated::new(AutoInferSetting::Auto),
+                infer_ip: Annotated::new(AutoInferSetting::Auto),
             }),
             other: Default::default(),
         });

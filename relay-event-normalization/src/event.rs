@@ -421,10 +421,10 @@ pub fn normalize_ip_addresses(
 ) {
     let auto_infer_ip = client_sdk_settings
         .and_then(|c| c.settings.0.as_ref())
-        .and_then(|c| c.auto_infer_ip.0.as_ref());
+        .map_or_default(|s| s.infer_ip());
 
     // If auto_infer_ip is set to Never then we just remove auto and don't continue
-    if let Some(AutoInferSetting::Never) = auto_infer_ip {
+    if let AutoInferSetting::Never = auto_infer_ip {
         // No user means there is also no IP so we can stop here
         let Some(user) = user.value_mut() else {
             return;
