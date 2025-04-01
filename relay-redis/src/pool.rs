@@ -1,5 +1,4 @@
 use std::ops::{Deref, DerefMut};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleResult};
 use deadpool_redis::cluster::Manager as ClusterManager;
