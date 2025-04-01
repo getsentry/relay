@@ -426,11 +426,11 @@ pub fn normalize_ip_addresses(
     // If auto_infer_ip is set to Never then we just remove auto and don't continue
     if let Some(AutoInferSetting::Never) = auto_infer_ip {
         // No user means there is also no IP so we can stop here
-        let Some(user) = user.0.as_mut() else {
+        let Some(user) = user.value_mut() else {
             return;
         };
         // If there is no IP we can also stop
-        let Some(ip) = user.ip_address.0.as_ref() else {
+        let Some(ip) = user.ip_address.value() else {
             return;
         };
         // If it's auto or empty then we can also stop
@@ -440,56 +440,34 @@ pub fn normalize_ip_addresses(
         }
     }
 
-    // NOTE: This is highly order dependent, in the sense that both the statements within this
-    // function need to be executed in a certain order, and that other normalization code
-    // (geoip lookup) needs to run after this.
-    //
-    // After a series of regressions over the old Python spaghetti code we decided to put it
-    // back into one function. If a desire to split this code up overcomes you, put this in a
-    // new processor and make sure all of it runs before the rest of normalization.
-
-    // Resolve {{auto}}
-    if let Some(client_ip) = client_ip {
-        if let Some(ref mut request) = request.value_mut() {
-            if let Some(ref mut env) = request.env.value_mut() {
-                if let Some(&mut Value::String(ref mut http_ip)) = env
-                    .get_mut("REMOTE_ADDR")
-                    .and_then(|annotated| annotated.value_mut().as_mut())
-                {
-                    if http_ip == "{{auto}}" {
-                        *http_ip = client_ip.to_string();
-                    }
-                }
-            }
-        }
-
-        if let Some(ref mut user) = user.value_mut() {
-            if let Some(ref mut user_ip) = user.ip_address.value_mut() {
-                if user_ip.is_auto() {
-                    client_ip.clone_into(user_ip)
-                }
-            } else if let Some(AutoInferSetting::Auto) = auto_infer_ip {
-                user.ip_address.0 = Some(client_ip.to_owned());
-            }
-        } else if let Some(AutoInferSetting::Auto) = auto_infer_ip {
-            let user = user.get_or_insert_with(User::default);
-            user.ip_address.0 = Some(client_ip.to_owned());
-        }
-    }
-
-    // Copy IPs from request interface to user, and resolve platform-specific backfilling
-    let http_ip = request
+    // REMOTE_ADDR should not contain {{auto}}, so we filter it explicitly.
+    // Since REMOVE_ADDR is only set by backend SDKs, having {{auto}} would mean that it would
+    // always backfill using the server IP address from the X-Forwarded-For header, which
+    // is probably not what anyone wants.
+    let remote_addr_ip = request
         .value()
-        .and_then(|request| request.env.value())
+        .and_then(|r| r.env.value())
         .and_then(|env| env.get("REMOTE_ADDR"))
         .and_then(Annotated::<Value>::as_str)
-        .and_then(|ip| IpAddr::parse(ip).ok());
+        .and_then(|ip| IpAddr::parse(ip).ok())
+        .filter(|ip| ip.is_auto());
 
-    if let Some(http_ip) = http_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        user.ip_address.value_mut().get_or_insert(http_ip);
-    } else if let Some(client_ip) = client_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
+    // IP address in REMOTE_ADDR will have precedence over client_ip because it's explicitly
+    // sent while client_ip is taken from X-Forwarded-For headers or the connection IP.
+    let inferred_ip = remote_addr_ip.as_ref().or(client_ip);
+
+    let user = user.value_mut().get_or_insert_with(User::default);
+    let should_be_inferred = match user.ip_address.value() {
+        Some(ip) => ip.is_auto(),
+        None => matches!(auto_infer_ip, Some(AutoInferSetting::Auto)),
+    };
+
+    if should_be_inferred {
+        user.ip_address.set_value(inferred_ip.cloned());
+    }
+
+    // Legacy behaviour where None means {{auto}} for some SDKs.
+    if let Some(client_ip) = client_ip {
         // auto is already handled above
         if user.ip_address.value().is_none() {
             // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.

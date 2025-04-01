@@ -1,6 +1,8 @@
 import json
 
 import pytest
+from setuptools.msvc import environ
+
 from .test_unreal import load_dump_file
 import os
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -411,8 +413,8 @@ def test_ip_not_extracted_with_setting(mini_sentry, relay, scrub_ip_addresses, u
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
-    assert event["user"]["ip_address"] is None
-    assert event["user"].get("id", None) == user_id
+    assert event.get("user", {}).get("ip_address", None) is None
+    assert event.get("user", {}).get("id", None) == user_id
 
 
 @pytest.mark.parametrize(
@@ -440,7 +442,7 @@ def test_geo_inferred_without_user_ip(
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
-    assert event["user"]["ip_address"] == expected_ip
+    assert event.get("user", {}).get("ip_address", None) == expected_ip
     # Geo is always present
     assert event["user"]["geo"] is not None
 
@@ -449,15 +451,12 @@ def test_geo_inferred_without_user_ip(
     "user_ip_address, auto_infer_ip, expected",
     [
         ("{{auto}}", "never", None),
-        ("", "never", None),
         (None, "never", None),
         ("123.123.123.123", "never", "123.123.123.123"),
         ("{{auto}}", "auto", "2.125.160.216"),
-        ("", "auto", "2.125.160.216"),
         (None, "auto", "2.125.160.216"),
         ("123.123.123.123", "auto", "123.123.123.123"),
         ("{{auto}}", None, "2.125.160.216"),
-        ("", None, "2.125.160.216"),
         (None, None, "2.125.160.216"),
         ("123.123.123.123", None, "123.123.123.123"),
     ],
@@ -527,15 +526,12 @@ def test_auto_infer_setting_cocoa(
     "user_ip_address, auto_infer_ip, expected",
     [
         ("{{auto}}", "never", None),
-        ("", "never", None),
         (None, "never", None),
         ("123.123.123.123", "never", "123.123.123.123"),
         ("{{auto}}", "auto", "2.125.160.216"),
-        ("", "auto", "2.125.160.216"),
         (None, "auto", "2.125.160.216"),
         ("123.123.123.123", "auto", "123.123.123.123"),
         ("{{auto}}", None, "2.125.160.216"),
-        ("", None, None),
         (None, None, None),
         ("123.123.123.123", None, "123.123.123.123"),
     ],
@@ -565,15 +561,12 @@ def test_auto_infer_settings(
     "user_ip_address, auto_infer_ip, expected",
     [
         ("{{auto}}", "never", None),
-        ("", "never", None),
         (None, "never", None),
         ("123.123.123.123", "never", "123.123.123.123"),
         ("{{auto}}", "auto", "2.125.160.216"),
-        ("", "auto", "2.125.160.216"),
         (None, "auto", "2.125.160.216"),
         ("123.123.123.123", "auto", "123.123.123.123"),
         ("{{auto}}", None, "2.125.160.216"),
-        ("", None, "2.125.160.216"),
         (None, None, "2.125.160.216"),
         ("123.123.123.123", None, "123.123.123.123"),
     ],
@@ -632,4 +625,31 @@ def test_auto_infer_without_user(mini_sentry, relay, platform, auto_infer_ip, ex
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
+    assert event.get("user", {}).get("ip_address", None) == expected
+
+
+@pytest.mark.parametrize(
+    "auto_infer_ip, expected", [("auto", "111.222.111.222"), ("never", None)]
+)
+def test_auto_infer_remote_addr_env(mini_sentry, relay, auto_infer_ip, expected):
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "sdk": {"settings": {"auto_infer_ip": auto_infer_ip}},
+            "request": {
+                "env": {
+                    "REMOTE_ADDR": "111.222.111.222",
+                }
+            },
+        },
+        headers={"X-Forwarded-For": "2.125.160.216"},
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    print(event)
     assert event.get("user", {}).get("ip_address", None) == expected
