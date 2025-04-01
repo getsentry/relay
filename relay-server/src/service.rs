@@ -160,13 +160,12 @@ impl ServiceState {
         let test_store = services.start(TestStoreService::new(config.clone()));
 
         #[cfg(feature = "processing")]
-        let redis_clients = match config.redis().filter(|_| config.processing_enabled()) {
-            // TODO: add the params from the config.
-            Some(config) => Some(create_redis_clients(config)),
-            None => None,
-        }
-        .transpose()
-        .context(ServiceError::Redis)?;
+        let redis_clients = config
+            .redis()
+            .filter(|_| config.processing_enabled())
+            .map(create_redis_clients)
+            .transpose()
+            .context(ServiceError::Redis)?;
 
         // If we have Redis configured, we want to initialize all the scripts by loading them in
         // the scripts cache if not present. Our custom ConnectionLike implementation relies on this

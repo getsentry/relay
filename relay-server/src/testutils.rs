@@ -114,12 +114,11 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
-    let redis_clients = match config.redis() {
-        Some(configs) => Some(create_redis_clients(configs).await),
-        None => None,
-    }
-    .transpose()
-    .unwrap();
+    let redis_clients = config
+        .redis()
+        .map(|c| create_redis_clients(c))
+        .transpose()
+        .unwrap();
 
     #[cfg(feature = "processing")]
     let global_rate_limits = redis_clients
@@ -156,12 +155,11 @@ pub async fn create_test_processor_with_addrs(
     addrs: processor::Addrs,
 ) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
-    let redis_clients = match config.redis() {
-        Some(configs) => Some(create_redis_clients(configs).await),
-        None => None,
-    }
-    .transpose()
-    .unwrap();
+    let redis_clients = config
+        .redis()
+        .map(|c| create_redis_clients(c))
+        .transpose()
+        .unwrap();
     let metric_outcomes =
         MetricOutcomes::new(MetricStats::test().0, addrs.outcome_aggregator.clone());
 
