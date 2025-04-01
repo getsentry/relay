@@ -21,11 +21,6 @@ pub struct RedisConfigOptions {
     pub read_timeout: u64,
     /// Sets the write timeout on the connection, in seconds.
     pub write_timeout: u64,
-    /// Sets the maximum time in seconds to wait for a connection to become available from the pool.
-    ///
-    /// If no connection becomes available within this time, an error is returned.
-    /// A lower value reduces blocking under high contention.
-    pub wait_timeout: u64,
     /// Sets the maximum time in seconds to wait when establishing a new Redis connection.
     ///
     /// If a connection cannot be established within this duration, it is considered a failure.
@@ -55,7 +50,6 @@ impl Default for RedisConfigOptions {
             idle_timeout: 60,
             read_timeout: 3,
             write_timeout: 3,
-            wait_timeout: 3,
             create_timeout: 3,
             recycle_timeout: 2,
             refresh_interval: 100,

@@ -172,7 +172,6 @@ impl AsyncRedisClient {
     ) -> Result<Pool<M, W>, BuildError> {
         Pool::builder(manager)
             .max_size(opts.max_connections as usize)
-            .wait_timeout(Some(Duration::from_secs(opts.wait_timeout)))
             .create_timeout(Some(Duration::from_secs(opts.create_timeout)))
             .recycle_timeout(Some(Duration::from_secs(opts.recycle_timeout)))
             .runtime(Runtime::Tokio1)

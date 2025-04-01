@@ -38,11 +38,6 @@ pub struct PartialRedisConfigOptions {
     pub read_timeout: u64,
     /// Sets the write timeout on the connection, in seconds.
     pub write_timeout: u64,
-    /// Sets the maximum time in seconds to wait for a connection to become available from the pool.
-    ///
-    /// If no connection becomes available within this time, an error is returned.
-    /// A lower value reduces blocking under high contention.
-    pub wait_timeout: u64,
     /// Sets the maximum time in seconds to wait when establishing a new Redis connection.
     ///
     /// If a connection cannot be established within this duration, it is considered a failure.
@@ -72,7 +67,6 @@ impl Default for PartialRedisConfigOptions {
             idle_timeout: 60,
             read_timeout: 3,
             write_timeout: 3,
-            wait_timeout: 3,
             create_timeout: 3,
             recycle_timeout: 2,
             refresh_interval: 100,
@@ -265,7 +259,6 @@ fn build_redis_config_options(
         idle_timeout: options.idle_timeout,
         read_timeout: options.read_timeout,
         write_timeout: options.write_timeout,
-        wait_timeout: options.wait_timeout,
         create_timeout: options.create_timeout,
         recycle_timeout: options.recycle_timeout,
         refresh_interval: options.refresh_interval,
@@ -467,7 +460,6 @@ quotas:
           "idle_timeout": 60,
           "read_timeout": 3,
           "write_timeout": 3,
-          "wait_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
           "refresh_interval": 100
@@ -493,7 +485,6 @@ quotas:
           "idle_timeout": 60,
           "read_timeout": 3,
           "write_timeout": 3,
-          "wait_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
           "refresh_interval": 100
@@ -675,7 +666,6 @@ read_timeout: 10
           "idle_timeout": 60,
           "read_timeout": 33,
           "write_timeout": 3,
-          "wait_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
           "refresh_interval": 100
@@ -707,7 +697,6 @@ read_timeout: 10
           "idle_timeout": 60,
           "read_timeout": 33,
           "write_timeout": 3,
-          "wait_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
           "refresh_interval": 100
@@ -765,7 +754,6 @@ read_timeout: 10
             "idle_timeout": 60,
             "read_timeout": 3,
             "write_timeout": 3,
-            "wait_timeout": 3,
             "create_timeout": 3,
             "recycle_timeout": 2,
             "refresh_interval": 100
@@ -777,7 +765,6 @@ read_timeout: 10
             "idle_timeout": 60,
             "read_timeout": 3,
             "write_timeout": 3,
-            "wait_timeout": 3,
             "create_timeout": 3,
             "recycle_timeout": 2,
             "refresh_interval": 100
@@ -795,7 +782,6 @@ read_timeout: 10
                 "idle_timeout": 60,
                 "read_timeout": 3,
                 "write_timeout": 3,
-                "wait_timeout": 3,
                 "create_timeout": 3,
                 "recycle_timeout": 2,
                 "refresh_interval": 100
@@ -808,7 +794,6 @@ read_timeout: 10
                 "idle_timeout": 60,
                 "read_timeout": 3,
                 "write_timeout": 3,
-                "wait_timeout": 3,
                 "create_timeout": 3,
                 "recycle_timeout": 2,
                 "refresh_interval": 100
