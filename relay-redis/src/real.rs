@@ -1,4 +1,4 @@
-use deadpool::managed::{BuildError, Manager, Object, Pool, PoolError};
+use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError};
 use deadpool_redis::{ConfigError, Runtime};
 use redis::{Cmd, Pipeline, RedisFuture, Value};
 use std::time::Duration;
@@ -162,6 +162,20 @@ impl AsyncRedisClient {
             connections: status.size as u32,
             max_connections: status.max_size as u32,
             waiting_for_connection: status.waiting as u32,
+        }
+    }
+
+    /// Runs the `predicate` on the pool blocking it.
+    ///
+    /// If the `predicate` returns `false` the object will be removed from pool.
+    pub fn retain(&self, mut predicate: impl FnMut(Metrics) -> bool) {
+        match self {
+            Self::Cluster(pool) => {
+                pool.retain(|_, metrics| predicate(metrics));
+            }
+            Self::Single(pool) => {
+                pool.retain(|_, metrics| predicate(metrics));
+            }
         }
     }
 
