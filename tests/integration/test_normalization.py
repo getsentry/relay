@@ -1,7 +1,6 @@
 import json
 
 import pytest
-from setuptools.msvc import environ
 
 from .test_unreal import load_dump_file
 import os
