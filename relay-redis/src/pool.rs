@@ -1,5 +1,3 @@
-use std::ops::{Deref, DerefMut};
-
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleResult};
 use deadpool_redis::cluster::Manager as ClusterManager;
 use deadpool_redis::Manager as SingleManager;
@@ -16,88 +14,6 @@ pub type CustomClusterPool = Pool<CustomClusterManager, CustomClusterConnection>
 
 /// A connection pool for single Redis instance deployments.
 pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
-
-/// A counter that triggers at regular intervals.
-///
-/// [`IntervalCounter`] provides a thread-safe way to determine when a specific interval
-/// has been reached. It's useful for operations that should occur periodically but not
-/// on every call, such as connection health checks or cache refreshes.
-#[derive(Debug)]
-struct IntervalCounter {
-    value: usize,
-    max_value: usize,
-}
-
-impl IntervalCounter {
-    /// Creates a new [`IntervalCounter`] with the specified interval.
-    ///
-    /// The counter will trigger (return `true` from [`Self::reached`]) every `max_size` calls.
-    fn new(max_size: usize) -> Self {
-        Self {
-            value: 0,
-            max_value: max_size,
-        }
-    }
-
-    /// Checks if the interval has been reached and advances the counter.
-    ///
-    /// Returns `true` when the counter reaches zero, which happens every `max_value` calls.
-    /// This method uses relaxed memory ordering as precise synchronization is not required
-    /// for this use case.
-    fn reached(&mut self) -> bool {
-        let reached = self.value == 0;
-        self.value = (self.value + 1) % self.max_value;
-        reached
-    }
-}
-
-/// A wrapper of connection that has a local counter that can be used to track the usage.
-pub struct TrackedConnection<T> {
-    inner: T,
-    counter: IntervalCounter,
-}
-
-impl<T> TrackedConnection<T> {
-    fn new(inner: T, refresh_interval: usize) -> Self {
-        Self {
-            inner,
-            counter: IntervalCounter::new(refresh_interval),
-        }
-    }
-}
-
-impl<T> Deref for TrackedConnection<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &self.inner
-    }
-}
-
-impl<T> DerefMut for TrackedConnection<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
-impl<T: redis::aio::ConnectionLike> redis::aio::ConnectionLike for TrackedConnection<T> {
-    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
-        self.inner.req_packed_command(cmd)
-    }
-
-    fn req_packed_commands<'a>(
-        &'a mut self,
-        cmd: &'a Pipeline,
-        offset: usize,
-        count: usize,
-    ) -> RedisFuture<'a, Vec<Value>> {
-        self.inner.req_packed_commands(cmd, offset, count)
-    }
-
-    fn get_db(&self) -> i64 {
-        self.inner.get_db()
-    }
-}
 
 /// A managed Redis cluster connection that implements [`redis::aio::ConnectionLike`].
 ///
@@ -153,24 +69,21 @@ impl CustomClusterManager {
 }
 
 impl Manager for CustomClusterManager {
-    type Type = TrackedConnection<ClusterConnection>;
+    type Type = ClusterConnection;
     type Error = RedisError;
 
-    async fn create(&self) -> Result<TrackedConnection<ClusterConnection>, RedisError> {
-        Ok(TrackedConnection::new(
-            self.manager.create().await?,
-            self.refresh_interval,
-        ))
+    async fn create(&self) -> Result<ClusterConnection, RedisError> {
+        self.manager.create().await
     }
 
     async fn recycle(
         &self,
-        conn: &mut TrackedConnection<ClusterConnection>,
+        conn: &mut ClusterConnection,
         metrics: &Metrics,
     ) -> RecycleResult<RedisError> {
         // If the interval has been reached, we optimistically assume the connection is active
         // without doing an actual `PING`.
-        if !conn.counter.reached() {
+        if metrics.recycle_count % self.refresh_interval != 0 {
             return Ok(());
         }
 
@@ -233,24 +146,21 @@ impl CustomSingleManager {
 }
 
 impl Manager for CustomSingleManager {
-    type Type = TrackedConnection<MultiplexedConnection>;
+    type Type = MultiplexedConnection;
     type Error = RedisError;
 
-    async fn create(&self) -> Result<TrackedConnection<MultiplexedConnection>, RedisError> {
-        Ok(TrackedConnection::new(
-            self.manager.create().await?,
-            self.refresh_interval,
-        ))
+    async fn create(&self) -> Result<MultiplexedConnection, RedisError> {
+        self.manager.create().await
     }
 
     async fn recycle(
         &self,
-        conn: &mut TrackedConnection<MultiplexedConnection>,
+        conn: &mut MultiplexedConnection,
         metrics: &Metrics,
     ) -> RecycleResult<RedisError> {
         // If the interval has been reached, we optimistically assume the connection is active
         // without doing an actual `PING`.
-        if !conn.counter.reached() {
+        if metrics.recycle_count % self.refresh_interval != 0 {
             return Ok(());
         }
 
