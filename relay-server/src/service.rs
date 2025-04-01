@@ -424,16 +424,10 @@ impl ServiceState {
 /// If it is [`Individual`](RedisConfigsRef::Individual), an actual separate client
 /// is created for each use case.
 #[cfg(feature = "processing")]
-pub fn create_redis_clients(
-    update_frequency: u64,
-    max_age: u64,
-    configs: RedisConfigsRef<'_>,
-) -> Result<RedisClients, RedisError> {
+pub fn create_redis_clients(configs: RedisConfigsRef<'_>) -> Result<RedisClients, RedisError> {
     match configs {
         RedisConfigsRef::Unified(unified) => {
             let client = create_async_redis_client(&unified)?;
-
-            start_background_clients_manager(update_frequency, max_age, vec![client.clone()]);
 
             Ok(RedisClients {
                 project_configs: client.clone(),
@@ -450,12 +444,6 @@ pub fn create_redis_clients(
             let cardinality = create_async_redis_client(&cardinality)?;
             let quotas = create_async_redis_client(&quotas)?;
 
-            start_background_clients_manager(
-                update_frequency,
-                max_age,
-                vec![project_configs.clone(), cardinality.clone(), quotas.clone()],
-            );
-
             Ok(RedisClients {
                 project_configs,
                 cardinality,
@@ -463,24 +451,6 @@ pub fn create_redis_clients(
             })
         }
     }
-}
-
-/// Starts a background task that detaches all objects in the pool that are older than `max_age`.
-///
-/// The frequency of the check is controlled by `update_frequency`.
-fn start_background_clients_manager(
-    update_frequency: u64,
-    max_age: u64,
-    clients: Vec<AsyncRedisClient>,
-) {
-    relay_system::spawn!(async move {
-        loop {
-            for client in clients.iter() {
-                client.retain(|metrics| metrics.last_used() < Duration::from_secs(max_age));
-            }
-            tokio::time::sleep(Duration::from_secs(update_frequency)).await;
-        }
-    });
 }
 
 #[cfg(feature = "processing")]

@@ -104,7 +104,7 @@ impl AsyncRedisClient {
 
         // We use our custom cluster manager which performs recycling in a different way from the
         // default manager.
-        let manager = pool::CustomClusterManager::new(servers, false, opts.refresh_interval)
+        let manager = pool::CustomClusterManager::new(servers, false, opts.recycle_check_frequency)
             .map_err(RedisError::Redis)?;
 
         let pool = Self::build_pool(manager, opts)?;
@@ -122,7 +122,7 @@ impl AsyncRedisClient {
     pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         // We use our custom single manager which performs recycling in a different way from the
         // default manager.
-        let manager = pool::CustomSingleManager::new(server, opts.refresh_interval)
+        let manager = pool::CustomSingleManager::new(server, opts.recycle_check_frequency)
             .map_err(RedisError::Redis)?;
 
         let pool = Self::build_pool(manager, opts)?;
@@ -180,16 +180,31 @@ impl AsyncRedisClient {
     }
 
     /// Builds a [`Pool`] given a type implementing [`Manager`] and [`RedisConfigOptions`].
-    fn build_pool<M: Manager, W: From<Object<M>>>(
+    fn build_pool<M: Manager + 'static, W: From<Object<M>> + 'static>(
         manager: M,
         opts: &RedisConfigOptions,
     ) -> Result<Pool<M, W>, BuildError> {
-        Pool::builder(manager)
+        let result = Pool::builder(manager)
             .max_size(opts.max_connections as usize)
             .create_timeout(opts.create_timeout.map(Duration::from_secs))
             .recycle_timeout(opts.recycle_timeout.map(Duration::from_secs))
             .runtime(Runtime::Tokio1)
-            .build()
+            .build();
+
+        let max_unused_age = opts.max_unused_age;
+        let refresh_interval = opts.refresh_interval;
+        if let Ok(pool) = result.clone() {
+            relay_system::spawn!(async move {
+                loop {
+                    pool.retain(|_, metrics| {
+                        metrics.last_used() < Duration::from_secs(max_unused_age)
+                    });
+                    tokio::time::sleep(Duration::from_secs(refresh_interval)).await;
+                }
+            });
+        }
+
+        result
     }
 }
 

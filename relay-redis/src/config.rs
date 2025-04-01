@@ -35,9 +35,22 @@ pub struct RedisConfigOptions {
     /// Sets the number of times after which the connection will check whether it is active when
     /// being recycled.
     ///
-    /// An interval of 1, means that the connection will check whether it is active every time it
+    /// A frequency of 1, means that the connection will check whether it is active every time it
     /// is recycled.
-    pub refresh_interval: usize,
+    pub recycle_check_frequency: usize,
+    /// Sets the maximum duration, in seconds, that a connection can remain unused in the pool
+    /// before being considered for cleanup.
+    ///
+    /// A higher value allows unused connections to stay longer in the pool, which may improve
+    /// performance in workloads with intermittent spikes. However, stale connections can increase
+    /// resource usage and may eventually be closed by the server.
+    pub max_unused_age: u64,
+    /// Defines how often, in seconds, the background task scans the pool to remove unused
+    /// connections.
+    ///
+    /// Longer intervals reduce the frequency of cleanup operations, which can minimize overhead
+    /// but may delay the removal of idle connections.
+    pub refresh_interval: u64,
 }
 
 impl Default for RedisConfigOptions {
@@ -52,7 +65,9 @@ impl Default for RedisConfigOptions {
             write_timeout: 3,
             create_timeout: Some(3),
             recycle_timeout: Some(2),
-            refresh_interval: 100,
+            recycle_check_frequency: 100,
+            max_unused_age: 60,
+            refresh_interval: 30,
         }
     }
 }

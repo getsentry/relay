@@ -115,7 +115,7 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     let redis_clients = match config.redis() {
-        Some(configs) => Some(create_redis_clients(10, 10, configs).await),
+        Some(configs) => Some(create_redis_clients(configs).await),
         None => None,
     }
     .transpose()
@@ -157,7 +157,7 @@ pub async fn create_test_processor_with_addrs(
 ) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     let redis_clients = match config.redis() {
-        Some(configs) => Some(create_redis_clients(10, 10, configs).await),
+        Some(configs) => Some(create_redis_clients(configs).await),
         None => None,
     }
     .transpose()
