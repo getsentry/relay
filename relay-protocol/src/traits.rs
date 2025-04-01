@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use crate::annotated::{Annotated, MetaMap, MetaTree};
-use crate::value::{Val, Value};
+use crate::value::{Object, Val, Value};
 
 /// A value that can be empty.
 pub trait Empty {
@@ -86,6 +86,18 @@ pub trait FromValue: Debug {
         Self: Sized;
 }
 
+/// Implemented for all meta structures which can be created from an object.
+///
+/// Only meta structures which implement [`FromObjectRef`] can be flattened.
+pub trait FromObjectRef: FromValue {
+    /// Creates a meta structure from key value pairs.
+    ///
+    /// The implementation is supposed remove used fields from the passed `value`.
+    fn from_object_ref(value: &mut Object<Value>) -> Self
+    where
+        Self: Sized;
+}
+
 /// Implemented for all meta structures.
 pub trait IntoValue: Debug + Empty {
     /// Boxes the meta structure back into a value.
@@ -123,6 +135,22 @@ pub trait IntoValue: Debug + Empty {
             },
         }
     }
+}
+
+/// Implemented for all meta structures which can be serialized into an object.
+///
+/// Instead of creating a new [`Value`] as done with [`IntoValue::into_value`],
+/// this trait assumes the underlying value is an object like (struct) and
+/// can be directly serialized into an object without creating an intermediate
+/// object first.
+///
+/// Only meta structures which implement [`IntoObjectRef`] can be flattened.
+pub trait IntoObjectRef: IntoValue {
+    /// Boxes the meta structure back into an object of values.
+    ///
+    /// All fields contained need to be added to the passed `obj`.
+    /// This is the inverse operation to [`FromObjectRef::from_object_ref`].
+    fn into_object_ref(self, obj: &mut Object<Value>);
 }
 
 /// A type-erased iterator over a collection of [`Getter`]s.
