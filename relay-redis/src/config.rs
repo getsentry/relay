@@ -25,13 +25,13 @@ pub struct RedisConfigOptions {
     ///
     /// If a connection cannot be established within this duration, it is considered a failure.
     /// Applies when the pool needs to grow or create fresh connections.
-    pub create_timeout: u64,
+    pub create_timeout: Option<u64>,
     /// Sets the maximum time in seconds to validate an existing connection when it is recycled.
     ///
     /// Recycling involves checking whether an idle connection is still alive before reuse.
     /// If validation exceeds this timeout, the connection is discarded and a new fetch from the pool
     /// is attempted.
-    pub recycle_timeout: u64,
+    pub recycle_timeout: Option<u64>,
     /// Sets the number of times after which the connection will check whether it is active when
     /// being recycled.
     ///
@@ -50,8 +50,8 @@ impl Default for RedisConfigOptions {
             idle_timeout: 60,
             read_timeout: 3,
             write_timeout: 3,
-            create_timeout: 3,
-            recycle_timeout: 2,
+            create_timeout: Some(3),
+            recycle_timeout: Some(2),
             refresh_interval: 100,
         }
     }
