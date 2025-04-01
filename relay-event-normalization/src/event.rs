@@ -450,7 +450,7 @@ pub fn normalize_ip_addresses(
         .and_then(|env| env.get("REMOTE_ADDR"))
         .and_then(Annotated::<Value>::as_str)
         .and_then(|ip| IpAddr::parse(ip).ok())
-        .filter(|ip| ip.is_auto());
+        .filter(|ip| !ip.is_auto());
 
     // IP address in REMOTE_ADDR will have precedence over client_ip because it's explicitly
     // sent while client_ip is taken from X-Forwarded-For headers or the connection IP.

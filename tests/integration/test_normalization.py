@@ -629,7 +629,8 @@ def test_auto_infer_without_user(mini_sentry, relay, platform, auto_infer_ip, ex
 
 
 @pytest.mark.parametrize(
-    "auto_infer_ip, expected", [("auto", "111.222.111.222"), ("never", None)]
+    "auto_infer_ip, expected",
+    [("auto", "111.222.111.222"), ("never", None), (None, None)],
 )
 def test_auto_infer_remote_addr_env(mini_sentry, relay, auto_infer_ip, expected):
     project_id = 42
@@ -651,5 +652,4 @@ def test_auto_infer_remote_addr_env(mini_sentry, relay, auto_infer_ip, expected)
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
-    print(event)
     assert event.get("user", {}).get("ip_address", None) == expected
