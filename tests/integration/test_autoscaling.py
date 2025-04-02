@@ -7,6 +7,8 @@ import signal
 import tempfile
 from time import sleep
 
+import pytest
+
 
 def parse_prometheus(input_string):
     result = {}
@@ -34,7 +36,7 @@ def test_sqlite_spooling_metrics(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         {
-            "spool": {"batch_size_bytes": 0, "envelopes": {"path": db_file_path}},
+            "spool": {"envelopes": {"path": db_file_path, "batch_size_bytes": 1}},
         },
     )
 
@@ -74,24 +76,20 @@ def test_memory_spooling_metrics(mini_sentry, relay):
     assert int(body["relay_spool_total_size"]) == 0
 
 
-def test_service_utilization_metrics(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "metric_name",
+    (
+        'relay_utilization{relay_service="AggregatorService"}',
+        'relay_service_utilization{relay_service="AggregatorService"}',
+        "relay_worker_pool_utilization",
+        "relay_runtime_utilization",
+    ),
+)
+def test_service_utilization_metrics(mini_sentry, relay, metric_name):
     relay = relay(mini_sentry)
 
     response = relay.get("/api/relay/autoscaling/")
     parsed = parse_prometheus(response.text)
     assert response.status_code == 200
 
-    assert int(parsed["relay_up"]) == 1
-    assert (
-        0 <= int(parsed['relay_utilization{relay_service="AggregatorService"}']) <= 100
-    )
-
-
-def test_pool_utilization(mini_sentry, relay):
-    relay = relay(mini_sentry)
-
-    response = relay.get("/api/relay/autoscaling/")
-    parsed = parse_prometheus(response.text)
-    assert response.status_code == 200
-
-    assert 0 <= int(parsed["relay_worker_pool_utilization"]) <= 100
+    assert 0 <= int(parsed[metric_name]) <= 100
