@@ -385,7 +385,6 @@ jobs:
 
     env:
       PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
-      # This name is made up we might want to go with a different one
       AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 

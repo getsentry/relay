@@ -19,6 +19,7 @@
 - Remove `parent_span_link` from `SpanLink` struct. ([#4594](https://github.com/getsentry/relay/pull/4594))
 - Extract transaction breakdowns into measurements. ([#4600](https://github.com/getsentry/relay/pull/4600))
 - Expose worker pool metrics in autoscaler endpoint ([#4605](https://github.com/getsentry/relay/pull/4605))
+- Add logic to push docker image to internal registry. ([#4619](https://github.com/getsentry/relay/pull/4619))
 
 ## 25.3.0
 
