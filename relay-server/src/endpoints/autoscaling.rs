@@ -33,14 +33,6 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
     append_data_row(&mut result, "spool_total_size", data.total_size, &[]);
     for utilization in &data.services_metrics {
         let service_name = extract_service_name(utilization.0);
-        // Expose both names temporarily so we can phase out `utilization` in favor
-        // of `service_utilization`
-        append_data_row(
-            &mut result,
-            "utilization",
-            utilization.1,
-            &[("relay_service", service_name)],
-        );
         append_data_row(
             &mut result,
             "service_utilization",
@@ -159,9 +151,7 @@ mod test {
 relay_up 1
 relay_spool_item_count 10
 relay_spool_total_size 30
-relay_utilization{relay_service="test"} 10
 relay_service_utilization{relay_service="test"} 10
-relay_utilization{relay_service="envelope"} 50
 relay_service_utilization{relay_service="envelope"} 50
 relay_worker_pool_utilization 61
 relay_runtime_utilization 41
