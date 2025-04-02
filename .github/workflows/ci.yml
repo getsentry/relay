@@ -413,7 +413,7 @@ jobs:
           pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
 
-      - name: Build and push to Internal GCR
+      - name: Build and push to Internal AR
         run: |
           docker buildx build \
             --platform "${PLATFORMS}" \
