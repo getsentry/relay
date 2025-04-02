@@ -2222,7 +2222,33 @@
 <a href="#2221" id="2221">2221</a>
 <a href="#2222" id="2222">2222</a>
 <a href="#2223" id="2223">2223</a>
-<a href="#2224" id="2224">2224</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
+<a href="#2224" id="2224">2224</a>
+<a href="#2225" id="2225">2225</a>
+<a href="#2226" id="2226">2226</a>
+<a href="#2227" id="2227">2227</a>
+<a href="#2228" id="2228">2228</a>
+<a href="#2229" id="2229">2229</a>
+<a href="#2230" id="2230">2230</a>
+<a href="#2231" id="2231">2231</a>
+<a href="#2232" id="2232">2232</a>
+<a href="#2233" id="2233">2233</a>
+<a href="#2234" id="2234">2234</a>
+<a href="#2235" id="2235">2235</a>
+<a href="#2236" id="2236">2236</a>
+<a href="#2237" id="2237">2237</a>
+<a href="#2238" id="2238">2238</a>
+<a href="#2239" id="2239">2239</a>
+<a href="#2240" id="2240">2240</a>
+<a href="#2241" id="2241">2241</a>
+<a href="#2242" id="2242">2242</a>
+<a href="#2243" id="2243">2243</a>
+<a href="#2244" id="2244">2244</a>
+<a href="#2245" id="2245">2245</a>
+<a href="#2246" id="2246">2246</a>
+<a href="#2247" id="2247">2247</a>
+<a href="#2248" id="2248">2248</a>
+<a href="#2249" id="2249">2249</a>
+<a href="#2250" id="2250">2250</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
 //! requests, each envelope has global headers and a set of items, such as the event payload, an
@@ -2728,20 +2754,31 @@
     ///
     /// Can be omitted if the item does not contain new lines. In this case, the item payload is
     /// parsed until the first newline is encountered.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>length: <span class="prelude-ty">Option</span>&lt;u32&gt;,
 
     <span class="doccomment">/// If this is an attachment item, this may contain the attachment type.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>attachment_type: <span class="prelude-ty">Option</span>&lt;AttachmentType&gt;,
 
     <span class="doccomment">/// Content type of the payload.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>content_type: <span class="prelude-ty">Option</span>&lt;ContentType&gt;,
 
     <span class="doccomment">/// If this is an attachment item, this may contain the original file name.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>filename: <span class="prelude-ty">Option</span>&lt;String&gt;,
+
+    <span class="doccomment">/// The platform this item was produced for.
+    ///
+    /// Currently only used for [`ItemType::ProfileChunk`].
+    /// It contains the same platform as specified in the profile chunk payload,
+    /// hoisted into the header to be able to determine the correct data category.
+    ///
+    /// This is currently considered optional for profile chunks, but may change
+    /// to required in the future.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>platform: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// The routing_hint may be used to specify how the envelpope should be routed in when
     /// published to kafka.
@@ -2905,6 +2942,7 @@
                 fully_normalized: <span class="bool-val">false</span>,
                 ingest_span_in_eap: <span class="bool-val">false</span>,
                 profile_type: <span class="prelude-val">None</span>,
+                platform: <span class="prelude-val">None</span>,
             },
             payload: Bytes::new(),
         }
@@ -2957,7 +2995,7 @@
             ItemType::Span | ItemType::OtelSpan =&gt; <span class="macro">smallvec!</span>[(DataCategory::Span, <span class="number">1</span>)],
             <span class="comment">// NOTE: semantically wrong, but too expensive to parse.
             </span>ItemType::OtelTracesData =&gt; <span class="macro">smallvec!</span>[(DataCategory::Span, <span class="number">1</span>)],
-            ItemType::ProfileChunk =&gt; <span class="kw">match </span><span class="self">self</span>.headers.profile_type {
+            ItemType::ProfileChunk =&gt; <span class="kw">match </span><span class="self">self</span>.profile_type() {
                 <span class="prelude-val">Some</span>(ProfileType::Backend) =&gt; <span class="macro">smallvec!</span>[(DataCategory::ProfileChunk, <span class="number">1</span>)],
                 <span class="prelude-val">Some</span>(ProfileType::Ui) =&gt; <span class="macro">smallvec!</span>[(DataCategory::ProfileChunkUi, <span class="number">1</span>)],
                 <span class="prelude-val">None </span>=&gt; <span class="macro">smallvec!</span>[],
@@ -3126,9 +3164,23 @@
         <span class="self">self</span>.headers.ingest_span_in_eap = ingest_span_in_eap;
     }
 
+    <span class="doccomment">/// Returns the associated platform.
+    ///
+    /// Note: this is currently only used for [`ItemType::ProfileChunk`].
+    </span><span class="kw">pub fn </span>platform(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        <span class="self">self</span>.headers.platform.as_deref()
+    }
+
     <span class="doccomment">/// Returns the associated profile type of a profile chunk.
+    ///
+    /// This primarily uses the profile type set via [`Self::set_profile_type`],
+    /// but if not set, it infers the [`ProfileType`] from the [`Self::platform`].
+    ///
+    /// Returns `None`, if neither source is available.
     </span><span class="kw">pub fn </span>profile_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileType&gt; {
-        <span class="self">self</span>.headers.profile_type
+        <span class="self">self</span>.headers
+            .profile_type
+            .or_else(|| <span class="self">self</span>.platform().map(ProfileType::from_platform))
     }
 
     <span class="doccomment">/// Set the profile type of the profile chunk.

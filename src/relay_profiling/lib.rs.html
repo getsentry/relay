@@ -411,7 +411,19 @@
 <a href="#410" id="410">410</a>
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
 //! ingestion as JSON objects with some metadata. They are sent alongside a transaction (usually in
@@ -495,10 +507,29 @@
 /// Same format as event IDs.
 </span><span class="kw">pub type </span>ProfileId = EventId;
 
-<span class="attr">#[derive(Debug, Clone, Copy)]
+<span class="doccomment">/// Determines the type/use of a [`ProfileChunk`].
+</span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 </span><span class="kw">pub enum </span>ProfileType {
-    Backend,
-    Ui,
+    <span class="doccomment">/// A backend profile.
+    </span>Backend,
+    <span class="doccomment">/// A UI profile.
+    </span>Ui,
+}
+
+<span class="kw">impl </span>ProfileType {
+    <span class="doccomment">/// Converts a platform to a [`ProfileType`].
+    ///
+    /// The profile type is currently determined based on the contained profile
+    /// platform. It determines the data category this profile chunk belongs to.
+    ///
+    /// This needs to be synchronized with the implementation in Sentry:
+    /// &lt;https://github.com/getsentry/sentry/blob/ed2e1c8bcd0d633e6f828fcfbeefbbdd98ef3dba/src/sentry/profiles/task.py#L995&gt;
+    </span><span class="kw">pub fn </span>from_platform(platform: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>platform {
+            <span class="string">"cocoa" </span>| <span class="string">"android" </span>| <span class="string">"javascript" </span>=&gt; <span class="self">Self</span>::Ui,
+            <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Backend,
+        }
+    }
 }
 
 <span class="attr">#[derive(Debug, Deserialize)]
@@ -720,16 +751,9 @@
 
     <span class="doccomment">/// Returns the [`ProfileType`] this chunk belongs to.
     ///
-    /// The profile type is currently determined based on the contained profile
-    /// platform. It determines the data category this profile chunk belongs to.
-    ///
-    /// This needs to be synchronized with the implementation in Sentry:
-    /// &lt;https://github.com/getsentry/sentry/blob/ed2e1c8bcd0d633e6f828fcfbeefbbdd98ef3dba/src/sentry/profiles/task.py#L995&gt;
+    /// This is currently determined from the platform via [`ProfileType::from_platform`].
     </span><span class="kw">pub fn </span>profile_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProfileType {
-        <span class="kw">match </span><span class="self">self</span>.profile.platform.as_str() {
-            <span class="string">"cocoa" </span>| <span class="string">"android" </span>| <span class="string">"javascript" </span>=&gt; ProfileType::Ui,
-            <span class="kw">_ </span>=&gt; ProfileType::Backend,
-        }
+        ProfileType::from_platform(<span class="kw-2">&amp;</span><span class="self">self</span>.profile.platform)
     }
 
     <span class="doccomment">/// Applies inbound filters to the profile chunk.
