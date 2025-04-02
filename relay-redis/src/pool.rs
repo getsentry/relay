@@ -48,7 +48,7 @@ impl redis::aio::ConnectionLike for CustomClusterConnection {
 #[derive(Debug)]
 pub struct CustomClusterManager {
     manager: ClusterManager,
-    refresh_interval: usize,
+    recycle_check_frequency: usize,
 }
 
 impl CustomClusterManager {
@@ -59,11 +59,11 @@ impl CustomClusterManager {
     pub fn new<T: IntoConnectionInfo>(
         params: Vec<T>,
         read_from_replicas: bool,
-        refresh_interval: usize,
+        recycle_check_frequency: usize,
     ) -> RedisResult<Self> {
         Ok(Self {
             manager: ClusterManager::new(params, read_from_replicas)?,
-            refresh_interval,
+            recycle_check_frequency,
         })
     }
 }
@@ -83,7 +83,7 @@ impl Manager for CustomClusterManager {
     ) -> RecycleResult<RedisError> {
         // If the interval has been reached, we optimistically assume the connection is active
         // without doing an actual `PING`.
-        if metrics.recycle_count % self.refresh_interval != 0 {
+        if metrics.recycle_count % self.recycle_check_frequency != 0 {
             return Ok(());
         }
 
@@ -129,7 +129,7 @@ impl redis::aio::ConnectionLike for CustomSingleConnection {
 /// multiplexed connections for efficient handling of multiple operations.
 pub struct CustomSingleManager {
     manager: SingleManager,
-    refresh_interval: usize,
+    recycle_check_frequency: usize,
 }
 
 impl CustomSingleManager {
@@ -137,10 +137,13 @@ impl CustomSingleManager {
     ///
     /// The manager will establish and maintain connections to the specified Redis
     /// instance, handling connection lifecycle and health checks.
-    pub fn new<T: IntoConnectionInfo>(params: T, refresh_interval: usize) -> RedisResult<Self> {
+    pub fn new<T: IntoConnectionInfo>(
+        params: T,
+        recycle_check_frequency: usize,
+    ) -> RedisResult<Self> {
         Ok(Self {
             manager: SingleManager::new(params)?,
-            refresh_interval,
+            recycle_check_frequency,
         })
     }
 }
@@ -160,7 +163,7 @@ impl Manager for CustomSingleManager {
     ) -> RecycleResult<RedisError> {
         // If the interval has been reached, we optimistically assume the connection is active
         // without doing an actual `PING`.
-        if metrics.recycle_count % self.refresh_interval != 0 {
+        if metrics.recycle_count % self.recycle_check_frequency != 0 {
             return Ok(());
         }
 

@@ -188,16 +188,17 @@ impl AsyncRedisClient {
             .max_size(opts.max_connections as usize)
             .create_timeout(opts.create_timeout.map(Duration::from_secs))
             .recycle_timeout(opts.recycle_timeout.map(Duration::from_secs))
+            .wait_timeout(opts.wait_timeout.map(Duration::from_secs))
             .runtime(Runtime::Tokio1)
             .build();
 
-        let max_unused_age = opts.max_unused_age;
-        let refresh_interval = opts.refresh_interval;
+        let idle_timeout = opts.idle_timeout;
+        let refresh_interval = opts.idle_timeout / 2;
         if let Ok(pool) = result.clone() {
             relay_system::spawn!(async move {
                 loop {
                     pool.retain(|_, metrics| {
-                        metrics.last_used() < Duration::from_secs(max_unused_age)
+                        metrics.last_used() < Duration::from_secs(idle_timeout)
                     });
                     tokio::time::sleep(Duration::from_secs(refresh_interval)).await;
                 }

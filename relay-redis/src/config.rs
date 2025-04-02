@@ -16,6 +16,8 @@ pub struct RedisConfigOptions {
     /// Sets the maximum lifetime of connections in the pool, in seconds.
     pub max_lifetime: u64,
     /// Sets the idle timeout used by the pool, in seconds.
+    ///
+    /// The idle timeout defines the maximum time a connection will be kept in the pool if unused.
     pub idle_timeout: u64,
     /// Sets the read timeout out on the connection, in seconds.
     pub read_timeout: u64,
@@ -32,25 +34,19 @@ pub struct RedisConfigOptions {
     /// If validation exceeds this timeout, the connection is discarded and a new fetch from the pool
     /// is attempted.
     pub recycle_timeout: Option<u64>,
+    /// Sets the maximum time, in seconds, that a caller is allowed to wait
+    /// when requesting a connection from the pool.
+    ///
+    /// If a connection does not become available within this period, the attempt
+    /// will fail with a timeout error. This setting helps prevent indefinite
+    /// blocking when the pool is exhausted.
+    pub wait_timeout: Option<u64>,
     /// Sets the number of times after which the connection will check whether it is active when
     /// being recycled.
     ///
     /// A frequency of 1, means that the connection will check whether it is active every time it
     /// is recycled.
     pub recycle_check_frequency: usize,
-    /// Sets the maximum duration, in seconds, that a connection can remain unused in the pool
-    /// before being considered for cleanup.
-    ///
-    /// A higher value allows unused connections to stay longer in the pool, which may improve
-    /// performance in workloads with intermittent spikes. However, stale connections can increase
-    /// resource usage and may eventually be closed by the server.
-    pub max_unused_age: u64,
-    /// Defines how often, in seconds, the background task scans the pool to remove unused
-    /// connections.
-    ///
-    /// Longer intervals reduce the frequency of cleanup operations, which can minimize overhead
-    /// but may delay the removal of idle connections.
-    pub refresh_interval: u64,
 }
 
 impl Default for RedisConfigOptions {
@@ -65,9 +61,8 @@ impl Default for RedisConfigOptions {
             write_timeout: 3,
             create_timeout: Some(3),
             recycle_timeout: Some(2),
+            wait_timeout: None,
             recycle_check_frequency: 100,
-            max_unused_age: 60,
-            refresh_interval: 30,
         }
     }
 }
