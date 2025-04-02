@@ -79,7 +79,6 @@ def test_memory_spooling_metrics(mini_sentry, relay):
 @pytest.mark.parametrize(
     "metric_name",
     (
-        'relay_utilization{relay_service="AggregatorService"}',
         'relay_service_utilization{relay_service="AggregatorService"}',
         "relay_worker_pool_utilization",
         "relay_runtime_utilization",
