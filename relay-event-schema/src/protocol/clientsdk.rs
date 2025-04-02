@@ -279,10 +279,7 @@ mod tests {
         let json = r#"{
   "name": "sentry.rust",
   "version": "1.0.0",
-  "client_ip": "127.0.0.1",
-  "settings": {
-    "auto_infer_ip": "auto"
-  }
+  "client_ip": "127.0.0.1"
 }"#;
         let sdk = Annotated::new(ClientSdkInfo {
             name: Annotated::new("sentry.rust".to_string()),
@@ -291,13 +288,62 @@ mod tests {
             features: Annotated::empty(),
             packages: Annotated::empty(),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
-            settings: Annotated::new(ClientSdkSettings {
-                infer_ip: Annotated::new(AutoInferSetting::Auto),
-            }),
+            settings: Annotated::empty(),
             other: Default::default(),
         });
 
         assert_eq!(sdk, Annotated::from_json(json).unwrap());
         assert_eq!(json, sdk.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_sdk_settings_auto() {
+        let json = r#"{
+  "settings": {
+    "infer_ip": "auto"
+  }
+}"#;
+        let sdk = Annotated::new(ClientSdkInfo {
+            settings: Annotated::new(ClientSdkSettings {
+                infer_ip: Annotated::new(AutoInferSetting::Auto),
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(sdk, Annotated::from_json(json).unwrap());
+        assert_eq!(json, sdk.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_sdk_settings_never() {
+        let json = r#"{
+  "settings": {
+    "infer_ip": "never"
+  }
+}"#;
+        let sdk = Annotated::new(ClientSdkInfo {
+            settings: Annotated::new(ClientSdkSettings {
+                infer_ip: Annotated::new(AutoInferSetting::Never),
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(sdk, Annotated::from_json(json).unwrap());
+        assert_eq!(json, sdk.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_sdk_settings_default() {
+        let sdk = Annotated::new(ClientSdkInfo {
+            settings: Annotated::new(ClientSdkSettings {
+                infer_ip: Annotated::empty(),
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            sdk.value().unwrap().settings.value().unwrap().infer_ip(),
+            AutoInferSetting::Legacy
+        )
     }
 }
