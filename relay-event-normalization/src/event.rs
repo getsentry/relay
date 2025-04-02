@@ -421,7 +421,8 @@ pub fn normalize_ip_addresses(
 ) {
     let auto_infer_ip = client_sdk_settings
         .and_then(|c| c.settings.0.as_ref())
-        .map_or_default(|s| s.infer_ip());
+        .map(|s| s.infer_ip())
+        .unwrap_or_default();
 
     // If auto_infer_ip is set to Never then we just remove auto and don't continue
     if let AutoInferSetting::Never = auto_infer_ip {
@@ -434,7 +435,7 @@ pub fn normalize_ip_addresses(
             return;
         };
         // If it's auto or empty then we can also stop
-        if ip.is_auto() || ip.is_empty() {
+        if ip.is_auto() {
             user.ip_address.0 = None;
             return;
         }
@@ -461,9 +462,9 @@ pub fn normalize_ip_addresses(
     let should_be_inferred = match user.value() {
         Some(user) => match user.ip_address.value() {
             Some(ip) => ip.is_auto(),
-            None => matches!(auto_infer_ip, Some(AutoInferSetting::Auto)),
+            None => matches!(auto_infer_ip, AutoInferSetting::Auto),
         },
-        None => matches!(auto_infer_ip, Some(AutoInferSetting::Auto)),
+        None => matches!(auto_infer_ip, AutoInferSetting::Auto),
     };
 
     if should_be_inferred {

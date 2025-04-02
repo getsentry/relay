@@ -472,7 +472,7 @@ def test_auto_infer_setting_javascript(
         {
             "platform": "javascript",
             "user": {"ip_address": user_ip_address},
-            "sdk": {"settings": {"auto_infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -508,7 +508,7 @@ def test_auto_infer_setting_cocoa(
         {
             "platform": "cocoa",
             "user": {"ip_address": user_ip_address},
-            "sdk": {"settings": {"auto_infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -543,7 +543,7 @@ def test_auto_infer_settings(
         project_id,
         {
             "user": {"ip_address": user_ip_address},
-            "sdk": {"settings": {"auto_infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -579,7 +579,7 @@ def test_auto_infer_setting_objective_c(
         {
             "platform": "objc",
             "user": {"ip_address": user_ip_address},
-            "sdk": {"settings": {"auto_infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -614,7 +614,7 @@ def test_auto_infer_without_user(mini_sentry, relay, platform, auto_infer_ip, ex
     relay.send_event(
         project_id,
         {
-            "sdk": {"settings": {"auto_infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -636,7 +636,7 @@ def test_auto_infer_remote_addr_env(mini_sentry, relay, auto_infer_ip, expected)
     relay.send_event(
         project_id,
         {
-            "sdk": {"settings": {"auto_infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
             "request": {
                 "env": {
                     "REMOTE_ADDR": "111.222.111.222",
