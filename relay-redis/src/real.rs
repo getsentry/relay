@@ -99,7 +99,7 @@ impl AsyncRedisClient {
     ) -> Result<Self, RedisError> {
         let servers = servers
             .into_iter()
-            .map(|s| s.to_string())
+            .map(|s| s.to_owned())
             .collect::<Vec<_>>();
 
         // We use our custom cluster manager which performs recycling in a different way from the

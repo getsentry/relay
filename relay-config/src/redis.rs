@@ -15,6 +15,8 @@ pub struct PartialRedisConfigOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_connections: Option<u32>,
     /// Sets the idle timeout used by the pool, in seconds.
+    ///
+    /// The idle timeout defines the maximum time a connection will be kept in the pool if unused.
     pub idle_timeout: u64,
     /// Sets the maximum time in seconds to wait when establishing a new Redis connection.
     ///
