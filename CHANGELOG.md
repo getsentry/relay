@@ -8,6 +8,7 @@
 - Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
 - Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
 - Filter out certain AI crawlers. ([#4608](https://github.com/getsentry/relay/pull/4608))
+- Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634))
 - Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624))
 
 **Bug Fixes**:
