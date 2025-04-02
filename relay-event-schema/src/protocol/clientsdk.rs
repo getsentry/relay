@@ -1,11 +1,11 @@
+use crate::processor::ProcessValue;
+use crate::protocol::IpAddr;
 use relay_protocol::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
 use serde::{Serialize, Serializer};
 use std::str::FromStr;
-
-use crate::processor::ProcessValue;
-use crate::protocol::IpAddr;
+use thiserror::Error;
 
 /// An installed and loaded package as part of the Sentry SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -16,8 +16,12 @@ pub struct ClientSdkPackage {
     pub version: Annotated<String>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ParseSettingError;
+/// An error returned when parsing setting values fail.
+#[derive(Debug, Clone, Error)]
+pub enum ParseSettingError {
+    #[error("Invalid value for 'infer_ip'.")]
+    InferIp,
+}
 
 /// A collection of settings that are used to control behaviour in relay through flags.
 ///
@@ -30,6 +34,9 @@ pub struct ClientSdkSettings {
 }
 
 impl ClientSdkSettings {
+    /// Returns the current [`AutoInferSetting`] setting.
+    ///
+    /// Defaults to [`AutoInferSetting::Legacy`].
     pub fn infer_ip(&self) -> AutoInferSetting {
         self.infer_ip.value().copied().unwrap_or_default()
     }
@@ -45,19 +52,21 @@ pub enum AutoInferSetting {
     /// Do not derive the IP address, keep what was being sent by the client.
     Never,
 
-    /// Default option if nothing else is specified.
+    /// Enables the legacy IP inference behaviour.
     ///
-    /// Enables the legacy behavior which is driven by values in the ip_address field of the
-    /// user.
+    /// The legacy behavior works mainly by inspecting the content of `user.ip_address` and
+    /// decides based on the value.
+    /// Unfortunately, not all platforms are treated equals so there are exceptions for
+    /// `javascript`, `cocoa` and `objc`.
     ///
-    /// The legacy behavior can be summarized as follows:
-    /// If the ip_address field of the user is set to {{auto}}, it will set the inferred IP
-    /// address to the field unless the flag is set to prevent storing IP addresses.
-    /// For the platforms javascript, cocoa and objective-c, it will also set the inferred IP
-    /// address if the user ip_address is null/missing.
+    /// If the value in `ip_address` is `{{auto}}`, it will work the
+    /// same as [`AutoInferSetting::Auto`]. This is true for all platforms.
     ///
-    /// If there is no client IP and the user has no real IP address, then it will use
-    /// the IP address from REMOTE_ADDR.
+    /// If the value in `ip_address` is [`None`], it will only infer the IP address if a
+    /// `REMOTE_ADDR` header is sent in the request payload of the event.
+    ///
+    /// **NOTE**: Setting `ip_address` to [`None`] will behave the same as setting it to `{{auto}}`
+    ///           for `javascript`, `cocoa` and `objc`.
     #[default]
     Legacy,
 }
@@ -69,6 +78,7 @@ impl Empty for AutoInferSetting {
 }
 
 impl AutoInferSetting {
+    /// Returns a string representation for [`AutoInferSetting`].
     pub fn as_str(&self) -> &'static str {
         match self {
             AutoInferSetting::Auto => "auto",
@@ -86,7 +96,7 @@ impl FromStr for AutoInferSetting {
             "auto" => Ok(AutoInferSetting::Auto),
             "never" => Ok(AutoInferSetting::Never),
             "legacy" => Ok(AutoInferSetting::Legacy),
-            _ => Err(ParseSettingError),
+            _ => Err(ParseSettingError::InferIp),
         }
     }
 }
