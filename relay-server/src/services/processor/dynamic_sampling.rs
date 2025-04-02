@@ -44,41 +44,46 @@ use crate::utils::{self, SamplingResult, TypedEnvelope};
 /// The function will return the sampling project information of the root project for the event. If
 /// no sampling project information is specified, the project information of the event’s project
 /// will be returned.
-pub fn validate_and_set_dsc(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+pub fn validate_and_set_dsc<T>(
+    managed_envelope: &mut TypedEnvelope<T>,
     event: &mut Annotated<Event>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
 ) -> Option<Arc<ProjectInfo>> {
-    if managed_envelope.envelope().dsc().is_some() && sampling_project_info.is_some() {
+    let original_dsc = managed_envelope.envelope().dsc();
+    if original_dsc.is_some() && sampling_project_info.is_some() {
         return sampling_project_info;
     }
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
-    let Some(event) = event.value() else {
-        return sampling_project_info;
-    };
-    let Some(key_config) = project_info.get_public_key_config() else {
-        return sampling_project_info;
-    };
+    if let Some(event) = event.value() {
+        if let Some(key_config) = project_info.get_public_key_config() {
+            if let Some(mut dsc) = utils::dsc_from_event(key_config.public_key, event) {
+                // All other information in the DSC must be discarded, but the sample rate was
+                // actually applied by the client and is therefore correct.
+                let original_sample_rate = original_dsc.and_then(|dsc| dsc.sample_rate);
+                dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
 
-    if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
-        managed_envelope.envelope_mut().set_dsc(dsc);
-        return Some(project_info.clone());
+                managed_envelope.envelope_mut().set_dsc(dsc);
+                return Some(project_info.clone());
+            }
+        }
     }
 
-    sampling_project_info
+    // If we cannot compute a new DSC but the old one is incorrect, we need to remove it.
+    managed_envelope.envelope_mut().remove_dsc();
+    None
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run<Group>(
+pub async fn run<Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
-    reservoir: &ReservoirEvaluator,
+    reservoir: &ReservoirEvaluator<'_>,
 ) -> SamplingResult
 where
     Group: Sampling,
@@ -108,6 +113,7 @@ where
         root_config,
         managed_envelope.envelope().dsc(),
     )
+    .await
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
@@ -165,9 +171,9 @@ pub fn drop_unsampled_items(
 }
 
 /// Computes the sampling decision on the incoming envelope.
-fn compute_sampling_decision(
+async fn compute_sampling_decision(
     processing_enabled: bool,
-    reservoir: Option<&ReservoirEvaluator>,
+    reservoir: Option<&ReservoirEvaluator<'_>>,
     sampling_config: Option<&SamplingConfig>,
     event: Option<&Event>,
     root_sampling_config: Option<&SamplingConfig>,
@@ -197,7 +203,7 @@ fn compute_sampling_decision(
     if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
         if let Some(seed) = event.id.value().map(|id| id.0) {
             let rules = sampling_state.filter_rules(RuleType::Transaction);
-            evaluator = match evaluator.match_rules(seed, event, rules) {
+            evaluator = match evaluator.match_rules(seed, event, rules).await {
                 ControlFlow::Continue(evaluator) => evaluator,
                 ControlFlow::Break(sampling_match) => {
                     return SamplingResult::Match(sampling_match);
@@ -208,7 +214,7 @@ fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
-        return evaluator.match_rules(dsc.trace_id, dsc, rules).into();
+        return evaluator.match_rules(dsc.trace_id, dsc, rules).await.into();
     }
 
     SamplingResult::NoMatch
@@ -219,7 +225,7 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-pub fn tag_error_with_sampling_decision<Group: EventProcessing>(
+pub async fn tag_error_with_sampling_decision<Group: EventProcessing>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
@@ -243,7 +249,7 @@ pub fn tag_error_with_sampling_decision<Group: EventProcessing>(
         return;
     }
 
-    let Some(sampled) = utils::is_trace_fully_sampled(sampling_config, dsc) else {
+    let Some(sampled) = utils::is_trace_fully_sampled(sampling_config, dsc).await else {
         return;
     };
 
@@ -389,8 +395,8 @@ mod tests {
         assert!(event.contexts.value().is_none());
     }
 
-    #[test]
-    fn test_it_keeps_or_drops_transactions() {
+    #[tokio::test]
+    async fn test_it_keeps_or_drops_transactions() {
         let event = Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(EventType::Transaction),
@@ -421,7 +427,8 @@ mod tests {
                 Some(&event),
                 None,
                 None,
-            );
+            )
+            .await;
             assert_eq!(res.decision().is_keep(), should_keep);
         }
     }
@@ -492,7 +499,8 @@ mod tests {
             project_info,
             None,
             &reservoir,
-        );
+        )
+        .await;
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
@@ -504,7 +512,8 @@ mod tests {
             project_info,
             None,
             &reservoir,
-        );
+        )
+        .await;
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transaction metrics version is up to date.
@@ -516,7 +525,8 @@ mod tests {
             project_info,
             None,
             &reservoir,
-        );
+        )
+        .await;
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -630,8 +640,8 @@ mod tests {
     }
 
     /// Happy path test for compute_sampling_decision.
-    #[test]
-    fn test_compute_sampling_decision_matching() {
+    #[tokio::test]
+    async fn test_compute_sampling_decision_matching() {
         let event = mocked_event(EventType::Transaction, "foo", "bar");
         let rule = SamplingRule {
             condition: RuleCondition::all(),
@@ -654,12 +664,13 @@ mod tests {
             Some(&event),
             None,
             None,
-        );
+        )
+        .await;
         assert!(res.is_match());
     }
 
-    #[test]
-    fn test_matching_with_unsupported_rule() {
+    #[tokio::test]
+    async fn test_matching_with_unsupported_rule() {
         let event = mocked_event(EventType::Transaction, "foo", "bar");
         let rule = SamplingRule {
             condition: RuleCondition::all(),
@@ -692,17 +703,19 @@ mod tests {
             Some(&event),
             None,
             None,
-        );
+        )
+        .await;
         assert!(res.is_no_match());
 
         // Match if processing is enabled.
         let res =
-            compute_sampling_decision(true, None, Some(&sampling_config), Some(&event), None, None);
+            compute_sampling_decision(true, None, Some(&sampling_config), Some(&event), None, None)
+                .await;
         assert!(res.is_match());
     }
 
-    #[test]
-    fn test_client_sample_rate() {
+    #[tokio::test]
+    async fn test_client_sample_rate() {
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -731,12 +744,13 @@ mod tests {
         };
 
         let res =
-            compute_sampling_decision(false, None, None, None, Some(&sampling_config), Some(&dsc));
+            compute_sampling_decision(false, None, None, None, Some(&sampling_config), Some(&dsc))
+                .await;
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
     }
 
-    fn run_with_reservoir_rule<Group>(processing_group: ProcessingGroup) -> SamplingResult
+    async fn run_with_reservoir_rule<Group>(processing_group: ProcessingGroup) -> SamplingResult
     where
         Group: Sampling + TryFrom<ProcessingGroup>,
     {
@@ -801,18 +815,20 @@ mod tests {
             sampling_project_info,
             &reservoir,
         )
+        .await
     }
 
-    #[test]
-    fn test_reservoir_applied_for_transactions() {
-        let result = run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction);
+    #[tokio::test]
+    async fn test_reservoir_applied_for_transactions() {
+        let result =
+            run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction).await;
         // Default sampling rate is 0.0, but transaction is retained because of reservoir:
         assert_eq!(result.decision(), SamplingDecision::Keep);
     }
 
-    #[test]
-    fn test_reservoir_not_applied_for_spans() {
-        let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span);
+    #[tokio::test]
+    async fn test_reservoir_not_applied_for_spans() {
+        let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span).await;
         // Default sampling rate is 0.0, and the reservoir does not apply to spans:
         assert_eq!(result.decision(), SamplingDecision::Drop);
     }

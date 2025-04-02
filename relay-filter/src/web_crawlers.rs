@@ -35,7 +35,11 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
         GTmetrix|                   # GTmetrix
         BrightEdgeOnCrawl|          # BrightEdge - see https://www.brightedge.com/news/press-releases/brightedge-acquires-oncrawl-future-proof-web-30-strategies
         ELB-HealthChecker|          # AWS Elastic Load Balancing Health Checks
-        naver.me/spd                # Yeti/1.1 - naver.me
+        naver.me/spd|               # Yeti/1.1 - naver.me
+        ClaudeBot|                  # Anthropic - see https://support.anthropic.com/en/articles/10023637-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
+        CCBot|                      # CCBot - see https://commoncrawl.org/ccbot
+        OAI-SearchBot|              # OpenAI - see https://platform.openai.com/docs/bots
+        GPTBot                      # OpenAI - see https://platform.openai.com/docs/bots
     "
     )
     .expect("Invalid web crawlers filter Regex")
@@ -128,6 +132,10 @@ mod tests {
             "Mozilla/5.0 (compatible; BrightEdgeOnCrawl/1.0; +http://www.oncrawl.com)",
             "ELB-HealthChecker/2.0",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko; compatible; Yeti/1.1; +https://naver.me/spd) Chrome/127.0.0.0 Safari/537.36",
+            "Mozilla/5.0; ClaudeBot",
+            "Mozilla/5.0; CCBot",
+            "; OAI-SearchBot/1.0; +https://openai.com/searchbot",
+            "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot",
         ];
 
         for banned_user_agent in &user_agents {
@@ -153,6 +161,7 @@ mod tests {
             "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
             "Slackbot 1.0(+https://api.slack.com/robots)",
             "SentryUptimeBot/1.0 (+http://docs.sentry.io/product/alerts/uptime-monitoring/)",
+            "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot",
         ];
         for user_agent in &normal_user_agents {
             let event = testutils::get_event_with_user_agent(user_agent);

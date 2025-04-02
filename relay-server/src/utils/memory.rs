@@ -77,6 +77,12 @@ impl MemoryStat {
         }))
     }
 
+    /// Returns the current memory data without instantiating [`MemoryStat`].
+    pub fn current_memory() -> Memory {
+        let mut system = System::new();
+        Self::refresh_memory(&mut system)
+    }
+
     /// Returns a copy of the most up-to-date memory data.
     pub fn memory(&self) -> Memory {
         self.try_update();
@@ -85,7 +91,7 @@ impl MemoryStat {
 
     /// Refreshes the memory readings.
     fn refresh_memory(system: &mut System) -> Memory {
-        system.refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
+        system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
         let memory = match system.cgroup_limits() {
             Some(cgroup) => Memory {
                 used: cgroup.rss,
@@ -101,6 +107,18 @@ impl MemoryStat {
         metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
 
         memory
+    }
+
+    /// Updates the memory readings unconditionally.
+    fn update(&self) {
+        let mut system = self
+            .0
+            .system
+            .lock()
+            .unwrap_or_else(|system| system.into_inner());
+
+        let updated_memory = Self::refresh_memory(&mut system);
+        self.0.memory.store(Arc::new(updated_memory));
     }
 
     /// Updates the memory readings if at least `refresh_frequency_ms` has passed.
@@ -126,14 +144,7 @@ impl MemoryStat {
             return;
         }
 
-        let mut system = self
-            .0
-            .system
-            .lock()
-            .unwrap_or_else(|system| system.into_inner());
-
-        let updated_memory = Self::refresh_memory(&mut system);
-        self.0.memory.store(Arc::new(updated_memory));
+        self.update();
     }
 }
 
