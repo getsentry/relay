@@ -8,6 +8,7 @@ pub fn discard_reason(err: ProfileError) -> &'static str {
         ProfileError::InvalidJson(_) => "profiling_invalid_json",
         ProfileError::InvalidSampledProfile => "profiling_invalid_sampled_profile",
         ProfileError::InvalidTransactionMetadata => "profiling_invalid_transaction_metadata",
+        ProfileError::InvalidProfileType => "profiling_invalid_profile_type",
         ProfileError::MalformedSamples => "profiling_malformed_samples",
         ProfileError::MalformedStacks => "profiling_malformed_stacks",
         ProfileError::MissingProfileMetadata => "profiling_invalid_profile_metadata",
