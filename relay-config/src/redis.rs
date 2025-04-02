@@ -468,9 +468,8 @@ quotas:
           "write_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "recycle_check_frequency": 100,
-          "max_unused_age": 60,
-          "refresh_interval": 30
+          "wait_timeout": null,
+          "recycle_check_frequency": 100
         }
         "#);
     }
@@ -495,9 +494,8 @@ quotas:
           "write_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "recycle_check_frequency": 100,
-          "max_unused_age": 60,
-          "refresh_interval": 30
+          "wait_timeout": null,
+          "recycle_check_frequency": 100
         }
         "#);
     }
@@ -678,9 +676,8 @@ read_timeout: 10
           "write_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "recycle_check_frequency": 100,
-          "max_unused_age": 60,
-          "refresh_interval": 30
+          "wait_timeout": null,
+          "recycle_check_frequency": 100
         }
         "#);
     }
@@ -711,9 +708,8 @@ read_timeout: 10
           "write_timeout": 3,
           "create_timeout": 3,
           "recycle_timeout": 2,
-          "recycle_check_frequency": 100,
-          "max_unused_age": 60,
-          "refresh_interval": 30
+          "wait_timeout": null,
+          "recycle_check_frequency": 100
         }
         "#);
     }
@@ -770,9 +766,8 @@ read_timeout: 10
             "write_timeout": 3,
             "create_timeout": 3,
             "recycle_timeout": 2,
-            "recycle_check_frequency": 100,
-            "max_unused_age": 60,
-            "refresh_interval": 30
+            "wait_timeout": null,
+            "recycle_check_frequency": 100
           },
           "cardinality": {
             "server": "redis://127.0.0.1:6379",
@@ -783,9 +778,8 @@ read_timeout: 10
             "write_timeout": 3,
             "create_timeout": 3,
             "recycle_timeout": 2,
-            "recycle_check_frequency": 100,
-            "max_unused_age": 60,
-            "refresh_interval": 30
+            "wait_timeout": null,
+            "recycle_check_frequency": 100
           },
           "quotas": {
             "configs": [
@@ -802,9 +796,8 @@ read_timeout: 10
                 "write_timeout": 3,
                 "create_timeout": 3,
                 "recycle_timeout": 2,
-                "recycle_check_frequency": 100,
-                "max_unused_age": 60,
-                "refresh_interval": 30
+                "wait_timeout": null,
+                "recycle_check_frequency": 100
               },
               {
                 "server": "redis://127.0.0.1:6379",
@@ -816,9 +809,8 @@ read_timeout: 10
                 "write_timeout": 3,
                 "create_timeout": 3,
                 "recycle_timeout": 2,
-                "recycle_check_frequency": 100,
-                "max_unused_age": 60,
-                "refresh_interval": 30
+                "wait_timeout": null,
+                "recycle_check_frequency": 100
               }
             ]
           }
