@@ -307,7 +307,10 @@
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implements filtering for events caused by problematic browsers extensions.
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implements filtering for events caused by problematic browsers extensions.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
@@ -357,7 +360,7 @@
         # Googletag is also very similar, caused by adblockers
         Cannot\sredefine\sproperty:\s(solana|ethereum|googletag)|
         # Translation service errors in Chrome on iOS
-        undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)|
+        undefined\sis\snot\san\sobject\s\(evaluating\s'a\..'\)|
         # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Property_access_denied
         # Usually caused by extensions that do stuff that isn't allowed
         Permission\sdenied\sto\saccess\sproperty\s|
@@ -582,8 +585,9 @@
             <span class="string">"Cannot redefine property: solana"</span>,
             <span class="string">"Cannot redefine property: ethereum"</span>,
             <span class="string">"Cannot redefine property: googletag"</span>,
-            <span class="string">"undefined is not an object (evaluating 'a.L')"</span>,
-            <span class="string">"Permission denied to access property \"correspondingUseElement\""</span>,
+            <span class="string">"undefined is not an object (evaluating 'a.L')"</span>, <span class="comment">// Old iOS Chrome translation error
+            </span><span class="string">"undefined is not an object (evaluating 'a.J')"</span>, <span class="comment">// New iOS Chrome translation error
+            </span><span class="string">"Permission denied to access property \"correspondingUseElement\""</span>,
             <span class="string">"Permission denied to access property \"document\""</span>,
             <span class="string">"Can't find variable: gmo"</span>,
         ];
@@ -604,6 +608,8 @@
         <span class="kw">let </span>events = [
             get_event_with_exception_source(<span class="string">"https://some/resonable/source.js"</span>),
             get_event_with_exception_value(<span class="string">"some perfectly reasonable value"</span>),
+            <span class="comment">// Something that does not quite match the iOS Chrome translation error
+            </span>get_event_with_exception_value(<span class="string">"undefined is not an object (evaluating 'a!J')"</span>),
         ];
 
         <span class="kw">for </span>event <span class="kw">in </span><span class="kw-2">&amp;</span>events {
