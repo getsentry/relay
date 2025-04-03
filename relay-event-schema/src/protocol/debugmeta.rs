@@ -523,7 +523,14 @@ pub struct DebugMeta {
     #[metastructure(skip_serialization = "empty")]
     pub images: Annotated<Array<DebugImage>>,
 
-    /// Additional arbitrary fields for forwards compatibility.
+    /// Path to the root of the app generating the event.
+    #[metastructure(max_chars = 256, max_chars_allowance = 40)]
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
+    pub project_root: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility. Note that they may still get
+    /// normalized out of the event, depending on the value of `remove_other` passed to the
+    /// normalizer.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
 }
