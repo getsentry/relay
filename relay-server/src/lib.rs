@@ -293,7 +293,6 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     relay_log::info!("relay server starting");
 
     // Creates the main runtime.
-    // let runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
     let runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
     let handle = runtime.handle().clone();
 
