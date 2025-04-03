@@ -1,16 +1,20 @@
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
+use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
+use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
+use relay_event_schema::protocol::SpanKind;
 
 use crate::otel_trace::{
     status::StatusCode as OtelStatusCode, Span as OtelSpan, SpanFlags as OtelSpanFlags,
 };
 use crate::status_codes;
 use relay_event_schema::protocol::{
-    EventId, Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
+    EventId, Span as EventSpan, SpanData, SpanId, SpanLink, SpanStatus, Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, FromValue, Object};
+use relay_protocol::{Annotated, FromValue, Object, Value};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
@@ -56,10 +60,7 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
         OtelValue::BoolValue(v) => Some(v.to_string()),
         OtelValue::IntValue(v) => Some(v.to_string()),
         OtelValue::DoubleValue(v) => Some(v.to_string()),
-        OtelValue::BytesValue(v) => match String::from_utf8(v) {
-            Ok(v) => Some(v),
-            Err(_) => None,
-        },
+        OtelValue::BytesValue(v) => String::from_utf8(v).ok(),
         _ => None,
     }
 }
@@ -96,6 +97,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         kind,
         attributes,
         status,
+        links,
         ..
     } = otel_span;
 
@@ -165,26 +167,8 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                 }
                 _ => {
                     let key = attribute.key;
-                    match value {
-                        OtelValue::ArrayValue(_) => {}
-                        OtelValue::BoolValue(v) => {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                        OtelValue::BytesValue(v) => {
-                            if let Ok(v) = String::from_utf8(v) {
-                                data.insert(key, Annotated::new(v.into()));
-                            }
-                        }
-                        OtelValue::DoubleValue(v) => {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                        OtelValue::IntValue(v) => {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                        OtelValue::KvlistValue(_) => {}
-                        OtelValue::StringValue(v) => {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
+                    if let Some(v) = otel_to_sentry_value(value) {
+                        data.insert(key, Annotated::new(v));
                     }
                 }
             }
@@ -198,6 +182,11 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
         description = description.or(Some(format!("{http_method} {http_route}")));
     }
+
+    let sentry_links: Vec<Annotated<SpanLink>> = links
+        .into_iter()
+        .map(|link| otel_to_sentry_link(link).into())
+        .collect();
 
     EventSpan {
         op: op.into(),
@@ -221,7 +210,47 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
+        kind: OtelSpanKind::try_from(kind)
+            .map_or(SpanKind::Unspecified, SpanKind::from)
+            .into(),
+        links: sentry_links.into(),
         ..Default::default()
+    }
+}
+
+fn otel_to_sentry_link(otel_link: OtelLink) -> SpanLink {
+    // See the W3C trace context specification:
+    // <https://www.w3.org/TR/trace-context-2/#sampled-flag>
+    const W3C_TRACE_CONTEXT_SAMPLED: u32 = 1 << 0;
+
+    let attributes = BTreeMap::from_iter(otel_link.attributes.into_iter().flat_map(|kv| {
+        kv.value
+            .and_then(|v| v.value)
+            .and_then(otel_to_sentry_value)
+            .map(|v| (kv.key, v.into()))
+    }))
+    .into();
+
+    SpanLink {
+        trace_id: TraceId(hex::encode(otel_link.trace_id)).into(),
+        span_id: SpanId(hex::encode(otel_link.span_id)).into(),
+        sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
+        attributes,
+        other: Default::default(),
+    }
+}
+
+fn otel_to_sentry_value(value: OtelValue) -> Option<Value> {
+    match value {
+        OtelValue::BoolValue(v) => Some(Value::Bool(v)),
+        OtelValue::DoubleValue(v) => Some(Value::F64(v)),
+        OtelValue::IntValue(v) => Some(Value::I64(v)),
+        OtelValue::StringValue(v) => Some(Value::String(v)),
+        OtelValue::BytesValue(v) => {
+            String::from_utf8(v).map_or(None, |str| Some(Value::String(str)))
+        }
+        OtelValue::ArrayValue(_) => None,
+        OtelValue::KvlistValue(_) => None,
     }
 }
 
@@ -544,50 +573,48 @@ mod tests {
                         "arrayValue": {
                             "values": [
                                 {
-                                    "value": {
-                                        "kvlistValue": {
-                                            "values": [
-                                                {
-                                                    "key": "min",
-                                                    "value": {
-                                                        "doubleValue": 1.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "max",
-                                                    "value": {
-                                                        "doubleValue": 2.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "sum",
-                                                    "value": {
-                                                        "doubleValue": 3.0
-                                                    }
-                                                },
-                                                {
-                                                    "key": "count",
-                                                    "value": {
-                                                        "intValue": "2"
-                                                    }
-                                                },
-                                                {
-                                                    "key": "tags",
-                                                    "value": {
-                                                        "kvlistValue": {
-                                                            "values": [
-                                                                {
-                                                                    "key": "environment",
-                                                                    "value": {
-                                                                        "stringValue": "test"
-                                                                    }
+                                    "kvlistValue": {
+                                        "values": [
+                                            {
+                                                "key": "min",
+                                                "value": {
+                                                    "doubleValue": 1.0
+                                                }
+                                            },
+                                            {
+                                                "key": "max",
+                                                "value": {
+                                                    "doubleValue": 2.0
+                                                }
+                                            },
+                                            {
+                                                "key": "sum",
+                                                "value": {
+                                                    "doubleValue": 3.0
+                                                }
+                                            },
+                                            {
+                                                "key": "count",
+                                                "value": {
+                                                    "intValue": "2"
+                                                }
+                                            },
+                                            {
+                                                "key": "tags",
+                                                "value": {
+                                                    "kvlistValue": {
+                                                        "values": [
+                                                            {
+                                                                "key": "environment",
+                                                                "value": {
+                                                                    "stringValue": "test"
                                                                 }
-                                                            ]
-                                                        }
+                                                            }
+                                                        ]
                                                     }
                                                 }
-                                            ]
-                                        }
+                                            }
+                                        ]
                                     }
                                 }
                             ]
@@ -709,12 +736,13 @@ mod tests {
                     ),
                 },
             },
-            links: ~,
+            links: [],
             sentry_tags: ~,
             received: ~,
             measurements: ~,
             platform: "php",
             was_transaction: ~,
+            kind: Unspecified,
             other: {},
         }
         "###);
@@ -751,11 +779,99 @@ mod tests {
     }
 
     #[test]
+    fn extract_span_kind() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "startTimeUnixNano": "123000000000",
+            "endTimeUnixNano": "123500000000",
+            "kind": 3
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let kind = event_span.kind.value().expect("kind should be set");
+        assert_eq!(kind, &SpanKind::Client);
+    }
+
+    #[test]
     fn uppercase_span_id() {
         let input = OtelValue::StringValue("FA90FDEAD5F74052".to_owned());
         assert_eq!(
             otel_value_to_span_id(input).as_deref(),
             Some("fa90fdead5f74052")
+        );
+    }
+
+    #[test]
+    fn parse_link() {
+        let json = r#"{
+            "links": [
+                {
+                    "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "spanId": "fa90fdead5f74052",
+                    "attributes": [
+                        {
+                            "key": "str_key",
+                            "value": {
+                                "stringValue": "str_value"
+                            }
+                        },
+                        {
+                            "key": "bool_key",
+                            "value": {
+                                "boolValue": true
+                            }
+                        },
+                        {
+                            "key": "int_key",
+                            "value": {
+                                "intValue": "123"
+                            }
+                        },
+                        {
+                            "key": "double_key",
+                            "value": {
+                                "doubleValue": 1.23
+                            }
+                        }
+                    ],
+                    "flags": 1
+                }
+            ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        assert_eq!(
+            get_path!(annotated_span.links[0].trace_id),
+            Some(&Annotated::new(TraceId(
+                "4c79f60c11214eb38604f4ae0781bfb2".into()
+            )))
+        );
+        assert_eq!(
+            get_path!(annotated_span.links[0].span_id),
+            Some(&Annotated::new(SpanId("fa90fdead5f74052".into())))
+        );
+        assert_eq!(
+            get_path!(annotated_span.links[0].attributes["str_key"]),
+            Some(&Annotated::new(Value::String("str_value".into())))
+        );
+        assert_eq!(
+            get_path!(annotated_span.links[0].attributes["bool_key"]),
+            Some(&Annotated::new(Value::Bool(true)))
+        );
+        assert_eq!(
+            get_path!(annotated_span.links[0].attributes["int_key"]),
+            Some(&Annotated::new(Value::I64(123)))
+        );
+        assert_eq!(
+            get_path!(annotated_span.links[0].attributes["double_key"]),
+            Some(&Annotated::new(Value::F64(1.23)))
+        );
+        assert_eq!(
+            get_path!(annotated_span.links[0].sampled),
+            Some(&Annotated::new(true))
         );
     }
 }

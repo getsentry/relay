@@ -2094,7 +2094,7 @@ mod tests {
         );
 
         // Checks whether the measurement is dropped.
-        measurements.len() == 0
+        measurements.is_empty()
     }
 
     #[test]

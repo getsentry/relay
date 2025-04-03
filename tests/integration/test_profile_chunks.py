@@ -4,8 +4,27 @@ from pathlib import Path
 
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
+from .asserts import time_within_delta
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
+
+
+TEST_CONFIG = {
+    "outcomes": {
+        "emit_outcomes": True,
+        "batch_size": 1,
+        "batch_interval": 1,
+        "aggregator": {
+            "bucket_interval": 1,
+            "flush_interval": 1,
+        },
+    },
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+    },
+}
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
@@ -33,29 +52,13 @@ def test_profile_chunk_outcomes(
     project_config.setdefault("features", []).append(
         "organizations:continuous-profiling"
     )
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
-            "source": "processing-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        },
-    }
 
     # The innermost Relay needs to be in processing mode
-    upstream = relay_with_processing(config)
+    upstream = relay_with_processing(TEST_CONFIG)
 
     # build a chain of relays
     for i in range(num_intermediate_relays):
-        config = deepcopy(config)
+        config = deepcopy(TEST_CONFIG)
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
@@ -101,57 +104,43 @@ def test_profile_chunk_outcomes_invalid(
         "organizations:continuous-profiling"
     )
 
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
-            "source": "pop-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        },
-    }
-
-    upstream = relay_with_processing(config)
+    upstream = relay_with_processing(TEST_CONFIG)
 
     envelope = Envelope()
-    envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile_chunk"))
+    payload = {
+        "chunk_id": "11111111111111111111111111111111",
+        "platform": "thisisnotvalid",
+    }
+    envelope.add_item(Item(payload=PayloadRef(json=payload), type="profile_chunk"))
 
     upstream.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_outcomes = [
+    assert outcomes == [
         {
-            "category": 18,  # DataCategory::ProfileChunk
+            "category": DataCategory.PROFILE_CHUNK.value,
+            "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": "profiling_invalid_json",
-            "source": "pop-relay",
+            "reason": "profiling_platform_not_supported",
         },
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
 
-    assert outcomes == expected_outcomes, outcomes
     profiles_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("item_header_platform", [None, "cocoa"])
 def test_profile_chunk_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     profiles_consumer,
+    item_header_platform,
 ):
     """
     Tests that Relay reports correct outcomes when profile chunks are rate limited.
@@ -176,29 +165,13 @@ def test_profile_chunk_outcomes_rate_limited(
     project_config["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
-            "categories": ["profile_chunk"],  # Target profile chunks specifically
+            "categories": ["profile_chunk_ui"],  # Target profile chunks specifically
             "limit": 0,  # Block all profile chunks
             "reasonCode": "profile_chunks_exceeded",
         }
     ]
 
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 0,
-            },
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        },
-    }
-
-    upstream = relay_with_processing(config)
+    upstream = relay_with_processing(TEST_CONFIG)
 
     # Load a valid profile chunk from test fixtures
     with open(
@@ -209,16 +182,23 @@ def test_profile_chunk_outcomes_rate_limited(
 
     # Create and send envelope containing the profile chunk
     envelope = Envelope()
-    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile_chunk"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=profile),
+            type="profile_chunk",
+            headers={"platform": item_header_platform},
+        )
+    )
     upstream.send_envelope(project_id, envelope)
 
     # Verify the rate limited outcome was emitted with correct properties
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_outcomes = [
+    assert outcomes == [
         {
-            "category": 18,  # DataCategory::ProfileChunk
+            "category": DataCategory.PROFILE_CHUNK_UI.value,
+            "timestamp": time_within_delta(),
             "key_id": 123,
             "org_id": 1,
             "outcome": 2,  # RateLimited
@@ -227,102 +207,73 @@ def test_profile_chunk_outcomes_rate_limited(
             "reason": "profile_chunks_exceeded",
         },
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
-        outcome.pop("event_id", None)
-
-    assert outcomes == expected_outcomes, outcomes
 
     # Verify no profiles were forwarded to the consumer
     profiles_consumer.assert_empty()
 
 
-def test_profile_chunk_outcomes_rate_limited_via_profile_duration_rate_limit(
+@pytest.mark.parametrize(
+    "platform, category",
+    [
+        ("cocoa", "profile_chunk_ui"),
+        ("node", "profile_chunk"),
+        (None, "profile_chunk"),  # Special case, currently this will forward
+    ],
+)
+def test_profile_chunk_outcomes_rate_limited_fast(
     mini_sentry,
-    relay_with_processing,
-    outcomes_consumer,
-    profiles_consumer,
+    relay,
+    platform,
+    category,
 ):
     """
-    Tests that Relay reports correct outcomes when profile chunks are rate limited via profile duration quotas.
+    Tests that Relay reports correct outcomes when profile chunks are rate limited already in the
+    fast-path, using the item header.
 
-    This test verifies that when a profile chunk hits a profile duration rate limit:
-    1. The profile chunk is dropped and not forwarded to the profiles consumer
-    2. A rate limited outcome is emitted with the correct category and reason code
-    3. The rate limit is enforced at the organization level
-    4. Both profile_chunk and profile_duration categories are affected
+    The test is parameterized to also *not* send the necessary item header, in which case this currently
+    asserts the chunk is let through. Once Relay's behaviour is changed to reject or profile chunks
+    without the necessary headers or the profile type is defaulted this test needs to be adjusted accordingly.
     """
-    outcomes_consumer = outcomes_consumer(timeout=2)
-    profiles_consumer = profiles_consumer()
-
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
 
-    # Enable profiling feature flag
     project_config.setdefault("features", []).append(
         "organizations:continuous-profiling"
     )
 
-    # Configure rate limiting quota that blocks all profile durations and profile chunks at org level
     project_config["quotas"] = [
         {
-            "categories": ["profile_duration", "profile_chunk"],
-            "limit": 0,  # Block all profile durations and profile chunks
-            "reasonCode": "profile_duration_usage_exceeded",
-            "scope": "organization",  # Apply at org level
-        },
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [category],
+            "limit": 0,
+            "reasonCode": "profile_chunks_exceeded",
+        }
     ]
 
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 0,
-            },
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        },
-    }
+    upstream = relay(mini_sentry)
 
-    upstream = relay_with_processing(config)
-
-    # Load a valid profile chunk from test fixtures
     with open(
         RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v2/valid.json",
         "rb",
     ) as f:
         profile = f.read()
 
-    # Create and send envelope containing the profile chunk
     envelope = Envelope()
-    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile_chunk"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=profile),
+            type="profile_chunk",
+            headers={"platform": platform},
+        )
+    )
     upstream.send_envelope(project_id, envelope)
 
-    # Verify the rate limited outcome was emitted with correct properties
-    outcomes = outcomes_consumer.get_outcomes()
-    outcomes.sort(key=lambda o: sorted(o.items()))
-
-    expected_outcomes = [
-        {
-            "category": 18,  # DataCategory::ProfileChunk
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 2,  # RateLimited
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "profile_duration_usage_exceeded",
-        },
-    ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
-        outcome.pop("event_id", None)
-
-    assert outcomes == expected_outcomes, outcomes
-
-    # Verify no profiles were forwarded to the consumer
-    profiles_consumer.assert_empty()
+    if platform is None:
+        envelope = mini_sentry.captured_events.get(timeout=1)
+        assert [item.type for item in envelope.items] == ["profile_chunk"]
+    else:
+        outcome = mini_sentry.get_client_report()
+        assert outcome["rate_limited_events"] == [
+            {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
+        ]
+        assert mini_sentry.captured_events.empty()

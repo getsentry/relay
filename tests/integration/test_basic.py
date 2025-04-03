@@ -85,6 +85,38 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     conn.close()
 
 
+def test_batch_size_bytes_asserted(mini_sentry, relay):
+    from time import sleep
+
+    # Create a temporary directory for the sqlite db.
+    db_file_path = os.path.join(tempfile.mkdtemp(), "database.db")
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        sleep(1)  # Causes the process to wait for one second before shutting down
+        return get_project_config_original()
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    mini_sentry.fail_on_relay_error = False
+
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"shutdown_timeout": 2},
+            # Arbitrarily chosen high value to always fail.
+            "spool": {"envelopes": {"path": db_file_path, "batch_size_bytes": "10tb"}},
+        },
+        wait_health_check=False,
+    )
+
+    # Assert that the process exited with an error (non-zero exit code)
+    assert relay.wait_for_exit() != 0, "Expected Relay to not start, but it started"
+
+
 @pytest.mark.skip("Flaky test")
 def test_forced_shutdown(mini_sentry, relay):
     from time import sleep
@@ -323,6 +355,8 @@ def send_transaction_with_dsc(mini_sentry, relay, project_id, sampling_project_k
         trace_info={
             "public_key": sampling_project_key,
             "trace_id": "1234F60C11214EB38604F4AE0781BFB2",
+            "release": "testapp@1.0",
+            "sample_rate": 0.5,
         },
     )
 
@@ -334,7 +368,7 @@ def test_root_project_disabled(mini_sentry, relay):
     mini_sentry.add_full_project_config(project_id)
     disabled_dsn = "00000000000000000000000000000000"
     txn = send_transaction_with_dsc(mini_sentry, relay, project_id, disabled_dsn)
-    assert txn
+    assert txn["contexts"]["trace"].get("client_sample_rate") == 0.5
 
 
 def test_root_project_same(mini_sentry, relay):
@@ -342,4 +376,4 @@ def test_root_project_same(mini_sentry, relay):
     mini_sentry.add_full_project_config(project_id)
     same_dsn = mini_sentry.get_dsn_public_key(project_id)
     txn = send_transaction_with_dsc(mini_sentry, relay, project_id, same_dsn)
-    assert txn
+    assert txn["contexts"]["trace"]["client_sample_rate"] == 0.5

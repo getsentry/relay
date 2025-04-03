@@ -23,7 +23,7 @@ use uuid::Uuid;
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
-use crate::{create_redis_pools, RedisConfig, RedisConfigs, RedisPoolConfigs};
+use crate::{build_redis_configs, RedisConfig, RedisConfigs, RedisConfigsRef};
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
@@ -966,8 +966,27 @@ pub struct EnvelopeSpool {
     ///
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
-    /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
-    /// is using too much memory (influenced by [`Self::batch_size_bytes`]).
+    /// Warning: This threshold can cause the buffer service to deadlock when the buffer consumes
+    /// excessive memory (as influenced by [`Self::batch_size_bytes`]).
+    ///
+    /// This scenario arises when the buffer stops spooling due to reaching the
+    /// [`Self::max_backpressure_memory_percent`] limit, but the batch threshold for spooling
+    /// ([`Self::batch_size_bytes`]) is never reached. As a result, no data is spooled, memory usage
+    /// continues to grow, and the system becomes deadlocked.
+    ///
+    /// ### Example
+    /// Suppose the system has 1GB of available memory and is configured to spool only after
+    /// accumulating 10GB worth of envelopes. If Relay consumes 900MB of memory, it will stop
+    /// unspooling due to reaching the [`Self::max_backpressure_memory_percent`] threshold.
+    ///
+    /// However, because the buffer hasn't accumulated the 10GB needed to trigger spooling,
+    /// no data will be offloaded. Memory usage keeps increasing until it hits the
+    /// [`Health::max_memory_percent`] threshold, e.g., at 950MB. At this point:
+    ///
+    /// - No more envelopes are accepted.
+    /// - The buffer remains stuck, as unspooling won’t resume until memory drops below 900MB which
+    ///   will not happen.
+    /// - A deadlock occurs, with the system unable to recover without manual intervention.
     ///
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
@@ -2419,12 +2438,13 @@ impl Config {
 
     /// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
-    pub fn redis(&self) -> Option<RedisPoolConfigs> {
+    pub fn redis(&self) -> Option<RedisConfigsRef> {
         let redis_configs = self.values.processing.redis.as_ref()?;
 
-        Some(create_redis_pools(
+        Some(build_redis_configs(
             redis_configs,
             self.cpu_concurrency() as u32,
+            self.pool_concurrency() as u32,
         ))
     }
 

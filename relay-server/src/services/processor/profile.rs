@@ -304,7 +304,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         let ctx = envelope_response.envelope.unwrap();
         let new_envelope = ctx.envelope();
 
@@ -435,7 +438,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         let ctx = envelope_response.envelope.unwrap();
         let new_envelope = ctx.envelope();
 
@@ -505,7 +511,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         assert!(envelope_response.envelope.is_none());
     }
 
@@ -577,7 +586,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         let ctx = envelope_response.envelope.unwrap();
         let new_envelope = ctx.envelope();
 

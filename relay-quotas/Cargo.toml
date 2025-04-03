@@ -26,8 +26,10 @@ serde = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true, optional = true }
 itertools = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 insta = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }

@@ -78,6 +78,7 @@ axum = "0.8.1"
 axum-extra = "0.10.0"
 axum-server = "0.7.1"
 arc-swap = "1.7.1"
+async-trait = "0.1.83"
 backoff = "0.4.0"
 bindgen = "0.70.1"
 brotli = "6.0.0"
@@ -133,7 +134,7 @@ multer = "3.1.0"
 num-traits = "0.2.19"
 num_cpus = "1.13.1"
 once_cell = "1.13.1"
-opentelemetry-proto = { version = "0.7.0", default-features = false }
+opentelemetry-proto = { version = "0.28.0", default-features = false }
 papaya = "0.1.6"
 parking_lot = "0.12.3"
 path-slash = "0.2.1"
@@ -178,14 +179,14 @@ socket2 = "0.5.8"
 sqlparser = "0.44.0"
 sqlx = { version = "0.8.2", default-features = false }
 # See statsdproxy PR: https://github.com/getsentry/statsdproxy/pull/55
-statsdproxy = { git = "https://github.com/getsentry/statsdproxy", rev = "50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f", default-features = false}
+statsdproxy = { git = "https://github.com/getsentry/statsdproxy", rev = "50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
 syn = { version = "2.0.90" }
 synstructure = { version = "0.13.1" }
-# This dependency was added through git since we are experimenting with a fork of sysinfo which adds additional
-# capabilities of reading cgroups memory stats. Such stats are used in Relay to correctly determine memory usage.
-sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938" }
+# This dependency should be bumped to the next version once it's out. The next version must contain the commit with hash
+# `e2e5d530600f96bdd79652c856918da23e5dd938`
+sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "15b3be3273ba286740122fed7bb7dccd2a79dc8f" }
 tempfile = "3.14.0"
 thiserror = "1.0.69"
 tikv-jemallocator = "0.6.0"

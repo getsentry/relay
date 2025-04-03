@@ -46,7 +46,7 @@ use thiserror::Error;
 struct ValidationError(#[from] anyhow::Error);
 
 #[allow(clippy::too_many_arguments)]
-pub fn process(
+pub async fn process(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
     event: &mut Annotated<Event>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
@@ -56,7 +56,7 @@ pub fn process(
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
     geo_lookup: Option<&GeoIpLookup>,
-    reservoir_counters: &ReservoirEvaluator,
+    reservoir_counters: &ReservoirEvaluator<'_>,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -69,7 +69,8 @@ pub fn process(
         project_info.clone(),
         sampling_project_info,
         reservoir_counters,
-    );
+    )
+    .await;
 
     let span_metrics_extraction_config = match project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
@@ -1149,7 +1150,7 @@ mod tests {
                 }
             }"#,
         )
-        .unwrap();
+            .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
             None,
@@ -1167,7 +1168,7 @@ mod tests {
                 }
             }"#,
         )
-        .unwrap();
+            .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
             None,
@@ -1189,7 +1190,7 @@ mod tests {
                 }
             }"#,
         )
-        .unwrap();
+            .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
             Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
@@ -1226,7 +1227,7 @@ mod tests {
                 }
             }"#,
         )
-        .unwrap();
+            .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
             None,
@@ -1431,7 +1432,7 @@ mod tests {
               "segment_id": "88457c3c28f4c0c6"
         }"#,
         )
-        .unwrap();
+            .unwrap();
 
         normalize(&mut span, normalize_config()).unwrap();
 

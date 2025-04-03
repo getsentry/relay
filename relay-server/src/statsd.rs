@@ -360,7 +360,6 @@ pub enum RelayTimers {
     /// Not all events reach this point. After an event is rate limited for the first time, the rate
     /// limit is cached. Events coming in after this will be discarded earlier in the request queue
     /// and do not reach the processing queue.
-    #[cfg(feature = "processing")]
     EventProcessingRateLimiting,
     /// Time in milliseconds spent in data scrubbing for the current event. Data scrubbing happens
     /// last before serializing the event back to JSON.
@@ -429,8 +428,8 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
-    ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
-    ///       but no scurbbing rules applied.
+    ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
+    ///   but no scurbbing rules applied.
     MinidumpScrubbing,
     /// Time spent on view hierarchy scrubbing.
     ///
@@ -439,7 +438,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///             scrubbing
+    ///   scrubbing
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
@@ -567,7 +566,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EventProcessingDeserialize => "event_processing.deserialize",
             RelayTimers::EventProcessingNormalization => "event_processing.normalization",
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
-            #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
             RelayTimers::EventProcessingSpanMetricsExtraction => {
@@ -695,7 +693,7 @@ pub enum RelayCounters {
     ///     - `revision`: the cached version was validated to be up to date using its revision.
     ///     - `project_config`: the request was handled by the cache.
     ///     - `project_config_revision`: the request was handled by the cache and the revision did
-    ///        not change.
+    ///       not change.
     ///     - `false`: the request will be sent to the sentry endpoint.
     #[cfg(feature = "processing")]
     ProjectStateRedis,
@@ -853,6 +851,9 @@ pub enum RelayCounters {
     /// - `namespace`: the metric namespace.
     #[cfg(feature = "processing")]
     MetricDelayCount,
+    /// The amount of times PlayStation processing was attempted.
+    #[cfg(feature = "processing")]
+    PlaystationProcessing,
 }
 
 impl CounterMetric for RelayCounters {
@@ -900,6 +901,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelaySum => "metrics.delay.sum",
             #[cfg(feature = "processing")]
             RelayCounters::MetricDelayCount => "metrics.delay.count",
+            #[cfg(feature = "processing")]
+            RelayCounters::PlaystationProcessing => "processing.playstation",
         }
     }
 }

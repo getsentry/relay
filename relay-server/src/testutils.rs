@@ -10,13 +10,17 @@ use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, S
 
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
+#[cfg(feature = "processing")]
+use relay_system::Service;
 use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::metrics::{MetricOutcomes, MetricStats};
 #[cfg(feature = "processing")]
-use crate::service::create_redis_pools;
+use crate::service::create_redis_clients;
 use crate::services::global_config::GlobalConfigHandle;
+#[cfg(feature = "processing")]
+use crate::services::global_rate_limits::GlobalRateLimitsService;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
 use crate::services::projects::cache::ProjectCacheHandle;
@@ -111,11 +115,16 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     let redis_pools = match config.redis() {
-        Some(pool) => Some(create_redis_pools(pool).await),
+        Some(pool) => Some(create_redis_clients(pool).await),
         None => None,
     }
     .transpose()
     .unwrap();
+
+    #[cfg(feature = "processing")]
+    let global_rate_limits = redis_pools
+        .as_ref()
+        .map(|p| GlobalRateLimitsService::new(p.quotas.clone()).start_detached());
 
     let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
@@ -135,6 +144,8 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator,
+            #[cfg(feature = "processing")]
+            global_rate_limits,
         },
         metric_outcomes,
     )
@@ -146,7 +157,7 @@ pub async fn create_test_processor_with_addrs(
 ) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     let redis_pools = match config.redis() {
-        Some(pools) => Some(create_redis_pools(pools).await),
+        Some(pools) => Some(create_redis_clients(pools).await),
         None => None,
     }
     .transpose()

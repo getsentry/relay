@@ -70,6 +70,7 @@ impl From<&Event> for Span {
             measurements: measurements.clone(),
             platform: platform.clone(),
             was_transaction: true.into(),
+            kind: Default::default(),
             other: Default::default(),
         }
     }
@@ -110,7 +111,6 @@ mod tests {
                             {
                                 "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
                                 "span_id": "fa90fdead5f74052",
-                                "parent_span_id": "fa90fdead5f74053",
                                 "sampled": true,
                                 "attributes": {
                                     "sentry.link.type": "previous_trace"
@@ -245,9 +245,6 @@ mod tests {
                     span_id: SpanId(
                         "fa90fdead5f74052",
                     ),
-                    parent_span_id: SpanId(
-                        "fa90fdead5f74053",
-                    ),
                     sampled: true,
                     attributes: {
                         "sentry.link.type": String(
@@ -271,6 +268,7 @@ mod tests {
             ),
             platform: "php",
             was_transaction: true,
+            kind: ~,
             other: {},
         }
         "###);
