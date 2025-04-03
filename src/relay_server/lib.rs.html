@@ -1,653 +1,326 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-46132b98.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.85.1 (4eb161250 2025-03-15)" data-channel="1.85.1" data-search-js="search-75f5ac3e.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_server/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
-<a href="#1" id="1">1</a>
-<a href="#2" id="2">2</a>
-<a href="#3" id="3">3</a>
-<a href="#4" id="4">4</a>
-<a href="#5" id="5">5</a>
-<a href="#6" id="6">6</a>
-<a href="#7" id="7">7</a>
-<a href="#8" id="8">8</a>
-<a href="#9" id="9">9</a>
-<a href="#10" id="10">10</a>
-<a href="#11" id="11">11</a>
-<a href="#12" id="12">12</a>
-<a href="#13" id="13">13</a>
-<a href="#14" id="14">14</a>
-<a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
-<a href="#17" id="17">17</a>
-<a href="#18" id="18">18</a>
-<a href="#19" id="19">19</a>
-<a href="#20" id="20">20</a>
-<a href="#21" id="21">21</a>
-<a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
-<a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
-<a href="#45" id="45">45</a>
-<a href="#46" id="46">46</a>
-<a href="#47" id="47">47</a>
-<a href="#48" id="48">48</a>
-<a href="#49" id="49">49</a>
-<a href="#50" id="50">50</a>
-<a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a>
-<a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a></pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
-//!
-//! This module contains the [`run`] function which starts the relay server. It responds on
-//! multiple supported endpoints, serves queries to downstream relays and send received events to
-//! the upstream.
-//!
-//! See the [`Config`] documentation for more information on configuration options.
-//!
-//! # Path of an Event through Relay
-//!
-//! ## Overview
-//!
-//! Simplified overview of event ingestion (ignores snuba/postprocessing):
-//!
-//! ```mermaid
-//! graph LR
-//!
-//! loadbalancer(Load Balancer)
-//! relay(Relay)
-//! projectconfigs("Project config endpoint (in Sentry)")
-//! ingestconsumer(Ingest Consumer)
-//! outcomesconsumer(Outcomes Consumer)
-//! preprocess{"&lt;code&gt;preprocess_event&lt;/code&gt;&lt;br&gt;(just a function call now)"}
-//! process(&lt;code&gt;process_event&lt;/code&gt;)
-//! save(&lt;code&gt;save_event&lt;/code&gt;)
-//!
-//! loadbalancer--&gt;relay
-//! relay---projectconfigs
-//! relay--&gt;ingestconsumer
-//! relay--&gt;outcomesconsumer
-//! ingestconsumer--&gt;preprocess
-//! preprocess--&gt;process
-//! preprocess--&gt;save
-//! process--&gt;save
-//!
-//! ```
-//!
-//! ## Processing enabled vs not?
-//!
-//! Relay can run as part of a Sentry installation, such as within `sentry.io`'s
-//! infrastructure, or next to the application as a forwarding proxy. A lot of
-//! steps described here are skipped or run in a limited form when Relay is *not*
-//! running with processing enabled:
-//!
-//! *  Event normalization does different (less) things.
-//!
-//! *  In certain modes, project config is not fetched from Sentry at all (but
-//!    rather from disk or filled out with defaults).
-//!
-//! *  Events are forwarded to an HTTP endpoint instead of being written to Kafka.
-//!
-//! *  Rate limits are not calculated using Redis, instead Relay just honors 429s
-//!    from previously mentioned endpoint.
-//!
-//! *  Filters are not applied at all.
-//!
-//! ## Inside the endpoint
-//!
-//! When an SDK hits `/api/X/store` on Relay, the code in
-//! `server/src/endpoints/store.rs` is called before returning a HTTP response.
-//!
-//! That code looks into an in-memory cache to answer basic information about a project such as:
-//!
-//! *  Does it exist? Is it suspended/disabled?
-//!
-//! *  Is it rate limited right now? If so, which key is rate limited?
-//!
-//! *  Which DSNs are valid for this project?
-//!
-//! Some of the data for this cache is coming from the [projectconfigs
-//! endpoint](https://github.com/getsentry/sentry/blob/c868def30e013177383f8ca5909090c8bdbd8f6f/src/sentry/api/endpoints/relay_projectconfigs.py).
-//! It is refreshed every couple of minutes, depending on configuration (`project_expiry`).
-//!
-//! If the cache is fresh, we may return a `429` for rate limits or a `4xx` for
-//! invalid auth information.
-//!
-//! That cache might be empty or stale. If that is the case, Relay does not
-//! actually attempt to populate it at this stage. **It just returns a `200` even
-//! though the event might be dropped later.** This implies:
-//!
-//! *  The first store request that runs into a rate limit doesn't actually result
-//!    in a `429`, but a subsequent request will (because by that time the project
-//!    cache will have been updated).
-//!
-//! *  A store request for a non-existent project may result in a `200`, but
-//!    subsequent ones will not.
-//!
-//! *  A store request with wrong auth information may result in a `200`, but
-//!    subsequent ones will not.
-//!
-//! *  Filters are also not applied at this stage, so **a filtered event will
-//!    always result in a `200`**. This matches the Python behavior since [a while
-//!    now](https://github.com/getsentry/sentry/pull/14561).
-//!
-//! These examples assume that a project receives one event at a time. In practice
-//! one may observe that a highly concurrent burst of store requests for a single
-//! project results in `200 OK`s only. However, a multi-second flood of incoming
-//! events should quickly result in eventually consistent and correct status codes.
-//!
-//! The response is completed at this point. All expensive work (such as talking to
-//! external services) is deferred into a background task. Except for responding to
-//! the HTTP request, there's no I/O done in the endpoint in any form. We didn't
-//! even hit Redis to calculate rate limits.
-//!
-//! ### Summary
-//!
-//! The HTTP response returned is just a best-effort guess at what the actual
-//! outcome of the event is going to be. We only return a `4xx` code if we know that
-//! the response will fail (based on cached information), if we don't we return a
-//! 200 and continue to process the event asynchronously. This asynchronous
-//! processing used to happen synchronously in the Python implementation of
-//! `StoreView`.
-//!
-//! The effect of this is that the server will respond much faster that before but
-//! we might return 200 for events that will ultimately not be accepted.
-//!
-//! Generally Relay will return a 200 in many more situations than the old
-//! `StoreView`.
-//!
-//! ## The background task
-//!
-//! The HTTP response is out by now. The rest of what used to happen synchronously in the
-//! Python `StoreView` is done asynchronously, but still in the same process.
-//!
-//! So, now to the real work:
-//!
-//! 1.  **Project config is fetched.** If the project cache is stale or missing, we
-//!     fetch it. We may wait a couple milliseconds (`batch_interval`) here to be
-//!     able to batch multiple project config fetches into the same HTTP request to
-//!     not overload Sentry too much.
-//!
-//!     At this stage Relay may drop the event because it realized that the DSN was
-//!     invalid or the project didn't even exist. The next incoming event will get a
-//!     proper 4xx status code.
-//!
-//! 1.  **The event is parsed.** In the endpoint we only did decompression, a basic
-//!     JSON syntax check, and extraction of the event ID to be able to return it as
-//!     part of the response.
-//!
-//!     Now we create an `Event` struct, which conceptually is the equivalent to
-//!     parsing it into a Python dictionary: We allocate more memory.
-//!
-//! 1.  **The event is normalized.** Event normalization is probably the most
-//!     CPU-intensive task running in Relay. It discards invalid data, moves data
-//!     from deprecated fields to newer fields and generally just does schema
-//!     validation.
-//!
-//! 1.  **Filters ("inbound filters") are applied.** Event may be discarded because of IP
-//!     addresses, patterns on the error message or known web crawlers.
-//!
-//! 1.  **Exact rate limits ("quotas") are applied.** `is_rate_limited.lua` is
-//!     executed on Redis. The input parameters for `is_rate_limited.lua` ("quota
-//!     objects") are part of the project config. See [this pull
-//!     request](https://github.com/getsentry/sentry/pull/14558) for an explanation
-//!     of what quota objects are.
-//!
-//!     The event may be discarded here. If so, we write the rate limit info
-//!     (reason and expiration timestamp) into the in-memory project cache so that
-//!     the next store request returns a 429 in the endpoint and doesn't hit Redis
-//!     at all.
-//!
-//!     This contraption has the advantage that suspended or permanently
-//!     rate-limited projects are very cheap to handle, and do not involve external
-//!     services (ignoring the polling of the project config every couple of
-//!     minutes).
-//!
-//! 1.  **The event is datascrubbed.** We have a PII config (new format) and a
-//!     datascrubbing config (old format, converted to new format on the fly) as
-//!     part of the project config fetched from Sentry.
-//!
-//! 1.  **Event is written to Kafka.**
-//!
-//! **Note:** If we discard an event at any point, an outcome is written to Kafka
-//! if Relay is configured to do so.
-//!
-//! ### Summary
-//!
-//! For events that returned a `200` we spawn an in-process background task
-//! that does the rest of what the old `StoreView` did.
-//!
-//! This task updates in-memory state for rate limits and disabled
-//! projects/keys.
-//!
-//! ## The outcomes consumer
-//!
-//! Outcomes are small messages in Kafka that contain an event ID and information
-//! about whether that event was rejected, and if so, why.
-//!
-//! The outcomes consumer is mostly responsible for updating (user-visible)
-//! counters in Sentry (buffers/counters and tsdb, which are two separate systems).
-//!
-//! ## The ingest consumer
-//!
-//! The ingest consumer reads accepted events from Kafka, and also updates some
-//! stats. Some of *those* stats are billing-relevant.
-//!
-//! Its main purpose is to do what `insert_data_to_database` in Python store did:
-//! Call `preprocess_event`, after which comes sourcemap processing, native
-//! symbolication, grouping, snuba and all that other stuff that is of no concern
-//! to Relay.
-//!
-//! ## Sequence diagram of components inside Relay
-//!
-//! ```mermaid
-//! sequenceDiagram
-//! participant sdk as SDK
-//! participant endpoint as Endpoint
-//! participant projectcache as ProjectCache
-//! participant envelopemanager as EnvelopeManager
-//! participant cpupool as CPU Pool
-//!
-//! sdk-&gt;&gt;endpoint:POST /api/42/store
-//! activate endpoint
-//! endpoint-&gt;&gt;projectcache: get project (cached only)
-//! activate projectcache
-//! projectcache--&gt;&gt;endpoint: return project
-//! deactivate projectcache
-//! Note over endpoint: Checking rate limits and auth (fast path)
-//! endpoint-&gt;&gt;envelopemanager: queue event
-//!
-//! activate envelopemanager
-//! envelopemanager--&gt;&gt;endpoint:event ID
-//! endpoint--&gt;&gt;sdk:200 OK
-//! deactivate endpoint
-//!
-//! envelopemanager-&gt;&gt;projectcache:fetch project
-//! activate projectcache
-//! Note over envelopemanager,projectcache: web request (batched with other projects)
-//! projectcache--&gt;&gt;envelopemanager: return project
-//! deactivate projectcache
-//!
-//! envelopemanager-&gt;&gt;cpupool: .
-//! activate cpupool
-//! Note over envelopemanager,cpupool: normalization, datascrubbing, redis rate limits, ...
-//! cpupool--&gt;&gt;envelopemanager: .
-//! deactivate cpupool
-//!
-//! Note over envelopemanager: Send event to kafka
-//!
-//! deactivate envelopemanager
-//! ```
-//!
-//! &lt;script src="https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js"&gt;&lt;/script&gt;
-//! &lt;script&gt;
-//! mermaid.init({}, ".language-mermaid code");
-//! // Could not get dark mode in mermaid to work
-//! Array.from(document.getElementsByTagName('svg')).map(x =&gt; x.style.background = "white")
-//! &lt;/script&gt;
-</span><span class="attr">#![warn(missing_docs)]
-#![doc(
-    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
-    html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
-</span>)]
-#![allow(clippy::derive_partial_eq_without_eq)]
-
-</span><span class="kw">mod </span>constants;
-<span class="kw">mod </span>endpoints;
-<span class="kw">mod </span>envelope;
-<span class="kw">mod </span>extractors;
-<span class="kw">mod </span>http;
-<span class="kw">mod </span>metrics;
-<span class="kw">mod </span>metrics_extraction;
-<span class="kw">mod </span>middlewares;
-<span class="kw">mod </span>service;
-<span class="kw">mod </span>services;
-<span class="kw">mod </span>statsd;
-<span class="kw">mod </span>utils;
-
-<span class="kw">pub use </span><span class="self">self</span>::envelope::Envelope; <span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span><span class="self">self</span>::services::buffer::{
-    EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
-}; <span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span><span class="self">self</span>::utils::{MemoryChecker, MemoryStat}; <span class="comment">// pub for benchmarks
-
-</span><span class="attr">#[cfg(test)]
-</span><span class="kw">mod </span>testutils;
-
-<span class="kw">use </span>std::sync::Arc;
-
-<span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_system::{Controller, ServiceSpawnExt <span class="kw">as _</span>};
-
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
-<span class="kw">use </span><span class="kw">crate</span>::services::server::HttpServer;
-
-<span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.
-///
-/// This effectively boots the entire server application. It blocks the current thread until a
-/// shutdown signal is received or a fatal error happens. Behavior of the server is determined by
-/// the `config` passed into this funciton.
-</span><span class="kw">pub fn </span>run(config: Config) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>config = Arc::new(config);
-    <span class="macro">relay_log::info!</span>(<span class="string">"relay server starting"</span>);
-
-    <span class="comment">// Creates the main runtime.
-    </span><span class="kw">let </span>runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">"main-rt"</span>, config.cpu_concurrency());
-    <span class="kw">let </span>handle = runtime.handle().clone();
-
-    <span class="comment">// Run the system and block until a shutdown signal is sent to this process. Inside, start a
-    // web server and run all relevant services. See the `actors` module documentation for more
-    // information on all services.
-    </span>runtime.block_on(<span class="kw">async </span>{
-        Controller::start(config.shutdown_timeout());
-
-        <span class="kw">let </span><span class="kw-2">mut </span>services = handle.service_set();
-
-        <span class="kw">let </span>state = ServiceState::start(<span class="kw-2">&amp;</span>handle, <span class="kw-2">&amp;</span>services, config.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
-        services.start(HttpServer::new(config, state.clone())<span class="question-mark">?</span>);
-
-        <span class="macro">tokio::select!</span> {
-            <span class="kw">_ </span>= services.join() =&gt; {},
-            <span class="comment">// NOTE: when every service implements a shutdown listener,
-            // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
-            // that every service finished its main task.
-            // See also https://github.com/getsentry/relay/issues/4050.
-            </span><span class="kw">_ </span>= Controller::shutdown_handle().finished() =&gt; {}
-        }
-
-        anyhow::Ok(())
-    })<span class="question-mark">?</span>;
-
-    drop(runtime);
-
-    <span class="macro">relay_log::info!</span>(<span class="string">"relay shutdown complete"</span>);
-    <span class="prelude-val">Ok</span>(())
-}
-</code></pre></div></section></main></body></html>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-6c3ea77c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0 (05f9846f8 2025-03-31)" data-channel="1.86.0" data-search-js="search-581efc7a.js" data-settings-js="settings-6dad6058.js" ><script src="../../static.files/storage-3a5871a4.js"></script><script defer src="../../static.files/src-script-b8d3f215.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-4d63596a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_server/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! The Sentry relay server application.
+<a href=#2 id=2 data-nosnippet>2</a>//!
+<a href=#3 id=3 data-nosnippet>3</a>//! This module contains the [`run`] function which starts the relay server. It responds on
+<a href=#4 id=4 data-nosnippet>4</a>//! multiple supported endpoints, serves queries to downstream relays and send received events to
+<a href=#5 id=5 data-nosnippet>5</a>//! the upstream.
+<a href=#6 id=6 data-nosnippet>6</a>//!
+<a href=#7 id=7 data-nosnippet>7</a>//! See the [`Config`] documentation for more information on configuration options.
+<a href=#8 id=8 data-nosnippet>8</a>//!
+<a href=#9 id=9 data-nosnippet>9</a>//! # Path of an Event through Relay
+<a href=#10 id=10 data-nosnippet>10</a>//!
+<a href=#11 id=11 data-nosnippet>11</a>//! ## Overview
+<a href=#12 id=12 data-nosnippet>12</a>//!
+<a href=#13 id=13 data-nosnippet>13</a>//! Simplified overview of event ingestion (ignores snuba/postprocessing):
+<a href=#14 id=14 data-nosnippet>14</a>//!
+<a href=#15 id=15 data-nosnippet>15</a>//! ```mermaid
+<a href=#16 id=16 data-nosnippet>16</a>//! graph LR
+<a href=#17 id=17 data-nosnippet>17</a>//!
+<a href=#18 id=18 data-nosnippet>18</a>//! loadbalancer(Load Balancer)
+<a href=#19 id=19 data-nosnippet>19</a>//! relay(Relay)
+<a href=#20 id=20 data-nosnippet>20</a>//! projectconfigs("Project config endpoint (in Sentry)")
+<a href=#21 id=21 data-nosnippet>21</a>//! ingestconsumer(Ingest Consumer)
+<a href=#22 id=22 data-nosnippet>22</a>//! outcomesconsumer(Outcomes Consumer)
+<a href=#23 id=23 data-nosnippet>23</a>//! preprocess{"&lt;code&gt;preprocess_event&lt;/code&gt;&lt;br&gt;(just a function call now)"}
+<a href=#24 id=24 data-nosnippet>24</a>//! process(&lt;code&gt;process_event&lt;/code&gt;)
+<a href=#25 id=25 data-nosnippet>25</a>//! save(&lt;code&gt;save_event&lt;/code&gt;)
+<a href=#26 id=26 data-nosnippet>26</a>//!
+<a href=#27 id=27 data-nosnippet>27</a>//! loadbalancer--&gt;relay
+<a href=#28 id=28 data-nosnippet>28</a>//! relay---projectconfigs
+<a href=#29 id=29 data-nosnippet>29</a>//! relay--&gt;ingestconsumer
+<a href=#30 id=30 data-nosnippet>30</a>//! relay--&gt;outcomesconsumer
+<a href=#31 id=31 data-nosnippet>31</a>//! ingestconsumer--&gt;preprocess
+<a href=#32 id=32 data-nosnippet>32</a>//! preprocess--&gt;process
+<a href=#33 id=33 data-nosnippet>33</a>//! preprocess--&gt;save
+<a href=#34 id=34 data-nosnippet>34</a>//! process--&gt;save
+<a href=#35 id=35 data-nosnippet>35</a>//!
+<a href=#36 id=36 data-nosnippet>36</a>//! ```
+<a href=#37 id=37 data-nosnippet>37</a>//!
+<a href=#38 id=38 data-nosnippet>38</a>//! ## Processing enabled vs not?
+<a href=#39 id=39 data-nosnippet>39</a>//!
+<a href=#40 id=40 data-nosnippet>40</a>//! Relay can run as part of a Sentry installation, such as within `sentry.io`'s
+<a href=#41 id=41 data-nosnippet>41</a>//! infrastructure, or next to the application as a forwarding proxy. A lot of
+<a href=#42 id=42 data-nosnippet>42</a>//! steps described here are skipped or run in a limited form when Relay is *not*
+<a href=#43 id=43 data-nosnippet>43</a>//! running with processing enabled:
+<a href=#44 id=44 data-nosnippet>44</a>//!
+<a href=#45 id=45 data-nosnippet>45</a>//! *  Event normalization does different (less) things.
+<a href=#46 id=46 data-nosnippet>46</a>//!
+<a href=#47 id=47 data-nosnippet>47</a>//! *  In certain modes, project config is not fetched from Sentry at all (but
+<a href=#48 id=48 data-nosnippet>48</a>//!    rather from disk or filled out with defaults).
+<a href=#49 id=49 data-nosnippet>49</a>//!
+<a href=#50 id=50 data-nosnippet>50</a>//! *  Events are forwarded to an HTTP endpoint instead of being written to Kafka.
+<a href=#51 id=51 data-nosnippet>51</a>//!
+<a href=#52 id=52 data-nosnippet>52</a>//! *  Rate limits are not calculated using Redis, instead Relay just honors 429s
+<a href=#53 id=53 data-nosnippet>53</a>//!    from previously mentioned endpoint.
+<a href=#54 id=54 data-nosnippet>54</a>//!
+<a href=#55 id=55 data-nosnippet>55</a>//! *  Filters are not applied at all.
+<a href=#56 id=56 data-nosnippet>56</a>//!
+<a href=#57 id=57 data-nosnippet>57</a>//! ## Inside the endpoint
+<a href=#58 id=58 data-nosnippet>58</a>//!
+<a href=#59 id=59 data-nosnippet>59</a>//! When an SDK hits `/api/X/store` on Relay, the code in
+<a href=#60 id=60 data-nosnippet>60</a>//! `server/src/endpoints/store.rs` is called before returning a HTTP response.
+<a href=#61 id=61 data-nosnippet>61</a>//!
+<a href=#62 id=62 data-nosnippet>62</a>//! That code looks into an in-memory cache to answer basic information about a project such as:
+<a href=#63 id=63 data-nosnippet>63</a>//!
+<a href=#64 id=64 data-nosnippet>64</a>//! *  Does it exist? Is it suspended/disabled?
+<a href=#65 id=65 data-nosnippet>65</a>//!
+<a href=#66 id=66 data-nosnippet>66</a>//! *  Is it rate limited right now? If so, which key is rate limited?
+<a href=#67 id=67 data-nosnippet>67</a>//!
+<a href=#68 id=68 data-nosnippet>68</a>//! *  Which DSNs are valid for this project?
+<a href=#69 id=69 data-nosnippet>69</a>//!
+<a href=#70 id=70 data-nosnippet>70</a>//! Some of the data for this cache is coming from the [projectconfigs
+<a href=#71 id=71 data-nosnippet>71</a>//! endpoint](https://github.com/getsentry/sentry/blob/c868def30e013177383f8ca5909090c8bdbd8f6f/src/sentry/api/endpoints/relay_projectconfigs.py).
+<a href=#72 id=72 data-nosnippet>72</a>//! It is refreshed every couple of minutes, depending on configuration (`project_expiry`).
+<a href=#73 id=73 data-nosnippet>73</a>//!
+<a href=#74 id=74 data-nosnippet>74</a>//! If the cache is fresh, we may return a `429` for rate limits or a `4xx` for
+<a href=#75 id=75 data-nosnippet>75</a>//! invalid auth information.
+<a href=#76 id=76 data-nosnippet>76</a>//!
+<a href=#77 id=77 data-nosnippet>77</a>//! That cache might be empty or stale. If that is the case, Relay does not
+<a href=#78 id=78 data-nosnippet>78</a>//! actually attempt to populate it at this stage. **It just returns a `200` even
+<a href=#79 id=79 data-nosnippet>79</a>//! though the event might be dropped later.** This implies:
+<a href=#80 id=80 data-nosnippet>80</a>//!
+<a href=#81 id=81 data-nosnippet>81</a>//! *  The first store request that runs into a rate limit doesn't actually result
+<a href=#82 id=82 data-nosnippet>82</a>//!    in a `429`, but a subsequent request will (because by that time the project
+<a href=#83 id=83 data-nosnippet>83</a>//!    cache will have been updated).
+<a href=#84 id=84 data-nosnippet>84</a>//!
+<a href=#85 id=85 data-nosnippet>85</a>//! *  A store request for a non-existent project may result in a `200`, but
+<a href=#86 id=86 data-nosnippet>86</a>//!    subsequent ones will not.
+<a href=#87 id=87 data-nosnippet>87</a>//!
+<a href=#88 id=88 data-nosnippet>88</a>//! *  A store request with wrong auth information may result in a `200`, but
+<a href=#89 id=89 data-nosnippet>89</a>//!    subsequent ones will not.
+<a href=#90 id=90 data-nosnippet>90</a>//!
+<a href=#91 id=91 data-nosnippet>91</a>//! *  Filters are also not applied at this stage, so **a filtered event will
+<a href=#92 id=92 data-nosnippet>92</a>//!    always result in a `200`**. This matches the Python behavior since [a while
+<a href=#93 id=93 data-nosnippet>93</a>//!    now](https://github.com/getsentry/sentry/pull/14561).
+<a href=#94 id=94 data-nosnippet>94</a>//!
+<a href=#95 id=95 data-nosnippet>95</a>//! These examples assume that a project receives one event at a time. In practice
+<a href=#96 id=96 data-nosnippet>96</a>//! one may observe that a highly concurrent burst of store requests for a single
+<a href=#97 id=97 data-nosnippet>97</a>//! project results in `200 OK`s only. However, a multi-second flood of incoming
+<a href=#98 id=98 data-nosnippet>98</a>//! events should quickly result in eventually consistent and correct status codes.
+<a href=#99 id=99 data-nosnippet>99</a>//!
+<a href=#100 id=100 data-nosnippet>100</a>//! The response is completed at this point. All expensive work (such as talking to
+<a href=#101 id=101 data-nosnippet>101</a>//! external services) is deferred into a background task. Except for responding to
+<a href=#102 id=102 data-nosnippet>102</a>//! the HTTP request, there's no I/O done in the endpoint in any form. We didn't
+<a href=#103 id=103 data-nosnippet>103</a>//! even hit Redis to calculate rate limits.
+<a href=#104 id=104 data-nosnippet>104</a>//!
+<a href=#105 id=105 data-nosnippet>105</a>//! ### Summary
+<a href=#106 id=106 data-nosnippet>106</a>//!
+<a href=#107 id=107 data-nosnippet>107</a>//! The HTTP response returned is just a best-effort guess at what the actual
+<a href=#108 id=108 data-nosnippet>108</a>//! outcome of the event is going to be. We only return a `4xx` code if we know that
+<a href=#109 id=109 data-nosnippet>109</a>//! the response will fail (based on cached information), if we don't we return a
+<a href=#110 id=110 data-nosnippet>110</a>//! 200 and continue to process the event asynchronously. This asynchronous
+<a href=#111 id=111 data-nosnippet>111</a>//! processing used to happen synchronously in the Python implementation of
+<a href=#112 id=112 data-nosnippet>112</a>//! `StoreView`.
+<a href=#113 id=113 data-nosnippet>113</a>//!
+<a href=#114 id=114 data-nosnippet>114</a>//! The effect of this is that the server will respond much faster that before but
+<a href=#115 id=115 data-nosnippet>115</a>//! we might return 200 for events that will ultimately not be accepted.
+<a href=#116 id=116 data-nosnippet>116</a>//!
+<a href=#117 id=117 data-nosnippet>117</a>//! Generally Relay will return a 200 in many more situations than the old
+<a href=#118 id=118 data-nosnippet>118</a>//! `StoreView`.
+<a href=#119 id=119 data-nosnippet>119</a>//!
+<a href=#120 id=120 data-nosnippet>120</a>//! ## The background task
+<a href=#121 id=121 data-nosnippet>121</a>//!
+<a href=#122 id=122 data-nosnippet>122</a>//! The HTTP response is out by now. The rest of what used to happen synchronously in the
+<a href=#123 id=123 data-nosnippet>123</a>//! Python `StoreView` is done asynchronously, but still in the same process.
+<a href=#124 id=124 data-nosnippet>124</a>//!
+<a href=#125 id=125 data-nosnippet>125</a>//! So, now to the real work:
+<a href=#126 id=126 data-nosnippet>126</a>//!
+<a href=#127 id=127 data-nosnippet>127</a>//! 1.  **Project config is fetched.** If the project cache is stale or missing, we
+<a href=#128 id=128 data-nosnippet>128</a>//!     fetch it. We may wait a couple milliseconds (`batch_interval`) here to be
+<a href=#129 id=129 data-nosnippet>129</a>//!     able to batch multiple project config fetches into the same HTTP request to
+<a href=#130 id=130 data-nosnippet>130</a>//!     not overload Sentry too much.
+<a href=#131 id=131 data-nosnippet>131</a>//!
+<a href=#132 id=132 data-nosnippet>132</a>//!     At this stage Relay may drop the event because it realized that the DSN was
+<a href=#133 id=133 data-nosnippet>133</a>//!     invalid or the project didn't even exist. The next incoming event will get a
+<a href=#134 id=134 data-nosnippet>134</a>//!     proper 4xx status code.
+<a href=#135 id=135 data-nosnippet>135</a>//!
+<a href=#136 id=136 data-nosnippet>136</a>//! 1.  **The event is parsed.** In the endpoint we only did decompression, a basic
+<a href=#137 id=137 data-nosnippet>137</a>//!     JSON syntax check, and extraction of the event ID to be able to return it as
+<a href=#138 id=138 data-nosnippet>138</a>//!     part of the response.
+<a href=#139 id=139 data-nosnippet>139</a>//!
+<a href=#140 id=140 data-nosnippet>140</a>//!     Now we create an `Event` struct, which conceptually is the equivalent to
+<a href=#141 id=141 data-nosnippet>141</a>//!     parsing it into a Python dictionary: We allocate more memory.
+<a href=#142 id=142 data-nosnippet>142</a>//!
+<a href=#143 id=143 data-nosnippet>143</a>//! 1.  **The event is normalized.** Event normalization is probably the most
+<a href=#144 id=144 data-nosnippet>144</a>//!     CPU-intensive task running in Relay. It discards invalid data, moves data
+<a href=#145 id=145 data-nosnippet>145</a>//!     from deprecated fields to newer fields and generally just does schema
+<a href=#146 id=146 data-nosnippet>146</a>//!     validation.
+<a href=#147 id=147 data-nosnippet>147</a>//!
+<a href=#148 id=148 data-nosnippet>148</a>//! 1.  **Filters ("inbound filters") are applied.** Event may be discarded because of IP
+<a href=#149 id=149 data-nosnippet>149</a>//!     addresses, patterns on the error message or known web crawlers.
+<a href=#150 id=150 data-nosnippet>150</a>//!
+<a href=#151 id=151 data-nosnippet>151</a>//! 1.  **Exact rate limits ("quotas") are applied.** `is_rate_limited.lua` is
+<a href=#152 id=152 data-nosnippet>152</a>//!     executed on Redis. The input parameters for `is_rate_limited.lua` ("quota
+<a href=#153 id=153 data-nosnippet>153</a>//!     objects") are part of the project config. See [this pull
+<a href=#154 id=154 data-nosnippet>154</a>//!     request](https://github.com/getsentry/sentry/pull/14558) for an explanation
+<a href=#155 id=155 data-nosnippet>155</a>//!     of what quota objects are.
+<a href=#156 id=156 data-nosnippet>156</a>//!
+<a href=#157 id=157 data-nosnippet>157</a>//!     The event may be discarded here. If so, we write the rate limit info
+<a href=#158 id=158 data-nosnippet>158</a>//!     (reason and expiration timestamp) into the in-memory project cache so that
+<a href=#159 id=159 data-nosnippet>159</a>//!     the next store request returns a 429 in the endpoint and doesn't hit Redis
+<a href=#160 id=160 data-nosnippet>160</a>//!     at all.
+<a href=#161 id=161 data-nosnippet>161</a>//!
+<a href=#162 id=162 data-nosnippet>162</a>//!     This contraption has the advantage that suspended or permanently
+<a href=#163 id=163 data-nosnippet>163</a>//!     rate-limited projects are very cheap to handle, and do not involve external
+<a href=#164 id=164 data-nosnippet>164</a>//!     services (ignoring the polling of the project config every couple of
+<a href=#165 id=165 data-nosnippet>165</a>//!     minutes).
+<a href=#166 id=166 data-nosnippet>166</a>//!
+<a href=#167 id=167 data-nosnippet>167</a>//! 1.  **The event is datascrubbed.** We have a PII config (new format) and a
+<a href=#168 id=168 data-nosnippet>168</a>//!     datascrubbing config (old format, converted to new format on the fly) as
+<a href=#169 id=169 data-nosnippet>169</a>//!     part of the project config fetched from Sentry.
+<a href=#170 id=170 data-nosnippet>170</a>//!
+<a href=#171 id=171 data-nosnippet>171</a>//! 1.  **Event is written to Kafka.**
+<a href=#172 id=172 data-nosnippet>172</a>//!
+<a href=#173 id=173 data-nosnippet>173</a>//! **Note:** If we discard an event at any point, an outcome is written to Kafka
+<a href=#174 id=174 data-nosnippet>174</a>//! if Relay is configured to do so.
+<a href=#175 id=175 data-nosnippet>175</a>//!
+<a href=#176 id=176 data-nosnippet>176</a>//! ### Summary
+<a href=#177 id=177 data-nosnippet>177</a>//!
+<a href=#178 id=178 data-nosnippet>178</a>//! For events that returned a `200` we spawn an in-process background task
+<a href=#179 id=179 data-nosnippet>179</a>//! that does the rest of what the old `StoreView` did.
+<a href=#180 id=180 data-nosnippet>180</a>//!
+<a href=#181 id=181 data-nosnippet>181</a>//! This task updates in-memory state for rate limits and disabled
+<a href=#182 id=182 data-nosnippet>182</a>//! projects/keys.
+<a href=#183 id=183 data-nosnippet>183</a>//!
+<a href=#184 id=184 data-nosnippet>184</a>//! ## The outcomes consumer
+<a href=#185 id=185 data-nosnippet>185</a>//!
+<a href=#186 id=186 data-nosnippet>186</a>//! Outcomes are small messages in Kafka that contain an event ID and information
+<a href=#187 id=187 data-nosnippet>187</a>//! about whether that event was rejected, and if so, why.
+<a href=#188 id=188 data-nosnippet>188</a>//!
+<a href=#189 id=189 data-nosnippet>189</a>//! The outcomes consumer is mostly responsible for updating (user-visible)
+<a href=#190 id=190 data-nosnippet>190</a>//! counters in Sentry (buffers/counters and tsdb, which are two separate systems).
+<a href=#191 id=191 data-nosnippet>191</a>//!
+<a href=#192 id=192 data-nosnippet>192</a>//! ## The ingest consumer
+<a href=#193 id=193 data-nosnippet>193</a>//!
+<a href=#194 id=194 data-nosnippet>194</a>//! The ingest consumer reads accepted events from Kafka, and also updates some
+<a href=#195 id=195 data-nosnippet>195</a>//! stats. Some of *those* stats are billing-relevant.
+<a href=#196 id=196 data-nosnippet>196</a>//!
+<a href=#197 id=197 data-nosnippet>197</a>//! Its main purpose is to do what `insert_data_to_database` in Python store did:
+<a href=#198 id=198 data-nosnippet>198</a>//! Call `preprocess_event`, after which comes sourcemap processing, native
+<a href=#199 id=199 data-nosnippet>199</a>//! symbolication, grouping, snuba and all that other stuff that is of no concern
+<a href=#200 id=200 data-nosnippet>200</a>//! to Relay.
+<a href=#201 id=201 data-nosnippet>201</a>//!
+<a href=#202 id=202 data-nosnippet>202</a>//! ## Sequence diagram of components inside Relay
+<a href=#203 id=203 data-nosnippet>203</a>//!
+<a href=#204 id=204 data-nosnippet>204</a>//! ```mermaid
+<a href=#205 id=205 data-nosnippet>205</a>//! sequenceDiagram
+<a href=#206 id=206 data-nosnippet>206</a>//! participant sdk as SDK
+<a href=#207 id=207 data-nosnippet>207</a>//! participant endpoint as Endpoint
+<a href=#208 id=208 data-nosnippet>208</a>//! participant projectcache as ProjectCache
+<a href=#209 id=209 data-nosnippet>209</a>//! participant envelopemanager as EnvelopeManager
+<a href=#210 id=210 data-nosnippet>210</a>//! participant cpupool as CPU Pool
+<a href=#211 id=211 data-nosnippet>211</a>//!
+<a href=#212 id=212 data-nosnippet>212</a>//! sdk-&gt;&gt;endpoint:POST /api/42/store
+<a href=#213 id=213 data-nosnippet>213</a>//! activate endpoint
+<a href=#214 id=214 data-nosnippet>214</a>//! endpoint-&gt;&gt;projectcache: get project (cached only)
+<a href=#215 id=215 data-nosnippet>215</a>//! activate projectcache
+<a href=#216 id=216 data-nosnippet>216</a>//! projectcache--&gt;&gt;endpoint: return project
+<a href=#217 id=217 data-nosnippet>217</a>//! deactivate projectcache
+<a href=#218 id=218 data-nosnippet>218</a>//! Note over endpoint: Checking rate limits and auth (fast path)
+<a href=#219 id=219 data-nosnippet>219</a>//! endpoint-&gt;&gt;envelopemanager: queue event
+<a href=#220 id=220 data-nosnippet>220</a>//!
+<a href=#221 id=221 data-nosnippet>221</a>//! activate envelopemanager
+<a href=#222 id=222 data-nosnippet>222</a>//! envelopemanager--&gt;&gt;endpoint:event ID
+<a href=#223 id=223 data-nosnippet>223</a>//! endpoint--&gt;&gt;sdk:200 OK
+<a href=#224 id=224 data-nosnippet>224</a>//! deactivate endpoint
+<a href=#225 id=225 data-nosnippet>225</a>//!
+<a href=#226 id=226 data-nosnippet>226</a>//! envelopemanager-&gt;&gt;projectcache:fetch project
+<a href=#227 id=227 data-nosnippet>227</a>//! activate projectcache
+<a href=#228 id=228 data-nosnippet>228</a>//! Note over envelopemanager,projectcache: web request (batched with other projects)
+<a href=#229 id=229 data-nosnippet>229</a>//! projectcache--&gt;&gt;envelopemanager: return project
+<a href=#230 id=230 data-nosnippet>230</a>//! deactivate projectcache
+<a href=#231 id=231 data-nosnippet>231</a>//!
+<a href=#232 id=232 data-nosnippet>232</a>//! envelopemanager-&gt;&gt;cpupool: .
+<a href=#233 id=233 data-nosnippet>233</a>//! activate cpupool
+<a href=#234 id=234 data-nosnippet>234</a>//! Note over envelopemanager,cpupool: normalization, datascrubbing, redis rate limits, ...
+<a href=#235 id=235 data-nosnippet>235</a>//! cpupool--&gt;&gt;envelopemanager: .
+<a href=#236 id=236 data-nosnippet>236</a>//! deactivate cpupool
+<a href=#237 id=237 data-nosnippet>237</a>//!
+<a href=#238 id=238 data-nosnippet>238</a>//! Note over envelopemanager: Send event to kafka
+<a href=#239 id=239 data-nosnippet>239</a>//!
+<a href=#240 id=240 data-nosnippet>240</a>//! deactivate envelopemanager
+<a href=#241 id=241 data-nosnippet>241</a>//! ```
+<a href=#242 id=242 data-nosnippet>242</a>//!
+<a href=#243 id=243 data-nosnippet>243</a>//! &lt;script src="https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js"&gt;&lt;/script&gt;
+<a href=#244 id=244 data-nosnippet>244</a>//! &lt;script&gt;
+<a href=#245 id=245 data-nosnippet>245</a>//! mermaid.init({}, ".language-mermaid code");
+<a href=#246 id=246 data-nosnippet>246</a>//! // Could not get dark mode in mermaid to work
+<a href=#247 id=247 data-nosnippet>247</a>//! Array.from(document.getElementsByTagName('svg')).map(x =&gt; x.style.background = "white")
+<a href=#248 id=248 data-nosnippet>248</a>//! &lt;/script&gt;
+<a href=#249 id=249 data-nosnippet>249</a></span><span class="attr">#![warn(missing_docs)]
+<a href=#250 id=250 data-nosnippet>250</a>#![doc(
+<a href=#251 id=251 data-nosnippet>251</a>    html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
+<a href=#252 id=252 data-nosnippet>252</a>    html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
+<a href=#253 id=253 data-nosnippet>253</a></span>)]
+<a href=#254 id=254 data-nosnippet>254</a>#![allow(clippy::derive_partial_eq_without_eq)]
+<a href=#255 id=255 data-nosnippet>255</a>
+<a href=#256 id=256 data-nosnippet>256</a></span><span class="kw">mod </span>constants;
+<a href=#257 id=257 data-nosnippet>257</a><span class="kw">mod </span>endpoints;
+<a href=#258 id=258 data-nosnippet>258</a><span class="kw">mod </span>envelope;
+<a href=#259 id=259 data-nosnippet>259</a><span class="kw">mod </span>extractors;
+<a href=#260 id=260 data-nosnippet>260</a><span class="kw">mod </span>http;
+<a href=#261 id=261 data-nosnippet>261</a><span class="kw">mod </span>metrics;
+<a href=#262 id=262 data-nosnippet>262</a><span class="kw">mod </span>metrics_extraction;
+<a href=#263 id=263 data-nosnippet>263</a><span class="kw">mod </span>middlewares;
+<a href=#264 id=264 data-nosnippet>264</a><span class="kw">mod </span>service;
+<a href=#265 id=265 data-nosnippet>265</a><span class="kw">mod </span>services;
+<a href=#266 id=266 data-nosnippet>266</a><span class="kw">mod </span>statsd;
+<a href=#267 id=267 data-nosnippet>267</a><span class="kw">mod </span>utils;
+<a href=#268 id=268 data-nosnippet>268</a>
+<a href=#269 id=269 data-nosnippet>269</a><span class="kw">pub use </span><span class="self">self</span>::envelope::Envelope; <span class="comment">// pub for benchmarks
+<a href=#270 id=270 data-nosnippet>270</a></span><span class="kw">pub use </span><span class="self">self</span>::services::buffer::{
+<a href=#271 id=271 data-nosnippet>271</a>    EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
+<a href=#272 id=272 data-nosnippet>272</a>}; <span class="comment">// pub for benchmarks
+<a href=#273 id=273 data-nosnippet>273</a></span><span class="kw">pub use </span><span class="self">self</span>::utils::{MemoryChecker, MemoryStat}; <span class="comment">// pub for benchmarks
+<a href=#274 id=274 data-nosnippet>274</a>
+<a href=#275 id=275 data-nosnippet>275</a></span><span class="attr">#[cfg(test)]
+<a href=#276 id=276 data-nosnippet>276</a></span><span class="kw">mod </span>testutils;
+<a href=#277 id=277 data-nosnippet>277</a>
+<a href=#278 id=278 data-nosnippet>278</a><span class="kw">use </span>std::sync::Arc;
+<a href=#279 id=279 data-nosnippet>279</a>
+<a href=#280 id=280 data-nosnippet>280</a><span class="kw">use </span>relay_config::Config;
+<a href=#281 id=281 data-nosnippet>281</a><span class="kw">use </span>relay_system::{Controller, ServiceSpawnExt <span class="kw">as _</span>};
+<a href=#282 id=282 data-nosnippet>282</a>
+<a href=#283 id=283 data-nosnippet>283</a><span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<a href=#284 id=284 data-nosnippet>284</a><span class="kw">use </span><span class="kw">crate</span>::services::server::HttpServer;
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a><span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.
+<a href=#287 id=287 data-nosnippet>287</a>///
+<a href=#288 id=288 data-nosnippet>288</a>/// This effectively boots the entire server application. It blocks the current thread until a
+<a href=#289 id=289 data-nosnippet>289</a>/// shutdown signal is received or a fatal error happens. Behavior of the server is determined by
+<a href=#290 id=290 data-nosnippet>290</a>/// the `config` passed into this funciton.
+<a href=#291 id=291 data-nosnippet>291</a></span><span class="kw">pub fn </span>run(config: Config) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="kw">let </span>config = Arc::new(config);
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="macro">relay_log::info!</span>(<span class="string">"relay server starting"</span>);
+<a href=#294 id=294 data-nosnippet>294</a>
+<a href=#295 id=295 data-nosnippet>295</a>    <span class="comment">// Creates the main runtime.
+<a href=#296 id=296 data-nosnippet>296</a>    </span><span class="kw">let </span>runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">"main-rt"</span>, config.cpu_concurrency());
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="kw">let </span>handle = runtime.handle().clone();
+<a href=#298 id=298 data-nosnippet>298</a>
+<a href=#299 id=299 data-nosnippet>299</a>    <span class="comment">// Run the system and block until a shutdown signal is sent to this process. Inside, start a
+<a href=#300 id=300 data-nosnippet>300</a>    // web server and run all relevant services. See the `actors` module documentation for more
+<a href=#301 id=301 data-nosnippet>301</a>    // information on all services.
+<a href=#302 id=302 data-nosnippet>302</a>    </span>runtime.block_on(<span class="kw">async </span>{
+<a href=#303 id=303 data-nosnippet>303</a>        Controller::start(config.shutdown_timeout());
+<a href=#304 id=304 data-nosnippet>304</a>
+<a href=#305 id=305 data-nosnippet>305</a>        <span class="kw">let </span><span class="kw-2">mut </span>services = handle.service_set();
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a>        <span class="kw">let </span>state = ServiceState::start(<span class="kw-2">&amp;</span>handle, <span class="kw-2">&amp;</span>services, config.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#308 id=308 data-nosnippet>308</a>        services.start(HttpServer::new(config, state.clone())<span class="question-mark">?</span>);
+<a href=#309 id=309 data-nosnippet>309</a>
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="macro">tokio::select!</span> {
+<a href=#311 id=311 data-nosnippet>311</a>            <span class="kw">_ </span>= services.join() =&gt; {},
+<a href=#312 id=312 data-nosnippet>312</a>            <span class="comment">// NOTE: when every service implements a shutdown listener,
+<a href=#313 id=313 data-nosnippet>313</a>            // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
+<a href=#314 id=314 data-nosnippet>314</a>            // that every service finished its main task.
+<a href=#315 id=315 data-nosnippet>315</a>            // See also https://github.com/getsentry/relay/issues/4050.
+<a href=#316 id=316 data-nosnippet>316</a>            </span><span class="kw">_ </span>= Controller::shutdown_handle().finished() =&gt; {}
+<a href=#317 id=317 data-nosnippet>317</a>        }
+<a href=#318 id=318 data-nosnippet>318</a>
+<a href=#319 id=319 data-nosnippet>319</a>        anyhow::Ok(())
+<a href=#320 id=320 data-nosnippet>320</a>    })<span class="question-mark">?</span>;
+<a href=#321 id=321 data-nosnippet>321</a>
+<a href=#322 id=322 data-nosnippet>322</a>    drop(runtime);
+<a href=#323 id=323 data-nosnippet>323</a>
+<a href=#324 id=324 data-nosnippet>324</a>    <span class="macro">relay_log::info!</span>(<span class="string">"relay shutdown complete"</span>);
+<a href=#325 id=325 data-nosnippet>325</a>    <span class="prelude-val">Ok</span>(())
+<a href=#326 id=326 data-nosnippet>326</a>}</code></pre></div></section></main></body></html>
