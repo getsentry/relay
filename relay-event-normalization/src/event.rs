@@ -441,10 +441,6 @@ pub fn normalize_ip_addresses(
         }
     }
 
-    // REMOTE_ADDR should not contain {{auto}}, so we filter it explicitly.
-    // Since REMOVE_ADDR is only set by backend SDKs, having {{auto}} would mean that it would
-    // always backfill using the server IP address from the X-Forwarded-For header, which
-    // is probably not what anyone wants.
     let remote_addr_ip = request
         .value()
         .and_then(|r| r.env.value())
@@ -477,23 +473,25 @@ pub fn normalize_ip_addresses(
     // Legacy behaviour:
     // * Backfill if there is a REMOTE_ADDR and the user.ip_address was not backfilled until now
     // * Empty means {{auto}} for some SDKs
-    if let Some(http_ip) = remote_addr_ip {
-        let user = user.get_or_insert_with(User::default);
-        user.ip_address.value_mut().get_or_insert(http_ip);
-    } else if let Some(client_ip) = inferred_ip {
-        let user = user.get_or_insert_with(User::default);
-        // auto is already handled above
-        if user.ip_address.value().is_none() {
-            // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
-            let scrubbed_before = user
-                .ip_address
-                .meta()
-                .iter_remarks()
-                .any(|r| r.ty == RemarkType::Removed);
-            if !scrubbed_before {
-                // In an ideal world all SDKs would set {{auto}} explicitly.
-                if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                    user.ip_address = Annotated::new(client_ip.to_owned());
+    if auto_infer_ip == AutoInferSetting::Legacy {
+        if let Some(http_ip) = remote_addr_ip {
+            let user = user.get_or_insert_with(User::default);
+            user.ip_address.value_mut().get_or_insert(http_ip);
+        } else if let Some(client_ip) = inferred_ip {
+            let user = user.get_or_insert_with(User::default);
+            // auto is already handled above
+            if user.ip_address.value().is_none() {
+                // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
+                let scrubbed_before = user
+                    .ip_address
+                    .meta()
+                    .iter_remarks()
+                    .any(|r| r.ty == RemarkType::Removed);
+                if !scrubbed_before {
+                    // In an ideal world all SDKs would set {{auto}} explicitly.
+                    if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
+                        user.ip_address = Annotated::new(client_ip.to_owned());
+                    }
                 }
             }
         }
