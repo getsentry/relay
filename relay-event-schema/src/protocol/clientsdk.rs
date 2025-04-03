@@ -38,9 +38,9 @@ impl ClientSdkSettings {
     ///
     /// **NOTE**: For forwards compatibility, this method has two defaults:
     /// * If `settings.infer_ip` is missing entirely, it will default
-    /// to [`AutoInferSetting::Legacy`].
+    ///   to [`AutoInferSetting::Legacy`].
     /// * If `settings.infer_ip` contains an invalid value, it will default
-    /// to [`AutoInferSetting::Never`].
+    ///   to [`AutoInferSetting::Never`].
     ///
     /// The reason behind this is that we don't want to fall back to the legacy behaviour
     /// if we add a new value to [`AutoInferSetting`] and a relay is running an old version
