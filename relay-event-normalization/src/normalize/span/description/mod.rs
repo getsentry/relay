@@ -451,7 +451,7 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
 
             let last_segment = url
                 .path_segments()
-                .and_then(|s| s.last())
+                .and_then(|mut s| s.next_back())
                 .unwrap_or_default();
             let last_segment = scrub_resource_filename(resource_type, last_segment);
 

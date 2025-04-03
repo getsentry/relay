@@ -60,10 +60,7 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
         OtelValue::BoolValue(v) => Some(v.to_string()),
         OtelValue::IntValue(v) => Some(v.to_string()),
         OtelValue::DoubleValue(v) => Some(v.to_string()),
-        OtelValue::BytesValue(v) => match String::from_utf8(v) {
-            Ok(v) => Some(v),
-            Err(_) => None,
-        },
+        OtelValue::BytesValue(v) => String::from_utf8(v).ok(),
         _ => None,
     }
 }
