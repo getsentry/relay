@@ -649,3 +649,34 @@ def test_auto_infer_remote_addr_env(mini_sentry, relay, auto_infer_ip, expected)
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
     assert event.get("user", {}).get("ip_address", None) == expected
+
+
+def test_auto_infer_invalid_setting(mini_sentry, relay):
+    """
+    Tests that sending an invalid value for `infer_ip` is treated the same way as sending `never`.
+    The behaviour between not sending the value and sending an invalid is different so this needs specific testing.
+    """
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "sdk": {
+                "settings": {
+                    "infer_ip": "invalid",
+                }
+            },
+            "request": {
+                "env": {
+                    "REMOTE_ADDR": "111.222.111.222",
+                }
+            },
+        },
+        headers={"X-Forwarded-For": "2.125.160.216"},
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event.get("user", {}).get("ip_address", None) is None

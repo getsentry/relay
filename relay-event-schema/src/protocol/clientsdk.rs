@@ -36,9 +36,21 @@ pub struct ClientSdkSettings {
 impl ClientSdkSettings {
     /// Returns the current [`AutoInferSetting`] setting.
     ///
-    /// Defaults to [`AutoInferSetting::Legacy`].
+    /// **NOTE**: For forwards compatibility, this method has two defaults:
+    /// * If `settings.infer_ip` is missing entirely, it will default
+    /// to [`AutoInferSetting::Legacy`].
+    /// * If `settings.infer_ip` contains an invalid value, it will default
+    /// to [`AutoInferSetting::Never`].
+    ///
+    /// The reason behind this is that we don't want to fall back to the legacy behaviour
+    /// if we add a new value to [`AutoInferSetting`] and a relay is running an old version
+    /// which does not have the new value yet.
     pub fn infer_ip(&self) -> AutoInferSetting {
-        self.infer_ip.value().copied().unwrap_or_default()
+        if self.infer_ip.meta().has_errors() {
+            AutoInferSetting::Never
+        } else {
+            self.infer_ip.value().copied().unwrap_or_default()
+        }
     }
 }
 
@@ -345,5 +357,19 @@ mod tests {
             sdk.value().unwrap().settings.value().unwrap().infer_ip(),
             AutoInferSetting::Legacy
         )
+    }
+
+    #[test]
+    fn test_auto_infer_invalid() {
+        let json = r#"{
+            "settings": {
+                "infer_ip": "invalid"
+            }
+        }"#;
+        let sdk: Annotated<ClientSdkInfo> = Annotated::from_json(json).unwrap();
+        assert_eq!(
+            sdk.value().unwrap().settings.value().unwrap().infer_ip(),
+            AutoInferSetting::Never
+        );
     }
 }
