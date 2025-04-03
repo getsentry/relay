@@ -434,7 +434,6 @@ pub fn normalize_ip_addresses(
         let Some(ip) = user.ip_address.value() else {
             return;
         };
-        // If it's auto or empty then we can also stop
         if ip.is_auto() {
             user.ip_address.0 = None;
             return;
