@@ -478,7 +478,7 @@ impl PrivateProjectState {
 
     fn try_begin_fetch(&mut self, now: Instant, config: &Config) -> Option<Fetch> {
         let when = match &self.state {
-            FetchState::InProgress {} => {
+            FetchState::InProgress => {
                 relay_log::trace!(
                     tags.project_key = self.project_key.as_str(),
                     "project fetch skipped, fetch in progress"
