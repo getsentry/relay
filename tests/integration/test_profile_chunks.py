@@ -10,6 +10,23 @@ from .asserts import time_within_delta
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
 
+TEST_CONFIG = {
+    "outcomes": {
+        "emit_outcomes": True,
+        "batch_size": 1,
+        "batch_interval": 1,
+        "aggregator": {
+            "bucket_interval": 1,
+            "flush_interval": 1,
+        },
+    },
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+    },
+}
+
+
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
 def test_profile_chunk_outcomes(
     mini_sentry,
@@ -35,29 +52,13 @@ def test_profile_chunk_outcomes(
     project_config.setdefault("features", []).append(
         "organizations:continuous-profiling"
     )
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
-            "source": "processing-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        },
-    }
 
     # The innermost Relay needs to be in processing mode
-    upstream = relay_with_processing(config)
+    upstream = relay_with_processing(TEST_CONFIG)
 
     # build a chain of relays
     for i in range(num_intermediate_relays):
-        config = deepcopy(config)
+        config = deepcopy(TEST_CONFIG)
         if i == 0:
             # Emulate a PoP Relay
             config["outcomes"]["source"] = "pop-relay"
@@ -103,24 +104,7 @@ def test_profile_chunk_outcomes_invalid(
         "organizations:continuous-profiling"
     )
 
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 1,
-            },
-            "source": "pop-relay",
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        },
-    }
-
-    upstream = relay_with_processing(config)
+    upstream = relay_with_processing(TEST_CONFIG)
 
     envelope = Envelope()
     payload = {
@@ -144,18 +128,19 @@ def test_profile_chunk_outcomes_invalid(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiling_platform_not_supported",
-            "source": "pop-relay",
         },
     ]
 
     profiles_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("item_header_platform", [None, "cocoa"])
 def test_profile_chunk_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     profiles_consumer,
+    item_header_platform,
 ):
     """
     Tests that Relay reports correct outcomes when profile chunks are rate limited.
@@ -186,23 +171,7 @@ def test_profile_chunk_outcomes_rate_limited(
         }
     ]
 
-    config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "aggregator": {
-                "bucket_interval": 1,
-                "flush_interval": 0,
-            },
-        },
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        },
-    }
-
-    upstream = relay_with_processing(config)
+    upstream = relay_with_processing(TEST_CONFIG)
 
     # Load a valid profile chunk from test fixtures
     with open(
@@ -213,7 +182,13 @@ def test_profile_chunk_outcomes_rate_limited(
 
     # Create and send envelope containing the profile chunk
     envelope = Envelope()
-    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile_chunk"))
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=profile),
+            type="profile_chunk",
+            headers={"platform": item_header_platform},
+        )
+    )
     upstream.send_envelope(project_id, envelope)
 
     # Verify the rate limited outcome was emitted with correct properties
@@ -235,3 +210,70 @@ def test_profile_chunk_outcomes_rate_limited(
 
     # Verify no profiles were forwarded to the consumer
     profiles_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "platform, category",
+    [
+        ("cocoa", "profile_chunk_ui"),
+        ("node", "profile_chunk"),
+        (None, "profile_chunk"),  # Special case, currently this will forward
+    ],
+)
+def test_profile_chunk_outcomes_rate_limited_fast(
+    mini_sentry,
+    relay,
+    platform,
+    category,
+):
+    """
+    Tests that Relay reports correct outcomes when profile chunks are rate limited already in the
+    fast-path, using the item header.
+
+    The test is parameterized to also *not* send the necessary item header, in which case this currently
+    asserts the chunk is let through. Once Relay's behaviour is changed to reject or profile chunks
+    without the necessary headers or the profile type is defaulted this test needs to be adjusted accordingly.
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append(
+        "organizations:continuous-profiling"
+    )
+
+    project_config["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [category],
+            "limit": 0,
+            "reasonCode": "profile_chunks_exceeded",
+        }
+    ]
+
+    upstream = relay(mini_sentry)
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v2/valid.json",
+        "rb",
+    ) as f:
+        profile = f.read()
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=profile),
+            type="profile_chunk",
+            headers={"platform": platform},
+        )
+    )
+    upstream.send_envelope(project_id, envelope)
+
+    if platform is None:
+        envelope = mini_sentry.captured_events.get(timeout=1)
+        assert [item.type for item in envelope.items] == ["profile_chunk"]
+    else:
+        outcome = mini_sentry.get_client_report()
+        assert outcome["rate_limited_events"] == [
+            {"category": category, "quantity": 1, "reason": "profile_chunks_exceeded"}
+        ]
+        assert mini_sentry.captured_events.empty()

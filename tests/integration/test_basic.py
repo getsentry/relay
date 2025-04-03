@@ -355,6 +355,8 @@ def send_transaction_with_dsc(mini_sentry, relay, project_id, sampling_project_k
         trace_info={
             "public_key": sampling_project_key,
             "trace_id": "1234F60C11214EB38604F4AE0781BFB2",
+            "release": "testapp@1.0",
+            "sample_rate": 0.5,
         },
     )
 
@@ -366,7 +368,7 @@ def test_root_project_disabled(mini_sentry, relay):
     mini_sentry.add_full_project_config(project_id)
     disabled_dsn = "00000000000000000000000000000000"
     txn = send_transaction_with_dsc(mini_sentry, relay, project_id, disabled_dsn)
-    assert txn
+    assert txn["contexts"]["trace"].get("client_sample_rate") == 0.5
 
 
 def test_root_project_same(mini_sentry, relay):
@@ -374,4 +376,4 @@ def test_root_project_same(mini_sentry, relay):
     mini_sentry.add_full_project_config(project_id)
     same_dsn = mini_sentry.get_dsn_public_key(project_id)
     txn = send_transaction_with_dsc(mini_sentry, relay, project_id, same_dsn)
-    assert txn
+    assert txn["contexts"]["trace"]["client_sample_rate"] == 0.5

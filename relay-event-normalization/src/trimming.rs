@@ -434,7 +434,7 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 
 #[cfg(test)]
 mod tests {
-    use std::iter::repeat;
+    use std::iter::repeat_n;
 
     use chrono::DateTime;
     use relay_event_schema::protocol::{
@@ -639,18 +639,20 @@ mod tests {
     fn test_databag_state_leak() {
         let event = Annotated::new(Event {
             breadcrumbs: Annotated::new(Values::new(
-                repeat(Annotated::new(Breadcrumb {
-                    data: {
-                        let mut map = Map::new();
-                        map.insert(
-                            "spamspamspam".to_string(),
-                            Annotated::new(Value::String("blablabla".to_string())),
-                        );
-                        Annotated::new(map)
-                    },
-                    ..Default::default()
-                }))
-                .take(200)
+                repeat_n(
+                    Annotated::new(Breadcrumb {
+                        data: {
+                            let mut map = Map::new();
+                            map.insert(
+                                "spamspamspam".to_string(),
+                                Annotated::new(Value::String("blablabla".to_string())),
+                            );
+                            Annotated::new(map)
+                        },
+                        ..Default::default()
+                    }),
+                    200,
+                )
                 .collect(),
             )),
             exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
@@ -659,12 +661,14 @@ mod tests {
                 stacktrace: Annotated::new(
                     RawStacktrace {
                         frames: Annotated::new(
-                            repeat(Annotated::new(Frame {
-                                function: Annotated::new("importantFunctionName".to_string()),
-                                symbol: Annotated::new("important_symbol".to_string()),
-                                ..Default::default()
-                            }))
-                            .take(200)
+                            repeat_n(
+                                Annotated::new(Frame {
+                                    function: Annotated::new("importantFunctionName".to_string()),
+                                    symbol: Annotated::new("important_symbol".to_string()),
+                                    ..Default::default()
+                                }),
+                                200,
+                            )
                             .collect(),
                         ),
                         ..Default::default()
@@ -746,9 +750,7 @@ mod tests {
         let mut extra = Object::new();
         extra.insert("foo".to_string(), {
             Annotated::new(ExtraValue(Value::Array(
-                repeat(Annotated::new(Value::U64(1)))
-                    .take(200_000)
-                    .collect(),
+                repeat_n(Annotated::new(Value::U64(1)), 200_000).collect(),
             )))
         });
 

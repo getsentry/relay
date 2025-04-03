@@ -8,10 +8,14 @@
 - Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
 - Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
 - Filter out certain AI crawlers. ([#4608](https://github.com/getsentry/relay/pull/4608))
+- Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634))
+- Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624))
 
 **Bug Fixes**:
 
 - Separates profiles into backend and ui profiles. ([#4595](https://github.com/getsentry/relay/pull/4595))
+- Normalize trace context information before writing it into transaction and span data. This ensures the correct sampling rates are stored for extrapolation in Sentry. ([#4625](https://github.com/getsentry/relay/pull/4625))
+- Adds u16 validation to the replay protocol's segment_id field. ([#4635](https://github.com/getsentry/relay/pull/4635))
 
 **Internal**:
 
@@ -26,6 +30,7 @@
 - Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
 - Validate the spooling memory configuration on startup. ([#4617](https://github.com/getsentry/relay/pull/4617))
 - Adjust 'log' protocol / envelope item type per sdk feedback ([#4592](https://github.com/getsentry/relay/pull/4592))
+- Improve descriptiveness of autoscaling metric name. ([#4629](https://github.com/getsentry/relay/pull/4629))
 
 ## 25.3.0
 

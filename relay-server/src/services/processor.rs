@@ -1560,7 +1560,7 @@ impl EnvelopeProcessorService {
         managed_envelope: &mut TypedEnvelope<ErrorGroup>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        sampling_project_info: Option<Arc<ProjectInfo>>,
+        mut sampling_project_info: Option<Arc<ProjectInfo>>,
         rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
@@ -1601,6 +1601,12 @@ impl EnvelopeProcessorService {
             }
         });
 
+        sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+            managed_envelope,
+            &mut event,
+            project_info.clone(),
+            sampling_project_info,
+        );
         event::finalize(
             managed_envelope,
             &mut event,
@@ -1722,6 +1728,15 @@ impl EnvelopeProcessorService {
             profile::transfer_id(&mut event, profile_id);
         });
 
+        relay_cogs::with!(cogs, "dynamic_sampling_dsc", {
+            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+                managed_envelope,
+                &mut event,
+                project_info.clone(),
+                sampling_project_info,
+            );
+        });
+
         relay_cogs::with!(cogs, "event_finalize", {
             event::finalize(
                 managed_envelope,
@@ -1739,15 +1754,6 @@ impl EnvelopeProcessorService {
                 project_info.clone(),
                 event_fully_normalized,
             )?;
-        });
-
-        relay_cogs::with!(cogs, "dynamic_sampling_dsc", {
-            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-                managed_envelope,
-                &mut event,
-                project_info.clone(),
-                sampling_project_info.clone(),
-            );
         });
 
         relay_cogs::with!(cogs, "filter", {
@@ -3977,6 +3983,8 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "processing")]
     async fn test_materialize_dsc() {
+        use crate::services::projects::project::PublicKeyConfig;
+
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
@@ -4002,11 +4010,18 @@ mod tests {
             ProcessingGroup::Error,
         );
 
+        let mut project_info = ProjectInfo::default();
+        project_info.public_keys.push(PublicKeyConfig {
+            public_key: ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+            numeric_id: Some(1),
+        });
+        let project_info = Arc::new(project_info);
+
         let process_message = ProcessEnvelope {
             envelope: managed_envelope,
-            project_info: Arc::new(ProjectInfo::default()),
+            project_info: project_info.clone(),
             rate_limits: Default::default(),
-            sampling_project_info: None,
+            sampling_project_info: Some(project_info),
             reservoir_counters: ReservoirCounters::default(),
         };
 
