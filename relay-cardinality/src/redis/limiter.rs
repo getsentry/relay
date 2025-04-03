@@ -153,7 +153,7 @@ impl Limiter for RedisSetLimiter {
             }
         }
 
-        let mut connection = self.redis.get_connection();
+        let mut connection = self.redis.get_connection().await?;
 
         for mut state in states {
             if state.is_empty() {
@@ -282,7 +282,7 @@ mod tests {
 
     use super::*;
 
-    async fn build_limiter() -> RedisSetLimiter {
+    fn build_limiter() -> RedisSetLimiter {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
@@ -290,7 +290,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        let redis = AsyncRedisClient::single(&url, &opts).await.unwrap();
+        let redis = AsyncRedisClient::single(&url, &opts).unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {
@@ -363,7 +363,7 @@ mod tests {
                 o = scoping.organization_id
             );
 
-            let mut connection = self.redis.get_connection();
+            let mut connection = self.redis.get_connection().await.unwrap();
 
             let keys = redis::cmd("KEYS")
                 .arg(pattern)
@@ -386,7 +386,7 @@ mod tests {
                 o = scoping.organization_id
             );
 
-            let mut connection = self.redis.get_connection();
+            let mut connection = self.redis.get_connection().await.unwrap();
 
             let keys: Vec<String> = redis::cmd("KEYS")
                 .arg(pattern)
@@ -434,7 +434,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_accept_previously_seen() {
-        let limiter = build_limiter().await;
+        let limiter = build_limiter();
 
         let m0 = MetricName::from("a");
         let m1 = MetricName::from("b");
@@ -488,7 +488,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_name_limit() {
-        let limiter = build_limiter().await;
+        let limiter = build_limiter();
 
         let m0 = MetricName::from("a");
         let m1 = MetricName::from("b");
@@ -550,7 +550,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_type_limit() {
-        let limiter = build_limiter().await;
+        let limiter = build_limiter();
 
         let m0 = MetricName::from("c:custom/foo@none");
         let m1 = MetricName::from("c:custom/bar@none");
@@ -613,7 +613,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_org_based_time_shift() {
-        let mut limiter = build_limiter().await;
+        let mut limiter = build_limiter();
 
         let granularity_seconds = 10_000;
 
@@ -706,7 +706,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_small_within_limits() {
-        let limiter = build_limiter().await;
+        let limiter = build_limiter();
         let scoping = new_scoping(&limiter).await;
 
         let limits = &[CardinalityLimit {
@@ -739,7 +739,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_big_limit() {
-        let limiter = build_limiter().await;
+        let limiter = build_limiter();
 
         let scoping = new_scoping(&limiter).await;
         let limits = &[CardinalityLimit {
@@ -767,7 +767,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_sliding_window() {
-        let mut limiter = build_limiter().await;
+        let mut limiter = build_limiter();
 
         let scoping = new_scoping(&limiter).await;
         let window = SlidingWindow {
@@ -818,7 +818,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_no_namespace_limit_is_shared_limit() {
-        let limiter = build_limiter().await;
+        let limiter = build_limiter();
         let scoping = new_scoping(&limiter).await;
 
         let limits = &[CardinalityLimit {
@@ -854,7 +854,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_multiple_limits() {
-        let limiter = build_limiter().await;
+        let limiter = build_limiter();
         let scoping = new_scoping(&limiter).await;
 
         let limits = &[
@@ -985,7 +985,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_project_limit() {
-        let limiter = build_limiter().await;
+        let limiter = build_limiter();
 
         let scoping1 = new_scoping(&limiter).await;
         let scoping2 = Scoping {
@@ -1026,7 +1026,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_sliding_window_full() {
-        let mut limiter = build_limiter().await;
+        let mut limiter = build_limiter();
         let scoping = new_scoping(&limiter).await;
 
         let window = SlidingWindow {
@@ -1125,7 +1125,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_limiter_sliding_window_perfect() {
-        let mut limiter = build_limiter().await;
+        let mut limiter = build_limiter();
         let scoping = new_scoping(&limiter).await;
 
         let window = SlidingWindow {

@@ -30,6 +30,7 @@
 - Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
 - Validate the spooling memory configuration on startup. ([#4617](https://github.com/getsentry/relay/pull/4617))
 - Improve descriptiveness of autoscaling metric name. ([#4629](https://github.com/getsentry/relay/pull/4629))
+- Enable connection pooling for asynchronous Redis connections. ([#4622](https://github.com/getsentry/relay/pull/4622))
 
 ## 25.3.0
 
