@@ -482,19 +482,16 @@ def test_buffer_envelopes_without_global_config(
 
 def test_sample_rate_propagates_across_orgs(
     mini_sentry,
-    relay_with_processing,
-    transactions_consumer,
+    relay,
 ):
-    events_consumer = transactions_consumer()
-
-    relay = relay_with_processing()
+    relay = relay(mini_sentry)
 
     upstream_project_config = mini_sentry.add_full_project_config(
-        42, extra={"organizationId": 2}
+        43, extra={"organizationId": 2}
     )
     upstream_public_key = upstream_project_config["publicKeys"][0]["publicKey"]
 
-    downstream_project_id = 43
+    downstream_project_id = 42
     downstream_project_config = mini_sentry.add_full_project_config(
         downstream_project_id
     )
@@ -512,10 +509,10 @@ def test_sample_rate_propagates_across_orgs(
     envelope.add_transaction(transaction_item)
     relay.send_envelope(downstream_project_id, envelope)
 
-    event, _ = events_consumer.get_event()
+    dsc = mini_sentry.captured_events.get(timeout=2).headers["trace"]
 
     # Because the organization IDs mismatch, the DSC should be regenerated
-    assert event["_dsc"]["public_key"] == downstream_public_key
-    assert event["_dsc"]["transaction"] == transaction_item["transaction"]
+    assert dsc["public_key"] == downstream_public_key
+    assert dsc["transaction"] == transaction_item["transaction"]
     # But, the given sample rate should be respected
-    assert event["_dsc"]["sample_rate"] == "0.1"
+    assert dsc["sample_rate"] == "0.1"
