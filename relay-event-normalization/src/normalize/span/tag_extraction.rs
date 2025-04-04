@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
-    Timestamp, TraceContext,
+    AppContext, BrowserContext, DeviceContext, Event, Measurement, OsContext, ProfileContext,
+    SentryTags, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
@@ -153,6 +153,22 @@ struct SharedTags {
     environment: Annotated<String>,
     mobile: Annotated<String>,
     os_name: Annotated<String>,
+    device_family: Annotated<String>,
+    device_arch: Annotated<String>,
+    device_battery_level: Annotated<String>,
+    device_brand: Annotated<String>,
+    device_charging: Annotated<String>,
+    device_locale: Annotated<String>,
+    device_model_id: Annotated<String>,
+    device_name: Annotated<String>,
+    device_online: Annotated<String>,
+    device_orientation: Annotated<String>,
+    device_screen_density: Annotated<String>,
+    device_screen_dpi: Annotated<String>,
+    device_screen_height_pixels: Annotated<String>,
+    device_screen_width_pixels: Annotated<String>,
+    device_simulator: Annotated<String>,
+    device_uuid: Annotated<String>,
     platform: Annotated<String>,
     profiler_id: Annotated<String>,
     release: Annotated<String>,
@@ -178,6 +194,22 @@ impl SharedTags {
         let Self {
             browser_name,
             device_class,
+            device_family,
+            device_arch,
+            device_battery_level,
+            device_brand,
+            device_charging,
+            device_locale,
+            device_model_id,
+            device_name,
+            device_online,
+            device_orientation,
+            device_screen_density,
+            device_screen_dpi,
+            device_screen_height_pixels,
+            device_screen_width_pixels,
+            device_simulator,
+            device_uuid,
             environment,
             mobile,
             os_name,
@@ -269,6 +301,54 @@ impl SharedTags {
         if tags.user.value().is_none() {
             tags.user = user.clone();
         };
+        if tags.device_family.value().is_none() {
+            tags.device_family = device_family.clone();
+        };
+        if tags.device_arch.value().is_none() {
+            tags.device_arch = device_arch.clone()
+        }
+        if tags.device_battery_level.value().is_none() {
+            tags.device_battery_level = device_battery_level.clone()
+        }
+        if tags.device_brand.value().is_none() {
+            tags.device_brand = device_brand.clone()
+        }
+        if tags.device_charging.value().is_none() {
+            tags.device_charging = device_charging.clone()
+        }
+        if tags.device_locale.value().is_none() {
+            tags.device_locale = device_locale.clone()
+        }
+        if tags.device_model_id.value().is_none() {
+            tags.device_model_id = device_model_id.clone()
+        }
+        if tags.device_name.value().is_none() {
+            tags.device_name = device_name.clone()
+        }
+        if tags.device_online.value().is_none() {
+            tags.device_online = device_online.clone()
+        }
+        if tags.device_orientation.value().is_none() {
+            tags.device_orientation = device_orientation.clone()
+        }
+        if tags.device_screen_density.value().is_none() {
+            tags.device_screen_density = device_screen_density.clone()
+        }
+        if tags.device_screen_dpi.value().is_none() {
+            tags.device_screen_dpi = device_screen_dpi.clone()
+        }
+        if tags.device_screen_height_pixels.value().is_none() {
+            tags.device_screen_height_pixels = device_screen_height_pixels.clone()
+        }
+        if tags.device_screen_width_pixels.value().is_none() {
+            tags.device_screen_width_pixels = device_screen_width_pixels.clone()
+        }
+        if tags.device_simulator.value().is_none() {
+            tags.device_simulator = device_simulator.clone()
+        }
+        if tags.device_uuid.value().is_none() {
+            tags.device_uuid = device_uuid.clone()
+        }
     }
 }
 
@@ -355,6 +435,57 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
                     tags.os_name = os_name.to_string().into();
                 }
             }
+        }
+    }
+
+    if let Some(device_context) = event.context::<DeviceContext>() {
+        if let Some(family) = device_context.family.value() {
+            tags.device_family = family.to_string().into();
+        }
+        if let Some(arch) = device_context.arch.value() {
+            tags.device_arch = arch.to_string().into();
+        }
+        if let Some(battery_level) = device_context.battery_level.value() {
+            tags.device_battery_level = battery_level.to_string().into();
+        }
+        if let Some(brand) = device_context.brand.value() {
+            tags.device_brand = brand.to_string().into();
+        }
+        if let Some(charging) = device_context.charging.value() {
+            tags.device_charging = charging.to_string().into();
+        }
+        if let Some(locale) = device_context.locale.value() {
+            tags.device_locale = locale.to_string().into();
+        }
+        if let Some(model_id) = device_context.model_id.value() {
+            tags.device_model_id = model_id.to_string().into();
+        }
+        if let Some(name) = device_context.name.value() {
+            tags.device_name = name.to_string().into();
+        }
+        if let Some(online) = device_context.online.value() {
+            tags.device_online = online.to_string().into();
+        }
+        if let Some(orientation) = device_context.orientation.value() {
+            tags.device_orientation = orientation.to_string().into();
+        }
+        if let Some(screen_density) = device_context.screen_density.value() {
+            tags.device_screen_density = screen_density.to_string().into();
+        }
+        if let Some(screen_dpi) = device_context.screen_dpi.value() {
+            tags.device_screen_dpi = screen_dpi.to_string().into();
+        }
+        if let Some(screen_height_pixels) = device_context.screen_height_pixels.value() {
+            tags.device_screen_height_pixels = screen_height_pixels.to_string().into();
+        }
+        if let Some(screen_width_pixels) = device_context.screen_width_pixels.value() {
+            tags.device_screen_width_pixels = screen_width_pixels.to_string().into();
+        }
+        if let Some(simulator) = device_context.simulator.value() {
+            tags.device_simulator = simulator.to_string().into();
+        }
+        if let Some(uuid) = device_context.uuid.value() {
+            tags.device_uuid = uuid.to_string().into();
         }
     }
 
