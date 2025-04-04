@@ -1125,8 +1125,8 @@ where
         .serialize(serializer)
 }
 
-pub fn serialize_btreemap_skip_nulls<S, T: Serialize>(
-    map: &Option<BTreeMap<&str, Option<T>>>,
+fn serialize_btreemap_skip_nulls<S>(
+    map: &Option<BTreeMap<&str, Option<String>>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
@@ -1138,6 +1138,28 @@ where
     let mut m = serializer.serialize_map(Some(map.len()))?;
     for (key, value) in map.iter() {
         if let Some(value) = value {
+            m.serialize_entry(key, value)?;
+        }
+    }
+    m.end()
+}
+
+fn serialize_log_attributes<S>(
+    map: &Option<BTreeMap<&str, Option<LogAttribute>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let Some(map) = map else {
+        return serializer.serialize_none();
+    };
+    let mut m = serializer.serialize_map(Some(map.len()))?;
+    for (key, value) in map.iter() {
+        if let Some(value) = value {
+            if let Some(LogAttributeValue::Unknown(_)) = value.value {
+                continue;
+            }
             m.serialize_entry(key, value)?;
         }
     }
@@ -1159,6 +1181,10 @@ where
         return serializer.serialize_none();
     };
 
+    if let LogAttributeValue::Unknown(_) = attr {
+        return serializer.serialize_none();
+    }
+
     let mut map = serializer.serialize_map(Some(1))?;
     match attr {
         LogAttributeValue::String(value) => {
@@ -1170,9 +1196,10 @@ where
         LogAttributeValue::Bool(value) => {
             map.serialize_entry("bool_value", value)?;
         }
-        LogAttributeValue::Float(value) => {
-            map.serialize_entry("float_value", value)?;
+        LogAttributeValue::Double(value) => {
+            map.serialize_entry("double_value", value)?;
         }
+        LogAttributeValue::Unknown(_) => (),
     }
     map.end()
 }
@@ -1437,8 +1464,10 @@ enum LogAttributeValue {
     Bool(bool),
     #[serde(rename = "int")]
     Int(i64),
-    #[serde(rename = "float")]
-    Float(f64),
+    #[serde(rename = "double")]
+    Double(f64),
+    #[serde(rename = "unknown")]
+    Unknown(String),
 }
 
 /// This is a temporary struct to convert the old attribute format to the new one.
@@ -1475,7 +1504,7 @@ struct LogKafkaMessage<'a> {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_btreemap_skip_nulls"
+        serialize_with = "serialize_log_attributes"
     )]
     attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

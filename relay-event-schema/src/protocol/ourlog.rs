@@ -55,7 +55,7 @@ impl OurLog {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[derive(Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct OurLogAttribute {
     #[metastructure(flatten)]
     pub value: OurLogAttributeValue,
@@ -68,25 +68,34 @@ pub struct OurLogAttribute {
 impl OurLogAttribute {
     pub fn new(attribute_type: OurLogAttributeType, value: Value) -> Self {
         Self {
-            value: OurLogAttributeValue::new(attribute_type, value),
+            value: OurLogAttributeValue::new(Annotated::new(attribute_type), Annotated::new(value)),
             other: Object::new(),
         }
+    }
+}
+
+impl fmt::Debug for OurLogAttribute {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OurLogAttribute")
+            .field("value", &self.value.value)
+            .field("type", &self.value.ty)
+            .finish()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct OurLogAttributeValue {
     #[metastructure(field = "type", required = true, trim = false)]
-    ty: Annotated<String>,
+    pub ty: Annotated<String>,
     #[metastructure(required = true, pii = "true")]
-    value: Annotated<Value>,
+    pub value: Annotated<Value>,
 }
 
 impl OurLogAttributeValue {
-    fn new(attribute_type: OurLogAttributeType, value: Value) -> Self {
+    pub fn new(attribute_type: Annotated<OurLogAttributeType>, value: Annotated<Value>) -> Self {
         Self {
-            ty: Annotated::new(attribute_type.as_str().to_string()),
-            value: Annotated::new(value),
+            ty: attribute_type.map_value(|at| at.as_str().to_string()),
+            value,
         }
     }
 }
@@ -95,7 +104,7 @@ impl OurLogAttributeValue {
 pub enum OurLogAttributeType {
     Bool,
     Int,
-    Float,
+    Double,
     String,
     Unknown(String),
 }
@@ -105,7 +114,7 @@ impl OurLogAttributeType {
         match self {
             Self::Bool => "bool",
             Self::Int => "int",
-            Self::Float => "float",
+            Self::Double => "double",
             Self::String => "string",
             Self::Unknown(value) => value,
         }
@@ -123,7 +132,7 @@ impl From<String> for OurLogAttributeType {
         match value.as_str() {
             "bool" => Self::Bool,
             "int" => Self::Int,
-            "float" => Self::Float,
+            "double" => Self::Double,
             "string" => Self::String,
             _ => Self::Unknown(value),
         }
@@ -323,50 +332,35 @@ mod tests {
             level: Info,
             body: "Example log record",
             attributes: {
-                "boolean.attribute": Attribute {
-                    value: AttributeValue {
-                        ty: "bool",
-                        value: Bool(
-                            true,
-                        ),
-                    },
-                    other: {},
+                "boolean.attribute": OurLogAttribute {
+                    value: Bool(
+                        true,
+                    ),
+                    type: "bool",
                 },
-                "sentry.observed_timestamp_nanos": Attribute {
-                    value: AttributeValue {
-                        ty: "int",
-                        value: String(
-                            "1544712660300000000",
-                        ),
-                    },
-                    other: {},
+                "sentry.observed_timestamp_nanos": OurLogAttribute {
+                    value: String(
+                        "1544712660300000000",
+                    ),
+                    type: "int",
                 },
-                "sentry.severity_number": Attribute {
-                    value: AttributeValue {
-                        ty: "int",
-                        value: String(
-                            "10",
-                        ),
-                    },
-                    other: {},
+                "sentry.severity_number": OurLogAttribute {
+                    value: String(
+                        "10",
+                    ),
+                    type: "int",
                 },
-                "sentry.severity_text": Attribute {
-                    value: AttributeValue {
-                        ty: "string",
-                        value: String(
-                            "info",
-                        ),
-                    },
-                    other: {},
+                "sentry.severity_text": OurLogAttribute {
+                    value: String(
+                        "info",
+                    ),
+                    type: "string",
                 },
-                "sentry.trace_flags": Attribute {
-                    value: AttributeValue {
-                        ty: "int",
-                        value: String(
-                            "10",
-                        ),
-                    },
-                    other: {},
+                "sentry.trace_flags": OurLogAttribute {
+                    value: String(
+                        "10",
+                    ),
+                    type: "int",
                 },
             },
             other: {},
@@ -432,23 +426,9 @@ mod tests {
           "level": "info",
           "body": "Example log record",
           "attributes": {
-            "sentry.severity_number": null
-          },
-          "_meta": {
-            "attributes": {
-              "sentry.severity_number": {
-                "": {
-                  "err": [
-                    [
-                      "invalid_data",
-                      {
-                        "reason": "expected 64 bit integers have to be represented by a string in JSON"
-                      }
-                    ]
-                  ],
-                  "val": {}
-                }
-              }
+            "sentry.severity_number": {
+              "type": "int",
+              "value": 10
             }
           }
         }

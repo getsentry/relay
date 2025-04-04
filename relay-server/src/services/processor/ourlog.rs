@@ -18,10 +18,10 @@ use {
     crate::services::processor::ProcessingError,
     relay_dynamic_config::ProjectConfig,
     relay_event_schema::processor::{process_value, ProcessingState},
-    relay_event_schema::protocol::OurLog,
+    relay_event_schema::protocol::{OurLog, OurLogAttributeType, OurLogAttributeValue},
     relay_ourlogs::OtelLog,
     relay_pii::PiiProcessor,
-    relay_protocol::Annotated,
+    relay_protocol::{Annotated, ErrorKind, Value},
 };
 
 /// Removes logs from the envelope if the feature is not enabled.
@@ -75,6 +75,11 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         }
 
+        if let Err(e) = normalize(&mut annotated_log) {
+            relay_log::debug!("failed to normalize log: {}", e);
+            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+        };
+
         let mut new_item = Item::new(ItemType::Log);
         let payload = match annotated_log.to_json() {
             Ok(payload) => payload,
@@ -89,6 +94,17 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
 
         ItemAction::Keep
     });
+}
+
+#[cfg(feature = "processing")]
+fn normalize(annotated_log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
+    let Some(log) = annotated_log.value_mut() else {
+        return Err(ProcessingError::NoEventPayload);
+    };
+
+    process_attribute_types(log);
+
+    Ok(())
 }
 
 #[cfg(feature = "processing")]
@@ -112,6 +128,75 @@ fn scrub(
     Ok(())
 }
 
+#[cfg(feature = "processing")]
+fn process_attribute_types(ourlog: &mut OurLog) {
+    if let Some(data) = ourlog.attributes.value_mut() {
+        for (_, attr) in data.iter_mut() {
+            if let Some(attr) = attr.value_mut() {
+                attr.value = match (attr.value.ty.clone(), attr.value.value.clone()) {
+                    (Annotated(Some(ty), ty_meta), Annotated(Some(value), mut value_meta)) => {
+                        let attr_type = OurLogAttributeType::from(ty);
+                        match (attr_type, value) {
+                            (OurLogAttributeType::Bool, Value::Bool(_)) => attr.value.clone(),
+                            (OurLogAttributeType::Int, Value::I64(_)) => attr.value.clone(),
+                            (OurLogAttributeType::Int, Value::U64(_)) => attr.value.clone(),
+                            (OurLogAttributeType::Int, Value::String(v)) => {
+                                if v.parse::<i64>().is_ok() {
+                                    attr.value.clone()
+                                } else {
+                                    value_meta.add_error(ErrorKind::InvalidData);
+                                    value_meta.set_original_value(Some(v.clone()));
+                                    OurLogAttributeValue::new(
+                                        Annotated(
+                                            Some(OurLogAttributeType::Unknown(
+                                                "unknown".to_string(),
+                                            )),
+                                            ty_meta,
+                                        ),
+                                        Annotated(Some(Value::String("".to_string())), value_meta),
+                                    )
+                                }
+                            }
+                            (OurLogAttributeType::Double, Value::F64(_)) => attr.value.clone(),
+                            (OurLogAttributeType::Double, Value::I64(_)) => attr.value.clone(),
+                            (OurLogAttributeType::Double, Value::U64(_)) => attr.value.clone(),
+                            (OurLogAttributeType::Double, Value::String(_)) => attr.value.clone(),
+                            (OurLogAttributeType::String, Value::String(_)) => attr.value.clone(),
+                            (_ty @ OurLogAttributeType::Unknown(_), value) => {
+                                value_meta.add_error(ErrorKind::InvalidData);
+                                value_meta.set_original_value(Some(value.clone()));
+                                OurLogAttributeValue::new(
+                                    Annotated(
+                                        Some(OurLogAttributeType::Unknown("unknown".to_string())),
+                                        ty_meta,
+                                    ),
+                                    Annotated(Some(Value::String("".to_string())), value_meta),
+                                )
+                            }
+                            (_, value) => {
+                                value_meta.add_error(ErrorKind::InvalidData);
+                                value_meta.set_original_value(Some(value.clone()));
+                                OurLogAttributeValue::new(
+                                    Annotated(
+                                        Some(OurLogAttributeType::Unknown("unknown".to_string())),
+                                        ty_meta,
+                                    ),
+                                    Annotated(Some(Value::String("".to_string())), value_meta),
+                                )
+                            }
+                        }
+                    }
+                    (mut ty, mut value) => {
+                        ty.meta_mut().add_error(ErrorKind::MissingAttribute);
+                        value.meta_mut().add_error(ErrorKind::MissingAttribute);
+                        OurLogAttributeValue { ty, value }
+                    }
+                };
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,7 +204,10 @@ mod tests {
     use crate::services::processor::ProcessingGroup;
     use crate::utils::ManagedEnvelope;
     use bytes::Bytes;
+
     use relay_dynamic_config::GlobalConfig;
+    use relay_event_schema::protocol::OurLog;
+    use relay_protocol::Annotated;
 
     use relay_system::Addr;
 
@@ -204,5 +292,225 @@ mod tests {
             "{:?}",
             managed_envelope.envelope()
         );
+    }
+
+    #[test]
+    fn test_process_attribute_types() {
+        let json = r#"{
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log message",
+            "attributes": {
+                "valid_bool": {
+                    "type": "bool",
+                    "value": true
+                },
+                "valid_int_i64": {
+                    "type": "int",
+                    "value": -42
+                },
+                "valid_int_u64": {
+                    "type": "int",
+                    "value": 42
+                },
+                "valid_int_from_string": {
+                    "type": "int",
+                    "value": "42"
+                },
+                "valid_double": {
+                    "type": "double",
+                    "value": 42.5
+                },
+                "valid_double_with_i64": {
+                    "type": "double",
+                    "value": -42
+                },
+                "valid_double_with_u64": {
+                    "type": "double",
+                    "value": 42
+                },
+                "valid_string": {
+                    "type": "string",
+                    "value": "test"
+                },
+                "unknown_type": {
+                    "type": "custom",
+                    "value": "test"
+                },
+                "invalid_int_from_invalid_string": {
+                    "type": "int",
+                    "value": "abc"
+                },
+                "missing_type": {
+                    "value": "value with missing type"
+                },
+                "missing_value": {
+                    "type": "string"
+                }
+            }
+        }"#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        if let Some(log) = data.value_mut() {
+            process_attribute_types(log);
+        }
+
+        insta::assert_debug_snapshot!(data.value().unwrap().attributes, @r###"
+        {
+            "invalid_int_from_invalid_string": OurLogAttribute {
+                value: Annotated(
+                    String(
+                        "",
+                    ),
+                    Meta {
+                        remarks: [],
+                        errors: [
+                            Error {
+                                kind: InvalidData,
+                                data: {},
+                            },
+                        ],
+                        original_length: None,
+                        original_value: Some(
+                            String(
+                                "abc",
+                            ),
+                        ),
+                    },
+                ),
+                type: "unknown",
+            },
+            "missing_type": OurLogAttribute {
+                value: Annotated(
+                    String(
+                        "value with missing type",
+                    ),
+                    Meta {
+                        remarks: [],
+                        errors: [
+                            Error {
+                                kind: MissingAttribute,
+                                data: {},
+                            },
+                        ],
+                        original_length: None,
+                        original_value: None,
+                    },
+                ),
+                type: Meta {
+                    remarks: [],
+                    errors: [
+                        Error {
+                            kind: MissingAttribute,
+                            data: {},
+                        },
+                    ],
+                    original_length: None,
+                    original_value: None,
+                },
+            },
+            "missing_value": OurLogAttribute {
+                value: Meta {
+                    remarks: [],
+                    errors: [
+                        Error {
+                            kind: MissingAttribute,
+                            data: {},
+                        },
+                    ],
+                    original_length: None,
+                    original_value: None,
+                },
+                type: Annotated(
+                    "string",
+                    Meta {
+                        remarks: [],
+                        errors: [
+                            Error {
+                                kind: MissingAttribute,
+                                data: {},
+                            },
+                        ],
+                        original_length: None,
+                        original_value: None,
+                    },
+                ),
+            },
+            "unknown_type": OurLogAttribute {
+                value: Annotated(
+                    String(
+                        "",
+                    ),
+                    Meta {
+                        remarks: [],
+                        errors: [
+                            Error {
+                                kind: InvalidData,
+                                data: {},
+                            },
+                        ],
+                        original_length: None,
+                        original_value: Some(
+                            String(
+                                "test",
+                            ),
+                        ),
+                    },
+                ),
+                type: "unknown",
+            },
+            "valid_bool": OurLogAttribute {
+                value: Bool(
+                    true,
+                ),
+                type: "bool",
+            },
+            "valid_double": OurLogAttribute {
+                value: F64(
+                    42.5,
+                ),
+                type: "double",
+            },
+            "valid_double_with_i64": OurLogAttribute {
+                value: I64(
+                    -42,
+                ),
+                type: "double",
+            },
+            "valid_double_with_u64": OurLogAttribute {
+                value: I64(
+                    42,
+                ),
+                type: "double",
+            },
+            "valid_int_from_string": OurLogAttribute {
+                value: String(
+                    "42",
+                ),
+                type: "int",
+            },
+            "valid_int_i64": OurLogAttribute {
+                value: I64(
+                    -42,
+                ),
+                type: "int",
+            },
+            "valid_int_u64": OurLogAttribute {
+                value: I64(
+                    42,
+                ),
+                type: "int",
+            },
+            "valid_string": OurLogAttribute {
+                value: String(
+                    "test",
+                ),
+                type: "string",
+            },
+        }
+        "###);
     }
 }

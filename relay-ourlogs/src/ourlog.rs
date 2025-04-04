@@ -17,7 +17,7 @@ fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
             Value::Bool(v),
         )),
         OtelValue::DoubleValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Float,
+            OurLogAttributeType::Double,
             Value::F64(v),
         )),
         OtelValue::IntValue(v) => Some(OurLogAttribute::new(
