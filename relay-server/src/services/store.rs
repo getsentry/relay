@@ -996,6 +996,7 @@ impl StoreService {
         log.project_id = scoping.project_id.value();
         log.retention_days = retention_days;
         log.received = safe_timestamp(received_at);
+
         let message = KafkaMessage::Log {
             headers: BTreeMap::from([("project_id".to_string(), scoping.project_id.to_string())]),
             message: log,
@@ -1124,8 +1125,8 @@ where
         .serialize(serializer)
 }
 
-pub fn serialize_btreemap_skip_nulls<S>(
-    map: &Option<BTreeMap<&str, Option<String>>>,
+pub fn serialize_btreemap_skip_nulls<S, T: Serialize>(
+    map: &Option<BTreeMap<&str, Option<T>>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
@@ -1141,6 +1142,39 @@ where
         }
     }
     m.end()
+}
+
+/**
+ * This shouldn't be necessary with enum serialization, but since serde's tag doesn't work with `type` as it has to be renamed due to being a keyword,
+ * this allows us to not emit the 'type' field, which would otherwise break the ourlogs consumer.
+ */
+fn serialize_log_attribute_value<S>(
+    attr: &Option<LogAttributeValue>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let Some(attr) = attr else {
+        return serializer.serialize_none();
+    };
+
+    let mut map = serializer.serialize_map(Some(1))?;
+    match attr {
+        LogAttributeValue::String(value) => {
+            map.serialize_entry("string_value", value)?;
+        }
+        LogAttributeValue::Int(value) => {
+            map.serialize_entry("int_value", value)?;
+        }
+        LogAttributeValue::Bool(value) => {
+            map.serialize_entry("bool_value", value)?;
+        }
+        LogAttributeValue::Float(value) => {
+            map.serialize_entry("float_value", value)?;
+        }
+    }
+    map.end()
 }
 
 /// Container payload for event messages.
@@ -1394,6 +1428,27 @@ struct SpanKafkaMessage<'a> {
     platform: Cow<'a, str>, // We only use this for logging for now
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+enum LogAttributeValue {
+    #[serde(rename = "string")]
+    String(String),
+    #[serde(rename = "bool")]
+    Bool(bool),
+    #[serde(rename = "int")]
+    Int(i64),
+    #[serde(rename = "float")]
+    Float(f64),
+}
+
+/// This is a temporary struct to convert the old attribute format to the new one.
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
+struct LogAttribute {
+    #[serde(flatten, serialize_with = "serialize_log_attribute_value")]
+    value: Option<LogAttributeValue>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct LogKafkaMessage<'a> {
     #[serde(default)]
@@ -1417,8 +1472,12 @@ struct LogKafkaMessage<'a> {
     severity_text: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     severity_number: Option<i32>,
-    #[serde(default, skip_serializing_if = "none_or_empty_object")]
-    attributes: Option<&'a RawValue>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_btreemap_skip_nulls"
+    )]
+    attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     trace_flags: Option<u64>,
 }
