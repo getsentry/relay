@@ -136,6 +136,7 @@ fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
         &mut replay.user,
         replay.platform.as_str(),
         ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
+        replay.sdk.value(),
     );
 }
 
