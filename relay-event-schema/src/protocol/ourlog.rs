@@ -4,7 +4,6 @@ use relay_protocol::{
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
@@ -35,7 +34,7 @@ pub struct OurLog {
 
     /// Arbitrary attributes on a log.
     #[metastructure(pii = "true", trim = false)]
-    pub attributes: Annotated<Object<AttributeValue>>,
+    pub attributes: Annotated<Object<OurLogAttribute>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe", trim = false)]
@@ -43,56 +42,119 @@ pub struct OurLog {
 }
 
 impl OurLog {
-    pub fn attribute(&self, key: &str) -> Option<Value> {
-        Some(match self.attributes.value()?.get(key) {
-            Some(value) => match value.value() {
-                Some(v) => match v {
-                    AttributeValue::StringValue(s) => Value::String(s.clone()),
-                    AttributeValue::IntValue(i) => Value::I64(*i),
-                    AttributeValue::DoubleValue(f) => Value::F64(*f),
-                    AttributeValue::BoolValue(b) => Value::Bool(*b),
-                    _ => return None,
-                },
-                None => return None,
-            },
-            None => return None,
-        })
+    pub fn attribute(&self, key: &str) -> Option<Annotated<Value>> {
+        Some(
+            self.attributes
+                .value()?
+                .get(key)?
+                .value()?
+                .value
+                .clone()
+                .value,
+        )
     }
 }
 
-#[derive(Debug, Clone, PartialEq, ProcessValue)]
-pub enum AttributeValue {
-    StringValue(String),
-    IntValue(i64),
-    DoubleValue(f64),
-    BoolValue(bool),
-    /// Any other unknown attribute value.
-    ///
-    /// This exists to ensure other attribute values such as array and object can be added in the future.
+#[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct OurLogAttribute {
+    #[metastructure(flatten)]
+    pub value: OurLogAttributeValue,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties)]
+    pub other: Object<Value>,
+}
+
+impl OurLogAttribute {
+    pub fn new(attribute_type: OurLogAttributeType, value: Value) -> Self {
+        Self {
+            value: OurLogAttributeValue::new(attribute_type, value),
+            other: Object::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct OurLogAttributeValue {
+    #[metastructure(field = "type", required = true, trim = false)]
+    ty: Annotated<String>,
+    #[metastructure(required = true, pii = "true")]
+    value: Annotated<Value>,
+}
+
+impl OurLogAttributeValue {
+    fn new(attribute_type: OurLogAttributeType, value: Value) -> Self {
+        Self {
+            ty: Annotated::new(attribute_type.as_str().to_string()),
+            value: Annotated::new(value),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum OurLogAttributeType {
+    Bool,
+    Int,
+    Float,
+    String,
     Unknown(String),
 }
 
-impl IntoValue for AttributeValue {
-    fn into_value(self) -> Value {
-        let mut map = Object::new();
+impl OurLogAttributeType {
+    fn as_str(&self) -> &str {
         match self {
-            AttributeValue::StringValue(v) => {
-                map.insert("string_value".to_string(), Annotated::new(Value::String(v)));
-            }
-            AttributeValue::IntValue(v) => {
-                map.insert("int_value".to_string(), Annotated::new(Value::I64(v)));
-            }
-            AttributeValue::DoubleValue(v) => {
-                map.insert("double_value".to_string(), Annotated::new(Value::F64(v)));
-            }
-            AttributeValue::BoolValue(v) => {
-                map.insert("bool_value".to_string(), Annotated::new(Value::Bool(v)));
-            }
-            AttributeValue::Unknown(v) => {
-                map.insert("unknown".to_string(), Annotated::new(Value::String(v)));
-            }
+            Self::Bool => "bool",
+            Self::Int => "int",
+            Self::Float => "float",
+            Self::String => "string",
+            Self::Unknown(value) => value,
         }
-        Value::Object(map)
+    }
+}
+
+impl fmt::Display for OurLogAttributeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl From<String> for OurLogAttributeType {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "bool" => Self::Bool,
+            "int" => Self::Int,
+            "float" => Self::Float,
+            "string" => Self::String,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
+impl Empty for OurLogAttributeType {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl FromValue for OurLogAttributeType {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match String::from_value(value) {
+            Annotated(Some(value), meta) => Annotated(Some(value.into()), meta),
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl IntoValue for OurLogAttributeType {
+    fn into_value(self) -> Value
+    where
+        Self: Sized,
+    {
+        Value::String(match self {
+            Self::Unknown(s) => s,
+            s => s.to_string(),
+        })
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -100,124 +162,7 @@ impl IntoValue for AttributeValue {
         Self: Sized,
         S: serde::Serializer,
     {
-        let mut map = s.serialize_map(None)?;
-        match self {
-            AttributeValue::StringValue(v) => {
-                map.serialize_entry("string_value", v)?;
-            }
-            AttributeValue::IntValue(v) => {
-                map.serialize_entry("int_value", v)?;
-            }
-            AttributeValue::DoubleValue(v) => {
-                map.serialize_entry("double_value", v)?;
-            }
-            AttributeValue::BoolValue(v) => {
-                map.serialize_entry("bool_value", v)?;
-            }
-            AttributeValue::Unknown(v) => {
-                map.serialize_entry("unknown", v)?;
-            }
-        }
-        map.end()
-    }
-}
-
-impl AttributeValue {
-    pub fn string_value(&self) -> Option<&String> {
-        match self {
-            AttributeValue::StringValue(s) => Some(s),
-            _ => None,
-        }
-    }
-    pub fn int_value(&self) -> Option<i64> {
-        match self {
-            AttributeValue::IntValue(i) => Some(*i),
-            _ => None,
-        }
-    }
-    pub fn double_value(&self) -> Option<f64> {
-        match self {
-            AttributeValue::DoubleValue(d) => Some(*d),
-            _ => None,
-        }
-    }
-    pub fn bool_value(&self) -> Option<bool> {
-        match self {
-            AttributeValue::BoolValue(b) => Some(*b),
-            _ => None,
-        }
-    }
-}
-
-impl Empty for AttributeValue {
-    #[inline]
-    fn is_empty(&self) -> bool {
-        matches!(self, Self::Unknown(_))
-    }
-}
-
-impl FromValue for AttributeValue {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match value {
-            Annotated(Some(Value::Object(mut object)), meta) => {
-                let attribute_type = object
-                    .remove("type")
-                    .and_then(|v| v.value().cloned())
-                    .and_then(|v| match v {
-                        Value::String(s) => Some(s),
-                        _ => None,
-                    });
-
-                let value = object.remove("value");
-
-                match (attribute_type.as_deref(), value) {
-                    (Some("string"), Some(Annotated(Some(Value::String(string_value)), _))) => {
-                        Annotated(Some(AttributeValue::StringValue(string_value)), meta)
-                    }
-                    (Some("int"), Some(Annotated(Some(Value::String(string_value)), _))) => {
-                        let mut meta = meta;
-                        if let Ok(int_value) = string_value.parse::<i64>() {
-                            Annotated(Some(AttributeValue::IntValue(int_value)), meta)
-                        } else {
-                            meta.add_error(Error::invalid("integer could not be parsed."));
-                            meta.set_original_value(Some(Value::Object(object)));
-                            Annotated(None, meta)
-                        }
-                    }
-                    (Some("int"), Some(Annotated(Some(Value::I64(_)), _))) => {
-                        let mut meta = meta;
-                        meta.add_error(Error::expected(
-                            "64 bit integers have to be represented by a string in JSON",
-                        ));
-                        meta.set_original_value(Some(Value::Object(object)));
-                        Annotated(None, meta)
-                    }
-                    (Some("double"), Some(Annotated(Some(Value::F64(double_value)), _))) => {
-                        Annotated(Some(AttributeValue::DoubleValue(double_value)), meta)
-                    }
-                    (Some("bool"), Some(Annotated(Some(Value::Bool(bool_value)), _))) => {
-                        Annotated(Some(AttributeValue::BoolValue(bool_value)), meta)
-                    }
-                    (Some(_), Some(Annotated(Some(Value::String(unknown_value)), _))) => {
-                        Annotated(Some(AttributeValue::Unknown(unknown_value)), meta)
-                    }
-                    _ => {
-                        let mut meta = meta;
-                        meta.add_error(Error::expected(
-                            "a valid attribute value (string, int, double, bool)",
-                        ));
-                        meta.set_original_value(Some(Value::Object(object)));
-                        Annotated(None, meta)
-                    }
-                }
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-            Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("an object"));
-                meta.set_original_value(Some(value));
-                Annotated(None, meta)
-            }
-        }
+        serde::ser::Serialize::serialize(self.as_str(), s)
     }
 }
 
@@ -378,21 +323,51 @@ mod tests {
             level: Info,
             body: "Example log record",
             attributes: {
-                "boolean.attribute": BoolValue(
-                    true,
-                ),
-                "sentry.observed_timestamp_nanos": IntValue(
-                    1544712660300000000,
-                ),
-                "sentry.severity_number": IntValue(
-                    10,
-                ),
-                "sentry.severity_text": StringValue(
-                    "info",
-                ),
-                "sentry.trace_flags": IntValue(
-                    10,
-                ),
+                "boolean.attribute": Attribute {
+                    value: AttributeValue {
+                        ty: "bool",
+                        value: Bool(
+                            true,
+                        ),
+                    },
+                    other: {},
+                },
+                "sentry.observed_timestamp_nanos": Attribute {
+                    value: AttributeValue {
+                        ty: "int",
+                        value: String(
+                            "1544712660300000000",
+                        ),
+                    },
+                    other: {},
+                },
+                "sentry.severity_number": Attribute {
+                    value: AttributeValue {
+                        ty: "int",
+                        value: String(
+                            "10",
+                        ),
+                    },
+                    other: {},
+                },
+                "sentry.severity_text": Attribute {
+                    value: AttributeValue {
+                        ty: "string",
+                        value: String(
+                            "info",
+                        ),
+                    },
+                    other: {},
+                },
+                "sentry.trace_flags": Attribute {
+                    value: AttributeValue {
+                        ty: "int",
+                        value: String(
+                            "10",
+                        ),
+                    },
+                    other: {},
+                },
             },
             other: {},
         }
@@ -407,19 +382,24 @@ mod tests {
           "body": "Example log record",
           "attributes": {
             "boolean.attribute": {
-              "bool_value": true
+              "type": "bool",
+              "value": true
             },
             "sentry.observed_timestamp_nanos": {
-              "int_value": 1544712660300000000
+              "type": "int",
+              "value": "1544712660300000000"
             },
             "sentry.severity_number": {
-              "int_value": 10
+              "type": "int",
+              "value": "10"
             },
             "sentry.severity_text": {
-              "string_value": "info"
+              "type": "string",
+              "value": "info"
             },
             "sentry.trace_flags": {
-              "int_value": 10
+              "type": "int",
+              "value": "10"
             }
           }
         }

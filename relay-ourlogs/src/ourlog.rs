@@ -6,9 +6,38 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use crate::OtelLog;
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{
-    AttributeValue, OurLog, OurLogLevel, SpanId, Timestamp, TraceId,
+    OurLog, OurLogAttribute, OurLogAttributeType, OurLogLevel, SpanId, Timestamp, TraceId,
 };
 use relay_protocol::{Annotated, Object, Value};
+
+fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
+    match value {
+        OtelValue::BoolValue(v) => Some(OurLogAttribute::new(
+            OurLogAttributeType::Bool,
+            Value::Bool(v),
+        )),
+        OtelValue::DoubleValue(v) => Some(OurLogAttribute::new(
+            OurLogAttributeType::Float,
+            Value::F64(v),
+        )),
+        OtelValue::IntValue(v) => Some(OurLogAttribute::new(
+            OurLogAttributeType::Int,
+            Value::I64(v),
+        )),
+        OtelValue::StringValue(v) => Some(OurLogAttribute::new(
+            OurLogAttributeType::String,
+            Value::String(v),
+        )),
+        OtelValue::BytesValue(v) => String::from_utf8(v).map_or(None, |str| {
+            Some(OurLogAttribute::new(
+                OurLogAttributeType::String,
+                Value::String(str),
+            ))
+        }),
+        OtelValue::ArrayValue(_) => None,
+        OtelValue::KvlistValue(_) => None,
+    }
+}
 
 /// Transform an OtelLog to a Sentry log.
 pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
@@ -44,50 +73,45 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
 
     attribute_data.insert(
         "sentry.severity_text".to_string(),
-        Annotated::new(AttributeValue::StringValue(severity_text.clone())),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::String,
+            Value::String(severity_text.clone()),
+        )),
     );
     attribute_data.insert(
         "sentry.severity_number".to_string(),
-        Annotated::new(AttributeValue::IntValue(severity_number as i64)),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::Int,
+            Value::I64(severity_number as i64),
+        )),
     );
     attribute_data.insert(
         "sentry.timestamp_nanos".to_string(),
-        Annotated::new(AttributeValue::StringValue(time_unix_nano.to_string())),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::String,
+            Value::String(time_unix_nano.to_string()),
+        )),
     );
     attribute_data.insert(
         "sentry.observed_timestamp_nanos".to_string(),
-        Annotated::new(AttributeValue::StringValue(
-            observed_time_unix_nano.to_string(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::String,
+            Value::String(observed_time_unix_nano.to_string()),
         )),
     );
     attribute_data.insert(
         "sentry.trace_flags".to_string(),
-        Annotated::new(AttributeValue::IntValue(0)),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::Int,
+            Value::I64(0),
+        )),
     );
 
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
             let key = attribute.key;
-            match value {
-                OtelValue::ArrayValue(_) => {}
-                OtelValue::BoolValue(v) => {
-                    attribute_data.insert(key, Annotated::new(AttributeValue::BoolValue(v)));
-                }
-                OtelValue::BytesValue(v) => {
-                    if let Ok(v) = String::from_utf8(v) {
-                        attribute_data.insert(key, Annotated::new(AttributeValue::StringValue(v)));
-                    }
-                }
-                OtelValue::DoubleValue(v) => {
-                    attribute_data.insert(key, Annotated::new(AttributeValue::DoubleValue(v)));
-                }
-                OtelValue::IntValue(v) => {
-                    attribute_data.insert(key, Annotated::new(AttributeValue::IntValue(v)));
-                }
-                OtelValue::KvlistValue(_) => {}
-                OtelValue::StringValue(v) => {
-                    attribute_data.insert(key, Annotated::new(AttributeValue::StringValue(v)));
-                }
+            if let Some(v) = otel_value_to_log_attribute(value) {
+                attribute_data.insert(key, Annotated::new(v));
             }
         }
     }
@@ -137,7 +161,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
 
 /// This fills attributes with OTel specific fields to be compatible with the otel schema.
 ///
-/// This also currently backfills data into deprecated fields on the OurLog protocol in order to continue working with the snuba consumers.
+/// This also currently backfills data into deprecated fields (other) on the OurLog protocol in order to continue working with the snuba consumers.
 ///
 /// This will need to transform all fields into attributes to be ported to using the generic trace items consumers once they're done.
 pub fn ourlog_merge_otel(ourlog: Annotated<OurLog>) -> Annotated<OurLog> {
@@ -146,70 +170,71 @@ pub fn ourlog_merge_otel(ourlog: Annotated<OurLog>) -> Annotated<OurLog> {
         let attributes = ourlog_value.attributes.value_mut().get_or_insert_default();
         attributes.insert(
             "sentry.severity_number".to_string(),
-            Annotated::new(AttributeValue::IntValue(level_to_otel_severity_number(
-                ourlog_value.level.value().cloned(),
-            ))),
+            Annotated::new(OurLogAttribute::new(
+                OurLogAttributeType::Int,
+                Value::I64(level_to_otel_severity_number(
+                    ourlog_value.level.value().cloned(),
+                )),
+            )),
         );
         attributes.insert(
             "sentry.severity_text".to_owned(),
-            Annotated::new(AttributeValue::StringValue(
-                ourlog_value
-                    .level
-                    .value()
-                    .map(|level| level.to_string())
-                    .unwrap_or_else(|| "info".to_string()),
+            Annotated::new(OurLogAttribute::new(
+                OurLogAttributeType::String,
+                Value::String(
+                    ourlog_value
+                        .level
+                        .value()
+                        .map(|level| level.to_string())
+                        .unwrap_or_else(|| "info".to_string()),
+                ),
             )),
         );
 
-        if let Some(AttributeValue::StringValue(s)) = attributes
-            .get("sentry.severity_text")
-            .and_then(|a| a.value())
-        {
-            ourlog_value.other.insert(
-                "severity_text".to_string(),
-                Annotated::new(Value::String(s.clone())),
-            );
-        }
-
-        if let Some(AttributeValue::IntValue(i)) = attributes
-            .get("sentry.severity_number")
-            .and_then(|a| a.value())
-        {
-            ourlog_value.other.insert(
-                "severity_number".to_string(),
-                Annotated::new(Value::I64(*i)),
-            );
-        }
-
-        if let Some(AttributeValue::IntValue(i)) =
-            attributes.get("sentry.trace_flags").and_then(|a| a.value())
-        {
-            ourlog_value
-                .other
-                .insert("trace_flags".to_string(), Annotated::new(Value::I64(*i)));
-        }
-
-        if let Some(AttributeValue::StringValue(s)) = attributes
-            .get("sentry.observed_timestamp_nanos")
-            .and_then(|a| a.value())
-        {
-            if let Ok(nanos) = s.parse::<u64>() {
+        if let Some(value) = ourlog_value.attribute("sentry.severity_text") {
+            if let Some(s) = value.as_str() {
                 ourlog_value.other.insert(
-                    "observed_timestamp_nanos".to_string(),
-                    Annotated::new(Value::U64(nanos)),
+                    "severity_text".to_string(),
+                    Annotated::new(Value::String(s.to_string())),
                 );
             }
         }
 
-        if let Some(AttributeValue::StringValue(s)) = attributes
-            .get("sentry.timestamp_nanos")
-            .and_then(|a| a.value())
-        {
-            if let Ok(nanos) = s.parse::<u64>() {
-                ourlog_value.other.insert(
-                    "timestamp_nanos".to_string(),
-                    Annotated::new(Value::U64(nanos)),
-                );
+        if let Some(value) = ourlog_value.attribute("sentry.severity_number") {
+            if let Some(v) = value.value() {
+                ourlog_value
+                    .other
+                    .insert("severity_number".to_string(), Annotated::new(v.clone()));
+            }
+        }
+
+        if let Some(value) = ourlog_value.attribute("sentry.trace_flags") {
+            if let Some(v) = value.value() {
+                ourlog_value
+                    .other
+                    .insert("trace_flags".to_string(), Annotated::new(v.clone()));
+            }
+        }
+
+        if let Some(value) = ourlog_value.attribute("sentry.observed_timestamp_nanos") {
+            if let Some(s) = value.as_str() {
+                if let Ok(nanos) = s.parse::<u64>() {
+                    ourlog_value.other.insert(
+                        "observed_timestamp_nanos".to_string(),
+                        Annotated::new(Value::U64(nanos)),
+                    );
+                }
+            }
+        }
+
+        if let Some(value) = ourlog_value.attribute("sentry.timestamp_nanos") {
+            if let Some(s) = value.as_str() {
+                if let Ok(nanos) = s.parse::<u64>() {
+                    ourlog_value.other.insert(
+                        "timestamp_nanos".to_string(),
+                        Annotated::new(Value::U64(nanos)),
+                    );
+                }
             }
         }
 
@@ -250,7 +275,7 @@ fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{get_path, get_value, SerializableAnnotated};
+    use relay_protocol::{get_path, SerializableAnnotated};
 
     #[test]
     fn parse_otel_log() {
@@ -395,8 +420,13 @@ mod tests {
             Some(&Annotated::new("Database query executed".into()))
         );
         assert_eq!(
-            get_value!(annotated_log.attributes["db.statement"]!).string_value(),
-            Some(&"SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into())
+            annotated_log
+                .value()
+                .and_then(|v| v.attribute("db.statement"))
+                .unwrap()
+                .value()
+                .and_then(|v| v.as_str()),
+            Some("SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s")
         );
     }
 
@@ -502,15 +532,33 @@ mod tests {
             level: Info,
             body: "Example log record",
             attributes: {
-                "foo": StringValue(
-                    "9",
-                ),
-                "sentry.severity_number": IntValue(
-                    9,
-                ),
-                "sentry.severity_text": StringValue(
-                    "info",
-                ),
+                "foo": OurLogAttribute {
+                    value: OurLogAttributeValue {
+                        ty: "string",
+                        value: String(
+                            "9",
+                        ),
+                    },
+                    other: {},
+                },
+                "sentry.severity_number": OurLogAttribute {
+                    value: OurLogAttributeValue {
+                        ty: "int",
+                        value: I64(
+                            9,
+                        ),
+                    },
+                    other: {},
+                },
+                "sentry.severity_text": OurLogAttribute {
+                    value: OurLogAttributeValue {
+                        ty: "string",
+                        value: String(
+                            "info",
+                        ),
+                    },
+                    other: {},
+                },
             },
             other: {
                 "observed_timestamp_nanos": U64(
@@ -536,7 +584,10 @@ mod tests {
         let mut attributes = Object::new();
         attributes.insert(
             "foo".to_string(),
-            Annotated::new(AttributeValue::StringValue("9".to_string())),
+            Annotated::new(OurLogAttribute::new(
+                OurLogAttributeType::String,
+                Value::String("9".to_string()),
+            )),
         );
         let datetime = Utc.with_ymd_and_hms(2021, 11, 29, 0, 0, 0).unwrap();
         let ourlog = OurLog {
@@ -563,15 +614,33 @@ mod tests {
             level: ~,
             body: ~,
             attributes: {
-                "foo": StringValue(
-                    "9",
-                ),
-                "sentry.severity_number": IntValue(
-                    25,
-                ),
-                "sentry.severity_text": StringValue(
-                    "info",
-                ),
+                "foo": OurLogAttribute {
+                    value: OurLogAttributeValue {
+                        ty: "string",
+                        value: String(
+                            "9",
+                        ),
+                    },
+                    other: {},
+                },
+                "sentry.severity_number": OurLogAttribute {
+                    value: OurLogAttributeValue {
+                        ty: "int",
+                        value: I64(
+                            25,
+                        ),
+                    },
+                    other: {},
+                },
+                "sentry.severity_text": OurLogAttribute {
+                    value: OurLogAttributeValue {
+                        ty: "string",
+                        value: String(
+                            "info",
+                        ),
+                    },
+                    other: {},
+                },
             },
             other: {
                 "observed_timestamp_nanos": U64(
@@ -595,13 +664,16 @@ mod tests {
           "timestamp": 1638144000.0,
           "attributes": {
             "foo": {
-              "string_value": "9"
+              "type": "string",
+              "value": "9"
             },
             "sentry.severity_number": {
-              "int_value": 25
+              "type": "int",
+              "value": 25
             },
             "sentry.severity_text": {
-              "string_value": "info"
+              "type": "string",
+              "value": "info"
             }
           },
           "observed_timestamp_nanos": 1742481864000000000,
