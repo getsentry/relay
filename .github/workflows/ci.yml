@@ -347,7 +347,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y llvm curl
 
-      Skip this for the time being
       - name: Install sentry-cli
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
