@@ -20,8 +20,8 @@ pub(crate) enum SwitchProcessingError {
     EnvelopeParsing(#[from] EnvelopeError),
     #[error("unexpected EOF, expected {expected:?}")]
     UnexpectedEof { expected: String },
-    #[error("invalid {0:?}")]
-    InvalidValue(String),
+    #[error("invalid {0:?} ({1:?})")]
+    InvalidValue(String, usize),
     #[error("Zstandard error")]
     Zstandard(#[source] std::io::Error),
 }
@@ -89,7 +89,10 @@ fn expand_dying_message(mut payload: Bytes, envelope: &mut Envelope) -> Result<(
         })?;
     match version {
         0 => expand_dying_message_v0(payload, envelope),
-        _ => Err(SwitchProcessingError::InvalidValue("version".into())),
+        _ => Err(SwitchProcessingError::InvalidValue(
+            "version".into(),
+            version as usize,
+        )),
     }
 }
 
@@ -163,7 +166,10 @@ fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Resul
 
     match format {
         0 => expand_dying_message_from_envelope_items(data, envelope),
-        _ => Err(SwitchProcessingError::InvalidValue("payload format".into())),
+        _ => Err(SwitchProcessingError::InvalidValue(
+            "payload format".into(),
+            format as usize,
+        )),
     }
 }
 
@@ -203,6 +209,7 @@ fn decompress_data(
     if payload.len() < compressed_length {
         return Err(SwitchProcessingError::InvalidValue(
             "compressed data length".into(),
+            compressed_length,
         ));
     }
 
@@ -216,6 +223,7 @@ fn decompress_data(
             .map_err(SwitchProcessingError::Zstandard),
         _ => Err(SwitchProcessingError::InvalidValue(
             "compression format".into(),
+            compression as usize,
         )),
     }
 }

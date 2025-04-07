@@ -535,7 +535,7 @@ pub enum ProcessingError {
     ReplayFiltered(FilterStatKey),
 
     #[cfg(feature = "processing")]
-    #[error("nintendo switch dying message processing failed")]
+    #[error("nintendo switch dying message processing failed {0:?}")]
     InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 }
 
@@ -2248,6 +2248,7 @@ impl EnvelopeProcessorService {
                             extracted_metrics: extracted_metrics.map_or(ProcessingExtractedMetrics::new(), |e| e)
                         }),
                         Err(error) => {
+                            relay_log::trace!("Executing {fn} failed: {error}", fn = stringify!($fn_name), error = error);
                             if let Some(outcome) = error.to_outcome() {
                                 managed_envelope.reject(outcome);
                             }
