@@ -149,7 +149,7 @@ def test_span_extraction(
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     if performance_issues_spans:
-        assert transaction_span.pop("_performance_issues_spans") == True
+        assert transaction_span.pop("_performance_issues_spans") is True
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
