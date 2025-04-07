@@ -70,6 +70,10 @@ fn derive_empty(mut s: synstructure::Structure<'_>) -> syn::Result<TokenStream> 
                 cond = quote! {
                     #cond && #bi.values().all(|v| v.skip_serialization(#skip_serialization_attr))
                 };
+            } else if field_attrs.flatten {
+                cond = quote! {
+                    #cond && ::relay_protocol::Empty::is_deep_empty(#ident)
+                };
             } else {
                 cond = quote! {
                     #cond && #ident.skip_serialization(#skip_serialization_attr)
@@ -341,8 +345,9 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
             }
 
             (quote! {
-                let #bi = __obj.into_iter().map(|(__key, __value)| (__key, ::relay_protocol::FromValue::from_value(__value))).collect();
+                let #bi = ::std::mem::take(__obj).into_iter().map(|(__key, __value)| (__key, ::relay_protocol::FromValue::from_value(__value))).collect();
             }).to_tokens(&mut from_value_body);
+
             (quote! {
                 __map.extend(#bi.into_iter().map(|(__key, __value)| (
                     __key,
@@ -360,6 +365,7 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                 }
             })
             .to_tokens(&mut serialize_body);
+
             (quote! {
                 for (__key, __value) in #bi.iter() {
                     let __inner_tree = ::relay_protocol::IntoValue::extract_meta_tree(__value);
@@ -367,6 +373,29 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                         __child_meta.insert(__key.to_string(), __inner_tree);
                     }
                 }
+            })
+            .to_tokens(&mut extract_child_meta_body);
+        } else if field_attrs.flatten {
+            if is_tuple_struct {
+                panic!("flatten not allowed in tuple struct");
+            }
+
+            (quote! {
+                let #bi = ::relay_protocol::FromObjectRef::from_object_ref(__obj);
+            })
+            .to_tokens(&mut from_value_body);
+
+            (quote! {
+                ::relay_protocol::IntoObjectRef::into_object_ref(#bi, __map);
+            })
+            .to_tokens(&mut to_value_body);
+
+            (quote! {
+                ::relay_protocol::IntoValue::serialize_payload(#bi, ::serde::__private::ser::FlatMapSerializer(&mut __map_serializer), __behavior)?;
+            }).to_tokens(&mut serialize_body);
+
+            (quote! {
+                __child_meta.extend(::relay_protocol::IntoValue::extract_child_meta(#bi));
             })
             .to_tokens(&mut extract_child_meta_body);
         } else {
@@ -442,47 +471,66 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
     Ok(match t {
         Trait::From => {
             let bindings_count = variant.bindings().len();
-            let valid_match_arm = if is_tuple_struct {
-                quote! {
-                    ::relay_protocol::Annotated(Some(::relay_protocol::Value::Array(mut __arr)), mut __meta) => {
-                        if __arr.len() != #bindings_count {
-                            __meta.add_error(Error::expected(concat!("a ", stringify!(#bindings_count), "-tuple")));
-                            __meta.set_original_value(Some(__arr));
-                            Annotated(None, __meta)
-                        } else {
-                            let mut __arr = __arr.into_iter();
-                            #from_value_body;
-                            ::relay_protocol::Annotated(Some(#to_structure_assemble_pat), __meta)
-                        }
-                    }
-                }
-            } else {
-                quote! {
-                    ::relay_protocol::Annotated(Some(::relay_protocol::Value::Object(mut __obj)), __meta) => {
-                        #from_value_body;
-                        ::relay_protocol::Annotated(Some(#to_structure_assemble_pat), __meta)
-                    }
-                }
-            };
-
-            s.gen_impl(quote! {
-                #[automatically_derived]
-                gen impl ::relay_protocol::FromValue for @Self {
-                    fn from_value(
-                        __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
-                    ) -> ::relay_protocol::Annotated<Self> {
-                        match __value {
-                            #valid_match_arm
-                            ::relay_protocol::Annotated(None, __meta) => ::relay_protocol::Annotated(None, __meta),
-                            ::relay_protocol::Annotated(Some(__value), mut __meta) => {
-                                __meta.add_error(::relay_protocol::Error::expected(#expectation));
-                                __meta.set_original_value(Some(__value));
-                                ::relay_protocol::Annotated(None, __meta)
+            if is_tuple_struct {
+                s.gen_impl(quote! {
+                    #[automatically_derived]
+                    gen impl ::relay_protocol::FromValue for @Self {
+                        fn from_value(
+                            __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
+                        ) -> ::relay_protocol::Annotated<Self> {
+                            match __value {
+                                ::relay_protocol::Annotated(Some(::relay_protocol::Value::Array(mut __arr)), mut __meta) => {
+                                    if __arr.len() != #bindings_count {
+                                        __meta.add_error(Error::expected(concat!("a ", stringify!(#bindings_count), "-tuple")));
+                                        __meta.set_original_value(Some(__arr));
+                                        Annotated(None, __meta)
+                                    } else {
+                                        let mut __arr = __arr.into_iter();
+                                        #from_value_body;
+                                        ::relay_protocol::Annotated(Some(#to_structure_assemble_pat), __meta)
+                                    }
+                                }
+                                ::relay_protocol::Annotated(None, __meta) => ::relay_protocol::Annotated(None, __meta),
+                                ::relay_protocol::Annotated(Some(__value), mut __meta) => {
+                                    __meta.add_error(::relay_protocol::Error::expected(#expectation));
+                                    __meta.set_original_value(Some(__value));
+                                    ::relay_protocol::Annotated(None, __meta)
+                                }
                             }
                         }
                     }
-                }
-            })
+                })
+            } else {
+                s.gen_impl(quote! {
+                    #[automatically_derived]
+                    gen impl ::relay_protocol::FromValue for @Self {
+                        fn from_value(
+                            mut __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
+                        ) -> ::relay_protocol::Annotated<Self> {
+                            match __value {
+                                ::relay_protocol::Annotated(Some(::relay_protocol::Value::Object(ref mut __obj)), __meta) => {
+                                    #from_value_body;
+                                    ::relay_protocol::Annotated(Some(#to_structure_assemble_pat), __meta)
+                                },
+                                ::relay_protocol::Annotated(None, __meta) => ::relay_protocol::Annotated(None, __meta),
+                                ::relay_protocol::Annotated(Some(__value), mut __meta) => {
+                                    __meta.add_error(::relay_protocol::Error::expected(#expectation));
+                                    __meta.set_original_value(Some(__value));
+                                    ::relay_protocol::Annotated(None, __meta)
+                                }
+                            }
+                        }
+                    }
+
+                    #[automatically_derived]
+                    gen impl ::relay_protocol::FromObjectRef for @Self {
+                        fn from_object_ref(__obj: &mut relay_protocol::Object<::relay_protocol::Value>) -> Self {
+                            #from_value_body;
+                            #to_structure_assemble_pat
+                        }
+                    }
+                })
+            }
         }
         Trait::To => {
             let into_value = if is_tuple_struct {
@@ -494,10 +542,11 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                 }
             } else {
                 quote! {
-                    let mut __map = ::relay_protocol::Object::new();
+                    let mut __map_ret = ::relay_protocol::Object::new();
                     let #to_value_pat = self;
+                    let mut __map = &mut __map_ret;
                     #to_value_body;
-                    ::relay_protocol::Value::Object(__map)
+                    ::relay_protocol::Value::Object(__map_ret)
                 }
             };
 
@@ -515,7 +564,7 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                 }
             };
 
-            s.gen_impl(quote! {
+            let into_value = s.gen_impl(quote! {
                 #[automatically_derived]
                 gen impl ::relay_protocol::IntoValue for @Self {
                     fn into_value(self) -> ::relay_protocol::Value {
@@ -541,7 +590,22 @@ fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Re
                         __child_meta
                     }
                 }
-            })
+            });
+
+            let into_object_ref = (!is_tuple_struct).then(|| s.gen_impl(quote! {
+                #[automatically_derived]
+                gen impl ::relay_protocol::IntoObjectRef for @Self {
+                    fn into_object_ref(self, __map: &mut ::relay_protocol::Object<::relay_protocol::Value>) {
+                        let #to_value_pat = self;
+                        #to_value_body;
+                    }
+                }
+            }));
+
+            quote! {
+                #into_value
+                #into_object_ref
+            }
         }
     })
 }
@@ -589,6 +653,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAtt
 struct FieldAttrs {
     additional_properties: bool,
     field_name: String,
+    flatten: bool,
     legacy_aliases: Vec<String>,
     skip_serialization: SkipSerialization,
 }
@@ -665,6 +730,8 @@ fn parse_field_attributes(
                 // Skip
             } else if ident == "field" {
                 rv.field_name = meta.value()?.parse::<LitStr>()?.value();
+            } else if ident == "flatten" {
+                rv.flatten = true;
             } else if ident == "legacy_alias" {
                 rv.legacy_aliases
                     .push(meta.value()?.parse::<LitStr>()?.value());

@@ -1145,7 +1145,7 @@ impl Visitor for SqlTableNameVisitor {
 
     fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
         if let Some(name) = relation.0.last() {
-            let last = name.value.split('.').last().unwrap_or(&name.value);
+            let last = name.value.split('.').next_back().unwrap_or(&name.value);
             self.table_names.insert(last.to_lowercase());
         }
         ControlFlow::Continue(())

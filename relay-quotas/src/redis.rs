@@ -3,7 +3,7 @@ use std::fmt::{self, Debug};
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
-use relay_redis::{RedisError, RedisPool, RedisScripts};
+use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
 use crate::global::GlobalLimiter;
@@ -21,7 +21,11 @@ const GRACE: u64 = 60;
 pub enum RateLimitingError {
     /// Failed to communicate with Redis.
     #[error("failed to communicate with redis")]
-    Redis(#[source] RedisError),
+    Redis(
+        #[from]
+        #[source]
+        RedisError,
+    ),
 
     /// Failed to check global rate limits via the service.
     #[error("failed to check global rate limits")]
@@ -222,7 +226,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 ///
 /// Requires the `redis` feature.
 pub struct RedisRateLimiter<T> {
-    pool: RedisPool,
+    client: AsyncRedisClient,
     script: &'static Script,
     max_limit: Option<u64>,
     global_limiter: T,
@@ -230,9 +234,9 @@ pub struct RedisRateLimiter<T> {
 
 impl<T: GlobalLimiter> RedisRateLimiter<T> {
     /// Creates a new [`RedisRateLimiter`] instance.
-    pub fn new(pool: RedisPool, global_limiter: T) -> Self {
+    pub fn new(client: AsyncRedisClient, global_limiter: T) -> Self {
         RedisRateLimiter {
-            pool,
+            client,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limiter,
@@ -340,11 +344,11 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
         // We get the redis client after the global rate limiting since we don't want to hold the
         // client across await points, otherwise it might be held for too long, and we will run out
         // of connections.
-        let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
+        let mut connection = self.client.get_connection().await?;
         let rejections: Vec<bool> = invocation
-            .invoke(&mut client.connection().map_err(RateLimitingError::Redis)?)
-            .map_err(RedisError::Redis)
-            .map_err(RateLimitingError::Redis)?;
+            .invoke_async(&mut connection)
+            .await
+            .map_err(RedisError::Redis)?;
 
         for (quota, is_rejected) in tracked_quotas.iter().zip(rejections) {
             if is_rejected {
@@ -370,23 +374,22 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
-
-    use relay_base_schema::metrics::MetricNamespace;
-    use relay_base_schema::organization::OrganizationId;
-    use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_redis::redis::Commands;
-    use relay_redis::RedisConfigOptions;
-    use smallvec::smallvec;
 
     use super::*;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
     use crate::{GlobalRateLimiter, MetricNamespaceScoping};
+    use relay_base_schema::metrics::MetricNamespace;
+    use relay_base_schema::organization::OrganizationId;
+    use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_redis::redis::AsyncCommands;
+    use relay_redis::RedisConfigOptions;
+    use smallvec::smallvec;
+    use tokio::sync::Mutex;
 
     struct MockGlobalLimiter {
-        pool: RedisPool,
+        client: AsyncRedisClient,
         global_rate_limiter: Mutex<GlobalRateLimiter>,
     }
 
@@ -396,26 +399,26 @@ mod tests {
             global_quotas: &'a [RedisQuota<'a>],
             quantity: usize,
         ) -> Result<Vec<&'a RedisQuota<'a>>, RateLimitingError> {
-            let mut client = self.pool.client().unwrap();
             self.global_rate_limiter
                 .lock()
-                .unwrap()
-                .filter_rate_limited(&mut client, global_quotas, quantity)
+                .await
+                .filter_rate_limited(&self.client, global_quotas, quantity)
+                .await
         }
     }
 
     fn build_rate_limiter() -> RedisRateLimiter<MockGlobalLimiter> {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
-        let pool = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
+        let client = AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap();
 
         let global_limiter = MockGlobalLimiter {
-            pool: pool.clone(),
+            client: client.clone(),
             global_rate_limiter: Mutex::new(GlobalRateLimiter::default()),
         };
 
         RedisRateLimiter {
-            pool,
+            client,
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limiter,
@@ -998,8 +1001,7 @@ mod tests {
             .unwrap();
 
         let rate_limiter = build_rate_limiter();
-        let mut client = rate_limiter.pool.client().expect("get client");
-        let mut conn = client.connection().expect("Redis connection");
+        let mut conn = rate_limiter.client.get_connection().await.unwrap();
 
         // define a few keys with random seed such that they do not collide with repeated test runs
         let foo = format!("foo___{now}");
@@ -1029,13 +1031,19 @@ mod tests {
 
         // The item should not be rate limited by either key.
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![false, false]
         );
 
         // The item should be rate limited by the first key (1).
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![true, false]
         );
 
@@ -1044,26 +1052,29 @@ mod tests {
         // we've checked the quotas. This ensures items that are rejected by a lower
         // quota don't affect unrelated items that share a parent quota.
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![true, false]
         );
 
-        assert_eq!(conn.get::<_, String>(&foo).unwrap(), "1");
-        let ttl: u64 = conn.ttl(&foo).unwrap();
+        assert_eq!(conn.get::<_, String>(&foo).await.unwrap(), "1");
+        let ttl: u64 = conn.ttl(&foo).await.unwrap();
         assert!(ttl >= 59);
         assert!(ttl <= 60);
 
-        assert_eq!(conn.get::<_, String>(&bar).unwrap(), "1");
-        let ttl: u64 = conn.ttl(&bar).unwrap();
+        assert_eq!(conn.get::<_, String>(&bar).await.unwrap(), "1");
+        let ttl: u64 = conn.ttl(&bar).await.unwrap();
         assert!(ttl >= 119);
         assert!(ttl <= 120);
 
         // make sure "refund/negative" keys haven't been incremented
-        let () = conn.get(r_foo).unwrap();
-        let () = conn.get(r_bar).unwrap();
+        let () = conn.get(r_foo).await.unwrap();
+        let () = conn.get(r_bar).await.unwrap();
 
         // Test that refunded quotas work
-        let () = conn.set(&apple, 5).unwrap();
+        let () = conn.set(&apple, 5).await.unwrap();
 
         let mut invocation = script.prepare_invoke();
         invocation
@@ -1076,13 +1087,19 @@ mod tests {
 
         // increment
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![false]
         );
 
         // test that it's rate limited without refund
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![true]
         );
 
@@ -1097,7 +1114,10 @@ mod tests {
 
         // test that refund key is used
         assert_eq!(
-            invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
+            invocation
+                .invoke_async::<Vec<bool>>(&mut conn)
+                .await
+                .unwrap(),
             vec![false]
         );
     }

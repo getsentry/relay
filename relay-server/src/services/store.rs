@@ -1350,6 +1350,8 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     data: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    kind: Option<&'a str>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(default)]
@@ -1390,6 +1392,13 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+
+    #[serde(
+        default,
+        rename = "_meta",
+        skip_serializing_if = "none_or_empty_object"
+    )]
+    meta: Option<&'a RawValue>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

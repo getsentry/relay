@@ -566,7 +566,6 @@ pub enum CheckLimits {
     /// and cannot be dropped too early.
     NonIndexed,
     /// Checks all limits against the envelope.
-    #[cfg_attr(not(any(feature = "processing", test)), expect(dead_code))]
     All,
 }
 
@@ -630,7 +629,6 @@ where
     /// This ensures that rate limits for the given data category are checked even if there is no
     /// matching item in the envelope. Other items are handled according to the rules as if the
     /// event item were present.
-    #[cfg(feature = "processing")]
     pub fn assume_event(&mut self, category: DataCategory) {
         self.event_category = Some(category);
     }

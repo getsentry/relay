@@ -1,7 +1,7 @@
-use std::time::Duration;
-
-use relay_redis::{Connection, RedisPool};
+use async_trait::async_trait;
+use relay_redis::{AsyncRedisClient, AsyncRedisConnection};
 use relay_statsd::metric;
+use std::time::Duration;
 
 use crate::{
     limiter::{CardinalityReport, Entry, Limiter, Reporter, Scoping},
@@ -26,7 +26,7 @@ pub struct RedisSetLimiterOptions {
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
-    redis: RedisPool,
+    redis: AsyncRedisClient,
     script: CardinalityScript,
     cache: Cache,
     #[cfg(test)]
@@ -38,7 +38,7 @@ pub struct RedisSetLimiter {
 /// A Redis based limiter using Redis sets to track cardinality and membership.
 impl RedisSetLimiter {
     /// Creates a new [`RedisSetLimiter`].
-    pub fn new(options: RedisSetLimiterOptions, redis: RedisPool) -> Self {
+    pub fn new(options: RedisSetLimiterOptions, redis: AsyncRedisClient) -> Self {
         Self {
             redis,
             script: CardinalityScript::load(),
@@ -53,9 +53,9 @@ impl RedisSetLimiter {
     /// Checks the limits for a specific scope.
     ///
     /// Returns an iterator over all entries which have been accepted.
-    fn check_limits(
+    async fn check_limits(
         &self,
-        connection: &mut Connection<'_>,
+        connection: &mut AsyncRedisConnection,
         state: &mut LimitState<'_>,
         timestamp: UnixTimestamp,
     ) -> Result<Vec<CheckedLimits>> {
@@ -82,7 +82,7 @@ impl RedisSetLimiter {
             id = state.id(),
         );
 
-        let results = pipeline.invoke(connection)?;
+        let results = pipeline.invoke(connection).await?;
 
         debug_assert_eq!(results.len(), scopes.len());
         scopes
@@ -100,8 +100,9 @@ impl RedisSetLimiter {
     }
 }
 
+#[async_trait]
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<'a, 'b, E, R>(
+    async fn check_cardinality_limits<'a, 'b, E, R>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
@@ -109,79 +110,88 @@ impl Limiter for RedisSetLimiter {
         reporter: &mut R,
     ) -> Result<()>
     where
-        E: IntoIterator<Item = Entry<'b>>,
-        R: Reporter<'a>,
+        E: IntoIterator<Item = Entry<'b>> + Send,
+        R: Reporter<'a> + Send,
     {
         #[cfg(not(test))]
         let timestamp = UnixTimestamp::now();
-        // Allows to fast forward time in tests using a fixed offset.
+        // Allows to fast-forward time in tests using a fixed offset.
         #[cfg(test)]
         let timestamp = self.timestamp + self.time_offset;
 
         let mut states = LimitState::from_limits(scoping, limits);
 
-        let cache = self.cache.read(timestamp); // Acquire a read lock.
-        for entry in entries {
-            for state in states.iter_mut() {
-                let Some(scope) = state.matching_scope(entry) else {
-                    // Entry not relevant for limit.
-                    continue;
-                };
+        {
+            // Acquire a read lock on the cache.
+            let cache = self.cache.read(timestamp);
+            for entry in entries {
+                for state in states.iter_mut() {
+                    let Some(scope) = state.matching_scope(entry) else {
+                        // Entry not relevant for limit.
+                        continue;
+                    };
 
-                match cache.check(&scope, entry.hash, state.limit) {
-                    CacheOutcome::Accepted => {
-                        // Accepted already, nothing to do.
-                        state.cache_hit();
-                        state.accepted();
-                    }
-                    CacheOutcome::Rejected => {
-                        // Rejected, add it to the rejected list and move on.
-                        reporter.reject(state.cardinality_limit(), entry.id);
-                        state.cache_hit();
-                        state.rejected();
-                    }
-                    CacheOutcome::Unknown => {
-                        // Add the entry to the state -> needs to be checked with Redis.
-                        state.add(scope, RedisEntry::new(entry.id, entry.hash));
-                        state.cache_miss();
+                    match cache.check(&scope, entry.hash, state.limit) {
+                        CacheOutcome::Accepted => {
+                            // Accepted already, nothing to do.
+                            state.cache_hit();
+                            state.accepted();
+                        }
+                        CacheOutcome::Rejected => {
+                            // Rejected, add it to the rejected list and move on.
+                            reporter.reject(state.cardinality_limit(), entry.id);
+                            state.cache_hit();
+                            state.rejected();
+                        }
+                        CacheOutcome::Unknown => {
+                            // Add the entry to the state -> needs to be checked with Redis.
+                            state.add(scope, RedisEntry::new(entry.id, entry.hash));
+                            state.cache_miss();
+                        }
                     }
                 }
             }
         }
-        drop(cache); // Give up the cache lock!
 
-        let mut client = self.redis.client()?;
-        let mut connection = client.connection()?;
+        let mut connection = self.redis.get_connection().await?;
 
         for mut state in states {
             if state.is_empty() {
                 continue;
             }
 
+            let id = &state.id().to_string();
+            let scopes = num_scopes_tag(&state);
             let results = metric!(
                 timer(CardinalityLimiterTimers::Redis),
-                id = state.id(),
-                scopes = num_scopes_tag(&state),
-                { self.check_limits(&mut connection, &mut state, timestamp) }
+                id = id,
+                scopes = scopes,
+                {
+                    self.check_limits(&mut connection, &mut state, timestamp)
+                        .await
+                }
             )?;
 
             for result in results {
                 reporter.report_cardinality(state.cardinality_limit(), result.to_report(timestamp));
 
-                // This always acquires a write lock, but we only hit this
-                // if we previously didn't satisfy the request from the cache,
-                // -> there is a very high chance we actually need the lock.
-                let mut cache = self.cache.update(&result.scope, timestamp); // Acquire a write lock.
-                for (entry, status) in result {
-                    if status.is_rejected() {
-                        reporter.reject(state.cardinality_limit(), entry.id);
-                        state.rejected();
-                    } else {
-                        cache.accept(entry.hash);
-                        state.accepted();
+                {
+                    // This always acquires a write lock, but we only hit this
+                    // if we previously didn't satisfy the request from the cache,
+                    // -> there is a very high chance we actually need the lock.
+                    //
+                    // Acquire a read lock on the cache.
+                    let mut cache = self.cache.update(&result.scope, timestamp);
+                    for (entry, status) in result {
+                        if status.is_rejected() {
+                            reporter.reject(state.cardinality_limit(), entry.id);
+                            state.rejected();
+                        } else {
+                            cache.accept(entry.hash);
+                            state.accepted();
+                        }
                     }
                 }
-                drop(cache); // Give up the cache lock!
             }
         }
 
@@ -280,7 +290,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        let redis = RedisPool::single(&url, opts).unwrap();
+        let redis = AsyncRedisClient::single(&url, &opts).unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {
@@ -290,7 +300,7 @@ mod tests {
         )
     }
 
-    fn new_scoping(limiter: &RedisSetLimiter) -> Scoping {
+    async fn new_scoping(limiter: &RedisSetLimiter) -> Scoping {
         static ORGS: AtomicU64 = AtomicU64::new(100);
 
         let scoping = Scoping {
@@ -300,7 +310,7 @@ mod tests {
             project_id: ProjectId::new(1),
         };
 
-        limiter.flush(scoping);
+        limiter.flush(scoping).await;
 
         scoping
     }
@@ -347,18 +357,18 @@ mod tests {
 
     impl RedisSetLimiter {
         /// Remove all redis state for an organization.
-        fn flush(&self, scoping: Scoping) {
+        async fn flush(&self, scoping: Scoping) {
             let pattern = format!(
                 "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*",
                 o = scoping.organization_id
             );
 
-            let mut client = self.redis.client().unwrap();
-            let mut connection = client.connection().unwrap();
+            let mut connection = self.redis.get_connection().await.unwrap();
 
             let keys = redis::cmd("KEYS")
                 .arg(pattern)
-                .query::<Vec<String>>(&mut connection)
+                .query_async::<Vec<String>>(&mut connection)
+                .await
                 .unwrap();
 
             if !keys.is_empty() {
@@ -366,46 +376,50 @@ mod tests {
                 for key in keys {
                     del.arg(key);
                 }
-                del.query::<()>(&mut connection).unwrap();
+                del.query_async::<()>(&mut connection).await.unwrap();
             }
         }
 
-        fn redis_sets(&self, scoping: Scoping) -> Vec<(String, usize)> {
+        async fn redis_sets(&self, scoping: Scoping) -> Vec<(String, usize)> {
             let pattern = format!(
                 "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*",
                 o = scoping.organization_id
             );
 
-            let mut client = self.redis.client().unwrap();
-            let mut connection = client.connection().unwrap();
+            let mut connection = self.redis.get_connection().await.unwrap();
 
-            redis::cmd("KEYS")
+            let keys: Vec<String> = redis::cmd("KEYS")
                 .arg(pattern)
-                .query::<Vec<String>>(&mut connection)
-                .unwrap()
-                .into_iter()
-                .map(move |key| {
-                    let size = redis::cmd("SCARD")
-                        .arg(&key)
-                        .query::<usize>(&mut connection)
-                        .unwrap();
+                .query_async(&mut connection)
+                .await
+                .unwrap();
 
-                    (key, size)
-                })
-                .collect()
+            let mut results = Vec::with_capacity(keys.len());
+            for key in keys {
+                let size = redis::cmd("SCARD")
+                    .arg(&key)
+                    .query_async(&mut connection)
+                    .await
+                    .unwrap();
+
+                results.push((key, size));
+            }
+
+            results
         }
 
-        fn test_limits<'a, I>(
+        async fn test_limits<'a, I>(
             &self,
             scoping: Scoping,
             limits: &'a [CardinalityLimit],
             entries: I,
         ) -> TestReporter
         where
-            I: IntoIterator<Item = Entry<'a>>,
+            I: IntoIterator<Item = Entry<'a>> + Send,
         {
             let mut reporter = TestReporter::default();
             self.check_cardinality_limits(scoping, limits, entries, &mut reporter)
+                .await
                 .unwrap();
             for reports in reporter.reports.values_mut() {
                 reports.sort();
@@ -418,8 +432,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_limiter_accept_previously_seen() {
+    #[tokio::test]
+    async fn test_limiter_accept_previously_seen() {
         let limiter = build_limiter();
 
         let m0 = MetricName::from("a");
@@ -438,7 +452,7 @@ mod tests {
             Entry::new(EntryId(5), Custom, &m5, 5),
         ];
 
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
         let mut limit = CardinalityLimit {
             id: "limit".to_owned(),
             passive: false,
@@ -453,23 +467,27 @@ mod tests {
         };
 
         // 6 items, limit is 5 -> 1 rejection.
-        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
+        let rejected = limiter
+            .test_limits(scoping, &[limit.clone()], entries)
+            .await;
         assert_eq!(rejected.len(), 1);
 
         // We're at the limit but it should still accept already accepted elements, even with a
         // samller limit than previously accepted.
         limit.limit = 3;
-        let rejected2 = limiter.test_limits(scoping, &[limit.clone()], entries);
+        let rejected2 = limiter
+            .test_limits(scoping, &[limit.clone()], entries)
+            .await;
         assert_eq!(rejected2.entries, rejected.entries);
 
         // A higher limit should accept everthing
         limit.limit = 6;
-        let rejected3 = limiter.test_limits(scoping, &[limit], entries);
+        let rejected3 = limiter.test_limits(scoping, &[limit], entries).await;
         assert_eq!(rejected3.len(), 0);
     }
 
-    #[test]
-    fn test_limiter_name_limit() {
+    #[tokio::test]
+    async fn test_limiter_name_limit() {
         let limiter = build_limiter();
 
         let m0 = MetricName::from("a");
@@ -484,7 +502,7 @@ mod tests {
             Entry::new(EntryId(5), Custom, &m1, 5),
         ];
 
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
         let limit = CardinalityLimit {
             id: "limit".to_owned(),
             passive: false,
@@ -498,7 +516,9 @@ mod tests {
             namespace: Some(Custom),
         };
 
-        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
+        let rejected = limiter
+            .test_limits(scoping, &[limit.clone()], entries)
+            .await;
         assert_eq!(rejected.len(), 2);
         assert!(rejected.contains_any([0, 1, 2]));
         assert!(rejected.contains_any([3, 4, 5]));
@@ -528,8 +548,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_limiter_type_limit() {
+    #[tokio::test]
+    async fn test_limiter_type_limit() {
         let limiter = build_limiter();
 
         let m0 = MetricName::from("c:custom/foo@none");
@@ -545,7 +565,7 @@ mod tests {
             Entry::new(EntryId(5), Custom, &m2, 5),
         ];
 
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
         let limit = CardinalityLimit {
             id: "limit".to_owned(),
             passive: false,
@@ -559,7 +579,9 @@ mod tests {
             namespace: Some(Custom),
         };
 
-        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
+        let rejected = limiter
+            .test_limits(scoping, &[limit.clone()], entries)
+            .await;
         assert_eq!(rejected.len(), 2);
         assert!(rejected.contains_any([0, 1, 2]));
         assert!(rejected.contains_any([3, 4, 5]));
@@ -589,8 +611,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_limiter_org_based_time_shift() {
+    #[tokio::test]
+    async fn test_limiter_org_based_time_shift() {
         let mut limiter = build_limiter();
 
         let granularity_seconds = 10_000;
@@ -621,13 +643,25 @@ mod tests {
         let m = MetricName::from("a");
 
         let entries1 = [Entry::new(EntryId(0), Custom, &m, 0)];
-        assert!(limiter.test_limits(scoping1, limits, entries1).is_empty());
-        assert!(limiter.test_limits(scoping2, limits, entries1).is_empty());
+        assert!(limiter
+            .test_limits(scoping1, limits, entries1)
+            .await
+            .is_empty());
+        assert!(limiter
+            .test_limits(scoping2, limits, entries1)
+            .await
+            .is_empty());
 
         // Make sure `entries2` is not accepted.
         let entries2 = [Entry::new(EntryId(1), Custom, &m, 1)];
-        assert_eq!(limiter.test_limits(scoping1, limits, entries2).len(), 1);
-        assert_eq!(limiter.test_limits(scoping2, limits, entries2).len(), 1);
+        assert_eq!(
+            limiter.test_limits(scoping1, limits, entries2).await.len(),
+            1
+        );
+        assert_eq!(
+            limiter.test_limits(scoping2, limits, entries2).await.len(),
+            1
+        );
 
         let mut scoping1_accept = None;
         let mut scoping2_accept = None;
@@ -639,13 +673,19 @@ mod tests {
             limiter.time_offset = Duration::from_secs(offset);
 
             if scoping1_accept.is_none()
-                && limiter.test_limits(scoping1, limits, entries2).is_empty()
+                && limiter
+                    .test_limits(scoping1, limits, entries2)
+                    .await
+                    .is_empty()
             {
                 scoping1_accept = Some(offset as i64);
             }
 
             if scoping2_accept.is_none()
-                && limiter.test_limits(scoping2, limits, entries2).is_empty()
+                && limiter
+                    .test_limits(scoping2, limits, entries2)
+                    .await
+                    .is_empty()
             {
                 scoping2_accept = Some(offset as i64);
             }
@@ -664,10 +704,10 @@ mod tests {
         assert_eq!(diff, expected);
     }
 
-    #[test]
-    fn test_limiter_small_within_limits() {
+    #[tokio::test]
+    async fn test_limiter_small_within_limits() {
         let limiter = build_limiter();
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
 
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
@@ -687,21 +727,21 @@ mod tests {
         let entries = (0..50)
             .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
             .collect::<Vec<_>>();
-        let rejected = limiter.test_limits(scoping, limits, entries);
+        let rejected = limiter.test_limits(scoping, limits, entries).await;
         assert_eq!(rejected.len(), 0);
 
         let entries = (100..150)
             .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
             .collect::<Vec<_>>();
-        let rejected = limiter.test_limits(scoping, limits, entries);
+        let rejected = limiter.test_limits(scoping, limits, entries).await;
         assert_eq!(rejected.len(), 0);
     }
 
-    #[test]
-    fn test_limiter_big_limit() {
+    #[tokio::test]
+    async fn test_limiter_big_limit() {
         let limiter = build_limiter();
 
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
             passive: false,
@@ -721,15 +761,15 @@ mod tests {
             .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
             .collect::<Vec<_>>();
 
-        let rejected = limiter.test_limits(scoping, limits, entries);
+        let rejected = limiter.test_limits(scoping, limits, entries).await;
         assert_eq!(rejected.len(), 20_000);
     }
 
-    #[test]
-    fn test_limiter_sliding_window() {
+    #[tokio::test]
+    async fn test_limiter_sliding_window() {
         let mut limiter = build_limiter();
 
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
         let window = SlidingWindow {
             window_seconds: 3600,
             granularity_seconds: 360,
@@ -751,7 +791,7 @@ mod tests {
         let entries2 = [Entry::new(EntryId(1), Custom, &m1, 1)];
 
         // 1 item and limit is 1 -> No rejections.
-        let rejected = limiter.test_limits(scoping, limits, entries1);
+        let rejected = limiter.test_limits(scoping, limits, entries1).await;
         assert_eq!(rejected.len(), 0);
 
         for i in 0..(window.window_seconds / window.granularity_seconds) * 2 {
@@ -759,27 +799,27 @@ mod tests {
             limiter.time_offset = Duration::from_secs(i * window.granularity_seconds);
 
             // Should accept the already inserted item.
-            let rejected = limiter.test_limits(scoping, limits, entries1);
+            let rejected = limiter.test_limits(scoping, limits, entries1).await;
             assert_eq!(rejected.len(), 0);
             // Should reject the new item.
-            let rejected = limiter.test_limits(scoping, limits, entries2);
+            let rejected = limiter.test_limits(scoping, limits, entries2).await;
             assert_eq!(rejected.len(), 1);
         }
 
         // Fast forward time to a fresh window.
         limiter.time_offset = Duration::from_secs(1 + window.window_seconds * 3);
         // Accept the new element.
-        let rejected = limiter.test_limits(scoping, limits, entries2);
+        let rejected = limiter.test_limits(scoping, limits, entries2).await;
         assert_eq!(rejected.len(), 0);
         // Reject the old element now.
-        let rejected = limiter.test_limits(scoping, limits, entries1);
+        let rejected = limiter.test_limits(scoping, limits, entries1).await;
         assert_eq!(rejected.len(), 1);
     }
 
-    #[test]
-    fn test_limiter_no_namespace_limit_is_shared_limit() {
+    #[tokio::test]
+    async fn test_limiter_no_namespace_limit_is_shared_limit() {
         let limiter = build_limiter();
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
 
         let limits = &[CardinalityLimit {
             id: "limit".to_owned(),
@@ -802,20 +842,20 @@ mod tests {
         let entries2 = [Entry::new(EntryId(0), Spans, &m1, 1)];
         let entries3 = [Entry::new(EntryId(0), Transactions, &m2, 2)];
 
-        let rejected = limiter.test_limits(scoping, limits, entries1);
+        let rejected = limiter.test_limits(scoping, limits, entries1).await;
         assert_eq!(rejected.len(), 0);
 
-        let rejected = limiter.test_limits(scoping, limits, entries2);
+        let rejected = limiter.test_limits(scoping, limits, entries2).await;
         assert_eq!(rejected.len(), 0);
 
-        let rejected = limiter.test_limits(scoping, limits, entries3);
+        let rejected = limiter.test_limits(scoping, limits, entries3).await;
         assert_eq!(rejected.len(), 1);
     }
 
-    #[test]
-    fn test_limiter_multiple_limits() {
+    #[tokio::test]
+    async fn test_limiter_multiple_limits() {
         let limiter = build_limiter();
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
 
         let limits = &[
             CardinalityLimit {
@@ -886,7 +926,7 @@ mod tests {
 
         // Run multiple times to make sure caching does not interfere.
         for i in 0..3 {
-            let rejected = limiter.test_limits(scoping, limits, entries);
+            let rejected = limiter.test_limits(scoping, limits, entries).await;
 
             // 2 transactions + 1 span + 1 custom (4) accepted -> 2 (6-4) rejected.
             assert_eq!(rejected.len(), 2);
@@ -943,11 +983,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_project_limit() {
+    #[tokio::test]
+    async fn test_project_limit() {
         let limiter = build_limiter();
 
-        let scoping1 = new_scoping(&limiter);
+        let scoping1 = new_scoping(&limiter).await;
         let scoping2 = Scoping {
             project_id: ProjectId::new(2),
             ..scoping1
@@ -972,22 +1012,22 @@ mod tests {
         let entries2 = [Entry::new(EntryId(0), Custom, &m2, 1)];
 
         // Accept different entries for different scopes.
-        let rejected = limiter.test_limits(scoping1, limits, entries1);
+        let rejected = limiter.test_limits(scoping1, limits, entries1).await;
         assert_eq!(rejected.len(), 0);
-        let rejected = limiter.test_limits(scoping2, limits, entries2);
+        let rejected = limiter.test_limits(scoping2, limits, entries2).await;
         assert_eq!(rejected.len(), 0);
 
         // Make sure the other entry is not accepted.
-        let rejected = limiter.test_limits(scoping1, limits, entries2);
+        let rejected = limiter.test_limits(scoping1, limits, entries2).await;
         assert_eq!(rejected.len(), 1);
-        let rejected = limiter.test_limits(scoping2, limits, entries1);
+        let rejected = limiter.test_limits(scoping2, limits, entries1).await;
         assert_eq!(rejected.len(), 1);
     }
 
-    #[test]
-    fn test_limiter_sliding_window_full() {
+    #[tokio::test]
+    async fn test_limiter_sliding_window_full() {
         let mut limiter = build_limiter();
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
 
         let window = SlidingWindow {
             window_seconds: 300,
@@ -1010,7 +1050,7 @@ mod tests {
                     .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
                     .collect::<Vec<_>>();
 
-                limiter.test_limits(scoping, limits, entries)
+                limiter.test_limits(scoping, limits, entries).await
             }};
         }
 
@@ -1069,7 +1109,7 @@ mod tests {
             }
         }
 
-        let mut sets = limiter.redis_sets(scoping);
+        let mut sets = limiter.redis_sets(scoping).await;
         sets.sort();
 
         let len = sets.len();
@@ -1083,10 +1123,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_limiter_sliding_window_perfect() {
+    #[tokio::test]
+    async fn test_limiter_sliding_window_perfect() {
         let mut limiter = build_limiter();
-        let scoping = new_scoping(&limiter);
+        let scoping = new_scoping(&limiter).await;
 
         let window = SlidingWindow {
             window_seconds: 300,
@@ -1109,7 +1149,7 @@ mod tests {
                     .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
                     .collect::<Vec<_>>();
 
-                limiter.test_limits(scoping, limits, entries)
+                limiter.test_limits(scoping, limits, entries).await
             }};
         }
 

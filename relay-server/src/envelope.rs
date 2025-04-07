@@ -504,20 +504,31 @@ pub struct ItemHeaders {
     ///
     /// Can be omitted if the item does not contain new lines. In this case, the item payload is
     /// parsed until the first newline is encountered.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     length: Option<u32>,
 
     /// If this is an attachment item, this may contain the attachment type.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     attachment_type: Option<AttachmentType>,
 
     /// Content type of the payload.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<ContentType>,
 
     /// If this is an attachment item, this may contain the original file name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
+
+    /// The platform this item was produced for.
+    ///
+    /// Currently only used for [`ItemType::ProfileChunk`].
+    /// It contains the same platform as specified in the profile chunk payload,
+    /// hoisted into the header to be able to determine the correct data category.
+    ///
+    /// This is currently considered optional for profile chunks, but may change
+    /// to required in the future.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
 
     /// The routing_hint may be used to specify how the envelpope should be routed in when
     /// published to kafka.
@@ -681,6 +692,7 @@ impl Item {
                 fully_normalized: false,
                 ingest_span_in_eap: false,
                 profile_type: None,
+                platform: None,
             },
             payload: Bytes::new(),
         }
@@ -733,7 +745,7 @@ impl Item {
             ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, 1)],
             // NOTE: semantically wrong, but too expensive to parse.
             ItemType::OtelTracesData => smallvec![(DataCategory::Span, 1)],
-            ItemType::ProfileChunk => match self.headers.profile_type {
+            ItemType::ProfileChunk => match self.profile_type() {
                 Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, 1)],
                 Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, 1)],
                 None => smallvec![],
@@ -902,9 +914,23 @@ impl Item {
         self.headers.ingest_span_in_eap = ingest_span_in_eap;
     }
 
+    /// Returns the associated platform.
+    ///
+    /// Note: this is currently only used for [`ItemType::ProfileChunk`].
+    pub fn platform(&self) -> Option<&str> {
+        self.headers.platform.as_deref()
+    }
+
     /// Returns the associated profile type of a profile chunk.
+    ///
+    /// This primarily uses the profile type set via [`Self::set_profile_type`],
+    /// but if not set, it infers the [`ProfileType`] from the [`Self::platform`].
+    ///
+    /// Returns `None`, if neither source is available.
     pub fn profile_type(&self) -> Option<ProfileType> {
-        self.headers.profile_type
+        self.headers
+            .profile_type
+            .or_else(|| self.platform().map(ProfileType::from_platform))
     }
 
     /// Set the profile type of the profile chunk.
@@ -1361,6 +1387,11 @@ impl Envelope {
     /// Overrides the dynamic sampling context in envelope headers.
     pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
         self.headers.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
+    /// Removes the dynamic sampling context from envelope headers.
+    pub fn remove_dsc(&mut self) {
+        self.headers.trace = None;
     }
 
     /// Features required to process this envelope.
