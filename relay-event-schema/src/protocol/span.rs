@@ -262,6 +262,29 @@ pub struct SentryTags {
     pub device_simulator: Annotated<String>,
     #[metastructure(field = "device.uuid")]
     pub device_uuid: Annotated<String>,
+    #[metastructure(field = "app.device")]
+    pub app_device: Annotated<String>,
+    #[metastructure(field = "device.model")]
+    pub device_model: Annotated<String>,
+    pub runtime: Annotated<String>,
+    #[metastructure(field = "runtime.name")]
+    pub runtime_name: Annotated<String>,
+    pub browser: Annotated<String>,
+    pub os: Annotated<String>,
+    #[metastructure(field = "os.rooted")]
+    pub os_rooted: Annotated<String>,
+    #[metastructure(field = "gpu.name")]
+    pub gpu_name: Annotated<String>,
+    #[metastructure(field = "gpu.vendor")]
+    pub gpu_vendor: Annotated<String>,
+    #[metastructure(field = "monitor.id")]
+    pub monitor_id: Annotated<String>,
+    #[metastructure(field = "monitor.slug")]
+    pub monitor_slug: Annotated<String>,
+    #[metastructure(field = "request.url")]
+    pub request_url: Annotated<String>,
+    #[metastructure(field = "request.method")]
+    pub request_method: Annotated<String>,
     #[metastructure(field = "os.name")]
     pub os_name: Annotated<String>,
     pub action: Annotated<String>,
@@ -350,6 +373,19 @@ impl Getter for SentryTags {
             "device.screen_width_pixels" => &self.device_screen_width_pixels,
             "device.simulator" => &self.device_simulator,
             "device.uuid" => &self.device_uuid,
+            "app.device" => &self.app_device,
+            "device.model" => &self.device_model,
+            "runtime" => &self.runtime,
+            "runtime.name" => &self.runtime_name,
+            "browser" => &self.browser,
+            "os" => &self.os,
+            "os.rooted" => &self.os_rooted,
+            "gpu.name" => &self.gpu_name,
+            "gpu.vendor" => &self.gpu_vendor,
+            "monitor.id" => &self.monitor_id,
+            "monitor.slug" => &self.monitor_slug,
+            "request.url" => &self.request_url,
+            "request.method" => &self.request_method,
             "domain" => &self.domain,
             "environment" => &self.environment,
             "file_extension" => &self.file_extension,

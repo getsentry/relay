@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, DeviceContext, Event, Measurement, OsContext, ProfileContext,
-    SentryTags, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, DeviceContext, Event, GpuContext, Measurement, MonitorContext,
+    OsContext, ProfileContext, RuntimeContext, SentryTags, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
@@ -169,6 +169,19 @@ struct SharedTags {
     device_screen_width_pixels: Annotated<String>,
     device_simulator: Annotated<String>,
     device_uuid: Annotated<String>,
+    app_device: Annotated<String>,
+    device_model: Annotated<String>,
+    runtime: Annotated<String>,
+    runtime_name: Annotated<String>,
+    browser: Annotated<String>,
+    os: Annotated<String>,
+    os_rooted: Annotated<String>,
+    gpu_name: Annotated<String>,
+    gpu_vendor: Annotated<String>,
+    monitor_id: Annotated<String>,
+    monitor_slug: Annotated<String>,
+    request_url: Annotated<String>,
+    request_method: Annotated<String>,
     platform: Annotated<String>,
     profiler_id: Annotated<String>,
     release: Annotated<String>,
@@ -231,6 +244,19 @@ impl SharedTags {
             user_subregion,
             user_username,
             user,
+            app_device,
+            device_model,
+            runtime,
+            runtime_name,
+            browser,
+            os,
+            os_rooted,
+            gpu_name,
+            gpu_vendor,
+            monitor_id,
+            monitor_slug,
+            request_url,
+            request_method,
         } = self;
         if tags.browser_name.value().is_none() {
             tags.browser_name = browser_name.clone();
@@ -349,6 +375,45 @@ impl SharedTags {
         if tags.device_uuid.value().is_none() {
             tags.device_uuid = device_uuid.clone()
         }
+        if tags.app_device.value().is_none() {
+            tags.app_device = app_device.clone()
+        }
+        if tags.device_model.value().is_none() {
+            tags.device_model = device_model.clone()
+        }
+        if tags.runtime.value().is_none() {
+            tags.runtime = runtime.clone()
+        }
+        if tags.runtime_name.value().is_none() {
+            tags.runtime_name = runtime_name.clone()
+        }
+        if tags.browser.value().is_none() {
+            tags.browser = browser.clone()
+        }
+        if tags.os.value().is_none() {
+            tags.os = os.clone()
+        }
+        if tags.os_rooted.value().is_none() {
+            tags.os_rooted = os_rooted.clone()
+        }
+        if tags.gpu_name.value().is_none() {
+            tags.gpu_name = gpu_name.clone()
+        }
+        if tags.gpu_vendor.value().is_none() {
+            tags.gpu_vendor = gpu_vendor.clone()
+        }
+        if tags.monitor_id.value().is_none() {
+            tags.monitor_id = monitor_id.clone()
+        }
+        if tags.monitor_slug.value().is_none() {
+            tags.monitor_slug = monitor_slug.clone()
+        }
+        if tags.request_url.value().is_none() {
+            tags.request_url = request_url.clone()
+        }
+        if tags.request_method.value().is_none() {
+            tags.request_method = request_method.clone()
+        }
     }
 }
 
@@ -425,16 +490,87 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
         tags.mobile = "true".to_owned().into();
+    }
 
-        // Check if app context exists. This tells us if the span originated from
-        // an app (as opposed to mobile browser) since we are currently focused on
-        // app use cases for mobile.
-        if event.context::<AppContext>().is_some() {
-            if let Some(os_context) = event.context::<OsContext>() {
-                if let Some(os_name) = os_context.name.value() {
+    if let Some(os_context) = event.context::<OsContext>() {
+        if let Some(os_name) = os_context.name.value() {
+            if tags.mobile.value().is_some_and(|v| v.as_str() == "true") {
+                // Check if app context exists. This tells us if the span originated from
+                // an app (as opposed to mobile browser) since we are currently focused on
+                // app use cases for mobile.
+                if event.context::<AppContext>().is_some() {
                     tags.os_name = os_name.to_string().into();
                 }
+            } else {
+                tags.os_name = os_name.to_string().into();
             }
+        }
+
+        if let Some(os) = os_context.os.value() {
+            tags.os = os.to_string().into();
+        }
+
+        if let Some(os_rooted) = os_context.rooted.value() {
+            tags.os_rooted = os_rooted.to_string().into();
+        }
+    }
+
+    if let Some(gpu_context) = event.context::<GpuContext>() {
+        if let Some(gpu_name) = gpu_context.name.value() {
+            tags.gpu_name = gpu_name.to_string().into();
+        }
+
+        if let Some(vendor_name) = gpu_context.vendor_name.value() {
+            tags.gpu_vendor = vendor_name.to_string().into();
+        }
+    }
+
+    if let Some(profiler_id) = event
+        .context::<ProfileContext>()
+        .and_then(|profile_context| profile_context.profiler_id.value())
+    {
+        tags.profiler_id = profiler_id.to_string().into();
+    }
+
+    if let Some(monitor_context) = event.context::<MonitorContext>() {
+        if let Some(monitor_id) = monitor_context
+            .get("id")
+            .and_then(|id| id.value())
+            .and_then(|val| val.as_str())
+        {
+            tags.monitor_id = monitor_id.to_owned().into();
+        }
+
+        if let Some(monitor_slug) = monitor_context
+            .get("slug")
+            .and_then(|slug| slug.value())
+            .and_then(|val| val.as_str())
+        {
+            tags.monitor_slug = monitor_slug.to_owned().into();
+        }
+    }
+
+    if let Some(app_context) = event.context::<AppContext>() {
+        if let Some(device_app_hash) = app_context.device_app_hash.value() {
+            tags.app_device = device_app_hash.to_string().into();
+        }
+    }
+
+    if let Some(runtime_context) = event.context::<RuntimeContext>() {
+        if let Some(runtime) = runtime_context.runtime.value() {
+            tags.runtime = runtime.to_string().into();
+        }
+        if let Some(runtime_name) = runtime_context.name.value() {
+            tags.runtime_name = runtime_name.to_string().into();
+        }
+    }
+
+    if let Some(request_interface) = event.request.value() {
+        if let Some(request_url) = request_interface.url.as_str() {
+            tags.request_url = request_url.to_owned().into();
+        }
+        if let Some(request_method) = request_interface.method.as_str() {
+            tags.request_method = request_method.to_owned().into();
         }
     }
 
@@ -487,17 +623,23 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         if let Some(uuid) = device_context.uuid.value() {
             tags.device_uuid = uuid.to_string().into();
         }
+        if let Some(model) = device_context.model.value() {
+            tags.device_model = model.to_string().into();
+        }
     }
 
     if let Some(device_class) = event.tag_value("device.class") {
         tags.device_class = device_class.to_owned().into();
     }
 
-    if let Some(browser_name) = event
-        .context::<BrowserContext>()
-        .and_then(|v| v.name.value())
-    {
-        tags.browser_name = browser_name.to_owned().into();
+    if let Some(browser_context) = event.context::<BrowserContext>() {
+        if let Some(browser_name) = browser_context.name.value() {
+            tags.browser_name = browser_name.to_string().into();
+        }
+
+        if let Some(browser) = browser_context.browser.value() {
+            tags.browser = browser.to_string().into();
+        }
     }
 
     if let Some(profiler_id) = event
