@@ -5,6 +5,7 @@ Tests the autoscaling endpoint.
 import os
 import signal
 import tempfile
+from cgi import parse
 from time import sleep
 
 import pytest
@@ -13,7 +14,7 @@ import pytest
 def parse_prometheus(input_string):
     result = {}
     for line in input_string.splitlines():
-        parts = line.split(" ")
+        parts = line.rsplit(" ", 1)
         result[parts[0]] = parts[1]
     return result
 
@@ -79,7 +80,7 @@ def test_memory_spooling_metrics(mini_sentry, relay):
 @pytest.mark.parametrize(
     "metric_name",
     (
-        'relay_service_utilization{relay_service="AggregatorService"}',
+        'relay_service_utilization{relay_service="AggregatorService", instance_id="0"}',
         "relay_worker_pool_utilization",
         "relay_runtime_utilization",
     ),
@@ -90,5 +91,6 @@ def test_service_utilization_metrics(mini_sentry, relay, metric_name):
     response = relay.get("/api/relay/autoscaling/")
     parsed = parse_prometheus(response.text)
     assert response.status_code == 200
+    print(parsed)
 
     assert 0 <= int(parsed[metric_name]) <= 100
