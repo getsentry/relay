@@ -79,7 +79,7 @@
 <a href=#79 id=79 data-nosnippet>79</a>        client: <span class="kw-2">&amp;</span>AsyncRedisClient,
 <a href=#80 id=80 data-nosnippet>80</a>        rule_expiry: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DateTime&lt;Utc&gt;&gt;,
 <a href=#81 id=81 data-nosnippet>81</a>    ) -&gt; anyhow::Result&lt;i64&gt; {
-<a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection();
+<a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection().<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#83 id=83 data-nosnippet>83</a>
 <a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>val = redis_sampling::increment_redis_reservoir_count(<span class="kw-2">&amp;mut </span>connection, key).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#85 id=85 data-nosnippet>85</a>        redis_sampling::set_redis_expiry(<span class="kw-2">&amp;mut </span>connection, key, rule_expiry).<span class="kw">await</span><span class="question-mark">?</span>;

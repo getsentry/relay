@@ -5,34 +5,45 @@
 <a href=#5 id=5 data-nosnippet>5</a></span><span class="kw">pub struct </span>RedisConfigOptions {
 <a href=#6 id=6 data-nosnippet>6</a>    <span class="doccomment">/// Maximum number of connections managed by the pool.
 <a href=#7 id=7 data-nosnippet>7</a>    </span><span class="kw">pub </span>max_connections: u32,
-<a href=#8 id=8 data-nosnippet>8</a>    <span class="doccomment">/// Minimum amount of idle connections kept alive in the pool.
+<a href=#8 id=8 data-nosnippet>8</a>    <span class="doccomment">/// Sets the idle timeout used by the pool, in seconds.
 <a href=#9 id=9 data-nosnippet>9</a>    ///
-<a href=#10 id=10 data-nosnippet>10</a>    /// If not set it will default to [`Self::max_connections`].
-<a href=#11 id=11 data-nosnippet>11</a>    </span><span class="kw">pub </span>min_idle: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-<a href=#12 id=12 data-nosnippet>12</a>    <span class="doccomment">/// Sets the connection timeout used by the pool, in seconds.
+<a href=#10 id=10 data-nosnippet>10</a>    /// The idle timeout defines the maximum time a connection will be kept in the pool if unused.
+<a href=#11 id=11 data-nosnippet>11</a>    </span><span class="kw">pub </span>idle_timeout: u64,
+<a href=#12 id=12 data-nosnippet>12</a>    <span class="doccomment">/// Sets the maximum time in seconds to wait when establishing a new Redis connection.
 <a href=#13 id=13 data-nosnippet>13</a>    ///
-<a href=#14 id=14 data-nosnippet>14</a>    /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
-<a href=#15 id=15 data-nosnippet>15</a>    </span><span class="kw">pub </span>connection_timeout: u64,
-<a href=#16 id=16 data-nosnippet>16</a>    <span class="doccomment">/// Sets the maximum lifetime of connections in the pool, in seconds.
-<a href=#17 id=17 data-nosnippet>17</a>    </span><span class="kw">pub </span>max_lifetime: u64,
-<a href=#18 id=18 data-nosnippet>18</a>    <span class="doccomment">/// Sets the idle timeout used by the pool, in seconds.
-<a href=#19 id=19 data-nosnippet>19</a>    </span><span class="kw">pub </span>idle_timeout: u64,
-<a href=#20 id=20 data-nosnippet>20</a>    <span class="doccomment">/// Sets the read timeout out on the connection, in seconds.
-<a href=#21 id=21 data-nosnippet>21</a>    </span><span class="kw">pub </span>read_timeout: u64,
-<a href=#22 id=22 data-nosnippet>22</a>    <span class="doccomment">/// Sets the write timeout on the connection, in seconds.
-<a href=#23 id=23 data-nosnippet>23</a>    </span><span class="kw">pub </span>write_timeout: u64,
-<a href=#24 id=24 data-nosnippet>24</a>}
-<a href=#25 id=25 data-nosnippet>25</a>
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">impl </span>Default <span class="kw">for </span>RedisConfigOptions {
-<a href=#27 id=27 data-nosnippet>27</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-<a href=#28 id=28 data-nosnippet>28</a>        <span class="self">Self </span>{
-<a href=#29 id=29 data-nosnippet>29</a>            max_connections: <span class="number">24</span>,
-<a href=#30 id=30 data-nosnippet>30</a>            min_idle: <span class="prelude-val">None</span>,
-<a href=#31 id=31 data-nosnippet>31</a>            connection_timeout: <span class="number">5</span>,
-<a href=#32 id=32 data-nosnippet>32</a>            max_lifetime: <span class="number">300</span>,
-<a href=#33 id=33 data-nosnippet>33</a>            idle_timeout: <span class="number">60</span>,
-<a href=#34 id=34 data-nosnippet>34</a>            read_timeout: <span class="number">3</span>,
-<a href=#35 id=35 data-nosnippet>35</a>            write_timeout: <span class="number">3</span>,
-<a href=#36 id=36 data-nosnippet>36</a>        }
-<a href=#37 id=37 data-nosnippet>37</a>    }
-<a href=#38 id=38 data-nosnippet>38</a>}</code></pre></div></section></main></body></html>
+<a href=#14 id=14 data-nosnippet>14</a>    /// If a connection cannot be established within this duration, it is considered a failure.
+<a href=#15 id=15 data-nosnippet>15</a>    /// Applies when the pool needs to grow or create fresh connections.
+<a href=#16 id=16 data-nosnippet>16</a>    </span><span class="kw">pub </span>create_timeout: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+<a href=#17 id=17 data-nosnippet>17</a>    <span class="doccomment">/// Sets the maximum time in seconds to validate an existing connection when it is recycled.
+<a href=#18 id=18 data-nosnippet>18</a>    ///
+<a href=#19 id=19 data-nosnippet>19</a>    /// Recycling involves checking whether an idle connection is still alive before reuse.
+<a href=#20 id=20 data-nosnippet>20</a>    /// If validation exceeds this timeout, the connection is discarded and a new fetch from the pool
+<a href=#21 id=21 data-nosnippet>21</a>    /// is attempted.
+<a href=#22 id=22 data-nosnippet>22</a>    </span><span class="kw">pub </span>recycle_timeout: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+<a href=#23 id=23 data-nosnippet>23</a>    <span class="doccomment">/// Sets the maximum time, in seconds, that a caller is allowed to wait
+<a href=#24 id=24 data-nosnippet>24</a>    /// when requesting a connection from the pool.
+<a href=#25 id=25 data-nosnippet>25</a>    ///
+<a href=#26 id=26 data-nosnippet>26</a>    /// If a connection does not become available within this period, the attempt
+<a href=#27 id=27 data-nosnippet>27</a>    /// will fail with a timeout error. This setting helps prevent indefinite
+<a href=#28 id=28 data-nosnippet>28</a>    /// blocking when the pool is exhausted.
+<a href=#29 id=29 data-nosnippet>29</a>    </span><span class="kw">pub </span>wait_timeout: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// Sets the number of times after which the connection will check whether it is active when
+<a href=#31 id=31 data-nosnippet>31</a>    /// being recycled.
+<a href=#32 id=32 data-nosnippet>32</a>    ///
+<a href=#33 id=33 data-nosnippet>33</a>    /// A frequency of 1, means that the connection will check whether it is active every time it
+<a href=#34 id=34 data-nosnippet>34</a>    /// is recycled.
+<a href=#35 id=35 data-nosnippet>35</a>    </span><span class="kw">pub </span>recycle_check_frequency: usize,
+<a href=#36 id=36 data-nosnippet>36</a>}
+<a href=#37 id=37 data-nosnippet>37</a>
+<a href=#38 id=38 data-nosnippet>38</a><span class="kw">impl </span>Default <span class="kw">for </span>RedisConfigOptions {
+<a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+<a href=#40 id=40 data-nosnippet>40</a>        <span class="self">Self </span>{
+<a href=#41 id=41 data-nosnippet>41</a>            max_connections: <span class="number">24</span>,
+<a href=#42 id=42 data-nosnippet>42</a>            idle_timeout: <span class="number">60</span>,
+<a href=#43 id=43 data-nosnippet>43</a>            create_timeout: <span class="prelude-val">Some</span>(<span class="number">3</span>),
+<a href=#44 id=44 data-nosnippet>44</a>            recycle_timeout: <span class="prelude-val">Some</span>(<span class="number">2</span>),
+<a href=#45 id=45 data-nosnippet>45</a>            wait_timeout: <span class="prelude-val">None</span>,
+<a href=#46 id=46 data-nosnippet>46</a>            recycle_check_frequency: <span class="number">100</span>,
+<a href=#47 id=47 data-nosnippet>47</a>        }
+<a href=#48 id=48 data-nosnippet>48</a>    }
+<a href=#49 id=49 data-nosnippet>49</a>}</code></pre></div></section></main></body></html>

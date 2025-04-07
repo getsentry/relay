@@ -218,7 +218,7 @@
 <a href=#218 id=218 data-nosnippet>218</a>        }
 <a href=#219 id=219 data-nosnippet>219</a>    }
 <a href=#220 id=220 data-nosnippet>220</a>
-<a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">async fn </span>build_redis_client() -&gt; AsyncRedisClient {
+<a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">fn </span>build_redis_client() -&gt; AsyncRedisClient {
 <a href=#222 id=222 data-nosnippet>222</a>        <span class="kw">let </span>url = std::env::var(<span class="string">"RELAY_REDIS_URL"</span>)
 <a href=#223 id=223 data-nosnippet>223</a>            .unwrap_or_else(|<span class="kw">_</span>| <span class="string">"redis://127.0.0.1:6379"</span>.to_owned());
 <a href=#224 id=224 data-nosnippet>224</a>
@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>            max_connections: <span class="number">1</span>,
 <a href=#227 id=227 data-nosnippet>227</a>            ..Default::default()
 <a href=#228 id=228 data-nosnippet>228</a>        };
-<a href=#229 id=229 data-nosnippet>229</a>        AsyncRedisClient::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>opts).<span class="kw">await</span>.unwrap()
+<a href=#229 id=229 data-nosnippet>229</a>        AsyncRedisClient::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>opts).unwrap()
 <a href=#230 id=230 data-nosnippet>230</a>    }
 <a href=#231 id=231 data-nosnippet>231</a>
 <a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">fn </span>keys(prefix: Uuid, keys: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; <span class="kw">impl </span>Iterator&lt;Item = String&gt; {
@@ -256,8 +256,8 @@
 <a href=#256 id=256 data-nosnippet>256</a>
 <a href=#257 id=257 data-nosnippet>257</a>    <span class="attr">#[tokio::test]
 <a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">async fn </span>test_below_limit_perfect_cardinality_ttl() {
-<a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
-<a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection();
+<a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">let </span>client = build_redis_client();
+<a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection().<span class="kw">await</span>.unwrap();
 <a href=#261 id=261 data-nosnippet>261</a>
 <a href=#262 id=262 data-nosnippet>262</a>        <span class="kw">let </span>script = CardinalityScript::load();
 <a href=#263 id=263 data-nosnippet>263</a>
@@ -280,8 +280,8 @@
 <a href=#280 id=280 data-nosnippet>280</a>
 <a href=#281 id=281 data-nosnippet>281</a>    <span class="attr">#[tokio::test]
 <a href=#282 id=282 data-nosnippet>282</a>    </span><span class="kw">async fn </span>test_load_script() {
-<a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection();
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">let </span>client = build_redis_client();
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection().<span class="kw">await</span>.unwrap();
 <a href=#285 id=285 data-nosnippet>285</a>
 <a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">let </span>script = CardinalityScript::load();
 <a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span>keys = keys(Uuid::new_v4(), <span class="kw-2">&amp;</span>[<span class="string">"a"</span>, <span class="string">"b"</span>, <span class="string">"c"</span>]);
@@ -299,8 +299,8 @@
 <a href=#299 id=299 data-nosnippet>299</a>
 <a href=#300 id=300 data-nosnippet>300</a>    <span class="attr">#[tokio::test]
 <a href=#301 id=301 data-nosnippet>301</a>    </span><span class="kw">async fn </span>test_multiple_calls_in_pipeline() {
-<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span>client = build_redis_client().<span class="kw">await</span>;
-<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection();
+<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span>client = build_redis_client();
+<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection().<span class="kw">await</span>.unwrap();
 <a href=#304 id=304 data-nosnippet>304</a>
 <a href=#305 id=305 data-nosnippet>305</a>        <span class="kw">let </span>script = CardinalityScript::load();
 <a href=#306 id=306 data-nosnippet>306</a>        <span class="kw">let </span>k2 = keys(Uuid::new_v4(), <span class="kw-2">&amp;</span>[<span class="string">"a"</span>, <span class="string">"b"</span>, <span class="string">"c"</span>]);
