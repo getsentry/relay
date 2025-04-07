@@ -743,135 +743,136 @@
 <a href=#743 id=743 data-nosnippet>743</a>            platform: "php",
 <a href=#744 id=744 data-nosnippet>744</a>            was_transaction: ~,
 <a href=#745 id=745 data-nosnippet>745</a>            kind: Unspecified,
-<a href=#746 id=746 data-nosnippet>746</a>            other: {},
-<a href=#747 id=747 data-nosnippet>747</a>        }
-<a href=#748 id=748 data-nosnippet>748</a>        "###</span>);
-<a href=#749 id=749 data-nosnippet>749</a>    }
-<a href=#750 id=750 data-nosnippet>750</a>
-<a href=#751 id=751 data-nosnippet>751</a>    <span class="attr">#[test]
-<a href=#752 id=752 data-nosnippet>752</a>    </span><span class="kw">fn </span>parse_span_is_remote() {
-<a href=#753 id=753 data-nosnippet>753</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#754 id=754 data-nosnippet>754</a>            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#755 id=755 data-nosnippet>755</a>            "spanId": "e342abb1214ca181",
-<a href=#756 id=756 data-nosnippet>756</a>            "parentSpanId": "0c7a7dea069bf5a6",
-<a href=#757 id=757 data-nosnippet>757</a>            "startTimeUnixNano": "123000000000",
-<a href=#758 id=758 data-nosnippet>758</a>            "endTimeUnixNano": "123500000000",
-<a href=#759 id=759 data-nosnippet>759</a>            "flags": 768
-<a href=#760 id=760 data-nosnippet>760</a>        }"#</span>;
-<a href=#761 id=761 data-nosnippet>761</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
-<a href=#763 id=763 data-nosnippet>763</a>        <span class="macro">assert_eq!</span>(event_span.is_remote, Annotated::new(<span class="bool-val">true</span>));
-<a href=#764 id=764 data-nosnippet>764</a>    }
-<a href=#765 id=765 data-nosnippet>765</a>
-<a href=#766 id=766 data-nosnippet>766</a>    <span class="attr">#[test]
-<a href=#767 id=767 data-nosnippet>767</a>    </span><span class="kw">fn </span>parse_span_is_not_remote() {
-<a href=#768 id=768 data-nosnippet>768</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#769 id=769 data-nosnippet>769</a>            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#770 id=770 data-nosnippet>770</a>            "spanId": "e342abb1214ca181",
-<a href=#771 id=771 data-nosnippet>771</a>            "parentSpanId": "0c7a7dea069bf5a6",
-<a href=#772 id=772 data-nosnippet>772</a>            "startTimeUnixNano": "123000000000",
-<a href=#773 id=773 data-nosnippet>773</a>            "endTimeUnixNano": "123500000000",
-<a href=#774 id=774 data-nosnippet>774</a>            "flags": 256
-<a href=#775 id=775 data-nosnippet>775</a>        }"#</span>;
-<a href=#776 id=776 data-nosnippet>776</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-<a href=#777 id=777 data-nosnippet>777</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
-<a href=#778 id=778 data-nosnippet>778</a>        <span class="macro">assert_eq!</span>(event_span.is_remote, Annotated::new(<span class="bool-val">false</span>));
-<a href=#779 id=779 data-nosnippet>779</a>    }
-<a href=#780 id=780 data-nosnippet>780</a>
-<a href=#781 id=781 data-nosnippet>781</a>    <span class="attr">#[test]
-<a href=#782 id=782 data-nosnippet>782</a>    </span><span class="kw">fn </span>extract_span_kind() {
-<a href=#783 id=783 data-nosnippet>783</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#784 id=784 data-nosnippet>784</a>            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#785 id=785 data-nosnippet>785</a>            "spanId": "e342abb1214ca181",
-<a href=#786 id=786 data-nosnippet>786</a>            "parentSpanId": "0c7a7dea069bf5a6",
-<a href=#787 id=787 data-nosnippet>787</a>            "startTimeUnixNano": "123000000000",
-<a href=#788 id=788 data-nosnippet>788</a>            "endTimeUnixNano": "123500000000",
-<a href=#789 id=789 data-nosnippet>789</a>            "kind": 3
-<a href=#790 id=790 data-nosnippet>790</a>        }"#</span>;
-<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
-<a href=#793 id=793 data-nosnippet>793</a>        <span class="kw">let </span>kind = event_span.kind.value().expect(<span class="string">"kind should be set"</span>);
-<a href=#794 id=794 data-nosnippet>794</a>        <span class="macro">assert_eq!</span>(kind, <span class="kw-2">&amp;</span>SpanKind::Client);
-<a href=#795 id=795 data-nosnippet>795</a>    }
-<a href=#796 id=796 data-nosnippet>796</a>
-<a href=#797 id=797 data-nosnippet>797</a>    <span class="attr">#[test]
-<a href=#798 id=798 data-nosnippet>798</a>    </span><span class="kw">fn </span>uppercase_span_id() {
-<a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">let </span>input = OtelValue::StringValue(<span class="string">"FA90FDEAD5F74052"</span>.to_owned());
-<a href=#800 id=800 data-nosnippet>800</a>        <span class="macro">assert_eq!</span>(
-<a href=#801 id=801 data-nosnippet>801</a>            otel_value_to_span_id(input).as_deref(),
-<a href=#802 id=802 data-nosnippet>802</a>            <span class="prelude-val">Some</span>(<span class="string">"fa90fdead5f74052"</span>)
-<a href=#803 id=803 data-nosnippet>803</a>        );
-<a href=#804 id=804 data-nosnippet>804</a>    }
-<a href=#805 id=805 data-nosnippet>805</a>
-<a href=#806 id=806 data-nosnippet>806</a>    <span class="attr">#[test]
-<a href=#807 id=807 data-nosnippet>807</a>    </span><span class="kw">fn </span>parse_link() {
-<a href=#808 id=808 data-nosnippet>808</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#809 id=809 data-nosnippet>809</a>            "links": [
-<a href=#810 id=810 data-nosnippet>810</a>                {
-<a href=#811 id=811 data-nosnippet>811</a>                    "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#812 id=812 data-nosnippet>812</a>                    "spanId": "fa90fdead5f74052",
-<a href=#813 id=813 data-nosnippet>813</a>                    "attributes": [
-<a href=#814 id=814 data-nosnippet>814</a>                        {
-<a href=#815 id=815 data-nosnippet>815</a>                            "key": "str_key",
-<a href=#816 id=816 data-nosnippet>816</a>                            "value": {
-<a href=#817 id=817 data-nosnippet>817</a>                                "stringValue": "str_value"
-<a href=#818 id=818 data-nosnippet>818</a>                            }
-<a href=#819 id=819 data-nosnippet>819</a>                        },
-<a href=#820 id=820 data-nosnippet>820</a>                        {
-<a href=#821 id=821 data-nosnippet>821</a>                            "key": "bool_key",
-<a href=#822 id=822 data-nosnippet>822</a>                            "value": {
-<a href=#823 id=823 data-nosnippet>823</a>                                "boolValue": true
-<a href=#824 id=824 data-nosnippet>824</a>                            }
-<a href=#825 id=825 data-nosnippet>825</a>                        },
-<a href=#826 id=826 data-nosnippet>826</a>                        {
-<a href=#827 id=827 data-nosnippet>827</a>                            "key": "int_key",
-<a href=#828 id=828 data-nosnippet>828</a>                            "value": {
-<a href=#829 id=829 data-nosnippet>829</a>                                "intValue": "123"
-<a href=#830 id=830 data-nosnippet>830</a>                            }
-<a href=#831 id=831 data-nosnippet>831</a>                        },
-<a href=#832 id=832 data-nosnippet>832</a>                        {
-<a href=#833 id=833 data-nosnippet>833</a>                            "key": "double_key",
-<a href=#834 id=834 data-nosnippet>834</a>                            "value": {
-<a href=#835 id=835 data-nosnippet>835</a>                                "doubleValue": 1.23
-<a href=#836 id=836 data-nosnippet>836</a>                            }
-<a href=#837 id=837 data-nosnippet>837</a>                        }
-<a href=#838 id=838 data-nosnippet>838</a>                    ],
-<a href=#839 id=839 data-nosnippet>839</a>                    "flags": 1
-<a href=#840 id=840 data-nosnippet>840</a>                }
-<a href=#841 id=841 data-nosnippet>841</a>            ]
-<a href=#842 id=842 data-nosnippet>842</a>        }"#</span>;
-<a href=#843 id=843 data-nosnippet>843</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-<a href=#844 id=844 data-nosnippet>844</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
-<a href=#845 id=845 data-nosnippet>845</a>        <span class="kw">let </span>annotated_span: Annotated&lt;EventSpan&gt; = Annotated::new(event_span);
-<a href=#846 id=846 data-nosnippet>846</a>        <span class="macro">assert_eq!</span>(
-<a href=#847 id=847 data-nosnippet>847</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].trace_id),
-<a href=#848 id=848 data-nosnippet>848</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(TraceId(
-<a href=#849 id=849 data-nosnippet>849</a>                <span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into()
-<a href=#850 id=850 data-nosnippet>850</a>            )))
-<a href=#851 id=851 data-nosnippet>851</a>        );
-<a href=#852 id=852 data-nosnippet>852</a>        <span class="macro">assert_eq!</span>(
-<a href=#853 id=853 data-nosnippet>853</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].span_id),
-<a href=#854 id=854 data-nosnippet>854</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())))
-<a href=#855 id=855 data-nosnippet>855</a>        );
-<a href=#856 id=856 data-nosnippet>856</a>        <span class="macro">assert_eq!</span>(
-<a href=#857 id=857 data-nosnippet>857</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"str_key"</span>]),
-<a href=#858 id=858 data-nosnippet>858</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::String(<span class="string">"str_value"</span>.into())))
-<a href=#859 id=859 data-nosnippet>859</a>        );
-<a href=#860 id=860 data-nosnippet>860</a>        <span class="macro">assert_eq!</span>(
-<a href=#861 id=861 data-nosnippet>861</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"bool_key"</span>]),
-<a href=#862 id=862 data-nosnippet>862</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::Bool(<span class="bool-val">true</span>)))
-<a href=#863 id=863 data-nosnippet>863</a>        );
-<a href=#864 id=864 data-nosnippet>864</a>        <span class="macro">assert_eq!</span>(
-<a href=#865 id=865 data-nosnippet>865</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"int_key"</span>]),
-<a href=#866 id=866 data-nosnippet>866</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::I64(<span class="number">123</span>)))
-<a href=#867 id=867 data-nosnippet>867</a>        );
-<a href=#868 id=868 data-nosnippet>868</a>        <span class="macro">assert_eq!</span>(
-<a href=#869 id=869 data-nosnippet>869</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"double_key"</span>]),
-<a href=#870 id=870 data-nosnippet>870</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::F64(<span class="number">1.23</span>)))
-<a href=#871 id=871 data-nosnippet>871</a>        );
-<a href=#872 id=872 data-nosnippet>872</a>        <span class="macro">assert_eq!</span>(
-<a href=#873 id=873 data-nosnippet>873</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].sampled),
-<a href=#874 id=874 data-nosnippet>874</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="bool-val">true</span>))
-<a href=#875 id=875 data-nosnippet>875</a>        );
-<a href=#876 id=876 data-nosnippet>876</a>    }
-<a href=#877 id=877 data-nosnippet>877</a>}</code></pre></div></section></main></body></html>
+<a href=#746 id=746 data-nosnippet>746</a>            _performance_issues_spans: ~,
+<a href=#747 id=747 data-nosnippet>747</a>            other: {},
+<a href=#748 id=748 data-nosnippet>748</a>        }
+<a href=#749 id=749 data-nosnippet>749</a>        "###</span>);
+<a href=#750 id=750 data-nosnippet>750</a>    }
+<a href=#751 id=751 data-nosnippet>751</a>
+<a href=#752 id=752 data-nosnippet>752</a>    <span class="attr">#[test]
+<a href=#753 id=753 data-nosnippet>753</a>    </span><span class="kw">fn </span>parse_span_is_remote() {
+<a href=#754 id=754 data-nosnippet>754</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#755 id=755 data-nosnippet>755</a>            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#756 id=756 data-nosnippet>756</a>            "spanId": "e342abb1214ca181",
+<a href=#757 id=757 data-nosnippet>757</a>            "parentSpanId": "0c7a7dea069bf5a6",
+<a href=#758 id=758 data-nosnippet>758</a>            "startTimeUnixNano": "123000000000",
+<a href=#759 id=759 data-nosnippet>759</a>            "endTimeUnixNano": "123500000000",
+<a href=#760 id=760 data-nosnippet>760</a>            "flags": 768
+<a href=#761 id=761 data-nosnippet>761</a>        }"#</span>;
+<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+<a href=#763 id=763 data-nosnippet>763</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
+<a href=#764 id=764 data-nosnippet>764</a>        <span class="macro">assert_eq!</span>(event_span.is_remote, Annotated::new(<span class="bool-val">true</span>));
+<a href=#765 id=765 data-nosnippet>765</a>    }
+<a href=#766 id=766 data-nosnippet>766</a>
+<a href=#767 id=767 data-nosnippet>767</a>    <span class="attr">#[test]
+<a href=#768 id=768 data-nosnippet>768</a>    </span><span class="kw">fn </span>parse_span_is_not_remote() {
+<a href=#769 id=769 data-nosnippet>769</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#770 id=770 data-nosnippet>770</a>            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#771 id=771 data-nosnippet>771</a>            "spanId": "e342abb1214ca181",
+<a href=#772 id=772 data-nosnippet>772</a>            "parentSpanId": "0c7a7dea069bf5a6",
+<a href=#773 id=773 data-nosnippet>773</a>            "startTimeUnixNano": "123000000000",
+<a href=#774 id=774 data-nosnippet>774</a>            "endTimeUnixNano": "123500000000",
+<a href=#775 id=775 data-nosnippet>775</a>            "flags": 256
+<a href=#776 id=776 data-nosnippet>776</a>        }"#</span>;
+<a href=#777 id=777 data-nosnippet>777</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+<a href=#778 id=778 data-nosnippet>778</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
+<a href=#779 id=779 data-nosnippet>779</a>        <span class="macro">assert_eq!</span>(event_span.is_remote, Annotated::new(<span class="bool-val">false</span>));
+<a href=#780 id=780 data-nosnippet>780</a>    }
+<a href=#781 id=781 data-nosnippet>781</a>
+<a href=#782 id=782 data-nosnippet>782</a>    <span class="attr">#[test]
+<a href=#783 id=783 data-nosnippet>783</a>    </span><span class="kw">fn </span>extract_span_kind() {
+<a href=#784 id=784 data-nosnippet>784</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#785 id=785 data-nosnippet>785</a>            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#786 id=786 data-nosnippet>786</a>            "spanId": "e342abb1214ca181",
+<a href=#787 id=787 data-nosnippet>787</a>            "parentSpanId": "0c7a7dea069bf5a6",
+<a href=#788 id=788 data-nosnippet>788</a>            "startTimeUnixNano": "123000000000",
+<a href=#789 id=789 data-nosnippet>789</a>            "endTimeUnixNano": "123500000000",
+<a href=#790 id=790 data-nosnippet>790</a>            "kind": 3
+<a href=#791 id=791 data-nosnippet>791</a>        }"#</span>;
+<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+<a href=#793 id=793 data-nosnippet>793</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
+<a href=#794 id=794 data-nosnippet>794</a>        <span class="kw">let </span>kind = event_span.kind.value().expect(<span class="string">"kind should be set"</span>);
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="macro">assert_eq!</span>(kind, <span class="kw-2">&amp;</span>SpanKind::Client);
+<a href=#796 id=796 data-nosnippet>796</a>    }
+<a href=#797 id=797 data-nosnippet>797</a>
+<a href=#798 id=798 data-nosnippet>798</a>    <span class="attr">#[test]
+<a href=#799 id=799 data-nosnippet>799</a>    </span><span class="kw">fn </span>uppercase_span_id() {
+<a href=#800 id=800 data-nosnippet>800</a>        <span class="kw">let </span>input = OtelValue::StringValue(<span class="string">"FA90FDEAD5F74052"</span>.to_owned());
+<a href=#801 id=801 data-nosnippet>801</a>        <span class="macro">assert_eq!</span>(
+<a href=#802 id=802 data-nosnippet>802</a>            otel_value_to_span_id(input).as_deref(),
+<a href=#803 id=803 data-nosnippet>803</a>            <span class="prelude-val">Some</span>(<span class="string">"fa90fdead5f74052"</span>)
+<a href=#804 id=804 data-nosnippet>804</a>        );
+<a href=#805 id=805 data-nosnippet>805</a>    }
+<a href=#806 id=806 data-nosnippet>806</a>
+<a href=#807 id=807 data-nosnippet>807</a>    <span class="attr">#[test]
+<a href=#808 id=808 data-nosnippet>808</a>    </span><span class="kw">fn </span>parse_link() {
+<a href=#809 id=809 data-nosnippet>809</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#810 id=810 data-nosnippet>810</a>            "links": [
+<a href=#811 id=811 data-nosnippet>811</a>                {
+<a href=#812 id=812 data-nosnippet>812</a>                    "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#813 id=813 data-nosnippet>813</a>                    "spanId": "fa90fdead5f74052",
+<a href=#814 id=814 data-nosnippet>814</a>                    "attributes": [
+<a href=#815 id=815 data-nosnippet>815</a>                        {
+<a href=#816 id=816 data-nosnippet>816</a>                            "key": "str_key",
+<a href=#817 id=817 data-nosnippet>817</a>                            "value": {
+<a href=#818 id=818 data-nosnippet>818</a>                                "stringValue": "str_value"
+<a href=#819 id=819 data-nosnippet>819</a>                            }
+<a href=#820 id=820 data-nosnippet>820</a>                        },
+<a href=#821 id=821 data-nosnippet>821</a>                        {
+<a href=#822 id=822 data-nosnippet>822</a>                            "key": "bool_key",
+<a href=#823 id=823 data-nosnippet>823</a>                            "value": {
+<a href=#824 id=824 data-nosnippet>824</a>                                "boolValue": true
+<a href=#825 id=825 data-nosnippet>825</a>                            }
+<a href=#826 id=826 data-nosnippet>826</a>                        },
+<a href=#827 id=827 data-nosnippet>827</a>                        {
+<a href=#828 id=828 data-nosnippet>828</a>                            "key": "int_key",
+<a href=#829 id=829 data-nosnippet>829</a>                            "value": {
+<a href=#830 id=830 data-nosnippet>830</a>                                "intValue": "123"
+<a href=#831 id=831 data-nosnippet>831</a>                            }
+<a href=#832 id=832 data-nosnippet>832</a>                        },
+<a href=#833 id=833 data-nosnippet>833</a>                        {
+<a href=#834 id=834 data-nosnippet>834</a>                            "key": "double_key",
+<a href=#835 id=835 data-nosnippet>835</a>                            "value": {
+<a href=#836 id=836 data-nosnippet>836</a>                                "doubleValue": 1.23
+<a href=#837 id=837 data-nosnippet>837</a>                            }
+<a href=#838 id=838 data-nosnippet>838</a>                        }
+<a href=#839 id=839 data-nosnippet>839</a>                    ],
+<a href=#840 id=840 data-nosnippet>840</a>                    "flags": 1
+<a href=#841 id=841 data-nosnippet>841</a>                }
+<a href=#842 id=842 data-nosnippet>842</a>            ]
+<a href=#843 id=843 data-nosnippet>843</a>        }"#</span>;
+<a href=#844 id=844 data-nosnippet>844</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+<a href=#845 id=845 data-nosnippet>845</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
+<a href=#846 id=846 data-nosnippet>846</a>        <span class="kw">let </span>annotated_span: Annotated&lt;EventSpan&gt; = Annotated::new(event_span);
+<a href=#847 id=847 data-nosnippet>847</a>        <span class="macro">assert_eq!</span>(
+<a href=#848 id=848 data-nosnippet>848</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].trace_id),
+<a href=#849 id=849 data-nosnippet>849</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(TraceId(
+<a href=#850 id=850 data-nosnippet>850</a>                <span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into()
+<a href=#851 id=851 data-nosnippet>851</a>            )))
+<a href=#852 id=852 data-nosnippet>852</a>        );
+<a href=#853 id=853 data-nosnippet>853</a>        <span class="macro">assert_eq!</span>(
+<a href=#854 id=854 data-nosnippet>854</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].span_id),
+<a href=#855 id=855 data-nosnippet>855</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())))
+<a href=#856 id=856 data-nosnippet>856</a>        );
+<a href=#857 id=857 data-nosnippet>857</a>        <span class="macro">assert_eq!</span>(
+<a href=#858 id=858 data-nosnippet>858</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"str_key"</span>]),
+<a href=#859 id=859 data-nosnippet>859</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::String(<span class="string">"str_value"</span>.into())))
+<a href=#860 id=860 data-nosnippet>860</a>        );
+<a href=#861 id=861 data-nosnippet>861</a>        <span class="macro">assert_eq!</span>(
+<a href=#862 id=862 data-nosnippet>862</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"bool_key"</span>]),
+<a href=#863 id=863 data-nosnippet>863</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::Bool(<span class="bool-val">true</span>)))
+<a href=#864 id=864 data-nosnippet>864</a>        );
+<a href=#865 id=865 data-nosnippet>865</a>        <span class="macro">assert_eq!</span>(
+<a href=#866 id=866 data-nosnippet>866</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"int_key"</span>]),
+<a href=#867 id=867 data-nosnippet>867</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::I64(<span class="number">123</span>)))
+<a href=#868 id=868 data-nosnippet>868</a>        );
+<a href=#869 id=869 data-nosnippet>869</a>        <span class="macro">assert_eq!</span>(
+<a href=#870 id=870 data-nosnippet>870</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].attributes[<span class="string">"double_key"</span>]),
+<a href=#871 id=871 data-nosnippet>871</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(Value::F64(<span class="number">1.23</span>)))
+<a href=#872 id=872 data-nosnippet>872</a>        );
+<a href=#873 id=873 data-nosnippet>873</a>        <span class="macro">assert_eq!</span>(
+<a href=#874 id=874 data-nosnippet>874</a>            <span class="macro">get_path!</span>(annotated_span.links[<span class="number">0</span>].sampled),
+<a href=#875 id=875 data-nosnippet>875</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="bool-val">true</span>))
+<a href=#876 id=876 data-nosnippet>876</a>        );
+<a href=#877 id=877 data-nosnippet>877</a>    }
+<a href=#878 id=878 data-nosnippet>878</a>}</code></pre></div></section></main></body></html>

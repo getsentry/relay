@@ -1784,103 +1784,106 @@
 <a href=#1784 id=1784 data-nosnippet>1784</a>                platform: ~,
 <a href=#1785 id=1785 data-nosnippet>1785</a>                was_transaction: ~,
 <a href=#1786 id=1786 data-nosnippet>1786</a>                kind: ~,
-<a href=#1787 id=1787 data-nosnippet>1787</a>                other: {},
-<a href=#1788 id=1788 data-nosnippet>1788</a>            },
-<a href=#1789 id=1789 data-nosnippet>1789</a>        ]
-<a href=#1790 id=1790 data-nosnippet>1790</a>        "###</span>);
-<a href=#1791 id=1791 data-nosnippet>1791</a>    }
-<a href=#1792 id=1792 data-nosnippet>1792</a>
-<a href=#1793 id=1793 data-nosnippet>1793</a>    <span class="attr">#[test]
-<a href=#1794 id=1794 data-nosnippet>1794</a>    </span><span class="kw">fn </span>test_normalize_app_start_cold_spans_for_react_native() {
-<a href=#1795 id=1795 data-nosnippet>1795</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
-<a href=#1796 id=1796 data-nosnippet>1796</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-<a href=#1797 id=1797 data-nosnippet>1797</a>                op: Annotated::new(<span class="string">"app_start_cold"</span>.to_owned()),
-<a href=#1798 id=1798 data-nosnippet>1798</a>                ..Default::default()
-<a href=#1799 id=1799 data-nosnippet>1799</a>            })]),
-<a href=#1800 id=1800 data-nosnippet>1800</a>            client_sdk: Annotated::new(ClientSdkInfo {
-<a href=#1801 id=1801 data-nosnippet>1801</a>                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
-<a href=#1802 id=1802 data-nosnippet>1802</a>                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
-<a href=#1803 id=1803 data-nosnippet>1803</a>                ..Default::default()
-<a href=#1804 id=1804 data-nosnippet>1804</a>            }),
-<a href=#1805 id=1805 data-nosnippet>1805</a>            ..Default::default()
-<a href=#1806 id=1806 data-nosnippet>1806</a>        };
-<a href=#1807 id=1807 data-nosnippet>1807</a>        normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-<a href=#1808 id=1808 data-nosnippet>1808</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
-<a href=#1809 id=1809 data-nosnippet>1809</a>        [
-<a href=#1810 id=1810 data-nosnippet>1810</a>            Span {
-<a href=#1811 id=1811 data-nosnippet>1811</a>                timestamp: ~,
-<a href=#1812 id=1812 data-nosnippet>1812</a>                start_timestamp: ~,
-<a href=#1813 id=1813 data-nosnippet>1813</a>                exclusive_time: ~,
-<a href=#1814 id=1814 data-nosnippet>1814</a>                op: "app.start.cold",
-<a href=#1815 id=1815 data-nosnippet>1815</a>                span_id: ~,
-<a href=#1816 id=1816 data-nosnippet>1816</a>                parent_span_id: ~,
-<a href=#1817 id=1817 data-nosnippet>1817</a>                trace_id: ~,
-<a href=#1818 id=1818 data-nosnippet>1818</a>                segment_id: ~,
-<a href=#1819 id=1819 data-nosnippet>1819</a>                is_segment: ~,
-<a href=#1820 id=1820 data-nosnippet>1820</a>                is_remote: ~,
-<a href=#1821 id=1821 data-nosnippet>1821</a>                status: ~,
-<a href=#1822 id=1822 data-nosnippet>1822</a>                description: ~,
-<a href=#1823 id=1823 data-nosnippet>1823</a>                tags: ~,
-<a href=#1824 id=1824 data-nosnippet>1824</a>                origin: ~,
-<a href=#1825 id=1825 data-nosnippet>1825</a>                profile_id: ~,
-<a href=#1826 id=1826 data-nosnippet>1826</a>                data: ~,
-<a href=#1827 id=1827 data-nosnippet>1827</a>                links: ~,
-<a href=#1828 id=1828 data-nosnippet>1828</a>                sentry_tags: ~,
-<a href=#1829 id=1829 data-nosnippet>1829</a>                received: ~,
-<a href=#1830 id=1830 data-nosnippet>1830</a>                measurements: ~,
-<a href=#1831 id=1831 data-nosnippet>1831</a>                platform: ~,
-<a href=#1832 id=1832 data-nosnippet>1832</a>                was_transaction: ~,
-<a href=#1833 id=1833 data-nosnippet>1833</a>                kind: ~,
-<a href=#1834 id=1834 data-nosnippet>1834</a>                other: {},
-<a href=#1835 id=1835 data-nosnippet>1835</a>            },
-<a href=#1836 id=1836 data-nosnippet>1836</a>        ]
-<a href=#1837 id=1837 data-nosnippet>1837</a>        "###</span>);
-<a href=#1838 id=1838 data-nosnippet>1838</a>    }
-<a href=#1839 id=1839 data-nosnippet>1839</a>
-<a href=#1840 id=1840 data-nosnippet>1840</a>    <span class="attr">#[test]
-<a href=#1841 id=1841 data-nosnippet>1841</a>    </span><span class="kw">fn </span>test_normalize_app_start_warm_spans_for_react_native() {
-<a href=#1842 id=1842 data-nosnippet>1842</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
-<a href=#1843 id=1843 data-nosnippet>1843</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
-<a href=#1844 id=1844 data-nosnippet>1844</a>                op: Annotated::new(<span class="string">"app_start_warm"</span>.to_owned()),
-<a href=#1845 id=1845 data-nosnippet>1845</a>                ..Default::default()
-<a href=#1846 id=1846 data-nosnippet>1846</a>            })]),
-<a href=#1847 id=1847 data-nosnippet>1847</a>            client_sdk: Annotated::new(ClientSdkInfo {
-<a href=#1848 id=1848 data-nosnippet>1848</a>                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
-<a href=#1849 id=1849 data-nosnippet>1849</a>                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
-<a href=#1850 id=1850 data-nosnippet>1850</a>                ..Default::default()
-<a href=#1851 id=1851 data-nosnippet>1851</a>            }),
-<a href=#1852 id=1852 data-nosnippet>1852</a>            ..Default::default()
-<a href=#1853 id=1853 data-nosnippet>1853</a>        };
-<a href=#1854 id=1854 data-nosnippet>1854</a>        normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
-<a href=#1855 id=1855 data-nosnippet>1855</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
-<a href=#1856 id=1856 data-nosnippet>1856</a>        [
-<a href=#1857 id=1857 data-nosnippet>1857</a>            Span {
-<a href=#1858 id=1858 data-nosnippet>1858</a>                timestamp: ~,
-<a href=#1859 id=1859 data-nosnippet>1859</a>                start_timestamp: ~,
-<a href=#1860 id=1860 data-nosnippet>1860</a>                exclusive_time: ~,
-<a href=#1861 id=1861 data-nosnippet>1861</a>                op: "app.start.warm",
-<a href=#1862 id=1862 data-nosnippet>1862</a>                span_id: ~,
-<a href=#1863 id=1863 data-nosnippet>1863</a>                parent_span_id: ~,
-<a href=#1864 id=1864 data-nosnippet>1864</a>                trace_id: ~,
-<a href=#1865 id=1865 data-nosnippet>1865</a>                segment_id: ~,
-<a href=#1866 id=1866 data-nosnippet>1866</a>                is_segment: ~,
-<a href=#1867 id=1867 data-nosnippet>1867</a>                is_remote: ~,
-<a href=#1868 id=1868 data-nosnippet>1868</a>                status: ~,
-<a href=#1869 id=1869 data-nosnippet>1869</a>                description: ~,
-<a href=#1870 id=1870 data-nosnippet>1870</a>                tags: ~,
-<a href=#1871 id=1871 data-nosnippet>1871</a>                origin: ~,
-<a href=#1872 id=1872 data-nosnippet>1872</a>                profile_id: ~,
-<a href=#1873 id=1873 data-nosnippet>1873</a>                data: ~,
-<a href=#1874 id=1874 data-nosnippet>1874</a>                links: ~,
-<a href=#1875 id=1875 data-nosnippet>1875</a>                sentry_tags: ~,
-<a href=#1876 id=1876 data-nosnippet>1876</a>                received: ~,
-<a href=#1877 id=1877 data-nosnippet>1877</a>                measurements: ~,
-<a href=#1878 id=1878 data-nosnippet>1878</a>                platform: ~,
-<a href=#1879 id=1879 data-nosnippet>1879</a>                was_transaction: ~,
-<a href=#1880 id=1880 data-nosnippet>1880</a>                kind: ~,
-<a href=#1881 id=1881 data-nosnippet>1881</a>                other: {},
-<a href=#1882 id=1882 data-nosnippet>1882</a>            },
-<a href=#1883 id=1883 data-nosnippet>1883</a>        ]
-<a href=#1884 id=1884 data-nosnippet>1884</a>        "###</span>);
-<a href=#1885 id=1885 data-nosnippet>1885</a>    }
-<a href=#1886 id=1886 data-nosnippet>1886</a>}</code></pre></div></section></main></body></html>
+<a href=#1787 id=1787 data-nosnippet>1787</a>                _performance_issues_spans: ~,
+<a href=#1788 id=1788 data-nosnippet>1788</a>                other: {},
+<a href=#1789 id=1789 data-nosnippet>1789</a>            },
+<a href=#1790 id=1790 data-nosnippet>1790</a>        ]
+<a href=#1791 id=1791 data-nosnippet>1791</a>        "###</span>);
+<a href=#1792 id=1792 data-nosnippet>1792</a>    }
+<a href=#1793 id=1793 data-nosnippet>1793</a>
+<a href=#1794 id=1794 data-nosnippet>1794</a>    <span class="attr">#[test]
+<a href=#1795 id=1795 data-nosnippet>1795</a>    </span><span class="kw">fn </span>test_normalize_app_start_cold_spans_for_react_native() {
+<a href=#1796 id=1796 data-nosnippet>1796</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+<a href=#1797 id=1797 data-nosnippet>1797</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+<a href=#1798 id=1798 data-nosnippet>1798</a>                op: Annotated::new(<span class="string">"app_start_cold"</span>.to_owned()),
+<a href=#1799 id=1799 data-nosnippet>1799</a>                ..Default::default()
+<a href=#1800 id=1800 data-nosnippet>1800</a>            })]),
+<a href=#1801 id=1801 data-nosnippet>1801</a>            client_sdk: Annotated::new(ClientSdkInfo {
+<a href=#1802 id=1802 data-nosnippet>1802</a>                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
+<a href=#1803 id=1803 data-nosnippet>1803</a>                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
+<a href=#1804 id=1804 data-nosnippet>1804</a>                ..Default::default()
+<a href=#1805 id=1805 data-nosnippet>1805</a>            }),
+<a href=#1806 id=1806 data-nosnippet>1806</a>            ..Default::default()
+<a href=#1807 id=1807 data-nosnippet>1807</a>        };
+<a href=#1808 id=1808 data-nosnippet>1808</a>        normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
+<a href=#1809 id=1809 data-nosnippet>1809</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
+<a href=#1810 id=1810 data-nosnippet>1810</a>        [
+<a href=#1811 id=1811 data-nosnippet>1811</a>            Span {
+<a href=#1812 id=1812 data-nosnippet>1812</a>                timestamp: ~,
+<a href=#1813 id=1813 data-nosnippet>1813</a>                start_timestamp: ~,
+<a href=#1814 id=1814 data-nosnippet>1814</a>                exclusive_time: ~,
+<a href=#1815 id=1815 data-nosnippet>1815</a>                op: "app.start.cold",
+<a href=#1816 id=1816 data-nosnippet>1816</a>                span_id: ~,
+<a href=#1817 id=1817 data-nosnippet>1817</a>                parent_span_id: ~,
+<a href=#1818 id=1818 data-nosnippet>1818</a>                trace_id: ~,
+<a href=#1819 id=1819 data-nosnippet>1819</a>                segment_id: ~,
+<a href=#1820 id=1820 data-nosnippet>1820</a>                is_segment: ~,
+<a href=#1821 id=1821 data-nosnippet>1821</a>                is_remote: ~,
+<a href=#1822 id=1822 data-nosnippet>1822</a>                status: ~,
+<a href=#1823 id=1823 data-nosnippet>1823</a>                description: ~,
+<a href=#1824 id=1824 data-nosnippet>1824</a>                tags: ~,
+<a href=#1825 id=1825 data-nosnippet>1825</a>                origin: ~,
+<a href=#1826 id=1826 data-nosnippet>1826</a>                profile_id: ~,
+<a href=#1827 id=1827 data-nosnippet>1827</a>                data: ~,
+<a href=#1828 id=1828 data-nosnippet>1828</a>                links: ~,
+<a href=#1829 id=1829 data-nosnippet>1829</a>                sentry_tags: ~,
+<a href=#1830 id=1830 data-nosnippet>1830</a>                received: ~,
+<a href=#1831 id=1831 data-nosnippet>1831</a>                measurements: ~,
+<a href=#1832 id=1832 data-nosnippet>1832</a>                platform: ~,
+<a href=#1833 id=1833 data-nosnippet>1833</a>                was_transaction: ~,
+<a href=#1834 id=1834 data-nosnippet>1834</a>                kind: ~,
+<a href=#1835 id=1835 data-nosnippet>1835</a>                _performance_issues_spans: ~,
+<a href=#1836 id=1836 data-nosnippet>1836</a>                other: {},
+<a href=#1837 id=1837 data-nosnippet>1837</a>            },
+<a href=#1838 id=1838 data-nosnippet>1838</a>        ]
+<a href=#1839 id=1839 data-nosnippet>1839</a>        "###</span>);
+<a href=#1840 id=1840 data-nosnippet>1840</a>    }
+<a href=#1841 id=1841 data-nosnippet>1841</a>
+<a href=#1842 id=1842 data-nosnippet>1842</a>    <span class="attr">#[test]
+<a href=#1843 id=1843 data-nosnippet>1843</a>    </span><span class="kw">fn </span>test_normalize_app_start_warm_spans_for_react_native() {
+<a href=#1844 id=1844 data-nosnippet>1844</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+<a href=#1845 id=1845 data-nosnippet>1845</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
+<a href=#1846 id=1846 data-nosnippet>1846</a>                op: Annotated::new(<span class="string">"app_start_warm"</span>.to_owned()),
+<a href=#1847 id=1847 data-nosnippet>1847</a>                ..Default::default()
+<a href=#1848 id=1848 data-nosnippet>1848</a>            })]),
+<a href=#1849 id=1849 data-nosnippet>1849</a>            client_sdk: Annotated::new(ClientSdkInfo {
+<a href=#1850 id=1850 data-nosnippet>1850</a>                name: Annotated::new(<span class="string">"sentry.javascript.react-native"</span>.to_owned()),
+<a href=#1851 id=1851 data-nosnippet>1851</a>                version: Annotated::new(<span class="string">"4.4.0"</span>.to_owned()),
+<a href=#1852 id=1852 data-nosnippet>1852</a>                ..Default::default()
+<a href=#1853 id=1853 data-nosnippet>1853</a>            }),
+<a href=#1854 id=1854 data-nosnippet>1854</a>            ..Default::default()
+<a href=#1855 id=1855 data-nosnippet>1855</a>        };
+<a href=#1856 id=1856 data-nosnippet>1856</a>        normalize_app_start_spans(<span class="kw-2">&amp;mut </span>event);
+<a href=#1857 id=1857 data-nosnippet>1857</a>        <span class="macro">assert_debug_snapshot!</span>(event.spans, @<span class="string">r###"
+<a href=#1858 id=1858 data-nosnippet>1858</a>        [
+<a href=#1859 id=1859 data-nosnippet>1859</a>            Span {
+<a href=#1860 id=1860 data-nosnippet>1860</a>                timestamp: ~,
+<a href=#1861 id=1861 data-nosnippet>1861</a>                start_timestamp: ~,
+<a href=#1862 id=1862 data-nosnippet>1862</a>                exclusive_time: ~,
+<a href=#1863 id=1863 data-nosnippet>1863</a>                op: "app.start.warm",
+<a href=#1864 id=1864 data-nosnippet>1864</a>                span_id: ~,
+<a href=#1865 id=1865 data-nosnippet>1865</a>                parent_span_id: ~,
+<a href=#1866 id=1866 data-nosnippet>1866</a>                trace_id: ~,
+<a href=#1867 id=1867 data-nosnippet>1867</a>                segment_id: ~,
+<a href=#1868 id=1868 data-nosnippet>1868</a>                is_segment: ~,
+<a href=#1869 id=1869 data-nosnippet>1869</a>                is_remote: ~,
+<a href=#1870 id=1870 data-nosnippet>1870</a>                status: ~,
+<a href=#1871 id=1871 data-nosnippet>1871</a>                description: ~,
+<a href=#1872 id=1872 data-nosnippet>1872</a>                tags: ~,
+<a href=#1873 id=1873 data-nosnippet>1873</a>                origin: ~,
+<a href=#1874 id=1874 data-nosnippet>1874</a>                profile_id: ~,
+<a href=#1875 id=1875 data-nosnippet>1875</a>                data: ~,
+<a href=#1876 id=1876 data-nosnippet>1876</a>                links: ~,
+<a href=#1877 id=1877 data-nosnippet>1877</a>                sentry_tags: ~,
+<a href=#1878 id=1878 data-nosnippet>1878</a>                received: ~,
+<a href=#1879 id=1879 data-nosnippet>1879</a>                measurements: ~,
+<a href=#1880 id=1880 data-nosnippet>1880</a>                platform: ~,
+<a href=#1881 id=1881 data-nosnippet>1881</a>                was_transaction: ~,
+<a href=#1882 id=1882 data-nosnippet>1882</a>                kind: ~,
+<a href=#1883 id=1883 data-nosnippet>1883</a>                _performance_issues_spans: ~,
+<a href=#1884 id=1884 data-nosnippet>1884</a>                other: {},
+<a href=#1885 id=1885 data-nosnippet>1885</a>            },
+<a href=#1886 id=1886 data-nosnippet>1886</a>        ]
+<a href=#1887 id=1887 data-nosnippet>1887</a>        "###</span>);
+<a href=#1888 id=1888 data-nosnippet>1888</a>    }
+<a href=#1889 id=1889 data-nosnippet>1889</a>}</code></pre></div></section></main></body></html>
