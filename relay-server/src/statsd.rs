@@ -428,8 +428,8 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
-    ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
-    ///       but no scurbbing rules applied.
+    ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
+    ///   but no scurbbing rules applied.
     MinidumpScrubbing,
     /// Time spent on view hierarchy scrubbing.
     ///
@@ -438,7 +438,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///             scrubbing
+    ///   scrubbing
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
@@ -693,7 +693,7 @@ pub enum RelayCounters {
     ///     - `revision`: the cached version was validated to be up to date using its revision.
     ///     - `project_config`: the request was handled by the cache.
     ///     - `project_config_revision`: the request was handled by the cache and the revision did
-    ///        not change.
+    ///       not change.
     ///     - `false`: the request will be sent to the sentry endpoint.
     #[cfg(feature = "processing")]
     ProjectStateRedis,

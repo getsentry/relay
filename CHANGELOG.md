@@ -15,6 +15,7 @@
 
 - Separates profiles into backend and ui profiles. ([#4595](https://github.com/getsentry/relay/pull/4595))
 - Normalize trace context information before writing it into transaction and span data. This ensures the correct sampling rates are stored for extrapolation in Sentry. ([#4625](https://github.com/getsentry/relay/pull/4625))
+- Adds u16 validation to the replay protocol's segment_id field. ([#4635](https://github.com/getsentry/relay/pull/4635))
 
 **Internal**:
 
@@ -29,6 +30,7 @@
 - Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
 - Validate the spooling memory configuration on startup. ([#4617](https://github.com/getsentry/relay/pull/4617))
 - Improve descriptiveness of autoscaling metric name. ([#4629](https://github.com/getsentry/relay/pull/4629))
+- Serialize span's `_meta` information when producing to Kafka. ([#4646](https://github.com/getsentry/relay/pull/4646))
 - Enable connection pooling for asynchronous Redis connections. ([#4622](https://github.com/getsentry/relay/pull/4622))
 
 ## 25.3.0

@@ -151,7 +151,7 @@ macro_rules! get_value {
 /// Requires that this type implements `FromStr` and `Display`. Implements the following traits:
 ///
 ///  - [`FromValue`]: Deserializes a string, then uses [`FromStr`](std::str::FromStr) to convert
-///        into the type.
+///    into the type.
 ///  - [`IntoValue`]: Serializes into a string using the [`Display`](std::fmt::Display) trait.
 ///  - [`Empty`]: This type is never empty.
 ///

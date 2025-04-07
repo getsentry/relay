@@ -1302,6 +1302,24 @@ def test_span_ingestion_with_performance_scores(
             },
         },
         {
+            "_meta": {
+                "data": {
+                    "sentry.segment.name": {
+                        "": {
+                            "rem": [
+                                [
+                                    "int",
+                                    "s",
+                                    34,
+                                    37,
+                                ],
+                                ["**/interaction/*/**", "s"],
+                            ],
+                            "val": "/page/with/click/interaction/jane/123",
+                        }
+                    }
+                }
+            },
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
@@ -2024,6 +2042,17 @@ def test_scrubs_ip_addresses(
     del child_span["received"]
 
     expected = {
+        "_meta": {
+            "sentry_tags": {
+                "user.email": {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}},
+                "user.ip": {
+                    "": {
+                        "len": 9,
+                        "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
+                    }
+                },
+            }
+        },
         "description": "GET /api/0/organizations/?member=1",
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -2062,6 +2091,8 @@ def test_scrubs_ip_addresses(
     }
     if scrub_ip_addresses:
         del expected["sentry_tags"]["user.ip"]
+    else:
+        del expected["_meta"]["sentry_tags"]["user.ip"]
     assert child_span == expected
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
