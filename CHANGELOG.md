@@ -10,6 +10,7 @@
 - Filter out certain AI crawlers. ([#4608](https://github.com/getsentry/relay/pull/4608))
 - Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634))
 - Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624))
+- Make default Apple device class high. ([#4609](https://github.com/getsentry/relay/pull/4609))
 
 **Bug Fixes**:
 
