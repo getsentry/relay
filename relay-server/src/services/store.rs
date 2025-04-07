@@ -1400,8 +1400,8 @@ struct SpanKafkaMessage<'a> {
     )]
     meta: Option<&'a RawValue>,
 
-    #[serde(default)]
-    _performance_issues_spans: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    _performance_issues_spans: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
