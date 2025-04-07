@@ -144,7 +144,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "body": "Example log record",
             "severity_number": 10,
             "attributes": {
-                "boolean.attribute": {"value": True, "type": "bool"},
+                "boolean.attribute": {"value": True, "type": "boolean"},
                 "pii": {"value": "4242 4242 4242 4242", "type": "string"},
                 "sentry.severity_text": {"value": "info", "type": "string"},
                 "unknown_type": {"value": "info", "type": "unknown"},

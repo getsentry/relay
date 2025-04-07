@@ -131,7 +131,7 @@ impl From<String> for OurLogAttributeType {
     fn from(value: String) -> Self {
         match value.as_str() {
             "boolean" => Self::Bool,
-            "int" => Self::Int,
+            "integer" => Self::Int,
             "double" => Self::Double,
             "string" => Self::String,
             _ => Self::Unknown(value),
@@ -304,15 +304,15 @@ mod tests {
                 },
                 "sentry.severity_number": {
                     "value": "10",
-                    "type": "int"
+                    "type": "integer"
                 },
                 "sentry.observed_timestamp_nanos": {
                     "value": "1544712660300000000",
-                    "type": "int"
+                    "type": "integer"
                 },
                 "sentry.trace_flags": {
                     "value": "10",
-                    "type": "int"
+                    "type": "integer"
                 }
             }
         }"#;
@@ -342,13 +342,13 @@ mod tests {
                     value: String(
                         "1544712660300000000",
                     ),
-                    type: "int",
+                    type: "integer",
                 },
                 "sentry.severity_number": OurLogAttribute {
                     value: String(
                         "10",
                     ),
-                    type: "int",
+                    type: "integer",
                 },
                 "sentry.severity_text": OurLogAttribute {
                     value: String(
@@ -360,7 +360,7 @@ mod tests {
                     value: String(
                         "10",
                     ),
-                    type: "int",
+                    type: "integer",
                 },
             },
             other: {},
@@ -380,11 +380,11 @@ mod tests {
               "value": true
             },
             "sentry.observed_timestamp_nanos": {
-              "type": "int",
+              "type": "integer",
               "value": "1544712660300000000"
             },
             "sentry.severity_number": {
-              "type": "int",
+              "type": "integer",
               "value": "10"
             },
             "sentry.severity_text": {
@@ -392,7 +392,7 @@ mod tests {
               "value": "info"
             },
             "sentry.trace_flags": {
-              "type": "int",
+              "type": "integer",
               "value": "10"
             }
           }
@@ -411,7 +411,7 @@ mod tests {
             "attributes": {
                 "sentry.severity_number": {
                     "value": 10,
-                    "type": "int"
+                    "type": "integer"
                 }
             }
         }"#;
@@ -427,7 +427,7 @@ mod tests {
           "body": "Example log record",
           "attributes": {
             "sentry.severity_number": {
-              "type": "int",
+              "type": "integer",
               "value": 10
             }
           }

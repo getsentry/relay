@@ -141,7 +141,7 @@ fn process_attribute_types(ourlog: &mut OurLog) {
                             (OurLogAttributeType::Int, Value::I64(_)) => attr.value.clone(),
                             (OurLogAttributeType::Int, Value::U64(_)) => attr.value.clone(),
                             (OurLogAttributeType::Int, Value::String(v)) => {
-                                if v.parse::<i64>().is_ok() {
+                                if v.parse::<u64>().is_ok() || v.parse::<i64>().is_ok() {
                                     attr.value.clone()
                                 } else {
                                     value_meta.add_error(ErrorKind::InvalidData);
@@ -307,15 +307,15 @@ mod tests {
                     "value": true
                 },
                 "valid_int_i64": {
-                    "type": "int",
+                    "type": "integer",
                     "value": -42
                 },
                 "valid_int_u64": {
-                    "type": "int",
+                    "type": "integer",
                     "value": 42
                 },
                 "valid_int_from_string": {
-                    "type": "int",
+                    "type": "integer",
                     "value": "42"
                 },
                 "valid_double": {
@@ -339,7 +339,7 @@ mod tests {
                     "value": "test"
                 },
                 "invalid_int_from_invalid_string": {
-                    "type": "int",
+                    "type": "integer",
                     "value": "abc"
                 },
                 "missing_type": {
@@ -489,19 +489,19 @@ mod tests {
                 value: String(
                     "42",
                 ),
-                type: "int",
+                type: "integer",
             },
             "valid_int_i64": OurLogAttribute {
                 value: I64(
                     -42,
                 ),
-                type: "int",
+                type: "integer",
             },
             "valid_int_u64": OurLogAttribute {
                 value: I64(
                     42,
                 ),
-                type: "int",
+                type: "integer",
             },
             "valid_string": OurLogAttribute {
                 value: String(

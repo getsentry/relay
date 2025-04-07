@@ -1460,9 +1460,9 @@ struct SpanKafkaMessage<'a> {
 enum LogAttributeValue {
     #[serde(rename = "string")]
     String(String),
-    #[serde(rename = "bool")]
+    #[serde(rename = "boolean")]
     Bool(bool),
-    #[serde(rename = "int")]
+    #[serde(rename = "integer")]
     Int(i64),
     #[serde(rename = "double")]
     Double(f64),
