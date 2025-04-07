@@ -208,7 +208,6 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::Context;
 
     #[test]
     fn test_iphone17_5_returns_device_class_high() {
@@ -225,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iPhone99_1_returns_device_class_high() {
+    fn test_iphone99_1_returns_device_class_high() {
         let mut contexts = Contexts::new();
         contexts.add(DeviceContext {
             family: Annotated::new("iOS".to_string()),
@@ -239,7 +238,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iPad99_1_returns_device_class_high() {
+    fn test_ipad99_1_returns_device_class_high() {
         let mut contexts = Contexts::new();
         contexts.add(DeviceContext {
             family: Annotated::new("iOS".to_string()),
