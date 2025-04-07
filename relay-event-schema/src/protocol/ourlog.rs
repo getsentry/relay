@@ -113,7 +113,7 @@ impl OurLogAttributeType {
     fn as_str(&self) -> &str {
         match self {
             Self::Bool => "boolean",
-            Self::Int => "int",
+            Self::Int => "integer",
             Self::Double => "double",
             Self::String => "string",
             Self::Unknown(value) => value,
