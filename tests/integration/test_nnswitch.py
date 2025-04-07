@@ -55,5 +55,5 @@ def test_nnswitch(
     assert event["sdk"]["name"] == "sentry.native.switch"
     assert event["user"]["id"] == "user-id"
     assert event["contexts"]["os"]["name"] == "Nintendo"
-    assert event["breadcrumbs"][0]["type"] == "bread"
-    assert event["breadcrumbs"][0]["message"] == "crumb"
+    assert event["breadcrumbs"]["values"][0]["type"] == "bread"
+    assert event["breadcrumbs"]["values"][0]["message"] == "crumb"
