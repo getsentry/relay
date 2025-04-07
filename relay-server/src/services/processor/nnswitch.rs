@@ -254,7 +254,6 @@ fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u
         ))?;
 
     let mut decompressor = ZstdDecompressor::with_prepared_dictionary(dictionary)?;
-    decompressor.include_magicbytes(false)?;
     decompressor.decompress(data.as_ref(), MAX_DECOMPRESSED_SIZE)
 }
 
@@ -358,7 +357,7 @@ mod tests {
         );
         assert_eq!(items[1].ty(), &ItemType::Attachment);
         assert_eq!(items[1].filename(), Some(DYING_MESSAGE_FILENAME));
-        assert_eq!(items[1].payload().len(), 94);
+        assert_eq!(items[1].payload().len(), 98);
 
         expand(&mut envelope).unwrap();
 
@@ -382,8 +381,6 @@ mod tests {
         // - 2 bytes data length = N bytes - in big endian representation
         // - N bytes of compressed content (Zstandard)
         let mut compressor = ZstdCompressor::new(3).unwrap();
-        compressor.include_magicbytes(false).unwrap();
-        compressor.include_dictid(false).unwrap();
         let compressed_data = compressor
             .compress(
                 b"\
