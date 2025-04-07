@@ -271,6 +271,7 @@ mod tests {
             platform: "php",
             was_transaction: true,
             kind: ~,
+            _performance_issues_spans: ~,
             other: {},
         }
         "###);

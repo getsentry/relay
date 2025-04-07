@@ -743,6 +743,7 @@ mod tests {
             platform: "php",
             was_transaction: ~,
             kind: Unspecified,
+            _performance_issues_spans: ~,
             other: {},
         }
         "###);
