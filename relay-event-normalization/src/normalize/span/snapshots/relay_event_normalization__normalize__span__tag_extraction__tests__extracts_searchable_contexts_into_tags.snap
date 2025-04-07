@@ -1,0 +1,104 @@
+---
+source: relay-event-normalization/src/normalize/span/tag_extraction.rs
+expression: event.to_json_pretty().unwrap()
+---
+{
+  "type": "transaction",
+  "transaction": "foo",
+  "platform": "javascript",
+  "timestamp": 1619420400.0,
+  "start_timestamp": 1619420341.0,
+  "request": {
+    "url": "http://us.sentry.io/api/0/organizations/",
+    "method": "GET"
+  },
+  "contexts": {
+    "app": {
+      "app_start_time": "2025-04-07T13:33:38Z",
+      "device_app_hash": "3e06efaccaec678afef02f3fc2b5289ee5f613d5",
+      "build_type": "simulator",
+      "app_identifier": "io.sentry.sample.iOS-Swift",
+      "app_name": "iOS-Swift",
+      "app_version": "8.48.0",
+      "app_build": "1",
+      "app_memory": 17793024,
+      "in_foreground": true,
+      "app_id": "33410C22-5CBB-3C1C-8453-62311FADEF1A",
+      "type": "app"
+    },
+    "browser": {
+      "browser": "Chrome 134",
+      "name": "Chrome",
+      "version": "134",
+      "type": "browser"
+    },
+    "device": {
+      "family": "K",
+      "model": "Generic_Android",
+      "type": "device"
+    },
+    "runtime": {
+      "runtime": "CPython 3.13.1",
+      "name": "CPython",
+      "version": "3.13.1",
+      "type": "runtime"
+    },
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4",
+      "type": "trace"
+    }
+  },
+  "spans": [
+    {
+      "timestamp": 1597976302.0,
+      "start_timestamp": 1597976300.0,
+      "op": "before_first_display",
+      "span_id": "bd429c44b67a3eb1",
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "sentry_tags": {
+        "transaction": "foo",
+        "transaction.method": "GET",
+        "browser.name": "Chrome",
+        "sdk.name": "unknown",
+        "sdk.version": "unknown",
+        "platform": "javascript",
+        "device.family": "K",
+        "app.device": "3e06efaccaec678afef02f3fc2b5289ee5f613d5",
+        "device.model": "Generic_Android",
+        "runtime": "CPython 3.13.1",
+        "runtime.name": "CPython",
+        "browser": "Chrome 134",
+        "request.url": "http://us.sentry.io/api/0/organizations/",
+        "request.method": "GET",
+        "op": "before_first_display",
+        "ttid": "ttid"
+      }
+    },
+    {
+      "timestamp": 1597976303.0,
+      "start_timestamp": 1597976300.0,
+      "op": "ui.load.initial_display",
+      "span_id": "bd429c44b67a3eb2",
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "sentry_tags": {
+        "transaction": "foo",
+        "transaction.method": "GET",
+        "browser.name": "Chrome",
+        "sdk.name": "unknown",
+        "sdk.version": "unknown",
+        "platform": "javascript",
+        "device.family": "K",
+        "app.device": "3e06efaccaec678afef02f3fc2b5289ee5f613d5",
+        "device.model": "Generic_Android",
+        "runtime": "CPython 3.13.1",
+        "runtime.name": "CPython",
+        "browser": "Chrome 134",
+        "request.url": "http://us.sentry.io/api/0/organizations/",
+        "request.method": "GET",
+        "op": "ui.load.initial_display",
+        "ttid": "ttid"
+      }
+    }
+  ]
+}

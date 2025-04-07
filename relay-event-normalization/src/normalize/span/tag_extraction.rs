@@ -2182,6 +2182,82 @@ LIMIT 1
     }
 
     #[test]
+    fn test_extracts_searchable_contexts_into_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    },
+                    "device": {
+                        "model": "Generic_Android",
+                        "family": "K"
+                    },
+                    "runtime": {
+                        "runtime": "CPython 3.13.1",
+                        "name": "CPython",
+                        "version": "3.13.1",
+                        "type": "runtime"
+                    },
+                    "browser": {
+                        "browser": "Chrome 134",
+                        "name": "Chrome",
+                        "version": "134",
+                        "type": "browser"
+                    },
+                    "app": {
+                        "app_start_time": "2025-04-07T13:33:38Z",
+                        "device_app_hash": "3e06efaccaec678afef02f3fc2b5289ee5f613d5",
+                        "build_type": "simulator",
+                        "app_identifier": "io.sentry.sample.iOS-Swift",
+                        "app_name": "iOS-Swift",
+                        "app_version": "8.48.0",
+                        "app_build": "1",
+                        "app_memory": 17793024,
+                        "in_foreground": true,
+                        "app_id": "33410C22-5CBB-3C1C-8453-62311FADEF1A",
+                        "type": "app"
+                    },
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "request": {
+                    "url": "http://us.sentry.io/api/0/organizations/",
+                    "method": "GET"
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "op": "ui.load.initial_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976303.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        extract_span_tags_from_event(event.value_mut().as_mut().unwrap(), 200, &[]);
+        insta::assert_snapshot!(event.to_json_pretty().unwrap());
+    }
+
+    #[test]
     fn test_http_client_domain() {
         let json = r#"
             {
