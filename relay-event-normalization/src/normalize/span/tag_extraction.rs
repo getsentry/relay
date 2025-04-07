@@ -525,13 +525,6 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         }
     }
 
-    if let Some(profiler_id) = event
-        .context::<ProfileContext>()
-        .and_then(|profile_context| profile_context.profiler_id.value())
-    {
-        tags.profiler_id = profiler_id.to_string().into();
-    }
-
     if let Some(monitor_context) = event.context::<MonitorContext>() {
         if let Some(monitor_id) = monitor_context
             .get("id")
