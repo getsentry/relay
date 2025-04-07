@@ -1399,6 +1399,9 @@ struct SpanKafkaMessage<'a> {
         skip_serializing_if = "none_or_empty_object"
     )]
     meta: Option<&'a RawValue>,
+
+    #[serde(default)]
+    _performance_issues_spans: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
