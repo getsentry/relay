@@ -24,6 +24,7 @@ from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
 
+@pytest.mark.parametrize("performance_issues_spans", [False, True])
 @pytest.mark.parametrize("discard_transaction", [False, True])
 def test_span_extraction(
     mini_sentry,
@@ -33,6 +34,7 @@ def test_span_extraction(
     events_consumer,
     metrics_consumer,
     discard_transaction,
+    performance_issues_spans,
 ):
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
@@ -52,6 +54,10 @@ def test_span_extraction(
 
     if discard_transaction:
         project_config["config"]["features"].append("projects:discard-transaction")
+    if performance_issues_spans:
+        project_config["config"]["features"].append(
+            "organizations:performance-issues-spans"
+        )
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["contexts"]["trace"]["status"] = "success"
@@ -88,6 +94,9 @@ def test_span_extraction(
     else:
         received_event, _ = transactions_consumer.get_event(timeout=2.0)
         assert received_event["event_id"] == event["event_id"]
+        assert received_event.get("_performance_issues_spans") == (
+            performance_issues_spans or None
+        )
         assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
             ("namespace", b"spans"),
             ("namespace", b"transactions"),
@@ -139,6 +148,8 @@ def test_span_extraction(
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
+    if performance_issues_spans:
+        assert transaction_span.pop("_performance_issues_spans") == True
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
