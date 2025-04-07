@@ -5,13 +5,6 @@ use serde::{Deserialize, Serialize};
 /// In this case, we fall back to the old default.
 pub(crate) const DEFAULT_MIN_MAX_CONNECTIONS: u32 = 24;
 
-/// By default, the `min_idle` count of the Redis pool is set to the calculated
-/// amount of max connections divided by this value and rounded up.
-///
-/// To express this value as a percentage of max connections,
-/// use this formula: `100 / DEFAULT_MIN_IDLE_RATIO`.
-pub(crate) const DEFAULT_MIN_IDLE_RATIO: u32 = 5;
-
 /// Additional configuration options for a redis client.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
@@ -21,35 +14,48 @@ pub struct PartialRedisConfigOptions {
     /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_connections: Option<u32>,
-    /// Minimum amount of idle connections kept alive in the pool.
-    ///
-    /// If not set it will default to 20% of [`Self::max_connections`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub min_idle: Option<u32>,
-    /// Sets the connection timeout used by the pool, in seconds.
-    ///
-    /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
-    pub connection_timeout: u64,
-    /// Sets the maximum lifetime of connections in the pool, in seconds.
-    pub max_lifetime: u64,
     /// Sets the idle timeout used by the pool, in seconds.
+    ///
+    /// The idle timeout defines the maximum time a connection will be kept in the pool if unused.
     pub idle_timeout: u64,
-    /// Sets the read timeout out on the connection, in seconds.
-    pub read_timeout: u64,
-    /// Sets the write timeout on the connection, in seconds.
-    pub write_timeout: u64,
+    /// Sets the maximum time in seconds to wait when establishing a new Redis connection.
+    ///
+    /// If a connection cannot be established within this duration, it is considered a failure.
+    /// Applies when the pool needs to grow or create fresh connections.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub create_timeout: Option<u64>,
+    /// Sets the maximum time in seconds to validate an existing connection when it is recycled.
+    ///
+    /// Recycling involves checking whether an idle connection is still alive before reuse.
+    /// If validation exceeds this timeout, the connection is discarded and a new fetch from the pool
+    /// is attempted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recycle_timeout: Option<u64>,
+    /// Sets the maximum time, in seconds, that a caller is allowed to wait
+    /// when requesting a connection from the pool.
+    ///
+    /// If a connection does not become available within this period, the attempt
+    /// will fail with a timeout error. This setting helps prevent indefinite
+    /// blocking when the pool is exhausted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait_timeout: Option<u64>,
+    /// Sets the number of times after which the connection will check whether it is active when
+    /// being recycled.
+    ///
+    /// A frequency of 1, means that the connection will check whether it is active every time it
+    /// is recycled.
+    pub recycle_check_frequency: usize,
 }
 
 impl Default for PartialRedisConfigOptions {
     fn default() -> Self {
         Self {
             max_connections: None,
-            min_idle: None,
-            connection_timeout: 5,
-            max_lifetime: 300,
             idle_timeout: 60,
-            read_timeout: 3,
-            write_timeout: 3,
+            create_timeout: Some(3),
+            recycle_timeout: Some(2),
+            wait_timeout: None,
+            recycle_check_frequency: 100,
         }
     }
 }
@@ -226,20 +232,15 @@ fn build_redis_config_options(
     options: &PartialRedisConfigOptions,
     default_connections: u32,
 ) -> RedisConfigOptions {
-    // TODO: remove options that are not used anymore.
     let max_connections = options.max_connections.unwrap_or(default_connections);
-    let min_idle = options
-        .min_idle
-        .unwrap_or_else(|| max_connections.div_ceil(DEFAULT_MIN_IDLE_RATIO));
 
     RedisConfigOptions {
         max_connections,
-        min_idle: Some(min_idle),
-        connection_timeout: options.connection_timeout,
-        max_lifetime: options.max_lifetime,
         idle_timeout: options.idle_timeout,
-        read_timeout: options.read_timeout,
-        write_timeout: options.write_timeout,
+        create_timeout: options.create_timeout,
+        recycle_timeout: options.recycle_timeout,
+        wait_timeout: options.wait_timeout,
+        recycle_check_frequency: options.recycle_check_frequency,
     }
 }
 
@@ -283,16 +284,11 @@ pub(super) fn build_redis_config(
 pub(super) fn build_redis_configs(
     configs: &RedisConfigs,
     cpu_concurrency: u32,
-    pool_concurrency: u32,
 ) -> RedisConfigsRef<'_> {
     // Default `max_connections` for the `project_configs` client.
     // In a unified config, this is used for all clients.
     let project_configs_default_connections =
         std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
-
-    // The number of default connections is equal to how many threads we have times the number of
-    // futures we can concurrently drive times some leeway since we might use more connections.
-    let default_connections = cpu_concurrency * pool_concurrency * 2;
 
     match configs {
         RedisConfigs::Unified(cfg) => {
@@ -306,8 +302,8 @@ pub(super) fn build_redis_configs(
         } => {
             let project_configs =
                 build_redis_config(project_configs, project_configs_default_connections);
-            let cardinality = build_redis_config(cardinality, default_connections);
-            let quotas = build_redis_config(quotas, default_connections);
+            let cardinality = build_redis_config(cardinality, cpu_concurrency);
+            let quotas = build_redis_config(quotas, cpu_concurrency);
             RedisConfigsRef::Individual {
                 project_configs,
                 cardinality,
@@ -340,7 +336,6 @@ connection_timeout: 5
                 server: "redis://127.0.0.1:6379".to_owned(),
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
-                    connection_timeout: 5,
                     ..Default::default()
                 }
             })
@@ -364,7 +359,6 @@ connection_timeout: 5
                 server: "redis://127.0.0.1:6379".to_owned(),
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
-                    connection_timeout: 5,
                     ..Default::default()
                 }
             }))
@@ -377,7 +371,6 @@ connection_timeout: 5
 project_configs:
     server: "redis://127.0.0.1:6379"
     max_connections: 42
-    connection_timeout: 5
 cardinality:
     server: "redis://127.0.0.1:6379"
 quotas:
@@ -385,7 +378,6 @@ quotas:
         - "redis://127.0.0.1:6379"
         - "redis://127.0.0.2:6379"
     max_connections: 17
-    connection_timeout: 5
 "#;
 
         let configs: RedisConfigs = serde_yaml::from_str(yaml)
@@ -396,7 +388,6 @@ quotas:
                 server: "redis://127.0.0.1:6379".to_owned(),
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
-                    connection_timeout: 5,
                     ..Default::default()
                 },
             })),
@@ -411,7 +402,6 @@ quotas:
                 ],
                 options: PartialRedisConfigOptions {
                     max_connections: Some(17),
-                    connection_timeout: 5,
                     ..Default::default()
                 },
             }),
@@ -425,21 +415,21 @@ quotas:
         let config = RedisConfig::Single(SingleRedisConfig::Detailed {
             server: "redis://127.0.0.1:6379".to_owned(),
             options: PartialRedisConfigOptions {
-                connection_timeout: 5,
+                max_connections: Some(42),
                 ..Default::default()
             },
         });
 
-        assert_json_snapshot!(config, @r###"
+        assert_json_snapshot!(config, @r#"
         {
           "server": "redis://127.0.0.1:6379",
-          "connection_timeout": 5,
-          "max_lifetime": 300,
+          "max_connections": 42,
           "idle_timeout": 60,
-          "read_timeout": 3,
-          "write_timeout": 3
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "recycle_check_frequency": 100
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -447,21 +437,21 @@ quotas:
         let configs = RedisConfigs::Unified(RedisConfig::Single(SingleRedisConfig::Detailed {
             server: "redis://127.0.0.1:6379".to_owned(),
             options: PartialRedisConfigOptions {
-                connection_timeout: 5,
+                max_connections: Some(42),
                 ..Default::default()
             },
         }));
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "server": "redis://127.0.0.1:6379",
-          "connection_timeout": 5,
-          "max_lifetime": 300,
+          "max_connections": 42,
           "idle_timeout": 60,
-          "read_timeout": 3,
-          "write_timeout": 3
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "recycle_check_frequency": 100
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -507,7 +497,7 @@ server: "redis://127.0.0.1:6379"
 cluster_nodes:
     - "redis://127.0.0.1:6379"
     - "redis://127.0.0.2:6379"
-read_timeout: 10
+max_connections: 10
 "#;
 
         let config: RedisConfig = serde_yaml::from_str(yaml)
@@ -521,7 +511,7 @@ read_timeout: 10
                     "redis://127.0.0.2:6379".to_owned()
                 ],
                 options: PartialRedisConfigOptions {
-                    read_timeout: 10,
+                    max_connections: Some(10),
                     ..Default::default()
                 },
             }
@@ -560,7 +550,6 @@ configs:
                         ],
                         options: PartialRedisConfigOptions {
                             max_connections: Some(42),
-                            connection_timeout: 5,
                             ..Default::default()
                         },
                     },
@@ -568,7 +557,6 @@ configs:
                         server: "redis://127.0.0.1:6379".to_owned(),
                         options: PartialRedisConfigOptions {
                             max_connections: Some(84),
-                            connection_timeout: 10,
                             ..Default::default()
                         },
                     }),
@@ -577,7 +565,6 @@ configs:
                             server: "redis://127.0.0.1:6379".to_owned(),
                             options: PartialRedisConfigOptions {
                                 max_connections: Some(42),
-                                connection_timeout: 5,
                                 ..Default::default()
                             },
                         })]
@@ -593,7 +580,7 @@ configs:
 cluster_nodes:
     - "redis://127.0.0.1:6379"
     - "redis://127.0.0.2:6379"
-read_timeout: 10
+max_connections: 20
 "#;
 
         let config: RedisConfigs = serde_yaml::from_str(yaml)
@@ -607,7 +594,7 @@ read_timeout: 10
                     "redis://127.0.0.2:6379".to_owned()
                 ],
                 options: PartialRedisConfigOptions {
-                    read_timeout: 10,
+                    max_connections: Some(20),
                     ..Default::default()
                 },
             })
@@ -622,24 +609,24 @@ read_timeout: 10
                 "redis://127.0.0.2:6379".to_owned(),
             ],
             options: PartialRedisConfigOptions {
-                read_timeout: 33,
+                max_connections: Some(42),
                 ..Default::default()
             },
         };
 
-        assert_json_snapshot!(config, @r###"
+        assert_json_snapshot!(config, @r#"
         {
           "cluster_nodes": [
             "redis://127.0.0.1:6379",
             "redis://127.0.0.2:6379"
           ],
-          "connection_timeout": 5,
-          "max_lifetime": 300,
+          "max_connections": 42,
           "idle_timeout": 60,
-          "read_timeout": 33,
-          "write_timeout": 3
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "recycle_check_frequency": 100
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -650,24 +637,24 @@ read_timeout: 10
                 "redis://127.0.0.2:6379".to_owned(),
             ],
             options: PartialRedisConfigOptions {
-                read_timeout: 33,
+                max_connections: Some(42),
                 ..Default::default()
             },
         });
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "cluster_nodes": [
             "redis://127.0.0.1:6379",
             "redis://127.0.0.2:6379"
           ],
-          "connection_timeout": 5,
-          "max_lifetime": 300,
+          "max_connections": 42,
           "idle_timeout": 60,
-          "read_timeout": 33,
-          "write_timeout": 3
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "recycle_check_frequency": 100
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -677,7 +664,6 @@ read_timeout: 10
                 server: "redis://127.0.0.1:6379".to_owned(),
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
-                    connection_timeout: 5,
                     ..Default::default()
                 },
             })),
@@ -694,7 +680,6 @@ read_timeout: 10
                         ],
                         options: PartialRedisConfigOptions {
                             max_connections: Some(84),
-                            connection_timeout: 10,
                             ..Default::default()
                         },
                     },
@@ -702,7 +687,6 @@ read_timeout: 10
                         server: "redis://127.0.0.1:6379".to_owned(),
                         options: PartialRedisConfigOptions {
                             max_connections: Some(42),
-                            connection_timeout: 5,
                             ..Default::default()
                         },
                     }),
@@ -710,24 +694,22 @@ read_timeout: 10
             }),
         };
 
-        assert_json_snapshot!(configs, @r###"
+        assert_json_snapshot!(configs, @r#"
         {
           "project_configs": {
             "server": "redis://127.0.0.1:6379",
             "max_connections": 42,
-            "connection_timeout": 5,
-            "max_lifetime": 300,
             "idle_timeout": 60,
-            "read_timeout": 3,
-            "write_timeout": 3
+            "create_timeout": 3,
+            "recycle_timeout": 2,
+            "recycle_check_frequency": 100
           },
           "cardinality": {
             "server": "redis://127.0.0.1:6379",
-            "connection_timeout": 5,
-            "max_lifetime": 300,
             "idle_timeout": 60,
-            "read_timeout": 3,
-            "write_timeout": 3
+            "create_timeout": 3,
+            "recycle_timeout": 2,
+            "recycle_check_frequency": 100
           },
           "quotas": {
             "configs": [
@@ -737,24 +719,22 @@ read_timeout: 10
                   "redis://127.0.0.2:6379"
                 ],
                 "max_connections": 84,
-                "connection_timeout": 10,
-                "max_lifetime": 300,
                 "idle_timeout": 60,
-                "read_timeout": 3,
-                "write_timeout": 3
+                "create_timeout": 3,
+                "recycle_timeout": 2,
+                "recycle_check_frequency": 100
               },
               {
                 "server": "redis://127.0.0.1:6379",
                 "max_connections": 42,
-                "connection_timeout": 5,
-                "max_lifetime": 300,
                 "idle_timeout": 60,
-                "read_timeout": 3,
-                "write_timeout": 3
+                "create_timeout": 3,
+                "recycle_timeout": 2,
+                "recycle_check_frequency": 100
               }
             ]
           }
         }
-        "###);
+        "#);
     }
 }
