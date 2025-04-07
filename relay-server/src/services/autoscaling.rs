@@ -61,7 +61,12 @@ impl Service for AutoscalingMetricService {
                             let metrics = self.handle
                                 .current_services_metrics()
                                 .iter()
-                                .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
+                                .map(|(id, metric)| ServiceUtilization {
+                                    name: id.name(),
+                                    instance_id: id.instance_id(),
+                                    utilization: metric.utilization
+                                }
+                            )
                                 .collect();
                             let worker_pool_utilization = self.async_pool.metrics().utilization() as u8;
                             let runtime_utilization = self.runtime_utilization();
@@ -137,4 +142,18 @@ pub struct AutoscalingData {
     pub runtime_utilization: u8,
 }
 
-pub struct ServiceUtilization(pub &'static str, pub u8);
+pub struct ServiceUtilization {
+    pub name: &'static str,
+    pub instance_id: u32,
+    pub utilization: u8,
+}
+
+impl ServiceUtilization {
+    pub fn new(name: &'static str, instance_id: u32, utilization: u8) -> Self {
+        Self {
+            name,
+            instance_id,
+            utilization,
+        }
+    }
+}

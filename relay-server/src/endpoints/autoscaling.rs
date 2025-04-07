@@ -32,12 +32,15 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
     append_data_row(&mut result, "spool_item_count", data.item_count, &[]);
     append_data_row(&mut result, "spool_total_size", data.total_size, &[]);
     for utilization in &data.services_metrics {
-        let service_name = extract_service_name(utilization.0);
+        let service_name = extract_service_name(utilization.name);
         append_data_row(
             &mut result,
             "service_utilization",
-            utilization.1,
-            &[("relay_service", service_name)],
+            utilization.utilization,
+            &[
+                ("relay_service", service_name),
+                ("instance_id", &format!("{}", utilization.instance_id)),
+            ],
         );
     }
 
@@ -138,8 +141,21 @@ mod test {
             item_count: 10,
             total_size: 30,
             services_metrics: vec![
-                ServiceUtilization("test", 10),
-                ServiceUtilization("envelope", 50),
+                ServiceUtilization {
+                    name: "test",
+                    instance_id: 0,
+                    utilization: 10,
+                },
+                ServiceUtilization {
+                    name: "test",
+                    instance_id: 1,
+                    utilization: 30,
+                },
+                ServiceUtilization {
+                    name: "envelope",
+                    instance_id: 1,
+                    utilization: 50,
+                },
             ],
             worker_pool_utilization: 61,
             runtime_utilization: 41,
@@ -151,8 +167,9 @@ mod test {
 relay_up 1
 relay_spool_item_count 10
 relay_spool_total_size 30
-relay_service_utilization{relay_service="test"} 10
-relay_service_utilization{relay_service="envelope"} 50
+relay_service_utilization{relay_service="test", instance_id="0"} 10
+relay_service_utilization{relay_service="test", instance_id="1"} 30
+relay_service_utilization{relay_service="envelope", instance_id="1"} 50
 relay_worker_pool_utilization 61
 relay_runtime_utilization 41
 "#
