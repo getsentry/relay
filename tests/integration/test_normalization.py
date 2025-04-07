@@ -413,3 +413,33 @@ def test_ip_not_extracted_with_setting(mini_sentry, relay, scrub_ip_addresses, u
     event = envelope.get_event()
     assert event["user"]["ip_address"] is None
     assert event["user"].get("id", None) == user_id
+
+
+@pytest.mark.parametrize(
+    "scrub_ip_addresses, expected_ip", [(True, None), (False, "2.125.160.216")]
+)
+def test_geo_inferred_without_user_ip(
+    mini_sentry, relay, scrub_ip_addresses, expected_ip
+):
+    project_id = 42
+    relay = relay(
+        mini_sentry,
+        options={"geoip": {"path": "tests/fixtures/GeoIP2-Enterprise-Test.mmdb"}},
+    )
+
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"].setdefault("datascrubbingSettings", {})[
+        "scrubIpAddresses"
+    ] = scrub_ip_addresses
+
+    relay.send_event(
+        project_id,
+        {"user": {"ip_address": "{{auto}}"}},
+        headers={"X-Forwarded-For": "2.125.160.216"},
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event["user"]["ip_address"] == expected_ip
+    # Geo is always present
+    assert event["user"]["geo"] is not None

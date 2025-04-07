@@ -282,7 +282,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
     relay.send_event(project_id, event)
 
     score_total_seen = 0
-    for _ in range(2):
+    for _ in range(3):  # 2 client reports and the actual item we're interested in
         envelope = mini_sentry.captured_events.get()
         for item in envelope.items:
             if item.type == "metric_buckets":
@@ -452,6 +452,7 @@ def make_otel_span(start, end):
                                 "name": "my 2nd OTel span",
                                 "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
                                 "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
+                                "kind": 4,
                                 "attributes": [
                                     {
                                         "key": "sentry.exclusive_time_nano",
@@ -529,6 +530,7 @@ def test_span_ingestion(
         name="my 3rd protobuf OTel span",
         start_time_unix_nano=int(start.timestamp() * 1e9),
         end_time_unix_nano=int(end.timestamp() * 1e9),
+        kind=5,
         attributes=[
             KeyValue(
                 key="sentry.exclusive_time_nano",
@@ -575,6 +577,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
+            "kind": "unspecified",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -658,6 +661,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
+            "kind": "producer",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -710,6 +714,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": False,
             "is_remote": False,
+            "kind": "consumer",
             "organization_id": 1,
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
@@ -1297,6 +1302,24 @@ def test_span_ingestion_with_performance_scores(
             },
         },
         {
+            "_meta": {
+                "data": {
+                    "sentry.segment.name": {
+                        "": {
+                            "rem": [
+                                [
+                                    "int",
+                                    "s",
+                                    34,
+                                    37,
+                                ],
+                                ["**/interaction/*/**", "s"],
+                            ],
+                            "val": "/page/with/click/interaction/jane/123",
+                        }
+                    }
+                }
+            },
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
@@ -2019,6 +2042,17 @@ def test_scrubs_ip_addresses(
     del child_span["received"]
 
     expected = {
+        "_meta": {
+            "sentry_tags": {
+                "user.email": {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}},
+                "user.ip": {
+                    "": {
+                        "len": 9,
+                        "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
+                    }
+                },
+            }
+        },
         "description": "GET /api/0/organizations/?member=1",
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -2057,6 +2091,8 @@ def test_scrubs_ip_addresses(
     }
     if scrub_ip_addresses:
         del expected["sentry_tags"]["user.ip"]
+    else:
+        del expected["_meta"]["sentry_tags"]["user.ip"]
     assert child_span == expected
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(

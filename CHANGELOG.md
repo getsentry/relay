@@ -4,6 +4,40 @@
 
 **Features**:
 
+- Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))
+- Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
+- Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
+- Filter out certain AI crawlers. ([#4608](https://github.com/getsentry/relay/pull/4608))
+- Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634))
+- Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624))
+- Make default Apple device class high. ([#4609](https://github.com/getsentry/relay/pull/4609))
+
+**Bug Fixes**:
+
+- Separates profiles into backend and ui profiles. ([#4595](https://github.com/getsentry/relay/pull/4595))
+- Normalize trace context information before writing it into transaction and span data. This ensures the correct sampling rates are stored for extrapolation in Sentry. ([#4625](https://github.com/getsentry/relay/pull/4625))
+- Adds u16 validation to the replay protocol's segment_id field. ([#4635](https://github.com/getsentry/relay/pull/4635))
+
+**Internal**:
+
+- Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
+- Switch global rate limiter to a service. ([#4581](https://github.com/getsentry/relay/pull/4581))
+- Always enforce cached rate limits in processor. ([#4603](https://github.com/getsentry/relay/pull/4603))
+- Remove `parent_span_link` from `SpanLink` struct. ([#4594](https://github.com/getsentry/relay/pull/4594))
+- Extract transaction breakdowns into measurements. ([#4600](https://github.com/getsentry/relay/pull/4600))
+- Expose worker pool metrics in autoscaler endpoint. ([#4605](https://github.com/getsentry/relay/pull/4605))
+- Expose runtime utilization metric in autoscaler endpoint. ([#4606](https://github.com/getsentry/relay/pull/4606))
+- Bump the revision of `sysinfo` to the revision at `15b3be3273ba286740122fed7bb7dccd2a79dc8f`. ([#4613](https://github.com/getsentry/relay/pull/4613))
+- Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
+- Validate the spooling memory configuration on startup. ([#4617](https://github.com/getsentry/relay/pull/4617))
+- Improve descriptiveness of autoscaling metric name. ([#4629](https://github.com/getsentry/relay/pull/4629))
+- Serialize span's `_meta` information when producing to Kafka. ([#4646](https://github.com/getsentry/relay/pull/4646))
+- Enable connection pooling for asynchronous Redis connections. ([#4622](https://github.com/getsentry/relay/pull/4622))
+
+## 25.3.0
+
+**Features**:
+
 - Tag images with release version. ([#4532](https://github.com/getsentry/relay/pull/4532))
 - Switch default envelope compression from gzip to zstd. ([#4531](https://github.com/getsentry/relay/pull/4531))
 - Update release to include an aarch64 binary. ([#4514](https://github.com/getsentry/relay/pull/4514))
@@ -12,10 +46,13 @@
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 - Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
+- Improve localhost detection by checking contained request headers in the error. ([#4580](https://github.com/getsentry/relay/pull/4580))
 
 **Bug Fixes**:
 
 - Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
+- Emit filtered/sampled outcomes for spans attached to a dropped transaction. ([#4569](https://github.com/getsentry/relay/pull/4569))
+- Fix missing geo information for user when IP scrubbing was enabled. ([#4586](https://github.com/getsentry/relay/pull/4586))
 
 **Internal**:
 
@@ -25,6 +62,7 @@
 - Write resource and instrumentation scope attributes as span attributes during OTLP ingestion. ([#4533](https://github.com/getsentry/relay/pull/4533))
 - Remove unused capability to block metric names and tags. ([#4536](https://github.com/getsentry/relay/pull/4536))
 - Adopt new `AsyncPool` for the `EnvelopeProcessorService` and `StoreService`. ([#4520](https://github.com/getsentry/relay/pull/4520))
+- Write OTLP span kind to a new `kind` field on spans. ([#4540](https://github.com/getsentry/relay/pull/4540))
 - Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
 - Expose metrics for the `AsyncPool`. ([#4538](https://github.com/getsentry/relay/pull/4538))
 - Expose service utilization metrics through the internal relay metric endpoint. ([#4543](https://github.com/getsentry/relay/pull/4543))

@@ -42,6 +42,8 @@
 use std::error::Error;
 use std::net::IpAddr;
 use std::time::Duration;
+
+use bytes::Bytes;
 use url::Url;
 
 use relay_base_schema::project::ProjectId;
@@ -79,6 +81,31 @@ const MAX_PROFILE_CHUNK_DURATION: Duration = Duration::from_secs(66);
 ///
 /// Same format as event IDs.
 pub type ProfileId = EventId;
+
+/// Determines the type/use of a [`ProfileChunk`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileType {
+    /// A backend profile.
+    Backend,
+    /// A UI profile.
+    Ui,
+}
+
+impl ProfileType {
+    /// Converts a platform to a [`ProfileType`].
+    ///
+    /// The profile type is currently determined based on the contained profile
+    /// platform. It determines the data category this profile chunk belongs to.
+    ///
+    /// This needs to be synchronized with the implementation in Sentry:
+    /// <https://github.com/getsentry/sentry/blob/ed2e1c8bcd0d633e6f828fcfbeefbbdd98ef3dba/src/sentry/profiles/task.py#L995>
+    pub fn from_platform(platform: &str) -> Self {
+        match platform {
+            "cocoa" | "android" | "javascript" => Self::Ui,
+            _ => Self::Backend,
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
@@ -120,6 +147,10 @@ impl Filterable for MinimalProfile {
     }
 
     fn user_agent(&self) -> Option<&str> {
+        None
+    }
+
+    fn header(&self, _: &str) -> Option<&str> {
         None
     }
 }
@@ -271,41 +302,65 @@ pub fn expand_profile(
     }
 }
 
-pub fn expand_profile_chunk(
-    payload: &[u8],
-    client_ip: Option<IpAddr>,
-    filter_settings: &ProjectFiltersConfig,
-    global_config: &GlobalConfig,
-) -> Result<Vec<u8>, ProfileError> {
-    let profile = match minimal_profile_from_json(payload) {
-        Ok(profile) => profile,
-        Err(err) => {
-            relay_log::warn!(
-                error = &err as &dyn Error,
-                from = "minimal",
-                "invalid profile chunk",
-            );
-            return Err(ProfileError::InvalidJson(err));
-        }
-    };
+/// Intermediate type for all processing on a profile chunk.
+pub struct ProfileChunk {
+    profile: MinimalProfile,
+    payload: Bytes,
+}
 
-    if let Err(filter_stat_key) = relay_filter::should_filter(
-        &profile,
-        client_ip,
-        filter_settings,
-        global_config.filters(),
-    ) {
-        return Err(ProfileError::Filtered(filter_stat_key));
+impl ProfileChunk {
+    /// Parses a new [`Self`] from raw bytes.
+    pub fn new(payload: Bytes) -> Result<Self, ProfileError> {
+        match minimal_profile_from_json(&payload) {
+            Ok(profile) => Ok(Self { profile, payload }),
+            Err(err) => {
+                relay_log::debug!(
+                    error = &err as &dyn Error,
+                    from = "minimal",
+                    "invalid profile chunk",
+                );
+                Err(ProfileError::InvalidJson(err))
+            }
+        }
     }
 
-    match (profile.platform.as_str(), profile.version) {
-        ("android", _) => android::chunk::parse(payload),
-        (_, sample::Version::V2) => {
-            let mut profile = sample::v2::parse(payload)?;
-            profile.normalize()?;
-            serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+    /// Returns the [`ProfileType`] this chunk belongs to.
+    ///
+    /// This is currently determined from the platform via [`ProfileType::from_platform`].
+    pub fn profile_type(&self) -> ProfileType {
+        ProfileType::from_platform(&self.profile.platform)
+    }
+
+    /// Applies inbound filters to the profile chunk.
+    ///
+    /// The profile needs to be filtered (rejected) when this returns an error.
+    pub fn filter(
+        &self,
+        client_ip: Option<IpAddr>,
+        filter_settings: &ProjectFiltersConfig,
+        global_config: &GlobalConfig,
+    ) -> Result<(), ProfileError> {
+        relay_filter::should_filter(
+            &self.profile,
+            client_ip,
+            filter_settings,
+            global_config.filters(),
+        )
+        .map_err(ProfileError::Filtered)
+    }
+
+    /// Normalizes and 'expands' the profile chunk into its normalized form Sentry expects.
+    pub fn expand(&self) -> Result<Vec<u8>, ProfileError> {
+        match (self.profile.platform.as_str(), self.profile.version) {
+            ("android", _) => android::chunk::parse(&self.payload),
+            (_, sample::Version::V2) => {
+                let mut profile = sample::v2::parse(&self.payload)?;
+                profile.normalize()?;
+                Ok(serde_json::to_vec(&profile)
+                    .map_err(|_| ProfileError::CannotSerializePayload)?)
+            }
+            (_, _) => Err(ProfileError::PlatformNotSupported),
         }
-        (_, _) => Err(ProfileError::PlatformNotSupported),
     }
 }
 

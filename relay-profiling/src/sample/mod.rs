@@ -7,7 +7,7 @@ pub mod v1;
 pub mod v2;
 
 /// Possible values for the version field of the Sample Format.
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, Default, PartialEq, Eq)]
 pub enum Version {
     #[default]
     Unknown,

@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Profiling processing for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.2.0"
+version = "25.3.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -14,6 +14,7 @@ workspace = true
 
 [dependencies]
 android_trace_log = { workspace = true, features = ["serde"] }
+bytes = { workspace = true }
 chrono = { workspace = true }
 data-encoding = { workspace = true }
 itertools = { workspace = true }

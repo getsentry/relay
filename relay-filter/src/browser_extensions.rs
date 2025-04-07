@@ -48,7 +48,7 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         # Googletag is also very similar, caused by adblockers
         Cannot\sredefine\sproperty:\s(solana|ethereum|googletag)|
         # Translation service errors in Chrome on iOS
-        undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)|
+        undefined\sis\snot\san\sobject\s\(evaluating\s'a\..'\)|
         # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Property_access_denied
         # Usually caused by extensions that do stuff that isn't allowed
         Permission\sdenied\sto\saccess\sproperty\s|
@@ -273,7 +273,8 @@ mod tests {
             "Cannot redefine property: solana",
             "Cannot redefine property: ethereum",
             "Cannot redefine property: googletag",
-            "undefined is not an object (evaluating 'a.L')",
+            "undefined is not an object (evaluating 'a.L')", // Old iOS Chrome translation error
+            "undefined is not an object (evaluating 'a.J')", // New iOS Chrome translation error
             "Permission denied to access property \"correspondingUseElement\"",
             "Permission denied to access property \"document\"",
             "Can't find variable: gmo",
@@ -295,6 +296,8 @@ mod tests {
         let events = [
             get_event_with_exception_source("https://some/resonable/source.js"),
             get_event_with_exception_value("some perfectly reasonable value"),
+            // Something that does not quite match the iOS Chrome translation error
+            get_event_with_exception_value("undefined is not an object (evaluating 'a!J')"),
         ];
 
         for event in &events {

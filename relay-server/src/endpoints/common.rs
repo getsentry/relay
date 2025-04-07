@@ -63,6 +63,12 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
+    #[error("invalid prosperodump")]
+    InvalidProsperodump,
+
+    #[error("missing prosperodump")]
+    MissingProsperodump,
+
     #[error("invalid compression container")]
     InvalidCompressionContainer(#[source] std::io::Error),
 
@@ -366,6 +372,7 @@ pub async fn handle_envelope(
         .project_cache_handle()
         .get(project_key)
         .check_envelope(managed_envelope)
+        .await
         .map_err(BadStoreRequest::EventRejected)?;
 
     let Some(mut managed_envelope) = checked.envelope else {
@@ -376,7 +383,9 @@ pub async fn handle_envelope(
     if let Err(offender) =
         utils::check_envelope_size_limits(state.config(), managed_envelope.envelope())
     {
-        managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge));
+        managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge(
+            (&offender).into(),
+        )));
         return Err(BadStoreRequest::Overflow(offender));
     }
 

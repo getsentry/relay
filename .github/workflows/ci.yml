@@ -368,6 +368,60 @@ jobs:
           name: ${{ matrix.image_name }}-docker-image
           path: "${{ matrix.image_name }}-docker-image"
 
+  publish-to-ar-internal:
+    timeout-minutes: 5
+    needs: [build-setup, build]
+
+    name: Build and Push Internal Docker Image
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+
+    permissions:
+      contents: "read"
+      id-token: "write"
+
+    env:
+      PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
+      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # Logic taken from: publish-to-gcr
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      # Logic taken from: build-docker
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "${{ matrix.image_name }}@*"
+          merge-multiple: true
+
+      - name: Build and push to Internal AR
+        run: |
+          docker buildx build \
+            --platform "${PLATFORMS}" \
+            --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
+            $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
+            --file Dockerfile.release \
+            --push \
+            .
+
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
 

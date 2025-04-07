@@ -36,7 +36,7 @@ use uuid::Uuid;
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{FormDataIter, TypedEnvelope};
@@ -776,7 +776,9 @@ impl StoreService {
             self.outcome_aggregator.send(TrackOutcome {
                 category: DataCategory::Replay,
                 event_id,
-                outcome: Outcome::Invalid(DiscardReason::TooLarge),
+                outcome: Outcome::Invalid(DiscardReason::TooLarge(
+                    DiscardItemType::ReplayRecording,
+                )),
                 quantity: 1,
                 remote_addr: None,
                 scoping,
@@ -1348,6 +1350,8 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     data: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    kind: Option<&'a str>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(default)]
@@ -1388,6 +1392,13 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+
+    #[serde(
+        default,
+        rename = "_meta",
+        skip_serializing_if = "none_or_empty_object"
+    )]
+    meta: Option<&'a RawValue>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -15,6 +15,7 @@ mod health_check;
 mod minidump;
 mod monitor;
 mod nel;
+mod playstation;
 mod project_configs;
 mod public_keys;
 mod security_report;
@@ -74,6 +75,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
+        .route("/api/{project_id}/playstation/", playstation::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
         .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
         .route("/api/{project_id}/otlp/v1/traces/", traces::route(config))

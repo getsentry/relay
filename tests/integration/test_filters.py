@@ -318,6 +318,106 @@ def test_client_ip_filters_are_applied(
     assert mini_sentry.captured_events.empty()
 
 
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Host": "localhost:3000"},
+        {"Host": "127.0.0.1:3000"},
+        {"Host": "localhost"},
+        {"X-Forwarded-Host": "localhost:3000"},
+        {"X-Forwarded-Host": "127.0.0.1:3000"},
+        {"X-Forwarded-Host": "localhost"},
+    ],
+)
+def test_localhost_filter_with_headers(mini_sentry, relay, headers):
+    """
+    Tests filtering against headers if the user does not exist.
+    """
+    relay = relay(mini_sentry)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+
+    # We need to enable this otherwise the user will always have a localhost address inferred in tests
+    project_config["config"].setdefault("datascrubbingSettings", {})[
+        "scrubIpAddresses"
+    ] = True
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["localhost"] = {"isEnabled": True}
+
+    event = {"user": None, "request": {"headers": headers}}
+    relay.send_event(project_id, event)
+
+    report = mini_sentry.get_client_report()
+    assert report["filtered_events"] == [
+        {"reason": "localhost", "category": "error", "quantity": 1}
+    ]
+
+    assert mini_sentry.captured_events.empty()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Host": "localhost:3000"},
+        {"Host": "127.0.0.1:3000"},
+        {"Host": "localhost"},
+        {"X-Forwarded-Host": "localhost:3000"},
+        {"X-Forwarded-Host": "127.0.0.1:3000"},
+        {"X-Forwarded-Host": "localhost"},
+    ],
+)
+def test_localhost_filter_user_ip_resolved(mini_sentry, relay, headers):
+    relay = relay(mini_sentry)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["localhost"] = {"isEnabled": True}
+
+    event = {"user": "{{auto}}", "request": {"headers": headers}}
+    relay.send_event(project_id, event, headers={"X-Forwarded-For": "81.41.165.209"})
+
+    report = mini_sentry.get_client_report()
+    assert report["filtered_events"] == [
+        {"reason": "localhost", "category": "error", "quantity": 1}
+    ]
+
+    assert mini_sentry.captured_events.empty()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Host": "example.com"},
+        {"Host": "localhost.example.com:3000"},
+        {"X-Forwarded-Host": "localhost.example.com:3000"},
+    ],
+)
+def test_localhost_filter_no_local_header_ips(mini_sentry, relay, headers):
+    """
+    Tests against header values that are not local values and the user does not exist.
+    """
+    relay = relay(mini_sentry)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    # We need to enable this otherwise the user will always have a localhost address inferred in tests
+    project_config["config"].setdefault("datascrubbingSettings", {})[
+        "scrubIpAddresses"
+    ] = True
+
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["localhost"] = {"isEnabled": True}
+
+    event = {"user": {"ip_address": None}, "request": {"headers": headers}}
+    relay.send_event(project_id, event)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event is not None
+
+
 def test_global_filters_drop_events(
     mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
 ):
@@ -455,14 +555,14 @@ def android_profile_chunk_envelope(release):
     [
         pytest.param(sample_profile_v1_envelope, DataCategory.PROFILE, id="profile v1"),
         pytest.param(
-            sample_profile_v2_envelope, DataCategory.PROFILE_CHUNK, id="profile v2"
+            sample_profile_v2_envelope, DataCategory.PROFILE_CHUNK_UI, id="profile v2"
         ),
         pytest.param(
             android_profile_legacy_envelope, DataCategory.PROFILE, id="android legacy"
         ),
         pytest.param(
             android_profile_chunk_envelope,
-            DataCategory.PROFILE_CHUNK,
+            DataCategory.PROFILE_CHUNK_UI,
             id="android chunk",
         ),
     ],

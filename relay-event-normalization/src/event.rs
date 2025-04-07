@@ -68,6 +68,9 @@ pub struct NormalizationConfig<'a> {
     /// `request` context, this IP address gets added to the `user` context.
     pub client_ip: Option<&'a IpAddr>,
 
+    /// Specifies whether the client_ip should be used to determine the ip address of the user.
+    pub infer_ip_address: bool,
+
     /// The SDK's sample rate as communicated via envelope headers.
     ///
     /// It is persisted into the event payload.
@@ -170,6 +173,7 @@ impl Default for NormalizationConfig<'_> {
             protocol_version: Default::default(),
             grouping_config: Default::default(),
             client_ip: Default::default(),
+            infer_ip_address: true,
             client_sample_rate: Default::default(),
             user_agent: Default::default(),
             max_name_and_unit_len: Default::default(),
@@ -248,24 +252,24 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     );
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
 
+    let client_ip = config.client_ip.filter(|_| config.infer_ip_address);
+
     // Process security reports first to ensure all props.
-    normalize_security_report(event, config.client_ip, &config.user_agent);
+    normalize_security_report(event, client_ip, &config.user_agent);
 
     // Process NEL reports to ensure all props.
-    normalize_nel_report(event, config.client_ip);
+    normalize_nel_report(event, client_ip);
 
     // Insert IP addrs before recursing, since geo lookup depends on it.
     normalize_ip_addresses(
         &mut event.request,
         &mut event.user,
         event.platform.as_str(),
-        config.client_ip,
+        client_ip,
     );
 
     if let Some(geoip_lookup) = config.geoip_lookup {
-        if let Some(user) = event.user.value_mut() {
-            normalize_user_geoinfo(geoip_lookup, user);
-        }
+        normalize_user_geoinfo(geoip_lookup, &mut event.user, config.client_ip);
     }
 
     // Validate the basic attributes we extract metrics from
@@ -477,13 +481,20 @@ pub fn normalize_ip_addresses(
 }
 
 /// Sets the user's GeoIp info based on user's IP address.
-pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
-    // Infer user.geo from user.ip_address
-    if user.geo.value().is_none() {
-        if let Some(ip_address) = user.ip_address.value() {
-            if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
-                user.geo.set_value(Some(geo));
-            }
+pub fn normalize_user_geoinfo(
+    geoip_lookup: &GeoIpLookup,
+    user: &mut Annotated<User>,
+    ip_addr: Option<&IpAddr>,
+) {
+    let user = user.value_mut().get_or_insert_with(User::default);
+    if let Some(ip_address) = user
+        .ip_address
+        .value()
+        .filter(|ip| !ip.is_auto())
+        .or(ip_addr)
+    {
+        if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
+            user.geo.set_value(Some(geo));
         }
     }
 }
@@ -2066,7 +2077,7 @@ mod tests {
         );
 
         // Checks whether the measurement is dropped.
-        measurements.len() == 0
+        measurements.is_empty()
     }
 
     #[test]
