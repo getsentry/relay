@@ -112,7 +112,7 @@ pub enum OurLogAttributeType {
 impl OurLogAttributeType {
     fn as_str(&self) -> &str {
         match self {
-            Self::Bool => "bool",
+            Self::Bool => "boolean",
             Self::Int => "int",
             Self::Double => "double",
             Self::String => "string",
