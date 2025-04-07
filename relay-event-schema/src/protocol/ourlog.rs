@@ -130,7 +130,7 @@ impl fmt::Display for OurLogAttributeType {
 impl From<String> for OurLogAttributeType {
     fn from(value: String) -> Self {
         match value.as_str() {
-            "bool" => Self::Bool,
+            "boolean" => Self::Bool,
             "int" => Self::Int,
             "double" => Self::Double,
             "string" => Self::String,
@@ -296,7 +296,7 @@ mod tests {
             "attributes": {
                 "boolean.attribute": {
                     "value": true,
-                    "type": "bool"
+                    "type": "boolean"
                 },
                 "sentry.severity_text": {
                     "value": "info",
@@ -336,7 +336,7 @@ mod tests {
                     value: Bool(
                         true,
                     ),
-                    type: "bool",
+                    type: "boolean",
                 },
                 "sentry.observed_timestamp_nanos": OurLogAttribute {
                     value: String(
@@ -376,7 +376,7 @@ mod tests {
           "body": "Example log record",
           "attributes": {
             "boolean.attribute": {
-              "type": "bool",
+              "type": "boolean",
               "value": true
             },
             "sentry.observed_timestamp_nanos": {

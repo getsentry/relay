@@ -206,8 +206,6 @@ mod tests {
     use bytes::Bytes;
 
     use relay_dynamic_config::GlobalConfig;
-    use relay_event_schema::protocol::OurLog;
-    use relay_protocol::Annotated;
 
     use relay_system::Addr;
 
@@ -294,6 +292,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "processing")]
     #[test]
     fn test_process_attribute_types() {
         let json = r#"{
@@ -304,7 +303,7 @@ mod tests {
             "body": "Test log message",
             "attributes": {
                 "valid_bool": {
-                    "type": "bool",
+                    "type": "boolean",
                     "value": true
                 },
                 "valid_int_i64": {
@@ -466,7 +465,7 @@ mod tests {
                 value: Bool(
                     true,
                 ),
-                type: "bool",
+                type: "boolean",
             },
             "valid_double": OurLogAttribute {
                 value: F64(

@@ -533,31 +533,22 @@ mod tests {
             body: "Example log record",
             attributes: {
                 "foo": OurLogAttribute {
-                    value: OurLogAttributeValue {
-                        ty: "string",
-                        value: String(
-                            "9",
-                        ),
-                    },
-                    other: {},
+                    value: String(
+                        "9",
+                    ),
+                    type: "string",
                 },
                 "sentry.severity_number": OurLogAttribute {
-                    value: OurLogAttributeValue {
-                        ty: "int",
-                        value: I64(
-                            9,
-                        ),
-                    },
-                    other: {},
+                    value: I64(
+                        9,
+                    ),
+                    type: "integer",
                 },
                 "sentry.severity_text": OurLogAttribute {
-                    value: OurLogAttributeValue {
-                        ty: "string",
-                        value: String(
-                            "info",
-                        ),
-                    },
-                    other: {},
+                    value: String(
+                        "info",
+                    ),
+                    type: "string",
                 },
             },
             other: {
@@ -615,31 +606,22 @@ mod tests {
             body: ~,
             attributes: {
                 "foo": OurLogAttribute {
-                    value: OurLogAttributeValue {
-                        ty: "string",
-                        value: String(
-                            "9",
-                        ),
-                    },
-                    other: {},
+                    value: String(
+                        "9",
+                    ),
+                    type: "string",
                 },
                 "sentry.severity_number": OurLogAttribute {
-                    value: OurLogAttributeValue {
-                        ty: "int",
-                        value: I64(
-                            25,
-                        ),
-                    },
-                    other: {},
+                    value: I64(
+                        25,
+                    ),
+                    type: "integer",
                 },
                 "sentry.severity_text": OurLogAttribute {
-                    value: OurLogAttributeValue {
-                        ty: "string",
-                        value: String(
-                            "info",
-                        ),
-                    },
-                    other: {},
+                    value: String(
+                        "info",
+                    ),
+                    type: "string",
                 },
             },
             other: {
@@ -668,7 +650,7 @@ mod tests {
               "value": "9"
             },
             "sentry.severity_number": {
-              "type": "int",
+              "type": "integer",
               "value": 25
             },
             "sentry.severity_text": {
