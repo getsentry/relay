@@ -366,10 +366,11 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         tags.device_class = device_class.to_owned().into();
     }
 
-    if let Some(browser_context) = event.context::<BrowserContext>() {
-        if let Some(browser_name) = browser_context.name.value() {
-            tags.browser_name = browser_name.to_string().into();
-        }
+    if let Some(browser_name) = event
+        .context::<BrowserContext>()
+        .and_then(|v| v.name.value())
+    {
+        tags.browser_name = browser_name.to_owned().into();
     }
 
     if let Some(profiler_id) = event
