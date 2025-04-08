@@ -8,7 +8,7 @@ use crate::redis;
 use crate::redis::aio::MultiplexedConnection;
 use crate::redis::cluster_async::ClusterConnection;
 use crate::redis::{
-    Cmd, ErrorKind, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, Value,
+    Cmd, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, Value,
 };
 
 /// A connection pool for Redis cluster deployments.
