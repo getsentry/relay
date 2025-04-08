@@ -1,0 +1,30 @@
+---
+source: relay-event-normalization/src/normalize/span/tag_extraction.rs
+expression: segment_span.to_json_pretty().unwrap()
+---
+{
+  "timestamp": 1619420400.0,
+  "start_timestamp": 1619420341.0,
+  "span_id": "bd429c44b67a3eb4",
+  "trace_id": "ff62a8b040f340bda5d830223def1d81",
+  "segment_id": "bd429c44b67a3eb4",
+  "is_segment": true,
+  "is_remote": true,
+  "description": "foo",
+  "data": {
+    "browser.name": "Chrome",
+    "sentry.segment.name": "foo"
+  },
+  "sentry_tags": {
+    "device.family": "K",
+    "app.device": "3e06efaccaec678afef02f3fc2b5289ee5f613d5",
+    "device.model": "Generic_Android",
+    "runtime": "CPython 3.13.1",
+    "runtime.name": "CPython",
+    "browser": "Chrome 134",
+    "request.url": "http://us.sentry.io/api/0/organizations/",
+    "request.method": "GET"
+  },
+  "platform": "javascript",
+  "was_transaction": true
+}

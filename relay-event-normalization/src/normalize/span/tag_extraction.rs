@@ -123,7 +123,7 @@ pub fn extract_span_tags(
     }
 }
 
-/// Extract segment span specific tags and measurements from the event and materialize them into the spans.
+/// Extract segment span specific tags and measurements from the event and materialize them into segment span.
 pub fn extract_segment_span_tags(event: &Event, spans: &mut [Annotated<Span>]) {
     let segment_tags = extract_segment_tags(event);
     let segment_measurements = extract_segment_measurements(event);
@@ -153,35 +153,6 @@ struct SharedTags {
     environment: Annotated<String>,
     mobile: Annotated<String>,
     os_name: Annotated<String>,
-    device_family: Annotated<String>,
-    device_arch: Annotated<String>,
-    device_battery_level: Annotated<String>,
-    device_brand: Annotated<String>,
-    device_charging: Annotated<String>,
-    device_locale: Annotated<String>,
-    device_model_id: Annotated<String>,
-    device_name: Annotated<String>,
-    device_online: Annotated<String>,
-    device_orientation: Annotated<String>,
-    device_screen_density: Annotated<String>,
-    device_screen_dpi: Annotated<String>,
-    device_screen_height_pixels: Annotated<String>,
-    device_screen_width_pixels: Annotated<String>,
-    device_simulator: Annotated<String>,
-    device_uuid: Annotated<String>,
-    app_device: Annotated<String>,
-    device_model: Annotated<String>,
-    runtime: Annotated<String>,
-    runtime_name: Annotated<String>,
-    browser: Annotated<String>,
-    os: Annotated<String>,
-    os_rooted: Annotated<String>,
-    gpu_name: Annotated<String>,
-    gpu_vendor: Annotated<String>,
-    monitor_id: Annotated<String>,
-    monitor_slug: Annotated<String>,
-    request_url: Annotated<String>,
-    request_method: Annotated<String>,
     platform: Annotated<String>,
     profiler_id: Annotated<String>,
     release: Annotated<String>,
@@ -207,22 +178,6 @@ impl SharedTags {
         let Self {
             browser_name,
             device_class,
-            device_family,
-            device_arch,
-            device_battery_level,
-            device_brand,
-            device_charging,
-            device_locale,
-            device_model_id,
-            device_name,
-            device_online,
-            device_orientation,
-            device_screen_density,
-            device_screen_dpi,
-            device_screen_height_pixels,
-            device_screen_width_pixels,
-            device_simulator,
-            device_uuid,
             environment,
             mobile,
             os_name,
@@ -244,19 +199,6 @@ impl SharedTags {
             user_subregion,
             user_username,
             user,
-            app_device,
-            device_model,
-            runtime,
-            runtime_name,
-            browser,
-            os,
-            os_rooted,
-            gpu_name,
-            gpu_vendor,
-            monitor_id,
-            monitor_slug,
-            request_url,
-            request_method,
         } = self;
         if tags.browser_name.value().is_none() {
             tags.browser_name = browser_name.clone();
@@ -327,93 +269,6 @@ impl SharedTags {
         if tags.user.value().is_none() {
             tags.user = user.clone();
         };
-        if tags.device_family.value().is_none() {
-            tags.device_family = device_family.clone();
-        };
-        if tags.device_arch.value().is_none() {
-            tags.device_arch = device_arch.clone()
-        }
-        if tags.device_battery_level.value().is_none() {
-            tags.device_battery_level = device_battery_level.clone()
-        }
-        if tags.device_brand.value().is_none() {
-            tags.device_brand = device_brand.clone()
-        }
-        if tags.device_charging.value().is_none() {
-            tags.device_charging = device_charging.clone()
-        }
-        if tags.device_locale.value().is_none() {
-            tags.device_locale = device_locale.clone()
-        }
-        if tags.device_model_id.value().is_none() {
-            tags.device_model_id = device_model_id.clone()
-        }
-        if tags.device_name.value().is_none() {
-            tags.device_name = device_name.clone()
-        }
-        if tags.device_online.value().is_none() {
-            tags.device_online = device_online.clone()
-        }
-        if tags.device_orientation.value().is_none() {
-            tags.device_orientation = device_orientation.clone()
-        }
-        if tags.device_screen_density.value().is_none() {
-            tags.device_screen_density = device_screen_density.clone()
-        }
-        if tags.device_screen_dpi.value().is_none() {
-            tags.device_screen_dpi = device_screen_dpi.clone()
-        }
-        if tags.device_screen_height_pixels.value().is_none() {
-            tags.device_screen_height_pixels = device_screen_height_pixels.clone()
-        }
-        if tags.device_screen_width_pixels.value().is_none() {
-            tags.device_screen_width_pixels = device_screen_width_pixels.clone()
-        }
-        if tags.device_simulator.value().is_none() {
-            tags.device_simulator = device_simulator.clone()
-        }
-        if tags.device_uuid.value().is_none() {
-            tags.device_uuid = device_uuid.clone()
-        }
-        if tags.app_device.value().is_none() {
-            tags.app_device = app_device.clone()
-        }
-        if tags.device_model.value().is_none() {
-            tags.device_model = device_model.clone()
-        }
-        if tags.runtime.value().is_none() {
-            tags.runtime = runtime.clone()
-        }
-        if tags.runtime_name.value().is_none() {
-            tags.runtime_name = runtime_name.clone()
-        }
-        if tags.browser.value().is_none() {
-            tags.browser = browser.clone()
-        }
-        if tags.os.value().is_none() {
-            tags.os = os.clone()
-        }
-        if tags.os_rooted.value().is_none() {
-            tags.os_rooted = os_rooted.clone()
-        }
-        if tags.gpu_name.value().is_none() {
-            tags.gpu_name = gpu_name.clone()
-        }
-        if tags.gpu_vendor.value().is_none() {
-            tags.gpu_vendor = gpu_vendor.clone()
-        }
-        if tags.monitor_id.value().is_none() {
-            tags.monitor_id = monitor_id.clone()
-        }
-        if tags.monitor_slug.value().is_none() {
-            tags.monitor_slug = monitor_slug.clone()
-        }
-        if tags.request_url.value().is_none() {
-            tags.request_url = request_url.clone()
-        }
-        if tags.request_method.value().is_none() {
-            tags.request_method = request_method.clone()
-        }
     }
 }
 
@@ -505,7 +360,251 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
                 tags.os_name = os_name.to_string().into();
             }
         }
+    }
 
+    if let Some(device_class) = event.tag_value("device.class") {
+        tags.device_class = device_class.to_owned().into();
+    }
+
+    if let Some(browser_context) = event.context::<BrowserContext>() {
+        if let Some(browser_name) = browser_context.name.value() {
+            tags.browser_name = browser_name.to_string().into();
+        }
+    }
+
+    if let Some(profiler_id) = event
+        .context::<ProfileContext>()
+        .and_then(|profile_context| profile_context.profiler_id.value())
+    {
+        tags.profiler_id = profiler_id.to_string().into();
+    }
+
+    tags.sdk_name = event.sdk_name().to_owned().into();
+    tags.sdk_version = event.sdk_version().to_owned().into();
+    tags.platform = event.platform.as_str().unwrap_or("other").to_owned().into();
+
+    if let Some(data) = event
+        .context::<TraceContext>()
+        .and_then(|trace_context| trace_context.data.value())
+    {
+        if let Some(thread_id) = data.thread_id.value() {
+            tags.thread_id = thread_id.to_string().into();
+        }
+
+        if let Some(thread_name) = data.thread_name.value() {
+            tags.thread_name = thread_name.to_string().into();
+        }
+    }
+
+    tags
+}
+
+/// Extracts measurements that should only be saved on segment spans.
+fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> {
+    let mut measurements = BTreeMap::new();
+
+    // Extract breakdowns into measurements, similar to /metrics_extraction/transacitons/mod.rs
+    if let Some(breakdowns) = event.breakdowns.value() {
+        for (breakdown, measurement_list) in breakdowns.iter() {
+            if let Some(measurement_list) = measurement_list.value() {
+                for (measurement_name, annotated) in measurement_list.iter() {
+                    if measurement_name == "total.time" {
+                        continue;
+                    }
+
+                    let Some(value) = annotated
+                        .value()
+                        .and_then(|value| value.value.value())
+                        .copied()
+                    else {
+                        continue;
+                    };
+
+                    measurements.insert(
+                        format!("{breakdown}.{measurement_name}"),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::Duration(DurationUnit::MilliSecond).into(),
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    if let Some(trace_context) = event.context::<TraceContext>() {
+        if let Some(op) = extract_transaction_op(trace_context) {
+            if op == "queue.publish" || op == "queue.process" {
+                if let Some(data) = trace_context.data.value() {
+                    for (field, key, unit) in [
+                        (
+                            &data.messaging_message_retry_count,
+                            "messaging.message.retry.count",
+                            MetricUnit::None,
+                        ),
+                        (
+                            &data.messaging_message_receive_latency,
+                            "messaging.message.receive.latency",
+                            MetricUnit::Duration(DurationUnit::MilliSecond),
+                        ),
+                        (
+                            &data.messaging_message_body_size,
+                            "messaging.message.body.size",
+                            MetricUnit::Information(InformationUnit::Byte),
+                        ),
+                    ] {
+                        if let Some(value) = value_to_f64(field.value()) {
+                            measurements.insert(
+                                key.into(),
+                                Measurement {
+                                    value: value.into(),
+                                    unit: unit.into(),
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    measurements
+}
+
+#[derive(Clone, Debug, Default)]
+struct SegmentTags {
+    messaging_destination_name: Annotated<String>,
+    messaging_message_id: Annotated<String>,
+    messaging_operation_name: Annotated<String>,
+    messaging_operation_type: Annotated<String>,
+    device_family: Annotated<String>,
+    device_arch: Annotated<String>,
+    device_battery_level: Annotated<String>,
+    device_brand: Annotated<String>,
+    device_charging: Annotated<String>,
+    device_locale: Annotated<String>,
+    device_model_id: Annotated<String>,
+    device_name: Annotated<String>,
+    device_online: Annotated<String>,
+    device_orientation: Annotated<String>,
+    device_screen_density: Annotated<String>,
+    device_screen_dpi: Annotated<String>,
+    device_screen_height_pixels: Annotated<String>,
+    device_screen_width_pixels: Annotated<String>,
+    device_simulator: Annotated<String>,
+    device_uuid: Annotated<String>,
+    app_device: Annotated<String>,
+    device_model: Annotated<String>,
+    runtime: Annotated<String>,
+    runtime_name: Annotated<String>,
+    browser: Annotated<String>,
+    os: Annotated<String>,
+    os_rooted: Annotated<String>,
+    gpu_name: Annotated<String>,
+    gpu_vendor: Annotated<String>,
+    monitor_id: Annotated<String>,
+    monitor_slug: Annotated<String>,
+    request_url: Annotated<String>,
+    request_method: Annotated<String>,
+}
+
+impl SegmentTags {
+    fn copy_into(&self, tags: &mut SentryTags) {
+        let Self {
+            messaging_destination_name,
+            messaging_message_id,
+            messaging_operation_name,
+            messaging_operation_type,
+            device_family,
+            device_arch,
+            device_battery_level,
+            device_brand,
+            device_charging,
+            device_locale,
+            device_model_id,
+            device_name,
+            device_online,
+            device_orientation,
+            device_screen_density,
+            device_screen_dpi,
+            device_screen_height_pixels,
+            device_screen_width_pixels,
+            device_simulator,
+            device_uuid,
+            app_device,
+            device_model,
+            runtime,
+            runtime_name,
+            browser,
+            os,
+            os_rooted,
+            gpu_name,
+            gpu_vendor,
+            monitor_id,
+            monitor_slug,
+            request_url,
+            request_method,
+        } = self.clone();
+        tags.messaging_destination_name = messaging_destination_name;
+        tags.messaging_message_id = messaging_message_id;
+        tags.messaging_operation_name = messaging_operation_name;
+        tags.messaging_operation_type = messaging_operation_type;
+        tags.device_family = device_family;
+        tags.device_arch = device_arch;
+        tags.device_battery_level = device_battery_level;
+        tags.device_brand = device_brand;
+        tags.device_charging = device_charging;
+        tags.device_locale = device_locale;
+        tags.device_model_id = device_model_id;
+        tags.device_name = device_name;
+        tags.device_online = device_online;
+        tags.device_orientation = device_orientation;
+        tags.device_screen_density = device_screen_density;
+        tags.device_screen_dpi = device_screen_dpi;
+        tags.device_screen_height_pixels = device_screen_height_pixels;
+        tags.device_screen_width_pixels = device_screen_width_pixels;
+        tags.device_simulator = device_simulator;
+        tags.device_uuid = device_uuid;
+        tags.app_device = app_device;
+        tags.device_model = device_model;
+        tags.runtime = runtime;
+        tags.runtime_name = runtime_name;
+        tags.browser = browser;
+        tags.os = os;
+        tags.os_rooted = os_rooted;
+        tags.gpu_name = gpu_name;
+        tags.gpu_vendor = gpu_vendor;
+        tags.monitor_id = monitor_id;
+        tags.monitor_slug = monitor_slug;
+        tags.request_url = request_url;
+        tags.request_method = request_method;
+    }
+}
+
+/// Extract tags that should only be saved on segment spans.
+fn extract_segment_tags(event: &Event) -> SegmentTags {
+    let mut tags = SegmentTags::default();
+
+    if let Some(trace_context) = event.context::<TraceContext>() {
+        if let Some(op) = extract_transaction_op(trace_context) {
+            if op == "queue.publish" || op == "queue.process" {
+                if let Some(data) = trace_context.data.value() {
+                    tags.messaging_destination_name = data.messaging_destination_name.clone();
+                    tags.messaging_message_id = data.messaging_message_id.clone();
+                    tags.messaging_operation_name = data.messaging_operation_name.clone();
+                    tags.messaging_operation_type = data.messaging_operation_type.clone();
+                }
+            }
+        }
+    }
+
+    if let Some(browser_context) = event.context::<BrowserContext>() {
+        if let Some(browser) = browser_context.browser.value() {
+            tags.browser = browser.to_string().into();
+        }
+    }
+
+    if let Some(os_context) = event.context::<OsContext>() {
         if let Some(os) = os_context.os.value() {
             tags.os = os.to_string().into();
         }
@@ -618,159 +717,6 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         }
         if let Some(model) = device_context.model.value() {
             tags.device_model = model.to_string().into();
-        }
-    }
-
-    if let Some(device_class) = event.tag_value("device.class") {
-        tags.device_class = device_class.to_owned().into();
-    }
-
-    if let Some(browser_context) = event.context::<BrowserContext>() {
-        if let Some(browser_name) = browser_context.name.value() {
-            tags.browser_name = browser_name.to_string().into();
-        }
-
-        if let Some(browser) = browser_context.browser.value() {
-            tags.browser = browser.to_string().into();
-        }
-    }
-
-    if let Some(profiler_id) = event
-        .context::<ProfileContext>()
-        .and_then(|profile_context| profile_context.profiler_id.value())
-    {
-        tags.profiler_id = profiler_id.to_string().into();
-    }
-
-    tags.sdk_name = event.sdk_name().to_owned().into();
-    tags.sdk_version = event.sdk_version().to_owned().into();
-    tags.platform = event.platform.as_str().unwrap_or("other").to_owned().into();
-
-    if let Some(data) = event
-        .context::<TraceContext>()
-        .and_then(|trace_context| trace_context.data.value())
-    {
-        if let Some(thread_id) = data.thread_id.value() {
-            tags.thread_id = thread_id.to_string().into();
-        }
-
-        if let Some(thread_name) = data.thread_name.value() {
-            tags.thread_name = thread_name.to_string().into();
-        }
-    }
-
-    tags
-}
-
-/// Extracts measurements that should only be saved on segment spans.
-fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> {
-    let mut measurements = BTreeMap::new();
-
-    // Extract breakdowns into measurements, similar to /metrics_extraction/transacitons/mod.rs
-    if let Some(breakdowns) = event.breakdowns.value() {
-        for (breakdown, measurement_list) in breakdowns.iter() {
-            if let Some(measurement_list) = measurement_list.value() {
-                for (measurement_name, annotated) in measurement_list.iter() {
-                    if measurement_name == "total.time" {
-                        continue;
-                    }
-
-                    let Some(value) = annotated
-                        .value()
-                        .and_then(|value| value.value.value())
-                        .copied()
-                    else {
-                        continue;
-                    };
-
-                    measurements.insert(
-                        format!("{breakdown}.{measurement_name}"),
-                        Measurement {
-                            value: value.into(),
-                            unit: MetricUnit::Duration(DurationUnit::MilliSecond).into(),
-                        },
-                    );
-                }
-            }
-        }
-    }
-
-    if let Some(trace_context) = event.context::<TraceContext>() {
-        if let Some(op) = extract_transaction_op(trace_context) {
-            if op == "queue.publish" || op == "queue.process" {
-                if let Some(data) = trace_context.data.value() {
-                    for (field, key, unit) in [
-                        (
-                            &data.messaging_message_retry_count,
-                            "messaging.message.retry.count",
-                            MetricUnit::None,
-                        ),
-                        (
-                            &data.messaging_message_receive_latency,
-                            "messaging.message.receive.latency",
-                            MetricUnit::Duration(DurationUnit::MilliSecond),
-                        ),
-                        (
-                            &data.messaging_message_body_size,
-                            "messaging.message.body.size",
-                            MetricUnit::Information(InformationUnit::Byte),
-                        ),
-                    ] {
-                        if let Some(value) = value_to_f64(field.value()) {
-                            measurements.insert(
-                                key.into(),
-                                Measurement {
-                                    value: value.into(),
-                                    unit: unit.into(),
-                                },
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    measurements
-}
-
-#[derive(Clone, Debug, Default)]
-struct SegmentTags {
-    messaging_destination_name: Annotated<String>,
-    messaging_message_id: Annotated<String>,
-    messaging_operation_name: Annotated<String>,
-    messaging_operation_type: Annotated<String>,
-}
-
-impl SegmentTags {
-    fn copy_into(&self, tags: &mut SentryTags) {
-        let Self {
-            messaging_destination_name,
-            messaging_message_id,
-            messaging_operation_name,
-            messaging_operation_type,
-        } = self.clone();
-        tags.messaging_destination_name = messaging_destination_name;
-        tags.messaging_message_id = messaging_message_id;
-        tags.messaging_operation_name = messaging_operation_name;
-        tags.messaging_operation_type = messaging_operation_type;
-    }
-}
-
-/// Extract tags that should only be saved on segment spans.
-fn extract_segment_tags(event: &Event) -> SegmentTags {
-    let mut tags = SegmentTags::default();
-
-    if let Some(trace_context) = event.context::<TraceContext>() {
-        if let Some(op) = extract_transaction_op(trace_context) {
-            if op == "queue.publish" || op == "queue.process" {
-                if let Some(data) = trace_context.data.value() {
-                    tags.messaging_destination_name = data.messaging_destination_name.clone();
-                    tags.messaging_message_id = data.messaging_message_id.clone();
-                    tags.messaging_operation_name = data.messaging_operation_name.clone();
-                    tags.messaging_operation_type = data.messaging_operation_type.clone();
-                }
-            }
         }
     }
 
@@ -1156,7 +1102,6 @@ pub fn extract_tags(
             span_tags.thread_name = thread_name.to_owned().into();
         }
     }
-
     span_tags
 }
 
@@ -2182,7 +2127,7 @@ LIMIT 1
     }
 
     #[test]
-    fn test_extracts_searchable_contexts_into_tags() {
+    fn test_extracts_searchable_contexts_into_segment_span() {
         let json = r#"
             {
                 "type": "transaction",
@@ -2233,28 +2178,18 @@ LIMIT 1
                     "url": "http://us.sentry.io/api/0/organizations/",
                     "method": "GET"
                 },
-                "spans": [
-                    {
-                        "op": "before_first_display",
-                        "span_id": "bd429c44b67a3eb1",
-                        "start_timestamp": 1597976300.0000000,
-                        "timestamp": 1597976302.0000000,
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
-                    },
-                    {
-                        "op": "ui.load.initial_display",
-                        "span_id": "bd429c44b67a3eb2",
-                        "start_timestamp": 1597976300.0000000,
-                        "timestamp": 1597976303.0000000,
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
-                    }
-                ]
             }
         "#;
 
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-        extract_span_tags_from_event(event.value_mut().as_mut().unwrap(), 200, &[]);
-        insta::assert_snapshot!(event.to_json_pretty().unwrap());
+        let event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let mut spans = [Span::from(&event).into()];
+
+        extract_segment_span_tags(&event, &mut spans);
+        let segment_span: &Annotated<Span> = &spans[0];
+        insta::assert_snapshot!(segment_span.to_json_pretty().unwrap());
     }
 
     #[test]
