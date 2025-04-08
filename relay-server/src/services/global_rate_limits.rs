@@ -188,13 +188,11 @@ mod tests {
 
     use crate::services::global_rate_limits::{CheckRateLimited, GlobalRateLimitsService};
 
-    async fn build_redis_client() -> AsyncRedisClient {
+    fn build_redis_client() -> AsyncRedisClient {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        AsyncRedisClient::single(&url, &RedisConfigOptions::default())
-            .await
-            .unwrap()
+        AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap()
     }
 
     fn build_quota(window: u64, limit: impl Into<Option<u64>>) -> Quota {
@@ -217,7 +215,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_global_rate_limits_service() {
-        let client = build_redis_client().await;
+        let client = build_redis_client();
         let service = GlobalRateLimitsService::new(client);
         let tx = service.start_detached();
 

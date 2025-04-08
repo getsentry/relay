@@ -162,6 +162,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Rules to infer `span.op` from other span fields.
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
+
+    /// Set a flag to enable performance issue detection on spans.
+    pub performance_issues_spans: bool,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -196,6 +199,7 @@ impl Default for NormalizationConfig<'_> {
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
             span_op_defaults: Default::default(),
+            performance_issues_spans: Default::default(),
         }
     }
 }
@@ -333,6 +337,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
+    }
+
+    if config.performance_issues_spans && event.ty.value() == Some(&EventType::Transaction) {
+        event._performance_issues_spans = Annotated::new(true);
     }
 
     if config.enrich_spans {

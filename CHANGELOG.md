@@ -10,6 +10,7 @@
 - Filter out certain AI crawlers. ([#4608](https://github.com/getsentry/relay/pull/4608))
 - Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634))
 - Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624))
+- Make default Apple device class high. ([#4609](https://github.com/getsentry/relay/pull/4609))
 
 **Bug Fixes**:
 
@@ -30,6 +31,9 @@
 - Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
 - Validate the spooling memory configuration on startup. ([#4617](https://github.com/getsentry/relay/pull/4617))
 - Improve descriptiveness of autoscaling metric name. ([#4629](https://github.com/getsentry/relay/pull/4629))
+- Serialize span's `_meta` information when producing to Kafka. ([#4646](https://github.com/getsentry/relay/pull/4646))
+- Enable connection pooling for asynchronous Redis connections. ([#4622](https://github.com/getsentry/relay/pull/4622))
+- Add the internal `_performance_issues_spans` field to control perf issue detection. ([#4652](https://github.com/getsentry/relay/pull/4652))
 
 ## 25.3.0
 

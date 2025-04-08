@@ -121,6 +121,15 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty", trim = false)]
     pub kind: Annotated<SpanKind>,
 
+    /// Temporary flag that controls where performance issues are detected.
+    ///
+    /// When the flag is set to true, performance issues will be detected on this span provided it
+    /// is a root (segment) instead of the transaction event.
+    ///
+    /// Only set on root spans extracted from transactions.
+    #[metastructure(skip_serialization = "empty", trim = false)]
+    pub _performance_issues_spans: Annotated<bool>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]

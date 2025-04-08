@@ -218,7 +218,7 @@ mod tests {
         }
     }
 
-    async fn build_redis_client() -> AsyncRedisClient {
+    fn build_redis_client() -> AsyncRedisClient {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
@@ -226,7 +226,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        AsyncRedisClient::single(&url, &opts).await.unwrap()
+        AsyncRedisClient::single(&url, &opts).unwrap()
     }
 
     fn keys(prefix: Uuid, keys: &[&str]) -> impl Iterator<Item = String> {
@@ -256,8 +256,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_below_limit_perfect_cardinality_ttl() {
-        let client = build_redis_client().await;
-        let mut connection = client.get_connection();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
 
@@ -280,8 +280,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_script() {
-        let client = build_redis_client().await;
-        let mut connection = client.get_connection();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
         let keys = keys(Uuid::new_v4(), &["a", "b", "c"]);
@@ -299,8 +299,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_calls_in_pipeline() {
-        let client = build_redis_client().await;
-        let mut connection = client.get_connection();
+        let client = build_redis_client();
+        let mut connection = client.get_connection().await.unwrap();
 
         let script = CardinalityScript::load();
         let k2 = keys(Uuid::new_v4(), &["a", "b", "c"]);
