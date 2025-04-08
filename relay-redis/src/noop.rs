@@ -2,64 +2,28 @@ use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
 
-/// This is an unconstructable type to make `Option<RedisPool>` zero-sized.
-#[derive(Clone, Debug)]
-pub struct RedisPool;
-
-/// An error returned from `RedisPool`.
+/// An error returned from [`RedisClient`].
 #[derive(Debug, Error)]
 #[error("unreachable")]
-pub enum RedisError {
-    /// Failure to configure Redis.
-    Configuration,
-}
+pub enum RedisError {}
 
-impl RedisPool {
-    /// Creates a `RedisPool` in cluster configuration.
-    ///
-    /// Always returns `Ok(Self)`.
-    pub fn cluster<'a>(
-        _servers: impl IntoIterator<Item = &'a str>,
-        _opts: RedisConfigOptions,
-    ) -> Result<Self, RedisError> {
-        Ok(Self)
-    }
-
-    /// Creates a [`RedisPool`] in multi write configuration.
-    ///
-    /// Always returns `Ok(Self)`.
-    pub fn multi_write(
-        _primary: RedisPool,
-        _secondaries: Vec<RedisPool>,
-    ) -> Result<Self, RedisError> {
-        Ok(Self)
-    }
-
-    /// Creates a `RedisPool` in single-node configuration.
-    ///
-    /// Always returns `Ok(Self)`.
-    pub fn single(_server: &str, _opts: RedisConfigOptions) -> Result<Self, RedisError> {
-        Ok(Self)
-    }
-}
-
-/// The various [`RedisPool`]s used within Relay.
+/// The various [`RedisClient`]s used within Relay.
 #[derive(Debug, Clone)]
-pub struct RedisPools {
-    /// The pool used for project configurations
-    pub project_configs: RedisPool,
-    /// The pool used for cardinality limits.
-    pub cardinality: RedisPool,
-    /// The pool used for rate limiting/quotas.
-    pub quotas: RedisPool,
+pub struct RedisClients {
+    /// The client used for project configurations
+    pub project_configs: AsyncRedisClient,
+    /// The client used for cardinality limits.
+    pub cardinality: AsyncRedisClient,
+    /// The client used for rate limiting/quotas.
+    pub quotas: AsyncRedisClient,
 }
 
-/// Noop type of the `AsyncRedisPool`
+/// Noop type of the [`AsyncRedisClient`].
 #[derive(Debug, Clone)]
-pub struct AsyncRedisPool;
+pub struct AsyncRedisClient;
 
-impl AsyncRedisPool {
-    /// Creates a [`AsyncRedisPool`] in cluster configration.
+impl AsyncRedisClient {
+    /// Creates a [`AsyncRedisClient`] in cluster configration.
     ///
     /// Always returns `Ok(Self)`
     pub async fn cluster<'a>(
@@ -69,7 +33,7 @@ impl AsyncRedisPool {
         Ok(Self)
     }
 
-    /// Creates a [`AsyncRedisPool`] in single-node configuration.
+    /// Creates a [`AsyncRedisClient`] in single-node configuration.
     ///
     /// Always returns `Ok(Self)`
     pub async fn single(_server: &str, _opts: &RedisConfigOptions) -> Result<Self, RedisError> {

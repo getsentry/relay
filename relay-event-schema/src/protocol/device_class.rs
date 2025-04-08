@@ -200,6 +200,79 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPad16,5" => Some(DeviceClass::HIGH),
         "iPad16,6" => Some(DeviceClass::HIGH),
 
-        _ => None,
+        // If we don't know the model it's a new device and therefore must be high.
+        _ => Some(DeviceClass::HIGH),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_iphone17_5_returns_device_class_high() {
+        let mut contexts = Contexts::new();
+        contexts.add(DeviceContext {
+            family: Annotated::new("iOS".to_string()),
+            model: Annotated::new("iPhone17,5".to_string()),
+            ..DeviceContext::default()
+        });
+        assert_eq!(
+            DeviceClass::from_contexts(&contexts),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_iphone99_1_returns_device_class_high() {
+        let mut contexts = Contexts::new();
+        contexts.add(DeviceContext {
+            family: Annotated::new("iOS".to_string()),
+            model: Annotated::new("iPhone99,1".to_string()),
+            ..DeviceContext::default()
+        });
+        assert_eq!(
+            DeviceClass::from_contexts(&contexts),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_ipad99_1_returns_device_class_high() {
+        let mut contexts = Contexts::new();
+        contexts.add(DeviceContext {
+            family: Annotated::new("iOS".to_string()),
+            model: Annotated::new("iPad99,1".to_string()),
+            ..DeviceContext::default()
+        });
+        assert_eq!(
+            DeviceClass::from_contexts(&contexts),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_garbage_device_model_returns_device_class_high() {
+        let mut contexts = Contexts::new();
+        contexts.add(DeviceContext {
+            family: Annotated::new("iOS".to_string()),
+            model: Annotated::new("garbage-device-model".to_string()),
+            ..DeviceContext::default()
+        });
+        assert_eq!(
+            DeviceClass::from_contexts(&contexts),
+            Some(DeviceClass::HIGH)
+        );
+    }
+
+    #[test]
+    fn test_wrong_family_returns_none() {
+        let mut contexts = Contexts::new();
+        contexts.add(DeviceContext {
+            family: Annotated::new("iOSS".to_string()),
+            model: Annotated::new("iPhone17,5".to_string()),
+            ..DeviceContext::default()
+        });
+        assert_eq!(DeviceClass::from_contexts(&contexts), None);
     }
 }

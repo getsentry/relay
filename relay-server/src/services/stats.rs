@@ -23,7 +23,7 @@ pub struct RelayStats {
     rt_metrics: RuntimeMetrics,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    redis_pools: Option<RedisClients>,
+    redis_clients: Option<RedisClients>,
     processor_pool: EnvelopeProcessorServicePool,
     #[cfg(feature = "processing")]
     store_pool: StoreServicePool,
@@ -34,7 +34,7 @@ impl RelayStats {
         config: Arc<Config>,
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] redis_pools: Option<RedisClients>,
+        #[cfg(feature = "processing")] redis_clients: Option<RedisClients>,
         processor_pool: EnvelopeProcessorServicePool,
         #[cfg(feature = "processing")] store_pool: StoreServicePool,
     ) -> Self {
@@ -44,7 +44,7 @@ impl RelayStats {
             rt_metrics: runtime.metrics(),
             runtime,
             #[cfg(feature = "processing")]
-            redis_pools,
+            redis_clients,
             processor_pool,
             #[cfg(feature = "processing")]
             store_pool,
@@ -168,15 +168,15 @@ impl RelayStats {
     }
 
     #[cfg(not(feature = "processing"))]
-    async fn redis_pools(&self) {}
+    async fn redis_clients(&self) {}
 
     #[cfg(feature = "processing")]
-    async fn redis_pools(&self) {
+    async fn redis_clients(&self) {
         if let Some(RedisClients {
             project_configs,
             cardinality,
             quotas,
-        }) = self.redis_pools.as_ref()
+        }) = self.redis_clients.as_ref()
         {
             Self::async_redis_connection(project_configs, "project_configs");
             Self::async_redis_connection(cardinality, "cardinality");
@@ -221,7 +221,7 @@ impl Service for RelayStats {
                 self.upstream_status(),
                 self.service_metrics(),
                 self.tokio_metrics(),
-                self.redis_pools(),
+                self.redis_clients(),
                 self.async_pools_metrics()
             );
             ticker.tick().await;

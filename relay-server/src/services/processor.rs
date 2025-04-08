@@ -1536,6 +1536,7 @@ impl EnvelopeProcessorService {
                     .and_then(|ctx| ctx.replay_id),
                 span_allowed_hosts: http_span_allowed_hosts,
                 span_op_defaults: global_config.span_op_defaults.borrow(),
+                performance_issues_spans: project_info.has_feature(Feature::PerformanceIssuesSpans),
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {
