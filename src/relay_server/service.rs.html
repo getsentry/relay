@@ -460,50 +460,47 @@
 <a href=#460 id=460 data-nosnippet>460</a>            options,
 <a href=#461 id=461 data-nosnippet>461</a>        } =&gt; AsyncRedisClient::cluster(cluster_nodes.iter().map(|s| s.as_str()), options),
 <a href=#462 id=462 data-nosnippet>462</a>        RedisConfigRef::Single { server, options } =&gt; AsyncRedisClient::single(server, options),
-<a href=#463 id=463 data-nosnippet>463</a>        RedisConfigRef::MultiWrite { .. } =&gt; {
-<a href=#464 id=464 data-nosnippet>464</a>            <span class="prelude-val">Err</span>(RedisError::MultiWriteNotSupported(<span class="string">"projectconfig"</span>))
-<a href=#465 id=465 data-nosnippet>465</a>        }
-<a href=#466 id=466 data-nosnippet>466</a>    }
-<a href=#467 id=467 data-nosnippet>467</a>}
-<a href=#468 id=468 data-nosnippet>468</a>
-<a href=#469 id=469 data-nosnippet>469</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#470 id=470 data-nosnippet>470</a></span><span class="kw">async fn </span>initialize_redis_scripts_for_client(
-<a href=#471 id=471 data-nosnippet>471</a>    redis_clients: <span class="kw-2">&amp;</span>RedisClients,
-<a href=#472 id=472 data-nosnippet>472</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), RedisError&gt; {
-<a href=#473 id=473 data-nosnippet>473</a>    <span class="kw">let </span>scripts = RedisScripts::all();
-<a href=#474 id=474 data-nosnippet>474</a>
-<a href=#475 id=475 data-nosnippet>475</a>    <span class="kw">let </span>clients = [<span class="kw-2">&amp;</span>redis_clients.cardinality, <span class="kw-2">&amp;</span>redis_clients.quotas];
-<a href=#476 id=476 data-nosnippet>476</a>    <span class="kw">for </span>client <span class="kw">in </span>clients {
-<a href=#477 id=477 data-nosnippet>477</a>        initialize_redis_scripts(client, <span class="kw-2">&amp;</span>scripts).<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#478 id=478 data-nosnippet>478</a>    }
+<a href=#463 id=463 data-nosnippet>463</a>    }
+<a href=#464 id=464 data-nosnippet>464</a>}
+<a href=#465 id=465 data-nosnippet>465</a>
+<a href=#466 id=466 data-nosnippet>466</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#467 id=467 data-nosnippet>467</a></span><span class="kw">async fn </span>initialize_redis_scripts_for_client(
+<a href=#468 id=468 data-nosnippet>468</a>    redis_clients: <span class="kw-2">&amp;</span>RedisClients,
+<a href=#469 id=469 data-nosnippet>469</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), RedisError&gt; {
+<a href=#470 id=470 data-nosnippet>470</a>    <span class="kw">let </span>scripts = RedisScripts::all();
+<a href=#471 id=471 data-nosnippet>471</a>
+<a href=#472 id=472 data-nosnippet>472</a>    <span class="kw">let </span>clients = [<span class="kw-2">&amp;</span>redis_clients.cardinality, <span class="kw-2">&amp;</span>redis_clients.quotas];
+<a href=#473 id=473 data-nosnippet>473</a>    <span class="kw">for </span>client <span class="kw">in </span>clients {
+<a href=#474 id=474 data-nosnippet>474</a>        initialize_redis_scripts(client, <span class="kw-2">&amp;</span>scripts).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#475 id=475 data-nosnippet>475</a>    }
+<a href=#476 id=476 data-nosnippet>476</a>
+<a href=#477 id=477 data-nosnippet>477</a>    <span class="prelude-val">Ok</span>(())
+<a href=#478 id=478 data-nosnippet>478</a>}
 <a href=#479 id=479 data-nosnippet>479</a>
-<a href=#480 id=480 data-nosnippet>480</a>    <span class="prelude-val">Ok</span>(())
-<a href=#481 id=481 data-nosnippet>481</a>}
-<a href=#482 id=482 data-nosnippet>482</a>
-<a href=#483 id=483 data-nosnippet>483</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#484 id=484 data-nosnippet>484</a></span><span class="kw">async fn </span>initialize_redis_scripts(
-<a href=#485 id=485 data-nosnippet>485</a>    client: <span class="kw-2">&amp;</span>AsyncRedisClient,
-<a href=#486 id=486 data-nosnippet>486</a>    scripts: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>Script; <span class="number">3</span>],
-<a href=#487 id=487 data-nosnippet>487</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), RedisError&gt; {
-<a href=#488 id=488 data-nosnippet>488</a>    <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection().<span class="kw">await</span><span class="question-mark">?</span>;
-<a href=#489 id=489 data-nosnippet>489</a>
-<a href=#490 id=490 data-nosnippet>490</a>    <span class="kw">for </span>script <span class="kw">in </span>scripts {
-<a href=#491 id=491 data-nosnippet>491</a>        <span class="comment">// We load on all instances without checking if the script is already in cache because of a
-<a href=#492 id=492 data-nosnippet>492</a>        // limitation in the connection implementation.
-<a href=#493 id=493 data-nosnippet>493</a>        </span>script
-<a href=#494 id=494 data-nosnippet>494</a>            .prepare_invoke()
-<a href=#495 id=495 data-nosnippet>495</a>            .load_async(<span class="kw-2">&amp;mut </span>connection)
-<a href=#496 id=496 data-nosnippet>496</a>            .<span class="kw">await
-<a href=#497 id=497 data-nosnippet>497</a>            </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
-<a href=#498 id=498 data-nosnippet>498</a>    }
+<a href=#480 id=480 data-nosnippet>480</a><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#481 id=481 data-nosnippet>481</a></span><span class="kw">async fn </span>initialize_redis_scripts(
+<a href=#482 id=482 data-nosnippet>482</a>    client: <span class="kw-2">&amp;</span>AsyncRedisClient,
+<a href=#483 id=483 data-nosnippet>483</a>    scripts: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>Script; <span class="number">3</span>],
+<a href=#484 id=484 data-nosnippet>484</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), RedisError&gt; {
+<a href=#485 id=485 data-nosnippet>485</a>    <span class="kw">let </span><span class="kw-2">mut </span>connection = client.get_connection().<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#486 id=486 data-nosnippet>486</a>
+<a href=#487 id=487 data-nosnippet>487</a>    <span class="kw">for </span>script <span class="kw">in </span>scripts {
+<a href=#488 id=488 data-nosnippet>488</a>        <span class="comment">// We load on all instances without checking if the script is already in cache because of a
+<a href=#489 id=489 data-nosnippet>489</a>        // limitation in the connection implementation.
+<a href=#490 id=490 data-nosnippet>490</a>        </span>script
+<a href=#491 id=491 data-nosnippet>491</a>            .prepare_invoke()
+<a href=#492 id=492 data-nosnippet>492</a>            .load_async(<span class="kw-2">&amp;mut </span>connection)
+<a href=#493 id=493 data-nosnippet>493</a>            .<span class="kw">await
+<a href=#494 id=494 data-nosnippet>494</a>            </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
+<a href=#495 id=495 data-nosnippet>495</a>    }
+<a href=#496 id=496 data-nosnippet>496</a>
+<a href=#497 id=497 data-nosnippet>497</a>    <span class="prelude-val">Ok</span>(())
+<a href=#498 id=498 data-nosnippet>498</a>}
 <a href=#499 id=499 data-nosnippet>499</a>
-<a href=#500 id=500 data-nosnippet>500</a>    <span class="prelude-val">Ok</span>(())
-<a href=#501 id=501 data-nosnippet>501</a>}
+<a href=#500 id=500 data-nosnippet>500</a><span class="kw">impl </span>FromRequestParts&lt;<span class="self">Self</span>&gt; <span class="kw">for </span>ServiceState {
+<a href=#501 id=501 data-nosnippet>501</a>    <span class="kw">type </span>Rejection = Infallible;
 <a href=#502 id=502 data-nosnippet>502</a>
-<a href=#503 id=503 data-nosnippet>503</a><span class="kw">impl </span>FromRequestParts&lt;<span class="self">Self</span>&gt; <span class="kw">for </span>ServiceState {
-<a href=#504 id=504 data-nosnippet>504</a>    <span class="kw">type </span>Rejection = Infallible;
-<a href=#505 id=505 data-nosnippet>505</a>
-<a href=#506 id=506 data-nosnippet>506</a>    <span class="kw">async fn </span>from_request_parts(<span class="kw">_</span>: <span class="kw-2">&amp;mut </span>Parts, state: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
-<a href=#507 id=507 data-nosnippet>507</a>        <span class="prelude-val">Ok</span>(state.clone())
-<a href=#508 id=508 data-nosnippet>508</a>    }
-<a href=#509 id=509 data-nosnippet>509</a>}</code></pre></div></section></main></body></html>
+<a href=#503 id=503 data-nosnippet>503</a>    <span class="kw">async fn </span>from_request_parts(<span class="kw">_</span>: <span class="kw-2">&amp;mut </span>Parts, state: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
+<a href=#504 id=504 data-nosnippet>504</a>        <span class="prelude-val">Ok</span>(state.clone())
+<a href=#505 id=505 data-nosnippet>505</a>    }
+<a href=#506 id=506 data-nosnippet>506</a>}</code></pre></div></section></main></body></html>
