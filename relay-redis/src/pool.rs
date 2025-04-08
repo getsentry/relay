@@ -34,10 +34,10 @@ impl<C> TrackedConnection<C> {
     /// Returns `true` when a [`RedisError`] should lead to the [`TrackedConnection`] be detached
     /// from the pool.
     ///
-    /// This is done since some errors can be recoverable, meaning that the connection can be dropped
-    /// while recycling and a new one can be fetched.
+    /// This is done since some errors can be recoverable, in that case, we want to detach the
+    /// connection to let the pool use or create another one.
     fn should_be_detached(error: &RedisError) -> bool {
-        error.is_unrecoverable_error()
+        !error.is_unrecoverable_error()
     }
 }
 
