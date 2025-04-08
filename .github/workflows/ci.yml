@@ -216,6 +216,9 @@ jobs:
     steps:
       - id: set-outputs
         run: |
+          PASSPHRASE=$(openssl rand -hex 32)
+          echo "passphrase=$PASSPHRASE" >> $GITHUB_OUTPUT
+
           echo "full_ci=$FULL_CI" >> $GITHUB_OUTPUT
 
           if [[ "$FULL_CI" == "true" ]]; then
@@ -234,6 +237,7 @@ jobs:
       targets: "${{ steps.set-outputs.outputs.targets }}"
       platforms: "${{ steps.set-outputs.outputs.platforms }}"
       full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
+      passphrase: "${{ steps.set-outputs.outputs.passphrase }}"
 
   build:
     needs: build-setup
@@ -373,10 +377,15 @@ jobs:
           sentry-cli difutil bundle-sources "${RELAY_BIN}.debug"
           zip "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.debug"
 
-      - name: Prepare Artifacts
+      - name: Prepare and Encrypt Artifacts
         run: |
           mkdir -p "artifacts/${DOCKER_PLATFORM}"
-          cp "${RELAY_BIN}"{,-debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
+
+          for file in "${RELAY_BIN}" "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.src.zip"; do
+            gpg --quiet --batch --yes --symmetric --cipher-algo AES256 \
+                --passphrase "${{ needs.build-setup.outputs.passphrase }}" \
+                --output "artifacts/${DOCKER_PLATFORM}/$(basename $file).gpg" "$file"
+          done
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -487,6 +496,16 @@ jobs:
         with:
           pattern: "internal-${{ matrix.image_name }}@*"
           merge-multiple: true
+
+      - name: Decrypt Artifacts
+        run: |
+          find . -name "*.gpg" | while read file; do
+            output_file="${file%.gpg}"
+            gpg --quiet --batch --yes --decrypt \
+                --passphrase "${{ needs.build-setup.outputs.passphrase }}" \
+                --output "$output_file" "$file"
+            rm "$file"
+          done
 
       - name: Build and push to Internal AR
         run: |
