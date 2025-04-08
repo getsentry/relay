@@ -79,6 +79,7 @@ impl fmt::Debug for OurLogAttribute {
         f.debug_struct("OurLogAttribute")
             .field("value", &self.value.value)
             .field("type", &self.value.ty)
+            .field("other", &self.other)
             .finish()
     }
 }
@@ -345,30 +346,49 @@ mod tests {
                         true,
                     ),
                     type: "boolean",
+                    other: {},
+                },
+                "double.attribute": OurLogAttribute {
+                    value: F64(
+                        1.23,
+                    ),
+                    type: "double",
+                    other: {},
                 },
                 "sentry.observed_timestamp_nanos": OurLogAttribute {
                     value: String(
                         "1544712660300000000",
                     ),
                     type: "integer",
+                    other: {},
                 },
                 "sentry.severity_number": OurLogAttribute {
                     value: String(
                         "10",
                     ),
                     type: "integer",
+                    other: {},
                 },
                 "sentry.severity_text": OurLogAttribute {
                     value: String(
                         "info",
                     ),
                     type: "string",
+                    other: {},
                 },
                 "sentry.trace_flags": OurLogAttribute {
                     value: String(
                         "10",
                     ),
                     type: "integer",
+                    other: {},
+                },
+                "string.attribute": OurLogAttribute {
+                    value: String(
+                        "some string",
+                    ),
+                    type: "string",
+                    other: {},
                 },
             },
             other: {},
@@ -387,6 +407,10 @@ mod tests {
               "type": "boolean",
               "value": true
             },
+            "double.attribute": {
+              "type": "double",
+              "value": 1.23
+            },
             "sentry.observed_timestamp_nanos": {
               "type": "integer",
               "value": "1544712660300000000"
@@ -402,6 +426,10 @@ mod tests {
             "sentry.trace_flags": {
               "type": "integer",
               "value": "10"
+            },
+            "string.attribute": {
+              "type": "string",
+              "value": "some string"
             }
           }
         }

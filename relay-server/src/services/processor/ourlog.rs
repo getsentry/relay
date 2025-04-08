@@ -386,6 +386,7 @@ mod tests {
                     },
                 ),
                 type: "unknown",
+                other: {},
             },
             "missing_type": OurLogAttribute {
                 value: Annotated(
@@ -415,6 +416,7 @@ mod tests {
                     original_length: None,
                     original_value: None,
                 },
+                other: {},
             },
             "missing_value": OurLogAttribute {
                 value: Meta {
@@ -442,6 +444,7 @@ mod tests {
                         original_value: None,
                     },
                 ),
+                other: {},
             },
             "unknown_type": OurLogAttribute {
                 value: Annotated(
@@ -465,60 +468,74 @@ mod tests {
                     },
                 ),
                 type: "unknown",
+                other: {},
             },
             "valid_bool": OurLogAttribute {
                 value: Bool(
                     true,
                 ),
                 type: "boolean",
+                other: {},
             },
             "valid_double": OurLogAttribute {
                 value: F64(
                     42.5,
                 ),
                 type: "double",
+                other: {},
             },
             "valid_double_with_i64": OurLogAttribute {
                 value: I64(
                     -42,
                 ),
                 type: "double",
+                other: {},
             },
             "valid_double_with_u64": OurLogAttribute {
                 value: I64(
                     42,
                 ),
                 type: "double",
+                other: {},
             },
             "valid_int_from_string": OurLogAttribute {
                 value: String(
                     "42",
                 ),
                 type: "integer",
+                other: {},
             },
             "valid_int_i64": OurLogAttribute {
                 value: I64(
                     -42,
                 ),
                 type: "integer",
+                other: {},
             },
             "valid_int_u64": OurLogAttribute {
                 value: I64(
                     42,
                 ),
                 type: "integer",
+                other: {},
             },
             "valid_string": OurLogAttribute {
                 value: String(
                     "test",
                 ),
                 type: "string",
+                other: {},
             },
             "valid_string_with_other": OurLogAttribute {
                 value: String(
                     "test",
                 ),
                 type: "string",
+                other: {
+                    "some_other_field": String(
+                        "some_other_value",
+                    ),
+                },
             },
         }
         "###);
