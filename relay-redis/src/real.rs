@@ -34,10 +34,6 @@ pub enum RedisError {
     /// An error that occurs when configuring Redis.
     #[error("failed to configure redis: {0}")]
     ConfigError(#[from] ConfigError),
-
-    /// An error that occurs when attempting multi-write operations on unsupported components.
-    #[error("multi write is not supported for {0}")]
-    MultiWriteNotSupported(&'static str),
 }
 
 /// A collection of Redis clients used by Relay for different purposes.
