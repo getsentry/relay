@@ -2178,7 +2178,7 @@ LIMIT 1
                 "request": {
                     "url": "http://us.sentry.io/api/0/organizations/",
                     "method": "GET"
-                },
+                }
             }
         "#;
 
