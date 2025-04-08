@@ -35,7 +35,7 @@ pub struct ServiceMetrics {
     ///
     /// This value is a percentage in the range from `[0-100]` and recomputed periodically.
     ///
-    /// The measure is only updated when the when the service is polled. A service which
+    /// The measure is only updated when the service is polled. A service which
     /// spends a long time idle may not have this measure updated for a long time.
     pub utilization: u8,
 }

@@ -53,7 +53,36 @@ impl AsyncPoolMetrics<'_> {
     }
 
     /// Returns the utilization metric for the pool.
+    ///
+    /// The utilization is measured as the amount of busy work performed by each thread when polling
+    /// the futures.
+    ///
+    /// A utilization of 100% indicates that the pool has been doing CPU-bound work for the duration
+    /// of the measurement.
+    /// A utilization of 0% indicates that the pool didn't do any CPU-bound work for the duration
+    /// of the measurement.
+    ///
+    /// Note that this metric is collected and updated for each thread when the main future is polled,
+    /// thus if no work is being done, it will not be updated.
     pub fn utilization(&self) -> f32 {
+        let total_polled_futures: u64 = self
+            .threads_metrics
+            .iter()
+            .map(|m| m.active_tasks.load(Ordering::Relaxed))
+            .sum();
+
+        (total_polled_futures as f32 / self.max_tasks as f32).clamp(0.0, 1.0) * 100.0
+    }
+
+    /// Returns the activity metric for the pool.
+    ///
+    /// The activity is measure as the amount of active tasks in the pool versus the maximum amount
+    /// of tasks that the pool can have active at the same time.
+    ///
+    /// An activity of 100% indicates that the pool is driving the maximum number of tasks that it
+    /// can.
+    /// An activity of 0% indicates that the pool is not driving any tasks.
+    pub fn activity(&self) -> f32 {
         let total_polled_futures: u64 = self
             .threads_metrics
             .iter()
