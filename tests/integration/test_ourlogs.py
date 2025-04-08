@@ -145,10 +145,18 @@ def test_ourlog_extraction_with_sentry_logs(
             "severity_number": 10,
             "attributes": {
                 "boolean.attribute": {"value": True, "type": "boolean"},
+                "integer.attribute": {"value": 42, "type": "integer"},
+                "double.attribute": {"value": 1.23, "type": "double"},
+                "string.attribute": {"value": "some string", "type": "string"},
                 "pii": {"value": "4242 4242 4242 4242", "type": "string"},
                 "sentry.severity_text": {"value": "info", "type": "string"},
                 "unknown_type": {"value": "info", "type": "unknown"},
                 "broken_type": {"value": "info", "type": "not_a_real_type"},
+                "valid_string_with_other": {
+                    "value": "test",
+                    "type": "string",
+                    "some_other_field": "some_other_value",
+                },
             },
         }
     )
@@ -169,6 +177,10 @@ def test_ourlog_extraction_with_sentry_logs(
         "severity_number": 9,
         "attributes": {
             "boolean.attribute": {"bool_value": True},
+            "double.attribute": {"double_value": 1.23},
+            "integer.attribute": {"int_value": 42},
+            "string.attribute": {"string_value": "some string"},
+            "valid_string_with_other": {"string_value": "test"},
             "pii": {"string_value": "[creditcard]"},
             "sentry.severity_number": {"int_value": 9},
             "sentry.severity_text": {"string_value": "info"},

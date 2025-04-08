@@ -334,6 +334,11 @@ mod tests {
                     "type": "string",
                     "value": "test"
                 },
+                "valid_string_with_other": {
+                    "type": "string",
+                    "value": "test",
+                    "some_other_field": "some_other_value"
+                },
                 "unknown_type": {
                     "type": "custom",
                     "value": "test"
@@ -504,6 +509,12 @@ mod tests {
                 type: "integer",
             },
             "valid_string": OurLogAttribute {
+                value: String(
+                    "test",
+                ),
+                type: "string",
+            },
+            "valid_string_with_other": OurLogAttribute {
                 value: String(
                     "test",
                 ),

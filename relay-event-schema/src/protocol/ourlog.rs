@@ -298,6 +298,14 @@ mod tests {
                     "value": true,
                     "type": "boolean"
                 },
+                "double.attribute": {
+                    "value": 1.23,
+                    "type": "double"
+                },
+                "string.attribute": {
+                    "value": "some string",
+                    "type": "string"
+                },
                 "sentry.severity_text": {
                     "value": "info",
                     "type": "string"
