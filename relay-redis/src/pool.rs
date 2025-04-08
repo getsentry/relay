@@ -31,7 +31,7 @@ impl<C> TrackedConnection<C> {
         }
     }
 
-    /// Returns `true` when a [`RedisError`] should lead to the [`TrackedConnection`] be detached
+    /// Returns `true` when a [`RedisError`] should lead to the [`TrackedConnection`] being detached
     /// from the pool.
     fn should_be_detached(error: &RedisError) -> bool {
         match error.retry_method() {
