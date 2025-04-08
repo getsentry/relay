@@ -216,9 +216,7 @@ jobs:
     steps:
       - id: set-outputs
         run: |
-          PASSPHRASE=$(openssl rand -hex 32)
-          echo "passphrase=$PASSPHRASE" >> $GITHUB_OUTPUT
-
+          echo "passphrase=$(openssl rand -hex 32)" >> $GITHUB_OUTPUT
           echo "full_ci=$FULL_CI" >> $GITHUB_OUTPUT
 
           if [[ "$FULL_CI" == "true" ]]; then
@@ -323,7 +321,7 @@ jobs:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
         target: ${{ fromJson(needs.build-setup.outputs.targets) }}
 
-    name: Build Relay Binary
+    name: Build Internal Relay Binary
     runs-on: |-
       ${{fromJson('{
         "x86_64-unknown-linux-gnu": "ubuntu-22.04",
@@ -393,7 +391,6 @@ jobs:
           retention-days: 1
           name: internal-${{ matrix.image_name }}@${{ matrix.target }}
           path: "./artifacts/*"
-
 
   build-docker:
     timeout-minutes: 5
