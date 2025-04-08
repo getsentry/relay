@@ -47,6 +47,8 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
             let result = self.connection.req_packed_command(cmd).await;
             if let Err(error) = &result {
                 self.detach = Self::should_be_detached(error);
+            } else {
+                self.detach = false;
             }
 
             result
@@ -67,6 +69,8 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
                 .await;
             if let Err(error) = &result {
                 self.detach = Self::should_be_detached(error);
+            } else {
+                self.detach = false;
             }
 
             result
