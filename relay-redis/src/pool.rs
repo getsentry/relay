@@ -55,7 +55,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
         async move {
             let result = self.connection.req_packed_command(cmd).await;
             if let Err(error) = &result {
-                self.detach = Self::should_be_detached(error);
+                self.detach = self.detach || Self::should_be_detached(error);
             }
 
             result
@@ -75,7 +75,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
                 .req_packed_commands(cmd, offset, count)
                 .await;
             if let Err(error) = &result {
-                self.detach = Self::should_be_detached(error);
+                self.detach = self.detach || Self::should_be_detached(error);
             }
 
             result
