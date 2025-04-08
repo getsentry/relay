@@ -18,6 +18,9 @@ pub type CustomClusterPool = Pool<CustomClusterManager, CustomClusterConnection>
 pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
 
 /// A wrapper for a connection that can be tracked with metadata.
+///
+/// A connection is considered detached as soon as it is marked as detached and it can't be
+/// un-detached.
 pub struct TrackedConnection<C> {
     connection: C,
     detach: bool,
@@ -53,8 +56,6 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
             let result = self.connection.req_packed_command(cmd).await;
             if let Err(error) = &result {
                 self.detach = Self::should_be_detached(error);
-            } else {
-                self.detach = false;
             }
 
             result
@@ -75,8 +76,6 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
                 .await;
             if let Err(error) = &result {
                 self.detach = Self::should_be_detached(error);
-            } else {
-                self.detach = false;
             }
 
             result
