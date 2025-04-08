@@ -34,6 +34,7 @@
 - Serialize span's `_meta` information when producing to Kafka. ([#4646](https://github.com/getsentry/relay/pull/4646))
 - Enable connection pooling for asynchronous Redis connections. ([#4622](https://github.com/getsentry/relay/pull/4622))
 - Add the internal `_performance_issues_spans` field to control perf issue detection. ([#4652](https://github.com/getsentry/relay/pull/4652))
+- Improve handling of failed Redis connections. ([#4657](https://github.com/getsentry/relay/pull/4657))
 
 ## 25.3.0
 
