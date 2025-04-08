@@ -132,19 +132,34 @@ impl FromMessage<AutoscalingMessageKind> for AutoscalingMetrics {
     }
 }
 
+/// Contains data that is used for autoscaling.
 pub struct AutoscalingData {
+    /// Memory usage of relay.
     pub memory_usage: f32,
+    /// Is `1` if relay is running, `0` if it's shutting down.
     pub up: u8,
+    /// The total number of bytes used by the spooler.
     pub total_size: u64,
+    /// The total number of envelopes in the spooler.
     pub item_count: u64,
+    /// Worker pool utilization in percent.
     pub worker_pool_utilization: u8,
+    /// List of service utilization.
     pub services_metrics: Vec<ServiceUtilization>,
+    /// Utilization of the async runtime.
     pub runtime_utilization: u8,
 }
 
+/// Contains the minimal required information for service utilization.
+///
+/// A service can have multiple instances which will all have the same name.
+/// Those instances are distinguished by the `instance_id`.
 pub struct ServiceUtilization {
+    /// The service name.
     pub name: &'static str,
+    /// The id of the specific service instance.
     pub instance_id: u32,
+    /// Utilization as percentage.
     pub utilization: u8,
 }
 
