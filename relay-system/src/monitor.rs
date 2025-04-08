@@ -9,8 +9,8 @@ use tokio::time::{Duration, Instant};
 const UTILIZATION_UPDATE_THRESHOLD: Duration = Duration::from_secs(5);
 
 pin_project_lite::pin_project! {
-    /// A service monitor tracks service metrics.
-    pub struct ServiceMonitor<F> {
+    /// A future that tracks metrics.
+    pub struct TimedFuture<F> {
         #[pin]
         inner: F,
 
@@ -21,8 +21,8 @@ pin_project_lite::pin_project! {
     }
 }
 
-impl<F> ServiceMonitor<F> {
-    /// Wraps a service future with a monitor.
+impl<F> TimedFuture<F> {
+    /// Wraps a future with the [`TimedFuture`].
     pub fn wrap(inner: F) -> Self {
         Self {
             inner,
@@ -36,13 +36,13 @@ impl<F> ServiceMonitor<F> {
         }
     }
 
-    /// Provides access to the raw metrics tracked in this monitor.
+    /// Provides access to the raw metrics tracked in this [`TimedFuture`]..
     pub fn metrics(&self) -> &Arc<RawMetrics> {
         &self.metrics
     }
 }
 
-impl<F> Future for ServiceMonitor<F>
+impl<F> Future for TimedFuture<F>
 where
     F: Future,
 {
@@ -68,7 +68,7 @@ where
 
         let utilization_duration = poll_end - *this.last_utilization_update;
         if utilization_duration >= UTILIZATION_UPDATE_THRESHOLD {
-            // Time spent the service was busy since the last utilization calculation.
+            // Time spent the future was busy since the last utilization calculation.
             let busy = total_duration_ns - *this.last_utilization_duration_ns;
 
             // The maximum possible time spent busy is the total time between the last measurement
@@ -86,16 +86,17 @@ where
     }
 }
 
-/// The raw metrics extracted from a [`ServiceMonitor`].
+/// The raw metrics extracted from a [`TimedFuture`].
 ///
-/// All access outside the [`ServiceMonitor`] must be *read* only.
+/// All access outside the [`TimedFuture`] must be *read* only.
 #[derive(Debug)]
 pub struct RawMetrics {
-    /// Amount of times the service was polled.
+    /// Amount of times the future was polled.
     pub poll_count: AtomicU64,
-    /// The total time the service spent in its poll function.
+    /// The total time the future spent in its poll function.
     pub total_duration_ns: AtomicU64,
-    /// Estimated utilization percentage `[0-100]`
+    /// Estimated utilization percentage `[0-100]` as a function of time spent doing busy work
+    /// vs. the time range of the measurement.
     pub utilization: AtomicU8,
 }
 
@@ -105,7 +106,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_monitor() {
-        let mut monitor = ServiceMonitor::wrap(Box::pin(async {
+        let mut monitor = TimedFuture::wrap(Box::pin(async {
             loop {
                 tokio::time::advance(Duration::from_millis(500)).await;
             }

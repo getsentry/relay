@@ -15,7 +15,6 @@ use tokio::time::MissedTickBehavior;
 use crate::statsd::SystemGauges;
 use crate::{spawn, TaskId};
 
-mod monitor;
 mod registry;
 mod status;
 

@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use crate::service::monitor::{RawMetrics, ServiceMonitor};
+use crate::monitor::{RawMetrics, TimedFuture};
 
 use crate::service::status::{ServiceJoinHandle, ServiceStatusJoinHandle};
 use crate::{ServiceObj, TaskId};
@@ -108,7 +108,7 @@ impl Inner {
         // lower priority tasks. We want to prioritize service backlogs over creating more work
         // for these services.
         let future = tokio::task::unconstrained(service.future);
-        let future = ServiceMonitor::wrap(future);
+        let future = TimedFuture::wrap(future);
         let metrics = Arc::clone(future.metrics());
 
         let task_handle = crate::runtime::spawn_in(handle, task_id, future);
