@@ -76,9 +76,6 @@ enum RedisConfigFromFile {
         options: PartialRedisConfigOptions,
     },
 
-    /// Connect to a set of Redis instances for multiple writes.
-    MultiWrite(Vec<RedisConfigFromFile>),
-
     /// Connect to a single Redis instance.
     ///
     /// Contains the `redis://` url to the node.
@@ -108,11 +105,6 @@ pub enum RedisConfig {
         /// Options of the Redis config.
         #[serde(flatten)]
         options: PartialRedisConfigOptions,
-    },
-    /// Connect to multiple Redis instances for multiple writes.
-    MultiWrite {
-        /// Configurations for the Redis instances.
-        configs: Vec<RedisConfig>,
     },
     /// Connect to a single Redis instance.
     Single(SingleRedisConfig),
@@ -156,9 +148,6 @@ impl From<RedisConfigFromFile> for RedisConfig {
                 cluster_nodes,
                 options,
             },
-            RedisConfigFromFile::MultiWrite(configs) => Self::MultiWrite {
-                configs: configs.into_iter().map(|c| c.into()).collect(),
-            },
             RedisConfigFromFile::Single(server) => Self::Single(SingleRedisConfig::Detailed {
                 server,
                 options: Default::default(),
@@ -196,11 +185,6 @@ pub enum RedisConfigRef<'a> {
         cluster_nodes: &'a Vec<String>,
         /// Options of the Redis config.
         options: RedisConfigOptions,
-    },
-    /// Connect to multiple Redis instances for multiple writes.
-    MultiWrite {
-        /// Configurations for the Redis instances.
-        configs: Vec<RedisConfigRef<'a>>,
     },
     /// Connect to a single Redis instance.
     Single {
@@ -258,12 +242,6 @@ pub(super) fn build_redis_config(
         } => RedisConfigRef::Cluster {
             cluster_nodes,
             options: build_redis_config_options(options, default_connections),
-        },
-        RedisConfig::MultiWrite { configs } => RedisConfigRef::MultiWrite {
-            configs: configs
-                .iter()
-                .map(|c| build_redis_config(c, default_connections))
-                .collect(),
         },
         RedisConfig::Single(SingleRedisConfig::Detailed { server, options }) => {
             RedisConfigRef::Single {
@@ -519,62 +497,6 @@ max_connections: 10
     }
 
     #[test]
-    fn test_redis_multi_write_opts() {
-        let yaml = r#"
-configs:
-    - cluster_nodes:
-          - "redis://127.0.0.1:6379"
-          - "redis://127.0.0.2:6379"
-      max_connections: 42
-      connection_timeout: 5
-    - server: "redis://127.0.0.1:6379"
-      max_connections: 84
-      connection_timeout: 10
-    - configs:
-          - server: "redis://127.0.0.1:6379"
-            max_connections: 42
-            connection_timeout: 5
-"#;
-
-        let config: RedisConfig = serde_yaml::from_str(yaml)
-            .expect("Parsed processing redis config: single with options");
-
-        assert_eq!(
-            config,
-            RedisConfig::MultiWrite {
-                configs: vec![
-                    RedisConfig::Cluster {
-                        cluster_nodes: vec![
-                            "redis://127.0.0.1:6379".to_owned(),
-                            "redis://127.0.0.2:6379".to_owned(),
-                        ],
-                        options: PartialRedisConfigOptions {
-                            max_connections: Some(42),
-                            ..Default::default()
-                        },
-                    },
-                    RedisConfig::Single(SingleRedisConfig::Detailed {
-                        server: "redis://127.0.0.1:6379".to_owned(),
-                        options: PartialRedisConfigOptions {
-                            max_connections: Some(84),
-                            ..Default::default()
-                        },
-                    }),
-                    RedisConfig::MultiWrite {
-                        configs: vec![RedisConfig::Single(SingleRedisConfig::Detailed {
-                            server: "redis://127.0.0.1:6379".to_owned(),
-                            options: PartialRedisConfigOptions {
-                                max_connections: Some(42),
-                                ..Default::default()
-                            },
-                        })]
-                    }
-                ],
-            }
-        );
-    }
-
-    #[test]
     fn test_redis_cluster_nodes_opts_unified() {
         let yaml = r#"
 cluster_nodes:
@@ -671,26 +593,15 @@ max_connections: 20
                 server: "redis://127.0.0.1:6379".to_owned(),
                 options: Default::default(),
             })),
-            quotas: Box::new(RedisConfig::MultiWrite {
-                configs: vec![
-                    RedisConfig::Cluster {
-                        cluster_nodes: vec![
-                            "redis://127.0.0.1:6379".to_owned(),
-                            "redis://127.0.0.2:6379".to_owned(),
-                        ],
-                        options: PartialRedisConfigOptions {
-                            max_connections: Some(84),
-                            ..Default::default()
-                        },
-                    },
-                    RedisConfig::Single(SingleRedisConfig::Detailed {
-                        server: "redis://127.0.0.1:6379".to_owned(),
-                        options: PartialRedisConfigOptions {
-                            max_connections: Some(42),
-                            ..Default::default()
-                        },
-                    }),
+            quotas: Box::new(RedisConfig::Cluster {
+                cluster_nodes: vec![
+                    "redis://127.0.0.1:6379".to_owned(),
+                    "redis://127.0.0.2:6379".to_owned(),
                 ],
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(84),
+                    ..Default::default()
+                },
             }),
         };
 
@@ -712,27 +623,15 @@ max_connections: 20
             "recycle_check_frequency": 100
           },
           "quotas": {
-            "configs": [
-              {
-                "cluster_nodes": [
-                  "redis://127.0.0.1:6379",
-                  "redis://127.0.0.2:6379"
-                ],
-                "max_connections": 84,
-                "idle_timeout": 60,
-                "create_timeout": 3,
-                "recycle_timeout": 2,
-                "recycle_check_frequency": 100
-              },
-              {
-                "server": "redis://127.0.0.1:6379",
-                "max_connections": 42,
-                "idle_timeout": 60,
-                "create_timeout": 3,
-                "recycle_timeout": 2,
-                "recycle_check_frequency": 100
-              }
-            ]
+            "cluster_nodes": [
+              "redis://127.0.0.1:6379",
+              "redis://127.0.0.2:6379"
+            ],
+            "max_connections": 84,
+            "idle_timeout": 60,
+            "create_timeout": 3,
+            "recycle_timeout": 2,
+            "recycle_check_frequency": 100
           }
         }
         "#);
