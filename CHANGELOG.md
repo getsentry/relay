@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Extract searchable context fields into sentry tags. ([#4651](https://github.com/getsentry/relay/pull/4651))
+- Extract searchable context fields into sentry tags for segment spans. ([#4651](https://github.com/getsentry/relay/pull/4651))
 
 **Features**:
 
