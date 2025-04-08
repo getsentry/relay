@@ -17,6 +17,7 @@ pub type CustomClusterPool = Pool<CustomClusterManager, CustomClusterConnection>
 /// A connection pool for single Redis instance deployments.
 pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
 
+/// A wrapper for a connection that can be tracked with metadata.
 pub struct TrackedConnection<C> {
     connection: C,
     detach: bool,
