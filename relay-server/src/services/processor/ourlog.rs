@@ -18,7 +18,7 @@ use {
     crate::services::processor::ProcessingError,
     relay_dynamic_config::ProjectConfig,
     relay_event_schema::processor::{process_value, ProcessingState},
-    relay_event_schema::protocol::{OurLog, OurLogAttributeType, OurLogAttributeValue},
+    relay_event_schema::protocol::{OurLog, OurLogAttributeType},
     relay_ourlogs::OtelLog,
     relay_pii::PiiProcessor,
     relay_protocol::{Annotated, ErrorKind, Value},
@@ -133,65 +133,55 @@ fn process_attribute_types(ourlog: &mut OurLog) {
     if let Some(data) = ourlog.attributes.value_mut() {
         for (_, attr) in data.iter_mut() {
             if let Some(attr) = attr.value_mut() {
-                attr.value = match (attr.value.ty.clone(), attr.value.value.clone()) {
-                    (Annotated(Some(ty), ty_meta), Annotated(Some(value), mut value_meta)) => {
-                        let attr_type = OurLogAttributeType::from(ty);
-                        match (attr_type, value) {
-                            (OurLogAttributeType::Bool, Value::Bool(_)) => attr.value.clone(),
-                            (OurLogAttributeType::Int, Value::I64(_)) => attr.value.clone(),
-                            (OurLogAttributeType::Int, Value::U64(_)) => attr.value.clone(),
+                match (&mut attr.value.ty, &mut attr.value.value) {
+                    (
+                        Annotated(Some(ty), _),
+                        Annotated(Some(ref mut value), ref mut value_meta),
+                    ) => {
+                        let attr_type = OurLogAttributeType::from(ty.clone());
+                        let should_keep = match (attr_type, &*value) {
+                            (OurLogAttributeType::Bool, Value::Bool(_)) => true,
+                            (OurLogAttributeType::Int, Value::I64(_)) => true,
+                            (OurLogAttributeType::Int, Value::U64(_)) => true,
                             (OurLogAttributeType::Int, Value::String(v)) => {
-                                if v.parse::<u64>().is_ok() || v.parse::<i64>().is_ok() {
-                                    attr.value.clone()
-                                } else {
-                                    value_meta.add_error(ErrorKind::InvalidData);
-                                    value_meta.set_original_value(Some(v.clone()));
-                                    OurLogAttributeValue::new(
-                                        Annotated(
-                                            Some(OurLogAttributeType::Unknown(
-                                                "unknown".to_string(),
-                                            )),
-                                            ty_meta,
-                                        ),
-                                        Annotated(Some(Value::String("".to_string())), value_meta),
-                                    )
-                                }
+                                v.parse::<i64>().is_ok() || v.parse::<u64>().is_ok()
                             }
-                            (OurLogAttributeType::Double, Value::F64(_)) => attr.value.clone(),
-                            (OurLogAttributeType::Double, Value::I64(_)) => attr.value.clone(),
-                            (OurLogAttributeType::Double, Value::U64(_)) => attr.value.clone(),
-                            (OurLogAttributeType::Double, Value::String(_)) => attr.value.clone(),
-                            (OurLogAttributeType::String, Value::String(_)) => attr.value.clone(),
-                            (_ty @ OurLogAttributeType::Unknown(_), value) => {
-                                value_meta.add_error(ErrorKind::InvalidData);
-                                value_meta.set_original_value(Some(value.clone()));
-                                OurLogAttributeValue::new(
-                                    Annotated(
-                                        Some(OurLogAttributeType::Unknown("unknown".to_string())),
-                                        ty_meta,
-                                    ),
-                                    Annotated(Some(Value::String("".to_string())), value_meta),
-                                )
+                            (OurLogAttributeType::Double, Value::F64(_)) => true,
+                            (OurLogAttributeType::Double, Value::String(f)) => {
+                                f.parse::<f64>().is_ok()
                             }
-                            (_, value) => {
-                                value_meta.add_error(ErrorKind::InvalidData);
-                                value_meta.set_original_value(Some(value.clone()));
-                                OurLogAttributeValue::new(
-                                    Annotated(
-                                        Some(OurLogAttributeType::Unknown("unknown".to_string())),
-                                        ty_meta,
-                                    ),
-                                    Annotated(Some(Value::String("".to_string())), value_meta),
-                                )
-                            }
+                            (OurLogAttributeType::String, Value::String(_)) => true,
+                            _ => false,
+                        };
+                        if !should_keep {
+                            value_meta.add_error(ErrorKind::InvalidData);
+                            value_meta.set_original_value(Some(std::mem::replace(
+                                value,
+                                Value::String("".to_string()),
+                            )));
+
+                            attr.value.ty = Annotated::new(
+                                OurLogAttributeType::Unknown("unknown".to_string())
+                                    .as_str()
+                                    .to_string(),
+                            );
                         }
                     }
-                    (mut ty, mut value) => {
-                        ty.meta_mut().add_error(ErrorKind::MissingAttribute);
-                        value.meta_mut().add_error(ErrorKind::MissingAttribute);
-                        OurLogAttributeValue { ty, value }
+                    (Annotated(ty_opt, ty_meta), Annotated(value_opt, value_meta)) => {
+                        if ty_opt.is_none() {
+                            ty_meta.add_error(ErrorKind::MissingAttribute);
+                        }
+                        if value_opt.is_none() {
+                            value_meta.add_error(ErrorKind::MissingAttribute);
+                        }
+                        attr.value.ty = Annotated::new(
+                            OurLogAttributeType::Unknown("unknown".to_string())
+                                .as_str()
+                                .to_string(),
+                        );
+                        *value_opt = Some(Value::String("".to_string()));
                     }
-                };
+                }
             }
         }
     }
