@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
-use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
-use crate::monitor::{RawMetrics, TimedFuture};
+use crate::monitor::TimedFuture;
 
 use crate::service::status::{ServiceJoinHandle, ServiceStatusJoinHandle};
-use crate::{ServiceObj, TaskId};
+use crate::{RawMetricsReceiver, ServiceObj, TaskId};
 
 /// A point in time snapshot of all started services and their [`ServiceMetrics`].
 pub struct ServicesMetrics(BTreeMap<ServiceId, ServiceMetrics>);
@@ -108,8 +107,8 @@ impl Inner {
         // lower priority tasks. We want to prioritize service backlogs over creating more work
         // for these services.
         let future = tokio::task::unconstrained(service.future);
-        let future = TimedFuture::wrap(future);
-        let metrics = Arc::clone(future.metrics());
+        let metrics = RawMetricsReceiver::default();
+        let future = TimedFuture::wrap(future, metrics.clone());
 
         let task_handle = crate::runtime::spawn_in(handle, task_id, future);
         let (status_handle, handle) = crate::service::status::split(task_handle);
@@ -128,11 +127,9 @@ impl Inner {
                 };
 
                 let metrics = ServiceMetrics {
-                    poll_count: service.metrics.poll_count.load(Ordering::Relaxed),
-                    total_busy_duration: Duration::from_nanos(
-                        service.metrics.total_duration_ns.load(Ordering::Relaxed),
-                    ),
-                    utilization: service.metrics.utilization.load(Ordering::Relaxed),
+                    poll_count: service.metrics.poll_count(),
+                    total_busy_duration: Duration::from_nanos(service.metrics.total_duration_ns()),
+                    utilization: service.metrics.utilization(),
                 };
 
                 (id, metrics)
@@ -164,7 +161,7 @@ struct ServiceGroup {
 
 impl ServiceGroup {
     /// Adds a started service to the service group.
-    pub fn add(&mut self, metrics: Arc<RawMetrics>, handle: ServiceStatusJoinHandle) {
+    pub fn add(&mut self, metrics: RawMetricsReceiver, handle: ServiceStatusJoinHandle) {
         // Cleanup the group, evicting all finished services, while we're at it.
         self.instances.retain(|s| !s.handle.is_finished());
 
@@ -189,13 +186,13 @@ impl ServiceGroup {
 /// Collection of metadata the registry tracks per service instance.
 #[derive(Debug)]
 struct ServiceInstance {
-    /// The per service group unique id for this instance.
+    /// The per-service group unique id for this instance.
     instance_id: u32,
     /// A raw handle for all metrics tracked for this instance.
     ///
     /// The handle gives raw access to all tracked metrics, these metrics
     /// should be treated as **read-only**.
-    metrics: Arc<RawMetrics>,
+    metrics: RawMetricsReceiver,
     /// A handle to the service instance.
     ///
     /// The handle has information about the completion status of the service.

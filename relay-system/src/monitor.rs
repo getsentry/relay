@@ -8,12 +8,25 @@ use tokio::time::{Duration, Instant};
 /// Minimum interval when utilization is recalculated.
 const UTILIZATION_UPDATE_THRESHOLD: Duration = Duration::from_secs(5);
 
+/// A trait that defines a receiver that receives events emitted from a [`TimedFuture`].
+///
+/// This trait is designed to allow any external consumer to hook into the lifecycle of a
+/// [`TimedFuture`]. An example could be to collect metrics.
 pub trait TimedFutureReceiver {
-    fn increment_poll_count(&self, count: u64) -> u64;
+    /// Called when a new poll is being performed by the [`TimedFuture`].
+    ///
+    /// Returns the previous poll value.
+    fn on_poll(&self);
 
-    fn increment_total_duration_ns(&self, duration: u64) -> u64;
+    /// Called when a new duration of the last poll is obtained by the [`TimedFuture`].
+    ///
+    /// Returns the previous duration value.
+    fn on_new_duration(&self, duration: u64);
 
-    fn update_utilization(&self, utilization: u8) -> u8;
+    /// Called when a new utilization estimation is emitted by the [`TimedFuture`].
+    ///
+    /// Returns the previous utilization value.
+    fn on_new_utilization(&self, utilization: u8);
 }
 
 pin_project_lite::pin_project! {
@@ -23,7 +36,7 @@ pin_project_lite::pin_project! {
         inner: F,
         receiver: R,
         last_utilization_update: Instant,
-        last_utilization_duration_ns: u64,
+        total_duration_ns: u64
     }
 }
 
@@ -34,7 +47,7 @@ impl<F, R> TimedFuture<F, R> {
             inner,
             receiver,
             last_utilization_update: Instant::now(),
-            last_utilization_duration_ns: 0,
+            total_duration_ns: 0,
         }
     }
 }
@@ -49,7 +62,7 @@ where
         let poll_start = Instant::now();
 
         let this = self.project();
-        this.receiver.increment_poll_count(1);
+        this.receiver.on_poll();
 
         let ret = this.inner.poll(cx);
 
@@ -57,20 +70,18 @@ where
         let poll_duration = poll_end - poll_start;
         let poll_duration_ns = poll_duration.as_nanos().try_into().unwrap_or(u64::MAX);
 
-        let previous_total_duration = this.receiver.increment_total_duration_ns(poll_duration_ns);
-        let total_duration_ns = previous_total_duration + poll_duration_ns;
+        this.receiver.on_new_duration(poll_duration_ns);
+        *this.total_duration_ns += poll_duration_ns;
 
         let utilization_duration = poll_end - *this.last_utilization_update;
         if utilization_duration >= UTILIZATION_UPDATE_THRESHOLD {
-            // Time spent the future was busy since the last utilization calculation.
-            let busy = total_duration_ns - *this.last_utilization_duration_ns;
-
             // The maximum possible time spent busy is the total time between the last measurement
             // and the current measurement. We can extract a percentage from this.
-            let percentage = (busy * 100).div_ceil(utilization_duration.as_nanos().max(1) as u64);
-            this.receiver.update_utilization(percentage.min(100) as u8);
+            let percentage = (*this.total_duration_ns * 100)
+                .div_ceil(utilization_duration.as_nanos().max(1) as u64);
+            this.receiver.on_new_utilization(percentage.min(100) as u8);
 
-            *this.last_utilization_duration_ns = total_duration_ns;
+            *this.total_duration_ns = 0;
             *this.last_utilization_update = poll_end;
         }
 
@@ -78,64 +89,74 @@ where
     }
 }
 
+#[derive(Debug)]
+struct Inner {
+    /// Amount of times the future was polled.
+    poll_count: AtomicU64,
+    /// The total time the future spent in its poll function.
+    total_duration_ns: AtomicU64,
+    /// Estimated utilization percentage `[0-100]` as a function of time spent doing busy work
+    /// vs. the time range of the measurement.
+    utilization: AtomicU8,
+}
+
 /// The raw metrics extracted from a [`TimedFuture`].
 ///
 /// All access outside the [`TimedFuture`] must be *read* only.
-#[derive(Debug)]
-pub struct RawMetrics {
-    /// Amount of times the future was polled.
-    pub poll_count: AtomicU64,
-    /// The total time the future spent in its poll function.
-    pub total_duration_ns: AtomicU64,
-    /// Estimated utilization percentage `[0-100]` as a function of time spent doing busy work
-    /// vs. the time range of the measurement.
-    pub utilization: AtomicU8,
+#[derive(Debug, Clone)]
+pub struct RawMetricsReceiver(Arc<Inner>);
+
+impl RawMetricsReceiver {
+    /// Returns the total number of times the future was polled.
+    pub fn poll_count(&self) -> u64 {
+        self.0.poll_count.load(Ordering::Relaxed)
+    }
+
+    /// Returns the total duration in nanoseconds in which the future was being polled.
+    pub fn total_duration_ns(&self) -> u64 {
+        self.0.total_duration_ns.load(Ordering::Relaxed)
+    }
+
+    /// Returns the estimated utilization of the future which is defined as the time spent doing
+    /// work versus not doing work within the measurement range.
+    pub fn utilization(&self) -> u8 {
+        self.0.utilization.load(Ordering::Relaxed)
+    }
+}
+
+impl TimedFutureReceiver for RawMetricsReceiver {
+    fn on_poll(&self) {
+        self.0.poll_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn on_new_duration(&self, duration: u64) {
+        self.0
+            .total_duration_ns
+            .fetch_add(duration, Ordering::Relaxed);
+    }
+
+    fn on_new_utilization(&self, utilization: u8) {
+        self.0.utilization.store(utilization, Ordering::Relaxed);
+    }
+}
+
+impl Default for RawMetricsReceiver {
+    fn default() -> Self {
+        Self(Arc::new(Inner {
+            poll_count: AtomicU64::new(0),
+            total_duration_ns: AtomicU64::new(0),
+            utilization: AtomicU8::new(0),
+        }))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    struct Inner {
-        poll_count: AtomicU64,
-        total_duration_ns: AtomicU64,
-        utilization: AtomicU8,
-    }
-
-    #[derive(Clone)]
-    struct Metrics(Arc<Inner>);
-
-    impl Metrics {
-        fn new() -> Self {
-            Self(Arc::new(Inner {
-                poll_count: AtomicU64::new(0),
-                total_duration_ns: AtomicU64::new(0),
-                utilization: AtomicU8::new(0),
-            }))
-        }
-    }
-
-    impl TimedFutureReceiver for Metrics {
-        fn increment_poll_count(&self, count: u64) -> u64 {
-            self.0.poll_count.fetch_add(count, Ordering::Relaxed)
-        }
-
-        fn increment_total_duration_ns(&self, duration: u64) -> u64 {
-            self.0
-                .total_duration_ns
-                .fetch_add(duration, Ordering::Relaxed)
-        }
-
-        fn update_utilization(&self, utilization: u8) -> u8 {
-            let previous_utilization = self.0.utilization.load(Ordering::Relaxed);
-            self.0.utilization.store(utilization, Ordering::Relaxed);
-            previous_utilization
-        }
-    }
-
     #[tokio::test(start_paused = true)]
     async fn test_monitor() {
-        let metrics = Metrics::new();
+        let metrics = RawMetricsReceiver::default();
         let mut monitor = TimedFuture::wrap(
             Box::pin(async {
                 loop {
