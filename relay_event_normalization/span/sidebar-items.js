@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["ai","country_subregion","description","exclusive_time","tag_extraction"],"static":["TABLE_NAME_REGEX"]};
+window.SIDEBAR_ITEMS = {"mod":["ai","country_subregion","description","exclusive_time","reparent_broken_spans","tag_extraction"],"static":["TABLE_NAME_REGEX"]};
