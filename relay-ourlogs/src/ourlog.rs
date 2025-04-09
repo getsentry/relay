@@ -537,18 +537,21 @@ mod tests {
                         "9",
                     ),
                     type: "string",
+                    other: {},
                 },
                 "sentry.severity_number": OurLogAttribute {
                     value: I64(
                         9,
                     ),
                     type: "integer",
+                    other: {},
                 },
                 "sentry.severity_text": OurLogAttribute {
                     value: String(
                         "info",
                     ),
                     type: "string",
+                    other: {},
                 },
             },
             other: {
@@ -610,18 +613,21 @@ mod tests {
                         "9",
                     ),
                     type: "string",
+                    other: {},
                 },
                 "sentry.severity_number": OurLogAttribute {
                     value: I64(
                         25,
                     ),
                     type: "integer",
+                    other: {},
                 },
                 "sentry.severity_text": OurLogAttribute {
                     value: String(
                         "info",
                     ),
                     type: "string",
+                    other: {},
                 },
             },
             other: {
