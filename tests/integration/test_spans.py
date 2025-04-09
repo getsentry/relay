@@ -2127,7 +2127,7 @@ def test_scrubs_ip_addresses(
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 1500.0,
         "is_segment": True,
         "is_remote": True,
         "organization_id": 1,
