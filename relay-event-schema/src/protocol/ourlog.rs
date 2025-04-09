@@ -120,6 +120,10 @@ impl OurLogAttributeType {
             Self::Unknown(value) => value,
         }
     }
+
+    pub fn unknown_string() -> String {
+        "unknown".to_string()
+    }
 }
 
 impl fmt::Display for OurLogAttributeType {
