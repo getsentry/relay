@@ -104,9 +104,9 @@ struct Inner {
 ///
 /// All access outside the [`TimedFuture`] must be *read* only.
 #[derive(Debug, Clone)]
-pub struct RawMetricsReceiver(Arc<Inner>);
+pub struct RawMetrics(Arc<Inner>);
 
-impl RawMetricsReceiver {
+impl RawMetrics {
     /// Returns the total number of times the future was polled.
     pub fn poll_count(&self) -> u64 {
         self.0.poll_count.load(Ordering::Relaxed)
@@ -124,7 +124,7 @@ impl RawMetricsReceiver {
     }
 }
 
-impl TimedFutureReceiver for RawMetricsReceiver {
+impl TimedFutureReceiver for RawMetrics {
     fn on_poll(&self) {
         self.0.poll_count.fetch_add(1, Ordering::Relaxed);
     }
@@ -140,7 +140,7 @@ impl TimedFutureReceiver for RawMetricsReceiver {
     }
 }
 
-impl Default for RawMetricsReceiver {
+impl Default for RawMetrics {
     fn default() -> Self {
         Self(Arc::new(Inner {
             poll_count: AtomicU64::new(0),
@@ -156,7 +156,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_monitor() {
-        let metrics = RawMetricsReceiver::default();
+        let metrics = RawMetrics::default();
         let mut monitor = TimedFuture::wrap(
             Box::pin(async {
                 loop {

@@ -5,7 +5,7 @@ use std::time::Duration;
 use crate::monitor::TimedFuture;
 
 use crate::service::status::{ServiceJoinHandle, ServiceStatusJoinHandle};
-use crate::{RawMetricsReceiver, ServiceObj, TaskId};
+use crate::{RawMetrics, ServiceObj, TaskId};
 
 /// A point in time snapshot of all started services and their [`ServiceMetrics`].
 pub struct ServicesMetrics(BTreeMap<ServiceId, ServiceMetrics>);
@@ -107,7 +107,7 @@ impl Inner {
         // lower priority tasks. We want to prioritize service backlogs over creating more work
         // for these services.
         let future = tokio::task::unconstrained(service.future);
-        let metrics = RawMetricsReceiver::default();
+        let metrics = RawMetrics::default();
         let future = TimedFuture::wrap(future, metrics.clone());
 
         let task_handle = crate::runtime::spawn_in(handle, task_id, future);
@@ -161,7 +161,7 @@ struct ServiceGroup {
 
 impl ServiceGroup {
     /// Adds a started service to the service group.
-    pub fn add(&mut self, metrics: RawMetricsReceiver, handle: ServiceStatusJoinHandle) {
+    pub fn add(&mut self, metrics: RawMetrics, handle: ServiceStatusJoinHandle) {
         // Cleanup the group, evicting all finished services, while we're at it.
         self.instances.retain(|s| !s.handle.is_finished());
 
@@ -192,7 +192,7 @@ struct ServiceInstance {
     ///
     /// The handle gives raw access to all tracked metrics, these metrics
     /// should be treated as **read-only**.
-    metrics: RawMetricsReceiver,
+    metrics: RawMetrics,
     /// A handle to the service instance.
     ///
     /// The handle has information about the completion status of the service.
