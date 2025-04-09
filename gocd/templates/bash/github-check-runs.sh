@@ -5,5 +5,5 @@
     "${GO_REVISION_RELAY_REPO}" \
     "Integration Tests" \
     "Test All Features (ubuntu-latest)" \
-    "Publish Relay to GCR (relay)" \
-    "Publish Relay to GCR (relay-pop)"
+    "Publish Relay to Internal AR (relay)" \
+    "Publish Relay to Internal AR (relay-pop)"
