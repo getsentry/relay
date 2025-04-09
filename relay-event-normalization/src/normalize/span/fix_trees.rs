@@ -16,7 +16,11 @@ pub fn fix_trees(event: &mut Event) {
         return;
     };
 
-    let Some(trace_context) = event.context_mut::<TraceContext>() else {
+    let Some(contexts) = event.contexts.value_mut() else {
+        return;
+    };
+
+    let Some(trace_context) = contexts.get_mut::<TraceContext>() else {
         return;
     };
 
@@ -46,16 +50,14 @@ pub fn fix_trees(event: &mut Event) {
         };
 
         let invalid_parent = mem::replace(parent_span_id, root_span_id.clone());
-        span.parent_span_id
-            .meta_mut()
-            .add_error(Error::invalid("span ID does not exist"))
-            .set_original_value(Some(invalid_parent.into()));
+        let meta = span.parent_span_id.meta_mut();
+        meta.add_error(Error::invalid("span ID does not exist"));
+        meta.set_original_value(Some(invalid_parent));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::Span;
     use relay_protocol::FromValue;
     use relay_protocol::SerializableAnnotated;
 
@@ -131,10 +133,11 @@ mod tests {
                       [
                         "invalid_data",
                         {
-                          "reason": "Span ID does not exist: dddddddddddddddd"
+                          "reason": "span ID does not exist"
                         }
                       ]
-                    ]
+                    ],
+                    "val": "dddddddddddddddd"
                   }
                 }
               },
@@ -145,10 +148,11 @@ mod tests {
                       [
                         "invalid_data",
                         {
-                          "reason": "Span ID does not exist: eeeeeeeeeeeeeeee"
+                          "reason": "span ID does not exist"
                         }
                       ]
-                    ]
+                    ],
+                    "val": "eeeeeeeeeeeeeeee"
                   }
                 }
               }
