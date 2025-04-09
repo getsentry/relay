@@ -16,17 +16,17 @@ pub trait TimedFutureReceiver {
     /// Called when a new poll is being performed by the [`TimedFuture`].
     ///
     /// Returns the previous poll value.
-    fn on_poll(&self);
+    fn on_poll(&self) {}
 
     /// Called when a new duration of the last poll is obtained by the [`TimedFuture`].
     ///
     /// Returns the previous duration value.
-    fn on_new_duration(&self, duration: u64);
+    fn on_new_duration(&self, _duration: u64) {}
 
     /// Called when a new utilization estimation is emitted by the [`TimedFuture`].
     ///
     /// Returns the previous utilization value.
-    fn on_new_utilization(&self, utilization: u8);
+    fn on_new_utilization(&self, _utilization: u8) {}
 }
 
 pin_project_lite::pin_project! {

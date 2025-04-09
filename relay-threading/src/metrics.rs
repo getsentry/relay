@@ -1,3 +1,4 @@
+use relay_system::TimedFutureReceiver;
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 
@@ -47,6 +48,12 @@ impl ThreadMetrics {
     /// Resets metrics that are monotonically increasing.
     pub fn reset(&self) {
         self.0.finished_tasks.store(0, Ordering::Relaxed);
+    }
+}
+
+impl TimedFutureReceiver for ThreadMetrics {
+    fn on_new_utilization(&self, utilization: u8) {
+        self.0.utilization.store(utilization, Ordering::Release);
     }
 }
 
