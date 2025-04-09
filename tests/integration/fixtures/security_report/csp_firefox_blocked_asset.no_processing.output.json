@@ -5,7 +5,8 @@
       "browser": "Chrome 74.0.3729",
       "name": "Chrome",
       "type": "browser",
-      "version": "74.0.3729"
+      "version": "74.0.3729",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
     },
     "client_os": {
       "os": "Windows >=10",
