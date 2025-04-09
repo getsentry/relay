@@ -11,6 +11,7 @@
 - Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634))
 - Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624))
 - Make default Apple device class high. ([#4609](https://github.com/getsentry/relay/pull/4609))
+- Backfill `name` and `version` in browser context via new `user_agent` field ([#4659](https://github.com/getsentry/relay/pull/4659))
 
 **Bug Fixes**:
 
