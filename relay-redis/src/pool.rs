@@ -47,6 +47,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
     fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
         async move {
             let result = self.connection.req_packed_command(cmd).await;
+
             if let Err(error) = &result {
                 self.detach = self.detach || Self::should_be_detached(error);
             }
@@ -67,6 +68,7 @@ impl<C: redis::aio::ConnectionLike + Send> redis::aio::ConnectionLike for Tracke
                 .connection
                 .req_packed_commands(cmd, offset, count)
                 .await;
+
             if let Err(error) = &result {
                 self.detach = self.detach || Self::should_be_detached(error);
             }
