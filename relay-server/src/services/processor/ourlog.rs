@@ -155,9 +155,11 @@ fn process_attribute_types(ourlog: &mut OurLog) {
                                     )));
                                 }
                             }
+                            (OurLogAttributeType::Double, Value::I64(_)) => (),
+                            (OurLogAttributeType::Double, Value::U64(_)) => (),
                             (OurLogAttributeType::Double, Value::F64(_)) => (),
-                            (OurLogAttributeType::Double, Value::String(f)) => {
-                                if let Ok(double_value) = f.parse::<f64>() {
+                            (OurLogAttributeType::Double, Value::String(v)) => {
+                                if let Ok(double_value) = v.parse::<f64>() {
                                     *value = Value::F64(double_value);
                                 } else {
                                     attr.value.ty =
@@ -322,7 +324,7 @@ mod tests {
                     "type": "double",
                     "value": 42.5
                 },
-                "valid_double_with_i64": {
+                "double_with_i64": {
                     "type": "double",
                     "value": -42
                 },
@@ -364,6 +366,13 @@ mod tests {
 
         insta::assert_debug_snapshot!(data.value().unwrap().attributes, @r###"
         {
+            "double_with_i64": OurLogAttribute {
+                value: I64(
+                    -42,
+                ),
+                type: "double",
+                other: {},
+            },
             "invalid_int_from_invalid_string": OurLogAttribute {
                 value: Annotated(
                     String(
@@ -389,9 +398,29 @@ mod tests {
                 other: {},
             },
             "missing_type": OurLogAttribute {
+                value: String(
+                    "",
+                ),
+                type: Annotated(
+                    "unknown",
+                    Meta {
+                        remarks: [],
+                        errors: [
+                            Error {
+                                kind: MissingAttribute,
+                                data: {},
+                            },
+                        ],
+                        original_length: None,
+                        original_value: None,
+                    },
+                ),
+                other: {},
+            },
+            "missing_value": OurLogAttribute {
                 value: Annotated(
                     String(
-                        "value with missing type",
+                        "",
                     ),
                     Meta {
                         remarks: [],
@@ -405,45 +434,7 @@ mod tests {
                         original_value: None,
                     },
                 ),
-                type: Meta {
-                    remarks: [],
-                    errors: [
-                        Error {
-                            kind: MissingAttribute,
-                            data: {},
-                        },
-                    ],
-                    original_length: None,
-                    original_value: None,
-                },
-                other: {},
-            },
-            "missing_value": OurLogAttribute {
-                value: Meta {
-                    remarks: [],
-                    errors: [
-                        Error {
-                            kind: MissingAttribute,
-                            data: {},
-                        },
-                    ],
-                    original_length: None,
-                    original_value: None,
-                },
-                type: Annotated(
-                    "string",
-                    Meta {
-                        remarks: [],
-                        errors: [
-                            Error {
-                                kind: MissingAttribute,
-                                data: {},
-                            },
-                        ],
-                        original_length: None,
-                        original_value: None,
-                    },
-                ),
+                type: "unknown",
                 other: {},
             },
             "unknown_type": OurLogAttribute {
@@ -484,13 +475,6 @@ mod tests {
                 type: "double",
                 other: {},
             },
-            "valid_double_with_i64": OurLogAttribute {
-                value: I64(
-                    -42,
-                ),
-                type: "double",
-                other: {},
-            },
             "valid_double_with_u64": OurLogAttribute {
                 value: I64(
                     42,
@@ -499,8 +483,8 @@ mod tests {
                 other: {},
             },
             "valid_int_from_string": OurLogAttribute {
-                value: String(
-                    "42",
+                value: I64(
+                    42,
                 ),
                 type: "integer",
                 other: {},
