@@ -11,7 +11,7 @@ use relay_protocol::Error;
 ///
 /// This is to avoid any nasty surprises in the span buffer specifically. Other readers of spans
 /// (such as the frontend's tree component) were already able to deal with detached spans.
-pub fn fix_trees(event: &mut Event) {
+pub fn reparent_broken_spans(event: &mut Event) {
     let Some(ref mut spans) = event.spans.value_mut() else {
         return;
     };
@@ -95,7 +95,7 @@ mod tests {
             .into(),
         );
 
-        fix_trees(data.value_mut().as_mut().unwrap());
+        reparent_broken_spans(data.value_mut().as_mut().unwrap());
 
         insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
         {

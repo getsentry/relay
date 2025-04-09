@@ -335,7 +335,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts);
 
     if event.ty.value() == Some(&EventType::Transaction) {
-        span::fix_trees::fix_trees(event);
+        span::reparent_broken_spans::reparent_broken_spans(event);
     }
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
