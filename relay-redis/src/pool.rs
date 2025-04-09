@@ -8,7 +8,7 @@ use crate::redis;
 use crate::redis::aio::MultiplexedConnection;
 use crate::redis::cluster_async::ClusterConnection;
 use crate::redis::{
-    Cmd, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, RetryMethod, Value,
+    Cmd, IntoConnectionInfo, Pipeline, RedisError, RedisFuture, RedisResult, Value,
 };
 
 /// A connection pool for Redis cluster deployments.
@@ -36,17 +36,10 @@ impl<C> TrackedConnection<C> {
 
     /// Returns `true` when a [`RedisError`] should lead to the [`TrackedConnection`] being detached
     /// from the pool.
+    ///
+    /// An error leads to the connection being detached if it is unrecoverable.
     fn should_be_detached(error: &RedisError) -> bool {
-        match error.retry_method() {
-            RetryMethod::Reconnect => true,
-            RetryMethod::NoRetry => true,
-            RetryMethod::RetryImmediately => false,
-            RetryMethod::WaitAndRetry => false,
-            RetryMethod::AskRedirect => false,
-            RetryMethod::MovedRedirect => false,
-            RetryMethod::ReconnectFromInitialConnections => true,
-            _ => true,
-        }
+        error.is_unrecoverable_error()
     }
 }
 
