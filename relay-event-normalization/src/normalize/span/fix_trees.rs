@@ -63,7 +63,7 @@ pub fn fix_trees(event: &mut Event) {
 mod tests {
     use relay_event_schema::protocol::Span;
     use relay_protocol::FromValue;
-    use relay_protocol::{Array, SerializableAnnotated};
+    use relay_protocol::SerializableAnnotated;
 
     use super::*;
 
