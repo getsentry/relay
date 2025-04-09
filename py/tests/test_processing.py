@@ -125,7 +125,7 @@ def test_normalize_user_agent(must_normalize):
                 "name": "Firefox",
                 "version": "15.0.1",
                 "type": "browser",
-                'user_agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1'
+                "user_agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1",
             },
             "client_os": {"name": "Ubuntu", "type": "os"},
         }
