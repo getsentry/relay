@@ -12,6 +12,8 @@ struct Inner {
     finished_tasks: AtomicU64,
     /// The utilization is the amount of busy work performed by each thread when polling the
     /// futures.
+    ///
+    /// The value of utilization is in the range `[0-100]`.
     utilization: AtomicU8,
 }
 
@@ -45,6 +47,11 @@ impl ThreadMetrics {
         self.0.finished_tasks.load(Ordering::Relaxed)
     }
 
+    /// Returns the utilization of this thread.
+    pub fn utilization(&self) -> u8 {
+        self.0.utilization.load(Ordering::Relaxed)
+    }
+
     /// Resets metrics that are monotonically increasing.
     pub fn reset(&self) {
         self.0.finished_tasks.store(0, Ordering::Relaxed);
@@ -52,7 +59,7 @@ impl ThreadMetrics {
 }
 
 impl TimedFutureReceiver for ThreadMetrics {
-    fn on_new_utilization(&self, utilization: u8) {
+    fn on_threshold_reached(&self, utilization: u8) {
         self.0.utilization.store(utilization, Ordering::Release);
     }
 }
@@ -109,9 +116,14 @@ impl AsyncPoolMetrics<'_> {
     ///
     /// Note that this metric is collected and updated for each thread when the main future is polled,
     /// thus if no work is being done, it will not be updated.
-    pub fn utilization(&self) -> u8 {
-        // TODO: replace with utilization metric.
-        0
+    pub fn utilization(&self) -> f32 {
+        let total_utilization: u64 = self
+            .threads_metrics
+            .iter()
+            .map(|m| m.utilization() as u64)
+            .sum();
+
+        (total_utilization as f32 / self.threads_metrics.len() as f32).clamp(0.0, 1.0)
     }
 
     /// Returns the activity metric for the pool.
