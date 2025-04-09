@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
-use std::sync::{Mutex, PoisonError};
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use crate::monitor::TimedFuture;
@@ -107,8 +108,8 @@ impl Inner {
         // lower priority tasks. We want to prioritize service backlogs over creating more work
         // for these services.
         let future = tokio::task::unconstrained(service.future);
-        let metrics = RawMetrics::default();
-        let future = TimedFuture::wrap(future, metrics.clone());
+        let future = TimedFuture::wrap(future);
+        let metrics = Arc::clone(future.metrics());
 
         let task_handle = crate::runtime::spawn_in(handle, task_id, future);
         let (status_handle, handle) = crate::service::status::split(task_handle);
@@ -127,9 +128,11 @@ impl Inner {
                 };
 
                 let metrics = ServiceMetrics {
-                    poll_count: service.metrics.poll_count(),
-                    total_busy_duration: Duration::from_nanos(service.metrics.total_duration_ns()),
-                    utilization: service.metrics.utilization(),
+                    poll_count: service.metrics.poll_count.load(Ordering::Relaxed),
+                    total_busy_duration: Duration::from_nanos(
+                        service.metrics.total_duration_ns.load(Ordering::Relaxed),
+                    ),
+                    utilization: service.metrics.utilization.load(Ordering::Relaxed),
                 };
 
                 (id, metrics)
@@ -161,7 +164,7 @@ struct ServiceGroup {
 
 impl ServiceGroup {
     /// Adds a started service to the service group.
-    pub fn add(&mut self, metrics: RawMetrics, handle: ServiceStatusJoinHandle) {
+    pub fn add(&mut self, metrics: Arc<RawMetrics>, handle: ServiceStatusJoinHandle) {
         // Cleanup the group, evicting all finished services, while we're at it.
         self.instances.retain(|s| !s.handle.is_finished());
 
@@ -192,7 +195,7 @@ struct ServiceInstance {
     ///
     /// The handle gives raw access to all tracked metrics, these metrics
     /// should be treated as **read-only**.
-    metrics: RawMetrics,
+    metrics: Arc<RawMetrics>,
     /// A handle to the service instance.
     ///
     /// The handle has information about the completion status of the service.
