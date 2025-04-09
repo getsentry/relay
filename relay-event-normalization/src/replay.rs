@@ -277,6 +277,7 @@ mod tests {
             Some(&BrowserContext {
                 name: Annotated::new("Safari".to_string()),
                 version: Annotated::new("15.5".to_string()),
+                user_agent: Annotated::new("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15".to_string()),
                 ..Default::default()
             })
         );
