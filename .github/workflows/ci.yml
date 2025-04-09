@@ -216,7 +216,6 @@ jobs:
     steps:
       - id: set-outputs
         run: |
-          echo "passphrase=$(openssl rand -hex 32)" >> $GITHUB_OUTPUT
           echo "full_ci=$FULL_CI" >> $GITHUB_OUTPUT
 
           if [[ "$FULL_CI" == "true" ]]; then
@@ -235,7 +234,6 @@ jobs:
       targets: "${{ steps.set-outputs.outputs.targets }}"
       platforms: "${{ steps.set-outputs.outputs.platforms }}"
       full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
-      passphrase: "${{ steps.set-outputs.outputs.passphrase }}"
 
   build:
     needs: build-setup
@@ -381,7 +379,7 @@ jobs:
 
           for file in "${RELAY_BIN}" "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.src.zip"; do
             gpg --quiet --batch --yes --symmetric --cipher-algo AES256 \
-                --passphrase "${{ needs.build-setup.outputs.passphrase }}" \
+                --passphrase "${{ secrets.ENCRYPTION_KEY }}" \
                 --output "artifacts/${DOCKER_PLATFORM}/$(basename $file).gpg" "$file"
           done
 
@@ -499,7 +497,7 @@ jobs:
           find . -name "*.gpg" | while read file; do
             output_file="${file%.gpg}"
             gpg --quiet --batch --yes --decrypt \
-                --passphrase "${{ needs.build-setup.outputs.passphrase }}" \
+                --passphrase "${{ secrets.ENCRYPTION_KEY }}" \
                 --output "$output_file" "$file"
             rm "$file"
           done
