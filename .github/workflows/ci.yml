@@ -452,7 +452,7 @@ jobs:
     timeout-minutes: 5
     needs: [build-setup, build-internal]
 
-    name: Build and Push Internal Docker Image
+    name: Publish Relay to Internal AR
     runs-on: ubuntu-latest
 
     strategy:
