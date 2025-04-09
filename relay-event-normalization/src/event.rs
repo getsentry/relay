@@ -334,11 +334,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
 
-    if event.ty.value() == Some(&EventType::Transaction) {
-        span::reparent_broken_spans::reparent_broken_spans(event);
-    }
-
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        span::reparent_broken_spans::reparent_broken_spans(event);
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
