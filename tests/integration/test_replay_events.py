@@ -83,7 +83,12 @@ def assert_replay_payload_matches(produced, consumed):
 
     # Assert contexts object was pulled out.
     assert consumed["contexts"] == {
-        "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
+        "browser": {
+            "name": "Safari",
+            "version": "15.5",
+            "type": "browser",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15",
+        },
         "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
         "os": {"name": "Mac OS X", "version": ">=10.15.7", "type": "os"},
         "replay": {
