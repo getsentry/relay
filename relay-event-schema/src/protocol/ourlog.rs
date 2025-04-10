@@ -315,49 +315,49 @@ mod tests {
                     value: Bool(
                         true,
                     ),
-                    type: "boolean",
+                    type: Boolean,
                     other: {},
                 },
                 "double.attribute": OurLogAttribute {
                     value: F64(
                         1.23,
                     ),
-                    type: "double",
+                    type: Double,
                     other: {},
                 },
                 "sentry.observed_timestamp_nanos": OurLogAttribute {
                     value: String(
                         "1544712660300000000",
                     ),
-                    type: "integer",
+                    type: Integer,
                     other: {},
                 },
                 "sentry.severity_number": OurLogAttribute {
                     value: String(
                         "10",
                     ),
-                    type: "integer",
+                    type: Integer,
                     other: {},
                 },
                 "sentry.severity_text": OurLogAttribute {
                     value: String(
                         "info",
                     ),
-                    type: "string",
+                    type: String,
                     other: {},
                 },
                 "sentry.trace_flags": OurLogAttribute {
                     value: String(
                         "10",
                     ),
-                    type: "integer",
+                    type: Integer,
                     other: {},
                 },
                 "string.attribute": OurLogAttribute {
                     value: String(
                         "some string",
                     ),
-                    type: "string",
+                    type: String,
                     other: {},
                 },
             },
