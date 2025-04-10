@@ -238,7 +238,6 @@ pub struct SentryTags {
     pub mobile: Annotated<String>,
     #[metastructure(field = "device.class")]
     pub device_class: Annotated<String>,
-    // Mobile OS the transaction originated from(String).
     #[metastructure(field = "device.family")]
     pub device_family: Annotated<String>,
     #[metastructure(field = "device.arch")]
@@ -294,6 +293,7 @@ pub struct SentryTags {
     pub request_url: Annotated<String>,
     #[metastructure(field = "request.method")]
     pub request_method: Annotated<String>,
+    // Mobile OS the transaction originated from(String).
     #[metastructure(field = "os.name")]
     pub os_name: Annotated<String>,
     pub action: Annotated<String>,
