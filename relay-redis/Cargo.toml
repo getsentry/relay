@@ -15,6 +15,7 @@ workspace = true
 [dependencies]
 deadpool = { workspace = true, optional = true }
 deadpool-redis = { workspace = true, optional = true, features = ["rt_tokio_1", "cluster", "script"] }
+futures = { workspace = true }
 redis = { workspace = true, optional = true, features = [
     "cluster",
     "r2d2",

@@ -3989,6 +3989,7 @@ version = "25.3.0"
 dependencies = [
  "deadpool",
  "deadpool-redis",
+ "futures",
  "redis",
  "relay-system",
  "serde",
