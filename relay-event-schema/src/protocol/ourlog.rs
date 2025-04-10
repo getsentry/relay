@@ -1,8 +1,5 @@
-use relay_protocol::{
-    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
-};
+use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
 use std::fmt::{self, Display};
-use std::str::FromStr;
 
 use serde::{Serialize, Serializer};
 
@@ -20,7 +17,7 @@ pub struct OurLog {
     #[metastructure(required = true, trim = false)]
     pub trace_id: Annotated<TraceId>,
 
-    /// The Span id.
+    /// The Span this log entry belongs to.
     #[metastructure(required = false, trim = false)]
     pub span_id: Annotated<SpanId>,
 
@@ -37,7 +34,7 @@ pub struct OurLog {
     pub attributes: Annotated<Object<OurLogAttribute>>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = true, pii = "maybe", trim = false)]
+    #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
 }
 
@@ -68,7 +65,10 @@ pub struct OurLogAttribute {
 impl OurLogAttribute {
     pub fn new(attribute_type: OurLogAttributeType, value: Value) -> Self {
         Self {
-            value: OurLogAttributeValue::new(Annotated::new(attribute_type), Annotated::new(value)),
+            value: OurLogAttributeValue {
+                ty: Annotated::new(attribute_type),
+                value: Annotated::new(value),
+            },
             other: Object::new(),
         }
     }
@@ -87,34 +87,27 @@ impl fmt::Debug for OurLogAttribute {
 #[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct OurLogAttributeValue {
     #[metastructure(field = "type", required = true, trim = false)]
-    pub ty: Annotated<String>,
+    pub ty: Annotated<OurLogAttributeType>,
     #[metastructure(required = true, pii = "true")]
     pub value: Annotated<Value>,
 }
 
-impl OurLogAttributeValue {
-    pub fn new(attribute_type: Annotated<OurLogAttributeType>, value: Annotated<Value>) -> Self {
-        Self {
-            ty: attribute_type.map_value(|at| at.as_str().to_string()),
-            value,
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OurLogAttributeType {
-    Bool,
-    Int,
+    Boolean,
+    Integer,
     Double,
     String,
     Unknown(String),
 }
 
+impl ProcessValue for OurLogAttributeType {}
+
 impl OurLogAttributeType {
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Bool => "boolean",
-            Self::Int => "integer",
+            Self::Boolean => "boolean",
+            Self::Integer => "integer",
             Self::Double => "double",
             Self::String => "string",
             Self::Unknown(value) => value,
@@ -135,8 +128,8 @@ impl fmt::Display for OurLogAttributeType {
 impl From<String> for OurLogAttributeType {
     fn from(value: String) -> Self {
         match value.as_str() {
-            "boolean" => Self::Bool,
-            "integer" => Self::Int,
+            "boolean" => Self::Boolean,
+            "integer" => Self::Integer,
             "double" => Self::Double,
             "string" => Self::String,
             _ => Self::Unknown(value),
@@ -211,41 +204,26 @@ impl Display for OurLogLevel {
         write!(f, "{}", self.as_str())
     }
 }
-impl FromStr for OurLogLevel {
-    type Err = ParseOurLogLevelError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
+impl From<String> for OurLogLevel {
+    fn from(value: String) -> Self {
+        match value.as_str() {
             "trace" => OurLogLevel::Trace,
             "debug" => OurLogLevel::Debug,
             "info" => OurLogLevel::Info,
             "warn" => OurLogLevel::Warn,
             "error" => OurLogLevel::Error,
             "fatal" => OurLogLevel::Fatal,
-            other => OurLogLevel::Unknown(other.to_owned()),
-        })
+            _ => OurLogLevel::Unknown(value),
+        }
     }
 }
 
 impl FromValue for OurLogLevel {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match value {
-            Annotated(Some(Value::String(value)), mut meta) => {
-                match OurLogLevel::from_str(&value) {
-                    Ok(value) => Annotated(Some(value), meta),
-                    Err(err) => {
-                        meta.add_error(Error::invalid(err));
-                        meta.set_original_value(Some(value));
-                        Annotated(None, meta)
-                    }
-                }
-            }
+        match String::from_value(value) {
+            Annotated(Some(value), meta) => Annotated(Some(value.into()), meta),
             Annotated(None, meta) => Annotated(None, meta),
-            Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("a level"));
-                meta.set_original_value(Some(value));
-                Annotated(None, meta)
-            }
         }
     }
 }
@@ -272,18 +250,6 @@ impl Empty for OurLogLevel {
         false
     }
 }
-
-/// An error used when parsing `OurLogLevel`.
-#[derive(Debug)]
-pub struct ParseOurLogLevelError;
-
-impl fmt::Display for ParseOurLogLevelError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid our log level")
-    }
-}
-
-impl std::error::Error for ParseOurLogLevelError {}
 
 #[cfg(test)]
 mod tests {

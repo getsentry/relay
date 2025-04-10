@@ -130,70 +130,39 @@ fn scrub(
 
 #[cfg(feature = "processing")]
 fn process_attribute_types(ourlog: &mut OurLog) {
-    if let Some(data) = ourlog.attributes.value_mut() {
-        for (_, attr) in data.iter_mut() {
-            if let Some(attr) = attr.value_mut() {
-                match (&mut attr.value.ty, &mut attr.value.value) {
-                    (
-                        Annotated(Some(ty), _),
-                        Annotated(Some(ref mut value), ref mut value_meta),
-                    ) => {
-                        let attr_type = OurLogAttributeType::from(ty.clone());
-                        match (attr_type, &*value) {
-                            (OurLogAttributeType::Bool, Value::Bool(_)) => (),
-                            (OurLogAttributeType::Int, Value::I64(_)) => (),
-                            (OurLogAttributeType::Int, Value::String(v)) => {
-                                if let Ok(int_value) = v.parse::<i64>() {
-                                    *value = Value::I64(int_value);
-                                } else {
-                                    attr.value.ty =
-                                        Annotated::new(OurLogAttributeType::unknown_string());
-                                    value_meta.add_error(ErrorKind::InvalidData);
-                                    value_meta.set_original_value(Some(std::mem::replace(
-                                        value,
-                                        Value::String("".to_string()),
-                                    )));
-                                }
-                            }
-                            (OurLogAttributeType::Double, Value::I64(_)) => (),
-                            (OurLogAttributeType::Double, Value::U64(_)) => (),
-                            (OurLogAttributeType::Double, Value::F64(_)) => (),
-                            (OurLogAttributeType::Double, Value::String(v)) => {
-                                if let Ok(double_value) = v.parse::<f64>() {
-                                    *value = Value::F64(double_value);
-                                } else {
-                                    attr.value.ty =
-                                        Annotated::new(OurLogAttributeType::unknown_string());
-                                    value_meta.add_error(ErrorKind::InvalidData);
-                                    value_meta.set_original_value(Some(std::mem::replace(
-                                        value,
-                                        Value::String("".to_string()),
-                                    )));
-                                }
-                            }
-                            (OurLogAttributeType::String, Value::String(_)) => (),
-                            _ => {
-                                attr.value.ty =
-                                    Annotated::new(OurLogAttributeType::unknown_string());
-                                value_meta.add_error(ErrorKind::InvalidData);
-                                value_meta.set_original_value(Some(std::mem::replace(
-                                    value,
-                                    Value::String("".to_string()),
-                                )));
-                            }
-                        };
-                    }
-                    (Annotated(ty_opt, ty_meta), Annotated(value_opt, value_meta)) => {
-                        if ty_opt.is_none() {
-                            ty_meta.add_error(ErrorKind::MissingAttribute);
-                        }
-                        if value_opt.is_none() {
-                            value_meta.add_error(ErrorKind::MissingAttribute);
-                        }
-                        *ty_opt = Some(OurLogAttributeType::unknown_string());
-                        *value_opt = Some(Value::String("".to_string()));
-                    }
-                }
+    let Some(attributes) = ourlog.attributes.value_mut() else {
+        return;
+    };
+
+    let attributes = attributes.iter_mut().map(|(_, attr)| attr);
+
+    for attribute in attributes {
+        use OurLogAttributeType::*;
+
+        let Some(inner) = attribute.value_mut() else {
+            continue;
+        };
+
+        match (&mut inner.value.ty, &mut inner.value.value) {
+            (Annotated(Some(Boolean), _), Annotated(Some(Value::Bool(_)), _)) => (),
+            (Annotated(Some(Integer), _), Annotated(Some(Value::I64(_)), _)) => (),
+            (Annotated(Some(Integer), _), Annotated(Some(Value::U64(_)), _)) => (),
+            (Annotated(Some(Double), _), Annotated(Some(Value::I64(_)), _)) => (),
+            (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
+            (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
+            (Annotated(Some(String), _), Annotated(Some(Value::String(_)), _)) => (),
+            (Annotated(ty_opt @ Some(Unknown(_)), ty_meta), _) => {
+                ty_meta.add_error(ErrorKind::InvalidData);
+                ty_meta.set_original_value(ty_opt.take());
+            }
+            (Annotated(Some(_), _), Annotated(value @ Some(_), value_meta)) => {
+                value_meta.add_error(ErrorKind::InvalidData);
+                value_meta.set_original_value(value.take());
+            }
+            (Annotated(None, _), _) | (_, Annotated(None, _)) => {
+                let original = attribute.value_mut().take();
+                attribute.meta_mut().add_error(ErrorKind::MissingAttribute);
+                attribute.meta_mut().set_original_value(original);
             }
         }
     }
@@ -294,8 +263,8 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "processing")]
     #[test]
+    #[cfg(feature = "processing")]
     fn test_process_attribute_types() {
         let json = r#"{
             "timestamp": 1544719860.0,
@@ -370,151 +339,155 @@ mod tests {
                 value: I64(
                     -42,
                 ),
-                type: "double",
+                type: Double,
                 other: {},
             },
             "invalid_int_from_invalid_string": OurLogAttribute {
-                value: Annotated(
-                    String(
-                        "",
-                    ),
-                    Meta {
-                        remarks: [],
-                        errors: [
-                            Error {
-                                kind: InvalidData,
-                                data: {},
-                            },
-                        ],
-                        original_length: None,
-                        original_value: Some(
-                            String(
-                                "abc",
-                            ),
+                value: Meta {
+                    remarks: [],
+                    errors: [
+                        Error {
+                            kind: InvalidData,
+                            data: {},
+                        },
+                    ],
+                    original_length: None,
+                    original_value: Some(
+                        String(
+                            "abc",
                         ),
-                    },
-                ),
-                type: "unknown",
-                other: {},
-            },
-            "missing_type": OurLogAttribute {
-                value: String(
-                    "",
-                ),
-                type: Annotated(
-                    "unknown",
-                    Meta {
-                        remarks: [],
-                        errors: [
-                            Error {
-                                kind: MissingAttribute,
-                                data: {},
-                            },
-                        ],
-                        original_length: None,
-                        original_value: None,
-                    },
-                ),
-                other: {},
-            },
-            "missing_value": OurLogAttribute {
-                value: Annotated(
-                    String(
-                        "",
                     ),
-                    Meta {
-                        remarks: [],
-                        errors: [
-                            Error {
-                                kind: MissingAttribute,
-                                data: {},
-                            },
-                        ],
-                        original_length: None,
-                        original_value: None,
-                    },
-                ),
-                type: "unknown",
+                },
+                type: Integer,
                 other: {},
+            },
+            "missing_type": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: MissingAttribute,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": ~,
+                            "value": String(
+                                "value with missing type",
+                            ),
+                        },
+                    ),
+                ),
+            },
+            "missing_value": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: MissingAttribute,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": String(
+                                "string",
+                            ),
+                            "value": ~,
+                        },
+                    ),
+                ),
             },
             "unknown_type": OurLogAttribute {
-                value: Annotated(
-                    String(
-                        "",
-                    ),
-                    Meta {
-                        remarks: [],
-                        errors: [
-                            Error {
-                                kind: InvalidData,
-                                data: {},
-                            },
-                        ],
-                        original_length: None,
-                        original_value: Some(
-                            String(
-                                "test",
-                            ),
-                        ),
-                    },
+                value: String(
+                    "test",
                 ),
-                type: "unknown",
+                type: Meta {
+                    remarks: [],
+                    errors: [
+                        Error {
+                            kind: InvalidData,
+                            data: {},
+                        },
+                    ],
+                    original_length: None,
+                    original_value: Some(
+                        String(
+                            "custom",
+                        ),
+                    ),
+                },
                 other: {},
             },
             "valid_bool": OurLogAttribute {
                 value: Bool(
                     true,
                 ),
-                type: "boolean",
+                type: Boolean,
                 other: {},
             },
             "valid_double": OurLogAttribute {
                 value: F64(
                     42.5,
                 ),
-                type: "double",
+                type: Double,
                 other: {},
             },
             "valid_double_with_u64": OurLogAttribute {
                 value: I64(
                     42,
                 ),
-                type: "double",
+                type: Double,
                 other: {},
             },
             "valid_int_from_string": OurLogAttribute {
-                value: I64(
-                    42,
-                ),
-                type: "integer",
+                value: Meta {
+                    remarks: [],
+                    errors: [
+                        Error {
+                            kind: InvalidData,
+                            data: {},
+                        },
+                    ],
+                    original_length: None,
+                    original_value: Some(
+                        String(
+                            "42",
+                        ),
+                    ),
+                },
+                type: Integer,
                 other: {},
             },
             "valid_int_i64": OurLogAttribute {
                 value: I64(
                     -42,
                 ),
-                type: "integer",
+                type: Integer,
                 other: {},
             },
             "valid_int_u64": OurLogAttribute {
                 value: I64(
                     42,
                 ),
-                type: "integer",
+                type: Integer,
                 other: {},
             },
             "valid_string": OurLogAttribute {
                 value: String(
                     "test",
                 ),
-                type: "string",
+                type: String,
                 other: {},
             },
             "valid_string_with_other": OurLogAttribute {
                 value: String(
                     "test",
                 ),
-                type: "string",
+                type: String,
                 other: {
                     "some_other_field": String(
                         "some_other_value",

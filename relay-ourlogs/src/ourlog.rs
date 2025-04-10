@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
@@ -13,7 +11,7 @@ use relay_protocol::{Annotated, Object, Value};
 fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
     match value {
         OtelValue::BoolValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Bool,
+            OurLogAttributeType::Boolean,
             Value::Bool(v),
         )),
         OtelValue::DoubleValue(v) => Some(OurLogAttribute::new(
@@ -21,7 +19,7 @@ fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
             Value::F64(v),
         )),
         OtelValue::IntValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Int,
+            OurLogAttributeType::Integer,
             Value::I64(v),
         )),
         OtelValue::StringValue(v) => Some(OurLogAttribute::new(
@@ -81,7 +79,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
     attribute_data.insert(
         "sentry.severity_number".to_string(),
         Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Int,
+            OurLogAttributeType::Integer,
             Value::I64(severity_number as i64),
         )),
     );
@@ -102,7 +100,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
     attribute_data.insert(
         "sentry.trace_flags".to_string(),
         Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Int,
+            OurLogAttributeType::Integer,
             Value::I64(0),
         )),
     );
@@ -126,7 +124,15 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
         13..=16 => OurLogLevel::Warn,
         17..=20 => OurLogLevel::Error,
         21..=24 => OurLogLevel::Fatal,
-        _ => OurLogLevel::from_str(&severity_text).unwrap_or(OurLogLevel::Info),
+        _ => match severity_text.as_str() {
+            "trace" => OurLogLevel::Trace,
+            "debug" => OurLogLevel::Debug,
+            "info" => OurLogLevel::Info,
+            "warn" => OurLogLevel::Warn,
+            "error" => OurLogLevel::Error,
+            "fatal" => OurLogLevel::Fatal,
+            _ => OurLogLevel::Info,
+        },
     };
 
     let mut other = Object::default();
@@ -171,7 +177,7 @@ pub fn ourlog_merge_otel(ourlog: Annotated<OurLog>) -> Annotated<OurLog> {
         attributes.insert(
             "sentry.severity_number".to_string(),
             Annotated::new(OurLogAttribute::new(
-                OurLogAttributeType::Int,
+                OurLogAttributeType::Integer,
                 Value::I64(level_to_otel_severity_number(
                     ourlog_value.level.value().cloned(),
                 )),
