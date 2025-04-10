@@ -19,14 +19,11 @@ def test_nnswitch(
     mini_sentry, relay_with_processing, outcomes_consumer, attachments_consumer, events_consumer, variant
 ):
     PROJECT_ID = 42
-    mini_sentry.add_full_project_config(
-        PROJECT_ID,
-        extra={"config": {}},
-    )
+    mini_sentry.add_full_project_config(PROJECT_ID)
     events_consumer = events_consumer()
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_with_processing()
+    relay = relay(relay_with_processing())
 
     bogus_error = {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",

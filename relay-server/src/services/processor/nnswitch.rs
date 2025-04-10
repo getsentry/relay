@@ -10,8 +10,18 @@ use bytes::{Buf, Bytes};
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
 
+/// Magic number indicating the dying message file is encoded by sentry-switch SDK.
+const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
+
+/// The file name that Nintendo uses to in the events they forward.
+const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
+
+/// Limit the size of the decompressed data to prevent an invalid frame blowing up memory usage.
+const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
+
 type Result<T> = std::result::Result<T, SwitchProcessingError>;
 
+/// An error returned when parsing the dying message attachment.
 #[derive(Debug, thiserror::Error)]
 pub enum SwitchProcessingError {
     #[error("invalid json")]
@@ -44,7 +54,7 @@ pub enum SwitchProcessingError {
 pub fn expand(
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
 ) -> std::result::Result<(), ProcessingError> {
-    let envelope: &mut &mut crate::Envelope = &mut managed_envelope.envelope_mut();
+    let envelope = managed_envelope.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(is_dying_message) {
         if let Err(e) = expand_dying_message(item.payload(), envelope) {
@@ -56,14 +66,6 @@ pub fn expand(
 
     Ok(())
 }
-
-/// Magic number indicating the dying message file is encoded by sentry-switch SDK.
-const SENTRY_MAGIC: &[u8] = "sntr".as_bytes();
-
-/// The file name that Nintendo uses to in the events they forward.
-const DYING_MESSAGE_FILENAME: &str = "dying_message.dat";
-
-const MAX_DECOMPRESSED_SIZE: usize = 100_1024;
 
 fn is_dying_message(item: &crate::envelope::Item) -> bool {
     item.ty() == &ItemType::Attachment
@@ -178,14 +180,16 @@ fn decompress_data(
     }
 }
 
-static ZSTD_DICTIONARIES: &[&[u8]] = &[
-    // index 0 = empty dictionary (a.k.a "none")
-    b"",
-];
+fn get_zstd_dictionary(id: usize) -> Option<&'static zstd::dict::DecoderDictionary<'static>> {
+    static ZSTD_DICTIONARIES: &[&[u8]] = &[
+        // index 0 = empty dictionary (a.k.a "none")
+        b"",
+    ];
 
-static ZSTD_DEC_DICTIONARIES: OnceLock<[zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()]> =
-    OnceLock::new();
-fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u8>> {
+    static ZSTD_DEC_DICTIONARIES: OnceLock<
+        [zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()],
+    > = OnceLock::new();
+
     // We initialize dictionaries only once and reuse them when decompressing.
     let dictionaries = ZSTD_DEC_DICTIONARIES.get_or_init(|| {
         let mut dictionaries: [zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()] =
@@ -196,12 +200,14 @@ fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u
         dictionaries
     });
 
-    let dictionary = dictionaries
-        .get(dictionary_id as usize)
-        .ok_or(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Unknown compression dictionary",
-        ))?;
+    dictionaries.get(id)
+}
+
+fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u8>> {
+    let dictionary = get_zstd_dictionary(dictionary_id as usize).ok_or(std::io::Error::new(
+        std::io::ErrorKind::Other,
+        "Unknown compression dictionary",
+    ))?;
 
     let mut decompressor = ZstdDecompressor::with_prepared_dictionary(dictionary)?;
     decompressor.decompress(data.as_ref(), MAX_DECOMPRESSED_SIZE)
@@ -233,7 +239,7 @@ mod tests {
     fn create_envelope(dying_message: Bytes) -> TypedEnvelope<ErrorGroup> {
         // Note: the attachment length specified in the "outer" envelope attachment is very important.
         //       Otherwise parsing would fail because the inner one can contain line-breaks.
-    let envelope = 
+        let envelope =
         r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
 {"type":"event"}
 {"message":"hello world","level":"error","map":{"a":"val"}}
