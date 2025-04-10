@@ -78,6 +78,11 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route("/api/{project_id}/playstation/", playstation::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
         .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
+        // The OTLP/HTTP transport defaults to a request suffix of /v1/traces (no trailing slash):
+        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-request
+        // Because we initially released this endpoint with a trailing slash, keeping it for
+        // backwards compatibility.
+        .route("/api/{project_id}/otlp/v1/traces", traces::route(config))
         .route("/api/{project_id}/otlp/v1/traces/", traces::route(config))
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
