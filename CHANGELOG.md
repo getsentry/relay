@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Extract searchable context fields into sentry tags for segment spans. ([#4651](https://github.com/getsentry/relay/pull/4651))
+
 **Features**:
 
 - Add experimental playstation endpoint. ([#4555](https://github.com/getsentry/relay/pull/4555))

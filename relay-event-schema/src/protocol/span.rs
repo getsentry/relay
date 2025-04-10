@@ -238,6 +238,61 @@ pub struct SentryTags {
     pub mobile: Annotated<String>,
     #[metastructure(field = "device.class")]
     pub device_class: Annotated<String>,
+    #[metastructure(field = "device.family")]
+    pub device_family: Annotated<String>,
+    #[metastructure(field = "device.arch")]
+    pub device_arch: Annotated<String>,
+    #[metastructure(field = "device.battery_level")]
+    pub device_battery_level: Annotated<String>,
+    #[metastructure(field = "device.brand")]
+    pub device_brand: Annotated<String>,
+    #[metastructure(field = "device.charging")]
+    pub device_charging: Annotated<String>,
+    #[metastructure(field = "device.locale")]
+    pub device_locale: Annotated<String>,
+    #[metastructure(field = "device.model_id")]
+    pub device_model_id: Annotated<String>,
+    #[metastructure(field = "device.name")]
+    pub device_name: Annotated<String>,
+    #[metastructure(field = "device.online")]
+    pub device_online: Annotated<String>,
+    #[metastructure(field = "device.orientation")]
+    pub device_orientation: Annotated<String>,
+    #[metastructure(field = "device.screen_density")]
+    pub device_screen_density: Annotated<String>,
+    #[metastructure(field = "device.screen_dpi")]
+    pub device_screen_dpi: Annotated<String>,
+    #[metastructure(field = "device.screen_height_pixels")]
+    pub device_screen_height_pixels: Annotated<String>,
+    #[metastructure(field = "device.screen_width_pixels")]
+    pub device_screen_width_pixels: Annotated<String>,
+    #[metastructure(field = "device.simulator")]
+    pub device_simulator: Annotated<String>,
+    #[metastructure(field = "device.uuid")]
+    pub device_uuid: Annotated<String>,
+    #[metastructure(field = "app.device")]
+    pub app_device: Annotated<String>,
+    #[metastructure(field = "device.model")]
+    pub device_model: Annotated<String>,
+    pub runtime: Annotated<String>,
+    #[metastructure(field = "runtime.name")]
+    pub runtime_name: Annotated<String>,
+    pub browser: Annotated<String>,
+    pub os: Annotated<String>,
+    #[metastructure(field = "os.rooted")]
+    pub os_rooted: Annotated<String>,
+    #[metastructure(field = "gpu.name")]
+    pub gpu_name: Annotated<String>,
+    #[metastructure(field = "gpu.vendor")]
+    pub gpu_vendor: Annotated<String>,
+    #[metastructure(field = "monitor.id")]
+    pub monitor_id: Annotated<String>,
+    #[metastructure(field = "monitor.slug")]
+    pub monitor_slug: Annotated<String>,
+    #[metastructure(field = "request.url")]
+    pub request_url: Annotated<String>,
+    #[metastructure(field = "request.method")]
+    pub request_method: Annotated<String>,
     // Mobile OS the transaction originated from(String).
     #[metastructure(field = "os.name")]
     pub os_name: Annotated<String>,
@@ -311,6 +366,35 @@ impl Getter for SentryTags {
             "category" => &self.category,
             "description" => &self.description,
             "device.class" => &self.device_class,
+            "device.family" => &self.device_family,
+            "device.arch" => &self.device_arch,
+            "device.battery_level" => &self.device_battery_level,
+            "device.brand" => &self.device_brand,
+            "device.charging" => &self.device_charging,
+            "device.locale" => &self.device_locale,
+            "device.model_id" => &self.device_model_id,
+            "device.name" => &self.device_name,
+            "device.online" => &self.device_online,
+            "device.orientation" => &self.device_orientation,
+            "device.screen_density" => &self.device_screen_density,
+            "device.screen_dpi" => &self.device_screen_dpi,
+            "device.screen_height_pixels" => &self.device_screen_height_pixels,
+            "device.screen_width_pixels" => &self.device_screen_width_pixels,
+            "device.simulator" => &self.device_simulator,
+            "device.uuid" => &self.device_uuid,
+            "app.device" => &self.app_device,
+            "device.model" => &self.device_model,
+            "runtime" => &self.runtime,
+            "runtime.name" => &self.runtime_name,
+            "browser" => &self.browser,
+            "os" => &self.os,
+            "os.rooted" => &self.os_rooted,
+            "gpu.name" => &self.gpu_name,
+            "gpu.vendor" => &self.gpu_vendor,
+            "monitor.id" => &self.monitor_id,
+            "monitor.slug" => &self.monitor_slug,
+            "request.url" => &self.request_url,
+            "request.method" => &self.request_method,
             "domain" => &self.domain,
             "environment" => &self.environment,
             "file_extension" => &self.file_extension,
