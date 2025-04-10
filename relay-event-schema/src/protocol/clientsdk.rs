@@ -26,7 +26,7 @@ pub enum ParseSettingError {
 /// A collection of settings that are used to control behaviour in relay through flags.
 ///
 /// The settings aim to replace magic values in fields which need special treatment,
-/// for example `{{auto}}` in the user.ip_address. The SDK would instead send `auto_infer_ip`
+/// for example `{{auto}}` in the user.ip_address. The SDK would instead send `infer_ip`
 /// to toggle the behaviour.
 #[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct ClientSdkSettings {
@@ -120,7 +120,7 @@ impl FromValue for AutoInferSetting {
     {
         match String::from_value(value) {
             Annotated(Some(value), mut meta) => match value.parse() {
-                Ok(auto_infer_ip) => Annotated(Some(auto_infer_ip), meta),
+                Ok(infer_ip) => Annotated(Some(infer_ip), meta),
                 Err(_) => {
                     meta.add_error(ErrorKind::InvalidData);
                     meta.set_original_value(Some(value));
@@ -360,7 +360,7 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_infer_invalid() {
+    fn test_infer_ip_invalid() {
         let json = r#"{
             "settings": {
                 "infer_ip": "invalid"

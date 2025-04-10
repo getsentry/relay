@@ -447,7 +447,7 @@ def test_geo_inferred_without_user_ip(
 
 
 @pytest.mark.parametrize(
-    "user_ip_address, auto_infer_ip, expected",
+    "user_ip_address, infer_ip, expected",
     [
         ("{{auto}}", "never", None),
         (None, "never", None),
@@ -460,8 +460,8 @@ def test_geo_inferred_without_user_ip(
         ("123.123.123.123", None, "123.123.123.123"),
     ],
 )
-def test_auto_infer_setting_javascript(
-    mini_sentry, relay, user_ip_address, auto_infer_ip, expected
+def test_infer_ip_setting_javascript(
+    mini_sentry, relay, user_ip_address, infer_ip, expected
 ):
     project_id = 42
     relay = relay(mini_sentry)
@@ -472,7 +472,7 @@ def test_auto_infer_setting_javascript(
         {
             "platform": "javascript",
             "user": {"ip_address": user_ip_address},
-            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -483,7 +483,7 @@ def test_auto_infer_setting_javascript(
 
 
 @pytest.mark.parametrize(
-    "user_ip_address, auto_infer_ip, expected",
+    "user_ip_address, infer_ip, expected",
     [
         ("{{auto}}", "never", None),
         (None, "never", None),
@@ -497,7 +497,7 @@ def test_auto_infer_setting_javascript(
     ],
 )
 def test_auto_infer_setting_cocoa(
-    mini_sentry, relay, user_ip_address, auto_infer_ip, expected
+    mini_sentry, relay, user_ip_address, infer_ip, expected
 ):
     project_id = 42
     relay = relay(mini_sentry)
@@ -508,7 +508,7 @@ def test_auto_infer_setting_cocoa(
         {
             "platform": "cocoa",
             "user": {"ip_address": user_ip_address},
-            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -519,7 +519,7 @@ def test_auto_infer_setting_cocoa(
 
 
 @pytest.mark.parametrize(
-    "user_ip_address, auto_infer_ip, expected",
+    "user_ip_address, infer_ip, expected",
     [
         ("{{auto}}", "never", None),
         (None, "never", None),
@@ -532,9 +532,7 @@ def test_auto_infer_setting_cocoa(
         ("123.123.123.123", None, "123.123.123.123"),
     ],
 )
-def test_auto_infer_settings(
-    mini_sentry, relay, user_ip_address, auto_infer_ip, expected
-):
+def test_auto_infer_settings(mini_sentry, relay, user_ip_address, infer_ip, expected):
     project_id = 42
     relay = relay(mini_sentry)
     mini_sentry.add_basic_project_config(project_id)
@@ -543,7 +541,7 @@ def test_auto_infer_settings(
         project_id,
         {
             "user": {"ip_address": user_ip_address},
-            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -554,7 +552,7 @@ def test_auto_infer_settings(
 
 
 @pytest.mark.parametrize(
-    "user_ip_address, auto_infer_ip, expected",
+    "user_ip_address, infer_ip, expected",
     [
         ("{{auto}}", "never", None),
         (None, "never", None),
@@ -568,7 +566,7 @@ def test_auto_infer_settings(
     ],
 )
 def test_auto_infer_setting_objective_c(
-    mini_sentry, relay, user_ip_address, auto_infer_ip, expected
+    mini_sentry, relay, user_ip_address, infer_ip, expected
 ):
     project_id = 42
     relay = relay(mini_sentry)
@@ -579,7 +577,7 @@ def test_auto_infer_setting_objective_c(
         {
             "platform": "objc",
             "user": {"ip_address": user_ip_address},
-            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -590,7 +588,7 @@ def test_auto_infer_setting_objective_c(
 
 
 @pytest.mark.parametrize(
-    "platform, auto_infer_ip, expected",
+    "platform, infer_ip, expected",
     [
         ("javascript", "never", None),
         ("javascript", "auto", "2.125.160.216"),
@@ -606,7 +604,7 @@ def test_auto_infer_setting_objective_c(
         ("platform", None, None),
     ],
 )
-def test_auto_infer_without_user(mini_sentry, relay, platform, auto_infer_ip, expected):
+def test_auto_infer_without_user(mini_sentry, relay, platform, infer_ip, expected):
     project_id = 42
     relay = relay(mini_sentry)
     mini_sentry.add_basic_project_config(project_id)
@@ -614,7 +612,7 @@ def test_auto_infer_without_user(mini_sentry, relay, platform, auto_infer_ip, ex
     relay.send_event(
         project_id,
         {
-            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": infer_ip}},
         },
         headers={"X-Forwarded-For": "2.125.160.216"},
     )
@@ -625,10 +623,10 @@ def test_auto_infer_without_user(mini_sentry, relay, platform, auto_infer_ip, ex
 
 
 @pytest.mark.parametrize(
-    "auto_infer_ip, expected",
+    "infer_ip, expected",
     [("auto", "111.222.111.222"), ("never", None), (None, "111.222.111.222")],
 )
-def test_auto_infer_remote_addr_env(mini_sentry, relay, auto_infer_ip, expected):
+def test_auto_infer_remote_addr_env(mini_sentry, relay, infer_ip, expected):
     project_id = 42
     relay = relay(mini_sentry)
     mini_sentry.add_basic_project_config(project_id)
@@ -636,7 +634,7 @@ def test_auto_infer_remote_addr_env(mini_sentry, relay, auto_infer_ip, expected)
     relay.send_event(
         project_id,
         {
-            "sdk": {"settings": {"infer_ip": auto_infer_ip}},
+            "sdk": {"settings": {"infer_ip": infer_ip}},
             "request": {
                 "env": {
                     "REMOTE_ADDR": "111.222.111.222",

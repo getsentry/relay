@@ -419,13 +419,13 @@ pub fn normalize_ip_addresses(
     client_ip: Option<&IpAddr>,
     client_sdk_settings: Option<&ClientSdkInfo>,
 ) {
-    let auto_infer_ip = client_sdk_settings
+    let infer_ip = client_sdk_settings
         .and_then(|c| c.settings.0.as_ref())
         .map(|s| s.infer_ip())
         .unwrap_or_default();
 
-    // If auto_infer_ip is set to Never then we just remove auto and don't continue
-    if let AutoInferSetting::Never = auto_infer_ip {
+    // If infer_ip is set to Never then we just remove auto and don't continue
+    if let AutoInferSetting::Never = infer_ip {
         // No user means there is also no IP so we can stop here
         let Some(user) = user.value_mut() else {
             return;
@@ -453,13 +453,13 @@ pub fn normalize_ip_addresses(
 
     // We will infer IP addresses if:
     // * The IP address is {{auto}}
-    // * the auto_infer_ip setting is set to "auto"
+    // * the infer_ip setting is set to "auto"
     let should_be_inferred = match user.value() {
         Some(user) => match user.ip_address.value() {
             Some(ip) => ip.is_auto(),
-            None => matches!(auto_infer_ip, AutoInferSetting::Auto),
+            None => matches!(infer_ip, AutoInferSetting::Auto),
         },
-        None => matches!(auto_infer_ip, AutoInferSetting::Auto),
+        None => matches!(infer_ip, AutoInferSetting::Auto),
     };
 
     if should_be_inferred {
@@ -472,7 +472,7 @@ pub fn normalize_ip_addresses(
     // Legacy behaviour:
     // * Backfill if there is a REMOTE_ADDR and the user.ip_address was not backfilled until now
     // * Empty means {{auto}} for some SDKs
-    if auto_infer_ip == AutoInferSetting::Legacy {
+    if infer_ip == AutoInferSetting::Legacy {
         if let Some(http_ip) = remote_addr_ip {
             let user = user.get_or_insert_with(User::default);
             user.ip_address.value_mut().get_or_insert(http_ip);
