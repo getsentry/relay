@@ -181,16 +181,16 @@ fn decompress_data(
 }
 
 fn get_zstd_dictionary(id: usize) -> Option<&'static zstd::dict::DecoderDictionary<'static>> {
+    // Inlined dictionary binary data.
     static ZSTD_DICTIONARIES: &[&[u8]] = &[
         // index 0 = empty dictionary (a.k.a "none")
         b"",
     ];
 
+    // We initialize dictionaries (from their binary representation) only once and reuse them when decompressing.
     static ZSTD_DEC_DICTIONARIES: OnceLock<
         [zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()],
     > = OnceLock::new();
-
-    // We initialize dictionaries only once and reuse them when decompressing.
     let dictionaries = ZSTD_DEC_DICTIONARIES.get_or_init(|| {
         let mut dictionaries: [zstd::dict::DecoderDictionary; ZSTD_DICTIONARIES.len()] =
             [zstd::dict::DecoderDictionary::new(ZSTD_DICTIONARIES[0])];
