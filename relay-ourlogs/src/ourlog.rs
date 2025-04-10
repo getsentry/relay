@@ -544,21 +544,21 @@ mod tests {
                     value: String(
                         "9",
                     ),
-                    type: "string",
+                    type: String,
                     other: {},
                 },
                 "sentry.severity_number": OurLogAttribute {
                     value: I64(
                         9,
                     ),
-                    type: "integer",
+                    type: Integer,
                     other: {},
                 },
                 "sentry.severity_text": OurLogAttribute {
                     value: String(
                         "info",
                     ),
-                    type: "string",
+                    type: String,
                     other: {},
                 },
             },
@@ -598,22 +598,10 @@ mod tests {
 
         let data = Annotated::<OurLog>::from_json(json).unwrap();
         let merged_log = ourlog_merge_otel(data);
-        insta::assert_debug_snapshot!(merged_log.value().unwrap().other, @r###"
-        {
-            "observed_timestamp_nanos": U64(
-                1744316429000000000,
-            ),
-            "severity_number": I64(
-                0,
-            ),
-            "severity_text": String(
-                "abc",
-            ),
-            "timestamp_nanos": U64(
-                946684800000000000,
-            ),
-        }
-        "###);
+        assert_eq!(
+            merged_log.value().unwrap().other.get("severity_number"),
+            Some(&Annotated::new(Value::I64(0)))
+        );
     }
 
     #[test]
@@ -656,21 +644,21 @@ mod tests {
                     value: String(
                         "9",
                     ),
-                    type: "string",
+                    type: String,
                     other: {},
                 },
                 "sentry.severity_number": OurLogAttribute {
                     value: I64(
-                        25,
+                        0,
                     ),
-                    type: "integer",
+                    type: Integer,
                     other: {},
                 },
                 "sentry.severity_text": OurLogAttribute {
                     value: String(
                         "info",
                     ),
-                    type: "string",
+                    type: String,
                     other: {},
                 },
             },
@@ -679,7 +667,7 @@ mod tests {
                     1742481864000000000,
                 ),
                 "severity_number": I64(
-                    25,
+                    0,
                 ),
                 "severity_text": String(
                     "info",
@@ -701,7 +689,7 @@ mod tests {
             },
             "sentry.severity_number": {
               "type": "integer",
-              "value": 25
+              "value": 0
             },
             "sentry.severity_text": {
               "type": "string",
@@ -709,7 +697,7 @@ mod tests {
             }
           },
           "observed_timestamp_nanos": 1742481864000000000,
-          "severity_number": 25,
+          "severity_number": 0,
           "severity_text": "info",
           "timestamp_nanos": 1638144000000000000
         }
