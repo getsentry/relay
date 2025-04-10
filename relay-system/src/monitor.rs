@@ -15,7 +15,7 @@ pin_project_lite::pin_project! {
         inner: F,
         metrics: Arc<RawMetrics>,
         last_utilization_update: Instant,
-        total_duration_ns: u64
+        poll_duration_accumulated_ns: u64
     }
 }
 
@@ -25,8 +25,11 @@ impl<F> MonitoredFuture<F> {
         Self {
             inner,
             metrics: Arc::new(RawMetrics::default()),
+            // The last time the utilization was updated.
             last_utilization_update: Instant::now(),
-            total_duration_ns: 0,
+            // The poll duration that was accumulated across zero or more polls since the last
+            // refresh.
+            poll_duration_accumulated_ns: 0,
         }
     }
 
@@ -57,19 +60,19 @@ where
         this.metrics
             .total_duration_ns
             .fetch_add(poll_duration_ns, Ordering::Relaxed);
-        *this.total_duration_ns += poll_duration_ns;
+        *this.poll_duration_accumulated_ns += poll_duration_ns;
 
         let utilization_duration = poll_end - *this.last_utilization_update;
         if utilization_duration >= UTILIZATION_UPDATE_THRESHOLD {
             // The maximum possible time spent busy is the total time between the last measurement
             // and the current measurement. We can extract a percentage from this.
-            let percentage = (*this.total_duration_ns * 100)
+            let percentage = (*this.poll_duration_accumulated_ns * 100)
                 .div_ceil(utilization_duration.as_nanos().max(1) as u64);
             this.metrics
                 .utilization
                 .store(percentage.min(100) as u8, Ordering::Relaxed);
 
-            *this.total_duration_ns = 0;
+            *this.poll_duration_accumulated_ns = 0;
             *this.last_utilization_update = poll_end;
         }
 
@@ -80,7 +83,7 @@ where
 /// The raw metrics extracted from a [`MonitoredFuture`].
 ///
 /// All access outside the [`MonitoredFuture`] must be *read* only.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct RawMetrics {
     /// Amount of times the service was polled.
     pub poll_count: AtomicU64,
@@ -88,16 +91,6 @@ pub struct RawMetrics {
     pub total_duration_ns: AtomicU64,
     /// Estimated utilization percentage `[0-100]`
     pub utilization: AtomicU8,
-}
-
-impl Default for RawMetrics {
-    fn default() -> Self {
-        Self {
-            poll_count: AtomicU64::new(0),
-            total_duration_ns: AtomicU64::new(0),
-            utilization: AtomicU8::new(0),
-        }
-    }
 }
 
 #[cfg(test)]
