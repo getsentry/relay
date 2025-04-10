@@ -468,6 +468,8 @@ jobs:
       AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
+    if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+
     steps:
       - uses: actions/checkout@v4
 
