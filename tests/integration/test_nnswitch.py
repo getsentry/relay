@@ -16,7 +16,7 @@ def load_dump_file(base_file_name: str):
 
 @pytest.mark.parametrize("variant", ["plain", "zstandard"])
 def test_nnswitch(
-    mini_sentry, relay_with_processing, outcomes_consumer, attachments_consumer, events_consumer, variant
+    mini_sentry, relay, relay_with_processing, outcomes_consumer, attachments_consumer, events_consumer, variant
 ):
     PROJECT_ID = 42
     mini_sentry.add_full_project_config(PROJECT_ID)
