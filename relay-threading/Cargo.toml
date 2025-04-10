@@ -15,7 +15,7 @@ futures = { workspace = true }
 tokio = { workspace = true }
 pin-project-lite = { workspace = true }
 
-relay-statsd = { workspace = true }
+relay-system = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }

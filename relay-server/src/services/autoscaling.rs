@@ -68,7 +68,7 @@ impl Service for AutoscalingMetricService {
                                 }
                             )
                                 .collect();
-                            let worker_pool_utilization = self.async_pool.metrics().utilization() as u8;
+                            let worker_pool_utilization = self.async_pool.metrics().total_utilization();
                             let runtime_utilization = self.runtime_utilization();
 
                             sender.send(AutoscalingData {

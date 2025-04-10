@@ -3,10 +3,10 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use crate::service::monitor::{RawMetrics, ServiceMonitor};
+use crate::monitor::MonitoredFuture;
 
 use crate::service::status::{ServiceJoinHandle, ServiceStatusJoinHandle};
-use crate::{ServiceObj, TaskId};
+use crate::{RawMetrics, ServiceObj, TaskId};
 
 /// A point in time snapshot of all started services and their [`ServiceMetrics`].
 pub struct ServicesMetrics(BTreeMap<ServiceId, ServiceMetrics>);
@@ -35,7 +35,7 @@ pub struct ServiceMetrics {
     ///
     /// This value is a percentage in the range from `[0-100]` and recomputed periodically.
     ///
-    /// The measure is only updated when the when the service is polled. A service which
+    /// The measure is only updated when the service is polled. A service which
     /// spends a long time idle may not have this measure updated for a long time.
     pub utilization: u8,
 }
@@ -108,7 +108,7 @@ impl Inner {
         // lower priority tasks. We want to prioritize service backlogs over creating more work
         // for these services.
         let future = tokio::task::unconstrained(service.future);
-        let future = ServiceMonitor::wrap(future);
+        let future = MonitoredFuture::wrap(future);
         let metrics = Arc::clone(future.metrics());
 
         let task_handle = crate::runtime::spawn_in(handle, task_id, future);
@@ -189,7 +189,7 @@ impl ServiceGroup {
 /// Collection of metadata the registry tracks per service instance.
 #[derive(Debug)]
 struct ServiceInstance {
-    /// The per service group unique id for this instance.
+    /// The per-service group unique id for this instance.
     instance_id: u32,
     /// A raw handle for all metrics tracked for this instance.
     ///

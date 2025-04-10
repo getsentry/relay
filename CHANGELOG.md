@@ -38,6 +38,7 @@
 - Add the internal `_performance_issues_spans` field to control perf issue detection. ([#4652](https://github.com/getsentry/relay/pull/4652))
 - Add `/v1/traces` (without a trailing slash) as a spec-compliant alternative for our OTLP traces endpoint. ([#4655](https://github.com/getsentry/relay/pull/4655))
 - Improve handling of failed Redis connections. ([#4657](https://github.com/getsentry/relay/pull/4657))
+- Expose new metrics from the async pool. ([#4658](https://github.com/getsentry/relay/pull/4658))
 
 ## 25.3.0
 
