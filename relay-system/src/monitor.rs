@@ -77,9 +77,9 @@ where
     }
 }
 
-/// The raw metrics extracted from a [`ServiceMonitor`].
+/// The raw metrics extracted from a [`TimedFuture`].
 ///
-/// All access outside the [`ServiceMonitor`] must be *read* only.
+/// All access outside the [`TimedFuture`] must be *read* only.
 #[derive(Debug)]
 pub struct RawMetrics {
     /// Amount of times the service was polled.
