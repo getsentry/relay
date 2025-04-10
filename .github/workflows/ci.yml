@@ -468,6 +468,8 @@ jobs:
       AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
+    if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -599,7 +601,7 @@ jobs:
 
   gocd-artifacts:
     timeout-minutes: 5
-    needs: [build-setup, build-docker]
+    needs: [build-setup, publish-to-ar-internal]
 
     name: Upload build artifacts to gocd
     runs-on: ubuntu-latest
@@ -614,7 +616,7 @@ jobs:
       id-token: "write"
 
     env:
-      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
@@ -627,6 +629,10 @@ jobs:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
           service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+
       - name: "Set up Cloud SDK"
         uses: "google-github-actions/setup-gcloud@v2"
         with:
@@ -637,12 +643,12 @@ jobs:
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
-          VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
+          VERSION="$(docker run --rm "${AR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --entrypoint tar "${GHCR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
+          docker run --rm --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
+          docker run --rm --entrypoint tar "${AR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
 
           # debugging for mysterious "Couldn't write tracker file" issue:
           (env | grep runner) || true
