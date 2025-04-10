@@ -17,6 +17,7 @@ use {
     crate::services::outcome::{DiscardReason, Outcome},
     crate::services::processor::ProcessingError,
     relay_dynamic_config::ProjectConfig,
+    relay_event_normalization::SchemaProcessor,
     relay_event_schema::processor::{process_value, ProcessingState},
     relay_event_schema::protocol::{OurLog, OurLogAttributeType},
     relay_ourlogs::OtelLog,
@@ -98,6 +99,8 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
 
 #[cfg(feature = "processing")]
 fn normalize(annotated_log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
+    process_value(annotated_log, &mut SchemaProcessor, ProcessingState::root())?;
+
     let Some(log) = annotated_log.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
