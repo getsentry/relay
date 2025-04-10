@@ -460,9 +460,6 @@ fn create_async_redis_client(config: &RedisConfigRef<'_>) -> Result<AsyncRedisCl
             options,
         } => AsyncRedisClient::cluster(cluster_nodes.iter().map(|s| s.as_str()), options),
         RedisConfigRef::Single { server, options } => AsyncRedisClient::single(server, options),
-        RedisConfigRef::MultiWrite { .. } => {
-            Err(RedisError::MultiWriteNotSupported("projectconfig"))
-        }
     }
 }
 

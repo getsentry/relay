@@ -40,7 +40,9 @@ impl AsRef<str> for TraceId {
 }
 
 /// A 16-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, Eq, Hash, PartialEq, Ord, PartialOrd, Empty, IntoValue, ProcessValue,
+)]
 pub struct SpanId(pub String);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");

@@ -3552,7 +3552,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3989,6 +3989,7 @@ version = "25.3.0"
 dependencies = [
  "deadpool",
  "deadpool-redis",
+ "futures",
  "redis",
  "relay-system",
  "serde",
