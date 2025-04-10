@@ -274,7 +274,9 @@ fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
         Some(OurLogLevel::Warn) => 13,
         Some(OurLogLevel::Error) => 17,
         Some(OurLogLevel::Fatal) => 21,
-        _ => 25,
+        // 0 is the default value.
+        // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/68e1d6cd94bfca9bdf725327d4221f97ce0e0564/pkg/stanza/docs/types/severity.md
+        _ => 0,
     }
 }
 
@@ -574,6 +576,42 @@ mod tests {
                     946684800000000000,
                 ),
             },
+        }
+        "###);
+    }
+
+    #[test]
+    fn ourlog_merge_otel_log_with_unknown_severity_number() {
+        let json = r#"{
+            "timestamp": 946684800.0,
+            "level": "abc",
+            "trace_id": "5B8EFFF798038103D269B633813FC60C",
+            "span_id": "EEE19B7EC3C1B174",
+            "body": "Example log record",
+            "attributes": {
+                "foo": {
+                    "value": "9",
+                    "type": "string"
+                }
+            }
+        }"#;
+
+        let data = Annotated::<OurLog>::from_json(json).unwrap();
+        let merged_log = ourlog_merge_otel(data);
+        insta::assert_debug_snapshot!(merged_log.value().unwrap().other, @r###"
+        {
+            "observed_timestamp_nanos": U64(
+                1744316429000000000,
+            ),
+            "severity_number": I64(
+                0,
+            ),
+            "severity_text": String(
+                "abc",
+            ),
+            "timestamp_nanos": U64(
+                946684800000000000,
+            ),
         }
         "###);
     }
