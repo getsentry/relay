@@ -350,13 +350,15 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
     if let Some(os_context) = event.context::<OsContext>() {
         if let Some(os_name) = os_context.name.value() {
             if tags.mobile.value().is_some_and(|v| v.as_str() == "true") {
-                // Check if app context exists. This tells us if the span originated from
+                // For mabile spans, only extract os_name if app context exists.
+                // This tells us if the span originated from
                 // an app (as opposed to mobile browser) since we are currently focused on
                 // app use cases for mobile.
                 if event.context::<AppContext>().is_some() {
                     tags.os_name = os_name.to_string().into();
                 }
             } else {
+                // For non-mobile spans, always extract os_name.
                 tags.os_name = os_name.to_string().into();
             }
         }
