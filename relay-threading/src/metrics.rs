@@ -1,4 +1,5 @@
 use relay_system::RawMetrics;
+use std::cmp::max;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -57,22 +58,37 @@ impl AsyncPoolMetrics<'_> {
 
     /// Returns the utilization metric for the pool.
     ///
-    /// The utilization is measured as the amount of busy work performed by each thread when polling
+    /// The cpu utilization is measured as the amount of busy work performed by each thread when polling
     /// the futures.
     ///
-    /// A utilization of 100% indicates that the pool has been doing CPU-bound work for the duration
+    /// A cpu utilization of 100% indicates that the pool has been doing CPU-bound work for the duration
     /// of the measurement.
-    /// A utilization of 0% indicates that the pool didn't do any CPU-bound work for the duration
+    /// A cpu utilization of 0% indicates that the pool didn't do any CPU-bound work for the duration
     /// of the measurement.
     ///
     /// Note that this metric is collected and updated for each thread when the main future is polled,
     /// thus if no work is being done, it will not be updated.
-    pub fn utilization(&self) -> u8 {
+    pub fn cpu_utilization(&self) -> u8 {
         self.threads_metrics
             .iter()
             .map(|m| m.raw_metrics.utilization.load(Ordering::Relaxed))
             .max()
             .unwrap_or(100)
+    }
+
+    /// Returns the overall utilization of the pool.
+    ///
+    /// This metric provides a high-level view of how busy the pool is, combining both CPU-bound and
+    /// I/O-bound workloads into a single value. It is intended as a general signal of system load
+    /// and should be preferred when making scaling decisions.
+    ///
+    /// Unlike [`Self::cpu_utilization`] or [`Self::activity`], which reflect specific aspects of pool usage,
+    /// this method captures the maximum pressure observed in either dimension. This makes it more robust
+    /// in edge cases such as:
+    /// - High activity with low CPU utilization (e.g., I/O-bound workloads with many tasks waiting).
+    /// - Low activity with high CPU utilization (e.g., a few threads performing heavy computation).
+    pub fn total_utilization(&self) -> u8 {
+        max(self.cpu_utilization(), self.activity())
     }
 
     /// Returns the activity metric for the pool.
