@@ -27,7 +27,7 @@ pub struct AsyncPool<F> {
     /// The maximum number of tasks that are expected to run concurrently at any point in time.
     max_tasks: u64,
     /// Vector containing all the metrics collected individually in each thread.
-    threads_metrics: Arc<Vec<ThreadMetrics>>,
+    threads_metrics: Arc<Vec<Arc<ThreadMetrics>>>,
 }
 
 impl<F> AsyncPool<F> {
@@ -66,17 +66,14 @@ where
             let rx = rx.clone();
 
             let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
-            let metrics = ThreadMetrics::default();
-            let task = TimedFuture::wrap(
-                Multiplexed::new(
-                    pool_name,
-                    builder.max_concurrency,
-                    rx.into_stream(),
-                    builder.task_panic_handler.clone(),
-                    metrics.clone(),
-                ),
+            let metrics = Arc::new(ThreadMetrics::default());
+            let task = TimedFuture::wrap(Multiplexed::new(
+                pool_name,
+                builder.max_concurrency,
+                rx.into_stream(),
+                builder.task_panic_handler.clone(),
                 metrics.clone(),
-            );
+            ));
 
             let thread = Thread {
                 id: thread_id,

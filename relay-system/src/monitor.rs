@@ -24,11 +24,7 @@ impl<F> TimedFuture<F> {
     pub fn wrap(inner: F) -> Self {
         Self {
             inner,
-            metrics: Arc::new(RawMetrics {
-                poll_count: AtomicU64::new(0),
-                total_duration_ns: AtomicU64::new(0),
-                utilization: AtomicU8::new(0),
-            }),
+            metrics: Arc::new(RawMetrics::default()),
             last_utilization_update: Instant::now(),
             total_duration_ns: 0,
         }
@@ -81,17 +77,6 @@ where
     }
 }
 
-#[derive(Debug)]
-struct Inner {
-    /// Amount of times the future was polled.
-    poll_count: AtomicU64,
-    /// The total time the future spent in its poll function.
-    total_duration_ns: AtomicU64,
-    /// Estimated utilization percentage `[0-100]` as a function of time spent doing busy work
-    /// vs. the time range of the measurement.
-    utilization: AtomicU8,
-}
-
 /// The raw metrics extracted from a [`ServiceMonitor`].
 ///
 /// All access outside the [`ServiceMonitor`] must be *read* only.
@@ -103,6 +88,16 @@ pub struct RawMetrics {
     pub total_duration_ns: AtomicU64,
     /// Estimated utilization percentage `[0-100]`
     pub utilization: AtomicU8,
+}
+
+impl Default for RawMetrics {
+    fn default() -> Self {
+        Self {
+            poll_count: AtomicU64::new(0),
+            total_duration_ns: AtomicU64::new(0),
+            utilization: AtomicU8::new(0),
+        }
+    }
 }
 
 #[cfg(test)]

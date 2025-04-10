@@ -1,69 +1,27 @@
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use relay_system::RawMetrics;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-
-#[derive(Debug)]
-struct Inner {
-    /// Number of futures that are currently being polled concurrently by the thread in the pool.
-    active_tasks: AtomicU64,
-    /// Number of tasks that have been successfully driven to completion.
-    ///
-    /// This number will monotonically grow if not reset.
-    finished_tasks: AtomicU64,
-    /// The utilization is the amount of busy work performed by each thread when polling the
-    /// futures.
-    ///
-    /// The value of utilization is in the range `[0-100]`.
-    utilization: AtomicU8,
-}
 
 /// Metrics for a single thread in an asynchronous pool.
 ///
 /// This struct provides a way to track and query metrics specific to an individual thread, such as
 /// the number of futures it has polled. It is designed for safe concurrent access across threads.
-#[derive(Debug, Clone)]
-pub(crate) struct ThreadMetrics(Arc<Inner>);
-
-impl ThreadMetrics {
-    /// Sets the number of active tasks.
-    pub fn set_active_tasks(&self, active_tasks: u64) {
-        self.0.active_tasks.store(active_tasks, Ordering::Release);
-    }
-
-    /// Increments the number of finished tasks by `finished_tasks`.
-    pub fn increment_finished_tasks(&self, finished_tasks: u64) {
-        self.0
-            .finished_tasks
-            .fetch_add(finished_tasks, Ordering::AcqRel);
-    }
-
-    /// Returns the number of active tasks.
-    pub fn active_tasks(&self) -> u64 {
-        self.0.active_tasks.load(Ordering::Relaxed)
-    }
-
-    /// Returns the number of finished tasks.
-    pub fn finished_tasks(&self) -> u64 {
-        self.0.finished_tasks.load(Ordering::Relaxed)
-    }
-
-    /// Returns the utilization of this thread.
-    pub fn utilization(&self) -> u8 {
-        self.0.utilization.load(Ordering::Relaxed)
-    }
-
-    /// Resets metrics that are monotonically increasing.
-    pub fn reset(&self) {
-        self.0.finished_tasks.store(0, Ordering::Relaxed);
-    }
+#[derive(Debug, Default)]
+pub(crate) struct ThreadMetrics {
+    /// Number of futures that are currently being polled concurrently by the thread in the pool.
+    pub(crate) active_tasks: AtomicU64,
+    /// Number of tasks that have been successfully driven to completion.
+    ///
+    /// This number will monotonically grow if not reset.
+    pub(crate) finished_tasks: AtomicU64,
+    /// The raw metrics collected by the timed future.
+    pub(crate) raw_metrics: Arc<RawMetrics>,
 }
 
-impl Default for ThreadMetrics {
-    fn default() -> Self {
-        Self(Arc::new(Inner {
-            active_tasks: AtomicU64::new(0),
-            finished_tasks: AtomicU64::new(0),
-            utilization: AtomicU8::new(0),
-        }))
+impl ThreadMetrics {
+    /// Resets metrics that are monotonically increasing.
+    pub fn reset(&self) {
+        self.finished_tasks.store(0, Ordering::Relaxed);
     }
 }
 
@@ -72,7 +30,7 @@ impl Default for ThreadMetrics {
 pub struct AsyncPoolMetrics<'a> {
     pub(crate) max_tasks: u64,
     pub(crate) queue_size: u64,
-    pub(crate) threads_metrics: &'a [ThreadMetrics],
+    pub(crate) threads_metrics: &'a [Arc<ThreadMetrics>],
 }
 
 impl AsyncPoolMetrics<'_> {
@@ -87,7 +45,7 @@ impl AsyncPoolMetrics<'_> {
             .threads_metrics
             .iter()
             .map(|m| {
-                let finished_tasks = m.finished_tasks();
+                let finished_tasks = m.finished_tasks.load(Ordering::Relaxed);
                 m.reset();
 
                 finished_tasks
@@ -109,14 +67,12 @@ impl AsyncPoolMetrics<'_> {
     ///
     /// Note that this metric is collected and updated for each thread when the main future is polled,
     /// thus if no work is being done, it will not be updated.
-    pub fn utilization(&self) -> f32 {
-        let total_utilization: u64 = self
-            .threads_metrics
+    pub fn utilization(&self) -> u8 {
+        self.threads_metrics
             .iter()
-            .map(|m| m.utilization() as u64)
-            .sum();
-
-        (total_utilization as f32 / self.threads_metrics.len() as f32).clamp(0.0, 1.0)
+            .map(|m| m.raw_metrics.utilization.load(Ordering::Relaxed))
+            .max()
+            .unwrap_or(100)
     }
 
     /// Returns the activity metric for the pool.
@@ -127,9 +83,13 @@ impl AsyncPoolMetrics<'_> {
     /// An activity of 100% indicates that the pool is driving the maximum number of tasks that it
     /// can.
     /// An activity of 0% indicates that the pool is not driving any tasks.
-    pub fn activity(&self) -> f32 {
-        let total_polled_futures: u64 = self.threads_metrics.iter().map(|m| m.active_tasks()).sum();
+    pub fn activity(&self) -> u8 {
+        let total_polled_futures: u64 = self
+            .threads_metrics
+            .iter()
+            .map(|m| m.active_tasks.load(Ordering::Relaxed))
+            .sum();
 
-        (total_polled_futures as f32 / self.max_tasks as f32).clamp(0.0, 1.0) * 100.0
+        (total_polled_futures as f32 / self.max_tasks as f32).clamp(0.0, 1.0) as u8 * 100
     }
 }

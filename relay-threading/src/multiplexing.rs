@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -108,7 +109,7 @@ pin_project! {
         rx: S,
         #[pin]
         tasks: Tasks<F>,
-        metrics: ThreadMetrics
+        metrics: Arc<ThreadMetrics>
     }
 }
 
@@ -125,7 +126,7 @@ where
         max_concurrency: usize,
         rx: S,
         panic_handler: Option<Arc<PanicHandler>>,
-        metrics: ThreadMetrics,
+        metrics: Arc<ThreadMetrics>,
     ) -> Self {
         Self {
             pool_name,
@@ -156,18 +157,24 @@ where
             // measure after the `poll_tasks_until_pending` will return 0, since all futures will
             // be completed.
             let before_len = this.tasks.len() as u64;
-            this.metrics.set_active_tasks(before_len);
+            this.metrics
+                .active_tasks
+                .store(before_len, Ordering::Relaxed);
 
             this.tasks.as_mut().poll_tasks_until_pending(cx);
 
             // We also want to report after polling since we might have finished polling some futures
             // and some not.
             let after_len = this.tasks.len() as u64;
-            this.metrics.set_active_tasks(after_len);
+            this.metrics
+                .active_tasks
+                .store(after_len, Ordering::Relaxed);
 
             // We calculate how many tasks have been driven to completion.
             if let Some(finished_tasks) = before_len.checked_sub(after_len) {
-                this.metrics.increment_finished_tasks(finished_tasks);
+                this.metrics
+                    .finished_tasks
+                    .fetch_add(finished_tasks, Ordering::Relaxed);
             }
 
             // If we can't get anymore tasks, and we don't have anything else to process, we report
@@ -222,8 +229,8 @@ mod tests {
         fut.boxed()
     }
 
-    fn mock_metrics() -> ThreadMetrics {
-        ThreadMetrics::default()
+    fn mock_metrics() -> Arc<ThreadMetrics> {
+        Arc::new(ThreadMetrics::default())
     }
 
     #[test]
@@ -515,8 +522,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1)).await;
 
         // We expect that now we have 1 active task, the one that is indefinitely pending.
-        assert_eq!(metrics.active_tasks(), 1);
+        assert_eq!(metrics.active_tasks.load(Ordering::Relaxed), 1);
         // An indefinitely pending task is never finished.
-        assert_eq!(metrics.finished_tasks(), 0);
+        assert_eq!(metrics.finished_tasks.load(Ordering::Relaxed), 0);
     }
 }
