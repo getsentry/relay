@@ -629,6 +629,10 @@ jobs:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
           service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+
       - name: "Set up Cloud SDK"
         uses: "google-github-actions/setup-gcloud@v2"
         with:
