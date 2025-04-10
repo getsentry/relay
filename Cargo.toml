@@ -179,8 +179,7 @@ smallvec = { version = "1.13.2", features = ["serde"] }
 socket2 = "0.5.8"
 sqlparser = "0.44.0"
 sqlx = { version = "0.8.2", default-features = false }
-# See statsdproxy PR: https://github.com/getsentry/statsdproxy/pull/55
-statsdproxy = { git = "https://github.com/getsentry/statsdproxy", rev = "50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f", default-features = false }
+statsdproxy = { version = "0.3.0", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
 syn = { version = "2.0.90" }

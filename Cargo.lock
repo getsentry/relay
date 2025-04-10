@@ -5134,8 +5134,9 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "statsdproxy"
-version = "0.2.0"
-source = "git+https://github.com/getsentry/statsdproxy?rev=50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f#50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6d989f4c2230a3c1e0454e8361886943f3f998cf4f8c649ab76b9cc5ab54072"
 dependencies = [
  "anyhow",
  "cadence",
