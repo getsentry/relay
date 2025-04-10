@@ -616,7 +616,7 @@ jobs:
       id-token: "write"
 
     env:
-      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
@@ -639,12 +639,12 @@ jobs:
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
-          VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
+          VERSION="$(docker run --rm "${AR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --entrypoint tar "${GHCR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
+          docker run --rm --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
+          docker run --rm --entrypoint tar "${AR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
 
           # debugging for mysterious "Couldn't write tracker file" issue:
           (env | grep runner) || true
