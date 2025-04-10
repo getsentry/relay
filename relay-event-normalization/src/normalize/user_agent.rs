@@ -46,48 +46,16 @@ pub fn normalize_user_agent_info_generic(
     platform: &Annotated<String>,
     user_agent_info: &RawUserAgentInfo<&str>,
 ) {
-    // Check if a browser context already exists
-    let existing_browser_context = contexts.contains::<BrowserContext>();
-
-    if !existing_browser_context {
-        if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
-            contexts.add(browser_context);
-        }
-    } else if let Some(browser_context) = contexts.get_mut::<BrowserContext>() {
-        // Browser context exists but might need backfilling from user_agent
-        if browser_context.user_agent.value().is_none() && user_agent_info.user_agent.is_some() {
+    if let Some(browser_context) = contexts.get_mut::<BrowserContext>() {
+        if browser_context.user_agent.value().is_some() {
+            // If there is a browser context and it has a user-agent, backfill the inferred values
+            browser_context.backfill_from_user_agent();
+        } else if user_agent_info.user_agent.is_some() {
+            // If there is a browser context and it doesn't have a user-agent, find a user agent from the rest of the event and set it
             browser_context.set_user_agent(user_agent_info.user_agent.unwrap());
         }
-
-        // If the name is not set, but we have a user_agent, try to derive it
-        if browser_context.name.value().is_none() {
-            // First try to get it from the browser context's user_agent field if it exists
-            if let Some(browser_ua) = browser_context.user_agent.value() {
-                if let Some(parsed_context) = BrowserContext::parse_user_agent(browser_ua) {
-                    if browser_context.name.value().is_none() {
-                        browser_context.name = parsed_context.name;
-                    }
-                    if browser_context.version.value().is_none() {
-                        browser_context.version = parsed_context.version;
-                    }
-                }
-            }
-            // If still not set, try with the request interface's user_agent
-            else if let Some(request_ua) = user_agent_info.user_agent {
-                if let Some(parsed_context) = BrowserContext::parse_user_agent(request_ua) {
-                    if browser_context.name.value().is_none() {
-                        browser_context.name = parsed_context.name;
-                    }
-                    if browser_context.version.value().is_none() {
-                        browser_context.version = parsed_context.version;
-                    }
-                    // Also set user_agent for the browser context if it's missing
-                    if browser_context.user_agent.value().is_none() {
-                        browser_context.set_user_agent(request_ua);
-                    }
-                }
-            }
-        }
+    } else if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
+        contexts.add(browser_context);
     }
 
     if !contexts.contains::<DeviceContext>() {
@@ -331,9 +299,13 @@ pub trait FromUserAgentInfo: Sized {
     /// Tries to populate the context from a user agent header string.
     fn parse_user_agent(user_agent: &str) -> Option<Self>;
 
-    /// Sets the user agent string on the context if applicable.
+    /// Sets the user agent string on the context.
     /// Default implementation does nothing.
     fn set_user_agent(&mut self, _user_agent: &str) {}
+
+    /// Backfills all the inferred values from the user agent on the context
+    /// Default implementation does nothing.
+    fn backfill_from_user_agent(&mut self) {}
 
     /// Tries to populate the context from client hints or a user agent header string.
     fn from_hints_or_ua(raw_info: &RawUserAgentInfo<&str>) -> Option<Self> {
@@ -420,6 +392,23 @@ impl FromUserAgentInfo for BrowserContext {
 
     fn set_user_agent(&mut self, user_agent: &str) {
         self.user_agent = Annotated::new(user_agent.to_string());
+        self.backfill_from_user_agent();
+    }
+
+    fn backfill_from_user_agent(&mut self) {
+        // If name or version are not set, try to derive them from the user_agent
+        if self.name.value().is_none() || self.version.value().is_none() {
+            if let Some(user_agent_str) = self.user_agent.as_str() {
+                if let Some(parsed_context) = Self::parse_user_agent(user_agent_str) {
+                    if self.name.value().is_none() {
+                        self.name = parsed_context.name;
+                    }
+                    if self.version.value().is_none() {
+                        self.version = parsed_context.version;
+                    }
+                }
+            }
+        }
     }
 }
 

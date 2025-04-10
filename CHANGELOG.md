@@ -8,10 +8,10 @@
 - Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
 - Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
 - Filter out certain AI crawlers. ([#4608](https://github.com/getsentry/relay/pull/4608))
-- Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634))
-- Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624))
-- Make default Apple device class high. ([#4609](https://github.com/getsentry/relay/pull/4609))
-- Backfill `name` and `version` in browser context via new `user_agent` field ([#4659](https://github.com/getsentry/relay/pull/4659))
+- Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634)).
+- Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624)).
+- Make default Apple device class high. ([#4609](https://github.com/getsentry/relay/pull/4609)).
+- Backfill `name` and `version` in browser context via new `user_agent` field. ([#4659](https://github.com/getsentry/relay/pull/4659)).
 
 **Bug Fixes**:
 
@@ -1704,7 +1704,7 @@ Monitors:
 **Bug Fixes**:
 
 - Log on INFO level when recovering from network outages. ([#918](https://github.com/getsentry/relay/pull/918))
-- Fix a panic in processing minidumps with invalid location descriptors. ([#919](https://github.com/getsentry/relay/pull/919))
+- Fix a panic in CSP filters. ([#919](https://github.com/getsentry/relay/pull/919))
 
 **Internal**:
 
@@ -2038,7 +2038,7 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 **Internal**:
 
 - Fix a bug in the PII processor that would always remove the entire string on `pattern` rules.
-- Ability to correct some clock drift and wrong system time in transaction events.
+- Fix a bug where old `redactPair` rules would stop working.
 
 ## 0.5.0
 
@@ -2126,9 +2126,13 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 
 ## 0.4.58
 
+**Internal**:
+
 - Evict project caches after some time ([#287](https://github.com/getsentry/relay/pull/287))
 - Selectively log internal errors to stderr ([#285](https://github.com/getsentry/relay/pull/285))
 - Add an error boundary to parsing project states ([#281](https://github.com/getsentry/relay/pull/281))
+
+## 0.4.57
 
 **Internal**:
 
@@ -2138,23 +2142,17 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 - Refactor outcomes for parity with Sentry ([#282](https://github.com/getsentry/relay/pull/282))
 - Add flag that relay processed an event ([#279](https://github.com/getsentry/relay/pull/279))
 
-## 0.4.57
+## 0.4.56
 
 **Internal**:
 
 - Stricter validation of transaction events.
 
-## 0.4.56
-
-**Internal**:
-
-- Fix a panic in trimming.
-
 ## 0.4.55
 
 **Internal**:
 
-- Fix more bugs in datascrubbing converter.
+- Fix a panic in trimming.
 
 ## 0.4.54
 
@@ -2178,12 +2176,7 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 
 **Internal**:
 
-- Fix a few bugs in datascrubbing converter.
-- Accept trailing slashes.
-
-**Normalization**:
-
-- Fix a panic on overflowing timestamps.
+- Fix more bugs in datascrubbing converter.
 
 ## 0.4.50
 
