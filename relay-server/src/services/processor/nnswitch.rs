@@ -13,7 +13,7 @@ use zstd::bulk::Decompressor as ZstdDecompressor;
 type Result<T> = std::result::Result<T, SwitchProcessingError>;
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum SwitchProcessingError {
+pub enum SwitchProcessingError {
     #[error("invalid json")]
     InvalidJson(#[source] serde_json::Error),
     #[error("envelope parsing failed")]
@@ -233,14 +233,12 @@ mod tests {
     fn create_envelope(dying_message: Bytes) -> TypedEnvelope<ErrorGroup> {
         // Note: the attachment length specified in the "outer" envelope attachment is very important.
         //       Otherwise parsing would fail because the inner one can contain line-breaks.
-        let mut envelope = String::from(
-            "\
-            {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
-            {\"type\":\"event\"}\n\
-            {\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}\n\
-            {\"type\":\"attachment\",\"filename\":\"dying_message.dat\",\"length\":");
-        envelope += dying_message.len().to_string().as_str();
-        envelope += "}\n";
+    let envelope = 
+        r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
+{"type":"event"}
+{"message":"hello world","level":"error","map":{"a":"val"}}
+{"type":"attachment","filename":"dying_message.dat","length":<len>}
+"#.replace("<len>", &dying_message.len().to_string());
         ManagedEnvelope::new(
             Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap(),
             Addr::dummy(),

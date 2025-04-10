@@ -1216,7 +1216,8 @@ impl Envelope {
     }
 
     /// Parse envelope items from bytes buffer that doesn't contain a complete envelope.
-    /// Note: the envelope header must not be present in the data. Use `parse_bytes()` instead.
+    ///
+    /// Note: the envelope header must not be present in the data. Use [`Self::parse_bytes`] instead.
     pub fn parse_items_bytes(bytes: Bytes) -> Result<Items, EnvelopeError> {
         Self::parse_items(&bytes, 0)
     }
