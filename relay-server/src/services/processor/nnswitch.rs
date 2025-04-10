@@ -72,13 +72,7 @@ fn is_dying_message(item: &crate::envelope::Item) -> bool {
 }
 
 /// Parses DyingMessage contents and updates the envelope.
-/// See https://github.com/getsentry/sentry-switch/blob/main/docs/protocol/README.md
-/// The format goes as follows:
-///
-/// ```text
-/// 4 bytes - Magic number (0x736E7472 = 'sntr')
-/// 1 byte - Format version (0-255)
-/// n bytes - Version-specific data
+/// See dying_message.md for the documentation.
 /// ```
 fn expand_dying_message(mut payload: Bytes, envelope: &mut Envelope) -> Result<()> {
     payload.advance(SENTRY_MAGIC.len());
@@ -97,51 +91,7 @@ fn expand_dying_message(mut payload: Bytes, envelope: &mut Envelope) -> Result<(
 }
 
 /// DyingMessage protocol v0 parser.
-/// ### v0 file format
-///
-/// The version-specific data is as follows:
-///
-/// ```text
-/// 1 byte - Payload encoding
-/// 2 bytes - Payload size, big-endian notation (before decompression if compressed) (0-65535)
-/// n bytes - Payload
-/// ```
-///
-/// The payload encoding is stored as a single byte but stores multiple components by splitting bits to groups:
-///
-/// ```text
-/// 2 bits (uint2) - format (after decompression), possible values:
-/// - `0` = envelope items without envelope header
-/// 2 bits (uint2) - compression algorithm, possible values:
-/// - `0` = none
-/// - `1` = Zstandard
-/// 4 bits (uint4) - compression-algorithm-specific argument, e.g. dictionary identifier
-/// ```
-///
-/// The payload consists of envelope-items, as specified in the
-/// [Envelope data format](https://develop.sentry.dev/sdk/data-model/envelopes/#serialization-format).
-/// However, there is no envelope header as that is irrelevant in the context of DyingMessage.
-///
-/// Additionally, the [Event envelope item type](https://develop.sentry.dev/sdk/data-model/event-payloads/) is considered
-/// a "patch" over the actual event envelope item in the "parent" envelope (the one that the DyingMessage is attached to).
-/// This will result in an update of the parent envelope's event item with the data from the DyingMessage's event item.
-///
-/// Any other item is attached to the parent envelope.
-///
-/// #### ZStandard compression
-///
-/// In case the payload is compressed with Zstandard, it is configured to omit the following in the compressed data:
-///
-/// - ZStandard magic number
-/// - Dictionary ID
 fn expand_dying_message_v0(mut payload: Bytes, envelope: &mut Envelope) -> Result<()> {
-    // The payload encoding is stored as a single byte but stores multiple components by splitting bits to groups:
-    // - 2 bits (uint2) - format (after decompression), possible values:
-    //   - `0` = envelope items without envelope header
-    // - 2 bits (uint2) - compression algorithm, possible values:
-    //   - `0` = none
-    //   - `1` = Zstandard
-    // - 4 bits (uint4) - compression algorithm specific argument, e.g. dictionary identifier
     let encoding_byte = payload
         .try_get_u8()
         .map_err(|_| SwitchProcessingError::UnexpectedEof {
