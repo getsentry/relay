@@ -3,10 +3,10 @@
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>std::sync::{Arc, Mutex, PoisonError};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>std::time::Duration;
 <a href=#5 id=5 data-nosnippet>5</a>
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::service::monitor::{RawMetrics, ServiceMonitor};
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::monitor::MonitoredFuture;
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::service::status::{ServiceJoinHandle, ServiceStatusJoinHandle};
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use crate</span>::{ServiceObj, TaskId};
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use crate</span>::{RawMetrics, ServiceObj, TaskId};
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="doccomment">/// A point in time snapshot of all started services and their [`ServiceMetrics`].
 <a href=#12 id=12 data-nosnippet>12</a></span><span class="kw">pub struct </span>ServicesMetrics(BTreeMap&lt;ServiceId, ServiceMetrics&gt;);
@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>    ///
 <a href=#36 id=36 data-nosnippet>36</a>    /// This value is a percentage in the range from `[0-100]` and recomputed periodically.
 <a href=#37 id=37 data-nosnippet>37</a>    ///
-<a href=#38 id=38 data-nosnippet>38</a>    /// The measure is only updated when the when the service is polled. A service which
+<a href=#38 id=38 data-nosnippet>38</a>    /// The measure is only updated when the service is polled. A service which
 <a href=#39 id=39 data-nosnippet>39</a>    /// spends a long time idle may not have this measure updated for a long time.
 <a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">pub </span>utilization: u8,
 <a href=#41 id=41 data-nosnippet>41</a>}
@@ -108,7 +108,7 @@
 <a href=#108 id=108 data-nosnippet>108</a>        // lower priority tasks. We want to prioritize service backlogs over creating more work
 <a href=#109 id=109 data-nosnippet>109</a>        // for these services.
 <a href=#110 id=110 data-nosnippet>110</a>        </span><span class="kw">let </span>future = tokio::task::unconstrained(service.future);
-<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">let </span>future = ServiceMonitor::wrap(future);
+<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">let </span>future = MonitoredFuture::wrap(future);
 <a href=#112 id=112 data-nosnippet>112</a>        <span class="kw">let </span>metrics = Arc::clone(future.metrics());
 <a href=#113 id=113 data-nosnippet>113</a>
 <a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">let </span>task_handle = <span class="kw">crate</span>::runtime::spawn_in(handle, task_id, future);
@@ -189,7 +189,7 @@
 <a href=#189 id=189 data-nosnippet>189</a><span class="doccomment">/// Collection of metadata the registry tracks per service instance.
 <a href=#190 id=190 data-nosnippet>190</a></span><span class="attr">#[derive(Debug)]
 <a href=#191 id=191 data-nosnippet>191</a></span><span class="kw">struct </span>ServiceInstance {
-<a href=#192 id=192 data-nosnippet>192</a>    <span class="doccomment">/// The per service group unique id for this instance.
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="doccomment">/// The per-service group unique id for this instance.
 <a href=#193 id=193 data-nosnippet>193</a>    </span>instance_id: u32,
 <a href=#194 id=194 data-nosnippet>194</a>    <span class="doccomment">/// A raw handle for all metrics tracked for this instance.
 <a href=#195 id=195 data-nosnippet>195</a>    ///
