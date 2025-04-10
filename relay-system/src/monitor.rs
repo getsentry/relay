@@ -10,7 +10,7 @@ const UTILIZATION_UPDATE_THRESHOLD: Duration = Duration::from_secs(5);
 
 pin_project_lite::pin_project! {
     /// A future that tracks metrics.
-    pub struct TimedFuture<F> {
+    pub struct MonitoredFuture<F> {
         #[pin]
         inner: F,
         metrics: Arc<RawMetrics>,
@@ -19,8 +19,8 @@ pin_project_lite::pin_project! {
     }
 }
 
-impl<F> TimedFuture<F> {
-    /// Wraps a future with the [`TimedFuture`].
+impl<F> MonitoredFuture<F> {
+    /// Wraps a future with the [`MonitoredFuture`].
     pub fn wrap(inner: F) -> Self {
         Self {
             inner,
@@ -36,7 +36,7 @@ impl<F> TimedFuture<F> {
     }
 }
 
-impl<F> Future for TimedFuture<F>
+impl<F> Future for MonitoredFuture<F>
 where
     F: Future,
 {
@@ -77,9 +77,9 @@ where
     }
 }
 
-/// The raw metrics extracted from a [`TimedFuture`].
+/// The raw metrics extracted from a [`MonitoredFuture`].
 ///
-/// All access outside the [`TimedFuture`] must be *read* only.
+/// All access outside the [`MonitoredFuture`] must be *read* only.
 #[derive(Debug)]
 pub struct RawMetrics {
     /// Amount of times the service was polled.
@@ -106,7 +106,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_monitor() {
-        let mut monitor = TimedFuture::wrap(Box::pin(async {
+        let mut monitor = MonitoredFuture::wrap(Box::pin(async {
             loop {
                 tokio::time::advance(Duration::from_millis(500)).await;
             }

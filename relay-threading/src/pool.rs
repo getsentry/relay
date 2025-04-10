@@ -9,7 +9,7 @@ use crate::multiplexing::Multiplexed;
 use crate::{PanicHandler, ThreadMetrics};
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use relay_system::TimedFuture;
+use relay_system::MonitoredFuture;
 
 /// Default name of the pool.
 const DEFAULT_POOL_NAME: &str = "unnamed";
@@ -67,7 +67,7 @@ where
 
             let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
             let metrics = Arc::new(ThreadMetrics::default());
-            let task = TimedFuture::wrap(Multiplexed::new(
+            let task = MonitoredFuture::wrap(Multiplexed::new(
                 pool_name,
                 builder.max_concurrency,
                 rx.into_stream(),
