@@ -71,7 +71,7 @@ impl SqliteEnvelopeStack {
         self.batch.iter().map(|e| e.len()).sum::<usize>() > self.batch_size_bytes.get()
     }
 
-    /// Spools to disk up to `disk_batch_size` envelopes from the `buffer`.
+    /// Spools to disk a batch of envelopes from the `batch`.
     ///
     /// In case there is a failure while writing envelopes, all the envelopes that were enqueued
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
@@ -108,13 +108,9 @@ impl SqliteEnvelopeStack {
         Ok(())
     }
 
-    /// Unspools from disk up to `disk_batch_size` envelopes and appends them to the `buffer`.
+    /// Unspools from disk a batch of envelopes and appends them to the `batch`.
     ///
-    /// In case a single deletion fails, the affected envelope will not be unspooled and unspooling
-    /// will continue with the remaining envelopes.
-    ///
-    /// In case an envelope fails deserialization due to malformed data in the database, the affected
-    /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
+    /// In case there is a failure while deleting envelopes, the envelopes will be lost.
     async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
         debug_assert!(self.batch.is_empty());
         let batch = relay_statsd::metric!(
