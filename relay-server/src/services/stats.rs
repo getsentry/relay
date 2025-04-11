@@ -165,6 +165,15 @@ impl RelayStats {
             gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(stats.idle_connections),
             pool = name
         );
+        metric!(
+            gauge(RelayGauges::RedisPoolMaxConnections) = u64::from(stats.max_connections),
+            pool = name
+        );
+        metric!(
+            gauge(RelayGauges::RedisPoolWaitingForConnection) =
+                u64::from(stats.waiting_for_connection),
+            pool = name
+        );
     }
 
     #[cfg(not(feature = "processing"))]
