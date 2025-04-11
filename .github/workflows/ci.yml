@@ -623,6 +623,8 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
+      - uses: docker/setup-qemu-action@v3
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
