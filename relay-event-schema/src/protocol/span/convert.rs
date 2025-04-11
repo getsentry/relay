@@ -172,6 +172,7 @@ mod tests {
                 code_function: ~,
                 code_namespace: ~,
                 db_operation: ~,
+                db_query_text: ~,
                 db_system: ~,
                 db_collection_name: ~,
                 environment: "prod",
