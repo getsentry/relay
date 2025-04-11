@@ -609,6 +609,7 @@ jobs:
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        platform: ${{ fromJson(needs.build-setup.outputs.platforms) }}
 
     # required for google auth
     permissions:
@@ -622,6 +623,8 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
+      - uses: docker/setup-qemu-action@v3
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
@@ -641,14 +644,16 @@ jobs:
           version: ">= 390.0.0"
 
       - name: Upload gocd deployment assets
+        env:
+          LIB_PATH: ${{ fromJson('{"linux/amd64":"/lib/x86_64-linux-gnu","linux/arm64":"/lib/aarch64-linux-gnu"}')[matrix.platform] }}
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "${AR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --entrypoint tar "${AR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
+          docker run --rm --platform ${{ matrix.platform }} --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --platform ${{ matrix.platform }} --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
+          docker run --rm --platform ${{ matrix.platform }} --entrypoint tar "${AR_DOCKER_IMAGE}:${REVISION}" -cf - "${LIB_PATH}" > libs.tar
 
           # debugging for mysterious "Couldn't write tracker file" issue:
           (env | grep runner) || true
@@ -660,7 +665,7 @@ jobs:
             /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
           || true
           gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
-            "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/" || status=$? && status=$?
+            "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${{ matrix.platform }}/" || status=$? && status=$?
           cat gsutil.log
           exit "$status"
 
