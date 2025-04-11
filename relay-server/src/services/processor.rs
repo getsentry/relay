@@ -54,6 +54,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
+use crate::services::processor::nnswitch::SwitchProcessingError;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -103,6 +104,9 @@ mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
+
+#[cfg(feature = "processing")]
+mod nnswitch;
 
 /// Creates the block only if used with `processing` feature.
 ///
@@ -529,6 +533,10 @@ pub enum ProcessingError {
 
     #[error("replay filtered with reason: {0:?}")]
     ReplayFiltered(FilterStatKey),
+
+    #[cfg(feature = "processing")]
+    #[error("nintendo switch dying message processing failed {0:?}")]
+    InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 }
 
 impl ProcessingError {
@@ -550,6 +558,7 @@ impl ProcessingError {
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
+            Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
@@ -1574,6 +1583,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
             playstation::expand(managed_envelope, &project_info)?;
+            nnswitch::expand(managed_envelope)?;
         });
 
         let extraction_result = event::extract(
@@ -2239,6 +2249,7 @@ impl EnvelopeProcessorService {
                             extracted_metrics: extracted_metrics.map_or(ProcessingExtractedMetrics::new(), |e| e)
                         }),
                         Err(error) => {
+                            relay_log::trace!("Executing {fn} failed: {error}", fn = stringify!($fn_name), error = error);
                             if let Some(outcome) = error.to_outcome() {
                                 managed_envelope.reject(outcome);
                             }
