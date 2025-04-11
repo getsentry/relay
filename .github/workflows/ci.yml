@@ -653,7 +653,7 @@ jobs:
 
           docker run --rm --platform ${{ matrix.platform }} --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
           docker run --rm --platform ${{ matrix.platform }} --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --platform ${{ matrix.platform }} --entrypoint tar "${AR_DOCKER_IMAGE}:${REVISION}" -cf - ${LIB_PATH} > libs.tar
+          docker run --rm --platform ${{ matrix.platform }} --entrypoint tar "${AR_DOCKER_IMAGE}:${REVISION}" -cf - "${LIB_PATH}" > libs.tar
 
           # debugging for mysterious "Couldn't write tracker file" issue:
           (env | grep runner) || true
