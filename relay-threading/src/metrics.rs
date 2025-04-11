@@ -106,6 +106,6 @@ impl AsyncPoolMetrics<'_> {
             .map(|m| m.active_tasks.load(Ordering::Relaxed))
             .sum();
 
-        (total_polled_futures as f32 / self.max_tasks as f32).clamp(0.0, 1.0) as u8 * 100
+        ((total_polled_futures as f32 / self.max_tasks as f32).clamp(0.0, 1.0) * 100.0) as u8
     }
 }
