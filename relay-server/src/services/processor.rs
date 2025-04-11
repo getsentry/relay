@@ -3976,7 +3976,7 @@ mod tests {
         let contexts = event.contexts.into_value().unwrap();
         let browser = contexts.0.get("browser").unwrap();
         assert_eq!(
-            r#"{"browser":"Chrome 103.0.0","name":"Chrome","version":"103.0.0","type":"browser"}"#,
+            r#"{"browser":"Chrome 103.0.0","name":"Chrome","version":"103.0.0","user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36","type":"browser"}"#,
             browser.to_json().unwrap()
         );
     }
