@@ -22,9 +22,14 @@ pin_project_lite::pin_project! {
 impl<F> MonitoredFuture<F> {
     /// Wraps a future with the [`MonitoredFuture`].
     pub fn wrap(inner: F) -> Self {
+        Self::wrap_with_metrics(inner, Arc::new(RawMetrics::default()))
+    }
+
+    /// Wraps a future with the [`MonitoredFuture`].
+    pub fn wrap_with_metrics(inner: F, metrics: Arc<RawMetrics>) -> Self {
         Self {
             inner,
-            metrics: Arc::new(RawMetrics::default()),
+            metrics,
             // The last time the utilization was updated.
             last_utilization_update: Instant::now(),
             // The poll duration that was accumulated across zero or more polls since the last

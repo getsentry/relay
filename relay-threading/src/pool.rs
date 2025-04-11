@@ -67,13 +67,16 @@ where
 
             let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
             let metrics = Arc::new(ThreadMetrics::default());
-            let task = MonitoredFuture::wrap(Multiplexed::new(
-                pool_name,
-                builder.max_concurrency,
-                rx.into_stream(),
-                builder.task_panic_handler.clone(),
-                metrics.clone(),
-            ));
+            let task = MonitoredFuture::wrap_with_metrics(
+                Multiplexed::new(
+                    pool_name,
+                    builder.max_concurrency,
+                    rx.into_stream(),
+                    builder.task_panic_handler.clone(),
+                    metrics.clone(),
+                ),
+                metrics.raw_metrics.clone(),
+            );
 
             let thread = Thread {
                 id: thread_id,
