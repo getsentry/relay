@@ -15,10 +15,10 @@ use relay_base_schema::metrics::{
 };
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event,
-    EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    NelContext, PerformanceScoreContext, ReplayContext, Request, Span, SpanStatus, Tags, Timestamp,
-    TraceContext, User, VALID_PLATFORMS,
+    AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
+    DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry,
+    Measurement, Measurements, NelContext, PerformanceScoreContext, ReplayContext, Request, Span,
+    SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Getter, Meta, Object, Remark, RemarkType, Value,
@@ -270,6 +270,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         &mut event.user,
         event.platform.as_str(),
         client_ip,
+        event.client_sdk.value(),
     );
 
     if let Some(geoip_lookup) = config.geoip_lookup {
@@ -425,64 +426,80 @@ pub fn normalize_ip_addresses(
     user: &mut Annotated<User>,
     platform: Option<&str>,
     client_ip: Option<&IpAddr>,
+    client_sdk_settings: Option<&ClientSdkInfo>,
 ) {
-    // NOTE: This is highly order dependent, in the sense that both the statements within this
-    // function need to be executed in a certain order, and that other normalization code
-    // (geoip lookup) needs to run after this.
-    //
-    // After a series of regressions over the old Python spaghetti code we decided to put it
-    // back into one function. If a desire to split this code up overcomes you, put this in a
-    // new processor and make sure all of it runs before the rest of normalization.
+    let infer_ip = client_sdk_settings
+        .and_then(|c| c.settings.0.as_ref())
+        .map(|s| s.infer_ip())
+        .unwrap_or_default();
 
-    // Resolve {{auto}}
-    if let Some(client_ip) = client_ip {
-        if let Some(ref mut request) = request.value_mut() {
-            if let Some(ref mut env) = request.env.value_mut() {
-                if let Some(&mut Value::String(ref mut http_ip)) = env
-                    .get_mut("REMOTE_ADDR")
-                    .and_then(|annotated| annotated.value_mut().as_mut())
-                {
-                    if http_ip == "{{auto}}" {
-                        *http_ip = client_ip.to_string();
-                    }
-                }
-            }
-        }
-
-        if let Some(ref mut user) = user.value_mut() {
-            if let Some(ref mut user_ip) = user.ip_address.value_mut() {
-                if user_ip.is_auto() {
-                    client_ip.clone_into(user_ip)
-                }
-            }
+    // If infer_ip is set to Never then we just remove auto and don't continue
+    if let AutoInferSetting::Never = infer_ip {
+        // No user means there is also no IP so we can stop here
+        let Some(user) = user.value_mut() else {
+            return;
+        };
+        // If there is no IP we can also stop
+        let Some(ip) = user.ip_address.value() else {
+            return;
+        };
+        if ip.is_auto() {
+            user.ip_address.0 = None;
+            return;
         }
     }
 
-    // Copy IPs from request interface to user, and resolve platform-specific backfilling
-    let http_ip = request
+    let remote_addr_ip = request
         .value()
-        .and_then(|request| request.env.value())
+        .and_then(|r| r.env.value())
         .and_then(|env| env.get("REMOTE_ADDR"))
         .and_then(Annotated::<Value>::as_str)
         .and_then(|ip| IpAddr::parse(ip).ok());
 
-    if let Some(http_ip) = http_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        user.ip_address.value_mut().get_or_insert(http_ip);
-    } else if let Some(client_ip) = client_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        // auto is already handled above
-        if user.ip_address.value().is_none() {
-            // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
-            let scrubbed_before = user
-                .ip_address
-                .meta()
-                .iter_remarks()
-                .any(|r| r.ty == RemarkType::Removed);
-            if !scrubbed_before {
-                // In an ideal world all SDKs would set {{auto}} explicitly.
-                if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                    user.ip_address = Annotated::new(client_ip.to_owned());
+    // IP address in REMOTE_ADDR will have precedence over client_ip because it's explicitly
+    // sent while client_ip is taken from X-Forwarded-For headers or the connection IP.
+    let inferred_ip = remote_addr_ip.as_ref().or(client_ip);
+
+    // We will infer IP addresses if:
+    // * The IP address is {{auto}}
+    // * the infer_ip setting is set to "auto"
+    let should_be_inferred = match user.value() {
+        Some(user) => match user.ip_address.value() {
+            Some(ip) => ip.is_auto(),
+            None => matches!(infer_ip, AutoInferSetting::Auto),
+        },
+        None => matches!(infer_ip, AutoInferSetting::Auto),
+    };
+
+    if should_be_inferred {
+        if let Some(ip) = inferred_ip {
+            let user = user.get_or_insert_with(User::default);
+            user.ip_address.set_value(Some(ip.to_owned()));
+        }
+    }
+
+    // Legacy behaviour:
+    // * Backfill if there is a REMOTE_ADDR and the user.ip_address was not backfilled until now
+    // * Empty means {{auto}} for some SDKs
+    if infer_ip == AutoInferSetting::Legacy {
+        if let Some(http_ip) = remote_addr_ip {
+            let user = user.get_or_insert_with(User::default);
+            user.ip_address.value_mut().get_or_insert(http_ip);
+        } else if let Some(client_ip) = inferred_ip {
+            let user = user.get_or_insert_with(User::default);
+            // auto is already handled above
+            if user.ip_address.value().is_none() {
+                // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
+                let scrubbed_before = user
+                    .ip_address
+                    .meta()
+                    .iter_remarks()
+                    .any(|r| r.ty == RemarkType::Removed);
+                if !scrubbed_before {
+                    // In an ideal world all SDKs would set {{auto}} explicitly.
+                    if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
+                        user.ip_address = Annotated::new(client_ip.to_owned());
+                    }
                 }
             }
         }

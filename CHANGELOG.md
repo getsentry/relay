@@ -55,6 +55,7 @@
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 - Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
 - Improve localhost detection by checking contained request headers in the error. ([#4580](https://github.com/getsentry/relay/pull/4580))
+- Introduce SDK settings structure with `infer_ip` setting to explicitly control IP inference behaviour. ([#4623](https://github.com/getsentry/relay/pull/4623))
 
 **Bug Fixes**:
 
