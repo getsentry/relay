@@ -154,13 +154,20 @@ fn process_attribute_types(ourlog: &mut OurLog) {
             (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
             (Annotated(Some(String), _), Annotated(Some(Value::String(_)), _)) => (),
-            (Annotated(ty_opt @ Some(Unknown(_)), ty_meta), _) => {
-                ty_meta.add_error(ErrorKind::InvalidData);
-                ty_meta.set_original_value(ty_opt.take());
+            // Note: currently the mapping to Kafka requires that invalid or unknown combinations
+            // of types and values are removed from the mapping.
+            //
+            // Usually Relay would only modify the offending values, but for now, until there
+            // is better support in the pipeline here, we need to remove the entire attribute.
+            (Annotated(Some(Unknown(_)), _), _) => {
+                let original = attribute.value_mut().take();
+                attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                attribute.meta_mut().set_original_value(original);
             }
-            (Annotated(Some(_), _), Annotated(value @ Some(_), value_meta)) => {
-                value_meta.add_error(ErrorKind::InvalidData);
-                value_meta.set_original_value(value.take());
+            (Annotated(Some(_), _), Annotated(Some(_), _)) => {
+                let original = attribute.value_mut().take();
+                attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                attribute.meta_mut().set_original_value(original);
             }
             (Annotated(None, _), _) | (_, Annotated(None, _)) => {
                 let original = attribute.value_mut().take();
@@ -345,24 +352,27 @@ mod tests {
                 type: Double,
                 other: {},
             },
-            "invalid_int_from_invalid_string": OurLogAttribute {
-                value: Meta {
-                    remarks: [],
-                    errors: [
-                        Error {
-                            kind: InvalidData,
-                            data: {},
+            "invalid_int_from_invalid_string": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: InvalidData,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": String(
+                                "integer",
+                            ),
+                            "value": String(
+                                "abc",
+                            ),
                         },
-                    ],
-                    original_length: None,
-                    original_value: Some(
-                        String(
-                            "abc",
-                        ),
                     ),
-                },
-                type: Integer,
-                other: {},
+                ),
             },
             "missing_type": Meta {
                 remarks: [],
@@ -404,26 +414,27 @@ mod tests {
                     ),
                 ),
             },
-            "unknown_type": OurLogAttribute {
-                value: String(
-                    "test",
-                ),
-                type: Meta {
-                    remarks: [],
-                    errors: [
-                        Error {
-                            kind: InvalidData,
-                            data: {},
+            "unknown_type": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: InvalidData,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": String(
+                                "custom",
+                            ),
+                            "value": String(
+                                "test",
+                            ),
                         },
-                    ],
-                    original_length: None,
-                    original_value: Some(
-                        String(
-                            "custom",
-                        ),
                     ),
-                },
-                other: {},
+                ),
             },
             "valid_bool": OurLogAttribute {
                 value: Bool(
@@ -446,24 +457,27 @@ mod tests {
                 type: Double,
                 other: {},
             },
-            "valid_int_from_string": OurLogAttribute {
-                value: Meta {
-                    remarks: [],
-                    errors: [
-                        Error {
-                            kind: InvalidData,
-                            data: {},
+            "valid_int_from_string": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: InvalidData,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": String(
+                                "integer",
+                            ),
+                            "value": String(
+                                "42",
+                            ),
                         },
-                    ],
-                    original_length: None,
-                    original_value: Some(
-                        String(
-                            "42",
-                        ),
                     ),
-                },
-                type: Integer,
-                other: {},
+                ),
             },
             "valid_int_i64": OurLogAttribute {
                 value: I64(

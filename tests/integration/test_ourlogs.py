@@ -152,6 +152,7 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.severity_text": {"value": "info", "type": "string"},
                 "unknown_type": {"value": "info", "type": "unknown"},
                 "broken_type": {"value": "info", "type": "not_a_real_type"},
+                "mismatched_type": {"value": "some string", "type": "boolean"},
                 "valid_string_with_other": {
                     "value": "test",
                     "type": "string",
