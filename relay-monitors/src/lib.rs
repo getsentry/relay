@@ -19,6 +19,7 @@
 use std::sync::OnceLock;
 
 use relay_base_schema::project::ProjectId;
+use relay_protocol::SentryUuid;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -127,8 +128,7 @@ pub struct MonitorConfig {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckInTrace {
     /// Trace-ID of the check-in.
-    #[serde(serialize_with = "uuid_simple")]
-    trace_id: Uuid,
+    trace_id: SentryUuid,
 }
 
 /// Any contexts sent in the check-in payload.
@@ -143,8 +143,8 @@ pub struct CheckInContexts {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckIn {
     /// Unique identifier of this check-in.
-    #[serde(default, serialize_with = "uuid_simple")]
-    pub check_in_id: Uuid,
+    #[serde(default)]
+    pub check_in_id: SentryUuid,
 
     /// Identifier of the monitor for this check-in.
     #[serde(default)]

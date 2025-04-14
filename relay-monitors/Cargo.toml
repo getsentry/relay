@@ -19,5 +19,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true, features = ["v5"] }
 
+relay-protocol = { workspace = true }
+
 [dev-dependencies]
 similar-asserts = { workspace = true }

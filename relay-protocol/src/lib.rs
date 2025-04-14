@@ -24,6 +24,7 @@ mod macros;
 mod meta;
 mod size;
 mod traits;
+mod uuid;
 mod value;
 
 pub use self::annotated::*;
@@ -32,6 +33,7 @@ pub use self::impls::*;
 pub use self::meta::*;
 pub use self::size::*;
 pub use self::traits::*;
+pub use self::uuid::*;
 pub use self::value::*;
 
 #[cfg(feature = "derive")]

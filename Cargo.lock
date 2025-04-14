@@ -3844,6 +3844,7 @@ name = "relay-monitors"
 version = "25.3.0"
 dependencies = [
  "relay-base-schema",
+ "relay-protocol",
  "serde",
  "serde_json",
  "similar-asserts",
