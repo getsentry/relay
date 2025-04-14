@@ -21,7 +21,7 @@ impl TraceId {
     /// This method will return `u128::MIN` (0) if:
     /// - The trace ID string is empty
     /// - The trace ID string contains invalid hex characters
-    /// - The trace ID string is not exactly 32 characters
+    /// - The trace ID string is not exactly 32 hex characters
     ///
     /// Otherwise, it returns the trace ID as an u128 integer.
     pub fn as_u128(&self) -> u128 {
@@ -30,7 +30,7 @@ impl TraceId {
             return u128::MIN;
         }
 
-        // Ensure the string is exactly 32 characters
+        // Ensure the string is exactly 32 bytes (we assume 1 byte per character)
         if self.0.len() != 32 {
             return u128::MIN;
         }
@@ -47,7 +47,8 @@ impl TraceId {
             // Shift and add
             result = (result << 4) | digit;
 
-            // Safety check for overflow (shouldn't happen with 32 chars)
+            // Safety check for overflow (shouldn't happen with 32 since at most we will have 32
+            // chars)
             if i >= 32 {
                 return u128::MIN;
             }
