@@ -214,7 +214,10 @@ async fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
-        return evaluator.match_rules(dsc.trace_id, dsc, rules).await.into();
+        return evaluator
+            .match_rules(dsc.trace_id.into_inner(), dsc, rules)
+            .await
+            .into();
     }
 
     SamplingResult::NoMatch
@@ -279,7 +282,7 @@ mod tests {
     use relay_cogs::Token;
     use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, LenientString};
-    use relay_protocol::RuleCondition;
+    use relay_protocol::{RuleCondition, SentryUuid};
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };

@@ -131,8 +131,8 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::{EventId, LenientString};
-    use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
+    use relay_protocol::{Annotated, SentryUuid};
     use relay_sampling::config::{RuleId, SamplingRule, SamplingValue};
     use uuid::Uuid;
 

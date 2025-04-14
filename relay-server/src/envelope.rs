@@ -1652,9 +1652,9 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use relay_base_schema::project::{ProjectId, ProjectKey};
-
     use super::*;
+    use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_protocol::SentryUuid;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"

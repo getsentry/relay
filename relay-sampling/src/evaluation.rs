@@ -406,7 +406,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::TimeZone;
-    use relay_protocol::RuleCondition;
+    use relay_protocol::{RuleCondition, SentryUuid};
     use similar_asserts::assert_eq;
 
     use crate::config::{DecayingFunction, RuleType, TimeRange};
