@@ -559,7 +559,7 @@ mod tests {
         let request_meta = RequestMeta::new(dsn);
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let dsc = DynamicSamplingContext {
-            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".into()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),
@@ -719,7 +719,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_sample_rate() {
         let dsc = DynamicSamplingContext {
-            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".into()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

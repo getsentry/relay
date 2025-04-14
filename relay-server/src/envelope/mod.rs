@@ -609,10 +609,9 @@ fn require_termination(slice: &[u8], offset: usize) -> Result<(), EnvelopeError>
 
 #[cfg(test)]
 mod tests {
-    use relay_base_schema::project::{ProjectId, ProjectKey};
-    use uuid::Uuid;
-
     use super::*;
+    use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_event_schema::protocol::TraceId;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -1089,7 +1088,7 @@ mod tests {
     #[test]
     fn test_parametrize_root_transaction() {
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".into()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

@@ -558,7 +558,7 @@ mod tests {
     fn getter_filled() {
         let replay_id = Uuid::new_v4();
         let dsc = DynamicSamplingContext {
-            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".into()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
             user: TraceUserContext {
@@ -593,7 +593,7 @@ mod tests {
     #[test]
     fn getter_empty() {
         let dsc = DynamicSamplingContext {
-            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".into()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
             user: TraceUserContext::default(),
@@ -612,7 +612,7 @@ mod tests {
         assert_eq!(None, dsc.get_value("trace.replay_id"));
 
         let dsc = DynamicSamplingContext {
-            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".into()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
             user: TraceUserContext::default(),

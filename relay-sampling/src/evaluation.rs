@@ -465,7 +465,7 @@ mod tests {
         paths_and_values: Vec<(&str, &str)>,
     ) -> DynamicSamplingContext {
         let mut dsc = DynamicSamplingContext {
-            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".into()),
             public_key: "12345678123456781234567812345678".parse().unwrap(),
             release: None,
             environment: None,
