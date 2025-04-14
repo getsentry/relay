@@ -6,6 +6,9 @@ use std::num::ParseIntError;
 use std::ops::ControlFlow;
 use std::sync::{Arc, Mutex};
 
+use crate::config::{RuleId, SamplingRule, SamplingValue};
+#[cfg(feature = "redis")]
+use crate::redis_sampling::{self, ReservoirRuleKey};
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
@@ -16,18 +19,12 @@ use relay_protocol::Getter;
 #[cfg(feature = "redis")]
 use relay_redis::AsyncRedisClient;
 use serde::Serialize;
-use uuid::Uuid;
-
-use crate::config::{RuleId, SamplingRule, SamplingValue};
-#[cfg(feature = "redis")]
-use crate::redis_sampling::{self, ReservoirRuleKey};
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
 /// The return is deterministic, always generates the same number from the same id.
-fn pseudo_random_from_uuid(id: Uuid) -> f64 {
-    let big_seed = id.as_u128();
-    let mut generator = Pcg32::new((big_seed >> 64) as u64, big_seed as u64);
+fn pseudo_random_from_seed(seed: u128) -> f64 {
+    let mut generator = Pcg32::new((seed >> 64) as u64, seed as u64);
     let dist = Uniform::new(0f64, 1f64);
     generator.sample(dist)
 }
@@ -195,7 +192,7 @@ impl<'a> SamplingEvaluator<'a> {
     /// - `ControlFlow::Break`: Indicates that one or more rules have successfully matched.
     pub async fn match_rules<'b, I, G>(
         mut self,
-        seed: Uuid,
+        seed: u128,
         instance: &G,
         rules: I,
     ) -> ControlFlow<SamplingMatch, Self>
@@ -256,14 +253,14 @@ impl<'a> SamplingEvaluator<'a> {
     }
 }
 
-fn sampling_match(sample_rate: f64, seed: Uuid) -> SamplingDecision {
+fn sampling_match(sample_rate: f64, seed: u128) -> SamplingDecision {
     if sample_rate <= 0.0 {
         return SamplingDecision::Drop;
     } else if sample_rate >= 1.0 {
         return SamplingDecision::Keep;
     }
 
-    let random_number = pseudo_random_from_uuid(seed);
+    let random_number = pseudo_random_from_seed(seed);
     relay_log::trace!(
         sample_rate,
         random_number,
@@ -324,7 +321,7 @@ pub struct SamplingMatch {
     ///
     /// This is especially important for trace sampling, even though we can have inconsistent
     /// traces due to multi-matching.
-    seed: Uuid,
+    seed: u128,
     /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
     matched_rules: MatchedRuleIds,
     /// Whether this sampling match results in the item getting sampled.
@@ -334,7 +331,7 @@ pub struct SamplingMatch {
 }
 
 impl SamplingMatch {
-    fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
+    fn new(sample_rate: f64, seed: u128, matched_rules: Vec<RuleId>) -> Self {
         let matched_rules = MatchedRuleIds(matched_rules);
         let decision = sampling_match(sample_rate, seed);
 
@@ -403,8 +400,6 @@ impl fmt::Display for MatchedRuleIds {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use crate::config::{DecayingFunction, RuleType, TimeRange};
     use crate::dsc::TraceUserContext;
     use crate::DynamicSamplingContext;
@@ -412,6 +407,8 @@ mod tests {
     use relay_event_schema::protocol::TraceId;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
+    use std::str::FromStr;
+    use uuid::Uuid;
 
     use super::*;
 
@@ -430,7 +427,7 @@ mod tests {
     /// Helper to extract the sampling match after evaluating rules.
     async fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
         match SamplingEvaluator::new(Utc::now())
-            .match_rules(Uuid::default(), instance, rules.iter())
+            .match_rules(u128::MIN, instance, rules.iter())
             .await
         {
             ControlFlow::Break(sampling_match) => sampling_match,
@@ -501,7 +498,7 @@ mod tests {
         dsc: &DynamicSamplingContext,
     ) -> bool {
         SamplingEvaluator::new(now)
-            .match_rules(Uuid::default(), dsc, std::iter::once(rule))
+            .match_rules(u128::MIN, dsc, std::iter::once(rule))
             .await
             .is_break()
     }
@@ -593,29 +590,20 @@ mod tests {
         let reservoir = mock_reservoir_evaluator(vec![]);
 
         let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
-        let matched_rules = get_matched_rules(
-            &evaluator
-                .match_rules(Uuid::default(), &dsc, rules.iter())
-                .await,
-        );
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(u128::MIN, &dsc, rules.iter()).await);
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
         let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
-        let matched_rules = get_matched_rules(
-            &evaluator
-                .match_rules(Uuid::default(), &dsc, rules.iter())
-                .await,
-        );
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(u128::MIN, &dsc, rules.iter()).await);
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
         let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
-        let matched_rules = get_matched_rules(
-            &evaluator
-                .match_rules(Uuid::default(), &dsc, rules.iter())
-                .await,
-        );
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(u128::MIN, &dsc, rules.iter()).await);
         // Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
         assert_eq!(&matched_rules, &[0, 2]);
     }
@@ -640,19 +628,19 @@ mod tests {
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
         let res = SamplingEvaluator::new(within_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
+            .match_rules(u128::MIN, &dsc, [rule.clone()].iter())
             .await;
         assert!(evaluation_is_match(res));
 
         let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
         let res = SamplingEvaluator::new(before_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
+            .match_rules(u128::MIN, &dsc, [rule.clone()].iter())
             .await;
         assert!(!evaluation_is_match(res));
 
         let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
         let res = SamplingEvaluator::new(after_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule].iter())
+            .match_rules(u128::MIN, &dsc, [rule].iter())
             .await;
         assert!(!evaluation_is_match(res));
     }
@@ -726,12 +714,10 @@ mod tests {
     }
 
     #[test]
-    /// Test that the we get the same sampling decision from the same trace id
+    /// Test that we get the same sampling decision from the same trace id
     fn test_repeatable_seed() {
-        let id = "4a106cf6-b151-44eb-9131-ae7db1a157a3".parse().unwrap();
-
-        let val1 = pseudo_random_from_uuid(id);
-        let val2 = pseudo_random_from_uuid(id);
+        let val1 = pseudo_random_from_seed(u128::MIN);
+        let val2 = pseudo_random_from_seed(u128::MIN);
         assert!(val1 + f64::EPSILON > val2 && val2 + f64::EPSILON > val1);
     }
 
@@ -776,7 +762,7 @@ mod tests {
         let dsc = mocked_dsc_with_getter_values(vec![]);
 
         let res = SamplingEvaluator::new(Utc::now())
-            .match_rules(Uuid::default(), &dsc, [].iter())
+            .match_rules(u128::MIN, &dsc, [].iter())
             .await;
 
         assert!(!evaluation_is_match(res));

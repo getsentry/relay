@@ -203,7 +203,7 @@ async fn compute_sampling_decision(
     if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
         if let Some(seed) = event.id.value().map(|id| id.0) {
             let rules = sampling_state.filter_rules(RuleType::Transaction);
-            evaluator = match evaluator.match_rules(seed, event, rules).await {
+            evaluator = match evaluator.match_rules(seed.as_u128(), event, rules).await {
                 ControlFlow::Continue(evaluator) => evaluator,
                 ControlFlow::Break(sampling_match) => {
                     return SamplingResult::Match(sampling_match);
@@ -214,7 +214,10 @@ async fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
-        return evaluator.match_rules(dsc.trace_id, dsc, rules).await.into();
+        return evaluator
+            .match_rules(dsc.trace_id.as_u128(), dsc, rules)
+            .await
+            .into();
     }
 
     SamplingResult::NoMatch

@@ -12,6 +12,50 @@ use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus}
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 pub struct TraceId(pub String);
 
+impl TraceId {
+    /// Converts the trace ID to an u128 value.
+    ///
+    /// # Returns
+    ///
+    /// This method will return `u128::MIN` (0) if:
+    /// - The trace ID string is empty
+    /// - The trace ID string contains invalid hex characters
+    /// - The trace ID string is not exactly 32 characters (16 bytes)
+    ///
+    /// Otherwise, it returns the trace ID as a u128 integer.
+    pub fn as_u128(&self) -> u128 {
+        // Return 0 for empty strings
+        if self.0.is_empty() {
+            return u128::MIN;
+        }
+
+        // Ensure the string is exactly 32 characters (16 bytes)
+        if self.0.len() != 32 {
+            return u128::MIN;
+        }
+
+        // Try to parse the hex string
+        let mut result: u128 = 0;
+        for (i, c) in self.0.chars().enumerate() {
+            // Convert hex character to value
+            let digit = match c.to_digit(16) {
+                Some(d) => d as u128,
+                None => return u128::MIN,
+            };
+
+            // Shift and add
+            result = (result << 4) | digit;
+
+            // Safety check for overflow (shouldn't happen with 32 chars)
+            if i >= 32 {
+                return u128::MIN;
+            }
+        }
+
+        result
+    }
+}
+
 relay_common::impl_str_serde!(TraceId, "a trace identifier");
 
 impl FromStr for TraceId {
@@ -207,6 +251,28 @@ impl super::DefaultContext for TraceContext {
 mod tests {
     use super::*;
     use crate::protocol::{Context, Route};
+
+    #[test]
+    fn test_trace_id_as_u128() {
+        // Test valid hex string
+        let trace_id = TraceId("4c79f60c11214eb38604f4ae0781bfb2".into());
+        assert_eq!(trace_id.as_u128(), 0x4c79f60c11214eb38604f4ae0781bfb2);
+
+        // Test empty string (should return 0)
+        let empty_trace_id = TraceId("".into());
+        assert_eq!(empty_trace_id.as_u128(), u128::MIN);
+
+        // Test string with invalid length (should return 0)
+        let short_trace_id = TraceId("4c79f60c11214eb38604f4ae0781bfb".into()); // 31 chars
+        assert_eq!(short_trace_id.as_u128(), u128::MIN);
+
+        let long_trace_id = TraceId("4c79f60c11214eb38604f4ae0781bfb2a".into()); // 33 chars
+        assert_eq!(long_trace_id.as_u128(), u128::MIN);
+
+        // Test string with invalid hex characters (should return 0)
+        let invalid_trace_id = TraceId("4c79f60c11214eb38604f4ae0781bfbg".into()); // 'g' is not a hex char
+        assert_eq!(invalid_trace_id.as_u128(), u128::MIN);
+    }
 
     #[test]
     fn test_trace_context_roundtrip() {
