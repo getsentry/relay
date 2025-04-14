@@ -56,16 +56,16 @@ impl Display for SentryUuid {
     }
 }
 
-/// Serializes a [`SentryUuid`] to a compact string format.
-///
-/// The UUID is serialized in a compact format without hyphens,
-/// which is the preferred format for Sentry's APIs.
 impl Serialize for SentryUuid {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.collect_str(&self.0.as_simple())
+        if serializer.is_human_readable() {
+            serializer.serialize_str(self.simple().encode_lower(&mut Uuid::encode_buffer()))
+        } else {
+            self.0.serialize(serializer)
+        }
     }
 }
 
@@ -74,9 +74,6 @@ impl<'de> Deserialize<'de> for SentryUuid {
     where
         D: Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        Uuid::parse_str(&s)
-            .map(SentryUuid)
-            .map_err(serde::de::Error::custom)
+        Uuid::deserialize(deserializer).map(SentryUuid)
     }
 }
