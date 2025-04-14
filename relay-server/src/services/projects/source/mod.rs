@@ -1,23 +1,23 @@
+use std::convert::Infallible;
+use std::sync::Arc;
+
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
 use relay_redis::RedisClients;
 use relay_system::{Addr, ServiceSpawn, ServiceSpawnExt as _};
-use std::convert::Infallible;
-use std::sync::Arc;
 
 pub mod local;
 #[cfg(feature = "processing")]
 pub mod redis;
 pub mod upstream;
 
-use crate::services::projects::project::{ProjectState, Revision};
-use crate::services::upstream::UpstreamRelay;
-
 use self::local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use self::redis::RedisProjectSource;
 use self::upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::services::projects::project::{ProjectState, Revision};
+use crate::services::upstream::UpstreamRelay;
 
 /// Helper type that contains all configured sources for project cache fetching.
 #[derive(Clone, Debug)]

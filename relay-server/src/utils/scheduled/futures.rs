@@ -4,12 +4,13 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::utils::ScheduledQueue;
 use futures::{
     stream::{FusedStream, FuturesUnordered},
     Stream, StreamExt,
 };
 use tokio::time::Instant;
+
+use crate::utils::ScheduledQueue;
 
 /// A set of tasks/futures that can be scheduled for execution.
 #[derive(Debug)]

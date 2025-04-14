@@ -2,9 +2,8 @@ use std::convert::Infallible;
 
 use chrono::{DateTime, Utc};
 
-use crate::Envelope;
-
 use super::EnvelopeStack;
+use crate::Envelope;
 
 #[derive(Debug)]
 pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);

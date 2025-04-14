@@ -2,13 +2,14 @@
 //!
 //! These functions are included only in the processing mode.
 
+use relay_config::Config;
+use relay_event_schema::protocol::Event;
+use relay_protocol::Annotated;
+
 use crate::envelope::ItemType;
 use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
 use crate::utils;
 use crate::utils::TypedEnvelope;
-use relay_config::Config;
-use relay_event_schema::protocol::Event;
-use relay_protocol::Annotated;
 
 /// Expands Unreal 4 items inside an envelope.
 ///

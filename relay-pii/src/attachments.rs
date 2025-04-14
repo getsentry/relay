@@ -1,9 +1,10 @@
+use std::borrow::Cow;
+use std::iter::FusedIterator;
+
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::{Match, Regex};
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 use smallvec::SmallVec;
-use std::borrow::Cow;
-use std::iter::FusedIterator;
 use utf16string::{LittleEndian, WStr};
 
 use crate::compiledconfig::RuleRef;

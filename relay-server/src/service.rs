@@ -2,6 +2,23 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "processing")]
+use anyhow::Context;
+use anyhow::Result;
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use relay_cogs::Cogs;
+use relay_config::Config;
+#[cfg(feature = "processing")]
+use relay_config::{RedisConfigRef, RedisConfigsRef};
+#[cfg(feature = "processing")]
+use relay_redis::redis::Script;
+#[cfg(feature = "processing")]
+use relay_redis::AsyncRedisClient;
+#[cfg(feature = "processing")]
+use relay_redis::{RedisClients, RedisError, RedisScripts};
+use relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt as _};
+
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::autoscaling::{AutoscalingMetricService, AutoscalingMetrics};
 use crate::services::buffer::{
@@ -27,22 +44,6 @@ use crate::services::store::{StoreService, StoreServicePool};
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
-#[cfg(feature = "processing")]
-use anyhow::Context;
-use anyhow::Result;
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
-use relay_cogs::Cogs;
-use relay_config::Config;
-#[cfg(feature = "processing")]
-use relay_config::{RedisConfigRef, RedisConfigsRef};
-#[cfg(feature = "processing")]
-use relay_redis::redis::Script;
-#[cfg(feature = "processing")]
-use relay_redis::AsyncRedisClient;
-#[cfg(feature = "processing")]
-use relay_redis::{RedisClients, RedisError, RedisScripts};
-use relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt as _};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, thiserror::Error)]

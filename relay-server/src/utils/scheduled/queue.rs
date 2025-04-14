@@ -1,4 +1,3 @@
-use priority_queue::PriorityQueue;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::fmt;
@@ -8,9 +7,9 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use futures::stream::FusedStream;
-use tokio::time::Instant;
-
 use futures::Stream;
+use priority_queue::PriorityQueue;
+use tokio::time::Instant;
 
 /// A scheduled queue that can be polled for when the next item is ready.
 pub struct ScheduledQueue<T> {

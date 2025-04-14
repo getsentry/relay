@@ -1,10 +1,11 @@
-use crate::services::buffer::PartitionedEnvelopeBuffer;
-use crate::services::processor::EnvelopeProcessorServicePool;
-use crate::MemoryStat;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
 };
 use tokio::time::Instant;
+
+use crate::services::buffer::PartitionedEnvelopeBuffer;
+use crate::services::processor::EnvelopeProcessorServicePool;
+use crate::MemoryStat;
 
 /// Service that tracks internal relay metrics so that they can be exposed.
 pub struct AutoscalingMetricService {

@@ -1205,8 +1205,9 @@ impl SecurityReportType {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_protocol::assert_annotated_snapshot;
+
+    use super::*;
 
     #[test]
     fn test_unsplit_uri() {

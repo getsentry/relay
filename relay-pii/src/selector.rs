@@ -5,9 +5,8 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 use relay_event_schema::processor::Path;
-use smallvec::SmallVec;
-
 use relay_event_schema::processor::{Pii, ProcessingState, ValueType};
+use smallvec::SmallVec;
 
 /// Error for invalid PII selectors.
 #[derive(Debug, thiserror::Error)]

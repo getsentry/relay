@@ -1,14 +1,13 @@
 use std::fmt;
 use std::str::FromStr;
 
+#[doc(inline)]
+pub use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-
-#[doc(inline)]
-pub use relay_base_schema::data_category::DataCategory;
 
 /// Data scoping information for rate limiting and quota enforcement.
 ///

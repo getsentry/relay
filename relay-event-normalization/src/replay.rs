@@ -182,12 +182,11 @@ mod tests {
 
     use chrono::{TimeZone, Utc};
     use insta::assert_json_snapshot;
-    use relay_protocol::{assert_annotated_snapshot, get_value, SerializableAnnotated};
-    use uuid::Uuid;
-
     use relay_event_schema::protocol::{
         BrowserContext, Context, DeviceContext, EventId, OsContext, TagEntry, Tags,
     };
+    use relay_protocol::{assert_annotated_snapshot, get_value, SerializableAnnotated};
+    use uuid::Uuid;
 
     use super::*;
 

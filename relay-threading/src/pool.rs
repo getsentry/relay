@@ -3,13 +3,14 @@ use std::io;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
+use futures::future::BoxFuture;
+use futures::FutureExt;
+use relay_system::MonitoredFuture;
+
 use crate::builder::AsyncPoolBuilder;
 use crate::metrics::AsyncPoolMetrics;
 use crate::multiplexing::Multiplexed;
 use crate::{PanicHandler, ThreadMetrics};
-use futures::future::BoxFuture;
-use futures::FutureExt;
-use relay_system::MonitoredFuture;
 
 /// Default name of the pool.
 const DEFAULT_POOL_NAME: &str = "unnamed";

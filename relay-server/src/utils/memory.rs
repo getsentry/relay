@@ -1,13 +1,15 @@
-use crate::statsd::RelayGauges;
-use arc_swap::ArcSwap;
-use relay_config::Config;
-use relay_statsd::metric;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+use arc_swap::ArcSwap;
+use relay_config::Config;
+use relay_statsd::metric;
 use sysinfo::{MemoryRefreshKind, System};
+
+use crate::statsd::RelayGauges;
 
 /// The representation of the current memory state.
 #[derive(Clone, Copy, Debug)]
@@ -239,11 +241,12 @@ impl MemoryChecker {
 
 #[cfg(test)]
 mod tests {
-    use relay_config::Config;
     use std::sync::atomic::Ordering;
     use std::sync::Arc;
     use std::thread::sleep;
     use std::time::Duration;
+
+    use relay_config::Config;
 
     use crate::utils::{Memory, MemoryChecker, MemoryStat};
 

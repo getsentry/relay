@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
+use relay_common::time::UnixTimestamp;
 use relay_redis::{AsyncRedisClient, AsyncRedisConnection};
 use relay_statsd::metric;
-use std::time::Duration;
 
 use crate::{
     limiter::{CardinalityReport, Entry, Limiter, Reporter, Scoping},
@@ -14,7 +16,6 @@ use crate::{
     statsd::{CardinalityLimiterHistograms, CardinalityLimiterTimers},
     CardinalityLimit, Result,
 };
-use relay_common::time::UnixTimestamp;
 
 /// Configuration options for the [`RedisSetLimiter`].
 pub struct RedisSetLimiterOptions {
@@ -276,11 +277,10 @@ mod tests {
     use relay_base_schema::project::ProjectId;
     use relay_redis::{redis, RedisConfigOptions};
 
+    use super::*;
     use crate::limiter::EntryId;
     use crate::redis::{KEY_PREFIX, KEY_VERSION};
     use crate::{CardinalityScope, SlidingWindow};
-
-    use super::*;
 
     fn build_limiter() -> RedisSetLimiter {
         let url = std::env::var("RELAY_REDIS_URL")

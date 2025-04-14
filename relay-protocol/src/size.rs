@@ -437,7 +437,6 @@ impl ser::SerializeStructVariant for &mut SizeEstimatingSerializer {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::annotated::Annotated;
     use crate::value::{Object, Value};
 

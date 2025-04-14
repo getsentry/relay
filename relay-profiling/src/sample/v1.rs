@@ -376,8 +376,9 @@ pub fn parse_sample_profile(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::time::Duration;
+
+    use super::*;
 
     #[test]
     fn test_roundtrip() {

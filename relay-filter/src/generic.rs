@@ -6,9 +6,9 @@
 
 use std::iter::FusedIterator;
 
-use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, GenericFiltersMap};
-
 use relay_protocol::{Getter, RuleCondition};
+
+use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, GenericFiltersMap};
 
 /// Maximum supported version of the generic filters schema.
 ///
@@ -175,10 +175,10 @@ impl<'a> From<&'a GenericFilterConfig> for GenericFilterConfigRef<'a> {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::{Annotated, FromValue as _};
+
+    use super::*;
 
     fn mock_filters() -> GenericFiltersMap {
         vec![

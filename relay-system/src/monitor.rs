@@ -3,6 +3,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
 use tokio::time::{Duration, Instant};
 
 /// Minimum interval when utilization is recalculated.

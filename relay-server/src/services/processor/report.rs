@@ -275,6 +275,7 @@ mod tests {
     use relay_event_schema::protocol::EventId;
     use relay_sampling::evaluation::ReservoirCounters;
 
+    use super::*;
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::outcome::RuleCategory;
@@ -282,8 +283,6 @@ mod tests {
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
-
-    use super::*;
 
     #[tokio::test]
     async fn test_client_report_removal() {

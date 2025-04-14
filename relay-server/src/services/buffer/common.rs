@@ -40,8 +40,9 @@ impl ProjectKeyPair {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashSet;
+
+    use super::*;
 
     #[test]
     fn test_project_key_pair_new() {

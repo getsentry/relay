@@ -12,13 +12,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, mem};
 
-use crate::envelope::ItemType;
-#[cfg(feature = "processing")]
-use crate::service::ServiceError;
-use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
-use crate::services::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
-use crate::statsd::RelayCounters;
-use crate::utils::SleepHandle;
 use chrono::{DateTime, SecondsFormat, Utc};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -35,6 +28,14 @@ use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
+
+use crate::envelope::ItemType;
+#[cfg(feature = "processing")]
+use crate::service::ServiceError;
+use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
+use crate::services::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::statsd::RelayCounters;
+use crate::utils::SleepHandle;
 
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Debug, Default, Deserialize, Serialize)]

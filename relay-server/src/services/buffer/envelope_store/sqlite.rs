@@ -4,11 +4,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::envelope::EnvelopeError;
-
-use crate::services::buffer::common::ProjectKeyPair;
-use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
-use crate::Envelope;
 use bytes::{Buf, Bytes};
 use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
@@ -25,6 +20,11 @@ use sqlx::sqlite::{
 use sqlx::{Pool, Row, Sqlite};
 use tokio::fs::DirBuilder;
 use tokio::time::sleep;
+
+use crate::envelope::EnvelopeError;
+use crate::services::buffer::common::ProjectKeyPair;
+use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
+use crate::Envelope;
 
 /// Fixed first 4 bytes for zstd compressed envelopes.
 ///
@@ -660,9 +660,9 @@ pub fn build_count_all<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
-    use tokio::time::sleep;
 
     use relay_base_schema::project::ProjectKey;
+    use tokio::time::sleep;
 
     use super::*;
     use crate::services::buffer::testutils::utils::{mock_envelopes, setup_db};

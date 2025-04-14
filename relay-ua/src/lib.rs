@@ -7,10 +7,9 @@
 //! consumer.
 
 use once_cell::sync::Lazy;
-use uaparser::{Parser, UserAgentParser};
-
 #[doc(inline)]
 pub use uaparser::{Device, UserAgent, OS};
+use uaparser::{Parser, UserAgentParser};
 
 /// The global [`UserAgentParser`] already configured with a user agent database.
 ///

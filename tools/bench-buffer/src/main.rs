@@ -1,12 +1,13 @@
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
 use bytes::Bytes;
 use chrono::Utc;
 use clap::{Parser, ValueEnum};
 use rand::RngCore;
 use relay_config::Config;
 use relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum Impl {

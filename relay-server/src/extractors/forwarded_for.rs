@@ -99,8 +99,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::http::HeaderValue;
+
+    use super::*;
 
     #[test]
     fn test_prefer_vercel_forwarded() {

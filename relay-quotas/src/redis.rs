@@ -376,10 +376,6 @@ impl<T: GlobalLimiter> RedisRateLimiter<T> {
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use super::*;
-    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
-    use crate::rate_limit::RateLimitScope;
-    use crate::{GlobalRateLimiter, MetricNamespaceScoping};
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -387,6 +383,11 @@ mod tests {
     use relay_redis::RedisConfigOptions;
     use smallvec::smallvec;
     use tokio::sync::Mutex;
+
+    use super::*;
+    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
+    use crate::rate_limit::RateLimitScope;
+    use crate::{GlobalRateLimiter, MetricNamespaceScoping};
 
     struct MockGlobalLimiter {
         client: AsyncRedisClient,

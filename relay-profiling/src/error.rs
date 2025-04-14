@@ -1,5 +1,4 @@
 use relay_filter::FilterStatKey;
-
 use thiserror::Error;
 
 #[derive(Debug, Error)]

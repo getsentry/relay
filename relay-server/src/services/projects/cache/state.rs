@@ -1,14 +1,14 @@
-use futures::StreamExt;
 use std::fmt;
 use std::sync::Arc;
-use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
+use futures::StreamExt;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_quotas::CachedRateLimits;
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
+use tokio::time::Instant;
 
 use crate::services::projects::project::{ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;

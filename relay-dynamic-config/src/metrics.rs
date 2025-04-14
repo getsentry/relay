@@ -669,8 +669,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use similar_asserts::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_empty_metrics_deserialize() {

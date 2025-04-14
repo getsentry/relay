@@ -33,6 +33,7 @@ pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;
 pub use schema::SchemaProcessor;
+pub use sentry_release_parser::{validate_environment, validate_release};
 pub use timestamp::TimestampProcessor;
 pub use transactions::*;
 pub use trimming::TrimmingProcessor;
@@ -40,8 +41,6 @@ pub use user_agent::*;
 
 pub use self::clock_drift::*;
 pub use self::geo::*;
-
-pub use sentry_release_parser::{validate_environment, validate_release};
 
 /// Maximum number of characters allowed for a field value.
 ///

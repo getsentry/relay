@@ -7,7 +7,6 @@ use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
-
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 #[cfg(feature = "processing")]

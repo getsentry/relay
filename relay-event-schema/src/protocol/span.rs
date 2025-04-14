@@ -1043,13 +1043,13 @@ impl IntoValue for SpanKind {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
     use super::*;
+    use crate::protocol::Measurement;
 
     #[test]
     fn test_span_serialization() {

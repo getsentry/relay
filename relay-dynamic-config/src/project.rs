@@ -216,9 +216,8 @@ fn is_false(value: &bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::Feature;
-
     use super::*;
+    use crate::Feature;
 
     #[test]
     fn graduated_feature_flag_gets_inserted() {

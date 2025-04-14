@@ -349,9 +349,8 @@ impl<'a, T> CardinalityLimits<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CardinalityScope, SlidingWindow};
-
     use super::*;
+    use crate::{CardinalityScope, SlidingWindow};
 
     #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     struct Item {

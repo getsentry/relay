@@ -1,9 +1,9 @@
-use crate::time::Instant;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use crate::time::Instant;
 use crate::{AppFeature, Measurements, ResourceId};
 use crate::{CogsMeasurement, CogsRecorder, Value};
 

@@ -44,8 +44,6 @@ use std::net::IpAddr;
 use std::time::Duration;
 
 use bytes::Bytes;
-use url::Url;
-
 use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::protocol::{Csp, Event, EventId, Exception, LogEntry, Values};
@@ -53,10 +51,10 @@ use relay_filter::{Filterable, ProjectFiltersConfig};
 use relay_protocol::{Getter, Val};
 use serde::Deserialize;
 use serde_json::Deserializer;
-
-use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
+use url::Url;
 
 pub use crate::error::ProfileError;
+use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
 pub use crate::outcomes::discard_reason;
 
 mod android;

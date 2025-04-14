@@ -199,11 +199,10 @@ mod tests {
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::ProjectId;
 
+    use super::*;
     use crate::limiter::{Entry, EntryId};
     use crate::redis::quota::PartialQuotaScoping;
     use crate::{CardinalityLimit, CardinalityScope, Scoping, SlidingWindow};
-
-    use super::*;
 
     fn build_scoping(organization_id: OrganizationId, window: SlidingWindow) -> QuotaScoping {
         PartialQuotaScoping::new(

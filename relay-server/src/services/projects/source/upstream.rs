@@ -654,10 +654,10 @@ impl Service for UpstreamProjectSourceService {
 
 #[cfg(test)]
 mod tests {
-    use crate::http::Response;
     use futures::future::poll_immediate;
 
     use super::*;
+    use crate::http::Response;
 
     fn to_response(body: &impl serde::Serialize) -> Response {
         let body = serde_json::to_vec(body).unwrap();

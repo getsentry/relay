@@ -2,12 +2,12 @@
 
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
+use std::sync::{Mutex, PoisonError};
 
 use globset::GlobBuilder;
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use regex::bytes::{Regex, RegexBuilder};
-use std::sync::{Mutex, PoisonError};
 
 use crate::{RelayBuf, RelayStr};
 

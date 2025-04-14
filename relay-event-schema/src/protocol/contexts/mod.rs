@@ -28,6 +28,7 @@ pub use os::*;
 pub use otel::*;
 pub use performance_score::*;
 pub use profile::*;
+use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 pub use replay::*;
 pub use reprocessing::*;
 pub use response::*;
@@ -35,8 +36,6 @@ pub use runtime::*;
 pub use spring::*;
 pub use trace::*;
 pub use user_report_v2::*;
-
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 

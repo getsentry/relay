@@ -1,7 +1,7 @@
-use hash32::Hasher;
 use std::fmt::{self, Write};
 use std::hash::Hash;
 
+use hash32::Hasher;
 use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;

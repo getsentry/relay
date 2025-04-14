@@ -282,11 +282,10 @@ mod tests {
     use similar_asserts::assert_eq;
     use uuid::Uuid;
 
+    use super::*;
     use crate::stacktrace::normalize_non_raw_frame;
     use crate::validation::validate_event;
     use crate::{normalize_event, EventValidationConfig, GeoIpLookup, NormalizationConfig};
-
-    use super::*;
 
     #[test]
     fn test_model_cost_config() {

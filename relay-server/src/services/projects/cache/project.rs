@@ -184,16 +184,16 @@ fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::{ContentType, Envelope, Item};
-    use crate::extractors::RequestMeta;
-    use crate::services::processor::ProcessingGroup;
-    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_event_schema::protocol::EventId;
     use serde_json::json;
     use smallvec::smallvec;
 
     use super::*;
+    use crate::envelope::{ContentType, Envelope, Item};
+    use crate::extractors::RequestMeta;
+    use crate::services::processor::ProcessingGroup;
+    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
 
     fn create_project(config: &Config, data: Option<serde_json::Value>) -> Project<'_> {
         let mut project_info = ProjectInfo {

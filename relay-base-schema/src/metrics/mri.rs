@@ -1,8 +1,9 @@
 use std::fmt;
 use std::{borrow::Cow, error::Error};
 
-use crate::metrics::MetricUnit;
 use serde::{Deserialize, Serialize};
+
+use crate::metrics::MetricUnit;
 
 /// The type of a [`MetricResourceIdentifier`], determining its aggregation and evaluation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
@@ -346,9 +347,8 @@ fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::metrics::{CustomUnit, DurationUnit};
-
     use super::*;
+    use crate::metrics::{CustomUnit, DurationUnit};
 
     #[test]
     fn test_sizeof_unit() {

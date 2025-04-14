@@ -1,12 +1,13 @@
 #[cfg(test)]
 pub mod utils {
+    use std::collections::BTreeMap;
+
     use chrono::{DateTime, Utc};
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
     use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
     use sqlx::{Pool, Sqlite};
-    use std::collections::BTreeMap;
     use tokio::fs::DirBuilder;
     use uuid::Uuid;
 

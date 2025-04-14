@@ -4,15 +4,9 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
+use relay_dynamic_config::Feature;
 use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
-
-use crate::envelope::{AttachmentType, ContentType, ItemType};
-use crate::statsd::RelayTimers;
-
-use crate::services::projects::project::ProjectInfo;
-use crate::utils::TypedEnvelope;
-use relay_dynamic_config::Feature;
 #[cfg(feature = "processing")]
 use {
     crate::services::processor::{ErrorGroup, EventFullyNormalized},
@@ -20,6 +14,11 @@ use {
     relay_event_schema::protocol::{Event, Metrics},
     relay_protocol::Annotated,
 };
+
+use crate::envelope::{AttachmentType, ContentType, ItemType};
+use crate::services::projects::project::ProjectInfo;
+use crate::statsd::RelayTimers;
+use crate::utils::TypedEnvelope;
 
 /// Adds processing placeholders for special attachments.
 ///

@@ -6,15 +6,15 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_event_schema::protocol::SpanKind;
+use relay_event_schema::protocol::{
+    EventId, Span as EventSpan, SpanData, SpanId, SpanLink, SpanStatus, Timestamp, TraceId,
+};
+use relay_protocol::{Annotated, FromValue, Object, Value};
 
 use crate::otel_trace::{
     status::StatusCode as OtelStatusCode, Span as OtelSpan, SpanFlags as OtelSpanFlags,
 };
 use crate::status_codes;
-use relay_event_schema::protocol::{
-    EventId, Span as EventSpan, SpanData, SpanId, SpanLink, SpanStatus, Timestamp, TraceId,
-};
-use relay_protocol::{Annotated, FromValue, Object, Value};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
@@ -256,8 +256,9 @@ fn otel_to_sentry_value(value: OtelValue) -> Option<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_protocol::get_path;
+
+    use super::*;
 
     #[test]
     fn parse_span() {

@@ -287,6 +287,7 @@ mod tests {
     use relay_system::Addr;
     use uuid::Uuid;
 
+    use super::*;
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup, SpanGroup};
@@ -295,8 +296,6 @@ mod tests {
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
     use crate::utils::ManagedEnvelope;
-
-    use super::*;
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
         Event {

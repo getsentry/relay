@@ -1,13 +1,13 @@
+use std::time::Duration;
+
 use deadpool::managed::{BuildError, Manager, Metrics, Object, Pool, PoolError};
 use deadpool_redis::{ConfigError, Runtime};
+pub use redis;
 use redis::{Cmd, Pipeline, RedisFuture, Value};
-use std::time::Duration;
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
 use crate::pool;
-
-pub use redis;
 
 /// An error type that represents various failure modes when interacting with Redis.
 ///

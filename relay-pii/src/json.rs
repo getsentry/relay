@@ -1,8 +1,10 @@
-use crate::transform::Transform;
-use crate::{CompiledPiiConfig, PiiProcessor};
+use std::borrow::Cow;
+
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_protocol::Meta;
-use std::borrow::Cow;
+
+use crate::transform::Transform;
+use crate::{CompiledPiiConfig, PiiProcessor};
 
 const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
 
@@ -76,8 +78,9 @@ impl<'de> Transform<'de> for JsonScrubVisitor<'de> {
 
 #[cfg(test)]
 mod test {
-    use crate::{PiiAttachmentsProcessor, PiiConfig};
     use serde_json::Value;
+
+    use crate::{PiiAttachmentsProcessor, PiiConfig};
 
     #[test]
     pub fn test_view_hierarchy() {

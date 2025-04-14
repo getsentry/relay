@@ -861,9 +861,8 @@ impl FusedIterator for ParseBuckets<'_> {}
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::protocol::{DurationUnit, MetricUnit};
-
     use super::*;
+    use crate::protocol::{DurationUnit, MetricUnit};
 
     #[test]
     fn test_distribution_value_size() {

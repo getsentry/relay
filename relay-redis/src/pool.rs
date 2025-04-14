@@ -1,8 +1,9 @@
+use std::ops::{Deref, DerefMut};
+
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleError, RecycleResult};
 use deadpool_redis::cluster::Manager as ClusterManager;
 use deadpool_redis::Manager as SingleManager;
 use futures::FutureExt;
-use std::ops::{Deref, DerefMut};
 
 use crate::redis;
 use crate::redis::aio::MultiplexedConnection;

@@ -10,6 +10,17 @@ use std::time::Duration;
 use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
+pub use common::ProjectKeyPair;
+// pub for benchmarks
+pub use envelope_buffer::EnvelopeBufferError;
+// pub for benchmarks
+pub use envelope_buffer::PolymorphicEnvelopeBuffer;
+// pub for benchmarks
+pub use envelope_stack::sqlite::SqliteEnvelopeStack;
+// pub for benchmarks
+pub use envelope_stack::EnvelopeStack;
+// pub for benchmarks
+pub use envelope_store::sqlite::SqliteEnvelopeStore;
 use relay_config::Config;
 use relay_system::Receiver;
 use relay_system::ServiceSpawn;
@@ -27,26 +38,12 @@ use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope, ProcessingGroup};
 use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
+use crate::services::projects::project::ProjectState;
 use crate::services::test_store::TestStore;
 use crate::statsd::RelayCounters;
-
 use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
-
-// pub for benchmarks
-pub use envelope_buffer::EnvelopeBufferError;
-// pub for benchmarks
-pub use envelope_buffer::PolymorphicEnvelopeBuffer;
-// pub for benchmarks
-pub use envelope_stack::sqlite::SqliteEnvelopeStack;
-// pub for benchmarks
-pub use envelope_stack::EnvelopeStack;
-// pub for benchmarks
-pub use envelope_store::sqlite::SqliteEnvelopeStore;
-
-use crate::services::projects::project::ProjectState;
-pub use common::ProjectKeyPair;
 
 mod common;
 mod envelope_buffer;
@@ -692,18 +689,20 @@ impl Service for EnvelopeBufferService {
 /// `tokio::time::pause` *after* the connection is established.
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::services::projects::project::{ProjectInfo, ProjectState};
-    use crate::testutils::new_envelope;
-    use crate::MemoryStat;
+    use std::time::Duration;
+
     use chrono::Utc;
     use relay_base_schema::project::ProjectKey;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
     use relay_system::TokioServiceSpawn;
-    use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::services::projects::project::{ProjectInfo, ProjectState};
+    use crate::testutils::new_envelope;
+    use crate::MemoryStat;
 
     struct EnvelopeBufferServiceResult {
         service: EnvelopeBufferService,

@@ -16,6 +16,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use futures::future::BoxFuture;
 use futures::FutureExt;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
@@ -38,9 +39,26 @@ use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
+use relay_threading::AsyncPool;
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
 use zstd::stream::Encoder as ZstdEncoder;
+#[cfg(feature = "processing")]
+use {
+    crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
+    crate::services::store::{Store, StoreEnvelope},
+    crate::utils::{Enforcement, ItemAction},
+    itertools::Itertools,
+    relay_cardinality::{
+        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
+        RedisSetLimiterOptions,
+    },
+    relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
+    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_redis::{AsyncRedisClient, RedisClients},
+    std::time::Instant,
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
+};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
@@ -64,24 +82,6 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
     SamplingResult, TypedEnvelope,
-};
-use relay_base_schema::organization::OrganizationId;
-use relay_threading::AsyncPool;
-#[cfg(feature = "processing")]
-use {
-    crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
-    crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{Enforcement, ItemAction},
-    itertools::Itertools,
-    relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
-        RedisSetLimiterOptions,
-    },
-    relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
-    relay_redis::{AsyncRedisClient, RedisClients},
-    std::time::Instant,
-    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 mod attachment;
@@ -3722,13 +3722,6 @@ mod tests {
     use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
-
-    use crate::metrics_extraction::transactions::types::{
-        CommonTags, TransactionMeasurementTags, TransactionMetric,
-    };
-    use crate::metrics_extraction::IntoMetric;
-    use crate::testutils::{self, create_test_processor, create_test_processor_with_addrs};
-
     #[cfg(feature = "processing")]
     use {
         relay_metrics::BucketValue,
@@ -3737,6 +3730,11 @@ mod tests {
     };
 
     use super::*;
+    use crate::metrics_extraction::transactions::types::{
+        CommonTags, TransactionMeasurementTags, TransactionMetric,
+    };
+    use crate::metrics_extraction::IntoMetric;
+    use crate::testutils::{self, create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
     fn mock_quota(id: &str) -> Quota {

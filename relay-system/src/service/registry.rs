@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use crate::monitor::MonitoredFuture;
-
 use crate::service::status::{ServiceJoinHandle, ServiceStatusJoinHandle};
 use crate::{RawMetrics, ServiceObj, TaskId};
 

@@ -1,17 +1,17 @@
-use relay_common::time::UnixTimestamp;
-use serde::ser::{SerializeMap, SerializeSeq};
-use serde::Serialize;
-
-use crate::{
-    BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType, SetValue,
-};
-use relay_base_schema::metrics::MetricType;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
 
+use relay_base_schema::metrics::MetricType;
+use relay_common::time::UnixTimestamp;
+use serde::ser::{SerializeMap, SerializeSeq};
+use serde::Serialize;
+
 use crate::bucket::Bucket;
 use crate::BucketValue;
+use crate::{
+    BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType, SetValue,
+};
 
 /// The fraction of size passed to [`BucketsView::by_size()`] at which buckets will be split. A value of
 /// `2` means that all buckets smaller than half of `metrics_max_batch_size` will be moved in their entirety,

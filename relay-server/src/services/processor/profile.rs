@@ -1,11 +1,11 @@
 //! Profiles related processor code.
-use relay_dynamic_config::{Feature, GlobalConfig};
 use std::net::IpAddr;
 use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
 use relay_config::Config;
+use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileError, ProfileId};
@@ -189,14 +189,13 @@ mod tests {
     use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
 
+    use super::*;
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
-
-    use super::*;
 
     #[cfg(feature = "processing")]
     #[tokio::test]

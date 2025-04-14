@@ -1,4 +1,6 @@
 use chrono::Utc;
+#[cfg(feature = "processing")]
+use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_metrics::{
     Bucket, BucketMetadata, BucketView, BucketViewValue, MetricName, MetricNamespace,
     MetricResourceIdentifier, MetricType,
@@ -9,8 +11,6 @@ use relay_system::Addr;
 use crate::envelope::SourceQuantities;
 use crate::metrics::MetricStats;
 use crate::services::outcome::{Outcome, TrackOutcome};
-#[cfg(feature = "processing")]
-use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
 /// [`MetricOutcomes`] takes care of creating the right outcomes for metrics at the end of their
 /// lifecycle.

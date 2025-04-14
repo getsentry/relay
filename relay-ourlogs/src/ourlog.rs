@@ -1,12 +1,12 @@
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
-
-use crate::OtelLog;
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{
     OurLog, OurLogAttribute, OurLogAttributeType, OurLogLevel, SpanId, Timestamp, TraceId,
 };
 use relay_protocol::{Annotated, Object, Value};
+
+use crate::OtelLog;
 
 fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
     match value {
@@ -282,8 +282,9 @@ fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_protocol::{get_path, SerializableAnnotated};
+
+    use super::*;
 
     #[test]
     fn parse_otel_log() {

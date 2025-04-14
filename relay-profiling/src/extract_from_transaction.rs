@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use chrono::SecondsFormat;
-
 use relay_event_schema::protocol::{AppContext, AsPair, Event, SpanStatus, TraceContext};
 
 pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
@@ -109,8 +108,9 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_protocol::FromValue;
+
+    use super::*;
 
     #[test]
     fn test_extract_transaction_metadata() {

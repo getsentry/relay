@@ -26,6 +26,7 @@
 //! ```
 
 use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Val};
+use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
@@ -33,7 +34,6 @@ use crate::protocol::{
     LenientString, OsContext, ProfileContext, Request, ResponseContext, Tags, Timestamp,
     TraceContext, User,
 };
-use uuid::Uuid;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[metastructure(process_func = "process_replay", value_type = "Replay")]
@@ -387,9 +387,8 @@ fn or_none(string: &Annotated<impl AsRef<str>>) -> Option<&str> {
 mod tests {
     use chrono::{TimeZone, Utc};
 
-    use crate::protocol::TagEntry;
-
     use super::*;
+    use crate::protocol::TagEntry;
 
     #[test]
     fn test_event_roundtrip() {

@@ -1,14 +1,15 @@
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
-use relay_redis::{AsyncRedisClient, RedisError};
-use relay_statsd::metric;
 use std::fmt::Debug;
 use std::sync::Arc;
+
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
+use relay_redis::redis::cmd;
+use relay_redis::{AsyncRedisClient, RedisError};
+use relay_statsd::metric;
 
 use crate::services::projects::project::{ParsedProjectState, ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use relay_redis::redis::cmd;
 
 #[derive(Clone, Debug)]
 pub struct RedisProjectSource {

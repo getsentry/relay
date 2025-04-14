@@ -1,12 +1,8 @@
 //! Profile chunks processor code.
 
-use relay_dynamic_config::Feature;
 use std::sync::Arc;
 
-use crate::envelope::ItemType;
-use crate::utils::{ItemAction, TypedEnvelope};
-
-use crate::services::projects::project::ProjectInfo;
+use relay_dynamic_config::Feature;
 #[cfg(feature = "processing")]
 use {
     crate::envelope::ContentType,
@@ -16,6 +12,10 @@ use {
     relay_dynamic_config::GlobalConfig,
     relay_profiling::ProfileError,
 };
+
+use crate::envelope::ItemType;
+use crate::services::projects::project::ProjectInfo;
+use crate::utils::{ItemAction, TypedEnvelope};
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
 pub fn filter<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: Arc<ProjectInfo>) {

@@ -444,9 +444,8 @@ mod tests {
     use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
 
-    use crate::MaxChars;
-
     use super::*;
+    use crate::MaxChars;
 
     #[test]
     fn test_string_trimming() {

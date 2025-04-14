@@ -408,10 +408,9 @@ mod tests {
     use relay_protocol::{assert_annotated_snapshot, get_value};
     use serde_json::json;
 
+    use super::*;
     use crate::validation::validate_event;
     use crate::{EventValidationConfig, RedactionRule};
-
-    use super::*;
 
     #[test]
     fn test_is_high_cardinality_sdk_ruby_ok() {

@@ -1,11 +1,13 @@
-use crate::processor::ProcessValue;
-use crate::protocol::IpAddr;
+use std::str::FromStr;
+
 use relay_protocol::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
 use serde::{Serialize, Serializer};
-use std::str::FromStr;
 use thiserror::Error;
+
+use crate::processor::ProcessValue;
+use crate::protocol::IpAddr;
 
 /// An installed and loaded package as part of the Sentry SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]

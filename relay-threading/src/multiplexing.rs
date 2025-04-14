@@ -208,7 +208,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::{future::BoxFuture, FutureExt};
     use std::future;
     use std::sync::atomic::AtomicBool;
     use std::sync::{
@@ -216,6 +215,8 @@ mod tests {
         Arc, Mutex,
     };
     use std::time::Duration;
+
+    use futures::{future::BoxFuture, FutureExt};
 
     use super::*;
 

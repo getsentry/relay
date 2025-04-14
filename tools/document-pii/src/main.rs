@@ -167,9 +167,8 @@ fn main() {
 mod tests {
     use path_slash::PathBufExt;
 
-    use crate::item_collector::TypesAndScopedPaths;
-
     use super::*;
+    use crate::item_collector::TypesAndScopedPaths;
 
     const RUST_TEST_CRATE: &str = "../../tests/test_pii_docs";
 

@@ -72,11 +72,10 @@ mod test;
 pub(crate) mod time;
 
 pub use self::cogs::*;
+pub(crate) use self::measurement::*;
 pub use self::recorder::*;
 #[cfg(test)]
 pub use self::test::*;
-
-pub(crate) use self::measurement::*;
 
 /// Records a categorized measurement of the passed `body`, in `category` on `token`.
 ///

@@ -1,16 +1,16 @@
-use relay_profiling::ProfileType;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::AddAssign;
-use uuid::Uuid;
 
 use bytes::Bytes;
 use relay_event_schema::protocol::EventType;
+use relay_profiling::ProfileType;
 use relay_protocol::Value;
 use relay_quotas::DataCategory;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
+use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 

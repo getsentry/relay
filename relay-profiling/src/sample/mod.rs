@@ -1,7 +1,7 @@
+use relay_event_schema::protocol::Addr;
 use serde::{Deserialize, Serialize};
 
 use crate::debug_image::DebugImage;
-use relay_event_schema::protocol::Addr;
 
 pub mod v1;
 pub mod v2;

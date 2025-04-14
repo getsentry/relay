@@ -26,6 +26,9 @@ mod size;
 mod traits;
 mod value;
 
+#[cfg(feature = "derive")]
+pub use relay_protocol_derive::{Empty, FromValue, IntoValue};
+
 pub use self::annotated::*;
 pub use self::condition::RuleCondition;
 pub use self::impls::*;
@@ -33,6 +36,3 @@ pub use self::meta::*;
 pub use self::size::*;
 pub use self::traits::*;
 pub use self::value::*;
-
-#[cfg(feature = "derive")]
-pub use relay_protocol_derive::{Empty, FromValue, IntoValue};

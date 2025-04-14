@@ -1,10 +1,9 @@
 //! This module contains the trait for items that can be filtered by Inbound Filters, plus
 //! the implementation for [`Event`].
-use url::Url;
-
 use relay_event_schema::protocol::{
     Csp, Event, EventType, Exception, LogEntry, Replay, Span, Values,
 };
+use url::Url;
 
 /// A data item to which filters can be applied.
 pub trait Filterable {

@@ -11,10 +11,9 @@
 //!
 use std::collections::{BTreeMap, HashSet};
 
-use serde::{Deserialize, Serialize};
-
 use relay_event_schema::protocol::EventId;
 use relay_metrics::FiniteF64;
+use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
 use crate::measurements::ChunkMeasurement;

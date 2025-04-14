@@ -3,9 +3,8 @@
 use std::fmt;
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-
 use relay_protocol::RuleCondition;
+use serde::{Deserialize, Serialize};
 
 /// Maximum supported version of dynamic sampling.
 ///

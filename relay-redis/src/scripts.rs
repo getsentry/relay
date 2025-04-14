@@ -1,5 +1,6 @@
-use deadpool_redis::redis::Script;
 use std::sync::OnceLock;
+
+use deadpool_redis::redis::Script;
 
 /// A collection of static methods to load predefined Redis scripts.
 pub struct RedisScripts;

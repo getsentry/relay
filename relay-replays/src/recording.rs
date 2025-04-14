@@ -22,12 +22,11 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use once_cell::sync::Lazy;
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
+use relay_pii::transform::Transform;
 use relay_pii::{PiiConfig, PiiProcessor};
 use relay_protocol::Meta;
 use serde::{de, ser, Deserializer};
 use serde_json::value::RawValue;
-
-use relay_pii::transform::Transform;
 
 /// Paths to fields on which datascrubbing rules should be applied.
 ///
@@ -413,9 +412,8 @@ mod tests {
 
     use relay_pii::{DataScrubbingConfig, PiiConfig};
 
-    use crate::recording::scrub_at_path;
-
     use super::RecordingScrubber;
+    use crate::recording::scrub_at_path;
 
     fn default_pii_config() -> PiiConfig {
         let mut scrubbing_config = DataScrubbingConfig::default();

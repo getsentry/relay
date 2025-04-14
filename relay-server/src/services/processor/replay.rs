@@ -3,12 +3,6 @@ use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
 
-use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::DiscardReason;
-use crate::services::processor::{should_filter, ProcessingError, ReplayGroup};
-use crate::services::projects::project::ProjectInfo;
-use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{sample, TypedEnvelope};
 use bytes::Bytes;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -23,6 +17,13 @@ use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
+
+use crate::envelope::{ContentType, ItemType};
+use crate::services::outcome::DiscardReason;
+use crate::services::processor::{should_filter, ProcessingError, ReplayGroup};
+use crate::services::projects::project::ProjectInfo;
+use crate::statsd::{RelayCounters, RelayTimers};
+use crate::utils::{sample, TypedEnvelope};
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(

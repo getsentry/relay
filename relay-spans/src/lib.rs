@@ -6,9 +6,9 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-pub use crate::span::otel_to_sentry_span;
-
 pub use opentelemetry_proto::tonic::trace::v1 as otel_trace;
+
+pub use crate::span::otel_to_sentry_span;
 
 mod span;
 mod status_codes;

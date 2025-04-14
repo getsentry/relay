@@ -1,3 +1,9 @@
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::fmt;
+use std::ops::Range;
+use std::time::SystemTime;
+
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use rand::distributions::Uniform;
 use rand::rngs::SmallRng;
@@ -9,11 +15,6 @@ use relay_metrics::{
     aggregator::{Aggregator, AggregatorConfig},
     Bucket, BucketValue, DistributionValue, FiniteF64,
 };
-use std::cell::RefCell;
-use std::collections::BTreeMap;
-use std::fmt;
-use std::ops::Range;
-use std::time::SystemTime;
 
 struct NumbersGenerator {
     min: usize,

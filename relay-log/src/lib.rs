@@ -124,9 +124,9 @@ pub use test::*;
 
 mod utils;
 // Expose the minimal log facade.
-#[doc(inline)]
-pub use tracing::{debug, error, info, trace, warn, Level};
 // Expose the minimal error reporting API.
 #[doc(inline)]
 pub use sentry_core::{self as sentry, capture_error, configure_scope, protocol, with_scope, Hub};
+#[doc(inline)]
+pub use tracing::{debug, error, info, trace, warn, Level};
 pub use utils::*;

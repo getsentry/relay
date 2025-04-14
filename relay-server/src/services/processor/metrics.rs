@@ -74,10 +74,9 @@ mod tests {
     use relay_metrics::{BucketValue, UnixTimestamp};
     use relay_system::Addr;
 
+    use super::*;
     use crate::metrics::MetricStats;
     use crate::services::metrics::Aggregator;
-
-    use super::*;
 
     fn create_custom_bucket_with_name(name: String) -> Bucket {
         Bucket {

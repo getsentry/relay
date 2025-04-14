@@ -552,8 +552,9 @@ impl<G> From<TypedEnvelope<G>> for ManagedEnvelope {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
 
     #[test]
     fn span_metrics_are_reported() {

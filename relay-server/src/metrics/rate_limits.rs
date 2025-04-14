@@ -220,9 +220,8 @@ mod tests {
     use relay_system::Addr;
     use smallvec::smallvec;
 
-    use crate::metrics::MetricStats;
-
     use super::*;
+    use crate::metrics::MetricStats;
 
     fn deny(category: DataCategory) -> Vec<Quota> {
         vec![Quota {

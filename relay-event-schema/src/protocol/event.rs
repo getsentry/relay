@@ -824,10 +824,11 @@ impl Getter for Event {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use chrono::{TimeZone, Utc};
     use relay_protocol::{ErrorKind, Map, Meta};
     use similar_asserts::assert_eq;
-    use std::collections::BTreeMap;
     use uuid::uuid;
 
     use super::*;

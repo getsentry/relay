@@ -177,10 +177,9 @@ mod tests {
     use relay_protocol::{assert_annotated_snapshot, FromValue};
     use similar_asserts::assert_eq;
 
-    use crate::PiiProcessor;
-
     use super::to_pii_config as to_pii_config_impl;
     use super::*;
+    use crate::PiiProcessor;
 
     // These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
     // has an equivalent testcase in Python.

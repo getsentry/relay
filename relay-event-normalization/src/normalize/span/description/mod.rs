@@ -2,17 +2,17 @@
 mod redis;
 mod resource;
 mod sql;
+use std::borrow::Cow;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use std::path::Path;
+
 use once_cell::sync::Lazy;
 use psl;
+use relay_event_schema::protocol::Span;
 use relay_filter::matches_any_origin;
 use serde_json::Value;
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
-
-use relay_event_schema::protocol::Span;
-use std::borrow::Cow;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::path::Path;
 use url::{Host, Url};
 
 use crate::regexes::{
@@ -617,9 +617,10 @@ fn scrub_mongodb_visit_node(value: &mut Value, recursion_limit: usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
+
+    use super::*;
 
     macro_rules! span_description_test {
         // Tests the scrubbed span description for the given op.

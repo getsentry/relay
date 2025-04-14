@@ -1,20 +1,20 @@
-use bytes::Bytes;
-use chrono::Utc;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use relay_config::Config;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
-use sqlx::{Pool, Sqlite};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tempfile::TempDir;
-use tokio::runtime::Runtime;
 
+use bytes::Bytes;
+use chrono::Utc;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
 use relay_server::{
     Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
     SqliteEnvelopeStack, SqliteEnvelopeStore,
 };
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+use sqlx::{Pool, Sqlite};
+use tempfile::TempDir;
+use tokio::runtime::Runtime;
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
     let options = SqliteConnectOptions::new()

@@ -199,9 +199,10 @@ pub fn calculate_cdf_score(value: f64, p10: f64, p50: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{get_event_user_tag, http_status_code_from_span};
     use relay_event_schema::protocol::{Span, User};
     use relay_protocol::Annotated;
+
+    use crate::utils::{get_event_user_tag, http_status_code_from_span};
 
     #[test]
     fn test_get_event_user_tag() {

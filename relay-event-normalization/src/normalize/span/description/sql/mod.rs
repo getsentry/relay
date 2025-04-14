@@ -4,10 +4,11 @@ mod parser;
 use std::borrow::Cow;
 use std::time::Instant;
 
-use crate::statsd::Timers;
 use once_cell::sync::Lazy;
 use parser::normalize_parsed_queries;
 use regex::Regex;
+
+use crate::statsd::Timers;
 
 /// Removes SQL comments starting with "--" or "#".
 static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n|$)").unwrap());

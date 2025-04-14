@@ -1,15 +1,8 @@
 //! Log processing code.
 use std::sync::Arc;
 
-use crate::services::processor::LogGroup;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, GlobalConfig};
-
-use crate::services::processor::should_filter;
-use crate::services::projects::project::ProjectInfo;
-use crate::utils::sample;
-use crate::utils::{ItemAction, TypedEnvelope};
-
 #[cfg(feature = "processing")]
 use {
     crate::envelope::ContentType,
@@ -24,6 +17,12 @@ use {
     relay_pii::PiiProcessor,
     relay_protocol::{Annotated, ErrorKind, Value},
 };
+
+use crate::services::processor::should_filter;
+use crate::services::processor::LogGroup;
+use crate::services::projects::project::ProjectInfo;
+use crate::utils::sample;
+use crate::utils::{ItemAction, TypedEnvelope};
 
 /// Removes logs from the envelope if the feature is not enabled.
 pub fn filter(
@@ -180,15 +179,14 @@ fn process_attribute_types(ourlog: &mut OurLog) {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+    use relay_dynamic_config::GlobalConfig;
+    use relay_system::Addr;
+
     use super::*;
     use crate::envelope::{Envelope, ItemType};
     use crate::services::processor::ProcessingGroup;
     use crate::utils::ManagedEnvelope;
-    use bytes::Bytes;
-
-    use relay_dynamic_config::GlobalConfig;
-
-    use relay_system::Addr;
 
     fn params() -> (TypedEnvelope<LogGroup>, Arc<ProjectInfo>) {
         let bytes = Bytes::from(

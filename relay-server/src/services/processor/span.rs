@@ -20,10 +20,11 @@ use crate::utils::TypedEnvelope;
 
 #[cfg(feature = "processing")]
 mod processing;
-use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 pub use processing::*;
 use relay_config::Config;
+
+use crate::services::projects::project::ProjectInfo;
 
 pub fn filter(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
@@ -159,13 +160,14 @@ pub fn extract_transaction_span(
 mod tests {
     use std::collections::BTreeMap;
 
+    use bytes::Bytes;
+    use relay_spans::otel_trace::Span as OtelSpan;
+    use relay_system::Addr;
+
     use super::*;
     use crate::services::processor::ProcessingGroup;
     use crate::utils::{ManagedEnvelope, TypedEnvelope};
     use crate::Envelope;
-    use bytes::Bytes;
-    use relay_spans::otel_trace::Span as OtelSpan;
-    use relay_system::Addr;
 
     #[test]
     fn attribute_denormalization() {

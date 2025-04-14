@@ -92,10 +92,10 @@ pub struct User {
 
 #[cfg(test)]
 mod tests {
+    use relay_protocol::{Error, Map};
     use similar_asserts::assert_eq;
 
     use super::*;
-    use relay_protocol::{Error, Map};
 
     #[test]
     fn test_geo_roundtrip() {

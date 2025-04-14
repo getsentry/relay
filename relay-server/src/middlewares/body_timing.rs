@@ -1,14 +1,16 @@
-use crate::statsd::RelayTimers;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::Duration;
+
 use axum::body::{Body, HttpBody};
 use axum::extract::MatchedPath;
 use axum::http::Request;
 use hyper::body::Frame;
 use relay_statsd::metric;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::time::Duration;
 use tokio::time::Instant;
 use tower::{Layer, Service};
+
+use crate::statsd::RelayTimers;
 
 /// Middleware layer that wraps the request [`Body`] to measure body reading duration.
 ///
@@ -151,10 +153,11 @@ fn size_category(size: usize) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::body::HttpBody;
     use futures::task::noop_waker_ref;
     use relay_statsd::with_capturing_test_client;
+
+    use super::*;
 
     struct ErrorBody;
 

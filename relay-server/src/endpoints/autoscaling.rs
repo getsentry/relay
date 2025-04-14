@@ -1,8 +1,9 @@
+use std::fmt::Display;
+use std::fmt::Write;
+
 use crate::http::StatusCode;
 use crate::service::ServiceState;
 use crate::services::autoscaling::{AutoscalingData, AutoscalingMessageKind};
-use std::fmt::Display;
-use std::fmt::Write;
 
 /// Returns internal metrics data for relay.
 pub async fn handle(state: ServiceState) -> (StatusCode, String) {

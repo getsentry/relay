@@ -202,9 +202,10 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use chrono::Utc;
     use relay_base_schema::project::ProjectKey;
-    use std::time::Duration;
 
     use super::*;
     use crate::services::buffer::testutils::utils::{mock_envelope, mock_envelopes, setup_db};

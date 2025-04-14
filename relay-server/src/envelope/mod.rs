@@ -30,7 +30,6 @@
 //!
 //! ```
 
-use relay_base_schema::project::ProjectKey;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::io::{self, Write};
@@ -38,6 +37,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 use relay_event_schema::protocol::{Event, EventId};

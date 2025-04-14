@@ -1,3 +1,8 @@
+use std::convert::Infallible;
+use std::error::Error;
+use std::io::Cursor;
+use std::io::Read;
+
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
@@ -9,10 +14,6 @@ use liblzma::read::XzDecoder;
 use multer::Multipart;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
-use std::convert::Infallible;
-use std::error::Error;
-use std::io::Cursor;
-use std::io::Read;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
@@ -250,8 +251,8 @@ pub fn route(config: &Config) -> MethodRouter<ServiceState> {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::ContentType;
-    use crate::utils::{multipart_items, FormDataIter};
+    use std::io::Write;
+
     use axum::body::Body;
     use bzip2::write::BzEncoder;
     use bzip2::Compression as BzCompression;
@@ -259,10 +260,11 @@ mod tests {
     use flate2::Compression as GzCompression;
     use liblzma::write::XzEncoder;
     use relay_config::Config;
-    use std::io::Write;
     use zstd::stream::Encoder as ZstdEncoder;
 
     use super::*;
+    use crate::envelope::ContentType;
+    use crate::utils::{multipart_items, FormDataIter};
 
     #[test]
     fn test_validate_minidump() {

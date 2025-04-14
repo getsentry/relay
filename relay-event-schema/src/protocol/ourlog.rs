@@ -1,6 +1,6 @@
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
 use std::fmt::{self, Display};
 
+use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
@@ -253,8 +253,9 @@ impl Empty for OurLogLevel {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_protocol::SerializableAnnotated;
+
+    use super::*;
 
     #[test]
     fn test_ourlog_serialization() {

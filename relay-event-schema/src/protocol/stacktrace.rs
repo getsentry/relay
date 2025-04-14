@@ -513,10 +513,10 @@ impl From<Stacktrace> for RawStacktrace {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::{LockReasonType, ThreadId};
     use similar_asserts::assert_eq;
 
     use super::*;
+    use crate::protocol::{LockReasonType, ThreadId};
 
     #[test]
     fn test_frame_roundtrip() {

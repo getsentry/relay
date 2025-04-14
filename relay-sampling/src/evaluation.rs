@@ -409,11 +409,10 @@ mod tests {
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
+    use super::*;
     use crate::config::{DecayingFunction, RuleType, TimeRange};
     use crate::dsc::TraceUserContext;
     use crate::DynamicSamplingContext;
-
-    use super::*;
 
     fn mock_reservoir_evaluator(vals: Vec<(u32, i64)>) -> ReservoirEvaluator<'static> {
         let mut map = BTreeMap::default();

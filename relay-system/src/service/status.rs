@@ -3,9 +3,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use tokio::task::JoinHandle;
-
 use futures::future::{FutureExt as _, Shared};
+use tokio::task::JoinHandle;
 
 /// The service failed.
 #[derive(Debug)]

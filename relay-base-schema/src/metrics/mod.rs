@@ -4,12 +4,13 @@ mod mri;
 mod name;
 mod units;
 
+use std::{borrow::Cow, sync::OnceLock};
+
+use regex::Regex;
+
 pub use self::mri::*;
 pub use self::name::*;
 pub use self::units::*;
-
-use regex::Regex;
-use std::{borrow::Cow, sync::OnceLock};
 
 /// The limit is determined by the unit size (15) and the maximum MRI length (200).
 /// By choosing a metric name length of 150, we ensure that 35 characters remain available

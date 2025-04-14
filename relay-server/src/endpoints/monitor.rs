@@ -1,4 +1,3 @@
-use crate::constants::DEFAULT_CHECK_IN_CLIENT;
 use axum::extract::{DefaultBodyLimit, Path, Query, Request};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -10,6 +9,7 @@ use relay_monitors::{CheckIn, CheckInStatus};
 use serde::Deserialize;
 use uuid::Uuid;
 
+use crate::constants::DEFAULT_CHECK_IN_CLIENT;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};

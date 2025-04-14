@@ -1,9 +1,8 @@
 use std::future::Future;
 use std::{io, thread};
 
-use tokio::runtime::Handle;
-
 use relay_threading::{AsyncPool, AsyncPoolBuilder};
+use tokio::runtime::Handle;
 
 /// A thread kind.
 ///
@@ -135,12 +134,14 @@ fn set_current_thread_priority(_kind: ThreadKind) {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{ThreadKind, ThreadPoolBuilder};
-    use futures::FutureExt;
     use std::sync::atomic::{AtomicI32, Ordering};
     use std::sync::Arc;
+
+    use futures::FutureExt;
     use tokio::runtime::Handle;
     use tokio::sync::Barrier;
+
+    use crate::utils::{ThreadKind, ThreadPoolBuilder};
 
     #[tokio::test]
     async fn test_thread_pool_panic() {

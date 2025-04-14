@@ -1,8 +1,9 @@
 //! AI cost calculation.
 
-use crate::ModelCosts;
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::{Event, Measurement, Span};
+
+use crate::ModelCosts;
 
 /// Calculated cost is in US dollars.
 fn calculate_ai_model_cost(

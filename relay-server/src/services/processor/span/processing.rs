@@ -3,16 +3,6 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::envelope::{ContentType, Item, ItemType};
-use crate::metrics_extraction::{event, generic};
-use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::span::extract_transaction_span;
-use crate::services::processor::{
-    dynamic_sampling, event_type, EventMetricsExtracted, ProcessingError,
-    ProcessingExtractedMetrics, SpanGroup, SpansExtracted, TransactionGroup,
-};
-use crate::services::projects::project::ProjectInfo;
-use crate::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -40,6 +30,17 @@ use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
+
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::metrics_extraction::{event, generic};
+use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::span::extract_transaction_span;
+use crate::services::processor::{
+    dynamic_sampling, event_type, EventMetricsExtracted, ProcessingError,
+    ProcessingExtractedMetrics, SpanGroup, SpansExtracted, TransactionGroup,
+};
+use crate::services::projects::project::ProjectInfo;
+use crate::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
 
 #[derive(Error, Debug)]
 #[error(transparent)]
@@ -833,12 +834,11 @@ mod tests {
     use relay_protocol::get_value;
     use relay_system::Addr;
 
+    use super::*;
     use crate::envelope::Envelope;
     use crate::services::processor::ProcessingGroup;
     use crate::services::projects::project::ProjectInfo;
     use crate::utils::ManagedEnvelope;
-
-    use super::*;
 
     fn params() -> (
         TypedEnvelope<TransactionGroup>,

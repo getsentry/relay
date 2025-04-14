@@ -67,8 +67,9 @@ fn fold_duplicate_slashes(uri: &mut Uri) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use similar_asserts::assert_eq;
+
+    use super::*;
 
     #[test]
     fn root() {

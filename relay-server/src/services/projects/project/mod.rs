@@ -1,10 +1,9 @@
 //! Types that represent the current project state.
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 use relay_base_schema::project::ProjectKey;
 use relay_quotas::Scoping;
+use serde::{Deserialize, Serialize};
 
 mod info;
 

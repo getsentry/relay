@@ -1,7 +1,6 @@
 use std::hash::Hasher as _;
 
 use hash32::{FnvHasher, Hasher as _};
-
 #[doc(inline)]
 pub use relay_base_schema::metrics::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricName, MetricNamespace,
@@ -169,9 +168,8 @@ pub(crate) fn hash_set_value(string: &str) -> u32 {
 mod tests {
     use insta::assert_json_snapshot;
 
-    use crate::BucketValue;
-
     use super::*;
+    use crate::BucketValue;
 
     #[test]
     fn test_unescape_tag_value() {
