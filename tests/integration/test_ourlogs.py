@@ -14,12 +14,14 @@ TEST_CONFIG = {
 }
 
 
-def envelope_with_sentry_logs(payload: dict) -> Envelope:
+def envelope_with_sentry_logs(*payloads: dict) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
             type="log",
-            payload=PayloadRef(json=payload),
+            payload=PayloadRef(json={"items": payloads}),
+            content_type="application/vnd.sentry.items.log+json",
+            headers={"item_count": len(payloads)},
         )
     )
     return envelope
@@ -139,6 +141,13 @@ def test_ourlog_extraction_with_sentry_logs(
         {
             "timestamp": start.timestamp(),
             "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "This is really bad",
+        },
+        {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
             "level": "info",
             "body": "Example log record",
@@ -159,36 +168,57 @@ def test_ourlog_extraction_with_sentry_logs(
                     "some_other_field": "some_other_value",
                 },
             },
-        }
+        },
     )
     relay.send_envelope(project_id, envelope)
 
     ourlogs = ourlogs_consumer.get_ourlogs()
-    expected = {
-        "organization_id": 1,
-        "project_id": 42,
-        "retention_days": 90,
-        "timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
-        "observed_timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
-        "received": time_within_delta(start, expect_resolution="s"),
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "body": "Example log record",
-        "span_id": "eee19b7ec3c1b174",
-        "severity_text": "info",
-        "severity_number": 9,
-        "attributes": {
-            "boolean.attribute": {"bool_value": True},
-            "double.attribute": {"double_value": 1.23},
-            "integer.attribute": {"int_value": 42},
-            "string.attribute": {"string_value": "some string"},
-            "valid_string_with_other": {"string_value": "test"},
-            "pii": {"string_value": "[creditcard]"},
-            "sentry.severity_number": {"int_value": 9},
-            "sentry.severity_text": {"string_value": "info"},
+    assert ourlogs == [
+        {
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
+            "observed_timestamp_nanos": time_within_delta(
+                start, expect_resolution="ns"
+            ),
+            "received": time_within_delta(start, expect_resolution="s"),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "body": "This is really bad",
+            "severity_text": "error",
+            "severity_number": 17,
+            "attributes": {
+                "sentry.severity_number": {"int_value": 17},
+                "sentry.severity_text": {"string_value": "error"},
+            },
         },
-    }
-
-    assert ourlogs == [expected]
+        {
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
+            "observed_timestamp_nanos": time_within_delta(
+                start, expect_resolution="ns"
+            ),
+            "received": time_within_delta(start, expect_resolution="s"),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "body": "Example log record",
+            "span_id": "eee19b7ec3c1b174",
+            "severity_text": "info",
+            "severity_number": 9,
+            "attributes": {
+                "boolean.attribute": {"bool_value": True},
+                "double.attribute": {"double_value": 1.23},
+                "integer.attribute": {"int_value": 42},
+                "string.attribute": {"string_value": "some string"},
+                "valid_string_with_other": {"string_value": "test"},
+                "pii": {"string_value": "[creditcard]"},
+                "sentry.severity_number": {"int_value": 9},
+                "sentry.severity_text": {"string_value": "info"},
+            },
+        },
+    ]
     ourlogs_consumer.assert_empty()
 
 

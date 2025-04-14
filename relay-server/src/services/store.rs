@@ -963,8 +963,8 @@ impl StoreService {
 
         let d = &mut Deserializer::from_slice(&payload);
 
-        let mut log: LogKafkaMessage = match serde_path_to_error::deserialize(d) {
-            Ok(log) => log,
+        let logs: LogKafkaMessages = match serde_path_to_error::deserialize(d) {
+            Ok(logs) => logs,
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn std::error::Error,
@@ -992,37 +992,42 @@ impl StoreService {
             }
         };
 
-        log.organization_id = scoping.organization_id.value();
-        log.project_id = scoping.project_id.value();
-        log.retention_days = retention_days;
-        log.received = safe_timestamp(received_at);
+        for mut log in logs.items {
+            log.organization_id = scoping.organization_id.value();
+            log.project_id = scoping.project_id.value();
+            log.retention_days = retention_days;
+            log.received = safe_timestamp(received_at);
 
-        let message = KafkaMessage::Log {
-            headers: BTreeMap::from([("project_id".to_string(), scoping.project_id.to_string())]),
-            message: log,
-        };
+            let message = KafkaMessage::Log {
+                headers: BTreeMap::from([(
+                    "project_id".to_string(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: log,
+            };
 
-        self.produce(KafkaTopic::OurLogs, message)?;
+            self.produce(KafkaTopic::OurLogs, message)?;
 
-        // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::LogItem,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::LogByte,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: payload_len as u32,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
+            // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::LogItem,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: received_at,
+            });
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::LogByte,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: payload_len as u32,
+                remote_addr: None,
+                scoping,
+                timestamp: received_at,
+            });
+        }
 
         Ok(())
     }
@@ -1486,6 +1491,12 @@ enum LogAttributeValue {
 struct LogAttribute {
     #[serde(flatten, serialize_with = "serialize_log_attribute_value")]
     value: Option<LogAttributeValue>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct LogKafkaMessages<'a> {
+    #[serde(borrow)]
+    items: Vec<LogKafkaMessage<'a>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
