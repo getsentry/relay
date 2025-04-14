@@ -4,6 +4,7 @@ use std::str::FromStr;
 use relay_protocol::{
     Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Object, Value,
 };
+use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
@@ -97,6 +98,12 @@ impl FromValue for TraceId {
                 Annotated(None, meta)
             }
         }
+    }
+}
+
+impl From<Uuid> for TraceId {
+    fn from(uuid: Uuid) -> Self {
+        TraceId(uuid.simple().to_string())
     }
 }
 

@@ -86,7 +86,7 @@ pub async fn is_trace_fully_sampled(
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
     let evaluation = evaluator
-        .match_rules(dsc.trace_id.into_inner(), dsc, rules)
+        .match_rules(dsc.trace_id.as_u128(), dsc, rules)
         .await;
     Some(SamplingResult::from(evaluation).decision().is_keep())
 }
@@ -190,7 +190,7 @@ mod tests {
         let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
-            .match_rules(seed, &event, rules.iter())
+            .match_rules(u128::MIN, &event, rules.iter())
             .await
             .into();
 
@@ -202,10 +202,9 @@ mod tests {
     async fn test_match_rules_return_drop_with_match_and_0_sample_rate() {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
         let rules = [mocked_sampling_rule(1, RuleType::Transaction, 0.0)];
-        let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
-            .match_rules(seed, &event, rules.iter())
+            .match_rules(u128::MIN, &event, rules.iter())
             .await
             .into();
 
@@ -226,10 +225,9 @@ mod tests {
         }];
 
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
-        let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
-            .match_rules(seed, &event, rules.iter())
+            .match_rules(u128::MIN, &event, rules.iter())
             .await
             .into();
 
@@ -244,7 +242,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
-            .match_rules(Uuid::default(), &dsc, rules.iter())
+            .match_rules(u128::MIN, &dsc, rules.iter())
             .await
             .into();
 
