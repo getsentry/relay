@@ -263,14 +263,13 @@ pub(super) fn build_redis_configs(
     configs: &RedisConfigs,
     cpu_concurrency: u32,
 ) -> RedisConfigsRef<'_> {
-    // Default `max_connections` for the `project_configs` client.
-    // In a unified config, this is used for all clients.
-    let project_configs_default_connections =
-        std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
+    // The default number of connections is twice the concurrency since we are using async Redis
+    // so a single thread might be doing more I/O concurrently.
+    let default_connections = std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
 
     match configs {
         RedisConfigs::Unified(cfg) => {
-            let config = build_redis_config(cfg, project_configs_default_connections);
+            let config = build_redis_config(cfg, default_connections);
             RedisConfigsRef::Unified(config)
         }
         RedisConfigs::Individual {
@@ -278,10 +277,9 @@ pub(super) fn build_redis_configs(
             cardinality,
             quotas,
         } => {
-            let project_configs =
-                build_redis_config(project_configs, project_configs_default_connections);
-            let cardinality = build_redis_config(cardinality, cpu_concurrency);
-            let quotas = build_redis_config(quotas, cpu_concurrency);
+            let project_configs = build_redis_config(project_configs, default_connections);
+            let cardinality = build_redis_config(cardinality, default_connections);
+            let quotas = build_redis_config(quotas, default_connections);
             RedisConfigsRef::Individual {
                 project_configs,
                 cardinality,
