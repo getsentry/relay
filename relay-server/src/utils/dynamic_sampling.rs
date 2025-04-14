@@ -136,7 +136,6 @@ mod tests {
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{RuleId, SamplingRule, SamplingValue};
-    use uuid::Uuid;
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
         Event {
@@ -187,7 +186,6 @@ mod tests {
     async fn test_match_rules_return_keep_with_match_and_100_sample_rate() {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
         let rules = [mocked_sampling_rule(1, RuleType::Transaction, 1.0)];
-        let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(u128::MIN, &event, rules.iter())
