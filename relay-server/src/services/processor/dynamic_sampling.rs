@@ -288,7 +288,6 @@ mod tests {
     };
     use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
     use relay_system::Addr;
-    use uuid::Uuid;
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
