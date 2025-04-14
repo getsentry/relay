@@ -405,13 +405,13 @@ impl fmt::Display for MatchedRuleIds {
 mod tests {
     use std::str::FromStr;
 
-    use chrono::TimeZone;
-    use relay_protocol::{RuleCondition, SentryUuid};
-    use similar_asserts::assert_eq;
-
     use crate::config::{DecayingFunction, RuleType, TimeRange};
     use crate::dsc::TraceUserContext;
     use crate::DynamicSamplingContext;
+    use chrono::TimeZone;
+    use relay_event_schema::protocol::TraceId;
+    use relay_protocol::RuleCondition;
+    use similar_asserts::assert_eq;
 
     use super::*;
 
@@ -468,7 +468,7 @@ mod tests {
         paths_and_values: Vec<(&str, &str)>,
     ) -> DynamicSamplingContext {
         let mut dsc = DynamicSamplingContext {
-            trace_id: SentryUuid::new(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
             public_key: "12345678123456781234567812345678".parse().unwrap(),
             release: None,
             environment: None,

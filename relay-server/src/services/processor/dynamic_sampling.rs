@@ -214,10 +214,7 @@ async fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
-        return evaluator
-            .match_rules(dsc.trace_id.into_inner(), dsc, rules)
-            .await
-            .into();
+        return evaluator.match_rules(dsc.trace_id, dsc, rules).await.into();
     }
 
     SamplingResult::NoMatch
@@ -281,8 +278,8 @@ mod tests {
     use relay_base_schema::project::ProjectKey;
     use relay_cogs::Token;
     use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
-    use relay_event_schema::protocol::{EventId, LenientString};
-    use relay_protocol::{RuleCondition, SentryUuid};
+    use relay_event_schema::protocol::{EventId, LenientString, TraceId};
+    use relay_protocol::RuleCondition;
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
@@ -559,7 +556,7 @@ mod tests {
         let request_meta = RequestMeta::new(dsn);
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let dsc = DynamicSamplingContext {
-            trace_id: SentryUuid::new(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),
@@ -719,7 +716,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_sample_rate() {
         let dsc = DynamicSamplingContext {
-            trace_id: SentryUuid::new(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

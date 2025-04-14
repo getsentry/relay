@@ -1,7 +1,9 @@
 use std::fmt;
 use std::str::FromStr;
 
-use relay_protocol::{Annotated, Array, Empty, Error, FromValue, IntoValue, Object, Value};
+use relay_protocol::{
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Object, Value,
+};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
@@ -10,19 +12,40 @@ use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus}
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 pub struct TraceId(pub String);
 
+relay_common::impl_str_serde!(TraceId, "a trace identifier");
+
+impl FromStr for TraceId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !is_hex_string(s, 32) || s.bytes().all(|x| x == b'0') {
+            return Err(Error::new(ErrorKind::InvalidData));
+        }
+
+        let mut trace_id_string = s.to_string();
+        trace_id_string.make_ascii_lowercase();
+
+        Ok(TraceId(trace_id_string))
+    }
+}
+
+impl fmt::Display for TraceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl FromValue for TraceId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(mut value)), mut meta) => {
-                if !is_hex_string(&value, 32) || value.bytes().all(|x| x == b'0') {
+            Annotated(Some(Value::String(value)), mut meta) => match FromStr::from_str(&value) {
+                Ok(trace_id) => Annotated(Some(trace_id), meta),
+                Err(_) => {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
-                } else {
-                    value.make_ascii_lowercase();
-                    Annotated(Some(TraceId(value)), meta)
                 }
-            }
+            },
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("trace id"));

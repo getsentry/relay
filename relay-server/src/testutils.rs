@@ -4,8 +4,8 @@ use bytes::Bytes;
 use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
-use relay_event_schema::protocol::EventId;
-use relay_protocol::{RuleCondition, SentryUuid};
+use relay_event_schema::protocol::{EventId, TraceId};
+use relay_protocol::RuleCondition;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
 
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
@@ -55,7 +55,7 @@ pub fn state_with_rule_and_condition(
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
-        trace_id: SentryUuid::new(),
+        trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
         public_key: "12345678901234567890123456789012".parse().unwrap(),
         release: None,
         environment: None,

@@ -11,7 +11,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use relay_base_schema::project::ProjectKey;
-use relay_protocol::{Getter, SentryUuid, Val};
+use relay_event_schema::protocol::TraceId;
+use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -24,7 +25,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynamicSamplingContext {
     /// ID created by clients to represent the current call flow.
-    pub trace_id: SentryUuid,
+    pub trace_id: TraceId,
     /// The project key.
     pub public_key: ProjectKey,
     /// The release.
@@ -557,7 +558,7 @@ mod tests {
     fn getter_filled() {
         let replay_id = Uuid::new_v4();
         let dsc = DynamicSamplingContext {
-            trace_id: SentryUuid::new(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
             user: TraceUserContext {
@@ -592,7 +593,7 @@ mod tests {
     #[test]
     fn getter_empty() {
         let dsc = DynamicSamplingContext {
-            trace_id: SentryUuid::new(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
             user: TraceUserContext::default(),
@@ -611,7 +612,7 @@ mod tests {
         assert_eq!(None, dsc.get_value("trace.replay_id"));
 
         let dsc = DynamicSamplingContext {
-            trace_id: SentryUuid::new(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
             user: TraceUserContext::default(),

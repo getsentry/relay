@@ -5,8 +5,7 @@ pub mod utils {
     use crate::Envelope;
     use chrono::{DateTime, Utc};
     use relay_base_schema::project::ProjectKey;
-    use relay_event_schema::protocol::EventId;
-    use relay_protocol::SentryUuid;
+    use relay_event_schema::protocol::{EventId, TraceId};
     use relay_sampling::DynamicSamplingContext;
     use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
     use sqlx::{Pool, Sqlite};
@@ -59,7 +58,7 @@ pub mod utils {
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
         let dsc = DynamicSamplingContext {
-            trace_id: SentryUuid::new(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
             public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

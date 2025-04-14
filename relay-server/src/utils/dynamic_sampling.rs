@@ -132,9 +132,9 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{EventId, LenientString};
+    use relay_event_schema::protocol::{EventId, LenientString, TraceId};
+    use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
-    use relay_protocol::{Annotated, SentryUuid};
     use relay_sampling::config::{RuleId, SamplingRule, SamplingValue};
     use uuid::Uuid;
 
@@ -158,7 +158,7 @@ mod tests {
         sampled: Option<bool>,
     ) -> DynamicSamplingContext {
         DynamicSamplingContext {
-            trace_id: SentryUuid::new(),
+            trace_id: TraceId("67e5504410b1426f9247bb680e5fe0c8".to_owned()),
             public_key: "12345678901234567890123456789012".parse().unwrap(),
             release: release.map(|value| value.to_string()),
             environment: environment.map(|value| value.to_string()),
