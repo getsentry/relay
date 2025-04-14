@@ -2202,7 +2202,7 @@ mod tests {
     #[test]
     fn test_parametrize_root_transaction() {
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: SentryUuid::new(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

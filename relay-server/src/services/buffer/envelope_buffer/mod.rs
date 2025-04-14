@@ -712,13 +712,6 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::Dsn;
-    use relay_event_schema::protocol::EventId;
-    use relay_sampling::DynamicSamplingContext;
-    use std::str::FromStr;
-    use std::sync::Arc;
-    use uuid::Uuid;
-
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::services::buffer::common::ProjectKeyPair;
@@ -726,6 +719,13 @@ mod tests {
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
     use crate::SqliteEnvelopeStore;
+    use relay_common::Dsn;
+    use relay_event_schema::protocol::EventId;
+    use relay_protocol::SentryUuid;
+    use relay_sampling::DynamicSamplingContext;
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use uuid::Uuid;
 
     use super::*;
 
@@ -747,7 +747,7 @@ mod tests {
         if let Some(sampling_key) = sampling_key {
             envelope.set_dsc(DynamicSamplingContext {
                 public_key: sampling_key,
-                trace_id: Uuid::new_v4(),
+                trace_id: SentryUuid::new(),
                 release: None,
                 user: Default::default(),
                 replay_id: None,

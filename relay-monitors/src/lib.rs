@@ -62,13 +62,6 @@ pub enum CheckInStatus {
     Unknown,
 }
 
-fn uuid_simple<S>(uuid: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    uuid.as_simple().serialize(serializer)
-}
-
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]

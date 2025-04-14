@@ -156,7 +156,7 @@ mod tests {
         sampled: Option<bool>,
     ) -> DynamicSamplingContext {
         DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: SentryUuid::new(),
             public_key: "12345678901234567890123456789012".parse().unwrap(),
             release: release.map(|value| value.to_string()),
             environment: environment.map(|value| value.to_string()),
