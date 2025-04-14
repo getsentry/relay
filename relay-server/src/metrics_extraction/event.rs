@@ -253,7 +253,7 @@ mod tests {
                 {
                     "description": "<SomeUiRendering>",
                     "op": "UI.React.Render",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -262,7 +262,7 @@ mod tests {
                 {
                     "description": "GET http://domain.tld/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -274,7 +274,7 @@ mod tests {
                 {
                     "description": "POST http://domain.tld/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -286,7 +286,7 @@ mod tests {
                 {
                     "description": "PUT http://domain.tld/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -298,7 +298,7 @@ mod tests {
                 {
                     "description": "GET /hi/this/is/just/the/path",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -310,7 +310,7 @@ mod tests {
                 {
                     "description": "GET /hi/this/is/just/the/path",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -323,7 +323,7 @@ mod tests {
                 {
                     "description": "POST http://127.0.0.1:1234/api/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -337,7 +337,7 @@ mod tests {
                 {
                     "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -351,7 +351,7 @@ mod tests {
                 {
                     "description": "POST http://targetdomain.tld:1234/api/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -365,7 +365,7 @@ mod tests {
                 {
                     "description": "POST http://targetdomain:1234/api/id/0987654321",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -382,7 +382,7 @@ mod tests {
                     "tags": {
                         "http.status_code": "200"
                     },
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -398,7 +398,7 @@ mod tests {
                     "tags": {
                         "http.status_code": "200"
                     },
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -412,7 +412,7 @@ mod tests {
                 {
                     "description": "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -426,7 +426,7 @@ mod tests {
                 {
                     "description": "select column FROM table WHERE id IN (1, 2, 3)",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -436,7 +436,7 @@ mod tests {
                 {
                     "description": "INSERT INTO table (col) VALUES (val)",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -450,7 +450,7 @@ mod tests {
                 {
                     "description": "INSERT INTO from_date (col) VALUES (val)",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -464,7 +464,7 @@ mod tests {
                 {
                     "description": "INSERT INTO table (col) VALUES (val)",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -474,7 +474,7 @@ mod tests {
                 {
                     "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -488,7 +488,7 @@ mod tests {
                 {
                     "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -502,7 +502,7 @@ mod tests {
                 {
                     "description": "DELETE FROM table WHERE conditions",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -515,7 +515,7 @@ mod tests {
                 {
                     "description": "UPDATE table WHERE conditions",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -528,7 +528,7 @@ mod tests {
                 {
                     "description": "SAVEPOINT save_this_one",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -541,7 +541,7 @@ mod tests {
                 {
                     "description": "GET cache:user:{123}",
                     "op": "cache.get_item",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -555,7 +555,7 @@ mod tests {
                 {
                     "description": "GET cache:user:{123}",
                     "op": "cache.get",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -569,7 +569,7 @@ mod tests {
                 {
                     "description": "GET test:123:def",
                     "op": "db.redis",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -580,7 +580,7 @@ mod tests {
                 {
                     "description": "GET lkjasdlkasjdlasjdlkasjdlkasjd",
                     "op": "db.redis",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -591,7 +591,7 @@ mod tests {
                 {
                     "description": "SET 'aaa:bbb:123:zzz' '{\"from json\": \"no\"}'",
                     "op": "db.redis",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -602,7 +602,7 @@ mod tests {
                 {
                     "description": "http://domain/static/myscript-v1.9.23.js",
                     "op": "resource.script",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -612,7 +612,7 @@ mod tests {
                 {
                     "description": "things.count({\"$and\":[{\"services\":{\"$exists\":true}},{\"test_id\":38}]})",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -626,7 +626,7 @@ mod tests {
                 {
                     "description": "DELETE FROM table WHERE conditions",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -639,7 +639,7 @@ mod tests {
                 {
                     "description": "things.count({\"$and\":[{\"services\":{\"$exists\":true}},{\"test_id\":38}]})",
                     "op": "db.mongodb.find",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -650,7 +650,7 @@ mod tests {
                 {
                     "description": "DELETE FROM table WHERE conditions",
                     "op": "db.sql.activerecord",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -663,7 +663,7 @@ mod tests {
                 {
                     "description": "SAVEPOINT save_this_one",
                     "op": "db.redis.command",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -689,7 +689,7 @@ mod tests {
                     "description": "viewDidLoad",
                     "exclusive_time": 15101.696732,
                     "op": "ui.load",
-                    "parent_span_id": "6ebd1cdbb9424b88",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "8cfaf7f29ac345b8",
                     "start_timestamp": 1695255136.239635,
                     "status": "ok",
@@ -712,7 +712,7 @@ mod tests {
                     "description": "Cold Start",
                     "exclusive_time": 0.0,
                     "op": "app.start.cold",
-                    "parent_span_id": "6ebd1cdbb9424b88",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "0e989cd370034c76",
                     "start_timestamp": 1695255134.469436,
                     "timestamp": 1695255136.137952,
@@ -725,7 +725,7 @@ mod tests {
                     "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.css",
                     "op": "resource.css",
                     "span_id": "97c0ef9770a02f9d",
-                    "parent_span_id": "9756d8d7b2b364ff",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
@@ -742,7 +742,7 @@ mod tests {
                     "description": "/static/myscript-v1.9.23.js",
                     "op": "resource.script",
                     "span_id": "97c0ef9770a02f9d",
-                    "parent_span_id": "9756d8d7b2b364ff",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
@@ -758,7 +758,7 @@ mod tests {
                 {
                     "description": "<SomeUiRendering>",
                     "op": "UI.React.Render",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -767,7 +767,7 @@ mod tests {
                 {
                     "description": "GET http://domain.tld/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -779,7 +779,7 @@ mod tests {
                 {
                     "description": "POST http://domain.tld/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -791,7 +791,7 @@ mod tests {
                 {
                     "description": "PUT http://domain.tld/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -803,7 +803,7 @@ mod tests {
                 {
                     "description": "GET /hi/this/is/just/the/path",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -815,7 +815,7 @@ mod tests {
                 {
                     "description": "POST http://127.0.0.1:1234/api/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -829,7 +829,7 @@ mod tests {
                 {
                     "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -843,7 +843,7 @@ mod tests {
                 {
                     "description": "POST http://targetdomain.tld:1234/api/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -857,7 +857,7 @@ mod tests {
                 {
                     "description": "POST http://targetdomain:1234/api/id/0987654321",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -874,7 +874,7 @@ mod tests {
                     "tags": {
                         "http.status_code": "200"
                     },
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -890,7 +890,7 @@ mod tests {
                     "tags": {
                         "http.status_code": "200"
                     },
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -904,7 +904,7 @@ mod tests {
                 {
                     "description": "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -918,7 +918,7 @@ mod tests {
                 {
                     "description": "select column FROM table WHERE id IN (1, 2, 3)",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -928,7 +928,7 @@ mod tests {
                 {
                     "description": "INSERT INTO table (col) VALUES (val)",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -942,7 +942,7 @@ mod tests {
                 {
                     "description": "INSERT INTO from_date (col) VALUES (val)",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -956,7 +956,7 @@ mod tests {
                 {
                     "description": "INSERT INTO table (col) VALUES (val)",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -966,7 +966,7 @@ mod tests {
                 {
                     "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
                     "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -980,7 +980,7 @@ mod tests {
                 {
                     "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -994,7 +994,7 @@ mod tests {
                 {
                     "description": "DELETE FROM table WHERE conditions",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1007,7 +1007,7 @@ mod tests {
                 {
                     "description": "UPDATE table WHERE conditions",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1020,7 +1020,7 @@ mod tests {
                 {
                     "description": "SAVEPOINT save_this_one",
                     "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1033,7 +1033,7 @@ mod tests {
                 {
                     "description": "GET cache:user:{123}",
                     "op": "cache.get_item",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1047,7 +1047,7 @@ mod tests {
                 {
                     "description": "GET cache:user:{456}",
                     "op": "cache.get_item",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1060,7 +1060,7 @@ mod tests {
                 {
                     "description": "GET test:123:def",
                     "op": "db.redis",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1071,7 +1071,7 @@ mod tests {
                 {
                     "description": "GET lkjasdlkasjdlasjdlkasjdlkasjd",
                     "op": "db.redis",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1082,7 +1082,7 @@ mod tests {
                 {
                     "description": "SET 'aaa:bbb:123:zzz' '{\"from json\": \"no\"}'",
                     "op": "db.redis",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1093,7 +1093,7 @@ mod tests {
                 {
                     "description": "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg",
                     "op": "resource.script",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1103,7 +1103,7 @@ mod tests {
                 {
                     "description": "http://domain/static/myscript-v1.9.23.js",
                     "op": "resource.script",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bb7af8b99e95af5f",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1117,7 +1117,7 @@ mod tests {
                     "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.CSS",
                     "op": "resource.css",
                     "span_id": "97c0ef9770a02f9d",
-                    "parent_span_id": "9756d8d7b2b364ff",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
                         "http.decoded_response_content_length": 128950,
@@ -1131,7 +1131,7 @@ mod tests {
                     "timestamp": 1694732408.3145,
                     "start_timestamp": 1694732407.8367,
                     "span_id": "97c0ef9770a02f9d",
-                    "parent_span_id": "9756d8d7b2b364ff",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "op": "resource.script",
                     "description": "domain.com/zero-length-00",
@@ -1147,7 +1147,7 @@ mod tests {
                     "description": "input.app-123.adfasf456[type=\"range\"][name=\"replay-timeline\"]",
                     "op": "ui.interaction.click",
                     "span_id": "9b01bd820a083e63",
-                    "parent_span_id": "a1e13f3f06239d69",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
                         "ui.component_name": "my-component-name"
@@ -1159,7 +1159,7 @@ mod tests {
                     "description": "sentry.tasks.post_process.post_process_group",
                     "op": "queue.task.celery",
                     "span_id": "9b01bd820a083e63",
-                    "parent_span_id": "a1e13f3f06239d69",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
                         "messaging.destination.name": "default",
@@ -1177,7 +1177,7 @@ mod tests {
                     "description": "sentry.tasks.post_process.post_process_group",
                     "op": "queue.submit.celery",
                     "span_id": "9b01bd820a083e63",
-                    "parent_span_id": "a1e13f3f06239d69",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
                         "messaging.destination.name": "default",
@@ -1195,7 +1195,7 @@ mod tests {
                     "description": "sentry.tasks.post_process.post_process_group",
                     "op": "queue.publish",
                     "span_id": "9b01bd820a083e63",
-                    "parent_span_id": "a1e13f3f06239d69",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
                         "messaging.destination.name": "default",
@@ -1213,7 +1213,7 @@ mod tests {
                     "description": "sentry.tasks.post_process.post_process_group",
                     "op": "queue.process",
                     "span_id": "9b01bd820a083e63",
-                    "parent_span_id": "a1e13f3f06239d69",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
                         "messaging.destination.name": "default",
@@ -1232,7 +1232,7 @@ mod tests {
                     "op": "ai.run.langchain",
                     "origin": "auto.langchain",
                     "span_id": "9c01bd820a083e63",
-                    "parent_span_id": "a1e13f3f06239d69",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "measurements": {
                         "ai_total_tokens_used": {
@@ -1253,7 +1253,7 @@ mod tests {
                     "op": "ai.pipeline",
                     "origin": "auto.langchain",
                     "span_id": "9c01bd820a083e63",
-                    "parent_span_id": "a1e13f3f06239d69",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "measurements": {
                         "ai_total_tokens_used": {
@@ -1525,7 +1525,7 @@ mod tests {
                 {
                     "description": "GET http://domain.tld/hi",
                     "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "parent_span_id": "bd429c44b67a3eb4",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1755,7 +1755,7 @@ mod tests {
         let json = r#"
             {
                 "op": "ui.interaction.click",
-                "parent_span_id": "8f5a2b8768cafb4e",
+                "parent_span_id": "bd429c44b67a3eb4",
                 "span_id": "bd429c44b67a3eb4",
                 "start_timestamp": 1597976300.0000000,
                 "timestamp": 1597976302.0000000,

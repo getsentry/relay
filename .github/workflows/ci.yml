@@ -310,6 +310,86 @@ jobs:
           name: ${{ matrix.image_name }}@${{ matrix.target }}
           path: "./artifacts/*"
 
+  build-internal:
+    needs: build-setup
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        target: ${{ fromJson(needs.build-setup.outputs.targets) }}
+
+    name: Build Internal Relay Binary
+    runs-on: |-
+      ${{fromJson('{
+        "x86_64-unknown-linux-gnu": "ubuntu-22.04",
+        "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm"
+      }')[matrix.target] }}
+
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    env:
+      RELAY_BIN: "target/${{ matrix.target }}/release/relay"
+      FEATURES: |-
+        ${{fromJson('{
+          "relay": "processing,crash-handler",
+          "relay-pop": "crash-handler"
+        }')[matrix.image_name] }}
+      DOCKER_PLATFORM: |-
+        ${{fromJson('{
+          "x86_64-unknown-linux-gnu": "linux/amd64",
+          "aarch64-unknown-linux-gnu": "linux/arm64"
+        }')[matrix.target] }}
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm curl
+
+      - name: Install sentry-cli
+        run: |
+          curl -sL https://sentry.io/get-cli/ | bash
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
+
+      - name: Compile
+        run: |
+          cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
+
+      - name: Split debug info
+        run: |
+          llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
+          llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
+          llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
+
+          sentry-cli difutil bundle-sources "${RELAY_BIN}.debug"
+          zip "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.debug"
+
+      - name: Prepare and Encrypt Artifacts
+        run: |
+          mkdir -p "artifacts/${DOCKER_PLATFORM}"
+
+          for file in "${RELAY_BIN}" "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.src.zip"; do
+            gpg --quiet --batch --yes --symmetric --cipher-algo AES256 \
+                --passphrase "${{ secrets.ENCRYPTION_KEY }}" \
+                --output "artifacts/${DOCKER_PLATFORM}/$(basename $file).gpg" "$file"
+          done
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: internal-${{ matrix.image_name }}@${{ matrix.target }}
+          path: "./artifacts/*"
+
   build-docker:
     timeout-minutes: 5
     needs: [build-setup, build]
@@ -367,6 +447,72 @@ jobs:
           retention-days: 1
           name: ${{ matrix.image_name }}-docker-image
           path: "${{ matrix.image_name }}-docker-image"
+
+  publish-to-ar-internal:
+    timeout-minutes: 5
+    needs: [build-setup, build-internal]
+
+    name: Publish Relay to Internal AR
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+
+    permissions:
+      contents: "read"
+      id-token: "write"
+
+    env:
+      PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
+      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+
+    if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # Logic taken from: publish-to-gcr
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      # Logic taken from: build-docker
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "internal-${{ matrix.image_name }}@*"
+          merge-multiple: true
+
+      - name: Decrypt Artifacts
+        run: |
+          find . -name "*.gpg" | while read file; do
+            output_file="${file%.gpg}"
+            gpg --quiet --batch --yes --decrypt \
+                --passphrase "${{ secrets.ENCRYPTION_KEY }}" \
+                --output "$output_file" "$file"
+            rm "$file"
+          done
+
+      - name: Build and push to Internal AR
+        run: |
+          docker buildx build \
+            --platform "${PLATFORMS}" \
+            --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
+            $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
+            --file Dockerfile.release \
+            --push \
+            .
 
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
@@ -455,7 +601,7 @@ jobs:
 
   gocd-artifacts:
     timeout-minutes: 5
-    needs: [build-setup, build-docker]
+    needs: [build-setup, publish-to-ar-internal]
 
     name: Upload build artifacts to gocd
     runs-on: ubuntu-latest
@@ -463,6 +609,7 @@ jobs:
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        platform: ${{ fromJson(needs.build-setup.outputs.platforms) }}
 
     # required for google auth
     permissions:
@@ -470,18 +617,24 @@ jobs:
       id-token: "write"
 
     env:
-      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
+      - uses: docker/setup-qemu-action@v3
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
           service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
 
       - name: "Set up Cloud SDK"
         uses: "google-github-actions/setup-gcloud@v2"
@@ -491,14 +644,16 @@ jobs:
           version: ">= 390.0.0"
 
       - name: Upload gocd deployment assets
+        env:
+          LIB_PATH: ${{ fromJson('{"linux/amd64":"/lib/x86_64-linux-gnu","linux/arm64":"/lib/aarch64-linux-gnu"}')[matrix.platform] }}
         run: |
           set -euxo pipefail
-          VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
+          VERSION="$(docker run --rm "${AR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --entrypoint tar "${GHCR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
+          docker run --rm --platform ${{ matrix.platform }} --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --platform ${{ matrix.platform }} --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
+          docker run --rm --platform ${{ matrix.platform }} --entrypoint tar "${AR_DOCKER_IMAGE}:${REVISION}" -cf - "${LIB_PATH}" > libs.tar
 
           # debugging for mysterious "Couldn't write tracker file" issue:
           (env | grep runner) || true
@@ -510,7 +665,7 @@ jobs:
             /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
           || true
           gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
-            "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/" || status=$? && status=$?
+            "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${{ matrix.platform }}/" || status=$? && status=$?
           cat gsutil.log
           exit "$status"
 

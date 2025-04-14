@@ -277,15 +277,29 @@ impl EnvelopeBufferService {
         }
     }
 
-    /// Waits until preconditions for unspooling are met.
+    /// Waits until the system is ready to unspool envelopes.
     ///
-    /// - We should not pop from disk into memory when relay's overall memory capacity
-    ///   has been reached.
-    /// - We need a valid global config to unspool.
+    /// This function ensures that unspooling only happens when it's safe and appropriate to do so.
+    /// It continuously checks specific system conditions and only returns when they are all satisfied.
+    ///
+    /// # Preconditions for Unspooling
+    ///
+    /// 1. **Memory Availability**:
+    ///    - If the system is using **disk spooling**, we must avoid unspooling when
+    ///      memory usage has reached its configured capacity.
+    ///      This prevents overloading memory and ensures that downstream services can process
+    ///      in-flight envelopes at their own pace.
+    ///    - If the system is using **memory spooling only** (i.e., no disk),
+    ///      we *must not* block unspooling, even when memory has reached its configured capacity.
+    ///      Blocking in this case would lead to a **deadlock**, since new envelopes
+    ///      would continue accumulating in the buffer's memory and will never be unspooled and
+    ///      processed downstream.
+    ///
+    /// 2. **Global Configuration Availability**:
+    ///    - Unspooling requires a valid, ready-to-use global configuration.
+    ///      If the configuration is not yet initialized or ready, unspooling must wait.
     async fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
         loop {
-            // We should not unspool from external storage if memory capacity has been reached.
-            // But if buffer storage is in memory, unspooling can reduce memory usage.
             let memory_ready = buffer.is_memory() || self.memory_ready();
             let global_config_ready = self.global_config_rx.borrow().is_ready();
 

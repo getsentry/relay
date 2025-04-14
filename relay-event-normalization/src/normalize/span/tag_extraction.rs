@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
-    Timestamp, TraceContext,
+    AppContext, BrowserContext, DeviceContext, Event, GpuContext, Measurement, MonitorContext,
+    OsContext, ProfileContext, RuntimeContext, SentryTags, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
@@ -123,7 +123,7 @@ pub fn extract_span_tags(
     }
 }
 
-/// Extract segment span specific tags and measurements from the event and materialize them into the spans.
+/// Extract segment span specific tags and measurements from the event and materialize them into segment span.
 pub fn extract_segment_span_tags(event: &Event, spans: &mut [Annotated<Span>]) {
     let segment_tags = extract_segment_tags(event);
     let segment_measurements = extract_segment_measurements(event);
@@ -345,15 +345,21 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
         tags.mobile = "true".to_owned().into();
+    }
 
-        // Check if app context exists. This tells us if the span originated from
-        // an app (as opposed to mobile browser) since we are currently focused on
-        // app use cases for mobile.
-        if event.context::<AppContext>().is_some() {
-            if let Some(os_context) = event.context::<OsContext>() {
-                if let Some(os_name) = os_context.name.value() {
+    if let Some(os_context) = event.context::<OsContext>() {
+        if let Some(os_name) = os_context.name.value() {
+            if tags.mobile.value().is_some_and(|v| v.as_str() == "true") {
+                // For mabile spans, only extract os_name if app context exists.
+                // This tells us if the span originated from
+                // an app (as opposed to mobile browser) since we are currently focused on
+                // app use cases for mobile.
+                if event.context::<AppContext>().is_some() {
                     tags.os_name = os_name.to_string().into();
                 }
+            } else {
+                // For non-mobile spans, always extract os_name.
+                tags.os_name = os_name.to_string().into();
             }
         }
     }
@@ -400,6 +406,35 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
 fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> {
     let mut measurements = BTreeMap::new();
 
+    // Extract breakdowns into measurements, similar to /metrics_extraction/transacitons/mod.rs
+    if let Some(breakdowns) = event.breakdowns.value() {
+        for (breakdown, measurement_list) in breakdowns.iter() {
+            if let Some(measurement_list) = measurement_list.value() {
+                for (measurement_name, annotated) in measurement_list.iter() {
+                    if measurement_name == "total.time" {
+                        continue;
+                    }
+
+                    let Some(value) = annotated
+                        .value()
+                        .and_then(|value| value.value.value())
+                        .copied()
+                    else {
+                        continue;
+                    };
+
+                    measurements.insert(
+                        format!("{breakdown}.{measurement_name}"),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::Duration(DurationUnit::MilliSecond).into(),
+                        },
+                    );
+                }
+            }
+        }
+    }
+
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
             if op == "queue.publish" || op == "queue.process" {
@@ -445,6 +480,35 @@ struct SegmentTags {
     messaging_message_id: Annotated<String>,
     messaging_operation_name: Annotated<String>,
     messaging_operation_type: Annotated<String>,
+    device_family: Annotated<String>,
+    device_arch: Annotated<String>,
+    device_battery_level: Annotated<String>,
+    device_brand: Annotated<String>,
+    device_charging: Annotated<String>,
+    device_locale: Annotated<String>,
+    device_model_id: Annotated<String>,
+    device_name: Annotated<String>,
+    device_online: Annotated<String>,
+    device_orientation: Annotated<String>,
+    device_screen_density: Annotated<String>,
+    device_screen_dpi: Annotated<String>,
+    device_screen_height_pixels: Annotated<String>,
+    device_screen_width_pixels: Annotated<String>,
+    device_simulator: Annotated<String>,
+    device_uuid: Annotated<String>,
+    app_device: Annotated<String>,
+    device_model: Annotated<String>,
+    runtime: Annotated<String>,
+    runtime_name: Annotated<String>,
+    browser: Annotated<String>,
+    os: Annotated<String>,
+    os_rooted: Annotated<String>,
+    gpu_name: Annotated<String>,
+    gpu_vendor: Annotated<String>,
+    monitor_id: Annotated<String>,
+    monitor_slug: Annotated<String>,
+    request_url: Annotated<String>,
+    request_method: Annotated<String>,
 }
 
 impl SegmentTags {
@@ -454,11 +518,69 @@ impl SegmentTags {
             messaging_message_id,
             messaging_operation_name,
             messaging_operation_type,
+            device_family,
+            device_arch,
+            device_battery_level,
+            device_brand,
+            device_charging,
+            device_locale,
+            device_model_id,
+            device_name,
+            device_online,
+            device_orientation,
+            device_screen_density,
+            device_screen_dpi,
+            device_screen_height_pixels,
+            device_screen_width_pixels,
+            device_simulator,
+            device_uuid,
+            app_device,
+            device_model,
+            runtime,
+            runtime_name,
+            browser,
+            os,
+            os_rooted,
+            gpu_name,
+            gpu_vendor,
+            monitor_id,
+            monitor_slug,
+            request_url,
+            request_method,
         } = self.clone();
         tags.messaging_destination_name = messaging_destination_name;
         tags.messaging_message_id = messaging_message_id;
         tags.messaging_operation_name = messaging_operation_name;
         tags.messaging_operation_type = messaging_operation_type;
+        tags.device_family = device_family;
+        tags.device_arch = device_arch;
+        tags.device_battery_level = device_battery_level;
+        tags.device_brand = device_brand;
+        tags.device_charging = device_charging;
+        tags.device_locale = device_locale;
+        tags.device_model_id = device_model_id;
+        tags.device_name = device_name;
+        tags.device_online = device_online;
+        tags.device_orientation = device_orientation;
+        tags.device_screen_density = device_screen_density;
+        tags.device_screen_dpi = device_screen_dpi;
+        tags.device_screen_height_pixels = device_screen_height_pixels;
+        tags.device_screen_width_pixels = device_screen_width_pixels;
+        tags.device_simulator = device_simulator;
+        tags.device_uuid = device_uuid;
+        tags.app_device = app_device;
+        tags.device_model = device_model;
+        tags.runtime = runtime;
+        tags.runtime_name = runtime_name;
+        tags.browser = browser;
+        tags.os = os;
+        tags.os_rooted = os_rooted;
+        tags.gpu_name = gpu_name;
+        tags.gpu_vendor = gpu_vendor;
+        tags.monitor_id = monitor_id;
+        tags.monitor_slug = monitor_slug;
+        tags.request_url = request_url;
+        tags.request_method = request_method;
     }
 }
 
@@ -476,6 +598,128 @@ fn extract_segment_tags(event: &Event) -> SegmentTags {
                     tags.messaging_operation_type = data.messaging_operation_type.clone();
                 }
             }
+        }
+    }
+
+    if let Some(browser_context) = event.context::<BrowserContext>() {
+        if let Some(browser) = browser_context.browser.value() {
+            tags.browser = browser.to_string().into();
+        }
+    }
+
+    if let Some(os_context) = event.context::<OsContext>() {
+        if let Some(os) = os_context.os.value() {
+            tags.os = os.to_string().into();
+        }
+
+        if let Some(os_rooted) = os_context.rooted.value() {
+            tags.os_rooted = os_rooted.to_string().into();
+        }
+    }
+
+    if let Some(gpu_context) = event.context::<GpuContext>() {
+        if let Some(gpu_name) = gpu_context.name.value() {
+            tags.gpu_name = gpu_name.to_string().into();
+        }
+
+        if let Some(vendor_name) = gpu_context.vendor_name.value() {
+            tags.gpu_vendor = vendor_name.to_string().into();
+        }
+    }
+
+    if let Some(monitor_context) = event.context::<MonitorContext>() {
+        if let Some(monitor_id) = monitor_context
+            .get("id")
+            .and_then(|id| id.value())
+            .and_then(|val| val.as_str())
+        {
+            tags.monitor_id = monitor_id.to_owned().into();
+        }
+
+        if let Some(monitor_slug) = monitor_context
+            .get("slug")
+            .and_then(|slug| slug.value())
+            .and_then(|val| val.as_str())
+        {
+            tags.monitor_slug = monitor_slug.to_owned().into();
+        }
+    }
+
+    if let Some(app_context) = event.context::<AppContext>() {
+        if let Some(device_app_hash) = app_context.device_app_hash.value() {
+            tags.app_device = device_app_hash.to_string().into();
+        }
+    }
+
+    if let Some(runtime_context) = event.context::<RuntimeContext>() {
+        if let Some(runtime) = runtime_context.runtime.value() {
+            tags.runtime = runtime.to_string().into();
+        }
+        if let Some(runtime_name) = runtime_context.name.value() {
+            tags.runtime_name = runtime_name.to_string().into();
+        }
+    }
+
+    if let Some(request_interface) = event.request.value() {
+        if let Some(request_url) = request_interface.url.as_str() {
+            tags.request_url = request_url.to_owned().into();
+        }
+        if let Some(request_method) = request_interface.method.as_str() {
+            tags.request_method = request_method.to_owned().into();
+        }
+    }
+
+    if let Some(device_context) = event.context::<DeviceContext>() {
+        if let Some(family) = device_context.family.value() {
+            tags.device_family = family.to_string().into();
+        }
+        if let Some(arch) = device_context.arch.value() {
+            tags.device_arch = arch.to_string().into();
+        }
+        if let Some(battery_level) = device_context.battery_level.value() {
+            tags.device_battery_level = battery_level.to_string().into();
+        }
+        if let Some(brand) = device_context.brand.value() {
+            tags.device_brand = brand.to_string().into();
+        }
+        if let Some(charging) = device_context.charging.value() {
+            tags.device_charging = charging.to_string().into();
+        }
+        if let Some(locale) = device_context.locale.value() {
+            tags.device_locale = locale.to_string().into();
+        }
+        if let Some(model_id) = device_context.model_id.value() {
+            tags.device_model_id = model_id.to_string().into();
+        }
+        if let Some(name) = device_context.name.value() {
+            tags.device_name = name.to_string().into();
+        }
+        if let Some(online) = device_context.online.value() {
+            tags.device_online = online.to_string().into();
+        }
+        if let Some(orientation) = device_context.orientation.value() {
+            tags.device_orientation = orientation.to_string().into();
+        }
+        if let Some(screen_density) = device_context.screen_density.value() {
+            tags.device_screen_density = screen_density.to_string().into();
+        }
+        if let Some(screen_dpi) = device_context.screen_dpi.value() {
+            tags.device_screen_dpi = screen_dpi.to_string().into();
+        }
+        if let Some(screen_height_pixels) = device_context.screen_height_pixels.value() {
+            tags.device_screen_height_pixels = screen_height_pixels.to_string().into();
+        }
+        if let Some(screen_width_pixels) = device_context.screen_width_pixels.value() {
+            tags.device_screen_width_pixels = screen_width_pixels.to_string().into();
+        }
+        if let Some(simulator) = device_context.simulator.value() {
+            tags.device_simulator = simulator.to_string().into();
+        }
+        if let Some(uuid) = device_context.uuid.value() {
+            tags.device_uuid = uuid.to_string().into();
+        }
+        if let Some(model) = device_context.model.value() {
+            tags.device_model = model.to_string().into();
         }
     }
 
@@ -861,7 +1105,6 @@ pub fn extract_tags(
             span_tags.thread_name = thread_name.to_owned().into();
         }
     }
-
     span_tags
 }
 
@@ -1116,7 +1359,7 @@ impl Visitor for SqlTableNameVisitor {
 
     fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
         if let Some(name) = relation.0.last() {
-            let last = name.value.split('.').last().unwrap_or(&name.value);
+            let last = name.value.split('.').next_back().unwrap_or(&name.value);
             self.table_names.insert(last.to_lowercase());
         }
         ControlFlow::Continue(())
@@ -1887,6 +2130,72 @@ LIMIT 1
     }
 
     #[test]
+    fn test_extracts_searchable_contexts_into_segment_span() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    },
+                    "device": {
+                        "model": "Generic_Android",
+                        "family": "K"
+                    },
+                    "runtime": {
+                        "runtime": "CPython 3.13.1",
+                        "name": "CPython",
+                        "version": "3.13.1",
+                        "type": "runtime"
+                    },
+                    "browser": {
+                        "browser": "Chrome 134",
+                        "name": "Chrome",
+                        "version": "134",
+                        "type": "browser"
+                    },
+                    "app": {
+                        "app_start_time": "2025-04-07T13:33:38Z",
+                        "device_app_hash": "3e06efaccaec678afef02f3fc2b5289ee5f613d5",
+                        "build_type": "simulator",
+                        "app_identifier": "io.sentry.sample.iOS-Swift",
+                        "app_name": "iOS-Swift",
+                        "app_version": "8.48.0",
+                        "app_build": "1",
+                        "app_memory": 17793024,
+                        "in_foreground": true,
+                        "app_id": "33410C22-5CBB-3C1C-8453-62311FADEF1A",
+                        "type": "app"
+                    },
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "request": {
+                    "url": "http://us.sentry.io/api/0/organizations/",
+                    "method": "GET"
+                }
+            }
+        "#;
+
+        let event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let mut spans = [Span::from(&event).into()];
+
+        extract_segment_span_tags(&event, &mut spans);
+        let segment_span: &Annotated<Span> = &spans[0];
+        insta::assert_snapshot!(segment_span.to_json_pretty().unwrap());
+    }
+
+    #[test]
     fn test_http_client_domain() {
         let json = r#"
             {
@@ -2303,6 +2612,81 @@ LIMIT 1
                 "messaging.message.retry.count": Measurement {
                     value: 3.0,
                     unit: None,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_extract_breakdown_tags() {
+        let json = r#"
+                {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "breakdowns": {
+                    "span_ops": {
+                        "ops.http": {
+                            "value": 1000,
+                            "unit": "millisecond"
+                        },
+                        "ops.resource": {
+                            "value": 420,
+                            "unit": "millisecond"
+                        },
+                        "ops.ui": {
+                            "value": 27000,
+                            "unit": "millisecond"
+                        },
+                        "total.time": {
+                            "value": 45000,
+                            "unit": "millisecond"
+                        }
+                    }
+                },
+                "spans": []
+            }
+        "#;
+
+        let event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        let mut spans = [Span::from(&event).into()];
+        extract_segment_span_tags(&event, &mut spans);
+        let segment_span: &Annotated<Span> = &spans[0];
+        let measurements = segment_span.value().unwrap().measurements.value().unwrap();
+
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "span_ops.ops.http": Measurement {
+                    value: 1000.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "span_ops.ops.resource": Measurement {
+                    value: 420.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "span_ops.ops.ui": Measurement {
+                    value: 27000.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
                 },
             },
         )

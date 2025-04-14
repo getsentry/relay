@@ -47,10 +47,16 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing replay_id".to_string()))?;
 
-    replay
+    let segment_id = *replay
         .segment_id
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
+
+    if segment_id > u16::MAX as u64 {
+        return Err(ReplayError::InvalidPayload(
+            "segment_id exceeded u16 limit".to_string(),
+        ));
+    }
 
     if replay
         .error_ids
@@ -130,6 +136,7 @@ fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
         &mut replay.user,
         replay.platform.as_str(),
         ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
+        replay.sdk.value(),
     );
 }
 
@@ -499,5 +506,30 @@ mod tests {
     }
   }
 }"#);
+    }
+
+    #[test]
+    fn test_validate_u16_segment_id() {
+        // Does not fit within a u16.
+        let replay_id =
+            Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
+        let segment_id: Annotated<u64> = Annotated::new(u16::MAX as u64 + 1);
+        let mut replay = Annotated::new(Replay {
+            replay_id,
+            segment_id,
+            ..Default::default()
+        });
+        assert!(validate(replay.value_mut().as_mut().unwrap()).is_err());
+
+        // Fits within a u16.
+        let replay_id =
+            Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
+        let segment_id: Annotated<u64> = Annotated::new(u16::MAX as u64);
+        let mut replay = Annotated::new(Replay {
+            replay_id,
+            segment_id,
+            ..Default::default()
+        });
+        assert!(validate(replay.value_mut().as_mut().unwrap()).is_ok());
     }
 }

@@ -1783,6 +1783,8 @@ mod tests {
                 measurements: ~,
                 platform: ~,
                 was_transaction: ~,
+                kind: ~,
+                _performance_issues_spans: ~,
                 other: {},
             },
         ]
@@ -1804,7 +1806,7 @@ mod tests {
             ..Default::default()
         };
         normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r#"
+        assert_debug_snapshot!(event.spans, @r###"
         [
             Span {
                 timestamp: ~,
@@ -1829,10 +1831,12 @@ mod tests {
                 measurements: ~,
                 platform: ~,
                 was_transaction: ~,
+                kind: ~,
+                _performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -1850,7 +1854,7 @@ mod tests {
             ..Default::default()
         };
         normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r#"
+        assert_debug_snapshot!(event.spans, @r###"
         [
             Span {
                 timestamp: ~,
@@ -1875,9 +1879,11 @@ mod tests {
                 measurements: ~,
                 platform: ~,
                 was_transaction: ~,
+                kind: ~,
+                _performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "#);
+        "###);
     }
 }

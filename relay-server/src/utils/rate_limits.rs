@@ -2,6 +2,7 @@ use std::fmt::{self, Write};
 use std::future::Future;
 use std::marker::PhantomData;
 
+use relay_profiling::ProfileType;
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
@@ -198,6 +199,8 @@ pub struct EnvelopeSummary {
 
     /// The number of profile chunks in this envelope.
     pub profile_chunk_quantity: usize,
+    /// The number of UI profile chunks in this envelope.
+    pub profile_chunk_ui_quantity: usize,
 }
 
 impl EnvelopeSummary {
@@ -253,6 +256,7 @@ impl EnvelopeSummary {
             DataCategory::LogItem => &mut self.log_item_quantity,
             DataCategory::LogByte => &mut self.log_byte_quantity,
             DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
+            DataCategory::ProfileChunkUi => &mut self.profile_chunk_ui_quantity,
             // TODO: This catch-all return looks dangerous
             _ => return,
         };
@@ -369,6 +373,8 @@ pub struct Enforcement {
     pub user_reports_v2: CategoryLimit,
     /// The combined profile chunk item rate limit.
     pub profile_chunks: CategoryLimit,
+    /// The combined profile chunk ui item rate limit.
+    pub profile_chunks_ui: CategoryLimit,
 }
 
 impl Enforcement {
@@ -408,6 +414,7 @@ impl Enforcement {
             spans_indexed,
             user_reports_v2,
             profile_chunks,
+            profile_chunks_ui,
         } = self;
 
         let limits = [
@@ -425,6 +432,7 @@ impl Enforcement {
             spans_indexed,
             user_reports_v2,
             profile_chunks,
+            profile_chunks_ui,
         ];
 
         limits
@@ -515,7 +523,11 @@ impl Enforcement {
             ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData => {
                 !self.spans_indexed.is_active()
             }
-            ItemType::ProfileChunk => !self.profile_chunks.is_active(),
+            ItemType::ProfileChunk => match item.profile_type() {
+                Some(ProfileType::Backend) => !self.profile_chunks.is_active(),
+                Some(ProfileType::Ui) => !self.profile_chunks_ui.is_active(),
+                None => true,
+            },
             ItemType::Event
             | ItemType::Transaction
             | ItemType::Security
@@ -554,7 +566,6 @@ pub enum CheckLimits {
     /// and cannot be dropped too early.
     NonIndexed,
     /// Checks all limits against the envelope.
-    #[cfg_attr(not(any(feature = "processing", test)), expect(dead_code))]
     All,
 }
 
@@ -618,7 +629,6 @@ where
     /// This ensures that rate limits for the given data category are checked even if there is no
     /// matching item in the envelope. Other items are handled according to the rules as if the
     /// event item were present.
-    #[cfg(feature = "processing")]
     pub fn assume_event(&mut self, category: DataCategory) {
         self.event_category = Some(category);
     }
@@ -892,16 +902,30 @@ where
         // Handle profile chunks.
         if summary.profile_chunk_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::ProfileChunk);
-            let profile_chunk_limits = self
+            let limits = self
                 .check
                 .apply(item_scoping, summary.profile_chunk_quantity)
                 .await?;
             enforcement.profile_chunks = CategoryLimit::new(
                 DataCategory::ProfileChunk,
                 summary.profile_chunk_quantity,
-                profile_chunk_limits.longest(),
+                limits.longest(),
             );
-            rate_limits.merge(profile_chunk_limits);
+            rate_limits.merge(limits);
+        }
+
+        if summary.profile_chunk_ui_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::ProfileChunkUi);
+            let limits = self
+                .check
+                .apply(item_scoping, summary.profile_chunk_ui_quantity)
+                .await?;
+            enforcement.profile_chunks_ui = CategoryLimit::new(
+                DataCategory::ProfileChunkUi,
+                summary.profile_chunk_ui_quantity,
+                limits.longest(),
+            );
+            rate_limits.merge(limits);
         }
 
         Ok((enforcement, rate_limits))
@@ -1354,19 +1378,75 @@ mod tests {
 
     /// Limit profile chunks.
     #[tokio::test]
-    async fn test_enforce_limit_profile_chunks() {
+    async fn test_enforce_limit_profile_chunks_no_profile_type() {
+        // In this test we have profile chunks which have not yet been classified, which means they
+        // should not be rate limited.
         let mut envelope = envelope![ProfileChunk, ProfileChunk];
+
+        let mock = mock_limiter(Some(DataCategory::ProfileChunk));
+        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        assert!(!limits.is_limited());
+        assert_eq!(get_outcomes(enforcement), vec![]);
+
+        let mock = mock_limiter(Some(DataCategory::ProfileChunkUi));
+        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+        assert!(!limits.is_limited());
+        assert_eq!(get_outcomes(enforcement), vec![]);
+
+        assert_eq!(envelope.envelope().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_enforce_limit_profile_chunks_ui() {
+        let mut envelope = envelope![];
+
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_profile_type(ProfileType::Backend);
+        envelope.envelope_mut().add_item(item);
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_profile_type(ProfileType::Ui);
+        envelope.envelope_mut().add_item(item);
+
+        let mock = mock_limiter(Some(DataCategory::ProfileChunkUi));
+        let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.envelope().len(), 1);
+        mock.lock()
+            .await
+            .assert_call(DataCategory::ProfileChunkUi, 1);
+        mock.lock().await.assert_call(DataCategory::ProfileChunk, 1);
+
+        assert_eq!(
+            get_outcomes(enforcement),
+            vec![(DataCategory::ProfileChunkUi, 1)]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_enforce_limit_profile_chunks_backend() {
+        let mut envelope = envelope![];
+
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_profile_type(ProfileType::Backend);
+        envelope.envelope_mut().add_item(item);
+        let mut item = Item::new(ItemType::ProfileChunk);
+        item.set_profile_type(ProfileType::Ui);
+        envelope.envelope_mut().add_item(item);
 
         let mock = mock_limiter(Some(DataCategory::ProfileChunk));
         let (enforcement, limits) = enforce_and_apply(mock.clone(), &mut envelope, None).await;
 
         assert!(limits.is_limited());
-        assert_eq!(envelope.envelope().len(), 0);
-        mock.lock().await.assert_call(DataCategory::ProfileChunk, 2);
+        assert_eq!(envelope.envelope().len(), 1);
+        mock.lock()
+            .await
+            .assert_call(DataCategory::ProfileChunkUi, 1);
+        mock.lock().await.assert_call(DataCategory::ProfileChunk, 1);
 
         assert_eq!(
             get_outcomes(enforcement),
-            vec![(DataCategory::ProfileChunk, 2),]
+            vec![(DataCategory::ProfileChunk, 1)]
         );
     }
 

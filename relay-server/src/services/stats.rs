@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::{AsyncRedisClient, RedisPool, RedisPools, Stats};
+use relay_redis::{AsyncRedisClient, RedisClientStats, RedisClients};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
 use relay_threading::AsyncPool;
@@ -23,7 +23,7 @@ pub struct RelayStats {
     rt_metrics: RuntimeMetrics,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    redis_pools: Option<RedisPools>,
+    redis_clients: Option<RedisClients>,
     processor_pool: EnvelopeProcessorServicePool,
     #[cfg(feature = "processing")]
     store_pool: StoreServicePool,
@@ -34,7 +34,7 @@ impl RelayStats {
         config: Arc<Config>,
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
+        #[cfg(feature = "processing")] redis_clients: Option<RedisClients>,
         processor_pool: EnvelopeProcessorServicePool,
         #[cfg(feature = "processing")] store_pool: StoreServicePool,
     ) -> Self {
@@ -44,7 +44,7 @@ impl RelayStats {
             rt_metrics: runtime.metrics(),
             runtime,
             #[cfg(feature = "processing")]
-            redis_pools,
+            redis_clients,
             processor_pool,
             #[cfg(feature = "processing")]
             store_pool,
@@ -151,17 +151,12 @@ impl RelayStats {
     }
 
     #[cfg(feature = "processing")]
-    fn redis_pool(redis_pool: &RedisPool, name: &str) {
-        Self::stats_metrics(redis_pool.stats(), name);
-    }
-
-    #[cfg(feature = "processing")]
     fn async_redis_connection(client: &AsyncRedisClient, name: &str) {
         Self::stats_metrics(client.stats(), name);
     }
 
     #[cfg(feature = "processing")]
-    fn stats_metrics(stats: Stats, name: &str) {
+    fn stats_metrics(stats: RedisClientStats, name: &str) {
         metric!(
             gauge(RelayGauges::RedisPoolConnections) = u64::from(stats.connections),
             pool = name
@@ -170,22 +165,31 @@ impl RelayStats {
             gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(stats.idle_connections),
             pool = name
         );
+        metric!(
+            gauge(RelayGauges::RedisPoolMaxConnections) = u64::from(stats.max_connections),
+            pool = name
+        );
+        metric!(
+            gauge(RelayGauges::RedisPoolWaitingForConnection) =
+                u64::from(stats.waiting_for_connection),
+            pool = name
+        );
     }
 
     #[cfg(not(feature = "processing"))]
-    async fn redis_pools(&self) {}
+    async fn redis_clients(&self) {}
 
     #[cfg(feature = "processing")]
-    async fn redis_pools(&self) {
-        if let Some(RedisPools {
+    async fn redis_clients(&self) {
+        if let Some(RedisClients {
             project_configs,
             cardinality,
             quotas,
-        }) = self.redis_pools.as_ref()
+        }) = self.redis_clients.as_ref()
         {
             Self::async_redis_connection(project_configs, "project_configs");
-            Self::redis_pool(cardinality, "cardinality");
-            Self::redis_pool(quotas, "quotas");
+            Self::async_redis_connection(cardinality, "cardinality");
+            Self::async_redis_connection(quotas, "quotas");
         }
     }
 
@@ -197,7 +201,11 @@ impl RelayStats {
             pool = async_pool.name()
         );
         metric!(
-            gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() as f64,
+            gauge(RelayGauges::AsyncPoolUtilization) = metrics.cpu_utilization() as u64,
+            pool = async_pool.name()
+        );
+        metric!(
+            gauge(RelayGauges::AsyncPoolActivity) = metrics.activity() as u64,
             pool = async_pool.name()
         );
         metric!(
@@ -226,7 +234,7 @@ impl Service for RelayStats {
                 self.upstream_status(),
                 self.service_metrics(),
                 self.tokio_metrics(),
-                self.redis_pools(),
+                self.redis_clients(),
                 self.async_pools_metrics()
             );
             ticker.tick().await;

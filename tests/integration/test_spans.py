@@ -24,6 +24,7 @@ from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
 
+@pytest.mark.parametrize("performance_issues_spans", [False, True])
 @pytest.mark.parametrize("discard_transaction", [False, True])
 def test_span_extraction(
     mini_sentry,
@@ -33,6 +34,7 @@ def test_span_extraction(
     events_consumer,
     metrics_consumer,
     discard_transaction,
+    performance_issues_spans,
 ):
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
@@ -52,6 +54,10 @@ def test_span_extraction(
 
     if discard_transaction:
         project_config["config"]["features"].append("projects:discard-transaction")
+    if performance_issues_spans:
+        project_config["config"]["features"].append(
+            "organizations:performance-issues-spans"
+        )
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["contexts"]["trace"]["status"] = "success"
@@ -80,7 +86,7 @@ def test_span_extraction(
             ],
             "op": "http",
             "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
@@ -104,6 +110,9 @@ def test_span_extraction(
     else:
         received_event, _ = transactions_consumer.get_event(timeout=2.0)
         assert received_event["event_id"] == event["event_id"]
+        assert received_event.get("_performance_issues_spans") == (
+            performance_issues_spans or None
+        )
         assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
             ("namespace", b"spans"),
             ("namespace", b"transactions"),
@@ -128,7 +137,7 @@ def test_span_extraction(
         ],
         "organization_id": 1,
         "origin": "manual",
-        "parent_span_id": "aaaaaaaaaaaaaaaa",
+        "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
@@ -163,6 +172,8 @@ def test_span_extraction(
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
+    if performance_issues_spans:
+        assert transaction_span.pop("_performance_issues_spans") is True
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
@@ -172,7 +183,7 @@ def test_span_extraction(
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 1500.0,
         "is_segment": True,
         "is_remote": True,
         "links": [
@@ -251,7 +262,7 @@ def test_span_extraction_with_sampling(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "timestamp": end.isoformat(),
@@ -508,6 +519,7 @@ def make_otel_span(start, end):
                                 "name": "my 2nd OTel span",
                                 "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
                                 "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
+                                "kind": 4,
                                 "attributes": [
                                     {
                                         "key": "sentry.exclusive_time_nano",
@@ -599,6 +611,7 @@ def test_span_ingestion(
         name="my 3rd protobuf OTel span",
         start_time_unix_nano=int(start.timestamp() * 1e9),
         end_time_unix_nano=int(end.timestamp() * 1e9),
+        kind=5,
         attributes=[
             KeyValue(
                 key="sentry.exclusive_time_nano",
@@ -657,6 +670,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
+            "kind": "unspecified",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -758,6 +772,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
+            "kind": "producer",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -820,6 +835,7 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": False,
             "is_remote": False,
+            "kind": "consumer",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -1417,6 +1433,24 @@ def test_span_ingestion_with_performance_scores(
             },
         },
         {
+            "_meta": {
+                "data": {
+                    "sentry.segment.name": {
+                        "": {
+                            "rem": [
+                                [
+                                    "int",
+                                    "s",
+                                    34,
+                                    37,
+                                ],
+                                ["**/interaction/*/**", "s"],
+                            ],
+                            "val": "/page/with/click/interaction/jane/123",
+                        }
+                    }
+                }
+            },
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
@@ -1555,7 +1589,7 @@ def test_rate_limit_consistent_extracted(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "timestamp": end.isoformat(),
@@ -2023,7 +2057,7 @@ def test_ingest_in_eap_for_organization(
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
             "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
@@ -2069,7 +2103,7 @@ def test_ingest_in_eap_for_project(
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
             "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
@@ -2124,7 +2158,7 @@ def test_scrubs_ip_addresses(
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
             "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
@@ -2139,6 +2173,17 @@ def test_scrubs_ip_addresses(
     del child_span["received"]
 
     expected = {
+        "_meta": {
+            "sentry_tags": {
+                "user.email": {"": {"len": 15, "rem": [["@email", "s", 0, 7]]}},
+                "user.ip": {
+                    "": {
+                        "len": 9,
+                        "rem": [["@ip:replace", "s", 0, 4], ["@anything:remove", "x"]],
+                    }
+                },
+            }
+        },
         "description": "GET /api/0/organizations/?member=1",
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -2147,7 +2192,7 @@ def test_scrubs_ip_addresses(
         "is_remote": False,
         "organization_id": 1,
         "origin": "manual",
-        "parent_span_id": "aaaaaaaaaaaaaaaa",
+        "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
@@ -2177,6 +2222,8 @@ def test_scrubs_ip_addresses(
     }
     if scrub_ip_addresses:
         del expected["sentry_tags"]["user.ip"]
+    else:
+        del expected["_meta"]["sentry_tags"]["user.ip"]
     assert child_span == expected
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
@@ -2200,7 +2247,7 @@ def test_scrubs_ip_addresses(
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 1500.0,
         "is_segment": True,
         "is_remote": True,
         "organization_id": 1,

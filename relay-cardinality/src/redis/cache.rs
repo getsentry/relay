@@ -1,7 +1,7 @@
-use parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::fmt;
 use std::time::Duration;
 
+use parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
 
@@ -9,7 +9,7 @@ use crate::redis::quota::QuotaScoping;
 use crate::statsd::{CardinalityLimiterCounters, CardinalityLimiterTimers};
 use crate::window::Slot;
 
-/// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
+/// Cached outcome, whether the item can be accepted, rejected or the cache has no information about
 /// this hash.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CacheOutcome {
@@ -76,8 +76,7 @@ impl Cache {
 
 impl fmt::Debug for Cache {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.read();
-        f.debug_tuple("Cache").field(&inner.cache).finish()
+        f.debug_tuple("Cache").finish()
     }
 }
 
@@ -374,7 +373,7 @@ mod tests {
         }
 
         {
-            // Fast forward time far in the future, should vacuum old values.
+            // Fast-forward time far in the future, should vacuum old values.
             let mut cache = cache.update(&scope2, future);
             cache.accept(22);
         }

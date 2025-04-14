@@ -29,21 +29,24 @@ if [ -z "${SENTRY_ORG:-}" ] || [ -z "${SENTRY_PROJECT:-}" ]; then
 fi
 
 echo 'Downloading debug info, source bundle, system symbols...'
-gsutil cp \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/release-name" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/relay-debug.zip" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/relay.src.zip" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/libs.tar" \
-  .
+for PLATFORM in "linux/amd64" "linux/arm64"; do
+  gsutil cp \
+    "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/${PLATFORM}/relay-debug.zip" \
+    "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/${PLATFORM}/relay.src.zip" \
+    "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/${PLATFORM}/libs.tar" \
+    .
+  echo "Uploading debug information and source bundle for $PLATFORM..."
+  sentry-cli upload-dif ./relay-debug.zip ./relay.src.zip
 
-echo 'Uploading debug information and source bundle...'
-sentry-cli --version
-sentry-cli upload-dif ./relay-debug.zip ./relay.src.zip
+  echo "Uploading system symbols for $PLATFORM..."
+  tar xf libs.tar
+  sentry-cli upload-dif lib/
 
-echo 'Uploading system symbols...'
-tar xf libs.tar
-sentry-cli upload-dif lib/x86_64-linux-gnu
+  rm relay-debug.zip relay.src.zip libs.tar
+  rm -rf lib
+done
 
+gsutil cp "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/linux/amd64/release-name" .
 RELEASE=$(< ./release-name)
 echo "Creating a new release and deploy for ${RELEASE} in Sentry..."
 sentry-cli releases new "${RELEASE}"

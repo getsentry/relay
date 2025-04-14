@@ -40,7 +40,9 @@ impl AsRef<str> for TraceId {
 }
 
 /// A 16-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
+#[derive(
+    Clone, Debug, Default, Eq, Hash, PartialEq, Ord, PartialOrd, Empty, IntoValue, ProcessValue,
+)]
 pub struct SpanId(pub String);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");
@@ -208,7 +210,6 @@ mod tests {
     {
       "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
       "span_id": "ea90fdead5f74052",
-      "parent_span_id": "ea90fdead5f74053",
       "sampled": true,
       "attributes": {
         "sentry.link.type": "previous_trace"
@@ -252,7 +253,6 @@ mod tests {
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
                 trace_id: Annotated::new(TraceId("3c79f60c11214eb38604f4ae0781bfb2".into())),
                 span_id: Annotated::new(SpanId("ea90fdead5f74052".into())),
-                parent_span_id: Annotated::new(SpanId("ea90fdead5f74053".into())),
                 sampled: Annotated::new(true),
                 attributes: Annotated::new({
                     let mut map: std::collections::BTreeMap<String, Annotated<Value>> =
