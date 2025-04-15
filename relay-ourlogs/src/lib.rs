@@ -7,7 +7,7 @@
 )]
 
 pub use crate::ourlog::otel_to_sentry_log;
-
+pub use crate::ourlog::ourlog_merge_otel;
 pub use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLog;
 
 mod ourlog;

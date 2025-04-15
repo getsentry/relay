@@ -3505,7 +3505,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "relay"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3524,7 +3524,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -3541,7 +3541,7 @@ dependencies = [
 
 [[package]]
 name = "relay-base-schema"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "regex",
  "relay-common",
@@ -3552,7 +3552,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.7"
+version = "0.9.8"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3580,7 +3580,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cardinality"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "async-trait",
  "criterion",
@@ -3601,14 +3601,14 @@ dependencies = [
 
 [[package]]
 name = "relay-cogs"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "insta",
 ]
 
 [[package]]
 name = "relay-common"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -3622,7 +3622,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3644,7 +3644,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3652,7 +3652,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "relay-auth",
@@ -3675,7 +3675,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-derive"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3685,7 +3685,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-normalization"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3719,7 +3719,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-schema"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3743,7 +3743,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -3751,7 +3751,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "quote",
  "syn",
@@ -3759,7 +3759,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "indexmap 2.7.0",
  "insta",
@@ -3778,7 +3778,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "rdkafka",
  "rdkafka-sys",
@@ -3794,7 +3794,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "console",
  "relay-common",
@@ -3808,7 +3808,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "ahash",
  "bytecount",
@@ -3841,7 +3841,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "relay-base-schema",
  "serde",
@@ -3853,7 +3853,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ourlogs"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "chrono",
  "hex",
@@ -3868,7 +3868,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "criterion",
  "memchr",
@@ -3878,7 +3878,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern-fuzz"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "libfuzzer-sys",
  "relay-pattern",
@@ -3886,7 +3886,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pii"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "hmac",
  "insta",
@@ -3914,7 +3914,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "android_trace_log",
  "bytes",
@@ -3939,7 +3939,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "insta",
  "num-traits",
@@ -3956,7 +3956,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol-derive"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3966,7 +3966,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "hashbrown 0.14.5",
  "insta",
@@ -3985,10 +3985,11 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "deadpool",
  "deadpool-redis",
+ "futures",
  "redis",
  "relay-system",
  "serde",
@@ -3998,7 +3999,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "criterion",
  "flate2",
@@ -4015,7 +4016,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4035,7 +4036,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4129,7 +4130,7 @@ dependencies = [
 
 [[package]]
 name = "relay-spans"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "chrono",
  "hex",
@@ -4143,7 +4144,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "cadence",
  "crossbeam-channel",
@@ -4155,7 +4156,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "futures",
  "insta",
@@ -4168,7 +4169,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -4177,19 +4178,19 @@ dependencies = [
 
 [[package]]
 name = "relay-threading"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "criterion",
  "flume",
  "futures",
  "pin-project-lite",
- "relay-statsd",
+ "relay-system",
  "tokio",
 ]
 
 [[package]]
 name = "relay-ua"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "once_cell",
  "uaparser",
@@ -5133,8 +5134,9 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "statsdproxy"
-version = "0.2.0"
-source = "git+https://github.com/getsentry/statsdproxy?rev=50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f#50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6d989f4c2230a3c1e0454e8361886943f3f998cf4f8c649ab76b9cc5ab54072"
 dependencies = [
  "anyhow",
  "cadence",

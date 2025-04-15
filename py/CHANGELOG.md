@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.8
+
+### Various fixes & improvements
+
+- release: 0.9.7 (c1653403) by @getsentry-bot
+- feat(profiling): Add ui chunk profiling data category (#4593) by @Dav1dde
+
 ## 0.9.7
 
 - Remove unused capability to block metric names and tags. ([#4536](https://github.com/getsentry/relay/pull/4536))

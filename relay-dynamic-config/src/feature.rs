@@ -132,6 +132,9 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:view-hierarchy-scrubbing")]
     ViewHierarchyScrubbing,
+    /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
+    #[serde(rename = "organizations:performance-issues-spans")]
+    PerformanceIssuesSpans,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

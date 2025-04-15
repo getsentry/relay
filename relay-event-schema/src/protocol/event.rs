@@ -486,6 +486,13 @@ pub struct Event {
     #[metastructure(omit_from_schema)]
     pub _dsc: Annotated<Value>,
 
+    /// Temporary flag that controls where performance issues are detected.
+    ///
+    /// When the flag is set to true, this transaction event will be skipped for performance issue
+    /// detection in favor of the spans pipeline.
+    #[metastructure(skip_serialization = "empty", trim = false)]
+    pub _performance_issues_spans: Annotated<bool>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,

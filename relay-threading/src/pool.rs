@@ -3,13 +3,13 @@ use std::io;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
-use futures::FutureExt;
-
 use crate::builder::AsyncPoolBuilder;
 use crate::metrics::AsyncPoolMetrics;
 use crate::multiplexing::Multiplexed;
 use crate::{PanicHandler, ThreadMetrics};
+use futures::future::BoxFuture;
+use futures::FutureExt;
+use relay_system::MonitoredFuture;
 
 /// Default name of the pool.
 const DEFAULT_POOL_NAME: &str = "unnamed";
@@ -64,23 +64,27 @@ where
 
         for thread_id in 0..builder.num_threads {
             let rx = rx.clone();
-            let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
 
+            let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
             let metrics = Arc::new(ThreadMetrics::default());
+            let task = MonitoredFuture::wrap_with_metrics(
+                Multiplexed::new(
+                    pool_name,
+                    builder.max_concurrency,
+                    rx.into_stream(),
+                    builder.task_panic_handler.clone(),
+                    metrics.clone(),
+                ),
+                metrics.raw_metrics.clone(),
+            );
+
             let thread = Thread {
                 id: thread_id,
                 max_concurrency: builder.max_concurrency,
                 name: thread_name.clone(),
                 runtime: builder.runtime.clone(),
                 panic_handler: builder.thread_panic_handler.clone(),
-                task: Multiplexed::new(
-                    pool_name,
-                    builder.max_concurrency,
-                    rx.into_stream(),
-                    builder.task_panic_handler.clone(),
-                    metrics.clone(),
-                )
-                .boxed(),
+                task: task.boxed(),
             };
 
             threads_metrics.push(metrics);

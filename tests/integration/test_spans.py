@@ -24,6 +24,7 @@ from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
 
+@pytest.mark.parametrize("performance_issues_spans", [False, True])
 @pytest.mark.parametrize("discard_transaction", [False, True])
 def test_span_extraction(
     mini_sentry,
@@ -33,6 +34,7 @@ def test_span_extraction(
     events_consumer,
     metrics_consumer,
     discard_transaction,
+    performance_issues_spans,
 ):
     spans_consumer = spans_consumer()
     transactions_consumer = transactions_consumer()
@@ -52,19 +54,39 @@ def test_span_extraction(
 
     if discard_transaction:
         project_config["config"]["features"].append("projects:discard-transaction")
+    if performance_issues_spans:
+        project_config["config"]["features"].append(
+            "organizations:performance-issues-spans"
+        )
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["contexts"]["trace"]["status"] = "success"
     event["contexts"]["trace"]["origin"] = "manual"
+    event["contexts"]["trace"]["links"] = [
+        {
+            "trace_id": "1f62a8b040f340bda5d830223def1d83",
+            "span_id": "dbbbbbbbbbbbbbbd",
+            "sampled": True,
+            "attributes": {"txn_key": 123},
+        },
+    ]
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
     event["spans"] = [
         {
             "description": "GET /api/0/organizations/?member=1",
+            "links": [
+                {
+                    "trace_id": "0f62a8b040f340bda5d830223def1d82",
+                    "span_id": "cbbbbbbbbbbbbbbc",
+                    "sampled": True,
+                    "attributes": {"span_key": "span_value"},
+                },
+            ],
             "op": "http",
             "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
@@ -88,6 +110,9 @@ def test_span_extraction(
     else:
         received_event, _ = transactions_consumer.get_event(timeout=2.0)
         assert received_event["event_id"] == event["event_id"]
+        assert received_event.get("_performance_issues_spans") == (
+            performance_issues_spans or None
+        )
         assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
             ("namespace", b"spans"),
             ("namespace", b"transactions"),
@@ -102,9 +127,17 @@ def test_span_extraction(
         "exclusive_time_ms": 500.0,
         "is_segment": False,
         "is_remote": False,
+        "links": [
+            {
+                "trace_id": "0f62a8b040f340bda5d830223def1d82",
+                "span_id": "cbbbbbbbbbbbbbbc",
+                "sampled": True,
+                "attributes": {"span_key": "span_value"},
+            },
+        ],
         "organization_id": 1,
         "origin": "manual",
-        "parent_span_id": "aaaaaaaaaaaaaaaa",
+        "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
@@ -139,6 +172,8 @@ def test_span_extraction(
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
+    if performance_issues_spans:
+        assert transaction_span.pop("_performance_issues_spans") is True
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
@@ -148,9 +183,17 @@ def test_span_extraction(
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 1500.0,
         "is_segment": True,
         "is_remote": True,
+        "links": [
+            {
+                "trace_id": "1f62a8b040f340bda5d830223def1d83",
+                "span_id": "dbbbbbbbbbbbbbbd",
+                "sampled": True,
+                "attributes": {"txn_key": 123},
+            },
+        ],
         "organization_id": 1,
         "origin": "manual",
         "project_id": 42,
@@ -219,7 +262,7 @@ def test_span_extraction_with_sampling(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "timestamp": end.isoformat(),
@@ -328,6 +371,20 @@ def envelope_with_spans(
                                 },
                             },
                         ],
+                        "links": [
+                            {
+                                "traceId": "89143b0763095bd9c9955e8175d1fb24",
+                                "spanId": "e342abb1214ca183",
+                                "attributes": [
+                                    {
+                                        "key": "link_double_key",
+                                        "value": {
+                                            "doubleValue": 1.23,
+                                        },
+                                    },
+                                ],
+                            },
+                        ],
                     },
                 ).encode()
             ),
@@ -354,6 +411,16 @@ def envelope_with_spans(
                         "data": {
                             "browser.name": "Chrome",
                         },
+                        "links": [
+                            {
+                                "trace_id": "99143b0763095bd9c9955e8175d1fb25",
+                                "span_id": "e342abb1214ca183",
+                                "sampled": True,
+                                "attributes": {
+                                    "link_bool_key": True,
+                                },
+                            },
+                        ],
                     },
                 ).encode()
             ),
@@ -463,6 +530,20 @@ def make_otel_span(start, end):
                                         },
                                     },
                                 ],
+                                "links": [
+                                    {
+                                        "traceId": "89143b0763095bd9c9955e8175d1fb24",
+                                        "spanId": "e342abb1214ca183",
+                                        "attributes": [
+                                            {
+                                                "key": "link_int_key",
+                                                "value": {
+                                                    "intValue": "123",
+                                                },
+                                            },
+                                        ],
+                                    },
+                                ],
                             },
                         ],
                     },
@@ -542,6 +623,18 @@ def test_span_ingestion(
                 value=AnyValue(string_value="MyComponent"),
             ),
         ],
+        links=[
+            Span.Link(
+                trace_id=bytes.fromhex("89143b0763095bd9c9955e8175d1fb24"),
+                span_id=bytes.fromhex("e0b809703e783d01"),
+                attributes=[
+                    KeyValue(
+                        key="link_str_key",
+                        value=AnyValue(string_value="link_str_value"),
+                    )
+                ],
+            )
+        ],
     )
     scope_spans = ScopeSpans(spans=[protobuf_span])
     resource_spans = ResourceSpans(scope_spans=[scope_spans])
@@ -578,6 +671,14 @@ def test_span_ingestion(
             "is_segment": True,
             "is_remote": False,
             "kind": "unspecified",
+            "links": [
+                {
+                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+                    "span_id": "e342abb1214ca183",
+                    "sampled": False,
+                    "attributes": {"link_double_key": 1.23},
+                }
+            ],
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -607,6 +708,16 @@ def test_span_ingestion(
             "exclusive_time_ms": 345.0,
             "is_segment": True,
             "is_remote": False,
+            "links": [
+                {
+                    "trace_id": "99143b0763095bd9c9955e8175d1fb25",
+                    "span_id": "e342abb1214ca183",
+                    "sampled": True,
+                    "attributes": {
+                        "link_bool_key": True,
+                    },
+                },
+            ],
             "measurements": {"score.total": {"value": 0.12121616}},
             "organization_id": 1,
             "project_id": 42,
@@ -662,6 +773,16 @@ def test_span_ingestion(
             "is_segment": True,
             "is_remote": False,
             "kind": "producer",
+            "links": [
+                {
+                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+                    "span_id": "e342abb1214ca183",
+                    "sampled": False,
+                    "attributes": {
+                        "link_int_key": 123,
+                    },
+                },
+            ],
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
@@ -715,6 +836,16 @@ def test_span_ingestion(
             "is_segment": False,
             "is_remote": False,
             "kind": "consumer",
+            "links": [
+                {
+                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+                    "span_id": "e0b809703e783d01",
+                    "sampled": False,
+                    "attributes": {
+                        "link_str_key": "link_str_value",
+                    },
+                },
+            ],
             "organization_id": 1,
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
@@ -1458,7 +1589,7 @@ def test_rate_limit_consistent_extracted(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "timestamp": end.isoformat(),
@@ -1926,7 +2057,7 @@ def test_ingest_in_eap_for_organization(
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
             "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
@@ -1972,7 +2103,7 @@ def test_ingest_in_eap_for_project(
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
             "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
@@ -2027,7 +2158,7 @@ def test_scrubs_ip_addresses(
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
             "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "parent_span_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
@@ -2061,7 +2192,7 @@ def test_scrubs_ip_addresses(
         "is_remote": False,
         "organization_id": 1,
         "origin": "manual",
-        "parent_span_id": "aaaaaaaaaaaaaaaa",
+        "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
@@ -2116,7 +2247,7 @@ def test_scrubs_ip_addresses(
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 2000.0,
+        "exclusive_time_ms": 1500.0,
         "is_segment": True,
         "is_remote": True,
         "organization_id": 1,

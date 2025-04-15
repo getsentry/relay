@@ -552,8 +552,8 @@ mod tests {
                 {
                     "description": "<OrganizationContext>",
                     "op": "react.mount",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bd429c44b67a3eb4",
+                    "parent_span_id": "bd429c44b67a3eb4",
+                    "span_id": "8f5a2b8768cafb4e",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
@@ -628,10 +628,10 @@ mod tests {
                 exclusive_time: 2000.0,
                 op: "react.mount",
                 span_id: SpanId(
-                    "bd429c44b67a3eb4",
+                    "8f5a2b8768cafb4e",
                 ),
                 parent_span_id: SpanId(
-                    "8f5a2b8768cafb4e",
+                    "bd429c44b67a3eb4",
                 ),
                 trace_id: TraceId(
                     "ff62a8b040f340bda5d830223def1d81",
@@ -652,6 +652,7 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
+                _performance_issues_spans: ~,
                 other: {},
             },
         ]

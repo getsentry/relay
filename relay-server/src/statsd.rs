@@ -13,12 +13,20 @@ pub enum RelayGauges {
     AsyncPoolQueueSize,
     /// Tracks the utilization of the async pool.
     ///
-    /// The utilization is a value between 0.0 and 100.0 which determines how busy is the pool
-    /// w.r.t. to its provisioned capacity.
+    /// The utilization is a value between 0.0 and 100.0 which determines how busy the pool is doing
+    /// CPU-bound work.
     ///
     /// This metric is tagged with:
     /// - `pool`: the name of the pool.
     AsyncPoolUtilization,
+    /// Tracks the activity of the async pool.
+    ///
+    /// The activity is a value between 0.0 and 100.0 which determines how busy is the pool
+    /// w.r.t. to its provisioned capacity.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
+    AsyncPoolActivity,
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
@@ -42,6 +50,12 @@ pub enum RelayGauges {
     /// The number of idle connections in the Redis Pool.
     #[cfg(feature = "processing")]
     RedisPoolIdleConnections,
+    /// The maximum number of connections in the Redis pool.
+    #[cfg(feature = "processing")]
+    RedisPoolMaxConnections,
+    /// The number of futures waiting to grab a connection.
+    #[cfg(feature = "processing")]
+    RedisPoolWaitingForConnection,
     /// The number of notifications in the broadcast channel of the project cache.
     ProjectCacheNotificationChannel,
     /// The number of scheduled and in progress fetches in the project cache.
@@ -70,6 +84,7 @@ impl GaugeMetric for RelayGauges {
         match self {
             RelayGauges::AsyncPoolQueueSize => "async_pool.queue_size",
             RelayGauges::AsyncPoolUtilization => "async_pool.utilization",
+            RelayGauges::AsyncPoolActivity => "async_pool.activity",
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",
@@ -79,6 +94,10 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::RedisPoolConnections => "redis.pool.connections",
             #[cfg(feature = "processing")]
             RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolMaxConnections => "redis.pool.max_connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolWaitingForConnection => "redis.pool.waiting_for_connection",
             RelayGauges::ProjectCacheNotificationChannel => {
                 "project_cache.notification_channel.size"
             }
