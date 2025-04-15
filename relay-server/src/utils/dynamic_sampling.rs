@@ -105,7 +105,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     }
 
     let trace = event.context::<TraceContext>()?;
-    let trace_id = trace.trace_id.value()?.0.parse().ok()?;
+    let trace_id = *trace.trace_id.value()?;
     let user = event.user.value();
 
     Some(DynamicSamplingContext {

@@ -1035,7 +1035,7 @@ mod tests {
     #[test]
     fn test_untrimmable_fields() {
         let original_description = "a".repeat(819163);
-        let original_trace_id = TraceId::parse_str(&"b".repeat(48)).unwrap();
+        let original_trace_id = TraceId::parse_str(&"b".repeat(32)).unwrap();
         let mut event = Annotated::new(Event {
             spans: Annotated::new(vec![
                 Span {
@@ -1044,7 +1044,7 @@ mod tests {
                 }
                 .into(),
                 Span {
-                    trace_id: original_trace_id.clone().into(),
+                    trace_id: original_trace_id.into(),
                     ..Default::default()
                 }
                 .into(),
@@ -1067,7 +1067,7 @@ mod tests {
     fn test_untrimmable_fields_drop() {
         let original_description = "a".repeat(819164);
         let original_span_id = SpanId("b".repeat(48));
-        let original_trace_id = TraceId::parse_str(&"c".repeat(48)).unwrap();
+        let original_trace_id = TraceId::parse_str(&"c".repeat(32)).unwrap();
         let original_segment_id = SpanId("d".repeat(48));
         let original_op = "e".repeat(129);
 
@@ -1080,7 +1080,7 @@ mod tests {
                 .into(),
                 Span {
                     span_id: original_span_id.clone().into(),
-                    trace_id: original_trace_id.clone().into(),
+                    trace_id: original_trace_id.into(),
                     segment_id: original_segment_id.clone().into(),
                     is_segment: false.into(),
                     op: original_op.clone().into(),

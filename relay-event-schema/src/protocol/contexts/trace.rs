@@ -12,7 +12,7 @@ use crate::processor::ProcessValue;
 use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
 
 /// A 32-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ProcessValue)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Empty, ProcessValue)]
 pub struct TraceId(Uuid);
 
 impl TraceId {
@@ -22,7 +22,7 @@ impl TraceId {
 
     pub fn parse_str_annotated(input: &str) -> Annotated<TraceId> {
         match Self::parse_str(input) {
-            Ok(trace_id) => Annotated::new(trace_id),
+            Ok(trace_id) => trace_id.into(),
             Err(err) => Annotated::from_error(err, None),
         }
     }
