@@ -51,7 +51,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
     } = otel_log;
 
     let span_id = SpanId(hex::encode(span_id));
-    let trace_id = TraceId::parse_str(&hex::encode(trace_id)).unwrap();
+    let trace_id = TraceId::parse_str_annotated(&hex::encode(trace_id));
     let nanos = time_unix_nano;
     let timestamp = Utc.timestamp_nanos(nanos as i64);
 
@@ -156,7 +156,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
 
     OurLog {
         timestamp: Annotated::new(Timestamp(timestamp)),
-        trace_id: Annotated::new(trace_id),
+        trace_id,
         span_id: Annotated::new(span_id),
         level: Annotated::new(level),
         attributes: Annotated::new(attribute_data),

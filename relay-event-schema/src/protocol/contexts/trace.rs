@@ -19,6 +19,13 @@ impl TraceId {
     pub fn parse_str(input: &str) -> Result<TraceId, Error> {
         Self::from_str(input)
     }
+
+    pub fn parse_str_annotated(input: &str) -> Annotated<TraceId> {
+        match Self::parse_str(input) {
+            Ok(trace_id) => Annotated::new(trace_id),
+            Err(err) => Annotated::from_error(err, None),
+        }
+    }
 }
 
 relay_common::impl_str_serde!(TraceId, "a trace identifier");

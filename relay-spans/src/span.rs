@@ -208,7 +208,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
             grpc_status_code,
         )),
         timestamp: Timestamp(end_timestamp).into(),
-        trace_id: TraceId(trace_id).into(),
+        trace_id: TraceId::parse_str_annotated(&trace_id),
         platform: platform.into(),
         kind: OtelSpanKind::try_from(kind)
             .map_or(SpanKind::Unspecified, SpanKind::from)
@@ -232,7 +232,7 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> SpanLink {
     .into();
 
     SpanLink {
-        trace_id: TraceId::parse_str(&hex::encode(otel_link.trace_id)).into(),
+        trace_id: TraceId::parse_str_annotated(&hex::encode(otel_link.trace_id)),
         span_id: SpanId(hex::encode(otel_link.span_id)).into(),
         sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
         attributes,
@@ -846,9 +846,9 @@ mod tests {
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         assert_eq!(
             get_path!(annotated_span.links[0].trace_id),
-            Some(&Annotated::new(TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2".into()
-            )))
+            Some(&Annotated::new(
+                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap()
+            ))
         );
         assert_eq!(
             get_path!(annotated_span.links[0].span_id),
