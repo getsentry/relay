@@ -5,6 +5,7 @@ import queue
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_sdk.attachments import Attachment
 
+
 def load_dump_file(base_file_name: str):
     dmp_path = os.path.join(
         os.path.dirname(__file__), "fixtures", "native", base_file_name
@@ -16,7 +17,13 @@ def load_dump_file(base_file_name: str):
 
 @pytest.mark.parametrize("variant", ["plain", "zstandard"])
 def test_nnswitch(
-    mini_sentry, relay, relay_with_processing, outcomes_consumer, attachments_consumer, events_consumer, variant
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+    attachments_consumer,
+    events_consumer,
+    variant,
 ):
     PROJECT_ID = 42
     mini_sentry.add_full_project_config(PROJECT_ID)
@@ -36,7 +43,9 @@ def test_nnswitch(
     envelope.add_item(
         Item(
             type="attachment",
-            payload=PayloadRef(bytes=load_dump_file("nnswitch_dying_message_%s.dat" % variant)),
+            payload=PayloadRef(
+                bytes=load_dump_file("nnswitch_dying_message_%s.dat" % variant)
+            ),
             headers={
                 "filename": "dying_message.dat",
                 "content_type": "application/octet-stream",
