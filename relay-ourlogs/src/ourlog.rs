@@ -51,7 +51,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
     } = otel_log;
 
     let span_id = SpanId(hex::encode(span_id));
-    let trace_id = TraceId(hex::encode(trace_id));
+    let trace_id = TraceId::parse_str(&hex::encode(trace_id)).unwrap();
     let nanos = time_unix_nano;
     let timestamp = Utc.timestamp_nanos(nanos as i64);
 
@@ -382,7 +382,7 @@ mod tests {
 
         assert_eq!(
             get_path!(annotated_log.trace_id),
-            Some(&Annotated::new(TraceId("".into())))
+            Some(&Annotated::new(TraceId::parse_str("").unwrap()))
         );
     }
 

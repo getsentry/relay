@@ -1,60 +1,23 @@
-use std::fmt;
-use std::str::FromStr;
-
 use relay_protocol::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Object, Value,
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization,
+    Value,
 };
+use serde::{Serialize, Serializer};
+use std::fmt;
+use std::ops::Deref;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
 
 /// A 32-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-pub struct TraceId(pub String);
+#[derive(Clone, Debug, Default, PartialEq, Empty, ProcessValue)]
+pub struct TraceId(Uuid);
 
 impl TraceId {
-    /// Converts the trace ID to an u128 value.
-    ///
-    /// # Returns
-    ///
-    /// This method will return `u128::MIN` (0) if:
-    /// - The trace ID string is empty
-    /// - The trace ID string contains invalid hex characters
-    /// - The trace ID string is not exactly 32 hex characters
-    ///
-    /// Otherwise, it returns the trace ID as an u128 integer.
-    pub fn as_u128(&self) -> u128 {
-        // Return 0 for empty strings
-        if self.0.is_empty() {
-            return u128::MIN;
-        }
-
-        // Ensure the string is exactly 32 bytes (we assume 1 byte per character)
-        if self.0.len() != 32 {
-            return u128::MIN;
-        }
-
-        // Try to parse the hex string
-        let mut result: u128 = 0;
-        for (i, c) in self.0.chars().enumerate() {
-            // Convert hex character to value
-            let digit = match c.to_digit(16) {
-                Some(d) => d as u128,
-                None => return u128::MIN,
-            };
-
-            // Shift and add
-            result = (result << 4) | digit;
-
-            // Safety check for overflow (shouldn't happen with 32 since at most we will have 32
-            // chars)
-            if i >= 32 {
-                return u128::MIN;
-            }
-        }
-
-        result
+    pub fn parse_str(input: &str) -> Result<TraceId, Error> {
+        Self::from_str(input)
     }
 }
 
@@ -64,25 +27,37 @@ impl FromStr for TraceId {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !is_hex_string(s, 32) || s.bytes().all(|x| x == b'0') {
-            return Err(Error::new(ErrorKind::InvalidData));
-        }
-
-        let mut trace_id_string = s.to_string();
-        trace_id_string.make_ascii_lowercase();
-
-        Ok(TraceId(trace_id_string))
+        Uuid::parse_str(s)
+            .map(Into::into)
+            .map_err(|_| Error::new(ErrorKind::InvalidData))
     }
 }
 
 impl fmt::Display for TraceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0.as_simple())
+    }
+}
+
+impl From<Uuid> for TraceId {
+    fn from(uuid: Uuid) -> Self {
+        TraceId(uuid)
+    }
+}
+
+impl Deref for TraceId {
+    type Target = Uuid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
 impl FromValue for TraceId {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => match FromStr::from_str(&value) {
                 Ok(trace_id) => Annotated(Some(trace_id), meta),
@@ -102,15 +77,20 @@ impl FromValue for TraceId {
     }
 }
 
-impl From<Uuid> for TraceId {
-    fn from(uuid: Uuid) -> Self {
-        TraceId(uuid.simple().to_string())
+impl IntoValue for TraceId {
+    fn into_value(self) -> Value
+    where
+        Self: Sized,
+    {
+        Value::String(self.to_string())
     }
-}
 
-impl AsRef<str> for TraceId {
-    fn as_ref(&self) -> &str {
-        &self.0
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(&self.to_string(), s)
     }
 }
 
@@ -263,23 +243,23 @@ mod tests {
     #[test]
     fn test_trace_id_as_u128() {
         // Test valid hex string
-        let trace_id = TraceId("4c79f60c11214eb38604f4ae0781bfb2".into());
+        let trace_id = TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap();
         assert_eq!(trace_id.as_u128(), 0x4c79f60c11214eb38604f4ae0781bfb2);
 
         // Test empty string (should return 0)
-        let empty_trace_id = TraceId("".into());
-        assert_eq!(empty_trace_id.as_u128(), u128::MIN);
+        let empty_trace_id = TraceId::parse_str("");
+        assert!(empty_trace_id.is_err());
 
         // Test string with invalid length (should return 0)
-        let short_trace_id = TraceId("4c79f60c11214eb38604f4ae0781bfb".into()); // 31 chars
-        assert_eq!(short_trace_id.as_u128(), u128::MIN);
+        let short_trace_id = TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb"); // 31 chars
+        assert!(short_trace_id.is_err());
 
-        let long_trace_id = TraceId("4c79f60c11214eb38604f4ae0781bfb2a".into()); // 33 chars
-        assert_eq!(long_trace_id.as_u128(), u128::MIN);
+        let long_trace_id = TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2a"); // 33 chars
+        assert!(long_trace_id.is_err());
 
         // Test string with invalid hex characters (should return 0)
-        let invalid_trace_id = TraceId("4c79f60c11214eb38604f4ae0781bfbg".into()); // 'g' is not a hex char
-        assert_eq!(invalid_trace_id.as_u128(), u128::MIN);
+        let invalid_trace_id = TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfbg"); // 'g' is not a hex char
+        assert!(invalid_trace_id.is_err());
     }
 
     #[test]
@@ -317,7 +297,9 @@ mod tests {
   "type": "trace"
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new(
+                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+            ),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
             op: Annotated::new("http".into()),
@@ -348,7 +330,9 @@ mod tests {
                 ..Default::default()
             }),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
-                trace_id: Annotated::new(TraceId("3c79f60c11214eb38604f4ae0781bfb2".into())),
+                trace_id: Annotated::new(
+                    TraceId::parse_str("3c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+                ),
                 span_id: Annotated::new(SpanId("ea90fdead5f74052".into())),
                 sampled: Annotated::new(true),
                 attributes: Annotated::new({
@@ -385,7 +369,9 @@ mod tests {
   "type": "trace"
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new(
+                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+            ),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             ..Default::default()
         })));
@@ -404,7 +390,9 @@ mod tests {
   }
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new(
+                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+            ),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             data: Annotated::new(SpanData {
                 route: Annotated::new(Route {

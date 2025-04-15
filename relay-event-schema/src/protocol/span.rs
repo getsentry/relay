@@ -1,6 +1,7 @@
 mod convert;
 
 use std::fmt;
+use std::ops::Deref;
 use std::str::FromStr;
 
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
@@ -159,7 +160,7 @@ impl Getter for Span {
                 "op" => self.op.as_str()?.into(),
                 "span_id" => self.span_id.as_str()?.into(),
                 "parent_span_id" => self.parent_span_id.as_str()?.into(),
-                "trace_id" => self.trace_id.as_str()?.into(),
+                "trace_id" => self.trace_id.value()?.deref().into(),
                 "status" => self.status.as_str()?.into(),
                 "origin" => self.origin.as_str()?.into(),
                 "duration" => {
@@ -1093,7 +1094,9 @@ mod tests {
         );
 
         let links = Annotated::new(vec![Annotated::new(SpanLink {
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new(
+                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+            ),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             sampled: Annotated::new(true),
             attributes: Annotated::new({
@@ -1117,7 +1120,9 @@ mod tests {
             exclusive_time: Annotated::new(1.23),
             description: Annotated::new("desc".to_owned()),
             op: Annotated::new("operation".to_owned()),
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new(
+                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+            ),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new("auto.http".to_owned()),

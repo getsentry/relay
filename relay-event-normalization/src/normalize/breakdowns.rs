@@ -296,7 +296,9 @@ mod tests {
                 start_timestamp: start,
                 description: Annotated::new("desc".to_owned()),
                 op: Annotated::new(op_name),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                trace_id: Annotated::new(
+                    TraceId::parse_str("3c79f60c11214eb38604f4ae0781bfb2").unwrap(),
+                ),
                 span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
                 status: Annotated::new(SpanStatus::Ok),
                 ..Default::default()
