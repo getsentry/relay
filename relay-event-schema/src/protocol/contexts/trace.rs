@@ -11,7 +11,21 @@ use uuid::Uuid;
 use crate::processor::ProcessValue;
 use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
 
-/// A 32-character hex string as described in the W3C trace context spec.
+/// Represents a W3C Trace Context `trace-id`.
+///
+/// The `trace-id` is a globally unique identifier for a distributed trace,
+/// used to correlate requests across service boundaries.
+///
+/// Format:
+/// - 16-byte array (128 bits), represented as 32-character hexadecimal string
+/// - Example: `"4bf92f3577b34da6a3ce929d0e0e4736"`
+/// - MUST NOT be all zeros (`"00000000000000000000000000000000"`)
+/// - MUST contain only hex digits (`0-9`, `a-f`, `A-F`)
+///
+/// Our implementation allows uppercase hexadecimal characters for backward compatibility, even
+/// though the original spec only allows lowercase hexadecimal characters.
+///
+/// See: <https://www.w3.org/TR/trace-context/#trace-id>
 #[derive(Debug, Clone, Copy, Default, PartialEq, Empty, ProcessValue)]
 pub struct TraceId(Uuid);
 
