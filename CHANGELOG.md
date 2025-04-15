@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 25.4.0
 
 - Extract searchable context fields into sentry tags for segment spans. ([#4651](https://github.com/getsentry/relay/pull/4651))
 
