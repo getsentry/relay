@@ -75,7 +75,6 @@ fn is_dying_message(item: &crate::envelope::Item) -> bool {
 
 /// Parses DyingMessage contents and updates the envelope.
 /// See dying_message.md for the documentation.
-/// ```
 fn expand_dying_message(mut payload: Bytes, envelope: &mut Envelope) -> Result<()> {
     payload.advance(SENTRY_MAGIC.len());
     let version = payload
