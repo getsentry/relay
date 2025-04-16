@@ -6,7 +6,7 @@ use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{
     OurLog, OurLogAttribute, OurLogAttributeType, OurLogLevel, SpanId, Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, Object, Value};
+use relay_protocol::{Annotated, Error, Object, Value};
 
 fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
     match value {
@@ -38,7 +38,7 @@ fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
 }
 
 /// Transform an OtelLog to a Sentry log.
-pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
+pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
     let OtelLog {
         severity_number,
         severity_text,
@@ -51,7 +51,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
     } = otel_log;
 
     let span_id = SpanId(hex::encode(span_id));
-    let trace_id = TraceId::parse_str_annotated(&hex::encode(trace_id));
+    let trace_id: TraceId = hex::encode(trace_id).parse()?;
     let nanos = time_unix_nano;
     let timestamp = Utc.timestamp_nanos(nanos as i64);
 
@@ -154,15 +154,17 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
         Annotated::new(Value::U64(observed_time_unix_nano)),
     );
 
-    OurLog {
+    let ourlog = OurLog {
         timestamp: Annotated::new(Timestamp(timestamp)),
-        trace_id,
+        trace_id: Annotated::new(trace_id),
         span_id: Annotated::new(span_id),
         level: Annotated::new(level),
         attributes: Annotated::new(attribute_data),
         body: Annotated::new(body),
         other,
-    }
+    };
+
+    Ok(ourlog)
 }
 
 /// This fills attributes with OTel specific fields to be compatible with the otel schema.
@@ -357,7 +359,7 @@ mod tests {
         }"#;
 
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log);
+        let our_log: OurLog = otel_to_sentry_log(otel_log).unwrap();
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
         assert_eq!(
             get_path!(annotated_log.body),
@@ -377,7 +379,7 @@ mod tests {
         }"#;
 
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log);
+        let our_log = otel_to_sentry_log(otel_log).unwrap();
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
 
         assert_eq!(
@@ -423,7 +425,7 @@ mod tests {
             ]
         }"#;
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log);
+        let our_log = otel_to_sentry_log(otel_log).unwrap();
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
 
         assert_eq!(
@@ -458,7 +460,7 @@ mod tests {
 
         let before_test = UnixTimestamp::now().as_nanos();
         let otel_log: OtelLog = serde_json::from_str(json_without_observed_time).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log);
+        let our_log: OurLog = otel_to_sentry_log(otel_log).unwrap();
         let after_test = UnixTimestamp::now().as_nanos();
 
         // Get the observed timestamp from attributes
@@ -489,7 +491,7 @@ mod tests {
 
         let before_test = UnixTimestamp::now().as_nanos();
         let otel_log: OtelLog = serde_json::from_str(json_with_observed_time).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log);
+        let our_log: OurLog = otel_to_sentry_log(otel_log).unwrap();
         let after_test = UnixTimestamp::now().as_nanos();
 
         // Get the observed timestamp from attributes
