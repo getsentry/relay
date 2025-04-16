@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
+
 ## 25.4.0
 
 - Extract searchable context fields into sentry tags for segment spans. ([#4651](https://github.com/getsentry/relay/pull/4651))

@@ -206,12 +206,18 @@ impl Envelope {
     }
 
     /// Parses an envelope from bytes.
-    #[allow(dead_code)]
     pub fn parse_bytes(bytes: Bytes) -> Result<Box<Self>, EnvelopeError> {
         let (headers, offset) = Self::parse_headers(&bytes)?;
         let items = Self::parse_items(&bytes, offset)?;
 
         Ok(Box::new(Envelope { headers, items }))
+    }
+
+    /// Parse envelope items from bytes buffer that doesn't contain a complete envelope.
+    ///
+    /// Note: the envelope header must not be present in the data. Use [`Self::parse_bytes`] instead.
+    pub fn parse_items_bytes(bytes: Bytes) -> Result<Items, EnvelopeError> {
+        Self::parse_items(&bytes, 0)
     }
 
     /// Parses an envelope taking into account a request.
@@ -251,13 +257,11 @@ impl Envelope {
     }
 
     /// Returns the number of items in this envelope.
-    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
     /// Returns `true` if this envelope does not contain any items.
-    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
@@ -910,6 +914,33 @@ mod tests {
             items[0].attachment_type(),
             Some(&AttachmentType::ViewHierarchy)
         );
+    }
+
+    #[test]
+    fn test_parse_empty_items() {
+        // Without terminating newline after header
+        let items = Envelope::parse_items_bytes(Bytes::from("")).unwrap();
+        assert_eq!(items.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_multiple_items() {
+        let bytes = Bytes::from(
+            "\
+             {\"type\":\"attachment\"}\n\
+             helloworld\n\
+             {\"type\":\"replay_recording\"}\n\
+             helloworld\
+             ",
+        );
+
+        // Without terminating newline after header
+        let items = Envelope::parse_items_bytes(bytes).unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(items[1].len(), 10);
+        assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
     }
 
     #[test]
