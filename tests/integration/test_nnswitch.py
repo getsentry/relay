@@ -1,9 +1,7 @@
 import os
 import pytest
-import queue
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from sentry_sdk.attachments import Attachment
 
 
 def load_dump_file(base_file_name: str):
