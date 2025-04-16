@@ -39,16 +39,8 @@ pub struct OurLog {
 }
 
 impl OurLog {
-    pub fn attribute(&self, key: &str) -> Option<Annotated<Value>> {
-        Some(
-            self.attributes
-                .value()?
-                .get(key)?
-                .value()?
-                .value
-                .clone()
-                .value,
-        )
+    pub fn attribute(&self, key: &str) -> Option<&Annotated<Value>> {
+        Some(&self.attributes.value()?.get(key)?.value()?.value.value)
     }
 }
 

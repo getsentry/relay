@@ -35,6 +35,7 @@ impl Item {
             headers: ItemHeaders {
                 ty,
                 length: Some(0),
+                item_count: None,
                 attachment_type: None,
                 content_type: None,
                 filename: None,
@@ -111,42 +112,44 @@ impl Item {
     ///
     /// For attachments, we count the number of bytes. Other items are counted as 1.
     pub fn quantities(&self, purpose: CountFor) -> SmallVec<[(DataCategory, usize); 1]> {
+        let item_count = self.item_count().unwrap_or(1) as usize;
+
         match self.ty() {
-            ItemType::Event => smallvec![(DataCategory::Error, 1)],
-            ItemType::Transaction => smallvec![(DataCategory::Transaction, 1)],
+            ItemType::Event => smallvec![(DataCategory::Error, item_count)],
+            ItemType::Transaction => smallvec![(DataCategory::Transaction, item_count)],
             ItemType::Security | ItemType::RawSecurity => {
-                smallvec![(DataCategory::Security, 1)]
+                smallvec![(DataCategory::Security, item_count)]
             }
             ItemType::Nel => smallvec![],
-            ItemType::UnrealReport => smallvec![(DataCategory::Error, 1)],
+            ItemType::UnrealReport => smallvec![(DataCategory::Error, item_count)],
             ItemType::Attachment => smallvec![
                 (DataCategory::Attachment, self.len().max(1)),
-                (DataCategory::AttachmentItem, 1)
+                (DataCategory::AttachmentItem, item_count)
             ],
             ItemType::Session | ItemType::Sessions => match purpose {
-                CountFor::RateLimits => smallvec![(DataCategory::Session, 1)],
+                CountFor::RateLimits => smallvec![(DataCategory::Session, item_count)],
                 CountFor::Outcomes => smallvec![],
             },
             ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
             ItemType::Log | ItemType::OtelLog => smallvec![
                 (DataCategory::LogByte, self.len().max(1)),
-                (DataCategory::LogItem, 1)
+                (DataCategory::LogItem, item_count)
             ],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![],
-            ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, 1)],
-            ItemType::Profile => smallvec![(DataCategory::Profile, 1)],
+            ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
+            ItemType::Profile => smallvec![(DataCategory::Profile, item_count)],
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
-                smallvec![(DataCategory::Replay, 1)]
+                smallvec![(DataCategory::Replay, item_count)]
             }
             ItemType::ClientReport => smallvec![],
-            ItemType::CheckIn => smallvec![(DataCategory::Monitor, 1)],
-            ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, 1)],
+            ItemType::CheckIn => smallvec![(DataCategory::Monitor, item_count)],
+            ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, item_count)],
             // NOTE: semantically wrong, but too expensive to parse.
-            ItemType::OtelTracesData => smallvec![(DataCategory::Span, 1)],
+            ItemType::OtelTracesData => smallvec![(DataCategory::Span, item_count)],
             ItemType::ProfileChunk => match self.profile_type() {
-                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, 1)],
-                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, 1)],
+                Some(ProfileType::Backend) => smallvec![(DataCategory::ProfileChunk, item_count)],
+                Some(ProfileType::Ui) => smallvec![(DataCategory::ProfileChunkUi, item_count)],
                 None => smallvec![],
             },
             ItemType::Unknown(_) => smallvec![],
@@ -164,6 +167,19 @@ impl Item {
     /// Returns `true` if this item's payload is empty.
     pub fn is_empty(&self) -> bool {
         self.payload.is_empty()
+    }
+
+    /// Returns the amount of items contained in the item body.
+    ///
+    /// An envelope item can hold multiple items of the same type by using an [`super::ItemContainer`].
+    /// In that case the single envelope item represents multiple items of type [`Self::ty`].
+    ///
+    /// This method can be safely used to generate outcomes.
+    pub fn item_count(&self) -> Option<u32> {
+        match self.ty().can_support_container() {
+            true => self.headers.item_count,
+            false => None,
+        }
     }
 
     /// Returns the content type of this item's payload.
@@ -213,6 +229,20 @@ impl Item {
         B: Into<Bytes>,
     {
         self.headers.content_type = Some(content_type);
+        self.set_payload_without_content_type(payload);
+    }
+
+    /// Sets the payload, content-type and item count of this envelope item.
+    pub fn set_payload_with_item_count<B>(
+        &mut self,
+        content_type: ContentType,
+        payload: B,
+        item_count: u32,
+    ) where
+        B: Into<Bytes>,
+    {
+        self.headers.content_type = Some(content_type);
+        self.headers.item_count = Some(item_count);
         self.set_payload_without_content_type(payload);
     }
 
@@ -603,6 +633,46 @@ impl ItemType {
     pub fn is_metrics(&self) -> bool {
         matches!(self, ItemType::Statsd | ItemType::MetricBuckets)
     }
+
+    /// Returns `true` if the specified [`ItemType`] can occur in an [`super::ItemContainer`].
+    ///
+    /// Note: this will return `true` even if Relay does not currently support item containers
+    /// for this item type to guarantee forward compatibility.
+    ///
+    /// Every item which will eventually be turned into an event, cannot support containers,
+    /// due to envelope limits.
+    /// Attachments and other binary items will also never support the container format.
+    fn can_support_container(&self) -> bool {
+        match self {
+            ItemType::Event => false,
+            ItemType::Transaction => false,
+            ItemType::Security => false,
+            ItemType::Attachment => false,
+            ItemType::FormData => false,
+            ItemType::RawSecurity => false,
+            ItemType::Nel => false,
+            ItemType::UnrealReport => false,
+            ItemType::UserReport => false,
+            ItemType::Session => true,
+            ItemType::Sessions => true,
+            ItemType::Statsd => true,
+            ItemType::MetricBuckets => true,
+            ItemType::ClientReport => true,
+            ItemType::Profile => true,
+            ItemType::ReplayEvent => false,
+            ItemType::ReplayRecording => false,
+            ItemType::ReplayVideo => false,
+            ItemType::CheckIn => true,
+            ItemType::OtelLog => true,
+            ItemType::Log => true,
+            ItemType::Span => true,
+            ItemType::OtelSpan => true,
+            ItemType::OtelTracesData => true,
+            ItemType::UserReportV2 => false,
+            ItemType::ProfileChunk => true,
+            ItemType::Unknown(_) => true,
+        }
+    }
 }
 
 impl fmt::Display for ItemType {
@@ -661,6 +731,15 @@ pub struct ItemHeaders {
     /// parsed until the first newline is encountered.
     #[serde(skip_serializing_if = "Option::is_none")]
     length: Option<u32>,
+
+    /// The amount of contained items.
+    ///
+    /// This header is required for all items that are transmitted in an envelope [`super::ItemContainer`].
+    /// The amount specified must match the amount of items contained in the container exactly.
+    ///
+    /// Failing to specify the count or a mismatching count will be treated as an invalid envelope.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    item_count: Option<u32>,
 
     /// If this is an attachment item, this may contain the attachment type.
     #[serde(skip_serializing_if = "Option::is_none")]
