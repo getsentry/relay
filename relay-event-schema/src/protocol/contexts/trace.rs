@@ -307,7 +307,7 @@ mod tests {
   },
   "links": [
     {
-      "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+      "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
       "span_id": "ea90fdead5f74052",
       "sampled": true,
       "attributes": {
@@ -350,7 +350,7 @@ mod tests {
                 ..Default::default()
             }),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
-                trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("ea90fdead5f74052".into())),
                 sampled: Annotated::new(true),
                 attributes: Annotated::new({

@@ -586,7 +586,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -1466,7 +1466,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -1480,7 +1480,7 @@ mod tests {
                 start_timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
                 ),
-                trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
 
                 ..Default::default()
@@ -1534,7 +1534,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -1548,7 +1548,7 @@ mod tests {
                 start_timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
                 ),
-                trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
 
                 ..Default::default()
