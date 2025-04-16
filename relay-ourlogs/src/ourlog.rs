@@ -285,7 +285,7 @@ fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{get_path, Error, ErrorKind, SerializableAnnotated};
+    use relay_protocol::{get_path, SerializableAnnotated};
 
     #[test]
     fn parse_otel_log() {
@@ -379,16 +379,9 @@ mod tests {
         }"#;
 
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log).unwrap();
-        let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
+        let our_log = otel_to_sentry_log(otel_log);
 
-        assert_eq!(
-            get_path!(annotated_log.trace_id),
-            Some(&Annotated::from_error(
-                Error::new(ErrorKind::InvalidData),
-                None
-            ))
-        );
+        assert!(our_log.is_err());
     }
 
     #[test]
