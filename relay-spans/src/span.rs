@@ -647,9 +647,7 @@ mod tests {
             parent_span_id: SpanId(
                 "fa90fdead5f74051",
             ),
-            trace_id: TraceId(
-                4c79f60c-1121-4eb3-8604-f4ae0781bfb2,
-            ),
+            trace_id: TraceId("4c79f60c11214eb38604f4ae0781bfb2"),
             segment_id: SpanId(
                 "fa90fdead5f74052",
             ),
@@ -811,6 +809,7 @@ mod tests {
     #[test]
     fn parse_link() {
         let json = r#"{
+            "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
             "links": [
                 {
                     "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -848,6 +847,13 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+
+        assert_eq!(
+            get_path!(annotated_span.trace_id),
+            Some(&Annotated::new(
+                "3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
+            ))
+        );
         assert_eq!(
             get_path!(annotated_span.links[0].trace_id),
             Some(&Annotated::new(
