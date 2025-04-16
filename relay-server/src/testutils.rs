@@ -4,7 +4,7 @@ use bytes::Bytes;
 use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
-use relay_event_schema::protocol::{EventId, TraceId};
+use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
 

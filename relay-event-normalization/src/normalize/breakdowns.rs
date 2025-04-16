@@ -243,7 +243,7 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Timelike, Utc};
-    use relay_event_schema::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
+    use relay_event_schema::protocol::{EventType, Span, SpanId, SpanStatus};
     use relay_protocol::Object;
     use similar_asserts::assert_eq;
 

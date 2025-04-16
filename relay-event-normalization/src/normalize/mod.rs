@@ -272,7 +272,7 @@ mod tests {
     use relay_event_schema::protocol::{
         ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DebugMeta, EventId, Exception,
         Frame, Geo, IpAddr, LenientString, Level, LogEntry, PairList, RawStacktrace, ReplayContext,
-        Request, Span, SpanId, Stacktrace, TagEntry, Tags, TraceContext, TraceId, User, Values,
+        Request, Span, SpanId, Stacktrace, TagEntry, Tags, TraceContext, User, Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, Annotated, Error, ErrorKind, FromValue,

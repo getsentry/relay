@@ -404,7 +404,7 @@ mod tests {
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::processor::process_value;
-    use relay_event_schema::protocol::{ClientSdkInfo, Contexts, SpanId, TraceId};
+    use relay_event_schema::protocol::{ClientSdkInfo, Contexts, SpanId};
     use relay_protocol::{assert_annotated_snapshot, get_value};
     use serde_json::json;
 

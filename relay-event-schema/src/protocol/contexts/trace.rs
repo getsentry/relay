@@ -266,22 +266,22 @@ mod tests {
     #[test]
     fn test_trace_id_as_u128() {
         // Test valid hex string
-        let trace_id = "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap();
+        let trace_id: TraceId = "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap();
         assert_eq!(trace_id.as_u128(), 0x4c79f60c11214eb38604f4ae0781bfb2);
 
         // Test empty string (should return 0)
-        let empty_trace_id = "".parse();
+        let empty_trace_id: Result<TraceId, Error> = "".parse();
         assert!(empty_trace_id.is_err());
 
         // Test string with invalid length (should return 0)
-        let short_trace_id = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
+        let short_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
         assert!(short_trace_id.is_err());
 
-        let long_trace_id = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
+        let long_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
         assert!(long_trace_id.is_err());
 
         // Test string with invalid hex characters (should return 0)
-        let invalid_trace_id = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
+        let invalid_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
         assert!(invalid_trace_id.is_err());
     }
 

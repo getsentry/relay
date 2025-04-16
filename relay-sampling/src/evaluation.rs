@@ -406,7 +406,6 @@ mod tests {
     use crate::dsc::TraceUserContext;
     use crate::DynamicSamplingContext;
     use chrono::TimeZone;
-    use relay_event_schema::protocol::TraceId;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
     use std::str::FromStr;

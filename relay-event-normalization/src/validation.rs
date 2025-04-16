@@ -315,7 +315,7 @@ fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
 mod tests {
     use chrono::TimeZone;
     use relay_base_schema::spans::SpanStatus;
-    use relay_event_schema::protocol::{Contexts, SpanId, TraceId};
+    use relay_event_schema::protocol::{Contexts, SpanId};
     use relay_protocol::{get_value, Object};
 
     use super::*;
