@@ -25,9 +25,9 @@ use crate::redis_sampling::{self, ReservoirRuleKey};
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
 /// The return is deterministic, always generates the same number from the same id.
-fn pseudo_random_from_uuid(id: Uuid) -> f64 {
-    let big_seed = id.as_u128();
-    let mut generator = Pcg32::new((big_seed >> 64) as u64, big_seed as u64);
+fn pseudo_random_from_seed(seed: Uuid) -> f64 {
+    let seed_number = seed.as_u128();
+    let mut generator = Pcg32::new((seed_number >> 64) as u64, seed_number as u64);
     let dist = Uniform::new(0f64, 1f64);
     generator.sample(dist)
 }
@@ -263,7 +263,7 @@ fn sampling_match(sample_rate: f64, seed: Uuid) -> SamplingDecision {
         return SamplingDecision::Keep;
     }
 
-    let random_number = pseudo_random_from_uuid(seed);
+    let random_number = pseudo_random_from_seed(seed);
     relay_log::trace!(
         sample_rate,
         random_number,
@@ -403,11 +403,11 @@ impl fmt::Display for MatchedRuleIds {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use chrono::TimeZone;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
+    use std::str::FromStr;
+    use uuid::Uuid;
 
     use crate::config::{DecayingFunction, RuleType, TimeRange};
     use crate::dsc::TraceUserContext;
@@ -468,7 +468,7 @@ mod tests {
         paths_and_values: Vec<(&str, &str)>,
     ) -> DynamicSamplingContext {
         let mut dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: "12345678123456781234567812345678".parse().unwrap(),
             release: None,
             environment: None,
@@ -726,12 +726,10 @@ mod tests {
     }
 
     #[test]
-    /// Test that the we get the same sampling decision from the same trace id
+    /// Test that we get the same sampling decision from the same trace id
     fn test_repeatable_seed() {
-        let id = "4a106cf6-b151-44eb-9131-ae7db1a157a3".parse().unwrap();
-
-        let val1 = pseudo_random_from_uuid(id);
-        let val2 = pseudo_random_from_uuid(id);
+        let val1 = pseudo_random_from_seed(Uuid::default());
+        let val2 = pseudo_random_from_seed(Uuid::default());
         assert!(val1 + f64::EPSILON > val2 && val2 + f64::EPSILON > val1);
     }
 

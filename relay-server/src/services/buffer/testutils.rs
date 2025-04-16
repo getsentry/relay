@@ -59,7 +59,7 @@ pub mod utils {
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

@@ -3844,6 +3844,7 @@ name = "relay-monitors"
 version = "25.4.0"
 dependencies = [
  "relay-base-schema",
+ "relay-event-schema",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -4024,6 +4025,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_pcg",
  "relay-base-schema",
+ "relay-event-schema",
  "relay-log",
  "relay-protocol",
  "relay-redis",

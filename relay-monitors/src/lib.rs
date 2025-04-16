@@ -19,6 +19,7 @@
 use std::sync::OnceLock;
 
 use relay_base_schema::project::ProjectId;
+use relay_event_schema::protocol::TraceId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -59,13 +60,6 @@ pub enum CheckInStatus {
     /// No status was passed.
     #[serde(other)]
     Unknown,
-}
-
-fn uuid_simple<S>(uuid: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    uuid.as_simple().serialize(serializer)
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -127,8 +121,7 @@ pub struct MonitorConfig {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckInTrace {
     /// Trace-ID of the check-in.
-    #[serde(serialize_with = "uuid_simple")]
-    trace_id: Uuid,
+    trace_id: TraceId,
 }
 
 /// Any contexts sent in the check-in payload.
@@ -139,12 +132,15 @@ pub struct CheckInContexts {
     trace: Option<CheckInTrace>,
 }
 
+/// A check in id is expected to have the same format as a trace id, so we just alias the type.
+type CheckInId = TraceId;
+
 /// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckIn {
     /// Unique identifier of this check-in.
-    #[serde(default, serialize_with = "uuid_simple")]
-    pub check_in_id: Uuid,
+    #[serde(default)]
+    pub check_in_id: CheckInId,
 
     /// Identifier of the monitor for this check-in.
     #[serde(default)]

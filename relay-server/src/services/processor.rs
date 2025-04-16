@@ -4058,7 +4058,7 @@ mod tests {
             .unwrap();
 
         let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
-        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
+        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r#"
         Object(
             {
                 "environment": ~,
@@ -4071,12 +4071,12 @@ mod tests {
                     "0.2",
                 ),
                 "trace_id": String(
-                    "00000000-0000-0000-0000-000000000000",
+                    "00000000000000000000000000000000",
                 ),
                 "transaction": ~,
             },
         )
-        "###);
+        "#);
     }
 
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {

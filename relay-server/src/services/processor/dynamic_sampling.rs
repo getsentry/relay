@@ -214,7 +214,10 @@ async fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
-        return evaluator.match_rules(dsc.trace_id, dsc, rules).await.into();
+        return evaluator
+            .match_rules(*dsc.trace_id, dsc, rules)
+            .await
+            .into();
     }
 
     SamplingResult::NoMatch
@@ -285,7 +288,6 @@ mod tests {
     };
     use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
     use relay_system::Addr;
-    use uuid::Uuid;
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
@@ -557,7 +559,7 @@ mod tests {
         let request_meta = RequestMeta::new(dsn);
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),
@@ -717,7 +719,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_sample_rate() {
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

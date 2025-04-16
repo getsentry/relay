@@ -53,10 +53,13 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
     managed_envelope.retain_items(|item| {
         let mut logs = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
-                Ok(otel_log) => ContainerItems::from_elem(
-                    Annotated::new(relay_ourlogs::otel_to_sentry_log(otel_log)),
-                    1,
-                ),
+                Ok(otel_log) => match relay_ourlogs::otel_to_sentry_log(otel_log) {
+                    Ok(log) => ContainerItems::from_elem(Annotated::new(log), 1),
+                    Err(err) => {
+                        relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
+                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));
+                    }
+                },
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel Log: {err}");
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));

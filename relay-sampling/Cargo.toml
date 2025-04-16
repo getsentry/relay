@@ -22,6 +22,7 @@ chrono = { workspace = true, features = ["now"] }
 rand = { workspace = true }
 rand_pcg = { workspace = true }
 relay-base-schema = { workspace = true }
+relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-protocol = { workspace = true }
 relay-redis = { workspace = true, optional = true }
