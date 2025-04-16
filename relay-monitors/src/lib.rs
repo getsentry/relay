@@ -16,7 +16,6 @@
 )]
 #![warn(missing_docs)]
 
-use std::any::TypeId;
 use std::sync::OnceLock;
 
 use relay_base_schema::project::ProjectId;
