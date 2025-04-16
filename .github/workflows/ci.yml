@@ -326,7 +326,7 @@ jobs:
         "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm"
       }')[matrix.target] }}
 
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     env:
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
