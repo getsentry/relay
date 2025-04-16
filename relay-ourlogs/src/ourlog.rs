@@ -283,7 +283,7 @@ fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{get_path, SerializableAnnotated};
+    use relay_protocol::{get_path, Error, ErrorKind, SerializableAnnotated};
 
     #[test]
     fn parse_otel_log() {
@@ -382,7 +382,10 @@ mod tests {
 
         assert_eq!(
             get_path!(annotated_log.trace_id),
-            Some(&Annotated::new(TraceId::parse_str("").unwrap()))
+            Some(&Annotated::from_error(
+                Error::new(ErrorKind::InvalidData),
+                None
+            ))
         );
     }
 
@@ -526,13 +529,13 @@ mod tests {
             );
         }
 
-        insta::assert_debug_snapshot!(merged_log, @r###"
+        insta::assert_debug_snapshot!(merged_log, @r#"
         OurLog {
             timestamp: Timestamp(
                 2000-01-01T00:00:00Z,
             ),
             trace_id: TraceId(
-                "5b8efff798038103d269b633813fc60c",
+                5b8efff7-9803-8103-d269-b633813fc60c,
             ),
             span_id: SpanId(
                 "eee19b7ec3c1b174",
@@ -577,7 +580,7 @@ mod tests {
                 ),
             },
         }
-        "###);
+        "#);
     }
 
     #[test]

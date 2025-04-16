@@ -297,13 +297,13 @@ mod tests {
         }"#;
 
         let data = Annotated::<OurLog>::from_json(json).unwrap();
-        insta::assert_debug_snapshot!(data, @r###"
+        insta::assert_debug_snapshot!(data, @r#"
         OurLog {
             timestamp: Timestamp(
                 2018-12-13T16:51:00Z,
             ),
             trace_id: TraceId(
-                "5b8efff798038103d269b633813fc60c",
+                5b8efff7-9803-8103-d269-b633813fc60c,
             ),
             span_id: SpanId(
                 "eee19b7ec3c1b174",
@@ -363,7 +363,7 @@ mod tests {
             },
             other: {},
         }
-        "###);
+        "#);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
         {

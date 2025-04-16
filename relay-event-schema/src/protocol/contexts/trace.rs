@@ -401,6 +401,35 @@ mod tests {
     }
 
     #[test]
+    fn test_trace_context_backward_compatibility() {
+        let json = r#"{
+  "trace_id": "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
+  "type": "trace"
+}"#;
+        let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+            trace_id: Annotated::new(
+                TraceId::parse_str("b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6").unwrap(),
+            ),
+            ..Default::default()
+        })));
+
+        assert_eq!(json, context.to_json_pretty().unwrap());
+
+        let json = r#"{
+  "trace_id": "b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6",
+  "type": "trace"
+}"#;
+        let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+            trace_id: Annotated::new(
+                TraceId::parse_str("b1e2a9dc9b8e4cd0af0e80e6b83b56e6").unwrap(),
+            ),
+            ..Default::default()
+        })));
+
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
     fn test_trace_context_with_routes() {
         let json = r#"{
   "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
