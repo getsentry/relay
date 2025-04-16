@@ -627,7 +627,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let span_from_otel = otel_to_sentry_span(otel_span);
 
-        insta::assert_debug_snapshot!(span_from_otel, @r###"
+        insta::assert_debug_snapshot!(span_from_otel, @r#"
         Span {
             timestamp: Timestamp(
                 1970-01-01T00:02:03.500Z,
@@ -644,7 +644,7 @@ mod tests {
                 "fa90fdead5f74051",
             ),
             trace_id: TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2",
+                4c79f60c-1121-4eb3-8604-f4ae0781bfb2,
             ),
             segment_id: SpanId(
                 "fa90fdead5f74052",
@@ -746,7 +746,7 @@ mod tests {
             _performance_issues_spans: ~,
             other: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
