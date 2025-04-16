@@ -518,10 +518,10 @@ mod tests {
             }
         }"#;
 
-        let mut ourlog = Annotated::<OurLog>::from_json(json).unwrap();
-        ourlog_merge_otel(&mut ourlog);
+        let mut merged_log = Annotated::<OurLog>::from_json(json).unwrap();
+        ourlog_merge_otel(&mut merged_log);
 
-        if let Some(log) = ourlog.value_mut() {
+        if let Some(log) = merged_log.value_mut() {
             log.other.insert(
                 "observed_timestamp_nanos".to_string(),
                 Annotated::new(Value::U64(1742481864000000000)),
