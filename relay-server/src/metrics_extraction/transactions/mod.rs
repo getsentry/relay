@@ -616,7 +616,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r###"
+        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r#"
         [
             Span {
                 timestamp: Timestamp(
@@ -634,7 +634,7 @@ mod tests {
                     "bd429c44b67a3eb4",
                 ),
                 trace_id: TraceId(
-                    "ff62a8b040f340bda5d830223def1d81",
+                    ff62a8b0-40f3-40bd-a5d8-30223def1d81,
                 ),
                 segment_id: ~,
                 is_segment: ~,
@@ -656,7 +656,7 @@ mod tests {
                 other: {},
             },
         ]
-        "###);
+        "#);
 
         insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
