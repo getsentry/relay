@@ -26,19 +26,12 @@ use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus}
 /// though the original spec only allows lowercase hexadecimal characters.
 ///
 /// See: <https://www.w3.org/TR/trace-context/#trace-id>
-#[derive(Debug, Clone, Copy, Default, PartialEq, Empty, ProcessValue)]
+#[derive(Clone, Copy, Default, PartialEq, Empty, ProcessValue)]
 pub struct TraceId(Uuid);
 
 impl TraceId {
     pub fn parse_str(input: &str) -> Result<TraceId, Error> {
         Self::from_str(input)
-    }
-
-    pub fn parse_str_annotated(input: &str) -> Annotated<TraceId> {
-        match Self::parse_str(input) {
-            Ok(trace_id) => trace_id.into(),
-            Err(err) => Annotated::from_error(err, None),
-        }
     }
 }
 
@@ -59,6 +52,12 @@ impl FromStr for TraceId {
 impl fmt::Display for TraceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.as_simple())
+    }
+}
+
+impl fmt::Debug for TraceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TraceId(\"{}\")", self.0.as_simple())
     }
 }
 

@@ -611,7 +611,6 @@ fn require_termination(slice: &[u8], offset: usize) -> Result<(), EnvelopeError>
 mod tests {
     use super::*;
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_event_schema::protocol::TraceId;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"

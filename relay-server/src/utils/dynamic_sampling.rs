@@ -85,9 +85,7 @@ pub async fn is_trace_fully_sampled(
 
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
-    let evaluation = evaluator
-        .match_rules(dsc.trace_id.as_u128(), dsc, rules)
-        .await;
+    let evaluation = evaluator.match_rules(*dsc.trace_id, dsc, rules).await;
     Some(SamplingResult::from(evaluation).decision().is_keep())
 }
 

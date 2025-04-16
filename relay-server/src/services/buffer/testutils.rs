@@ -2,7 +2,7 @@
 pub mod utils {
     use chrono::{DateTime, Utc};
     use relay_base_schema::project::ProjectKey;
-    use relay_event_schema::protocol::{EventId, TraceId};
+    use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
     use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
     use sqlx::{Pool, Sqlite};

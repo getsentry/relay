@@ -713,7 +713,7 @@ impl Readiness {
 #[cfg(test)]
 mod tests {
     use relay_common::Dsn;
-    use relay_event_schema::protocol::{EventId, TraceId};
+    use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
     use std::str::FromStr;
     use std::sync::Arc;

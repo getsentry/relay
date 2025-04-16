@@ -827,7 +827,7 @@ mod tests {
     use bytes::Bytes;
     use once_cell::sync::Lazy;
     use relay_event_schema::protocol::{
-        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
+        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext,
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;

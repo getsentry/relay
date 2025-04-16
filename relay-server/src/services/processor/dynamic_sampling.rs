@@ -1,5 +1,5 @@
 //! Dynamic sampling processor related code.
-use std::ops::{ControlFlow, Deref};
+use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -215,7 +215,7 @@ async fn compute_sampling_decision(
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
         return evaluator
-            .match_rules(*dsc.trace_id.deref(), dsc, rules)
+            .match_rules(*dsc.trace_id, dsc, rules)
             .await
             .into();
     }
@@ -281,7 +281,7 @@ mod tests {
     use relay_base_schema::project::ProjectKey;
     use relay_cogs::Token;
     use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
-    use relay_event_schema::protocol::{EventId, LenientString, TraceId};
+    use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
