@@ -5,6 +5,7 @@ use crate::services::processor::LogGroup;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, GlobalConfig};
 
+use crate::envelope::ItemType;
 use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::sample;
@@ -12,7 +13,7 @@ use crate::utils::{ItemAction, TypedEnvelope};
 
 #[cfg(feature = "processing")]
 use {
-    crate::envelope::{ContainerItems, Item, ItemContainer, ItemType},
+    crate::envelope::{ContainerItems, Item, ItemContainer},
     crate::services::outcome::{DiscardReason, Outcome},
     crate::services::processor::ProcessingError,
     relay_dynamic_config::ProjectConfig,
@@ -38,12 +39,14 @@ pub fn filter(
         .map(sample)
         .unwrap_or(true);
 
-    managed_envelope.retain_items(|_| {
-        if logging_disabled || !logs_sampled {
-            ItemAction::DropSilently
-        } else {
-            ItemAction::Keep
-        }
+    let action = match logging_disabled || !logs_sampled {
+        true => ItemAction::DropSilently,
+        false => ItemAction::Keep,
+    };
+
+    managed_envelope.retain_items(move |item| match item.ty() {
+        ItemType::OtelLog | ItemType::Log => action.clone(),
+        _ => ItemAction::Keep,
     });
 }
 

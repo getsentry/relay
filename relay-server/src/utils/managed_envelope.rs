@@ -48,6 +48,7 @@ impl Handling {
 }
 
 /// Represents the decision on whether or not to keep an envelope item.
+#[derive(Debug, Clone)]
 pub enum ItemAction {
     /// Keep the item.
     Keep,
