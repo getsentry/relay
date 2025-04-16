@@ -360,6 +360,12 @@ jobs:
         with:
           key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
+      - name: Clone internal repo into stub
+        run: |
+          git clone https://github.com/getsentry/tempest.git /tmp/tempest
+          cp -r /tmp/tempest/crates/prosperoconv/src relay-prosperoconv/
+          rm -rf /tmp/tempest
+
       - name: Compile
         run: |
           cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
