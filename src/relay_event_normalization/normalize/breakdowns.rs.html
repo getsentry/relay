@@ -243,7 +243,7 @@
 <a href=#243 id=243 data-nosnippet>243</a><span class="attr">#[cfg(test)]
 <a href=#244 id=244 data-nosnippet>244</a></span><span class="kw">mod </span>tests {
 <a href=#245 id=245 data-nosnippet>245</a>    <span class="kw">use </span>chrono::{TimeZone, Timelike, Utc};
-<a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">use </span>relay_event_schema::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">use </span>relay_event_schema::protocol::{EventType, Span, SpanId, SpanStatus};
 <a href=#247 id=247 data-nosnippet>247</a>    <span class="kw">use </span>relay_protocol::Object;
 <a href=#248 id=248 data-nosnippet>248</a>    <span class="kw">use </span>similar_asserts::assert_eq;
 <a href=#249 id=249 data-nosnippet>249</a>
@@ -296,7 +296,7 @@
 <a href=#296 id=296 data-nosnippet>296</a>                start_timestamp: start,
 <a href=#297 id=297 data-nosnippet>297</a>                description: Annotated::new(<span class="string">"desc"</span>.to_owned()),
 <a href=#298 id=298 data-nosnippet>298</a>                op: Annotated::new(op_name),
-<a href=#299 id=299 data-nosnippet>299</a>                trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#299 id=299 data-nosnippet>299</a>                trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#300 id=300 data-nosnippet>300</a>                span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())),
 <a href=#301 id=301 data-nosnippet>301</a>                status: Annotated::new(SpanStatus::Ok),
 <a href=#302 id=302 data-nosnippet>302</a>                ..Default::default()

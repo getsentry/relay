@@ -4058,7 +4058,7 @@
 <a href=#4058 id=4058 data-nosnippet>4058</a>            .unwrap();
 <a href=#4059 id=4059 data-nosnippet>4059</a>
 <a href=#4060 id=4060 data-nosnippet>4060</a>        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json_bytes(<span class="kw-2">&amp;</span>event.payload()).unwrap();
-<a href=#4061 id=4061 data-nosnippet>4061</a>        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap()._dsc, @<span class="string">r###"
+<a href=#4061 id=4061 data-nosnippet>4061</a>        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap()._dsc, @<span class="string">r#"
 <a href=#4062 id=4062 data-nosnippet>4062</a>        Object(
 <a href=#4063 id=4063 data-nosnippet>4063</a>            {
 <a href=#4064 id=4064 data-nosnippet>4064</a>                "environment": ~,
@@ -4071,12 +4071,12 @@
 <a href=#4071 id=4071 data-nosnippet>4071</a>                    "0.2",
 <a href=#4072 id=4072 data-nosnippet>4072</a>                ),
 <a href=#4073 id=4073 data-nosnippet>4073</a>                "trace_id": String(
-<a href=#4074 id=4074 data-nosnippet>4074</a>                    "00000000-0000-0000-0000-000000000000",
+<a href=#4074 id=4074 data-nosnippet>4074</a>                    "00000000000000000000000000000000",
 <a href=#4075 id=4075 data-nosnippet>4075</a>                ),
 <a href=#4076 id=4076 data-nosnippet>4076</a>                "transaction": ~,
 <a href=#4077 id=4077 data-nosnippet>4077</a>            },
 <a href=#4078 id=4078 data-nosnippet>4078</a>        )
-<a href=#4079 id=4079 data-nosnippet>4079</a>        "###</span>);
+<a href=#4079 id=4079 data-nosnippet>4079</a>        "#</span>);
 <a href=#4080 id=4080 data-nosnippet>4080</a>    }
 <a href=#4081 id=4081 data-nosnippet>4081</a>
 <a href=#4082 id=4082 data-nosnippet>4082</a>    <span class="kw">fn </span>capture_test_event(transaction_name: <span class="kw-2">&amp;</span>str, source: TransactionSource) -&gt; Vec&lt;String&gt; {

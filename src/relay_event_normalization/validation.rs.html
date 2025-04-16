@@ -315,7 +315,7 @@
 <a href=#315 id=315 data-nosnippet>315</a></span><span class="kw">mod </span>tests {
 <a href=#316 id=316 data-nosnippet>316</a>    <span class="kw">use </span>chrono::TimeZone;
 <a href=#317 id=317 data-nosnippet>317</a>    <span class="kw">use </span>relay_base_schema::spans::SpanStatus;
-<a href=#318 id=318 data-nosnippet>318</a>    <span class="kw">use </span>relay_event_schema::protocol::{Contexts, SpanId, TraceId};
+<a href=#318 id=318 data-nosnippet>318</a>    <span class="kw">use </span>relay_event_schema::protocol::{Contexts, SpanId};
 <a href=#319 id=319 data-nosnippet>319</a>    <span class="kw">use </span>relay_protocol::{get_value, Object};
 <a href=#320 id=320 data-nosnippet>320</a>
 <a href=#321 id=321 data-nosnippet>321</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -331,7 +331,7 @@
 <a href=#331 id=331 data-nosnippet>331</a>            contexts: {
 <a href=#332 id=332 data-nosnippet>332</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#333 id=333 data-nosnippet>333</a>                contexts.add(TraceContext {
-<a href=#334 id=334 data-nosnippet>334</a>                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#334 id=334 data-nosnippet>334</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#335 id=335 data-nosnippet>335</a>                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
 <a href=#336 id=336 data-nosnippet>336</a>                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
 <a href=#337 id=337 data-nosnippet>337</a>                    ..Default::default()
@@ -341,7 +341,7 @@
 <a href=#341 id=341 data-nosnippet>341</a>            spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
 <a href=#342 id=342 data-nosnippet>342</a>                start_timestamp: Annotated::new(start.into()),
 <a href=#343 id=343 data-nosnippet>343</a>                timestamp: Annotated::new(end.into()),
-<a href=#344 id=344 data-nosnippet>344</a>                trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#344 id=344 data-nosnippet>344</a>                trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#345 id=345 data-nosnippet>345</a>                span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
 <a href=#346 id=346 data-nosnippet>346</a>                op: Annotated::new(<span class="string">"db.statement"</span>.to_owned()),
 <a href=#347 id=347 data-nosnippet>347</a>                ..Default::default()
@@ -505,7 +505,7 @@
 <a href=#505 id=505 data-nosnippet>505</a>            contexts: {
 <a href=#506 id=506 data-nosnippet>506</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#507 id=507 data-nosnippet>507</a>                contexts.add(TraceContext {
-<a href=#508 id=508 data-nosnippet>508</a>                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#508 id=508 data-nosnippet>508</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#509 id=509 data-nosnippet>509</a>                    ..Default::default()
 <a href=#510 id=510 data-nosnippet>510</a>                });
 <a href=#511 id=511 data-nosnippet>511</a>                Annotated::new(contexts)
@@ -532,7 +532,7 @@
 <a href=#532 id=532 data-nosnippet>532</a>            contexts: {
 <a href=#533 id=533 data-nosnippet>533</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#534 id=534 data-nosnippet>534</a>                contexts.add(TraceContext {
-<a href=#535 id=535 data-nosnippet>535</a>                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#535 id=535 data-nosnippet>535</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#536 id=536 data-nosnippet>536</a>                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
 <a href=#537 id=537 data-nosnippet>537</a>                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
 <a href=#538 id=538 data-nosnippet>538</a>                    ..Default::default()
@@ -562,7 +562,7 @@
 <a href=#562 id=562 data-nosnippet>562</a>            contexts: {
 <a href=#563 id=563 data-nosnippet>563</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#564 id=564 data-nosnippet>564</a>                contexts.add(TraceContext {
-<a href=#565 id=565 data-nosnippet>565</a>                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#565 id=565 data-nosnippet>565</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#566 id=566 data-nosnippet>566</a>                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
 <a href=#567 id=567 data-nosnippet>567</a>                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
 <a href=#568 id=568 data-nosnippet>568</a>                    ..Default::default()
@@ -597,7 +597,7 @@
 <a href=#597 id=597 data-nosnippet>597</a>            contexts: {
 <a href=#598 id=598 data-nosnippet>598</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#599 id=599 data-nosnippet>599</a>                contexts.add(TraceContext {
-<a href=#600 id=600 data-nosnippet>600</a>                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#600 id=600 data-nosnippet>600</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#601 id=601 data-nosnippet>601</a>                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
 <a href=#602 id=602 data-nosnippet>602</a>                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
 <a href=#603 id=603 data-nosnippet>603</a>                    ..Default::default()
@@ -635,7 +635,7 @@
 <a href=#635 id=635 data-nosnippet>635</a>            contexts: {
 <a href=#636 id=636 data-nosnippet>636</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#637 id=637 data-nosnippet>637</a>                contexts.add(TraceContext {
-<a href=#638 id=638 data-nosnippet>638</a>                    trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#638 id=638 data-nosnippet>638</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#639 id=639 data-nosnippet>639</a>                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
 <a href=#640 id=640 data-nosnippet>640</a>                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
 <a href=#641 id=641 data-nosnippet>641</a>                    ..Default::default()
@@ -649,7 +649,7 @@
 <a href=#649 id=649 data-nosnippet>649</a>                start_timestamp: Annotated::new(
 <a href=#650 id=650 data-nosnippet>650</a>                    Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
 <a href=#651 id=651 data-nosnippet>651</a>                ),
-<a href=#652 id=652 data-nosnippet>652</a>                trace_id: Annotated::new(TraceId(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.into())),
+<a href=#652 id=652 data-nosnippet>652</a>                trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
 <a href=#653 id=653 data-nosnippet>653</a>                ..Default::default()
 <a href=#654 id=654 data-nosnippet>654</a>            })]),
 <a href=#655 id=655 data-nosnippet>655</a>            ..Default::default()
