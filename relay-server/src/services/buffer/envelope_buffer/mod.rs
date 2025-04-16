@@ -747,7 +747,7 @@ mod tests {
         if let Some(sampling_key) = sampling_key {
             envelope.set_dsc(DynamicSamplingContext {
                 public_key: sampling_key,
-                trace_id: Uuid::new_v4(),
+                trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
                 release: None,
                 user: Default::default(),
                 replay_id: None,

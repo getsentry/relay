@@ -150,7 +150,7 @@ impl Processor for ClockDriftProcessor {
 mod tests {
     use chrono::offset::TimeZone;
     use relay_event_schema::processor::process_value;
-    use relay_event_schema::protocol::{Contexts, EventType, SpanId, TraceContext, TraceId};
+    use relay_event_schema::protocol::{Contexts, EventType, SpanId, TraceContext};
     use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
 
@@ -164,7 +164,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()

@@ -134,7 +134,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
-        insta::assert_debug_snapshot!(span_from_event, @r###"
+        insta::assert_debug_snapshot!(span_from_event, @r#"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -146,9 +146,7 @@ mod tests {
             parent_span_id: SpanId(
                 "fa90fdead5f74051",
             ),
-            trace_id: TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2",
-            ),
+            trace_id: TraceId("4c79f60c11214eb38604f4ae0781bfb2"),
             segment_id: SpanId(
                 "fa90fdead5f74052",
             ),
@@ -241,9 +239,7 @@ mod tests {
             },
             links: [
                 SpanLink {
-                    trace_id: TraceId(
-                        "4c79f60c11214eb38604f4ae0781bfb2",
-                    ),
+                    trace_id: TraceId("4c79f60c11214eb38604f4ae0781bfb2"),
                     span_id: SpanId(
                         "fa90fdead5f74052",
                     ),
@@ -274,6 +270,6 @@ mod tests {
             _performance_issues_spans: ~,
             other: {},
         }
-        "###);
+        "#);
     }
 }

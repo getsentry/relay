@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use relay_base_schema::project::ProjectKey;
+use relay_event_schema::protocol::TraceId;
 use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -24,7 +25,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynamicSamplingContext {
     /// ID created by clients to represent the current call flow.
-    pub trace_id: Uuid,
+    pub trace_id: TraceId,
     /// The project key.
     pub public_key: ProjectKey,
     /// The release.
@@ -245,7 +246,7 @@ mod tests {
     fn parse_user() {
         let jsons = [
             r#"{
-                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
                 "public_key": "abd0f232775f45feab79864e580d160b",
                 "user": {
                     "id": "some-id",
@@ -253,7 +254,7 @@ mod tests {
                 }
             }"#,
             r#"{
-                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
                 "public_key": "abd0f232775f45feab79864e580d160b",
                 "user_id": "some-id",
                 "user_segment": "all"
@@ -262,7 +263,7 @@ mod tests {
             // rely on this behavior anywhere (ignoring Hyrum's law). it would be fine for them to
             // change, we just have to be conscious about it.
             r#"{
-                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
                 "public_key": "abd0f232775f45feab79864e580d160b",
                 "user_id": "",
                 "user_segment": "",
@@ -272,7 +273,7 @@ mod tests {
                 }
             }"#,
             r#"{
-                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
                 "public_key": "abd0f232775f45feab79864e580d160b",
                 "user_id": "some-id",
                 "user_segment": "all",
@@ -282,7 +283,7 @@ mod tests {
                 }
             }"#,
             r#"{
-                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
                 "public_key": "abd0f232775f45feab79864e580d160b",
                 "user_id": "some-id",
                 "user_segment": "all",
@@ -303,7 +304,7 @@ mod tests {
         // data together
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "user": {
@@ -314,7 +315,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         insta::assert_ron_snapshot!(dsc, @r#"
         {
-          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "trace_id": "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
           "public_key": "abd0f232775f45feab79864e580d160b",
           "release": None,
           "environment": None,
@@ -329,7 +330,7 @@ mod tests {
     fn test_parse_sample_rate() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sample_rate": "0.5"
@@ -338,7 +339,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         insta::assert_ron_snapshot!(dsc, @r#"
         {
-          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
           "public_key": "abd0f232775f45feab79864e580d160b",
           "release": None,
           "environment": None,
@@ -354,7 +355,7 @@ mod tests {
     fn test_parse_sample_rate_scientific_notation() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sample_rate": "1e-5"
@@ -363,7 +364,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         insta::assert_ron_snapshot!(dsc, @r#"
         {
-          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
           "public_key": "abd0f232775f45feab79864e580d160b",
           "release": None,
           "environment": None,
@@ -379,7 +380,7 @@ mod tests {
     fn test_parse_sample_rate_bogus() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sample_rate": "bogus"
@@ -392,7 +393,7 @@ mod tests {
     fn test_parse_sample_rate_number() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sample_rate": 0.1
@@ -401,7 +402,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         insta::assert_ron_snapshot!(dsc, @r#"
             {
-              "trace_id": "00000000-0000-0000-0000-000000000000",
+              "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
               "public_key": "abd0f232775f45feab79864e580d160b",
               "release": None,
               "environment": None,
@@ -417,7 +418,7 @@ mod tests {
     fn test_parse_sample_rate_integer() {
         let json = r#"
             {
-                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
                 "public_key": "abd0f232775f45feab79864e580d160b",
                 "user_id": "hello",
                 "sample_rate": "1"
@@ -426,7 +427,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         insta::assert_ron_snapshot!(dsc, @r#"
             {
-              "trace_id": "00000000-0000-0000-0000-000000000000",
+              "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
               "public_key": "abd0f232775f45feab79864e580d160b",
               "release": None,
               "environment": None,
@@ -442,7 +443,7 @@ mod tests {
     fn test_parse_sample_rate_negative() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sample_rate": "-0.1"
@@ -455,7 +456,7 @@ mod tests {
     fn test_parse_sampled_with_incoming_boolean() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sampled": true
@@ -464,7 +465,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
         let expected_json = r#"{
-  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
   "public_key": "abd0f232775f45feab79864e580d160b",
   "release": null,
   "environment": null,
@@ -481,7 +482,7 @@ mod tests {
     fn test_parse_sampled_with_incoming_boolean_as_string() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sampled": "false"
@@ -490,7 +491,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
         let expected_json = r#"{
-  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
   "public_key": "abd0f232775f45feab79864e580d160b",
   "release": null,
   "environment": null,
@@ -507,7 +508,7 @@ mod tests {
     fn test_parse_sampled_with_incoming_invalid_boolean_as_string() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sampled": "tru"
@@ -516,7 +517,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
         let expected_json = r#"{
-  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
   "public_key": "abd0f232775f45feab79864e580d160b",
   "release": null,
   "environment": null,
@@ -532,7 +533,7 @@ mod tests {
     fn test_parse_sampled_with_incoming_null_value() {
         let json = r#"
         {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sampled": null
@@ -541,7 +542,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
         let expected_json = r#"{
-  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
   "public_key": "abd0f232775f45feab79864e580d160b",
   "release": null,
   "environment": null,
@@ -557,7 +558,7 @@ mod tests {
     fn getter_filled() {
         let replay_id = Uuid::new_v4();
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
             user: TraceUserContext {
@@ -592,7 +593,7 @@ mod tests {
     #[test]
     fn getter_empty() {
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
             user: TraceUserContext::default(),
@@ -611,7 +612,7 @@ mod tests {
         assert_eq!(None, dsc.get_value("trace.replay_id"));
 
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
             user: TraceUserContext::default(),

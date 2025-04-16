@@ -1,28 +1,94 @@
+use relay_protocol::{
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization,
+    Value,
+};
+use serde::{Serialize, Serializer};
 use std::fmt;
+use std::ops::Deref;
 use std::str::FromStr;
-
-use relay_protocol::{Annotated, Array, Empty, Error, FromValue, IntoValue, Object, Value};
+use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus};
 
-/// A 32-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-pub struct TraceId(pub String);
+/// Represents a W3C Trace Context `trace-id`.
+///
+/// The `trace-id` is a globally unique identifier for a distributed trace,
+/// used to correlate requests across service boundaries.
+///
+/// Format:
+/// - 16-byte array (128 bits), represented as 32-character hexadecimal string
+/// - Example: `"4bf92f3577b34da6a3ce929d0e0e4736"`
+/// - MUST NOT be all zeros (`"00000000000000000000000000000000"`)
+/// - MUST contain only hex digits (`0-9`, `a-f`, `A-F`)
+///
+/// Our implementation allows uppercase hexadecimal characters for backward compatibility, even
+/// though the original spec only allows lowercase hexadecimal characters.
+///
+/// See: <https://www.w3.org/TR/trace-context/#trace-id>
+#[derive(Clone, Copy, Default, PartialEq, Empty, ProcessValue)]
+pub struct TraceId(Uuid);
+
+impl TraceId {
+    pub fn parse_str(input: &str) -> Result<TraceId, Error> {
+        Self::from_str(input)
+    }
+}
+
+relay_common::impl_str_serde!(TraceId, "a trace identifier");
+
+impl FromStr for TraceId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Uuid::parse_str(s).map(Into::into).map_err(|_| {
+            Error::with(ErrorKind::InvalidData, |e| {
+                e.insert("reason", "the trace id is not valid");
+            })
+        })
+    }
+}
+
+impl fmt::Display for TraceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.as_simple())
+    }
+}
+
+impl fmt::Debug for TraceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TraceId(\"{}\")", self.0.as_simple())
+    }
+}
+
+impl From<Uuid> for TraceId {
+    fn from(uuid: Uuid) -> Self {
+        TraceId(uuid)
+    }
+}
+
+impl Deref for TraceId {
+    type Target = Uuid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl FromValue for TraceId {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
         match value {
-            Annotated(Some(Value::String(mut value)), mut meta) => {
-                if !is_hex_string(&value, 32) || value.bytes().all(|x| x == b'0') {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                Ok(trace_id) => Annotated(Some(trace_id), meta),
+                Err(_) => {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
-                } else {
-                    value.make_ascii_lowercase();
-                    Annotated(Some(TraceId(value)), meta)
                 }
-            }
+            },
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("trace id"));
@@ -33,9 +99,20 @@ impl FromValue for TraceId {
     }
 }
 
-impl AsRef<str> for TraceId {
-    fn as_ref(&self) -> &str {
-        &self.0
+impl IntoValue for TraceId {
+    fn into_value(self) -> Value
+    where
+        Self: Sized,
+    {
+        Value::String(self.to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(&self.to_string(), s)
     }
 }
 
@@ -186,6 +263,28 @@ mod tests {
     use crate::protocol::{Context, Route};
 
     #[test]
+    fn test_trace_id_as_u128() {
+        // Test valid hex string
+        let trace_id: TraceId = "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap();
+        assert_eq!(trace_id.as_u128(), 0x4c79f60c11214eb38604f4ae0781bfb2);
+
+        // Test empty string (should return 0)
+        let empty_trace_id: Result<TraceId, Error> = "".parse();
+        assert!(empty_trace_id.is_err());
+
+        // Test string with invalid length (should return 0)
+        let short_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
+        assert!(short_trace_id.is_err());
+
+        let long_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
+        assert!(long_trace_id.is_err());
+
+        // Test string with invalid hex characters (should return 0)
+        let invalid_trace_id: Result<TraceId, Error> = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
+        assert!(invalid_trace_id.is_err());
+    }
+
+    #[test]
     fn test_trace_context_roundtrip() {
         let json = r#"{
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -208,7 +307,7 @@ mod tests {
   },
   "links": [
     {
-      "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+      "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
       "span_id": "ea90fdead5f74052",
       "sampled": true,
       "attributes": {
@@ -220,7 +319,7 @@ mod tests {
   "type": "trace"
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
             op: Annotated::new("http".into()),
@@ -251,7 +350,7 @@ mod tests {
                 ..Default::default()
             }),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
-                trace_id: Annotated::new(TraceId("3c79f60c11214eb38604f4ae0781bfb2".into())),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("ea90fdead5f74052".into())),
                 sampled: Annotated::new(true),
                 attributes: Annotated::new({
@@ -288,12 +387,67 @@ mod tests {
   "type": "trace"
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             ..Default::default()
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn test_trace_id_formatting() {
+        let test_cases = [
+            // Test case 1: Formatting with hyphens in input
+            (
+                r#"{
+  "trace_id": "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
+  "type": "trace"
+}"#,
+                "b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6",
+                true,
+            ),
+            // Test case 2: Parsing with hyphens in JSON
+            (
+                r#"{
+  "trace_id": "b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6",
+  "type": "trace"
+}"#,
+                "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
+                false,
+            ),
+            // Test case 3: Uppercase in input
+            (
+                r#"{
+  "trace_id": "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
+  "type": "trace"
+}"#,
+                "B1E2A9DC9B8E4CD0AF0E80E6B83B56E6",
+                true,
+            ),
+            // Test case 4: Uppercase in JSON
+            (
+                r#"{
+  "trace_id": "B1E2A9DC9B8E4CD0AF0E80E6B83B56E6",
+  "type": "trace"
+}"#,
+                "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
+                false,
+            ),
+        ];
+
+        for (json, trace_id_str, is_to_json) in test_cases {
+            let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+                trace_id: Annotated::new(trace_id_str.parse().unwrap()),
+                ..Default::default()
+            })));
+
+            if is_to_json {
+                assert_eq!(json, context.to_json_pretty().unwrap());
+            } else {
+                assert_eq!(context, Annotated::from_json(json).unwrap());
+            }
+        }
     }
 
     #[test]
@@ -307,7 +461,7 @@ mod tests {
   }
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             data: Annotated::new(SpanData {
                 route: Annotated::new(Route {

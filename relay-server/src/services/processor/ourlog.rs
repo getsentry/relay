@@ -12,8 +12,7 @@ use crate::utils::{ItemAction, TypedEnvelope};
 
 #[cfg(feature = "processing")]
 use {
-    crate::envelope::ContentType,
-    crate::envelope::{Item, ItemType},
+    crate::envelope::{ContainerItems, Item, ItemContainer, ItemType},
     crate::services::outcome::{DiscardReason, Outcome},
     crate::services::processor::ProcessingError,
     relay_dynamic_config::ProjectConfig,
@@ -52,18 +51,31 @@ pub fn filter(
 #[cfg(feature = "processing")]
 pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc<ProjectInfo>) {
     managed_envelope.retain_items(|item| {
-        let mut annotated_log = match item.ty() {
+        let mut logs = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
-                Ok(otel_log) => Annotated::new(relay_ourlogs::otel_to_sentry_log(otel_log)),
+                Ok(otel_log) => match relay_ourlogs::otel_to_sentry_log(otel_log) {
+                    Ok(log) => ContainerItems::from_elem(Annotated::new(log), 1),
+                    Err(err) => {
+                        relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
+                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));
+                    }
+                },
                 Err(err) => {
-                    relay_log::debug!("failed to parse OTel Log: {}", err);
+                    relay_log::debug!("failed to parse OTel Log: {err}");
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));
                 }
             },
-            ItemType::Log => match Annotated::<OurLog>::from_json_bytes(&item.payload()) {
-                Ok(our_log) => relay_ourlogs::ourlog_merge_otel(our_log),
+
+            ItemType::Log => match ItemContainer::parse(item) {
+                Ok(logs) => {
+                    let mut logs = logs.into_items();
+                    for log in logs.iter_mut() {
+                        relay_ourlogs::ourlog_merge_otel(log);
+                    }
+                    logs
+                }
                 Err(err) => {
-                    relay_log::debug!("failed to parse Sentry Log: {}", err);
+                    relay_log::debug!("failed to parse logs: {err}");
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));
                 }
             },
@@ -71,27 +83,27 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
             _ => return ItemAction::Keep,
         };
 
-        if let Err(e) = scrub(&mut annotated_log, &project_info.config) {
-            relay_log::error!("failed to scrub pii from log: {}", e);
-            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+        for log in logs.iter_mut() {
+            if let Err(e) = scrub(log, &project_info.config) {
+                relay_log::error!("failed to scrub pii from log: {}", e);
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            }
+
+            if let Err(e) = normalize(log) {
+                relay_log::debug!("failed to normalize log: {}", e);
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            };
         }
 
-        if let Err(e) = normalize(&mut annotated_log) {
-            relay_log::debug!("failed to normalize log: {}", e);
-            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-        };
-
-        let mut new_item = Item::new(ItemType::Log);
-        let payload = match annotated_log.to_json() {
-            Ok(payload) => payload,
-            Err(err) => {
+        *item = {
+            let mut item = Item::new(ItemType::Log);
+            let container = ItemContainer::from(logs);
+            if let Err(err) = container.write_to(&mut item) {
                 relay_log::debug!("failed to serialize log: {}", err);
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             }
+            item
         };
-        new_item.set_payload(ContentType::Json, payload);
-
-        *item = new_item;
 
         ItemAction::Keep
     });
