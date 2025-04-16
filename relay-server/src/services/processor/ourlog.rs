@@ -52,7 +52,28 @@ pub fn filter(
 
 /// Processes logs.
 #[cfg(feature = "processing")]
-pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc<ProjectInfo>) {
+pub fn process(
+    managed_envelope: &mut TypedEnvelope<LogGroup>,
+    project_info: Arc<ProjectInfo>,
+) -> Result<(), ProcessingError> {
+    let log_items = managed_envelope
+        .envelope()
+        .items()
+        .filter(|item| matches!(item.ty(), ItemType::Log))
+        .count();
+
+    // The `Log` item must always be sent as an `ItemContainer`, currently it is not allowed to
+    // send multiple containers for logs.
+    //
+    // This restriction may be lifted in the future, this is why this validation only happens
+    // when processing is enabled, allowing it to be changed easily in the future.
+    //
+    // This limit mostly exists to incentivise SDKs to batch multiple logs into a single container,
+    // technically it can be removed without issues.
+    if log_items > 1 {
+        return Err(ProcessingError::DuplicateItem(ItemType::Log));
+    }
+
     managed_envelope.retain_items(|item| {
         let mut logs = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
@@ -110,6 +131,8 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
 
         ItemAction::Keep
     });
+
+    Ok(())
 }
 
 #[cfg(feature = "processing")]
