@@ -16,6 +16,7 @@
 )]
 #![warn(missing_docs)]
 
+use std::any::TypeId;
 use std::sync::OnceLock;
 
 use relay_base_schema::project::ProjectId;
@@ -132,12 +133,15 @@ pub struct CheckInContexts {
     trace: Option<CheckInTrace>,
 }
 
+/// A check in id is expected to have the same format as a trace id, so we just alias the type.
+type CheckInId = TraceId;
+
 /// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckIn {
     /// Unique identifier of this check-in.
     #[serde(default)]
-    pub check_in_id: TraceId,
+    pub check_in_id: CheckInId,
 
     /// Identifier of the monitor for this check-in.
     #[serde(default)]

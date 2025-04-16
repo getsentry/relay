@@ -1,8 +1,5 @@
 #[cfg(test)]
 pub mod utils {
-    use crate::envelope::{Item, ItemType};
-    use crate::extractors::RequestMeta;
-    use crate::Envelope;
     use chrono::{DateTime, Utc};
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::{EventId, TraceId};
@@ -12,6 +9,10 @@ pub mod utils {
     use std::collections::BTreeMap;
     use tokio::fs::DirBuilder;
     use uuid::Uuid;
+
+    use crate::envelope::{Item, ItemType};
+    use crate::extractors::RequestMeta;
+    use crate::Envelope;
 
     /// Sets up a temporary SQLite database for testing purposes.
     pub async fn setup_db(run_migrations: bool) -> Pool<Sqlite> {

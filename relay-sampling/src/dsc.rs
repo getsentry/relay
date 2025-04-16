@@ -304,7 +304,7 @@ mod tests {
         // data together
         let json = r#"
         {
-            "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
+            "trace_id": "b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6",
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "user": {
@@ -315,7 +315,7 @@ mod tests {
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         insta::assert_ron_snapshot!(dsc, @r#"
         {
-          "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
+          "trace_id": "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
           "public_key": "abd0f232775f45feab79864e580d160b",
           "release": None,
           "environment": None,
