@@ -6,9 +6,6 @@ use std::num::ParseIntError;
 use std::ops::ControlFlow;
 use std::sync::{Arc, Mutex};
 
-use crate::config::{RuleId, SamplingRule, SamplingValue};
-#[cfg(feature = "redis")]
-use crate::redis_sampling::{self, ReservoirRuleKey};
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
@@ -20,6 +17,10 @@ use relay_protocol::Getter;
 use relay_redis::AsyncRedisClient;
 use serde::Serialize;
 use uuid::Uuid;
+
+use crate::config::{RuleId, SamplingRule, SamplingValue};
+#[cfg(feature = "redis")]
+use crate::redis_sampling::{self, ReservoirRuleKey};
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -402,14 +403,15 @@ impl fmt::Display for MatchedRuleIds {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{DecayingFunction, RuleType, TimeRange};
-    use crate::dsc::TraceUserContext;
-    use crate::DynamicSamplingContext;
     use chrono::TimeZone;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
     use std::str::FromStr;
     use uuid::Uuid;
+
+    use crate::config::{DecayingFunction, RuleType, TimeRange};
+    use crate::dsc::TraceUserContext;
+    use crate::DynamicSamplingContext;
 
     use super::*;
 
