@@ -51,10 +51,14 @@ use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
 
 mod attachment;
+#[cfg(feature = "processing")]
+mod container;
 mod content_type;
 mod item;
 
 pub use self::attachment::*;
+#[cfg(feature = "processing")]
+pub use self::container::*;
 pub use self::content_type::*;
 pub use self::item::*;
 

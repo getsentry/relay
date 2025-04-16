@@ -25,6 +25,8 @@ pub enum ContentType {
     Envelope,
     /// "application/x-protobuf"
     Protobuf,
+    /// `application/vnd.sentry.items.log+json`
+    LogContainer,
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
@@ -41,6 +43,7 @@ impl ContentType {
             Self::Xml => "text/xml",
             Self::Envelope => CONTENT_TYPE,
             Self::Protobuf => "application/x-protobuf",
+            Self::LogContainer => "application/vnd.sentry.items.log+json",
             Self::Other(ref other) => other,
         }
     }
@@ -64,9 +67,17 @@ impl ContentType {
             Some(Self::Envelope)
         } else if ct.eq_ignore_ascii_case(Self::Protobuf.as_str()) {
             Some(Self::Protobuf)
+        } else if ct.eq_ignore_ascii_case(Self::LogContainer.as_str()) {
+            Some(Self::LogContainer)
         } else {
             None
         }
+    }
+}
+
+impl fmt::Display for ContentType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
