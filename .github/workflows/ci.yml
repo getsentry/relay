@@ -326,7 +326,7 @@ jobs:
         "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm"
       }')[matrix.target] }}
 
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     env:
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
@@ -362,7 +362,7 @@ jobs:
 
       - name: Clone internal repo into stub
         run: |
-          git clone https://github.com/getsentry/tempest.git /tmp/tempest
+          git clone https://${{ github.token }}@github.com/getsentry/tempest.git /tmp/tempest
           cp -r /tmp/tempest/crates/prosperoconv/src relay-prosperoconv/
           rm -rf /tmp/tempest
 
@@ -474,7 +474,7 @@ jobs:
       AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
-    if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
       - uses: actions/checkout@v4
