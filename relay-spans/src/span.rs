@@ -847,7 +847,7 @@ mod tests {
         assert_eq!(
             get_path!(annotated_span.links[0].trace_id),
             Some(&Annotated::new(
-                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap()
+                "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
             ))
         );
         assert_eq!(

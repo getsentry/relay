@@ -1088,7 +1088,7 @@ mod tests {
     #[test]
     fn test_parametrize_root_transaction() {
         let dsc = DynamicSamplingContext {
-            trace_id: TraceId::parse_str("67e5504410b1426f9247bb680e5fe0c8").unwrap(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

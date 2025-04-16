@@ -869,9 +869,7 @@ mod tests {
             contexts: Contexts(BTreeMap::from([(
                 "trace".into(),
                 ContextInner(Context::Trace(Box::new(TraceContext {
-                    trace_id: Annotated::new(
-                        TraceId::parse_str("3c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-                    ),
+                    trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     exclusive_time: 1000.0.into(),
                     ..Default::default()

@@ -164,9 +164,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(
-                        TraceId::parse_str("3c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-                    ),
+                    trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()

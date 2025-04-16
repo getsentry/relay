@@ -1,5 +1,5 @@
 //! Dynamic sampling processor related code.
-use std::ops::ControlFlow;
+use std::ops::{ControlFlow, Deref};
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -203,7 +203,7 @@ async fn compute_sampling_decision(
     if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
         if let Some(seed) = event.id.value().map(|id| id.0) {
             let rules = sampling_state.filter_rules(RuleType::Transaction);
-            evaluator = match evaluator.match_rules(seed.as_u128(), event, rules).await {
+            evaluator = match evaluator.match_rules(seed, event, rules).await {
                 ControlFlow::Continue(evaluator) => evaluator,
                 ControlFlow::Break(sampling_match) => {
                     return SamplingResult::Match(sampling_match);
@@ -215,7 +215,7 @@ async fn compute_sampling_decision(
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
         return evaluator
-            .match_rules(dsc.trace_id.as_u128(), dsc, rules)
+            .match_rules(*dsc.trace_id.deref(), dsc, rules)
             .await
             .into();
     }
@@ -559,7 +559,7 @@ mod tests {
         let request_meta = RequestMeta::new(dsn);
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let dsc = DynamicSamplingContext {
-            trace_id: TraceId::parse_str("67e5504410b1426f9247bb680e5fe0c8").unwrap(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),
@@ -719,7 +719,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_sample_rate() {
         let dsc = DynamicSamplingContext {
-            trace_id: TraceId::parse_str("67e5504410b1426f9247bb680e5fe0c8").unwrap(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

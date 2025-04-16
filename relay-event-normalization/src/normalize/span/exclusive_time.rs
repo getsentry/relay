@@ -159,9 +159,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(
-                        TraceId::parse_str("3c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-                    ),
+                    trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId(span_id.into())),
                     ..Default::default()
                 });
@@ -185,9 +183,7 @@ mod tests {
             description: Annotated::new(description.into()),
             start_timestamp: Annotated::new(start),
             timestamp: Annotated::new(end),
-            trace_id: Annotated::new(
-                TraceId::parse_str("3c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-            ),
+            trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId(span_id.into())),
             parent_span_id: Annotated::new(SpanId(parent_span_id.into())),
             ..Default::default()

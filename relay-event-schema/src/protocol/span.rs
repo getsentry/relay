@@ -1094,9 +1094,7 @@ mod tests {
         );
 
         let links = Annotated::new(vec![Annotated::new(SpanLink {
-            trace_id: Annotated::new(
-                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-            ),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             sampled: Annotated::new(true),
             attributes: Annotated::new({
@@ -1120,9 +1118,7 @@ mod tests {
             exclusive_time: Annotated::new(1.23),
             description: Annotated::new("desc".to_owned()),
             op: Annotated::new("operation".to_owned()),
-            trace_id: Annotated::new(
-                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-            ),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new("auto.http".to_owned()),

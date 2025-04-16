@@ -55,7 +55,7 @@ pub fn state_with_rule_and_condition(
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
-        trace_id: TraceId::parse_str("67e5504410b1426f9247bb680e5fe0c8").unwrap(),
+        trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
         public_key: "12345678901234567890123456789012".parse().unwrap(),
         release: None,
         environment: None,

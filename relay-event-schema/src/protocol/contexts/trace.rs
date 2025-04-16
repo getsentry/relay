@@ -48,9 +48,11 @@ impl FromStr for TraceId {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(s)
-            .map(Into::into)
-            .map_err(|_| Error::new(ErrorKind::InvalidData))
+        Uuid::parse_str(s).map(Into::into).map_err(|_| {
+            Error::with(ErrorKind::InvalidData, |e| {
+                e.insert("reason", "the trace id is not valid");
+            })
+        })
     }
 }
 
@@ -80,7 +82,7 @@ impl FromValue for TraceId {
         Self: Sized,
     {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => match FromStr::from_str(&value) {
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                 Ok(trace_id) => Annotated(Some(trace_id), meta),
                 Err(_) => {
                     meta.add_error(Error::invalid("not a valid trace id"));
@@ -264,22 +266,22 @@ mod tests {
     #[test]
     fn test_trace_id_as_u128() {
         // Test valid hex string
-        let trace_id = TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap();
+        let trace_id = "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap();
         assert_eq!(trace_id.as_u128(), 0x4c79f60c11214eb38604f4ae0781bfb2);
 
         // Test empty string (should return 0)
-        let empty_trace_id = TraceId::parse_str("");
+        let empty_trace_id = "".parse();
         assert!(empty_trace_id.is_err());
 
         // Test string with invalid length (should return 0)
-        let short_trace_id = TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb"); // 31 chars
+        let short_trace_id = "4c79f60c11214eb38604f4ae0781bfb".parse(); // 31 chars
         assert!(short_trace_id.is_err());
 
-        let long_trace_id = TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2a"); // 33 chars
+        let long_trace_id = "4c79f60c11214eb38604f4ae0781bfb2a".parse(); // 33 chars
         assert!(long_trace_id.is_err());
 
         // Test string with invalid hex characters (should return 0)
-        let invalid_trace_id = TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfbg"); // 'g' is not a hex char
+        let invalid_trace_id = "4c79f60c11214eb38604f4ae0781bfbg".parse(); // 'g' is not a hex char
         assert!(invalid_trace_id.is_err());
     }
 
@@ -318,9 +320,7 @@ mod tests {
   "type": "trace"
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(
-                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-            ),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
             op: Annotated::new("http".into()),
@@ -351,9 +351,7 @@ mod tests {
                 ..Default::default()
             }),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
-                trace_id: Annotated::new(
-                    TraceId::parse_str("3c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-                ),
+                trace_id: Annotated::new("3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("ea90fdead5f74052".into())),
                 sampled: Annotated::new(true),
                 attributes: Annotated::new({
@@ -390,9 +388,7 @@ mod tests {
   "type": "trace"
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(
-                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-            ),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             ..Default::default()
         })));
@@ -401,32 +397,58 @@ mod tests {
     }
 
     #[test]
-    fn test_trace_context_backward_compatibility() {
-        let json = r#"{
+    fn test_trace_id_formatting() {
+        let test_cases = [
+            // Test case 1: Formatting with hyphens in input
+            (
+                r#"{
   "trace_id": "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
   "type": "trace"
-}"#;
-        let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(
-                TraceId::parse_str("b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6").unwrap(),
+}"#,
+                "b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6",
+                true,
             ),
-            ..Default::default()
-        })));
-
-        assert_eq!(json, context.to_json_pretty().unwrap());
-
-        let json = r#"{
+            // Test case 2: Parsing with hyphens in JSON
+            (
+                r#"{
   "trace_id": "b1e2a9dc-9b8e-4cd0-af0e-80e6b83b56e6",
   "type": "trace"
-}"#;
-        let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(
-                TraceId::parse_str("b1e2a9dc9b8e4cd0af0e80e6b83b56e6").unwrap(),
+}"#,
+                "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
+                false,
             ),
-            ..Default::default()
-        })));
+            // Test case 3: Uppercase in input
+            (
+                r#"{
+  "trace_id": "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
+  "type": "trace"
+}"#,
+                "B1E2A9DC9B8E4CD0AF0E80E6B83B56E6",
+                true,
+            ),
+            // Test case 4: Uppercase in JSON
+            (
+                r#"{
+  "trace_id": "B1E2A9DC9B8E4CD0AF0E80E6B83B56E6",
+  "type": "trace"
+}"#,
+                "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
+                false,
+            ),
+        ];
 
-        assert_eq!(context, Annotated::from_json(json).unwrap());
+        for (json, trace_id_str, is_to_json) in test_cases {
+            let context = Annotated::new(Context::Trace(Box::new(TraceContext {
+                trace_id: Annotated::new(trace_id_str.parse().unwrap()),
+                ..Default::default()
+            })));
+
+            if is_to_json {
+                assert_eq!(json, context.to_json_pretty().unwrap());
+            } else {
+                assert_eq!(context, Annotated::from_json(json).unwrap());
+            }
+        }
     }
 
     #[test]
@@ -440,9 +462,7 @@ mod tests {
   }
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
-            trace_id: Annotated::new(
-                TraceId::parse_str("4c79f60c11214eb38604f4ae0781bfb2").unwrap(),
-            ),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             data: Annotated::new(SpanData {
                 route: Annotated::new(Route {
