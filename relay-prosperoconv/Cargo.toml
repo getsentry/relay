@@ -1,0 +1,31 @@
+[package]
+# TODO: Decide on a good name
+name = "prosperoconv"
+authors = ["Sentry <oss@sentry.io>"]
+# TODO: Decide on a good description
+description = ""
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "25.3.0"
+edition = "2021"
+license-file = "../LICENSE.md"
+publish = false
+
+
+[lints]
+workspace = true
+
+
+[dependencies]
+anyhow = { workspace = true }
+lz4_flex = { workspace = true }
+mime_guess = { workspace = true }
+minidump-writer = { workspace = true }
+object = { workspace = true }
+rmpv = { workspace = true }
+sentry = { workspace = true }
+tracing = { workspace = true }
+watto = { workspace = true }
+
+[features]
+default = []
