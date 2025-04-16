@@ -51,10 +51,14 @@ use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
 
 mod attachment;
+#[cfg(feature = "processing")]
+mod container;
 mod content_type;
 mod item;
 
 pub use self::attachment::*;
+#[cfg(feature = "processing")]
+pub use self::container::*;
 pub use self::content_type::*;
 pub use self::item::*;
 
@@ -206,12 +210,18 @@ impl Envelope {
     }
 
     /// Parses an envelope from bytes.
-    #[allow(dead_code)]
     pub fn parse_bytes(bytes: Bytes) -> Result<Box<Self>, EnvelopeError> {
         let (headers, offset) = Self::parse_headers(&bytes)?;
         let items = Self::parse_items(&bytes, offset)?;
 
         Ok(Box::new(Envelope { headers, items }))
+    }
+
+    /// Parse envelope items from bytes buffer that doesn't contain a complete envelope.
+    ///
+    /// Note: the envelope header must not be present in the data. Use [`Self::parse_bytes`] instead.
+    pub fn parse_items_bytes(bytes: Bytes) -> Result<Items, EnvelopeError> {
+        Self::parse_items(&bytes, 0)
     }
 
     /// Parses an envelope taking into account a request.
@@ -251,13 +261,11 @@ impl Envelope {
     }
 
     /// Returns the number of items in this envelope.
-    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
     /// Returns `true` if this envelope does not contain any items.
-    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
@@ -610,7 +618,6 @@ fn require_termination(slice: &[u8], offset: usize) -> Result<(), EnvelopeError>
 #[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use uuid::Uuid;
 
     use super::*;
 
@@ -913,6 +920,33 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_empty_items() {
+        // Without terminating newline after header
+        let items = Envelope::parse_items_bytes(Bytes::from("")).unwrap();
+        assert_eq!(items.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_multiple_items() {
+        let bytes = Bytes::from(
+            "\
+             {\"type\":\"attachment\"}\n\
+             helloworld\n\
+             {\"type\":\"replay_recording\"}\n\
+             helloworld\
+             ",
+        );
+
+        // Without terminating newline after header
+        let items = Envelope::parse_items_bytes(bytes).unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].len(), 10);
+        assert_eq!(items[0].ty(), &ItemType::Attachment);
+        assert_eq!(items[1].len(), 10);
+        assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
+    }
+
+    #[test]
     fn test_parse_request_envelope() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}");
         let envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
@@ -1089,7 +1123,7 @@ mod tests {
     #[test]
     fn test_parametrize_root_transaction() {
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

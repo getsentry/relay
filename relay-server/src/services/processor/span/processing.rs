@@ -97,7 +97,13 @@ pub async fn process(
     managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
+                Ok(otel_span) => match relay_spans::otel_to_sentry_span(otel_span) {
+                    Ok(span) => Annotated::new(span),
+                    Err(err) => {
+                        relay_log::debug!("failed to convert OTel span to Sentry span: {:?}", err);
+                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
+                    }
+                },
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
@@ -827,7 +833,7 @@ mod tests {
     use bytes::Bytes;
     use once_cell::sync::Lazy;
     use relay_event_schema::protocol::{
-        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
+        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext,
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
@@ -869,7 +875,7 @@ mod tests {
             contexts: Contexts(BTreeMap::from([(
                 "trace".into(),
                 ContextInner(Context::Trace(Box::new(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     exclusive_time: 1000.0.into(),
                     ..Default::default()

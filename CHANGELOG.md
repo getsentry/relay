@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Features**:
+
+- Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
+
+## 25.4.0
+
 - Extract searchable context fields into sentry tags for segment spans. ([#4651](https://github.com/getsentry/relay/pull/4651))
 
 **Features**:
@@ -21,6 +27,7 @@
 - Adds u16 validation to the replay protocol's segment_id field. ([#4635](https://github.com/getsentry/relay/pull/4635))
 - Exposes all service utilization with instance labels instead of the last. ([#4654](https://github.com/getsentry/relay/pull/4654))
 - Ensure that every span's parent exists. ([#4661](https://github.com/getsentry/relay/pull/4661))
+- Serialize trace ids consistently in events. ([#4673](https://github.com/getsentry/relay/pull/4673))
 
 **Internal**:
 

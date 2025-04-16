@@ -243,7 +243,7 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Timelike, Utc};
-    use relay_event_schema::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
+    use relay_event_schema::protocol::{EventType, Span, SpanId, SpanStatus};
     use relay_protocol::Object;
     use similar_asserts::assert_eq;
 
@@ -296,7 +296,7 @@ mod tests {
                 start_timestamp: start,
                 description: Annotated::new("desc".to_owned()),
                 op: Annotated::new(op_name),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
                 status: Annotated::new(SpanStatus::Ok),
                 ..Default::default()

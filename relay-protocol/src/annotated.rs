@@ -72,6 +72,22 @@ impl<T: IntoValue> Serialize for SerializableAnnotated<'_, T> {
     }
 }
 
+/// An utility to de-serialize annotated objects with payload.
+#[derive(Debug)]
+pub struct DeserializableAnnotated<T>(pub Annotated<T>);
+
+impl<'de, T> Deserialize<'de> for DeserializableAnnotated<T>
+where
+    T: FromValue,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(Self(Annotated::<T>::deserialize_with_meta(deserializer)?))
+    }
+}
+
 impl<T: fmt::Debug> fmt::Debug for Annotated<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
