@@ -885,13 +885,12 @@ mod tests {
         let global_config = GlobalConfig::default();
         let config = Arc::new(Config::default());
         assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -911,13 +910,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -937,13 +935,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -963,13 +960,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params(); // client sample rate is 0.2
+        let (mut managed_envelope, event, _) = params(); // client sample rate is 0.2
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             Some(0.1),
             EventMetricsExtracted(false),
             SpansExtracted(false),
