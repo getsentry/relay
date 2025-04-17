@@ -360,9 +360,12 @@ jobs:
         with:
           key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Clone internal repo into stub
         run: |
-          git clone https://${{ github.token }}@github.com/getsentry/tempest.git /tmp/tempest
+          git clone git@github.com:getsentry/tempest.git /tmp/tempest
           cp -r /tmp/tempest/crates/prosperoconv/src relay-prosperoconv/
           rm -rf /tmp/tempest
 
