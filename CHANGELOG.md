@@ -5,6 +5,7 @@
 **Features**:
 
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
+- Allow passing integer log attributes as JSON strings. ([#4689](https://github.com/getsentry/relay/pull/4689))
 
 ## 25.4.0
 
