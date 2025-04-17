@@ -188,6 +188,18 @@ fn process_attribute_types(ourlog: &mut OurLog) {
             (Annotated(Some(Boolean), _), Annotated(Some(Value::Bool(_)), _)) => (),
             (Annotated(Some(Integer), _), Annotated(Some(Value::I64(_)), _)) => (),
             (Annotated(Some(Integer), _), Annotated(Some(Value::U64(_)), _)) => (),
+            (Annotated(Some(Integer), _), Annotated(Some(Value::String(str)), _)) => {
+                if let Ok(parsed) = str.parse::<i64>() {
+                    inner.value.value.set_value(Some(Value::I64(parsed)));
+                } else if let Ok(parsed) = str.parse::<u64>() {
+                    inner.value.value.set_value(Some(Value::U64(parsed)));
+                } else {
+                    // Parsing failed, remove the attribute and add an error
+                    let original = attribute.value_mut().take();
+                    attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                    attribute.meta_mut().set_original_value(original);
+                }
+            }
             (Annotated(Some(Double), _), Annotated(Some(Value::I64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
             (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
@@ -335,7 +347,7 @@ mod tests {
                 },
                 "valid_int_from_string": {
                     "type": "integer",
-                    "value": "42"
+                    "value": "43"
                 },
                 "valid_double": {
                     "type": "double",
@@ -495,27 +507,12 @@ mod tests {
                 type: Double,
                 other: {},
             },
-            "valid_int_from_string": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: InvalidData,
-                        data: {},
-                    },
-                ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "integer",
-                            ),
-                            "value": String(
-                                "42",
-                            ),
-                        },
-                    ),
+            "valid_int_from_string": OurLogAttribute {
+                value: I64(
+                    43,
                 ),
+                type: Integer,
+                other: {},
             },
             "valid_int_i64": OurLogAttribute {
                 value: I64(
