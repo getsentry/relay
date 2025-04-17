@@ -83,6 +83,7 @@
 - Write OTLP span kind to a new `kind` field on spans. ([#4540](https://github.com/getsentry/relay/pull/4540))
 - Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
 - Expose metrics for the `AsyncPool`. ([#4538](https://github.com/getsentry/relay/pull/4538))
+- Infer span `description` for spans with `category` set to `db` from query attribute. ([#4541](https://github.com/getsentry/relay/pull/4541))
 - Expose service utilization metrics through the internal relay metric endpoint. ([#4543](https://github.com/getsentry/relay/pull/4543))
 - Always set observed time for OTel logs in Relay. ([#4559](https://github.com/getsentry/relay/pull/4559))
 
