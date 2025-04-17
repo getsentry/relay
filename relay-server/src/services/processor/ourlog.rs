@@ -5,6 +5,7 @@ use crate::services::processor::LogGroup;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, GlobalConfig};
 
+use crate::envelope::ItemType;
 use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::sample;
@@ -12,7 +13,7 @@ use crate::utils::{ItemAction, TypedEnvelope};
 
 #[cfg(feature = "processing")]
 use {
-    crate::envelope::{ContainerItems, Item, ItemContainer, ItemType},
+    crate::envelope::{ContainerItems, Item, ItemContainer},
     crate::services::outcome::{DiscardReason, Outcome},
     crate::services::processor::ProcessingError,
     relay_dynamic_config::ProjectConfig,
@@ -38,18 +39,41 @@ pub fn filter(
         .map(sample)
         .unwrap_or(true);
 
-    managed_envelope.retain_items(|_| {
-        if logging_disabled || !logs_sampled {
-            ItemAction::DropSilently
-        } else {
-            ItemAction::Keep
-        }
+    let action = match logging_disabled || !logs_sampled {
+        true => ItemAction::DropSilently,
+        false => ItemAction::Keep,
+    };
+
+    managed_envelope.retain_items(move |item| match item.ty() {
+        ItemType::OtelLog | ItemType::Log => action.clone(),
+        _ => ItemAction::Keep,
     });
 }
 
 /// Processes logs.
 #[cfg(feature = "processing")]
-pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc<ProjectInfo>) {
+pub fn process(
+    managed_envelope: &mut TypedEnvelope<LogGroup>,
+    project_info: Arc<ProjectInfo>,
+) -> Result<(), ProcessingError> {
+    let log_items = managed_envelope
+        .envelope()
+        .items()
+        .filter(|item| matches!(item.ty(), ItemType::Log))
+        .count();
+
+    // The `Log` item must always be sent as an `ItemContainer`, currently it is not allowed to
+    // send multiple containers for logs.
+    //
+    // This restriction may be lifted in the future, this is why this validation only happens
+    // when processing is enabled, allowing it to be changed easily in the future.
+    //
+    // This limit mostly exists to incentivise SDKs to batch multiple logs into a single container,
+    // technically it can be removed without issues.
+    if log_items > 1 {
+        return Err(ProcessingError::DuplicateItem(ItemType::Log));
+    }
+
     managed_envelope.retain_items(|item| {
         let mut logs = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
@@ -107,6 +131,8 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
 
         ItemAction::Keep
     });
+
+    Ok(())
 }
 
 #[cfg(feature = "processing")]

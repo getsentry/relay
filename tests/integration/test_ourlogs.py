@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 
 from .asserts.time import time_within_delta
 
@@ -117,6 +118,74 @@ def test_ourlog_extraction_with_otel_logs(
     del ourlogs[0]["attributes"]["sentry.observed_timestamp_nanos"]
 
     assert ourlogs == [expected]
+
+    ourlogs_consumer.assert_empty()
+
+
+def test_ourlog_multiple_containers_not_allowed(
+    mini_sentry,
+    relay_with_processing,
+    ourlogs_consumer,
+    outcomes_consumer,
+):
+    ourlogs_consumer = ourlogs_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    start = datetime.now(timezone.utc)
+
+    envelope = Envelope()
+
+    for _ in range(2):
+        payload = {
+            "timestamp": start.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "oops, not again",
+        }
+        envelope.add_item(
+            Item(
+                type="log",
+                payload=PayloadRef(json={"items": [payload]}),
+                content_type="application/vnd.sentry.items.log+json",
+                headers={"item_count": 1},
+            )
+        )
+
+    relay.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+    assert 300 < outcomes[1].pop("quantity") < 400
+    assert outcomes == [
+        {
+            "category": DataCategory.LOG_ITEM.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 2,
+            "reason": "duplicate_item",
+        },
+        {
+            "category": DataCategory.LOG_BYTE.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "reason": "duplicate_item",
+        },
+    ]
 
     ourlogs_consumer.assert_empty()
 

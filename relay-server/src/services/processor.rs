@@ -2143,7 +2143,7 @@ impl EnvelopeProcessorService {
         .await?;
 
         if_processing!(self.inner.config, {
-            ourlog::process(managed_envelope, project_info.clone());
+            ourlog::process(managed_envelope, project_info.clone())?;
         });
 
         Ok(Some(extracted_metrics))
