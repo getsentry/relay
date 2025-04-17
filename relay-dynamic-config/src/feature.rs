@@ -91,7 +91,6 @@ pub enum Feature {
     /// Serialized as `projects:span-metrics-extraction`.
     #[serde(rename = "projects:span-metrics-extraction")]
     ExtractCommonSpanMetricsFromEvent,
-
     /// Enables metric extraction from spans for addon modules.
     ///
     /// Serialized as `projects:span-metrics-extraction-addons`.
@@ -102,16 +101,6 @@ pub enum Feature {
     /// Serialized as `organizations:indexed-spans-extraction`.
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
-    /// Indicate if the EAP consumers should ingest a span for a given organization.
-    ///
-    /// Serialized as `organizations:ingest-spans-in-eap`
-    #[serde(rename = "organizations:ingest-spans-in-eap")]
-    IngestSpansInEapForOrganization,
-    /// Indicate if the EAP consumers should ingest a span for a given project.
-    ///
-    /// Serialized as `projects:ingest-spans-in-eap`
-    #[serde(rename = "projects:ingest-spans-in-eap")]
-    IngestSpansInEapForProject,
     /// Enable log ingestion for our log product (this is not internal logging).
     ///
     /// Serialized as `organizations:ourlogs-ingestion`.
