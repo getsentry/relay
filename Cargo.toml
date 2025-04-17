@@ -54,6 +54,7 @@ relay-pattern = { path = "relay-pattern" }
 relay-pii = { path = "relay-pii" }
 relay-profiling = { path = "relay-profiling" }
 relay-protocol = { path = "relay-protocol" }
+relay-prosperoconv = { path = "relay-prosperoconv" }
 relay-quotas = { path = "relay-quotas" }
 relay-redis = { path = "relay-redis" }
 relay-replays = { path = "relay-replays" }

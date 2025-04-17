@@ -326,9 +326,10 @@ jobs:
         "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm"
       }')[matrix.target] }}
 
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
+    if: "(!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
 
     env:
+      TEMPEST_COMMIT_SHA: "615c09d736bd466cae42842190a06f84977f4a58"
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
       FEATURES: |-
         ${{fromJson('{
@@ -359,6 +360,15 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Clone internal repo into stub
+        run: |
+          git clone git@github.com:getsentry/tempest.git /tmp/tempest && cd /tmp/tempest && git checkout $TEMPEST_COMMIT_SHA && cd -
+          cp -r /tmp/tempest/crates/prosperoconv/src relay-prosperoconv/
+          rm -rf /tmp/tempest
 
       - name: Compile
         run: |
