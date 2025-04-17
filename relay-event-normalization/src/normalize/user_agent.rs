@@ -46,10 +46,16 @@ pub fn normalize_user_agent_info_generic(
     platform: &Annotated<String>,
     user_agent_info: &RawUserAgentInfo<&str>,
 ) {
-    if !contexts.contains::<BrowserContext>() {
-        if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
-            contexts.add(browser_context);
+    if let Some(browser_context) = contexts.get_mut::<BrowserContext>() {
+        if browser_context.user_agent.value().is_some() {
+            // If there is a browser context and it has a user-agent, backfill the inferred values
+            browser_context.backfill_from_user_agent();
+        } else if user_agent_info.user_agent.is_some() {
+            // If there is a browser context and it doesn't have a user-agent, find a user agent from the rest of the event and set it
+            browser_context.set_user_agent(user_agent_info.user_agent.unwrap());
         }
+    } else if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
+        contexts.add(browser_context);
     }
 
     if !contexts.contains::<DeviceContext>() {
@@ -293,10 +299,28 @@ pub trait FromUserAgentInfo: Sized {
     /// Tries to populate the context from a user agent header string.
     fn parse_user_agent(user_agent: &str) -> Option<Self>;
 
+    /// Sets the user agent string on the context.
+    /// Default implementation does nothing.
+    fn set_user_agent(&mut self, _user_agent: &str) {}
+
+    /// Backfills all the inferred values from the user agent on the context
+    /// Default implementation does nothing.
+    fn backfill_from_user_agent(&mut self) {}
+
     /// Tries to populate the context from client hints or a user agent header string.
     fn from_hints_or_ua(raw_info: &RawUserAgentInfo<&str>) -> Option<Self> {
-        Self::parse_client_hints(&raw_info.client_hints)
-            .or_else(|| raw_info.user_agent.and_then(Self::parse_user_agent))
+        let mut context = Self::parse_client_hints(&raw_info.client_hints)
+            .or_else(|| raw_info.user_agent.and_then(Self::parse_user_agent));
+
+        // If we have a context, and raw_info.user_agent is available,
+        // call the set_user_agent method
+        if let Some(ref mut ctx) = context {
+            if let Some(user_agent) = raw_info.user_agent {
+                ctx.set_user_agent(user_agent);
+            }
+        }
+
+        context
     }
 }
 
@@ -361,8 +385,30 @@ impl FromUserAgentInfo for BrowserContext {
         Some(Self {
             name: Annotated::from(browser.family.into_owned()),
             version: Annotated::from(get_version(&browser.major, &browser.minor, &browser.patch)),
+            user_agent: Annotated::new(user_agent.to_string()),
             ..BrowserContext::default()
         })
+    }
+
+    fn set_user_agent(&mut self, user_agent: &str) {
+        self.user_agent = Annotated::new(user_agent.to_string());
+        self.backfill_from_user_agent();
+    }
+
+    fn backfill_from_user_agent(&mut self) {
+        // If name or version are not set, try to derive them from the user_agent
+        if self.name.value().is_none() || self.version.value().is_none() {
+            if let Some(user_agent_str) = self.user_agent.as_str() {
+                if let Some(parsed_context) = Self::parse_user_agent(user_agent_str) {
+                    if self.name.value().is_none() {
+                        self.name = parsed_context.name;
+                    }
+                    if self.version.value().is_none() {
+                        self.version = parsed_context.version;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -556,6 +602,7 @@ mod tests {
           "browser": {
             "name": "Chrome Mobile",
             "version": "18.0.1025",
+            "user_agent": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19",
             "type": "browser"
           }
         }
@@ -588,6 +635,7 @@ mod tests {
         {
           "browser": {
             "name": "Mobile Safari UI/WKWebView",
+            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)",
             "type": "browser"
           },
           "client_os": {
@@ -654,6 +702,7 @@ mod tests {
           "browser": {
             "name": "Chrome Mobile",
             "version": "18.0.1025",
+            "user_agent": "Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19",
             "type": "browser"
           },
           "client_os": {
@@ -700,6 +749,7 @@ mod tests {
           "browser": {
             "name": "BR_FAMILY",
             "version": "BR_VERSION",
+            "user_agent": "Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19",
             "type": "browser"
           },
           "client_os": {
@@ -830,14 +880,15 @@ mod tests {
         let browser =
             BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(browser, @r###"
+        insta::assert_debug_snapshot!(browser, @r#"
         BrowserContext {
             browser: ~,
             name: "Chrome",
             version: "109",
+            user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
             other: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -883,14 +934,15 @@ mod tests {
         let browser =
             BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(browser, @r###"
+        insta::assert_debug_snapshot!(browser, @r#"
         BrowserContext {
             browser: ~,
             name: "weird browser",
             version: "109",
+            user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
             other: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1094,5 +1146,209 @@ mod tests {
     #[test]
     fn test_default_empty() {
         assert!(RawUserAgentInfo::<&str>::default().is_empty());
+    }
+
+    #[test]
+    fn test_browser_context_user_agent_precedence() {
+        let request_user_agent = r#"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"#;
+        let browser_user_agent = r#"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36"#;
+
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(request_user_agent.to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        // Create a browser context with user_agent present but name missing
+        let browser_context = BrowserContext {
+            user_agent: Annotated::new(browser_user_agent.to_string()),
+            ..BrowserContext::default()
+        };
+
+        let mut contexts = Contexts::new();
+        contexts.add(browser_context);
+
+        let mut event = Event {
+            contexts: Annotated::new(contexts),
+            request: Annotated::new(Request {
+                headers: Annotated::new(headers),
+                ..Request::default()
+            }),
+            ..Event::default()
+        };
+
+        // Normalize the event
+        normalize_user_agent(&mut event);
+
+        let browser = event
+            .contexts
+            .value()
+            .unwrap()
+            .get::<BrowserContext>()
+            .unwrap();
+        // The version should match Chrome 67, not Chrome 80 from the request user agent
+        assert_eq!(browser.name.value().unwrap(), "Chrome");
+        assert_eq!(browser.version.value().unwrap(), "67.0.3396");
+        assert_eq!(browser.user_agent.value().unwrap(), browser_user_agent);
+    }
+
+    #[test]
+    fn test_browser_context_user_agent_backfilling() {
+        // Test that a browser context with only user_agent set gets properly filled
+        let user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36";
+
+        // Create the context with user_agent already set
+        let browser_context = BrowserContext {
+            user_agent: Annotated::new(user_agent.to_string()),
+            ..BrowserContext::default()
+        };
+
+        let mut contexts = Contexts::new();
+        contexts.add(browser_context);
+
+        // Create a request with the proper headers
+        let headers = Headers({
+            let headers = vec![Annotated::new((
+                Annotated::new("user-agent".to_string().into()),
+                Annotated::new(user_agent.to_string().into()),
+            ))];
+            PairList(headers)
+        });
+
+        let mut event = Event {
+            contexts: Annotated::new(contexts),
+            request: Annotated::new(Request {
+                headers: Annotated::new(headers),
+                ..Request::default()
+            }),
+            ..Event::default()
+        };
+
+        normalize_user_agent(&mut event);
+
+        let browser = event
+            .contexts
+            .value()
+            .unwrap()
+            .get::<BrowserContext>()
+            .unwrap();
+        assert_eq!(browser.name.value().unwrap(), "Chrome");
+        assert_eq!(browser.version.value().unwrap(), "67.0.3396");
+        assert_eq!(browser.user_agent.value().unwrap(), user_agent);
+    }
+
+    #[test]
+    fn test_empty_browser_context_backfilling() {
+        // Test that an empty browser context gets properly filled from request user agent
+        let browser_context = BrowserContext::default();
+
+        let mut contexts = Contexts::new();
+        contexts.add(browser_context);
+
+        let mut event = get_event_with_user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36",
+        );
+        event.contexts = Annotated::new(contexts);
+
+        normalize_user_agent(&mut event);
+
+        let browser = event
+            .contexts
+            .value()
+            .unwrap()
+            .get::<BrowserContext>()
+            .unwrap();
+        assert_eq!(browser.name.value().unwrap(), "Chrome");
+        assert_eq!(browser.version.value().unwrap(), "80.0.3987");
+        assert!(browser.user_agent.value().is_some());
+        assert_eq!(
+            browser.user_agent.value().unwrap(),
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"
+        );
+    }
+
+    #[test]
+    fn test_browser_context_respects_existing_fields() {
+        // Test that existing fields in browser context are not overwritten
+        let browser_context = BrowserContext {
+            name: Annotated::new("Custom Browser".to_string()),
+            version: Annotated::new("1.2.3".to_string()),
+            ..BrowserContext::default()
+        };
+
+        let mut contexts = Contexts::new();
+        contexts.add(browser_context);
+
+        let mut event = get_event_with_user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36",
+        );
+        event.contexts = Annotated::new(contexts);
+
+        normalize_user_agent(&mut event);
+
+        let browser = event
+            .contexts
+            .value()
+            .unwrap()
+            .get::<BrowserContext>()
+            .unwrap();
+        assert_eq!(browser.name.value().unwrap(), "Custom Browser");
+        assert_eq!(browser.version.value().unwrap(), "1.2.3");
+        assert!(browser.user_agent.value().is_some());
+    }
+
+    #[test]
+    fn test_browser_context_from_client_hints_with_user_agent() {
+        // Test creation of browser context from client hints preserves user agent
+        let headers = Headers({
+            let headers = vec![
+                Annotated::new((
+                    Annotated::new("user-agent".to_string().into()),
+                    Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("SEC-CH-UA".to_string().into()),
+                    Annotated::new(r#"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"#.to_string().into()),
+                )),
+            ];
+            PairList(headers)
+        });
+
+        let browser_context =
+            BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
+
+        assert_eq!(browser_context.name.value().unwrap(), "Chrome");
+        assert_eq!(browser_context.version.value().unwrap(), "109");
+        assert!(browser_context.user_agent.value().is_some());
+        assert_eq!(
+            browser_context.user_agent.value().unwrap(),
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
+        );
+    }
+
+    #[test]
+    fn test_normalize_user_agent_sets_browser_user_agent() {
+        // Test that normalize_user_agent properly fills the user_agent field
+        let mut event = get_event_with_user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36",
+        );
+
+        normalize_user_agent(&mut event);
+
+        let browser = event
+            .contexts
+            .value()
+            .unwrap()
+            .get::<BrowserContext>()
+            .unwrap();
+        assert_eq!(browser.name.value().unwrap(), "Chrome");
+        assert_eq!(browser.version.value().unwrap(), "80.0.3987");
+        assert!(browser.user_agent.value().is_some());
+        assert_eq!(
+            browser.user_agent.value().unwrap(),
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"
+        );
     }
 }
