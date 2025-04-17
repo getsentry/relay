@@ -329,6 +329,7 @@ jobs:
     if: "(!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
 
     env:
+      TEMPEST_COMMIT_SHA: "615c09d736bd466cae42842190a06f84977f4a58"
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
       FEATURES: |-
         ${{fromJson('{
@@ -365,7 +366,7 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Clone internal repo into stub
         run: |
-          git clone git@github.com:getsentry/tempest.git /tmp/tempest
+          git clone git@github.com:getsentry/tempest.git /tmp/tempest && cd /tmp/tempest && git checkout $TEMPEST_COMMIT_SHA && cd -
           cp -r /tmp/tempest/crates/prosperoconv/src relay-prosperoconv/
           rm -rf /tmp/tempest
 
