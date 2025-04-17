@@ -48,7 +48,6 @@ impl Item {
                 spans_extracted: false,
                 sampled: true,
                 fully_normalized: false,
-                ingest_span_in_eap: false,
                 profile_type: None,
                 platform: None,
             },
@@ -331,16 +330,6 @@ impl Item {
     /// Sets the fully normalized flag.
     pub fn set_fully_normalized(&mut self, fully_normalized: bool) {
         self.headers.fully_normalized = fully_normalized;
-    }
-
-    /// Returns whether or not to ingest the span in EAP.
-    pub fn ingest_span_in_eap(&self) -> bool {
-        self.headers.ingest_span_in_eap
-    }
-
-    /// Set whether or not to ingest the span in EAP.
-    pub fn set_ingest_span_in_eap(&mut self, ingest_span_in_eap: bool) {
-        self.headers.ingest_span_in_eap = ingest_span_in_eap;
     }
 
     /// Returns the associated platform.
@@ -835,12 +824,6 @@ pub struct ItemHeaders {
     /// for which the transaction was dropped as `sampled: false`.
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     sampled: bool,
-
-    /// Indicates if we should ingest the item in the EAP
-    ///
-    /// NOTE: This is internal-only and not exposed into the Envelope.
-    #[serde(default, skip)]
-    ingest_span_in_eap: bool,
 
     /// Tracks whether the item is a backend or ui profile chunk.
     ///

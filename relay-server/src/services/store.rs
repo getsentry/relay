@@ -927,13 +927,10 @@ impl StoreService {
         self.produce(
             KafkaTopic::Spans,
             KafkaMessage::Span {
-                headers: BTreeMap::from([
-                    ("project_id".to_string(), scoping.project_id.to_string()),
-                    (
-                        "ingest_in_eap".to_string(),
-                        item.ingest_span_in_eap().to_string(),
-                    ),
-                ]),
+                headers: BTreeMap::from([(
+                    "project_id".to_string(),
+                    scoping.project_id.to_string(),
+                )]),
                 message: span,
             },
         )?;

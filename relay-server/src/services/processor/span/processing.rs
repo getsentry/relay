@@ -238,16 +238,6 @@ pub async fn process(
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
-        new_item.set_ingest_span_in_eap(
-            project_info
-                .config
-                .features
-                .has(Feature::IngestSpansInEapForOrganization)
-                || project_info
-                    .config
-                    .features
-                    .has(Feature::IngestSpansInEapForProject),
-        );
 
         *item = new_item;
 
@@ -289,7 +279,6 @@ pub fn extract_from_event(
     event: &Annotated<Event>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
     server_sample_rate: Option<f64>,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -313,14 +302,6 @@ pub fn extract_from_event(
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
-    let ingest_in_eap = project_info
-        .config
-        .features
-        .has(Feature::IngestSpansInEapForOrganization)
-        || project_info
-            .config
-            .features
-            .has(Feature::IngestSpansInEapForProject);
 
     let mut add_span = |mut span: Span| {
         add_sample_rate(
@@ -372,7 +353,6 @@ pub fn extract_from_event(
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(event_metrics_extracted.0);
-        item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
         managed_envelope.envelope_mut().add_item(item);

@@ -1896,7 +1896,6 @@ impl EnvelopeProcessorService {
                     &event,
                     &global_config,
                     config,
-                    project_info.clone(),
                     server_sample_rate,
                     event_metrics_extracted,
                     spans_extracted,
