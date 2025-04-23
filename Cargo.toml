@@ -32,6 +32,7 @@ print_stdout = "warn"
 print_stderr = "warn"
 
 [workspace.dependencies]
+prosperoconv = { path = "relay-prosperoconv" }
 relay-auth = { path = "relay-auth" }
 relay-base-schema = { path = "relay-base-schema" }
 relay-cardinality = { path = "relay-cardinality" }
@@ -54,7 +55,6 @@ relay-pattern = { path = "relay-pattern" }
 relay-pii = { path = "relay-pii" }
 relay-profiling = { path = "relay-profiling" }
 relay-protocol = { path = "relay-protocol" }
-relay-prosperoconv = { path = "relay-prosperoconv" }
 relay-quotas = { path = "relay-quotas" }
 relay-redis = { path = "relay-redis" }
 relay-replays = { path = "relay-replays" }

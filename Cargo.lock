@@ -4223,6 +4223,7 @@ dependencies = [
  "papaya",
  "pin-project-lite",
  "priority-queue",
+ "prosperoconv",
  "prost",
  "rand 0.8.5",
  "regex",
