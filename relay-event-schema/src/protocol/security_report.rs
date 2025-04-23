@@ -2134,18 +2134,18 @@ mod tests {
     fn test_csp_report_fenced_frame_src() {
         let json = r#"
             {
-          "csp-report": {
-            "document-uri": "https://example.com",
-            "referrer": "https://www.google.com/",
-            "violated-directive": "fenced-frame-src",
-            "effective-directive": "fenced-frame-src",
-            "original-policy": "default-src 'self' 'unsafe-eval'",
-            "disposition": "enforce",
-            "blocked-uri": "",
-            "status-code": 200,
-            "script-sample": ""
-          }
-        }
+              "csp-report": {
+                "document-uri": "https://example.com",
+                "referrer": "https://www.google.com/",
+                "violated-directive": "fenced-frame-src",
+                "effective-directive": "fenced-frame-src",
+                "original-policy": "default-src 'self' 'unsafe-eval'",
+                "disposition": "enforce",
+                "blocked-uri": "",
+                "status-code": 200,
+                "script-sample": ""
+              }
+            }
         "#;
         let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
         let raw_csp = raw_report.csp_report;
