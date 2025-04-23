@@ -5,6 +5,7 @@
 **Features**:
 
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
+- Add Expo Updates Event Context for Expo applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
 
 ## 25.4.0
 
