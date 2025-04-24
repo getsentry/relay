@@ -211,8 +211,8 @@ impl CategoryUnit {
             | DataCategory::Uptime
             | DataCategory::MetricSecond
             | DataCategory::AttachmentItem
-            | DataCategory::SeerAutofix
-            | DataCategory::SeerScanner
+            | DataCategory::SeerAutofixRun
+            | DataCategory::SeerScannerRun
             | DataCategory::Session => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
