@@ -5,6 +5,7 @@
 **Features**:
 
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
+- Add data categories for Seer ([#4692](https://github.com/getsentry/relay/pull/4692))
 
 **Bug Fixes**:
 
