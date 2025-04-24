@@ -266,7 +266,8 @@ mod services;
 mod statsd;
 mod utils;
 
-pub use self::envelope::Envelope; // pub for benchmarks
+pub use self::envelope::{Envelope, Item}; // pub for benchmarks
+pub use self::
 pub use self::services::buffer::{
     EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
 }; // pub for benchmarks
