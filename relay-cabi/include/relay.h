@@ -177,12 +177,12 @@ enum RelayDataCategory {
    * Seer Autofix Run
    *
    */
-  RELAY_DATA_CATEGORY_SEER_AUTOFIX_RUN = 27,
+  RELAY_DATA_CATEGORY_SEER_AUTOFIX = 27,
   /**
    * Seer Scanner Run
    *
    */
-  RELAY_DATA_CATEGORY_SEER_SCANNER_RUN = 28,
+  RELAY_DATA_CATEGORY_SEER_SCANNER = 28,
   /**
    * Any other data category not known by this Relay.
    */
