@@ -52,7 +52,7 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, PayloadType, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
@@ -480,7 +480,7 @@ pub enum ProcessingError {
     InvalidUnrealReport(#[source] Unreal4Error),
 
     #[error("event payload too large")]
-    PayloadTooLarge(ItemType),
+    PayloadTooLarge(PayloadType),
 
     #[error("invalid transaction event")]
     InvalidTransaction,
@@ -543,8 +543,8 @@ impl ProcessingError {
     fn to_outcome(&self) -> Option<Outcome> {
         match self {
             // General outcomes for invalid events
-            Self::PayloadTooLarge(item_type) => {
-                Some(Outcome::Invalid(DiscardReason::TooLarge(item_type.into())))
+            Self::PayloadTooLarge(payload_type) => {
+                Some(Outcome::Invalid(DiscardReason::TooLarge(*payload_type)))
             }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
@@ -600,7 +600,7 @@ impl ProcessingError {
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
-            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport),
+            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport.into()),
             _ => ProcessingError::InvalidUnrealReport(err),
         }
     }

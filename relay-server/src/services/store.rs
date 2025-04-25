@@ -36,7 +36,9 @@ use uuid::Uuid;
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{
+    DiscardItemType, DiscardReason, Outcome, PayloadType, TrackOutcome,
+};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{FormDataIter, TypedEnvelope};
@@ -776,9 +778,9 @@ impl StoreService {
             self.outcome_aggregator.send(TrackOutcome {
                 category: DataCategory::Replay,
                 event_id,
-                outcome: Outcome::Invalid(DiscardReason::TooLarge(
+                outcome: Outcome::Invalid(DiscardReason::TooLarge(PayloadType::Item(
                     DiscardItemType::ReplayRecording,
-                )),
+                ))),
                 quantity: 1,
                 remote_addr: None,
                 scoping,

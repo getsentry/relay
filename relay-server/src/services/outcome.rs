@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, mem};
 
-use crate::envelope::ItemType;
+use crate::envelope::{AttachmentType, ItemType};
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
 use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
@@ -359,7 +359,7 @@ pub enum DiscardReason {
     EmptyEnvelope,
 
     /// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
-    TooLarge(DiscardItemType),
+    TooLarge(PayloadType),
 
     /// (Legacy) A store request was received with an invalid method.
     ///
@@ -527,6 +527,42 @@ impl fmt::Display for DiscardReason {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum PayloadType {
+    Item(DiscardItemType),
+    Attachment(DiscardAttachmentType),
+}
+
+impl From<ItemType> for PayloadType {
+    fn from(item_type: ItemType) -> Self {
+        PayloadType::Item(item_type.into())
+    }
+}
+
+impl From<AttachmentType> for PayloadType {
+    fn from(attachment_type: AttachmentType) -> Self {
+        PayloadType::Attachment(attachment_type.into())
+    }
+}
+
+impl fmt::Display for PayloadType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PayloadType::Item(item_type) => write!(f, "{}", item_type.as_str()),
+            PayloadType::Attachment(attachment_type) => write!(f, "{}", attachment_type.as_str()),
+        }
+    }
+}
+
+impl PayloadType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PayloadType::Item(item_type) => item_type.as_str(),
+            PayloadType::Attachment(attachment_type) => attachment_type.as_str(),
+        }
+    }
+}
+
 /// Similar to [`ItemType`] but it does not have any additional information in the
 /// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
 /// The variants should be the same as [`ItemType`].
@@ -630,6 +666,11 @@ impl DiscardItemType {
     }
 }
 
+// FIXME: Not sure where this is being used :confusion:
+// TODO: The issue is how do you get the information in the ItemType:
+// 1 - Have a separate struct
+// 2 - Have an enum of the 2
+// 3 - Embed the info in this struct
 impl From<&ItemType> for DiscardItemType {
     fn from(value: &ItemType) -> Self {
         match value {
@@ -666,6 +707,74 @@ impl From<&ItemType> for DiscardItemType {
 
 impl From<ItemType> for DiscardItemType {
     fn from(value: ItemType) -> Self {
+        From::from(&value)
+    }
+}
+
+/// Similar to [`AttachmentType`] but it does not have any additional information in the
+/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
+/// The variants should be the same as [`AttachmentType`].
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum DiscardAttachmentType {
+    /// A regular attachment without special meaning.
+    Attachment,
+    /// A minidump crash report (binary data).
+    Minidump,
+    /// An apple crash report (text data).
+    AppleCrashReport,
+    /// A msgpack-encoded event payload submitted as part of multipart uploads.
+    EventPayload,
+    /// A msgpack-encoded list of payloads.
+    Breadcrumbs,
+    // A prosperodump crash report (binary data)
+    Prosperodump,
+    /// Binary attachment present in Unreal 4 events containing event context information.
+    UnrealContext,
+    /// Binary attachment present in Unreal 4 events containing event Logs.
+    UnrealLogs,
+    /// An application UI view hierarchy (json payload).
+    ViewHierarchy,
+    /// Unknown attachment type, forwarded for compatibility.
+    Unknown,
+}
+
+impl DiscardAttachmentType {
+    /// Returns the variant name of the attachment type.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Attachment => "attachment",
+            Self::Minidump => "minidump",
+            Self::AppleCrashReport => "apple_crash_report",
+            Self::EventPayload => "event_payload",
+            Self::Prosperodump => "prosperodump",
+            Self::Breadcrumbs => "breadcrumbs",
+            Self::UnrealContext => "unreal_context",
+            Self::UnrealLogs => "unreal_logs",
+            Self::ViewHierarchy => "view_hierarchy",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+impl From<&AttachmentType> for DiscardAttachmentType {
+    fn from(value: &AttachmentType) -> Self {
+        match value {
+            AttachmentType::Attachment => Self::Attachment,
+            AttachmentType::Minidump => Self::Minidump,
+            AttachmentType::AppleCrashReport => Self::AppleCrashReport,
+            AttachmentType::EventPayload => Self::EventPayload,
+            AttachmentType::Breadcrumbs => Self::Breadcrumbs,
+            AttachmentType::Prosperodump => Self::Prosperodump,
+            AttachmentType::UnrealContext => Self::UnrealContext,
+            AttachmentType::UnrealLogs => Self::UnrealLogs,
+            AttachmentType::ViewHierarchy => Self::ViewHierarchy,
+            AttachmentType::Unknown(_) => Self::Unknown,
+        }
+    }
+}
+
+impl From<AttachmentType> for DiscardAttachmentType {
+    fn from(value: AttachmentType) -> Self {
         From::from(&value)
     }
 }
@@ -1230,15 +1339,32 @@ mod tests {
     fn test_outcome_discard_reason() {
         assert_eq!(
             Some(Cow::from("too_large:attachment")),
-            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment)).to_reason()
+            Outcome::Invalid(DiscardReason::TooLarge(PayloadType::Item(
+                DiscardItemType::Attachment
+            )))
+            .to_reason()
         );
         assert_eq!(
             Some(Cow::from("too_large:unknown")),
-            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Unknown)).to_reason()
+            Outcome::Invalid(DiscardReason::TooLarge(PayloadType::Item(
+                DiscardItemType::Unknown
+            )))
+            .to_reason()
         );
         assert_eq!(
             Some(Cow::from("too_large:unreal_report")),
-            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::UnrealReport)).to_reason()
+            Outcome::Invalid(DiscardReason::TooLarge(PayloadType::Item(
+                DiscardItemType::UnrealReport
+            )))
+            .to_reason()
+        );
+
+        assert_eq!(
+            Some(Cow::from("too_large:breadcrumbs")),
+            Outcome::Invalid(DiscardReason::TooLarge(PayloadType::Attachment(
+                DiscardAttachmentType::Breadcrumbs
+            )))
+            .to_reason()
         );
     }
 }
