@@ -43,7 +43,7 @@ build-release-with-bundles: build-linux-release collect-source-bundle
 .PHONY: build-relase-with-bundles
 
 sdist: setup-git setup-venv ## create a sdist of the Python library
-	cd py && ../.venv/bin/python setup.py sdist --format=zip
+	cd py && ../.venv/bin/python setup.py sdist
 .PHONY: sdist
 
 wheel: setup-git setup-venv ## build a wheel of the Python library

@@ -7,6 +7,10 @@
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
 - Add Expo Updates Event Context for Expo applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
 
+**Bug Fixes**:
+
+- Add `fenced-frame-src` to `CspDirective`. ([#4691](https://github.com/getsentry/relay/pull/4691))
+
 ## 25.4.0
 
 - Extract searchable context fields into sentry tags for segment spans. ([#4651](https://github.com/getsentry/relay/pull/4651))
