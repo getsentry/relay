@@ -591,6 +591,7 @@ pub enum DiscardItemType {
     /// Relays explicitly configured to do so will instead drop those items. This allows
     /// forward-compatibility with new item types where we expect outdated Relays.
     Unknown,
+    // Keep `Unknown` last in the list. Add new items above `Unknown`.
 }
 
 impl DiscardItemType {

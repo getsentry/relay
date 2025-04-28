@@ -3,7 +3,7 @@ use std::fmt;
 /// The type of an event attachment.
 ///
 /// These item types must align with the Sentry processing pipeline.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AttachmentType {
     /// A regular attachment without special meaning.
     Attachment,
