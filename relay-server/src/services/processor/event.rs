@@ -603,11 +603,9 @@ fn extract_attached_event(
     // larger size than regular events and may cause significant processing delays.
     if item.len() > config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(
-            if let Some(attachment_type) = item.attachment_type() {
-                attachment_type.clone().into()
-            } else {
-                item.ty().clone().into()
-            },
+            item.attachment_type()
+                .map(|t| t.into())
+                .unwrap_or_else(|| item.ty().into()),
         ));
     }
 
