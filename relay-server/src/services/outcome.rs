@@ -604,7 +604,6 @@ impl DiscardItemType {
             Self::Event => "event",
             Self::Transaction => "transaction",
             Self::Security => "security",
-            // TODO: There might be a better way to do this, but I did not yet find it.
             Self::Attachment(DiscardAttachmentType::Attachment) => "attachment:attachment",
             Self::Attachment(DiscardAttachmentType::Minidump) => "attachment:minidump",
             Self::Attachment(DiscardAttachmentType::AppleCrashReport) => {
@@ -733,25 +732,6 @@ pub enum DiscardAttachmentType {
     ViewHierarchy,
     /// Unknown attachment type, forwarded for compatibility.
     Unknown,
-}
-
-// TODO: This is not being used ATM, since I can't get the static string + var that holds static
-// string to work.
-impl DiscardAttachmentType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Attachment => "attachment",
-            Self::Minidump => "minidump",
-            Self::AppleCrashReport => "apple_crash_report",
-            Self::EventPayload => "event_payload",
-            Self::Prosperodump => "prosperodump",
-            Self::Breadcrumbs => "breadcrumbs",
-            Self::UnrealContext => "unreal_context",
-            Self::UnrealLogs => "unreal_logs",
-            Self::ViewHierarchy => "view_hierarchy",
-            Self::Unknown => "unknown",
-        }
-    }
 }
 
 impl From<&AttachmentType> for DiscardAttachmentType {
