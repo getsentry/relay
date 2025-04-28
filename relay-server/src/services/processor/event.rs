@@ -630,11 +630,9 @@ fn parse_msgpack_breadcrumbs(
     // size as bound, which is roughly in the right ballpark.
     if item.len() > config.max_event_size() {
         return Err(ProcessingError::PayloadTooLarge(
-            if let Some(attachment_type) = item.attachment_type() {
-                attachment_type.clone().into()
-            } else {
-                item.ty().clone().into()
-            },
+            item.attachment_type()
+                .map(|t| t.into())
+                .unwrap_or_else(|| item.ty().into()),
         ));
     }
 

@@ -684,7 +684,7 @@ impl From<ItemType> for DiscardItemType {
 
 impl From<&AttachmentType> for DiscardItemType {
     fn from(value: &AttachmentType) -> Self {
-     Self::Attachment(value.into())
+        Self::Attachment(value.into())
     }
 }
 

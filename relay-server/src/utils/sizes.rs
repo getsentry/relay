@@ -1,7 +1,7 @@
 use relay_config::Config;
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
-use crate::services::outcome::DiscardItemType;
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 use crate::utils::{ItemAction, ManagedEnvelope};
 
 /// Checks for size limits of items in this envelope.
@@ -74,25 +74,26 @@ pub fn check_envelope_size_limits(
         };
 
         if item.len() > max_size {
-            return Err(if let Some(attachment_type) = item.attachment_type() {
-                attachment_type.clone().into()
-            } else {
-                item.ty().clone().into()
-            });
+            return Err(item
+                .attachment_type()
+                .map(|t| t.into())
+                .unwrap_or_else(|| item.ty().into()));
         }
     }
 
     if event_size > config.max_event_size() {
-        return Err(ItemType::Event.into());
+        return Err(DiscardItemType::Event);
     }
     if attachments_size > config.max_attachments_size() {
-        return Err(ItemType::Attachment.into());
+        return Err(DiscardItemType::Attachment(
+            DiscardAttachmentType::Attachment,
+        ));
     }
     if session_count > config.max_session_count() {
-        return Err(ItemType::Session.into());
+        return Err(DiscardItemType::Session);
     }
     if client_reports_size > config.max_client_reports_size() {
-        return Err(ItemType::ClientReport.into());
+        return Err(DiscardItemType::ClientReport);
     }
 
     Ok(())
