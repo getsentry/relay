@@ -684,20 +684,7 @@ impl From<ItemType> for DiscardItemType {
 
 impl From<&AttachmentType> for DiscardItemType {
     fn from(value: &AttachmentType) -> Self {
-        match value {
-            AttachmentType::Attachment => Self::Attachment(DiscardAttachmentType::Attachment),
-            AttachmentType::Minidump => Self::Attachment(DiscardAttachmentType::Minidump),
-            AttachmentType::AppleCrashReport => {
-                Self::Attachment(DiscardAttachmentType::AppleCrashReport)
-            }
-            AttachmentType::EventPayload => Self::Attachment(DiscardAttachmentType::EventPayload),
-            AttachmentType::Breadcrumbs => Self::Attachment(DiscardAttachmentType::Breadcrumbs),
-            AttachmentType::Prosperodump => Self::Attachment(DiscardAttachmentType::Prosperodump),
-            AttachmentType::UnrealContext => Self::Attachment(DiscardAttachmentType::UnrealContext),
-            AttachmentType::UnrealLogs => Self::Attachment(DiscardAttachmentType::UnrealLogs),
-            AttachmentType::ViewHierarchy => Self::Attachment(DiscardAttachmentType::ViewHierarchy),
-            AttachmentType::Unknown(_) => Self::Attachment(DiscardAttachmentType::Unknown),
-        }
+     Self::Attachment(value.into())
     }
 }
 
