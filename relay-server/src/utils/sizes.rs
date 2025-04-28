@@ -1,7 +1,7 @@
 use relay_config::Config;
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
-use crate::services::outcome::PayloadType;
+use crate::services::outcome::DiscardItemType;
 use crate::utils::{ItemAction, ManagedEnvelope};
 
 /// Checks for size limits of items in this envelope.
@@ -23,7 +23,10 @@ use crate::utils::{ItemAction, ManagedEnvelope};
 ///  - `max_session_count`
 ///  - `max_span_size`
 ///  - `max_statsd_size`
-pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Result<(), PayloadType> {
+pub fn check_envelope_size_limits(
+    config: &Config,
+    envelope: &Envelope,
+) -> Result<(), DiscardItemType> {
     const NO_LIMIT: usize = usize::MAX;
 
     let mut event_size = 0;

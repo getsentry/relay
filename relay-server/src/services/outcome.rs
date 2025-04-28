@@ -359,7 +359,7 @@ pub enum DiscardReason {
     EmptyEnvelope,
 
     /// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
-    TooLarge(PayloadType),
+    TooLarge(DiscardItemType),
 
     /// (Legacy) A store request was received with an invalid method.
     ///
@@ -527,10 +527,12 @@ impl fmt::Display for DiscardReason {
     }
 }
 
-/// Merge of [`AttachmentType`] and [`ItemType`] but does not have any additional information in
-/// the Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum PayloadType {
+/// Similar to [`ItemType`] but it does not have any additional information in the
+/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
+/// The variants should be the same as [`ItemType`] except for `Attachment` which has a
+/// [`DiscardAttachmentType`] parameter.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum DiscardItemType {
     /// Event payload encoded in JSON.
     Event,
     /// Transaction event payload encoded in JSON.
@@ -538,7 +540,7 @@ pub enum PayloadType {
     /// Security report event payload encoded in JSON.
     Security,
     /// Raw payload of an arbitrary attachment.
-    Attachment,
+    Attachment(DiscardAttachmentType),
     /// Multipart form data collected into a stream of JSON tuples.
     FormData,
     /// Security report as sent by the browser in JSON.
@@ -589,41 +591,31 @@ pub enum PayloadType {
     /// Relays explicitly configured to do so will instead drop those items. This allows
     /// forward-compatibility with new item types where we expect outdated Relays.
     Unknown,
-    /// A minidump crash report (binary data).
-    Minidump,
-    /// An apple crash report (text data).
-    AppleCrashReport,
-    /// A msgpack-encoded event payload submitted as part of multipart uploads.
-    EventPayload,
-    /// A msgpack-encoded list of payloads.
-    Breadcrumbs,
-    // A prosperodump crash report (binary data)
-    Prosperodump,
-    /// Binary attachment present in Unreal 4 events containing event context information.
-    UnrealContext,
-    /// Binary attachment present in Unreal 4 events containing event Logs.
-    UnrealLogs,
-    /// An application UI view hierarchy (json payload).
-    ViewHierarchy,
 }
 
-impl fmt::Display for PayloadType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl PayloadType {
+impl DiscardItemType {
     /// Returns the enum variant as string representation in snake case.
     ///
-    /// For example, `PayloadType::UserReportV2` gets converted into `user_report_v2`.
+    /// For example, `DiscardItemType::UserReportV2` gets converted into `user_report_v2`.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Unknown => "unknown",
             Self::Event => "event",
             Self::Transaction => "transaction",
             Self::Security => "security",
-            Self::Attachment => "attachment",
+            // TODO: There might be a better way to do this, but I did not yet find it.
+            Self::Attachment(DiscardAttachmentType::Attachment) => "attachment:attachment",
+            Self::Attachment(DiscardAttachmentType::Minidump) => "attachment:minidump",
+            Self::Attachment(DiscardAttachmentType::AppleCrashReport) => {
+                "attachment:apple_crash_report"
+            }
+            Self::Attachment(DiscardAttachmentType::EventPayload) => "attachment:event_payload",
+            Self::Attachment(DiscardAttachmentType::Breadcrumbs) => "attachment:breadcrumbs",
+            Self::Attachment(DiscardAttachmentType::Prosperodump) => "attachment:prosperodump",
+            Self::Attachment(DiscardAttachmentType::UnrealContext) => "attachment:unreal_context",
+            Self::Attachment(DiscardAttachmentType::UnrealLogs) => "attachment:unreal_logs",
+            Self::Attachment(DiscardAttachmentType::ViewHierarchy) => "attachment:view_hierarchy",
+            Self::Attachment(DiscardAttachmentType::Unknown) => "attachment:unknown",
             Self::FormData => "form_data",
             Self::RawSecurity => "raw_security",
             Self::Nel => "nel",
@@ -646,25 +638,17 @@ impl PayloadType {
             Self::OtelTracesData => "otel_traces_data",
             Self::UserReportV2 => "user_report_v2",
             Self::ProfileChunk => "profile_chunk",
-            Self::Minidump => "minidump",
-            Self::AppleCrashReport => "apple_crash_report",
-            Self::EventPayload => "event_payload",
-            Self::Prosperodump => "prosperodump",
-            Self::Breadcrumbs => "breadcrumbs",
-            Self::UnrealContext => "unreal_context",
-            Self::UnrealLogs => "unreal_logs",
-            Self::ViewHierarchy => "view_hierarchy",
         }
     }
 }
 
-impl From<&ItemType> for PayloadType {
+impl From<&ItemType> for DiscardItemType {
     fn from(value: &ItemType) -> Self {
         match value {
             ItemType::Event => Self::Event,
             ItemType::Transaction => Self::Transaction,
             ItemType::Security => Self::Security,
-            ItemType::Attachment => Self::Attachment,
+            ItemType::Attachment => Self::Attachment(DiscardAttachmentType::Attachment),
             ItemType::FormData => Self::FormData,
             ItemType::RawSecurity => Self::RawSecurity,
             ItemType::Nel => Self::Nel,
@@ -692,7 +676,84 @@ impl From<&ItemType> for PayloadType {
     }
 }
 
-impl From<&AttachmentType> for PayloadType {
+impl From<ItemType> for DiscardItemType {
+    fn from(value: ItemType) -> Self {
+        From::from(&value)
+    }
+}
+
+impl From<&AttachmentType> for DiscardItemType {
+    fn from(value: &AttachmentType) -> Self {
+        match value {
+            AttachmentType::Attachment => Self::Attachment(DiscardAttachmentType::Attachment),
+            AttachmentType::Minidump => Self::Attachment(DiscardAttachmentType::Minidump),
+            AttachmentType::AppleCrashReport => {
+                Self::Attachment(DiscardAttachmentType::AppleCrashReport)
+            }
+            AttachmentType::EventPayload => Self::Attachment(DiscardAttachmentType::EventPayload),
+            AttachmentType::Breadcrumbs => Self::Attachment(DiscardAttachmentType::Breadcrumbs),
+            AttachmentType::Prosperodump => Self::Attachment(DiscardAttachmentType::Prosperodump),
+            AttachmentType::UnrealContext => Self::Attachment(DiscardAttachmentType::UnrealContext),
+            AttachmentType::UnrealLogs => Self::Attachment(DiscardAttachmentType::UnrealLogs),
+            AttachmentType::ViewHierarchy => Self::Attachment(DiscardAttachmentType::ViewHierarchy),
+            AttachmentType::Unknown(_) => Self::Attachment(DiscardAttachmentType::Unknown),
+        }
+    }
+}
+
+impl From<AttachmentType> for DiscardItemType {
+    fn from(value: AttachmentType) -> Self {
+        From::from(&value)
+    }
+}
+
+/// Similar to [`AttachmentType`] but it does not have any additional information in the
+/// Unknown variant so that it can derive [`Copy`] and be used from [`DiscardReason`].
+/// The variants should be the same as [`AttachmentType`].
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum DiscardAttachmentType {
+    /// A regular attachment without special meaning.
+    Attachment,
+    /// A minidump crash report (binary data).
+    Minidump,
+    /// An apple crash report (text data).
+    AppleCrashReport,
+    /// A msgpack-encoded event payload submitted as part of multipart uploads.
+    EventPayload,
+    /// A msgpack-encoded list of payloads.
+    Breadcrumbs,
+    // A prosperodump crash report (binary data)
+    Prosperodump,
+    /// Binary attachment present in Unreal 4 events containing event context information.
+    UnrealContext,
+    /// Binary attachment present in Unreal 4 events containing event Logs.
+    UnrealLogs,
+    /// An application UI view hierarchy (json payload).
+    ViewHierarchy,
+    /// Unknown attachment type, forwarded for compatibility.
+    Unknown,
+}
+
+// TODO: This is not being used ATM, since I can't get the static string + var that holds static
+// string to work.
+impl DiscardAttachmentType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Attachment => "attachment",
+            Self::Minidump => "minidump",
+            Self::AppleCrashReport => "apple_crash_report",
+            Self::EventPayload => "event_payload",
+            Self::Prosperodump => "prosperodump",
+            Self::Breadcrumbs => "breadcrumbs",
+            Self::UnrealContext => "unreal_context",
+            Self::UnrealLogs => "unreal_logs",
+            Self::ViewHierarchy => "view_hierarchy",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+impl From<&AttachmentType> for DiscardAttachmentType {
     fn from(value: &AttachmentType) -> Self {
         match value {
             AttachmentType::Attachment => Self::Attachment,
@@ -709,15 +770,15 @@ impl From<&AttachmentType> for PayloadType {
     }
 }
 
-impl From<ItemType> for PayloadType {
-    fn from(value: ItemType) -> Self {
+impl From<AttachmentType> for DiscardAttachmentType {
+    fn from(value: AttachmentType) -> Self {
         From::from(&value)
     }
 }
 
-impl From<AttachmentType> for PayloadType {
-    fn from(value: AttachmentType) -> Self {
-        From::from(&value)
+impl fmt::Display for DiscardItemType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -1280,21 +1341,27 @@ mod tests {
     #[test]
     fn test_outcome_discard_reason() {
         assert_eq!(
-            Some(Cow::from("too_large:attachment")),
-            Outcome::Invalid(DiscardReason::TooLarge(PayloadType::Attachment)).to_reason()
+            Some(Cow::from("too_large:attachment:attachment")),
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+                DiscardAttachmentType::Attachment
+            )))
+            .to_reason()
         );
         assert_eq!(
             Some(Cow::from("too_large:unknown")),
-            Outcome::Invalid(DiscardReason::TooLarge(PayloadType::Unknown)).to_reason()
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Unknown)).to_reason()
         );
         assert_eq!(
             Some(Cow::from("too_large:unreal_report")),
-            Outcome::Invalid(DiscardReason::TooLarge(PayloadType::UnrealReport)).to_reason()
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::UnrealReport)).to_reason()
         );
 
         assert_eq!(
-            Some(Cow::from("too_large:breadcrumbs")),
-            Outcome::Invalid(DiscardReason::TooLarge(PayloadType::Breadcrumbs)).to_reason()
+            Some(Cow::from("too_large:attachment:breadcrumbs")),
+            Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+                DiscardAttachmentType::Breadcrumbs
+            )))
+            .to_reason()
         );
     }
 }

@@ -11,7 +11,7 @@ use serde::Deserialize;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
 use crate::services::buffer::{EnvelopeBuffer, ProjectKeyPair};
-use crate::services::outcome::{DiscardReason, Outcome, PayloadType};
+use crate::services::outcome::{DiscardReason, Outcome, DiscardItemType};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
@@ -81,7 +81,7 @@ pub enum BadStoreRequest {
     #[error(
         "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
     )]
-    Overflow(PayloadType),
+    Overflow(DiscardItemType),
 
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
