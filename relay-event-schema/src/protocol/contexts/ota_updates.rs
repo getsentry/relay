@@ -2,11 +2,11 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 
-/// Expo Updates context.
+/// OTA (Expo) Updates context.
 ///
-/// Contains the Expo Updates constants present when the event was created.
+/// Contains the OTA Updates constants present when the event was created.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct ExpoUpdatesContext {
+pub struct OTAUpdatesContext {
     /// The channel name of the current build, if configured for use with EAS Update.
     pub channel: Annotated<String>,
 
@@ -21,34 +21,34 @@ pub struct ExpoUpdatesContext {
     pub other: Object<Value>,
 }
 
-impl super::DefaultContext for ExpoUpdatesContext {
+impl super::DefaultContext for OTAUpdatesContext {
     fn default_key() -> &'static str {
-        "expo_updates"
+        "ota_updates"
     }
 
     fn from_context(context: super::Context) -> Option<Self> {
         match context {
-            super::Context::ExpoUpdates(c) => Some(*c),
+            super::Context::OTAUpdates(c) => Some(*c),
             _ => None,
         }
     }
 
     fn cast(context: &super::Context) -> Option<&Self> {
         match context {
-            super::Context::ExpoUpdates(c) => Some(c),
+            super::Context::OTAUpdates(c) => Some(c),
             _ => None,
         }
     }
 
     fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
         match context {
-            super::Context::ExpoUpdates(c) => Some(c),
+            super::Context::OTAUpdates(c) => Some(c),
             _ => None,
         }
     }
 
     fn into_context(self) -> super::Context {
-        super::Context::ExpoUpdates(Box::new(self))
+        super::Context::OTAUpdates(Box::new(self))
     }
 }
 
@@ -58,14 +58,14 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    fn test_expo_updates_context_roundtrip() {
+    fn test_ota_updates_context_roundtrip() {
         let json: &str = r#"{
   "channel": "production",
   "runtime_version": "1.0.0",
   "update_id": "12345678-1234-1234-1234-1234567890ab",
-  "type": "expoupdates"
+  "type": "otaupdates"
 }"#;
-        let context = Annotated::new(Context::ExpoUpdates(Box::new(ExpoUpdatesContext {
+        let context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
             channel: Annotated::new("production".to_string()),
             runtime_version: Annotated::new("1.0.0".to_string()),
             update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_string()),
@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    fn test_expo_updates_context_with_extra_keys() {
+    fn test_ota_updates_context_with_extra_keys() {
         let json: &str = r#"{
   "channel": "production",
   "runtime_version": "1.0.0",
@@ -88,7 +88,7 @@ mod tests {
   "is_emergency_launch": true,
   "is_enabled": true,
   "launch_duration": 1000,
-  "type": "expoupdates"
+  "type": "otaupdates"
 }"#;
         let mut other = Object::new();
         other.insert("is_enabled".to_string(), Annotated::new(Value::Bool(true)));
@@ -113,7 +113,7 @@ mod tests {
             Annotated::new(Value::String("2023-01-01T00:00:00.000Z".to_string())),
         );
 
-        let context = Annotated::new(Context::ExpoUpdates(Box::new(ExpoUpdatesContext {
+        let context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
             channel: Annotated::new("production".to_string()),
             runtime_version: Annotated::new("1.0.0".to_string()),
             update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_string()),
@@ -125,15 +125,15 @@ mod tests {
     }
 
     #[test]
-    fn test_expo_updates_context_with_is_enabled_false() {
+    fn test_ota_updates_context_with_is_enabled_false() {
         let json: &str = r#"{
   "is_enabled": false,
-  "type": "expoupdates"
+  "type": "otaupdates"
 }"#;
         let mut other = Object::new();
         other.insert("is_enabled".to_string(), Annotated::new(Value::Bool(false)));
 
-        let context = Annotated::new(Context::ExpoUpdates(Box::new(ExpoUpdatesContext {
+        let context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
             channel: Annotated::empty(),
             runtime_version: Annotated::empty(),
             update_id: Annotated::empty(),

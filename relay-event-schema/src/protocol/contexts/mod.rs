@@ -2,12 +2,12 @@ mod app;
 mod browser;
 mod cloud_resource;
 mod device;
-mod expo_updates;
 mod flags;
 mod gpu;
 mod monitor;
 mod nel;
 mod os;
+mod ota_updates;
 mod otel;
 mod performance_score;
 mod profile;
@@ -22,11 +22,11 @@ pub use app::*;
 pub use browser::*;
 pub use cloud_resource::*;
 pub use device::*;
-pub use expo_updates::*;
 pub use gpu::*;
 pub use monitor::*;
 pub use nel::*;
 pub use os::*;
+pub use ota_updates::*;
 pub use otel::*;
 pub use performance_score::*;
 pub use profile::*;
@@ -96,8 +96,8 @@ pub enum Context {
     PerformanceScore(Box<PerformanceScoreContext>),
     /// Spring / Spring Boot information.
     Spring(Box<SpringContext>),
-    /// Expo Updates information.
-    ExpoUpdates(Box<ExpoUpdatesContext>),
+    /// OTA Updates information.
+    OTAUpdates(Box<OTAUpdatesContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
