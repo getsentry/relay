@@ -9,7 +9,8 @@
 //!
 //! Spans are expected to carry the profiler ID to know which samples are associated with them.
 //!
-use std::collections::{BTreeMap, HashMap, HashSet};
+use hashbrown::HashMap;
+use std::collections::{BTreeMap, HashSet};
 use std::ops::Range;
 
 use itertools::Itertools;
@@ -204,7 +205,7 @@ impl ProfileData {
             }
 
             active_ranges
-                .entry(sample.thread_id.clone())
+                .entry_ref(&sample.thread_id)
                 .and_modify(|range| range.end = i + 1)
                 .or_insert(i..i + 1);
         }

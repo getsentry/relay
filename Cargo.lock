@@ -3921,6 +3921,7 @@ dependencies = [
  "bytes",
  "chrono",
  "data-encoding",
+ "hashbrown 0.14.5",
  "insta",
  "itertools 0.13.0",
  "relay-base-schema",
