@@ -115,9 +115,9 @@ pub enum DataCategory {
     ///
     /// See also: [`Self::ProfileChunk`]
     ProfileChunkUi = 26,
-    /// This is the data category for Seer Autofix.
+    /// This is the data category to count Seer Autofix run events.
     SeerAutofix = 27,
-    /// This is the data category for Seer Scanner.
+    /// This is the data category to count Seer Scanner run events.
     SeerScanner = 28,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run

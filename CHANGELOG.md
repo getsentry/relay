@@ -6,7 +6,7 @@
 
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
 - Add OTA Updates Event Context for Expo and other applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
-- Add data categories for Seer ([#4692](https://github.com/getsentry/relay/pull/4692))
+- Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
 
 **Bug Fixes**:
 
