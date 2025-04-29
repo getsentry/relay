@@ -6,6 +6,7 @@
 
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
 - Add the type of the attachment that made the envelope too large to invalid outcomes. ([#4695](https://github.com/getsentry/relay/pull/4695))
+- Add OTA Updates Event Context for Expo and other applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
 
 **Bug Fixes**:
 
