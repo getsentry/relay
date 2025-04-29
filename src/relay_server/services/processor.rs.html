@@ -52,7 +52,7 @@
 <a href=#52 id=52 data-nosnippet>52</a><span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <a href=#53 id=53 data-nosnippet>53</a><span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
 <a href=#54 id=54 data-nosnippet>54</a><span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
-<a href=#55 id=55 data-nosnippet>55</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+<a href=#55 id=55 data-nosnippet>55</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 <a href=#56 id=56 data-nosnippet>56</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::event::FiltersStatus;
 <a href=#57 id=57 data-nosnippet>57</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::ProjectCacheHandle;
 <a href=#58 id=58 data-nosnippet>58</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ProjectInfo, ProjectState};
@@ -480,7 +480,7 @@
 <a href=#480 id=480 data-nosnippet>480</a>    </span>InvalidUnrealReport(<span class="attr">#[source] </span>Unreal4Error),
 <a href=#481 id=481 data-nosnippet>481</a>
 <a href=#482 id=482 data-nosnippet>482</a>    <span class="attr">#[error(<span class="string">"event payload too large"</span>)]
-<a href=#483 id=483 data-nosnippet>483</a>    </span>PayloadTooLarge(ItemType),
+<a href=#483 id=483 data-nosnippet>483</a>    </span>PayloadTooLarge(DiscardItemType),
 <a href=#484 id=484 data-nosnippet>484</a>
 <a href=#485 id=485 data-nosnippet>485</a>    <span class="attr">#[error(<span class="string">"invalid transaction event"</span>)]
 <a href=#486 id=486 data-nosnippet>486</a>    </span>InvalidTransaction,
@@ -543,8 +543,8 @@
 <a href=#543 id=543 data-nosnippet>543</a>    <span class="kw">fn </span>to_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Outcome&gt; {
 <a href=#544 id=544 data-nosnippet>544</a>        <span class="kw">match </span><span class="self">self </span>{
 <a href=#545 id=545 data-nosnippet>545</a>            <span class="comment">// General outcomes for invalid events
-<a href=#546 id=546 data-nosnippet>546</a>            </span><span class="self">Self</span>::PayloadTooLarge(item_type) =&gt; {
-<a href=#547 id=547 data-nosnippet>547</a>                <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::TooLarge(item_type.into())))
+<a href=#546 id=546 data-nosnippet>546</a>            </span><span class="self">Self</span>::PayloadTooLarge(payload_type) =&gt; {
+<a href=#547 id=547 data-nosnippet>547</a>                <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::TooLarge(<span class="kw-2">*</span>payload_type)))
 <a href=#548 id=548 data-nosnippet>548</a>            }
 <a href=#549 id=549 data-nosnippet>549</a>            <span class="self">Self</span>::InvalidJson(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidJson)),
 <a href=#550 id=550 data-nosnippet>550</a>            <span class="self">Self</span>::InvalidMsgpack(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
@@ -600,7 +600,7 @@
 <a href=#600 id=600 data-nosnippet>600</a></span><span class="kw">impl </span>From&lt;Unreal4Error&gt; <span class="kw">for </span>ProcessingError {
 <a href=#601 id=601 data-nosnippet>601</a>    <span class="kw">fn </span>from(err: Unreal4Error) -&gt; <span class="self">Self </span>{
 <a href=#602 id=602 data-nosnippet>602</a>        <span class="kw">match </span>err.kind() {
-<a href=#603 id=603 data-nosnippet>603</a>            Unreal4ErrorKind::TooLarge =&gt; <span class="self">Self</span>::PayloadTooLarge(ItemType::UnrealReport),
+<a href=#603 id=603 data-nosnippet>603</a>            Unreal4ErrorKind::TooLarge =&gt; <span class="self">Self</span>::PayloadTooLarge(ItemType::UnrealReport.into()),
 <a href=#604 id=604 data-nosnippet>604</a>            <span class="kw">_ </span>=&gt; ProcessingError::InvalidUnrealReport(err),
 <a href=#605 id=605 data-nosnippet>605</a>        }
 <a href=#606 id=606 data-nosnippet>606</a>    }
