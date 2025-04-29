@@ -1,3 +1,4 @@
+import json
 import uuid
 from copy import deepcopy
 from pathlib import Path
@@ -27,7 +28,55 @@ TEST_CONFIG = {
 }
 
 
+def sample_profile_v2_envelope(platform=None):
+    envelope = Envelope()
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v2/valid.json", "rb"
+    ) as f:
+        profile = f.read()
+
+    item = Item(
+        payload=PayloadRef(bytes=profile),
+        type="profile_chunk",
+        headers={"platform": platform},
+    )
+
+    envelope.add_item(item)
+
+    return envelope
+
+
+def android_profile_chunk_envelope(platform=None):
+    envelope = Envelope()
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/android/chunk/valid.json", "rb"
+    ) as f:
+        profile = f.read()
+
+    item = Item(
+        payload=PayloadRef(bytes=profile),
+        type="profile_chunk_ui",
+        headers={"platform": platform},
+    )
+
+    envelope.add_item(item)
+
+    return envelope
+
+
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
+@pytest.mark.parametrize(
+    ["envelope"],
+    [
+        pytest.param(sample_profile_v2_envelope, id="profile v2"),
+        pytest.param(
+            android_profile_chunk_envelope,
+            id="android chunk",
+        ),
+    ],
+)
 def test_profile_chunk_outcomes(
     mini_sentry,
     relay,
@@ -35,6 +84,7 @@ def test_profile_chunk_outcomes(
     outcomes_consumer,
     profiles_consumer,
     num_intermediate_relays,
+    envelope,
 ):
     """
     Tests that Relay reports correct outcomes for profile chunks.
@@ -68,15 +118,7 @@ def test_profile_chunk_outcomes(
             config["outcomes"]["emit_outcomes"] = "as_client_reports"
         upstream = relay(upstream, config)
 
-    with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v2/valid.json",
-        "rb",
-    ) as f:
-        profile = f.read()
-
-    envelope = Envelope()
-    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile_chunk"))
-
+    envelope = envelope()
     upstream.send_envelope(project_id, envelope)
 
     # No outcome is emitted in Relay since it's a successful ingestion.
@@ -135,11 +177,22 @@ def test_profile_chunk_outcomes_invalid(
 
 
 @pytest.mark.parametrize("item_header_platform", [None, "cocoa"])
+@pytest.mark.parametrize(
+    ["envelope"],
+    [
+        pytest.param(sample_profile_v2_envelope, id="profile v2"),
+        pytest.param(
+            android_profile_chunk_envelope,
+            id="android chunk",
+        ),
+    ],
+)
 def test_profile_chunk_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     profiles_consumer,
+    envelope,
     item_header_platform,
 ):
     """
@@ -171,24 +224,9 @@ def test_profile_chunk_outcomes_rate_limited(
         }
     ]
 
-    upstream = relay_with_processing(TEST_CONFIG)
-
-    # Load a valid profile chunk from test fixtures
-    with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v2/valid.json",
-        "rb",
-    ) as f:
-        profile = f.read()
-
     # Create and send envelope containing the profile chunk
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            payload=PayloadRef(bytes=profile),
-            type="profile_chunk",
-            headers={"platform": item_header_platform},
-        )
-    )
+    envelope = envelope(item_header_platform)
+    upstream = relay_with_processing(TEST_CONFIG)
     upstream.send_envelope(project_id, envelope)
 
     # Verify the rate limited outcome was emitted with correct properties
@@ -220,9 +258,20 @@ def test_profile_chunk_outcomes_rate_limited(
         (None, "profile_chunk"),  # Special case, currently this will forward
     ],
 )
+@pytest.mark.parametrize(
+    ["envelope"],
+    [
+        pytest.param(sample_profile_v2_envelope, id="profile v2"),
+        pytest.param(
+            android_profile_chunk_envelope,
+            id="android chunk",
+        ),
+    ],
+)
 def test_profile_chunk_outcomes_rate_limited_fast(
     mini_sentry,
     relay,
+    envelope,
     platform,
     category,
 ):
@@ -250,22 +299,8 @@ def test_profile_chunk_outcomes_rate_limited_fast(
         }
     ]
 
+    envelope = envelope(platform)
     upstream = relay(mini_sentry)
-
-    with open(
-        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v2/valid.json",
-        "rb",
-    ) as f:
-        profile = f.read()
-
-    envelope = Envelope()
-    envelope.add_item(
-        Item(
-            payload=PayloadRef(bytes=profile),
-            type="profile_chunk",
-            headers={"platform": platform},
-        )
-    )
     upstream.send_envelope(project_id, envelope)
 
     if platform is None:

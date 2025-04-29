@@ -701,6 +701,7 @@ impl std::str::FromStr for ItemType {
             "otel_span" => Self::OtelSpan,
             "otel_traces_data" => Self::OtelTracesData,
             "profile_chunk" => Self::ProfileChunk,
+            "profile_chunk_ui" => Self::ProfileChunk,
             other => Self::Unknown(other.to_owned()),
         })
     }
