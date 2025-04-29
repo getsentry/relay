@@ -192,6 +192,8 @@ impl ProfileData {
             .retain(|thread_id, _| thread_ids.contains(thread_id));
     }
 
+    /// Removes samples at the beginning and end of the chunks that are considered idle.
+    /// An idle sample is a sample where the stack is empty.
     fn remove_idle_samples_at_the_edge(&mut self) {
         let mut active_ranges: HashMap<String, Range<usize>> = HashMap::new();
 
