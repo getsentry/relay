@@ -34,6 +34,8 @@
 - Exposes all service utilization with instance labels instead of the last. ([#4654](https://github.com/getsentry/relay/pull/4654))
 - Ensure that every span's parent exists. ([#4661](https://github.com/getsentry/relay/pull/4661))
 - Serialize trace ids consistently in events. ([#4673](https://github.com/getsentry/relay/pull/4673))
+- Add profile_chunk_ui as item type alias. ([#4697](https://github.com/getsentry/relay/pull/4697))
+
 
 **Internal**:
 
