@@ -36,7 +36,6 @@
 - Serialize trace ids consistently in events. ([#4673](https://github.com/getsentry/relay/pull/4673))
 - Add profile_chunk_ui as item type alias. ([#4697](https://github.com/getsentry/relay/pull/4697))
 
-
 **Internal**:
 
 - Add ui chunk profiling data category. ([#4593](https://github.com/getsentry/relay/pull/4593))
