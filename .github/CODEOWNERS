@@ -3,6 +3,3 @@
 
 # Legal
 /LICENSE.md  @getsentry/owners-legal
-
-# Build & Releases
-/.github/workflows/release*.yml  @getsentry/release-approvers
