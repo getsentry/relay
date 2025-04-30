@@ -8,7 +8,7 @@
 - Add the type of the attachment that made the envelope too large to invalid outcomes. ([#4695](https://github.com/getsentry/relay/pull/4695))
 - Add OTA Updates Event Context for Expo and other applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
 - Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
-- Allow pii scrubbing of all span `sentry_tags` values. ([#4698](https://github.com/getsentry/relay/pull/4698))
+- Allow pii scrubbing of all span `sentry_tags` fields. ([#4698](https://github.com/getsentry/relay/pull/4698))
 
 **Bug Fixes**:
 
