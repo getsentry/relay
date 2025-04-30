@@ -18,6 +18,7 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
         Slurp|                      # Yahoo
         Sogou|                      # Sogou
         facebook|                   # facebook
+        meta-|                      # meta/facebook
         ia_archiver|                # Alexa
         bots?[/\s\);]|              # Generic bot
         spider[/\s\);]|             # Generic spider
@@ -106,6 +107,10 @@ mod tests {
             "Slurp",
             "Sogou",
             "facebook",
+            "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+            "facebookcatalog/1.0",
+            "meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)",
+            "meta-externalfetcher/1.1",
             "ia_archiver",
             "bots ",
             "bots;",
