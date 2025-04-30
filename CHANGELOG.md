@@ -6,6 +6,7 @@
 
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
 - Add OTA Updates Event Context for Expo and other applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
+- Allow pii scrubbing of all span `sentry_tags` values. ([#4698](https://github.com/getsentry/relay/pull/4698))
 
 **Bug Fixes**:
 
