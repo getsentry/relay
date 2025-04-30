@@ -12,6 +12,7 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
+use syn::meta::ParseNestedMeta;
 use syn::{Ident, Lit, LitBool, LitInt, LitStr};
 use synstructure::decl_derive;
 
@@ -285,12 +286,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAtt
                 rv.trim = Some(s.value());
             } else if ident == "pii" {
                 let s = meta.value()?.parse::<LitStr>()?;
-                rv.pii = Some(match s.value().as_str() {
-                    "true" => Pii::True,
-                    "false" => Pii::False,
-                    "maybe" => Pii::Maybe,
-                    _ => return Err(meta.error("Expected one of `true`, `false`, `maybe`")),
-                });
+                rv.pii = parse_pii_value(s, &meta)?;
             } else {
                 // Ignore other attributes used by `relay-protocol-derive`.
                 if !meta.input.peek(syn::Token![,]) {
@@ -521,12 +517,7 @@ fn parse_field_attributes(
                 rv.max_bytes = Some(quote!(#s));
             } else if ident == "pii" {
                 let s = meta.value()?.parse::<LitStr>()?;
-                rv.pii = Some(match s.value().as_str() {
-                    "true" => Pii::True,
-                    "false" => Pii::False,
-                    "maybe" => Pii::Maybe,
-                    _ => return Err(meta.error("Expected one of `true`, `false`, `maybe`")),
-                });
+                rv.pii = parse_pii_value(s, &meta)?;
             } else if ident == "retain" {
                 let s = meta.value()?.parse::<LitBool>()?;
                 rv.retain = s.value();
@@ -599,4 +590,13 @@ fn parse_character_set(ident: &Ident, value: &str) -> TokenStream {
             is_negative: #is_negative,
         }
     }
+}
+
+fn parse_pii_value(value: LitStr, meta: &ParseNestedMeta) -> syn::Result<Option<Pii>> {
+    Ok(Some(match value.value().as_str() {
+        "true" => Pii::True,
+        "false" => Pii::False,
+        "maybe" => Pii::Maybe,
+        _ => return Err(meta.error("Expected one of `true`, `false`, `maybe`")),
+    }))
 }
