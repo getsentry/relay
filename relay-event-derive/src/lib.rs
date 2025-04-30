@@ -241,6 +241,11 @@ struct TypeAttrs {
     /// If `trim` is specified on the container all fields of the container,
     /// will default to this value for `trim`.
     trim: Option<bool>,
+    /// The default pii value for the container.
+    ///
+    /// If `pii` is specified on the container, all fields of the container
+    /// will default to this value for `pii`.
+    pii: Option<Pii>,
 }
 
 impl TypeAttrs {
@@ -278,6 +283,14 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAtt
             } else if ident == "trim" {
                 let s = meta.value()?.parse::<LitBool>()?;
                 rv.trim = Some(s.value());
+            } else if ident == "pii" {
+                let s = meta.value()?.parse::<LitStr>()?;
+                rv.pii = Some(match s.value().as_str() {
+                    "true" => Pii::True,
+                    "false" => Pii::False,
+                    "maybe" => Pii::Maybe,
+                    _ => return Err(meta.error("Expected one of `true`, `false`, `maybe`")),
+                });
             } else {
                 // Ignore other attributes used by `relay-protocol-derive`.
                 if !meta.input.peek(syn::Token![,]) {
@@ -365,7 +378,7 @@ impl FieldAttrs {
             quote!(false)
         };
 
-        let pii = if let Some(pii) = self.pii {
+        let pii = if let Some(pii) = self.pii.or(type_attrs.pii) {
             pii.as_tokens()
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.pii)
