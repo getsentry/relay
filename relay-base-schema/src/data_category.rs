@@ -115,7 +115,10 @@ pub enum DataCategory {
     ///
     /// See also: [`Self::ProfileChunk`]
     ProfileChunkUi = 26,
-
+    /// This is the data category to count Seer Autofix run events.
+    SeerAutofix = 27,
+    /// This is the data category to count Seer Scanner run events.
+    SeerScanner = 28,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -159,6 +162,8 @@ impl DataCategory {
             "replay_video" => Self::DoNotUseReplayVideo,
             "uptime" => Self::Uptime,
             "attachment_item" => Self::AttachmentItem,
+            "seer_autofix" => Self::SeerAutofix,
+            "seer_scanner" => Self::SeerScanner,
             _ => Self::Unknown,
         }
     }
@@ -194,6 +199,8 @@ impl DataCategory {
             Self::MetricSecond => "metric_second",
             Self::Uptime => "uptime",
             Self::AttachmentItem => "attachment_item",
+            Self::SeerAutofix => "seer_autofix",
+            Self::SeerScanner => "seer_scanner",
             Self::Unknown => "unknown",
         }
     }

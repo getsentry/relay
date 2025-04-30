@@ -174,6 +174,16 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_PROFILE_CHUNK_UI = 26,
   /**
+   * Seer Autofix Run
+   *
+   */
+  RELAY_DATA_CATEGORY_SEER_AUTOFIX = 27,
+  /**
+   * Seer Scanner Run
+   *
+   */
+  RELAY_DATA_CATEGORY_SEER_SCANNER = 28,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,
