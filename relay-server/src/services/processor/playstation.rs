@@ -182,3 +182,148 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
     contexts.add(os_context);
     contexts.add(runtime_context);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::borrow::Cow;
+    use std::collections::BTreeMap;
+
+    use relay_protocol::Value;
+
+    #[test]
+    fn test_event_release_setting() {
+        let prospero = ProsperoDump {
+            userdata: BTreeMap::from([("release", Cow::Borrowed("1.2.3.4"))]),
+            ..Default::default()
+        };
+
+        let mut event = Event::default();
+        update_sentry_event(&mut event, &prospero);
+        assert_eq!(
+            event.release,
+            Annotated::new(LenientString("1.2.3.4".into()))
+        );
+    }
+
+    #[test]
+    fn test_event_field_mapping() {
+        let prospero = ProsperoDump {
+            userdata: BTreeMap::from([
+                ("sentry.release", Cow::Borrowed("1.2.3.4")),
+                ("sentry.environment", Cow::Borrowed("production")),
+                ("sentry.user.username", Cow::Borrowed("janedoe")),
+                ("sentry.user.email", Cow::Borrowed("janedoe@example.com")),
+                ("santry.tag", Cow::Borrowed("other_value")),
+                ("other_tag", Cow::Borrowed("other_value")),
+            ]),
+            ..Default::default()
+        };
+
+        let mut event = Event::default();
+        update_sentry_event(&mut event, &prospero);
+
+        // Check the event fields
+        assert_eq!(
+            event.release,
+            Annotated::new(LenientString("1.2.3.4".into()))
+        );
+        assert_eq!(event.environment, Annotated::new("production".into()));
+
+        if let Some(user) = event.user.0 {
+            assert_eq!(
+                user.username,
+                Annotated::new(LenientString("janedoe".into()))
+            );
+            assert_eq!(user.email, Annotated::new("janedoe@example.com".into()));
+        } else {
+            panic!("User information not set in the event");
+        }
+
+        // Checks the tags are present
+        let tags = event.tags.value().unwrap();
+        assert_eq!(tags.get("release"), Some("1.2.3.4"));
+        assert_eq!(tags.get("environment"), Some("production"));
+        assert_eq!(tags.get("user.username"), Some("janedoe"));
+        assert_eq!(tags.get("user.email"), Some("janedoe@example.com"));
+        assert_eq!(tags.get("santry.tag"), Some("other_value"));
+        assert_eq!(tags.get("other_tag"), Some("other_value"));
+
+        // Check that the raw tags are not present
+        assert!(!tags.0.contains("sentry.release"));
+        assert!(!tags.0.contains("sentry.environment"));
+        assert!(!tags.0.contains("sentry.user.username"));
+        assert!(!tags.0.contains("sentry.user.email"));
+    }
+
+    #[test]
+    fn test_event_context_mapping() {
+        let prospero = ProsperoDump {
+            userdata: BTreeMap::from([
+                ("sentry.context.game.name", Cow::Borrowed("Foo")),
+                ("sentry.context.game.level", Cow::Borrowed("Bar")),
+                ("sentry.context.player.level", Cow::Borrowed("42")),
+                ("regular_tag", Cow::Borrowed("regular_value")),
+            ]),
+            ..Default::default()
+        };
+
+        let mut event = Event::default();
+        update_sentry_event(&mut event, &prospero);
+
+        // Check the game context is correct
+        if let Some(Context::Other(game_context)) = event.contexts.value().unwrap().get_key("game")
+        {
+            assert_eq!(
+                game_context.get("name").unwrap(),
+                &Annotated::new(Value::from("Foo"))
+            );
+            assert_eq!(
+                game_context.get("level").unwrap(),
+                &Annotated::new(Value::from("Bar"))
+            );
+        } else {
+            panic!("Game context not found or has wrong type");
+        }
+
+        // Check that the player context is correct
+        if let Some(Context::Other(player_context)) =
+            event.contexts.value().unwrap().get_key("player")
+        {
+            assert_eq!(
+                player_context.get("level").unwrap(),
+                &Annotated::new(Value::from("42"))
+            );
+        } else {
+            panic!("Device context not found or has wrong type");
+        }
+
+        // Check that the tag is unaffected
+        let tags = event.tags.value().unwrap();
+        assert!(tags.0.contains("regular_tag"));
+    }
+
+    #[test]
+    fn test_cannot_overwrite_runtime_context() {
+        let prospero = ProsperoDump {
+            userdata: BTreeMap::from([
+                ("sentry.context.runtime.name", Cow::Borrowed("Xbox")),
+                ("sentry.context.runtime.version", Cow::Borrowed("0.0.0")),
+            ]),
+            sdk_version: Some("5.0.0".into()),
+            ..Default::default()
+        };
+
+        let mut event = Event::default();
+        update_sentry_event(&mut event, &prospero);
+
+        // Ensure that the runtime context values are not overwritten
+        if let Some(Context::Runtime(runtime)) = event.contexts.value().unwrap().get_key("runtime")
+        {
+            assert_eq!(runtime.name, Annotated::new("PS5".into()));
+            assert_eq!(runtime.version, Annotated::new("5.0.0".into()));
+        } else {
+            panic!("Runtime context not found or has wrong type");
+        }
+    }
+}
