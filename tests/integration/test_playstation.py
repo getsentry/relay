@@ -14,15 +14,14 @@ def load_dump_file(base_file_name: str):
         return f.read()
 
 
-# Turns out these are not data_dog metrics but sentry_metrics hence the entire thing is not working
 def test_playstation_no_feature_flag(
-    mini_sentry, relay_with_processing, outcomes_consumer
+    mini_sentry, relay_with_playstation, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
-    relay = relay_with_processing()
+    relay = relay_with_playstation()
 
     response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
     assert response.ok
@@ -34,12 +33,12 @@ def test_playstation_no_feature_flag(
     assert outcomes[1]["reason"] == "feature_disabled"
 
 
-def test_playstation_wrong_file(mini_sentry, relay_with_processing, outcomes_consumer):
+def test_playstation_wrong_file(mini_sentry, relay_with_playstation, outcomes_consumer):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("unreal_crash")
     mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
-    relay = relay_with_processing()
+    relay = relay_with_playstation()
 
     with pytest.raises(requests.exceptions.HTTPError) as exc_info:
         _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
@@ -49,12 +48,12 @@ def test_playstation_wrong_file(mini_sentry, relay_with_processing, outcomes_con
     assert response.json()["detail"] == "invalid prosperodump"
 
 
-def test_playstation_too_large(mini_sentry, relay_with_processing, outcomes_consumer):
+def test_playstation_too_large(mini_sentry, relay_with_playstation, outcomes_consumer):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
-    relay = relay_with_processing(
+    relay = relay_with_playstation(
         {
             "limits": {
                 "max_attachments_size": len(playstation_dump) - 1,
@@ -73,7 +72,7 @@ def test_playstation_too_large(mini_sentry, relay_with_processing, outcomes_cons
 def test_playstation_with_feature_flag(
     mini_sentry,
     relay,
-    relay_with_processing,
+    relay_with_playstation,
     outcomes_consumer,
     num_intermediate_relays,
 ):
@@ -86,7 +85,7 @@ def test_playstation_with_feature_flag(
     outcomes_consumer = outcomes_consumer()
 
     # The innermost Relay needs to be in processing mode
-    upstream = relay_with_processing()
+    upstream = relay_with_playstation()
     # Build chain of relays
     for _ in range(num_intermediate_relays):
         upstream = relay(upstream)
@@ -101,7 +100,7 @@ def test_playstation_with_feature_flag(
 
 
 def test_playstation_attachment(
-    mini_sentry, relay_with_processing, outcomes_consumer, attachments_consumer
+    mini_sentry, relay_with_playstation, outcomes_consumer, attachments_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
@@ -111,7 +110,7 @@ def test_playstation_attachment(
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_with_processing()
+    relay = relay_with_playstation()
 
     bogus_error = {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",

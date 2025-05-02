@@ -15,6 +15,7 @@ mod health_check;
 mod minidump;
 mod monitor;
 mod nel;
+#[cfg(playstation)]
 mod playstation;
 mod project_configs;
 mod public_keys;
@@ -58,7 +59,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route_layer(DefaultBodyLimit::max(BATCH_JSON_BODY_LIMIT));
 
     // Ingestion routes pointing to /api/:project_id/
-    let store_routes = Router::new()
+    let store_routes = {let routes = Router::new()
         // Legacy store path that is missing the project parameter.
         .route("/api/store/", store::route(config))
         // cron monitor level routes.  These are user facing APIs and as such support trailing slashes.
@@ -75,7 +76,6 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
-        .route("/api/{project_id}/playstation/", playstation::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
         .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
         // The OTLP/HTTP transport defaults to a request suffix of /v1/traces (no trailing slash):
@@ -83,10 +83,18 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // Because we initially released this endpoint with a trailing slash, keeping it for
         // backwards compatibility.
         .route("/api/{project_id}/otlp/v1/traces", traces::route(config))
-        .route("/api/{project_id}/otlp/v1/traces/", traces::route(config))
+        .route("/api/{project_id}/otlp/v1/traces/", traces::route(config));
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
-        .route_layer(middlewares::cors());
+        #[cfg(playstation)]
+        {
+        routes.route("/api/{project_id}/playstation/", playstation::route(config))
+        }
+        #[cfg(not(playstation))]
+        {
+        routes
+        }
+    }.route_layer(middlewares::cors());
 
     Router::new().merge(internal_routes)
         .merge(web_routes)

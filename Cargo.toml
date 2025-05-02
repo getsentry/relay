@@ -31,6 +31,9 @@ dbg_macro = "warn"
 print_stdout = "warn"
 print_stderr = "warn"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(playstation)'] }
+
 [workspace.dependencies]
 prosperoconv = { path = "relay-prosperoconv" }
 relay-auth = { path = "relay-auth" }

@@ -2,7 +2,6 @@
 //!
 //! These functions are included only in the processing mode.
 
-// TODO: CFG all this so that CI is happy.
 use prosperoconv::write_dump;
 use prosperoconv::{extract_data, ProsperoDump};
 
