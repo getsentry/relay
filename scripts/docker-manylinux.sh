@@ -7,11 +7,6 @@ if [ -z "$TARGET" ]; then
 fi
 
 TARGET_LINKER="CARGO_TARGET_$(echo $TARGET | tr '[:lower:]' '[:upper:]')_UNKNOWN_LINUX_GNU_LINKER"
-# Set cargo build arguments
-if [[ "x86_64" != "$TARGET" ]]; then
-  export CARGO_BUILD_TARGET="${TARGET}-unknown-linux-gnu"
-  export "${TARGET_LINKER}"="${TARGET}-linux-gnu-gcc"
-fi
 
 # Build docker image with all dependencies for cross compilation
 BUILDER_NAME="${BUILDER_NAME:-relay-cabi-builder-${TARGET}}"
