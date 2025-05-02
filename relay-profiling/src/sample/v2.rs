@@ -11,9 +11,7 @@
 //!
 use hashbrown::HashMap;
 use std::collections::{BTreeMap, HashSet};
-use std::ops::Range;
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use relay_event_schema::protocol::EventId;
@@ -128,7 +126,6 @@ impl ProfileData {
     /// Throws an error if the profile chunk is malformed.
     /// Removes extra metadata that are not referenced in the samples.
     pub fn normalize(&mut self, platform: &str) -> Result<(), ProfileError> {
-        self.remove_idle_samples_at_the_edge();
         self.remove_single_samples_per_thread();
 
         if self.samples.is_empty() {
@@ -192,50 +189,25 @@ impl ProfileData {
             .retain(|thread_id, _| thread_ids.contains(thread_id));
     }
 
-    /// Removes samples at the beginning and end of the chunks that are considered idle.
-    /// An idle sample is a sample where the stack is empty.
-    fn remove_idle_samples_at_the_edge(&mut self) {
-        let mut active_ranges: HashMap<String, Range<usize>> = HashMap::new();
+    /// Removes a sample when it's the only non-idle sample on its thread
+    fn remove_single_samples_per_thread(&mut self) {
+        let mut sample_count_by_thread_id: hashbrown::HashMap<String, u32> = HashMap::new();
 
-        for (i, sample) in self.samples.iter().enumerate() {
-            if self
-                .stacks
-                .get(sample.stack_id)
-                .is_none_or(|stack| stack.is_empty())
-            {
+        for s in &self.samples {
+            if let Some(stack) = self.stacks.get(s.stack_id) {
+                // We only count non-idle samples
+                if stack.is_empty() {
+                    continue;
+                }
+            } else {
                 continue;
             }
-
-            active_ranges
-                .entry_ref(&sample.thread_id)
-                .and_modify(|range| range.end = i + 1)
-                .or_insert(i..i + 1);
+            *sample_count_by_thread_id
+                .entry(s.thread_id.to_owned())
+                .or_default() += 1;
         }
 
-        self.samples = self
-            .samples
-            .drain(..)
-            .enumerate()
-            .filter(|(i, sample)| {
-                active_ranges
-                    .get(sample.thread_id.as_str())
-                    .is_some_and(|range| range.contains(i))
-            })
-            .map(|(_, sample)| sample)
-            .collect();
-    }
-
-    /// Removes a sample when it's the only sample on its thread
-    fn remove_single_samples_per_thread(&mut self) {
-        let sample_count_by_thread_id = &self
-            .samples
-            .iter()
-            .counts_by(|sample| sample.thread_id.clone())
-            // Only keep data from threads with more than 1 sample so we can calculate a duration
-            .into_iter()
-            .filter(|(_, count)| *count > 1)
-            .collect::<HashMap<_, _>>();
-
+        sample_count_by_thread_id.retain(|_, count| *count > 1);
         self.samples
             .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
     }
@@ -380,7 +352,22 @@ mod tests {
         let mut chunk = ProfileData {
             samples: vec![
                 Sample {
+                    stack_id: 1,
+                    thread_id: "1".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "1".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
                     stack_id: 0,
+                    thread_id: "1".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
                     thread_id: "1".into(),
                     timestamp: FiniteF64::new(60.0).unwrap(),
                 },
@@ -389,37 +376,45 @@ mod tests {
                     thread_id: "2".to_string(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "2".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "2".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "3".to_string(),
+                    timestamp: FiniteF64::new(30.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "3".to_string(),
+                    timestamp: FiniteF64::new(30.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "3".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "3".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
             ],
-            stacks: vec![vec![0]],
+            stacks: vec![vec![0], vec![]],
             frames: vec![Default::default()],
             ..Default::default()
         };
 
         chunk.remove_single_samples_per_thread();
-        assert!(chunk.samples.is_empty());
-    }
 
-    #[test]
-    fn test_idle_samples_are_removed() {
-        let mut chunk = ProfileData {
-            samples: vec![
-                Sample {
-                    stack_id: 0,
-                    thread_id: "1".into(),
-                    timestamp: FiniteF64::new(60.0).unwrap(),
-                },
-                Sample {
-                    stack_id: 0,
-                    thread_id: "1".to_string(),
-                    timestamp: FiniteF64::new(30.0).unwrap(),
-                },
-            ],
-            stacks: vec![],
-            frames: vec![Default::default()],
-            ..Default::default()
-        };
-
-        chunk.remove_idle_samples_at_the_edge();
-        assert!(chunk.samples.is_empty());
+        // Only 4 samples from thread_id 3 are retained.
+        assert_eq!(chunk.samples.len(), 4);
     }
 }
