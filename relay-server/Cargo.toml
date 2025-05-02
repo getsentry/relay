@@ -25,9 +25,6 @@ processing = [
   "relay-sampling/redis",
 ]
 
-prosperoconv = ["processing", "dep:prosperoconv"]
-not-prosperoconv = []
-
 [lints]
 workspace = true
 
@@ -64,7 +61,7 @@ opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
-prosperoconv = { workspace = true, optional = true }
+prosperoconv = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
