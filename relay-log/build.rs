@@ -11,10 +11,10 @@ fn emit_release_var() -> Result<(), io::Error> {
         .output()?;
 
     if !cmd.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("`git rev-parse' failed: {}", cmd.status),
-        ));
+        return Err(io::Error::other(format!(
+            "`git rev-parse' failed: {}",
+            cmd.status
+        )));
     }
 
     let version = std::env::var("CARGO_PKG_VERSION").unwrap();
