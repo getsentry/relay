@@ -366,7 +366,8 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Clone internal repo into stub
         run: |
-          git clone git@github.com:getsentry/tempest.git /tmp/tempest && cd /tmp/tempest && git checkout $TEMPEST_COMMIT_SHA && cd -
+          # git clone git@github.com:getsentry/tempest.git /tmp/tempest && cd /tmp/tempest && git checkout $TEMPEST_COMMIT_SHA && cd -
+          git clone git@github.com:getsentry/tempest.git /tmp/tempest && cd /tmp/tempest && git checkout test && cd -
           cp -r /tmp/tempest/crates/prosperoconv/src relay-prosperoconv/
           rm -rf /tmp/tempest
 
