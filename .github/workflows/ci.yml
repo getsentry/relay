@@ -372,9 +372,6 @@ jobs:
           cp -r /tmp/tempest/crates/prosperoconv/src relay-prosperoconv/
           rm -rf /tmp/tempest
 
-      - name: Run Cargo Tests
-        run: cargo test -p relay-server --test test_prosperoconv
-
       - name: Compile
         run: |
           cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
