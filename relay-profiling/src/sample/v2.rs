@@ -9,6 +9,7 @@
 //!
 //! Spans are expected to carry the profiler ID to know which samples are associated with them.
 //!
+use hashbrown::HashMap;
 use std::collections::{BTreeMap, HashSet};
 
 use serde::{Deserialize, Serialize};
@@ -125,11 +126,11 @@ impl ProfileData {
     /// Throws an error if the profile chunk is malformed.
     /// Removes extra metadata that are not referenced in the samples.
     pub fn normalize(&mut self, platform: &str) -> Result<(), ProfileError> {
+        self.remove_single_samples_per_thread();
+
         if self.samples.is_empty() {
             return Err(ProfileError::NotEnoughSamples);
         }
-
-        self.samples.sort_by_key(|s| s.timestamp);
 
         if !self.all_stacks_referenced_by_samples_exist() {
             return Err(ProfileError::MalformedSamples);
@@ -138,6 +139,8 @@ impl ProfileData {
         if !self.all_frames_referenced_by_stacks_exist() {
             return Err(ProfileError::MalformedStacks);
         }
+
+        self.samples.sort_by_key(|s| s.timestamp);
 
         if self.is_above_max_duration() {
             return Err(ProfileError::DurationIsTooLong);
@@ -184,6 +187,29 @@ impl ProfileData {
             .collect::<HashSet<_>>();
         self.thread_metadata
             .retain(|thread_id, _| thread_ids.contains(thread_id));
+    }
+
+    /// Removes a sample when it's the only non-idle sample on its thread
+    fn remove_single_samples_per_thread(&mut self) {
+        let mut sample_count_by_thread_id: hashbrown::HashMap<String, u32> = HashMap::new();
+
+        for s in &self.samples {
+            if let Some(stack) = self.stacks.get(s.stack_id) {
+                // We only count non-idle samples
+                if stack.is_empty() {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+            *sample_count_by_thread_id
+                .entry(s.thread_id.to_owned())
+                .or_default() += 1;
+        }
+
+        sample_count_by_thread_id.retain(|_, count| *count > 1);
+        self.samples
+            .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
     }
 }
 
@@ -319,5 +345,76 @@ mod tests {
                 test.name
             )
         }
+    }
+
+    #[test]
+    fn test_single_samples_are_removed() {
+        let mut chunk = ProfileData {
+            samples: vec![
+                Sample {
+                    stack_id: 1,
+                    thread_id: "1".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "1".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "1".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "1".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "2".to_string(),
+                    timestamp: FiniteF64::new(30.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "2".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "2".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "3".to_string(),
+                    timestamp: FiniteF64::new(30.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "3".to_string(),
+                    timestamp: FiniteF64::new(30.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "3".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 1,
+                    thread_id: "3".into(),
+                    timestamp: FiniteF64::new(60.0).unwrap(),
+                },
+            ],
+            stacks: vec![vec![0], vec![]],
+            frames: vec![Default::default()],
+            ..Default::default()
+        };
+
+        chunk.remove_single_samples_per_thread();
+
+        // Only 4 samples from thread_id 3 are retained.
+        assert_eq!(chunk.samples.len(), 4);
     }
 }

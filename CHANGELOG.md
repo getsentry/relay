@@ -13,6 +13,10 @@
 
 - Add `fenced-frame-src` to `CspDirective`. ([#4691](https://github.com/getsentry/relay/pull/4691))
 
+**Internal**:
+
+- Remove threads with 1 non-idle sample in profiling chunks. ([#4694](https://github.com/getsentry/relay/pull/4694))
+
 ## 25.4.0
 
 - Extract searchable context fields into sentry tags for segment spans. ([#4651](https://github.com/getsentry/relay/pull/4651))
