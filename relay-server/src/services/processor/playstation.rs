@@ -3,49 +3,80 @@
 //! These functions are included only in the processing mode.
 
 // TODO: CFG all this so that CI is happy.
-use prosperoconv::ProsperoDump;
+use prosperoconv::write_dump;
+use prosperoconv::{extract_data, ProsperoDump};
 
-use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{
     AppContext, Context, Contexts, DeviceContext, LenientString, OsContext, RuntimeContext, Tags,
 };
 use relay_event_schema::protocol::{Event, TagEntry};
 use relay_protocol::{Annotated, Object};
 
-use crate::envelope::{AttachmentType, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::services::processor::metric;
 use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
-use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
 use crate::utils::TypedEnvelope;
 
-pub fn expand(
+pub fn process(
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-    project_info: &ProjectInfo,
-) -> Result<(), ProcessingError> {
+    event: &mut Annotated<Event>,
+) -> Result<Option<EventFullyNormalized>, ProcessingError> {
     let envelope = &mut managed_envelope.envelope_mut();
-    if !project_info.has_feature(Feature::PlaystationIngestion) {
-        return Ok(());
-    }
-
-    if let Some(_item) = envelope.take_item_by(|item| {
+    if let Some(item) = envelope.take_item_by(|item| {
         item.ty() == &ItemType::Attachment
             && item.attachment_type() == Some(&AttachmentType::Prosperodump)
     }) {
-        // TODO: Add the expand logic here
+        let event = event.get_or_insert_with(Event::default);
+        let data = extract_data(&item.payload()).map_err(|err| {
+            ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {}", err))
+        })?;
+        let prospero_dump = ProsperoDump::parse(&data).map_err(|err| {
+            ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {}", err))
+        })?;
+        let minidump_buffer = write_dump(&prospero_dump).map_err(|err| {
+            ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {}", err))
+        })?;
+        update_sentry_event(event, &prospero_dump);
+
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_filename("DO_NOT_USE");
+        item.set_payload(ContentType::Minidump, minidump_buffer);
+        item.set_attachment_type(AttachmentType::Minidump);
+        envelope.add_item(item);
+
+        for file in prospero_dump.files {
+            let mut item = Item::new(ItemType::Attachment);
+            item.set_filename(file.name);
+            item.set_attachment_type(AttachmentType::Attachment);
+
+            if let Some(content_type) = mime_guess::from_path(file.name)
+                .first()
+                .map(|m| ContentType::from(m.essence_str()))
+            {
+                item.set_payload(content_type, file.contents.to_owned());
+            } else {
+                item.set_payload_without_content_type(file.contents.to_owned());
+            }
+            envelope.add_item(item);
+        }
+
+        let mut console_log = prospero_dump.system_log.to_string();
+        for log_line in prospero_dump.log_lines {
+            console_log.push_str(log_line);
+        }
+        if !console_log.is_empty() {
+            let mut item = Item::new(ItemType::Attachment);
+            item.set_filename("console.log");
+            item.set_payload(ContentType::Text, console_log.into_bytes());
+            item.set_attachment_type(AttachmentType::Attachment);
+            envelope.add_item(item);
+        }
 
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);
     }
 
-    Ok(())
-}
-
-pub fn process(
-    _managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-    _event: &mut Annotated<Event>,
-) -> Result<Option<EventFullyNormalized>, ProcessingError> {
-    // TODO: Add the processing logic here.
-    Ok(None)
+    Ok(Some(EventFullyNormalized(false)))
 }
 
 pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {

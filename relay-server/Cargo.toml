@@ -56,6 +56,7 @@ json-forensics = { workspace = true }
 libc = { workspace = true }
 liblzma = { workspace = true }
 mime = { workspace = true }
+mime_guess = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }

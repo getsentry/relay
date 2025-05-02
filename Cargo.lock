@@ -4216,6 +4216,7 @@ dependencies = [
  "libc",
  "liblzma",
  "mime",
+ "mime_guess",
  "minidump",
  "multer",
  "once_cell",
