@@ -10,7 +10,7 @@ targets:
     internalPypiRepo: getsentry/pypi
   - name: gcs
     bucket: sentry-sdk-assets
-    includeNames: /^sentry[_-]relay.*\.whl$/
+    includeNames: /^sentry[_-]relay.*\.(whl|tar\.gz)$/
     paths:
       - path: /librelay/{{version}}/
         metadata:
@@ -21,3 +21,4 @@ requireNames:
   - /^sentry_relay-.*-py2\.py3-none-macosx_14_0_arm64.whl$/
   - /^sentry_relay-.*-py2\.py3-none-.*manylinux_2_28_x86_64.*\.whl$/
   - /^sentry_relay-.*-py2\.py3-none-.*manylinux_2_28_aarch64.*\.whl$/
+  - /^sentry-relay-.*\.tar\.gz$/
