@@ -329,6 +329,7 @@ jobs:
     if: "(!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
 
     env:
+      RUSTFLAGS: "--cfg playstation --cfg tokio_unstable"
       TEMPEST_COMMIT_SHA: "615c09d736bd466cae42842190a06f84977f4a58"
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
       FEATURES: |-
