@@ -373,7 +373,7 @@ jobs:
           rm -rf /tmp/tempest
 
       - name: Run Cargo Tests
-        run: cargo test -p relay-server --test test_prosperoconv --features prosperoconv
+        run: cargo test -p relay-server --test test_prosperoconv
 
       - name: Compile
         run: |
