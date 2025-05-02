@@ -132,8 +132,6 @@ impl ProfileData {
             return Err(ProfileError::NotEnoughSamples);
         }
 
-        self.samples.sort_by_key(|s| s.timestamp);
-
         if !self.all_stacks_referenced_by_samples_exist() {
             return Err(ProfileError::MalformedSamples);
         }
@@ -141,6 +139,8 @@ impl ProfileData {
         if !self.all_frames_referenced_by_stacks_exist() {
             return Err(ProfileError::MalformedStacks);
         }
+
+        self.samples.sort_by_key(|s| s.timestamp);
 
         if self.is_above_max_duration() {
             return Err(ProfileError::DurationIsTooLong);

@@ -12,7 +12,7 @@
 
 **Internal**:
 
-- Reject chunks with 1 sample only. ([#4694](https://github.com/getsentry/relay/pull/4694))
+- Remove threads with 1 non-idle sample in profiling chunks. ([#4694](https://github.com/getsentry/relay/pull/4694))
 
 ## 25.4.0
 
