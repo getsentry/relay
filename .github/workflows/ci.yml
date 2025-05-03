@@ -365,16 +365,15 @@ jobs:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      - name: Clone internal repo into stub
-        run: |
-          # git clone git@github.com:getsentry/tempest.git /tmp/tempest && cd /tmp/tempest && git checkout $TEMPEST_COMMIT_SHA && cd -
-          git clone git@github.com:getsentry/tempest.git /tmp/tempest && cd /tmp/tempest && git checkout tobias-wilfert/feat/test && cd -
-          cp -r /tmp/tempest/crates/prosperoconv/src relay-prosperoconv/
-          rm -rf /tmp/tempest
+
+      - name: Run Cargo Tests
+        run: cargo test -p relay-server --lib --all-features -- services::processor::playstation
 
       - name: Compile
         run: |
           cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
+
+
 
       - name: Split debug info
         run: |
@@ -735,7 +734,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: make test-integration
+      - run: RUSTFLAGS="--cfg playstation --cfg tokio_unstable" make test-integration
         env:
           PYTEST_N: 6
           RELAY_VERSION_CHAIN: "23.12.0,latest"
