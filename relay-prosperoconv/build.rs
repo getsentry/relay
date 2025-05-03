@@ -18,18 +18,18 @@ fn main() {
 
     let temp_dir = "/tmp/tempest";
     Command::new("git")
-        .args(&["clone", "git@github.com:getsentry/tempest.git", temp_dir])
+        .args(["clone", "git@github.com:getsentry/tempest.git", temp_dir])
         .status()
         .expect("Failed to clone tempest repository");
 
     Command::new("git")
-        .args(&["checkout", "tobias-wilfert/feat/test"])
+        .args(["checkout", "tobias-wilfert/feat/test"])
         .current_dir(temp_dir)
         .status()
         .expect("Failed to checkout branch");
 
     Command::new("cp")
-        .args(&[
+        .args([
             "-rf",
             &format!("{}/crates/prosperoconv/src/.", temp_dir),
             "src/",

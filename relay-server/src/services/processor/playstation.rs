@@ -143,7 +143,7 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
     runtime_context.name = Annotated::new(platform.into());
     device_context.model = Annotated::new(platform.into());
 
-    add_tag!("cpu_brand".into(), format!("{platform} CPU").into());
+    add_tag!("cpu_brand".into(), format!("{platform} CPU"));
     add_tag!("runtime.name".into(), platform.into());
 
     if let Some(system_version) = &prospero.sdk_version {
