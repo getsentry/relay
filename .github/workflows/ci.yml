@@ -738,7 +738,7 @@ jobs:
 
       - name: Set environment variables
         if: "(!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
-        run:  echo "RUSTFLAGS='--cfg playstation --cfg tokio_unstable'" >> $GITHUB_ENV
+        run:  echo "RUSTFLAGS=--cfg playstation --cfg tokio_unstable" >> $GITHUB_ENV
 
       - uses: actions/setup-python@v5
         with:
