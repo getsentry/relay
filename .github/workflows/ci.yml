@@ -20,8 +20,11 @@ env:
 
 jobs:
   lint:
+    needs: build-setup
     name: Lint
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
 
     steps:
       - name: Install libcurl-dev
@@ -54,8 +57,11 @@ jobs:
           RUSTDOCFLAGS: -Dwarnings
 
   lint_default:
+    needs: build-setup
     name: Lint Rust Default Features
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
 
     steps:
       - name: Install libcurl-dev
@@ -124,9 +130,12 @@ jobs:
         run: cargo test --workspace
 
   test_all:
+    needs: build-setup
     timeout-minutes: 15
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -229,11 +238,19 @@ jobs:
             echo 'targets=["x86_64-unknown-linux-gnu"]' >> $GITHUB_OUTPUT
             echo 'platforms=["linux/amd64"]' >> $GITHUB_OUTPUT
           fi
+
+          if [[ "${{ github.event.pull_request.head.repo.fork }}" == "true" ]] || [[ "${{ needs.build-setup.outputs.full_ci }}" == "true" ]]; then
+            echo "rustflags=--cfg playstation --cfg tokio_unstable" >> "$GITHUB_OUTPUT"
+          else
+            echo "rustflags=--cfg tokio_unstable" >> "$GITHUB_OUTPUT"
+          fi
+
     outputs:
       image_names: "${{ steps.set-outputs.outputs.image_names }}"
       targets: "${{ steps.set-outputs.outputs.targets }}"
       platforms: "${{ steps.set-outputs.outputs.platforms }}"
       full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
+      rustflags: "${{ steps.set-outputs.outputs.rustflags }}"
 
   build:
     needs: build-setup
@@ -329,7 +346,7 @@ jobs:
     if: "(!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
 
     env:
-      RUSTFLAGS: "--cfg playstation --cfg tokio_unstable"
+      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
       TEMPEST_COMMIT_SHA: "615c09d736bd466cae42842190a06f84977f4a58"
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
       FEATURES: |-
@@ -681,9 +698,12 @@ jobs:
           exit "$status"
 
   test_integration:
+    needs: build-setup
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -731,14 +751,10 @@ jobs:
           key: ${{ github.job }}
 
       - name: Setup SSH agent
-        if: "(!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
+        if: "!github.event.pull_request.head.repo.fork || needs.build-setup.outputs.full_ci == 'true'"
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Set environment variables
-        if: "(!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
-        run:  echo "RUSTFLAGS=--cfg playstation --cfg tokio_unstable" >> $GITHUB_ENV
 
       - uses: actions/setup-python@v5
         with:
