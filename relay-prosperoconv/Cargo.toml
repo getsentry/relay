@@ -1,9 +1,6 @@
 [package]
-# TODO: Decide on a good name
 name = "prosperoconv"
 authors = ["Sentry <oss@sentry.io>"]
-# TODO: Decide on a good description
-description = ""
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "0.1.0"
