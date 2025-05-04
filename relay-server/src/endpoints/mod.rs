@@ -59,7 +59,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route_layer(DefaultBodyLimit::max(BATCH_JSON_BODY_LIMIT));
 
     // Ingestion routes pointing to /api/:project_id/
-    let store_routes = {let routes = Router::new()
+    let store_routes = Router::new()
         // Legacy store path that is missing the project parameter.
         .route("/api/store/", store::route(config))
         // cron monitor level routes.  These are user facing APIs and as such support trailing slashes.
@@ -86,15 +86,10 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route("/api/{project_id}/otlp/v1/traces/", traces::route(config));
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
-        #[cfg(playstation)]
-        {
-        routes.route("/api/{project_id}/playstation/", playstation::route(config))
-        }
-        #[cfg(not(playstation))]
-        {
-        routes
-        }
-    }.route_layer(middlewares::cors());
+
+    #[cfg(playstation)]
+    let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));
+    let store_routes = store_routes.route_layer(middlewares::cors());
 
     Router::new().merge(internal_routes)
         .merge(web_routes)
