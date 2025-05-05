@@ -209,7 +209,7 @@
 <a href=#209 id=209 data-nosnippet>209</a>
 <a href=#210 id=210 data-nosnippet>210</a><span class="doccomment">/// Indexable fields added by sentry (server-side).
 <a href=#211 id=211 data-nosnippet>211</a></span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-<a href=#212 id=212 data-nosnippet>212</a>#[metastructure(trim = <span class="bool-val">false</span>)]
+<a href=#212 id=212 data-nosnippet>212</a>#[metastructure(trim = <span class="bool-val">false</span>, pii = <span class="string">"maybe"</span>)]
 <a href=#213 id=213 data-nosnippet>213</a></span><span class="kw">pub struct </span>SentryTags {
 <a href=#214 id=214 data-nosnippet>214</a>    <span class="kw">pub </span>release: Annotated&lt;String&gt;,
 <a href=#215 id=215 data-nosnippet>215</a>    <span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
