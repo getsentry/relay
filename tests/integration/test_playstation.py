@@ -1,5 +1,6 @@
 import pytest
 import os
+import json
 import requests
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -74,6 +75,7 @@ def test_playstation_with_feature_flag(
     relay,
     relay_with_playstation,
     outcomes_consumer,
+    attachments_consumer,
     num_intermediate_relays,
 ):
     PROJECT_ID = 42
@@ -83,6 +85,7 @@ def test_playstation_with_feature_flag(
         extra={"config": {"features": ["projects:relay-playstation-ingestion"]}},
     )
     outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
 
     # The innermost Relay needs to be in processing mode
     upstream = relay_with_playstation()
@@ -94,13 +97,54 @@ def test_playstation_with_feature_flag(
     assert response.ok
 
     outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 2
-    assert outcomes[0]["reason"] == "no_event_payload"
-    assert outcomes[1]["reason"] == "no_event_payload"
+    assert len(outcomes) == 0
+
+    while True:
+        _, message = attachments_consumer.get_message()
+        if message is None or message["type"] != "attachment_chunk":
+            event = message
+            break
+
+    assert event
+    assert event["type"] == "event"
+
+    event_data = json.loads(event["payload"])
+    assert event_data["type"] == "error"
+    assert event_data["level"] == "fatal"
+
+    assert "contexts" in event_data
+    assert "device" in event_data["contexts"]
+    assert "os" in event_data["contexts"]
+    assert "runtime" in event_data["contexts"]
+
+    assert event_data["contexts"]["device"]["model"] == "PS5"
+    assert event_data["contexts"]["device"]["manufacturer"] == "Sony"
+    assert event_data["contexts"]["device"]["arch"] == "x86_64"
+
+    assert event_data["contexts"]["os"]["name"] == "PlayStation"
+    assert event_data["contexts"]["runtime"]["name"] == "PS5"
+
+    tags_dict = dict(event_data["tags"])
+    assert tags_dict["cpu_vendor"] == "Sony"
+    assert tags_dict["os.name"] == "PlayStation"
+    assert tags_dict["cpu_brand"] == "PS5 CPU"
+    assert "titleId" in tags_dict
+
+    assert "exception" in event_data
+    assert len(event_data["exception"]["values"]) == 1
+    assert event_data["exception"]["values"][0]["type"] == "Minidump"
+    assert event_data["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+
+    assert "_metrics" in event_data
+    assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
+    assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
 
 
 def test_playstation_attachment(
-    mini_sentry, relay_with_playstation, outcomes_consumer, attachments_consumer
+    mini_sentry,
+    relay_with_playstation,
+    outcomes_consumer,
+    attachments_consumer,
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
@@ -136,5 +180,41 @@ def test_playstation_attachment(
 
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 0
-    # TODO: Add stronger assert later to check we make it into the expand function and add test
-    # to check that we don't make it into if the feature is not enabled.
+
+    while True:
+        _, message = attachments_consumer.get_message()
+        if message is None or message["type"] != "attachment_chunk":
+            event = message
+            break
+
+    assert event
+    event_data = json.loads(event["payload"])
+    assert event_data["type"] == "error"
+    assert event_data["level"] == "fatal"
+
+    assert "contexts" in event_data
+    assert "device" in event_data["contexts"]
+    assert "os" in event_data["contexts"]
+    assert "runtime" in event_data["contexts"]
+
+    assert event_data["contexts"]["device"]["model"] == "PS5"
+    assert event_data["contexts"]["device"]["manufacturer"] == "Sony"
+    assert event_data["contexts"]["device"]["arch"] == "x86_64"
+
+    assert event_data["contexts"]["os"]["name"] == "PlayStation"
+    assert event_data["contexts"]["runtime"]["name"] == "PS5"
+
+    tags_dict = dict(event_data["tags"])
+    assert tags_dict["cpu_vendor"] == "Sony"
+    assert tags_dict["os.name"] == "PlayStation"
+    assert tags_dict["cpu_brand"] == "PS5 CPU"
+    assert "titleId" in tags_dict
+
+    assert "exception" in event_data
+    assert len(event_data["exception"]["values"]) == 1
+    assert event_data["exception"]["values"][0]["type"] == "Minidump"
+    assert event_data["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+
+    assert "_metrics" in event_data
+    assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
+    assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
