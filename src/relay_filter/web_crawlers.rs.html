@@ -18,159 +18,164 @@
 <a href=#18 id=18 data-nosnippet>18</a>        Slurp|                      # Yahoo
 <a href=#19 id=19 data-nosnippet>19</a>        Sogou|                      # Sogou
 <a href=#20 id=20 data-nosnippet>20</a>        facebook|                   # facebook
-<a href=#21 id=21 data-nosnippet>21</a>        ia_archiver|                # Alexa
-<a href=#22 id=22 data-nosnippet>22</a>        bots?[/\s\);]|              # Generic bot
-<a href=#23 id=23 data-nosnippet>23</a>        spider[/\s\);]|             # Generic spider
-<a href=#24 id=24 data-nosnippet>24</a>        Slack|                      # Slack - see https://api.slack.com/robots
-<a href=#25 id=25 data-nosnippet>25</a>        Calypso\sAppCrawler|        # Google indexing bot
-<a href=#26 id=26 data-nosnippet>26</a>        pingdom|                    # Pingdom
-<a href=#27 id=27 data-nosnippet>27</a>        lyticsbot|                  # Lytics
-<a href=#28 id=28 data-nosnippet>28</a>        AWS\sSecurity\sScanner|     # AWS Security Scanner causing DisallowedHost errors in Django, see
-<a href=#29 id=29 data-nosnippet>29</a>                                    # https://forums.aws.amazon.com/thread.jspa?messageID=932404
-<a href=#30 id=30 data-nosnippet>30</a>                                    # and https://github.com/getsentry/sentry-python/issues/641
-<a href=#31 id=31 data-nosnippet>31</a>        HubSpot\sCrawler|           # HubSpot web crawler (web-crawlers@hubspot.com)
-<a href=#32 id=32 data-nosnippet>32</a>        Bytespider|                 # Bytedance
-<a href=#33 id=33 data-nosnippet>33</a>        Better\sUptime|             # Better Uptime
-<a href=#34 id=34 data-nosnippet>34</a>        Cloudflare-Healthchecks|    # Cloudflare Health Checks
-<a href=#35 id=35 data-nosnippet>35</a>        GTmetrix|                   # GTmetrix
-<a href=#36 id=36 data-nosnippet>36</a>        BrightEdgeOnCrawl|          # BrightEdge - see https://www.brightedge.com/news/press-releases/brightedge-acquires-oncrawl-future-proof-web-30-strategies
-<a href=#37 id=37 data-nosnippet>37</a>        ELB-HealthChecker|          # AWS Elastic Load Balancing Health Checks
-<a href=#38 id=38 data-nosnippet>38</a>        naver.me/spd|               # Yeti/1.1 - naver.me
-<a href=#39 id=39 data-nosnippet>39</a>        ClaudeBot|                  # Anthropic - see https://support.anthropic.com/en/articles/10023637-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
-<a href=#40 id=40 data-nosnippet>40</a>        CCBot|                      # CCBot - see https://commoncrawl.org/ccbot
-<a href=#41 id=41 data-nosnippet>41</a>        OAI-SearchBot|              # OpenAI - see https://platform.openai.com/docs/bots
-<a href=#42 id=42 data-nosnippet>42</a>        GPTBot                      # OpenAI - see https://platform.openai.com/docs/bots
-<a href=#43 id=43 data-nosnippet>43</a>    "
-<a href=#44 id=44 data-nosnippet>44</a>    </span>)
-<a href=#45 id=45 data-nosnippet>45</a>    .expect(<span class="string">"Invalid web crawlers filter Regex"</span>)
-<a href=#46 id=46 data-nosnippet>46</a>});
-<a href=#47 id=47 data-nosnippet>47</a>
-<a href=#48 id=48 data-nosnippet>48</a><span class="kw">static </span>ALLOWED_WEB_CRAWLERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
-<a href=#49 id=49 data-nosnippet>49</a>    Regex::new(
-<a href=#50 id=50 data-nosnippet>50</a>        <span class="string">r"(?ix)
-<a href=#51 id=51 data-nosnippet>51</a>        Slackbot\s1\.\d+|            # Slack - see https://api.slack.com/robots
-<a href=#52 id=52 data-nosnippet>52</a>        SentryUptimeBot              # Uptime Checker https://docs.sentry.io/product/alerts/uptime-monitoring/
-<a href=#53 id=53 data-nosnippet>53</a>    "</span>,
-<a href=#54 id=54 data-nosnippet>54</a>    )
-<a href=#55 id=55 data-nosnippet>55</a>    .expect(<span class="string">"Invalid allowed web crawlers filter Regex"</span>)
-<a href=#56 id=56 data-nosnippet>56</a>});
-<a href=#57 id=57 data-nosnippet>57</a>
-<a href=#58 id=58 data-nosnippet>58</a><span class="doccomment">/// Checks if the event originates from a known web crawler.
-<a href=#59 id=59 data-nosnippet>59</a></span><span class="kw">fn </span>matches(user_agent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; bool {
-<a href=#60 id=60 data-nosnippet>60</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent) = user_agent {
-<a href=#61 id=61 data-nosnippet>61</a>        WEB_CRAWLERS.is_match(user_agent) &amp;&amp; !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
-<a href=#62 id=62 data-nosnippet>62</a>    } <span class="kw">else </span>{
-<a href=#63 id=63 data-nosnippet>63</a>        <span class="bool-val">false
-<a href=#64 id=64 data-nosnippet>64</a>    </span>}
-<a href=#65 id=65 data-nosnippet>65</a>}
-<a href=#66 id=66 data-nosnippet>66</a>
-<a href=#67 id=67 data-nosnippet>67</a><span class="doccomment">/// Filters events originating from a known web crawler.
-<a href=#68 id=68 data-nosnippet>68</a></span><span class="kw">pub fn </span>should_filter&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
-<a href=#69 id=69 data-nosnippet>69</a>    <span class="kw">if </span>!config.is_enabled {
-<a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-<a href=#71 id=71 data-nosnippet>71</a>    }
-<a href=#72 id=72 data-nosnippet>72</a>
-<a href=#73 id=73 data-nosnippet>73</a>    <span class="kw">if </span>matches(item.user_agent()) {
-<a href=#74 id=74 data-nosnippet>74</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FilterStatKey::WebCrawlers);
-<a href=#75 id=75 data-nosnippet>75</a>    }
-<a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="prelude-val">Ok</span>(())
-<a href=#78 id=78 data-nosnippet>78</a>}
-<a href=#79 id=79 data-nosnippet>79</a>
-<a href=#80 id=80 data-nosnippet>80</a><span class="attr">#[cfg(test)]
-<a href=#81 id=81 data-nosnippet>81</a></span><span class="kw">mod </span>tests {
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils;
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a>    <span class="attr">#[test]
-<a href=#86 id=86 data-nosnippet>86</a>    </span><span class="kw">fn </span>test_filter_when_disabled() {
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>evt = testutils::get_event_with_user_agent(<span class="string">"Googlebot"</span>);
-<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>evt, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">false </span>});
-<a href=#89 id=89 data-nosnippet>89</a>        <span class="macro">assert_eq!</span>(
-<a href=#90 id=90 data-nosnippet>90</a>            filter_result,
-<a href=#91 id=91 data-nosnippet>91</a>            <span class="prelude-val">Ok</span>(()),
-<a href=#92 id=92 data-nosnippet>92</a>            <span class="string">"Event filtered although filter should have been disabled"
-<a href=#93 id=93 data-nosnippet>93</a>        </span>)
-<a href=#94 id=94 data-nosnippet>94</a>    }
-<a href=#95 id=95 data-nosnippet>95</a>
-<a href=#96 id=96 data-nosnippet>96</a>    <span class="attr">#[test]
-<a href=#97 id=97 data-nosnippet>97</a>    </span><span class="kw">fn </span>test_filter_banned_user_agents() {
-<a href=#98 id=98 data-nosnippet>98</a>        <span class="kw">let </span>user_agents = [
-<a href=#99 id=99 data-nosnippet>99</a>            <span class="string">"Mediapartners-Google"</span>,
-<a href=#100 id=100 data-nosnippet>100</a>            <span class="string">"AdsBot-Google"</span>,
-<a href=#101 id=101 data-nosnippet>101</a>            <span class="string">"Googlebot"</span>,
-<a href=#102 id=102 data-nosnippet>102</a>            <span class="string">"FeedFetcher-Google"</span>,
-<a href=#103 id=103 data-nosnippet>103</a>            <span class="string">"BingBot"</span>,
-<a href=#104 id=104 data-nosnippet>104</a>            <span class="string">"BingPreview"</span>,
-<a href=#105 id=105 data-nosnippet>105</a>            <span class="string">"Baiduspider"</span>,
-<a href=#106 id=106 data-nosnippet>106</a>            <span class="string">"Slurp"</span>,
-<a href=#107 id=107 data-nosnippet>107</a>            <span class="string">"Sogou"</span>,
-<a href=#108 id=108 data-nosnippet>108</a>            <span class="string">"facebook"</span>,
-<a href=#109 id=109 data-nosnippet>109</a>            <span class="string">"ia_archiver"</span>,
-<a href=#110 id=110 data-nosnippet>110</a>            <span class="string">"bots "</span>,
-<a href=#111 id=111 data-nosnippet>111</a>            <span class="string">"bots;"</span>,
-<a href=#112 id=112 data-nosnippet>112</a>            <span class="string">"bots)"</span>,
-<a href=#113 id=113 data-nosnippet>113</a>            <span class="string">"spider "</span>,
-<a href=#114 id=114 data-nosnippet>114</a>            <span class="string">"spider;"</span>,
-<a href=#115 id=115 data-nosnippet>115</a>            <span class="string">"spider)"</span>,
-<a href=#116 id=116 data-nosnippet>116</a>            <span class="string">"Calypso AppCrawler"</span>,
-<a href=#117 id=117 data-nosnippet>117</a>            <span class="string">"pingdom"</span>,
-<a href=#118 id=118 data-nosnippet>118</a>            <span class="string">"lyticsbot"</span>,
-<a href=#119 id=119 data-nosnippet>119</a>            <span class="string">"AWS Security Scanner"</span>,
-<a href=#120 id=120 data-nosnippet>120</a>            <span class="string">"Mozilla/5.0 (Linux; Android 6.0.1; Calypso AppCrawler Build/MMB30Y; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.124 Mobile Safari/537.36"</span>,
-<a href=#121 id=121 data-nosnippet>121</a>            <span class="string">"Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)"</span>,
-<a href=#122 id=122 data-nosnippet>122</a>            <span class="string">"Slack-ImgProxy 0.19 (+https://api.slack.com/robots)"</span>,
-<a href=#123 id=123 data-nosnippet>123</a>            <span class="string">"Twitterbot/1.0"</span>,
-<a href=#124 id=124 data-nosnippet>124</a>            <span class="string">"FeedFetcher-Google; (+http://www.google.com/feedfetcher.html)"</span>,
-<a href=#125 id=125 data-nosnippet>125</a>            <span class="string">"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"</span>,
-<a href=#126 id=126 data-nosnippet>126</a>            <span class="string">"AdsBot-Google (+http://www.google.com/adsbot.html)"</span>,
-<a href=#127 id=127 data-nosnippet>127</a>            <span class="string">"Mozilla/5.0 (compatible; HubSpot Crawler; web-crawlers@hubspot.com)"</span>,
-<a href=#128 id=128 data-nosnippet>128</a>            <span class="string">"Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)"</span>,
-<a href=#129 id=129 data-nosnippet>129</a>            <span class="string">"Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"</span>,
-<a href=#130 id=130 data-nosnippet>130</a>            <span class="string">"Mozilla/5.0 (compatible;Cloudflare-Healthchecks/1.0;+https://www.cloudflare.com/; healthcheck-id: 0d1ca23e292c8c14)"</span>,
-<a href=#131 id=131 data-nosnippet>131</a>            <span class="string">"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 GTmetrix"</span>,
-<a href=#132 id=132 data-nosnippet>132</a>            <span class="string">"Mozilla/5.0 (compatible; BrightEdgeOnCrawl/1.0; +http://www.oncrawl.com)"</span>,
-<a href=#133 id=133 data-nosnippet>133</a>            <span class="string">"ELB-HealthChecker/2.0"</span>,
-<a href=#134 id=134 data-nosnippet>134</a>            <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko; compatible; Yeti/1.1; +https://naver.me/spd) Chrome/127.0.0.0 Safari/537.36"</span>,
-<a href=#135 id=135 data-nosnippet>135</a>            <span class="string">"Mozilla/5.0; ClaudeBot"</span>,
-<a href=#136 id=136 data-nosnippet>136</a>            <span class="string">"Mozilla/5.0; CCBot"</span>,
-<a href=#137 id=137 data-nosnippet>137</a>            <span class="string">"; OAI-SearchBot/1.0; +https://openai.com/searchbot"</span>,
-<a href=#138 id=138 data-nosnippet>138</a>            <span class="string">"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot"</span>,
-<a href=#139 id=139 data-nosnippet>139</a>        ];
-<a href=#140 id=140 data-nosnippet>140</a>
-<a href=#141 id=141 data-nosnippet>141</a>        <span class="kw">for </span>banned_user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>user_agents {
-<a href=#142 id=142 data-nosnippet>142</a>            <span class="kw">let </span>event = testutils::get_event_with_user_agent(banned_user_agent);
-<a href=#143 id=143 data-nosnippet>143</a>            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
-<a href=#144 id=144 data-nosnippet>144</a>            <span class="macro">assert_ne!</span>(
-<a href=#145 id=145 data-nosnippet>145</a>                filter_result,
-<a href=#146 id=146 data-nosnippet>146</a>                <span class="prelude-val">Ok</span>(()),
-<a href=#147 id=147 data-nosnippet>147</a>                <span class="string">"Failed to filter web crawler with user agent '{banned_user_agent}'"
-<a href=#148 id=148 data-nosnippet>148</a>            </span>);
-<a href=#149 id=149 data-nosnippet>149</a>        }
-<a href=#150 id=150 data-nosnippet>150</a>    }
-<a href=#151 id=151 data-nosnippet>151</a>
-<a href=#152 id=152 data-nosnippet>152</a>    <span class="attr">#[test]
-<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">fn </span>test_dont_filter_normal_user_agents() {
-<a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">let </span>normal_user_agents = [
-<a href=#155 id=155 data-nosnippet>155</a>            <span class="string">"some user agent"</span>,
-<a href=#156 id=156 data-nosnippet>156</a>            <span class="string">"IE"</span>,
-<a href=#157 id=157 data-nosnippet>157</a>            <span class="string">"ie"</span>,
-<a href=#158 id=158 data-nosnippet>158</a>            <span class="string">"opera"</span>,
-<a href=#159 id=159 data-nosnippet>159</a>            <span class="string">"safari"</span>,
-<a href=#160 id=160 data-nosnippet>160</a>            <span class="string">"APIs-Google (+https://developers.google.com/webmasters/APIs-Google.html)"</span>,
-<a href=#161 id=161 data-nosnippet>161</a>            <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"</span>,
-<a href=#162 id=162 data-nosnippet>162</a>            <span class="string">"Slackbot 1.0(+https://api.slack.com/robots)"</span>,
-<a href=#163 id=163 data-nosnippet>163</a>            <span class="string">"SentryUptimeBot/1.0 (+http://docs.sentry.io/product/alerts/uptime-monitoring/)"</span>,
-<a href=#164 id=164 data-nosnippet>164</a>            <span class="string">"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot"</span>,
-<a href=#165 id=165 data-nosnippet>165</a>        ];
-<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">for </span>user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>normal_user_agents {
-<a href=#167 id=167 data-nosnippet>167</a>            <span class="kw">let </span>event = testutils::get_event_with_user_agent(user_agent);
-<a href=#168 id=168 data-nosnippet>168</a>            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
-<a href=#169 id=169 data-nosnippet>169</a>            <span class="macro">assert_eq!</span>(
-<a href=#170 id=170 data-nosnippet>170</a>                filter_result,
-<a href=#171 id=171 data-nosnippet>171</a>                <span class="prelude-val">Ok</span>(()),
-<a href=#172 id=172 data-nosnippet>172</a>                <span class="string">"Failed benign user agent '{user_agent}'"
-<a href=#173 id=173 data-nosnippet>173</a>            </span>);
-<a href=#174 id=174 data-nosnippet>174</a>        }
-<a href=#175 id=175 data-nosnippet>175</a>    }
-<a href=#176 id=176 data-nosnippet>176</a>}</code></pre></div></section></main></body></html>
+<a href=#21 id=21 data-nosnippet>21</a>        meta-|                      # meta/facebook
+<a href=#22 id=22 data-nosnippet>22</a>        ia_archiver|                # Alexa
+<a href=#23 id=23 data-nosnippet>23</a>        bots?[/\s\);]|              # Generic bot
+<a href=#24 id=24 data-nosnippet>24</a>        spider[/\s\);]|             # Generic spider
+<a href=#25 id=25 data-nosnippet>25</a>        Slack|                      # Slack - see https://api.slack.com/robots
+<a href=#26 id=26 data-nosnippet>26</a>        Calypso\sAppCrawler|        # Google indexing bot
+<a href=#27 id=27 data-nosnippet>27</a>        pingdom|                    # Pingdom
+<a href=#28 id=28 data-nosnippet>28</a>        lyticsbot|                  # Lytics
+<a href=#29 id=29 data-nosnippet>29</a>        AWS\sSecurity\sScanner|     # AWS Security Scanner causing DisallowedHost errors in Django, see
+<a href=#30 id=30 data-nosnippet>30</a>                                    # https://forums.aws.amazon.com/thread.jspa?messageID=932404
+<a href=#31 id=31 data-nosnippet>31</a>                                    # and https://github.com/getsentry/sentry-python/issues/641
+<a href=#32 id=32 data-nosnippet>32</a>        HubSpot\sCrawler|           # HubSpot web crawler (web-crawlers@hubspot.com)
+<a href=#33 id=33 data-nosnippet>33</a>        Bytespider|                 # Bytedance
+<a href=#34 id=34 data-nosnippet>34</a>        Better\sUptime|             # Better Uptime
+<a href=#35 id=35 data-nosnippet>35</a>        Cloudflare-Healthchecks|    # Cloudflare Health Checks
+<a href=#36 id=36 data-nosnippet>36</a>        GTmetrix|                   # GTmetrix
+<a href=#37 id=37 data-nosnippet>37</a>        BrightEdgeOnCrawl|          # BrightEdge - see https://www.brightedge.com/news/press-releases/brightedge-acquires-oncrawl-future-proof-web-30-strategies
+<a href=#38 id=38 data-nosnippet>38</a>        ELB-HealthChecker|          # AWS Elastic Load Balancing Health Checks
+<a href=#39 id=39 data-nosnippet>39</a>        naver.me/spd|               # Yeti/1.1 - naver.me
+<a href=#40 id=40 data-nosnippet>40</a>        ClaudeBot|                  # Anthropic - see https://support.anthropic.com/en/articles/10023637-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
+<a href=#41 id=41 data-nosnippet>41</a>        CCBot|                      # CCBot - see https://commoncrawl.org/ccbot
+<a href=#42 id=42 data-nosnippet>42</a>        OAI-SearchBot|              # OpenAI - see https://platform.openai.com/docs/bots
+<a href=#43 id=43 data-nosnippet>43</a>        GPTBot                      # OpenAI - see https://platform.openai.com/docs/bots
+<a href=#44 id=44 data-nosnippet>44</a>    "
+<a href=#45 id=45 data-nosnippet>45</a>    </span>)
+<a href=#46 id=46 data-nosnippet>46</a>    .expect(<span class="string">"Invalid web crawlers filter Regex"</span>)
+<a href=#47 id=47 data-nosnippet>47</a>});
+<a href=#48 id=48 data-nosnippet>48</a>
+<a href=#49 id=49 data-nosnippet>49</a><span class="kw">static </span>ALLOWED_WEB_CRAWLERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
+<a href=#50 id=50 data-nosnippet>50</a>    Regex::new(
+<a href=#51 id=51 data-nosnippet>51</a>        <span class="string">r"(?ix)
+<a href=#52 id=52 data-nosnippet>52</a>        Slackbot\s1\.\d+|            # Slack - see https://api.slack.com/robots
+<a href=#53 id=53 data-nosnippet>53</a>        SentryUptimeBot              # Uptime Checker https://docs.sentry.io/product/alerts/uptime-monitoring/
+<a href=#54 id=54 data-nosnippet>54</a>    "</span>,
+<a href=#55 id=55 data-nosnippet>55</a>    )
+<a href=#56 id=56 data-nosnippet>56</a>    .expect(<span class="string">"Invalid allowed web crawlers filter Regex"</span>)
+<a href=#57 id=57 data-nosnippet>57</a>});
+<a href=#58 id=58 data-nosnippet>58</a>
+<a href=#59 id=59 data-nosnippet>59</a><span class="doccomment">/// Checks if the event originates from a known web crawler.
+<a href=#60 id=60 data-nosnippet>60</a></span><span class="kw">fn </span>matches(user_agent: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; bool {
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(user_agent) = user_agent {
+<a href=#62 id=62 data-nosnippet>62</a>        WEB_CRAWLERS.is_match(user_agent) &amp;&amp; !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
+<a href=#63 id=63 data-nosnippet>63</a>    } <span class="kw">else </span>{
+<a href=#64 id=64 data-nosnippet>64</a>        <span class="bool-val">false
+<a href=#65 id=65 data-nosnippet>65</a>    </span>}
+<a href=#66 id=66 data-nosnippet>66</a>}
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a><span class="doccomment">/// Filters events originating from a known web crawler.
+<a href=#69 id=69 data-nosnippet>69</a></span><span class="kw">pub fn </span>should_filter&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F, config: <span class="kw-2">&amp;</span>FilterConfig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
+<a href=#70 id=70 data-nosnippet>70</a>    <span class="kw">if </span>!config.is_enabled {
+<a href=#71 id=71 data-nosnippet>71</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+<a href=#72 id=72 data-nosnippet>72</a>    }
+<a href=#73 id=73 data-nosnippet>73</a>
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="kw">if </span>matches(item.user_agent()) {
+<a href=#75 id=75 data-nosnippet>75</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(FilterStatKey::WebCrawlers);
+<a href=#76 id=76 data-nosnippet>76</a>    }
+<a href=#77 id=77 data-nosnippet>77</a>
+<a href=#78 id=78 data-nosnippet>78</a>    <span class="prelude-val">Ok</span>(())
+<a href=#79 id=79 data-nosnippet>79</a>}
+<a href=#80 id=80 data-nosnippet>80</a>
+<a href=#81 id=81 data-nosnippet>81</a><span class="attr">#[cfg(test)]
+<a href=#82 id=82 data-nosnippet>82</a></span><span class="kw">mod </span>tests {
+<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils;
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="attr">#[test]
+<a href=#87 id=87 data-nosnippet>87</a>    </span><span class="kw">fn </span>test_filter_when_disabled() {
+<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>evt = testutils::get_event_with_user_agent(<span class="string">"Googlebot"</span>);
+<a href=#89 id=89 data-nosnippet>89</a>        <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>evt, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">false </span>});
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="macro">assert_eq!</span>(
+<a href=#91 id=91 data-nosnippet>91</a>            filter_result,
+<a href=#92 id=92 data-nosnippet>92</a>            <span class="prelude-val">Ok</span>(()),
+<a href=#93 id=93 data-nosnippet>93</a>            <span class="string">"Event filtered although filter should have been disabled"
+<a href=#94 id=94 data-nosnippet>94</a>        </span>)
+<a href=#95 id=95 data-nosnippet>95</a>    }
+<a href=#96 id=96 data-nosnippet>96</a>
+<a href=#97 id=97 data-nosnippet>97</a>    <span class="attr">#[test]
+<a href=#98 id=98 data-nosnippet>98</a>    </span><span class="kw">fn </span>test_filter_banned_user_agents() {
+<a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">let </span>user_agents = [
+<a href=#100 id=100 data-nosnippet>100</a>            <span class="string">"Mediapartners-Google"</span>,
+<a href=#101 id=101 data-nosnippet>101</a>            <span class="string">"AdsBot-Google"</span>,
+<a href=#102 id=102 data-nosnippet>102</a>            <span class="string">"Googlebot"</span>,
+<a href=#103 id=103 data-nosnippet>103</a>            <span class="string">"FeedFetcher-Google"</span>,
+<a href=#104 id=104 data-nosnippet>104</a>            <span class="string">"BingBot"</span>,
+<a href=#105 id=105 data-nosnippet>105</a>            <span class="string">"BingPreview"</span>,
+<a href=#106 id=106 data-nosnippet>106</a>            <span class="string">"Baiduspider"</span>,
+<a href=#107 id=107 data-nosnippet>107</a>            <span class="string">"Slurp"</span>,
+<a href=#108 id=108 data-nosnippet>108</a>            <span class="string">"Sogou"</span>,
+<a href=#109 id=109 data-nosnippet>109</a>            <span class="string">"facebook"</span>,
+<a href=#110 id=110 data-nosnippet>110</a>            <span class="string">"facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"</span>,
+<a href=#111 id=111 data-nosnippet>111</a>            <span class="string">"facebookcatalog/1.0"</span>,
+<a href=#112 id=112 data-nosnippet>112</a>            <span class="string">"meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)"</span>,
+<a href=#113 id=113 data-nosnippet>113</a>            <span class="string">"meta-externalfetcher/1.1"</span>,
+<a href=#114 id=114 data-nosnippet>114</a>            <span class="string">"ia_archiver"</span>,
+<a href=#115 id=115 data-nosnippet>115</a>            <span class="string">"bots "</span>,
+<a href=#116 id=116 data-nosnippet>116</a>            <span class="string">"bots;"</span>,
+<a href=#117 id=117 data-nosnippet>117</a>            <span class="string">"bots)"</span>,
+<a href=#118 id=118 data-nosnippet>118</a>            <span class="string">"spider "</span>,
+<a href=#119 id=119 data-nosnippet>119</a>            <span class="string">"spider;"</span>,
+<a href=#120 id=120 data-nosnippet>120</a>            <span class="string">"spider)"</span>,
+<a href=#121 id=121 data-nosnippet>121</a>            <span class="string">"Calypso AppCrawler"</span>,
+<a href=#122 id=122 data-nosnippet>122</a>            <span class="string">"pingdom"</span>,
+<a href=#123 id=123 data-nosnippet>123</a>            <span class="string">"lyticsbot"</span>,
+<a href=#124 id=124 data-nosnippet>124</a>            <span class="string">"AWS Security Scanner"</span>,
+<a href=#125 id=125 data-nosnippet>125</a>            <span class="string">"Mozilla/5.0 (Linux; Android 6.0.1; Calypso AppCrawler Build/MMB30Y; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.124 Mobile Safari/537.36"</span>,
+<a href=#126 id=126 data-nosnippet>126</a>            <span class="string">"Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)"</span>,
+<a href=#127 id=127 data-nosnippet>127</a>            <span class="string">"Slack-ImgProxy 0.19 (+https://api.slack.com/robots)"</span>,
+<a href=#128 id=128 data-nosnippet>128</a>            <span class="string">"Twitterbot/1.0"</span>,
+<a href=#129 id=129 data-nosnippet>129</a>            <span class="string">"FeedFetcher-Google; (+http://www.google.com/feedfetcher.html)"</span>,
+<a href=#130 id=130 data-nosnippet>130</a>            <span class="string">"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"</span>,
+<a href=#131 id=131 data-nosnippet>131</a>            <span class="string">"AdsBot-Google (+http://www.google.com/adsbot.html)"</span>,
+<a href=#132 id=132 data-nosnippet>132</a>            <span class="string">"Mozilla/5.0 (compatible; HubSpot Crawler; web-crawlers@hubspot.com)"</span>,
+<a href=#133 id=133 data-nosnippet>133</a>            <span class="string">"Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)"</span>,
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="string">"Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"</span>,
+<a href=#135 id=135 data-nosnippet>135</a>            <span class="string">"Mozilla/5.0 (compatible;Cloudflare-Healthchecks/1.0;+https://www.cloudflare.com/; healthcheck-id: 0d1ca23e292c8c14)"</span>,
+<a href=#136 id=136 data-nosnippet>136</a>            <span class="string">"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 GTmetrix"</span>,
+<a href=#137 id=137 data-nosnippet>137</a>            <span class="string">"Mozilla/5.0 (compatible; BrightEdgeOnCrawl/1.0; +http://www.oncrawl.com)"</span>,
+<a href=#138 id=138 data-nosnippet>138</a>            <span class="string">"ELB-HealthChecker/2.0"</span>,
+<a href=#139 id=139 data-nosnippet>139</a>            <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko; compatible; Yeti/1.1; +https://naver.me/spd) Chrome/127.0.0.0 Safari/537.36"</span>,
+<a href=#140 id=140 data-nosnippet>140</a>            <span class="string">"Mozilla/5.0; ClaudeBot"</span>,
+<a href=#141 id=141 data-nosnippet>141</a>            <span class="string">"Mozilla/5.0; CCBot"</span>,
+<a href=#142 id=142 data-nosnippet>142</a>            <span class="string">"; OAI-SearchBot/1.0; +https://openai.com/searchbot"</span>,
+<a href=#143 id=143 data-nosnippet>143</a>            <span class="string">"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot"</span>,
+<a href=#144 id=144 data-nosnippet>144</a>        ];
+<a href=#145 id=145 data-nosnippet>145</a>
+<a href=#146 id=146 data-nosnippet>146</a>        <span class="kw">for </span>banned_user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>user_agents {
+<a href=#147 id=147 data-nosnippet>147</a>            <span class="kw">let </span>event = testutils::get_event_with_user_agent(banned_user_agent);
+<a href=#148 id=148 data-nosnippet>148</a>            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
+<a href=#149 id=149 data-nosnippet>149</a>            <span class="macro">assert_ne!</span>(
+<a href=#150 id=150 data-nosnippet>150</a>                filter_result,
+<a href=#151 id=151 data-nosnippet>151</a>                <span class="prelude-val">Ok</span>(()),
+<a href=#152 id=152 data-nosnippet>152</a>                <span class="string">"Failed to filter web crawler with user agent '{banned_user_agent}'"
+<a href=#153 id=153 data-nosnippet>153</a>            </span>);
+<a href=#154 id=154 data-nosnippet>154</a>        }
+<a href=#155 id=155 data-nosnippet>155</a>    }
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a>    <span class="attr">#[test]
+<a href=#158 id=158 data-nosnippet>158</a>    </span><span class="kw">fn </span>test_dont_filter_normal_user_agents() {
+<a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">let </span>normal_user_agents = [
+<a href=#160 id=160 data-nosnippet>160</a>            <span class="string">"some user agent"</span>,
+<a href=#161 id=161 data-nosnippet>161</a>            <span class="string">"IE"</span>,
+<a href=#162 id=162 data-nosnippet>162</a>            <span class="string">"ie"</span>,
+<a href=#163 id=163 data-nosnippet>163</a>            <span class="string">"opera"</span>,
+<a href=#164 id=164 data-nosnippet>164</a>            <span class="string">"safari"</span>,
+<a href=#165 id=165 data-nosnippet>165</a>            <span class="string">"APIs-Google (+https://developers.google.com/webmasters/APIs-Google.html)"</span>,
+<a href=#166 id=166 data-nosnippet>166</a>            <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"</span>,
+<a href=#167 id=167 data-nosnippet>167</a>            <span class="string">"Slackbot 1.0(+https://api.slack.com/robots)"</span>,
+<a href=#168 id=168 data-nosnippet>168</a>            <span class="string">"SentryUptimeBot/1.0 (+http://docs.sentry.io/product/alerts/uptime-monitoring/)"</span>,
+<a href=#169 id=169 data-nosnippet>169</a>            <span class="string">"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot"</span>,
+<a href=#170 id=170 data-nosnippet>170</a>        ];
+<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">for </span>user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>normal_user_agents {
+<a href=#172 id=172 data-nosnippet>172</a>            <span class="kw">let </span>event = testutils::get_event_with_user_agent(user_agent);
+<a href=#173 id=173 data-nosnippet>173</a>            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>FilterConfig { is_enabled: <span class="bool-val">true </span>});
+<a href=#174 id=174 data-nosnippet>174</a>            <span class="macro">assert_eq!</span>(
+<a href=#175 id=175 data-nosnippet>175</a>                filter_result,
+<a href=#176 id=176 data-nosnippet>176</a>                <span class="prelude-val">Ok</span>(()),
+<a href=#177 id=177 data-nosnippet>177</a>                <span class="string">"Failed benign user agent '{user_agent}'"
+<a href=#178 id=178 data-nosnippet>178</a>            </span>);
+<a href=#179 id=179 data-nosnippet>179</a>        }
+<a href=#180 id=180 data-nosnippet>180</a>    }
+<a href=#181 id=181 data-nosnippet>181</a>}</code></pre></div></section></main></body></html>
