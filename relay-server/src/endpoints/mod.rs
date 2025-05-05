@@ -15,7 +15,7 @@ mod health_check;
 mod minidump;
 mod monitor;
 mod nel;
-#[cfg(playstation)]
+#[cfg(sentry)]
 mod playstation;
 mod project_configs;
 mod public_keys;
@@ -87,7 +87,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
 
-    #[cfg(playstation)]
+    #[cfg(sentry)]
     let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));
     let store_routes = store_routes.route_layer(middlewares::cors());
 

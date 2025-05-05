@@ -63,11 +63,11 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
-    #[cfg(playstation)]
+    #[cfg(sentry)]
     #[error("invalid prosperodump")]
     InvalidProsperodump,
 
-    #[cfg(playstation)]
+    #[cfg(sentry)]
     #[error("missing prosperodump")]
     MissingProsperodump,
 

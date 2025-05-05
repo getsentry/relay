@@ -37,7 +37,7 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'playstation')
+        if: contains(env.RUSTFLAGS, 'sentry')
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -80,7 +80,7 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'playstation')
+        if: contains(env.RUSTFLAGS, 'sentry')
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -178,7 +178,7 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'playstation')
+        if: contains(env.RUSTFLAGS, 'sentry')
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -258,7 +258,7 @@ jobs:
           fi
 
           if [[ "${{ github.event.pull_request.head.repo.fork }}" != "true" ]] || [[ "${{ needs.build-setup.outputs.full_ci }}" == "true" ]]; then
-            echo "rustflags=--cfg playstation --cfg tokio_unstable" >> "$GITHUB_OUTPUT"
+            echo "rustflags=--cfg sentry --cfg tokio_unstable" >> "$GITHUB_OUTPUT"
           else
             echo "rustflags=--cfg tokio_unstable" >> "$GITHUB_OUTPUT"
           fi
@@ -769,7 +769,7 @@ jobs:
           key: ${{ github.job }}
 
       - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'playstation')
+        if: contains(env.RUSTFLAGS, 'sentry')
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
