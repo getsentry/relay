@@ -238,16 +238,6 @@ pub async fn process(
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
-        new_item.set_ingest_span_in_eap(
-            project_info
-                .config
-                .features
-                .has(Feature::IngestSpansInEapForOrganization)
-                || project_info
-                    .config
-                    .features
-                    .has(Feature::IngestSpansInEapForProject),
-        );
 
         *item = new_item;
 
@@ -289,7 +279,6 @@ pub fn extract_from_event(
     event: &Annotated<Event>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
     server_sample_rate: Option<f64>,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -313,14 +302,6 @@ pub fn extract_from_event(
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
-    let ingest_in_eap = project_info
-        .config
-        .features
-        .has(Feature::IngestSpansInEapForOrganization)
-        || project_info
-            .config
-            .features
-            .has(Feature::IngestSpansInEapForProject);
 
     let mut add_span = |mut span: Span| {
         add_sample_rate(
@@ -372,7 +353,6 @@ pub fn extract_from_event(
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(event_metrics_extracted.0);
-        item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
         managed_envelope.envelope_mut().add_item(item);
@@ -905,13 +885,12 @@ mod tests {
         let global_config = GlobalConfig::default();
         let config = Arc::new(Config::default());
         assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -931,13 +910,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -957,13 +935,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -983,13 +960,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params(); // client sample rate is 0.2
+        let (mut managed_envelope, event, _) = params(); // client sample rate is 0.2
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             Some(0.1),
             EventMetricsExtracted(false),
             SpansExtracted(false),

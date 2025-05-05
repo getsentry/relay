@@ -32,6 +32,7 @@ pub enum CspDirective {
     ChildSrc,
     ConnectSrc,
     DefaultSrc,
+    FencedFrameSrc,
     FontSrc,
     FormAction,
     FrameAncestors,
@@ -66,6 +67,7 @@ relay_common::derive_fromstr_and_display!(CspDirective, InvalidSecurityError, {
     CspDirective::ChildSrc => "child-src",
     CspDirective::ConnectSrc => "connect-src",
     CspDirective::DefaultSrc => "default-src",
+    CspDirective::FencedFrameSrc => "fenced-frame-src",
     CspDirective::FontSrc => "font-src",
     CspDirective::FormAction => "form-action",
     CspDirective::FrameAncestors => "frame-ancestors",
@@ -2126,5 +2128,28 @@ mod tests {
         let effective_directive = raw_csp.effective_directive().unwrap();
 
         assert_eq!(effective_directive, CspDirective::ScriptSrc);
+    }
+
+    #[test]
+    fn test_csp_report_fenced_frame_src() {
+        let json = r#"
+            {
+              "csp-report": {
+                "document-uri": "https://example.com",
+                "referrer": "https://www.google.com/",
+                "violated-directive": "fenced-frame-src",
+                "effective-directive": "fenced-frame-src",
+                "original-policy": "default-src 'self' 'unsafe-eval'",
+                "disposition": "enforce",
+                "blocked-uri": "",
+                "status-code": 200,
+                "script-sample": ""
+              }
+            }
+        "#;
+        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
+        let raw_csp = raw_report.csp_report;
+
+        assert!(raw_csp.effective_directive().is_ok());
     }
 }

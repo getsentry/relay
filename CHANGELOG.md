@@ -5,6 +5,18 @@
 **Features**:
 
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
+- Add the type of the attachment that made the envelope too large to invalid outcomes. ([#4695](https://github.com/getsentry/relay/pull/4695))
+- Add OTA Updates Event Context for Expo and other applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
+- Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
+- Allow pii scrubbing of all span `sentry_tags` fields. ([#4698](https://github.com/getsentry/relay/pull/4698))
+
+**Bug Fixes**:
+
+- Add `fenced-frame-src` to `CspDirective`. ([#4691](https://github.com/getsentry/relay/pull/4691))
+
+**Internal**:
+
+- Remove threads with 1 non-idle sample in profiling chunks. ([#4694](https://github.com/getsentry/relay/pull/4694))
 
 ## 25.4.0
 
@@ -28,6 +40,7 @@
 - Exposes all service utilization with instance labels instead of the last. ([#4654](https://github.com/getsentry/relay/pull/4654))
 - Ensure that every span's parent exists. ([#4661](https://github.com/getsentry/relay/pull/4661))
 - Serialize trace ids consistently in events. ([#4673](https://github.com/getsentry/relay/pull/4673))
+- Add profile_chunk_ui as item type alias. ([#4697](https://github.com/getsentry/relay/pull/4697))
 
 **Internal**:
 

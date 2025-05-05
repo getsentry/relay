@@ -17,6 +17,7 @@ android_trace_log = { workspace = true, features = ["serde"] }
 bytes = { workspace = true }
 chrono = { workspace = true }
 data-encoding = { workspace = true }
+hashbrown = { workspace = true }
 itertools = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-dynamic-config = { workspace = true }
