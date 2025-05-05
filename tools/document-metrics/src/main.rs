@@ -68,11 +68,11 @@ fn add_feature(features: &mut Vec<String>, l: &syn::MetaList) -> Result<()> {
             if meta.path.is_ident("feature") {
                 let s = meta.value()?.parse::<LitStr>()?;
                 features.push(s.value());
-            } else {
+            } else if let Some(ident) = meta.path.get_ident() {
+                features.push(ident.to_string());
+            } else if !meta.input.peek(syn::Token![,]) {
                 // Ignore everything else.
-                if !meta.input.peek(syn::Token![,]) {
-                    let _ = meta.value()?.parse::<Lit>()?;
-                }
+                let _ = meta.value()?.parse::<Lit>()?;
             }
             Ok(())
         })?;
@@ -300,6 +300,9 @@ mod tests {
                 /// The metric we test.
                 #[cfg(feature = "conditional")]
                 ConditionalSet,
+                /// Another metric we test.
+                #[cfg(cfg_flag)]
+                ConditionalCompileSet,
             }
 
             impl SetMetric for TestSets {
@@ -308,6 +311,8 @@ mod tests {
                         Self::UniqueSet => "test.unique",
                         #[cfg(feature = "conditional")]
                         Self::ConditionalSet => "test.conditional",
+                        #[cfg(cfg_flag)]
+                        Self::ConditionalCompileSet => "test.conditional_compile",
                     }
                 }
             }
@@ -322,6 +327,14 @@ mod tests {
                 description: "The metric we test.",
                 features: [
                     "conditional",
+                ],
+            },
+            Metric {
+                ty: Set,
+                name: "test.conditional_compile",
+                description: "Another metric we test.",
+                features: [
+                    "cfg_flag",
                 ],
             },
             Metric {
