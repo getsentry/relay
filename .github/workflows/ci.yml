@@ -63,11 +63,8 @@ jobs:
           RUSTDOCFLAGS: -Dwarnings
 
   lint_default:
-    needs: build-setup
     name: Lint Rust Default Features
     runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
 
     steps:
       - name: Install libcurl-dev
@@ -78,12 +75,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'sentry')
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --component clippy --no-self-update
