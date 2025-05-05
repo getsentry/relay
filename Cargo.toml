@@ -32,7 +32,7 @@ print_stdout = "warn"
 print_stderr = "warn"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(playstation)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
 
 [workspace.dependencies]
 prosperoconv = { path = "relay-prosperoconv" }
