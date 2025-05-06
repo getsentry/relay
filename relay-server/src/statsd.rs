@@ -871,7 +871,7 @@ pub enum RelayCounters {
     #[cfg(feature = "processing")]
     MetricDelayCount,
     /// The amount of times PlayStation processing was attempted.
-    #[cfg(sentry)]
+    #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
 }
 
@@ -920,7 +920,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelaySum => "metrics.delay.sum",
             #[cfg(feature = "processing")]
             RelayCounters::MetricDelayCount => "metrics.delay.count",
-            #[cfg(sentry)]
+            #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
         }
     }

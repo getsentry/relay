@@ -2,13 +2,12 @@
 //!
 //! These functions are included only in the processing mode.
 
-use prosperoconv::write_dump;
-use prosperoconv::{extract_data, ProsperoDump};
-
 use relay_event_schema::protocol::{
     AppContext, Context, Contexts, DeviceContext, LenientString, OsContext, RuntimeContext, Tags,
 };
 use relay_event_schema::protocol::{Event, TagEntry};
+use relay_prosperoconv::write_dump;
+use relay_prosperoconv::{extract_data, ProsperoDump};
 use relay_protocol::{Annotated, Object};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};

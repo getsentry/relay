@@ -99,7 +99,7 @@ mod span;
 mod transaction;
 pub use span::extract_transaction_span;
 
-#[cfg(sentry)]
+#[cfg(all(sentry, feature = "processing"))]
 mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
@@ -538,7 +538,7 @@ pub enum ProcessingError {
     #[error("nintendo switch dying message processing failed {0:?}")]
     InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
 
-    #[cfg(sentry)]
+    #[cfg(all(sentry, feature = "processing"))]
     #[error("playstation dump processing failed: {0}")]
     InvalidPlaystationDump(String),
 }
@@ -565,7 +565,7 @@ impl ProcessingError {
 
             #[cfg(feature = "processing")]
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
-            #[cfg(sentry)]
+            #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
 
             // Processing-only outcomes (Sentry-internal Relays)
@@ -1607,7 +1607,7 @@ impl EnvelopeProcessorService {
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }
-            #[cfg(sentry)]
+            #[cfg(all(sentry, feature = "processing"))]
             if let Some(inner_event_fully_normalized) =
                 playstation::process(managed_envelope, &mut event)?
             {

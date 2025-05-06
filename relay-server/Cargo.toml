@@ -61,7 +61,6 @@ opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
-prosperoconv = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
@@ -82,6 +81,7 @@ relay-metrics = { workspace = true }
 relay-monitors = { workspace = true }
 relay-pii = { workspace = true }
 relay-profiling = { workspace = true }
+relay-prosperoconv = { workspace = true }
 relay-protocol = { workspace = true }
 relay-quotas = { workspace = true }
 relay-redis = { workspace = true }

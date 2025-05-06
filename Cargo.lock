@@ -2610,7 +2610,7 @@ dependencies = [
  "debugid",
  "encoding_rs",
  "memmap2",
- "minidump-common 0.22.2",
+ "minidump-common",
  "num-traits",
  "procfs-core 0.17.0",
  "range-map",
@@ -2619,21 +2619,6 @@ dependencies = [
  "time",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "minidump-common"
-version = "0.21.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c4d14bcca0fd3ed165a03000480aaa364c6860c34e900cb2dafdf3b95340e77"
-dependencies = [
- "bitflags 2.6.0",
- "debugid",
- "num-derive",
- "num-traits",
- "range-map",
- "scroll",
- "smart-default",
 ]
 
 [[package]]
@@ -2653,9 +2638,9 @@ dependencies = [
 
 [[package]]
 name = "minidump-writer"
-version = "0.8.9"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2abcd9c8a1e6e1e9d56ce3627851f39a17ea83e17c96bc510f29d7e43d78a7d"
+checksum = "77ef25fdfb9560aa90ad9b64e6901a86e63e7b3f125ca3083dd3d3936c12acc6"
 dependencies = [
  "bitflags 2.6.0",
  "byteorder",
@@ -2667,7 +2652,7 @@ dependencies = [
  "mach2",
  "memmap2",
  "memoffset",
- "minidump-common 0.21.2",
+ "minidump-common",
  "nix",
  "procfs-core 0.16.0",
  "scroll",
@@ -3384,23 +3369,6 @@ checksum = "239df02d8349b06fc07398a3a1697b06418223b1c7725085e801e7c0fc6a12ec"
 dependencies = [
  "bitflags 2.6.0",
  "hex",
-]
-
-[[package]]
-name = "prosperoconv"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dircpy",
- "lz4_flex",
- "mime_guess",
- "minidump-writer",
- "object",
- "rmpv",
- "sentry",
- "tempfile",
- "tracing",
- "watto",
 ]
 
 [[package]]
@@ -4131,6 +4099,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-prosperoconv"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dircpy",
+ "lz4_flex",
+ "mime_guess",
+ "minidump-writer",
+ "object",
+ "rmpv",
+ "sentry",
+ "tempfile",
+ "tracing",
+ "watto",
+]
+
+[[package]]
 name = "relay-protocol"
 version = "25.4.0"
 dependencies = [
@@ -4267,7 +4252,6 @@ dependencies = [
  "papaya",
  "pin-project-lite",
  "priority-queue",
- "prosperoconv",
  "prost",
  "rand 0.8.5",
  "regex",
@@ -4288,6 +4272,7 @@ dependencies = [
  "relay-ourlogs",
  "relay-pii",
  "relay-profiling",
+ "relay-prosperoconv",
  "relay-protocol",
  "relay-quotas",
  "relay-redis",

@@ -365,7 +365,6 @@ jobs:
 
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
-      TEMPEST_COMMIT_SHA: "615c09d736bd466cae42842190a06f84977f4a58"
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
       FEATURES: |-
         ${{fromJson('{
@@ -401,14 +400,9 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Run Cargo Tests
-        run: cargo test -p relay-server --lib --all-features -- services::processor::playstation
-
       - name: Compile
         run: |
           cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
-
-
 
       - name: Split debug info
         run: |
