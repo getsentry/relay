@@ -1078,7 +1078,7 @@ impl StoreService {
                 }
             }
 
-            let mut message = vec![];
+            let mut message = Vec::new();
 
             if trace_item.encode(&mut message).is_err() {
                 return Ok(());
