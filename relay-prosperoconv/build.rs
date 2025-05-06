@@ -5,6 +5,8 @@ use dircpy::CopyBuilder;
 use tempfile::tempdir;
 
 fn main() {
+    println!("cargo:warning=Running build.rs script");
+
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=RUSTFLAGS");
     println!("cargo:rerun-if-changed=prosperoconv.version");
