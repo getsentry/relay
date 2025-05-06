@@ -73,9 +73,9 @@ pub fn process(
         }
 
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);
+        return Ok(Some(EventFullyNormalized(false)));
     }
-
-    Ok(Some(EventFullyNormalized(false)))
+    Ok(None)
 }
 
 pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
