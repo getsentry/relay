@@ -11,7 +11,7 @@
 #![recursion_limit = "256"]
 
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::meta::ParseNestedMeta;
 use syn::{Ident, Lit, LitBool, LitInt, LitStr};
 use synstructure::decl_derive;

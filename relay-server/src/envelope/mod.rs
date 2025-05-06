@@ -39,7 +39,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_dynamic_config::{ErrorBoundary, Feature};
-use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
+use relay_event_normalization::{TransactionNameRule, normalize_transaction_name};
 use relay_event_schema::protocol::{Event, EventId};
 use relay_protocol::{Annotated, Value};
 use relay_sampling::DynamicSamplingContext;
@@ -674,15 +674,19 @@ mod tests {
 
         assert_eq!(taken.filename(), Some("item1"));
 
-        assert!(envelope
-            .take_item_by(|item| item.ty() == &ItemType::Event)
-            .is_none());
+        assert!(
+            envelope
+                .take_item_by(|item| item.ty() == &ItemType::Event)
+                .is_none()
+        );
     }
 
     #[test]
     fn test_deserialize_envelope_empty() {
         // Without terminating newline after header
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}");
+        let bytes = Bytes::from(
+            "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}",
+        );
         let envelope = Envelope::parse_bytes(bytes).unwrap();
 
         let event_id = EventId("9ec79c33ec9942ab8353589fcb2e04dc".parse().unwrap());
@@ -692,7 +696,9 @@ mod tests {
 
     #[test]
     fn test_deserialize_request_meta() {
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://localhost/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}");
+        let bytes = Bytes::from(
+            "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@other.sentry.io/42\",\"client\":\"sentry/javascript\",\"version\":6,\"origin\":\"http://localhost/\",\"remote_addr\":\"127.0.0.1\",\"forwarded_for\":\"8.8.8.8\",\"user_agent\":\"sentry-cli/1.0\"}",
+        );
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         let meta = envelope.meta();
 
@@ -716,7 +722,9 @@ mod tests {
     #[test]
     fn test_deserialize_envelope_empty_newline() {
         // With terminating newline after header
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n");
+        let bytes = Bytes::from(
+            "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n",
+        );
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 0);
     }
@@ -985,7 +993,9 @@ mod tests {
 
     #[test]
     fn test_parse_request_sent_at() {
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\", \"sent_at\": \"1970-01-01T00:02:03Z\"}");
+        let bytes = Bytes::from(
+            "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\", \"sent_at\": \"1970-01-01T00:02:03Z\"}",
+        );
         let envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         let sent_at = envelope.sent_at().unwrap();
 
@@ -1003,7 +1013,9 @@ mod tests {
 
     #[test]
     fn test_parse_request_no_origin() {
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}");
+        let bytes = Bytes::from(
+            "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}",
+        );
         let envelope = Envelope::parse_request(bytes, request_meta()).unwrap();
         let meta = envelope.meta();
 
@@ -1014,21 +1026,27 @@ mod tests {
     #[test]
     #[should_panic(expected = "project id")]
     fn test_parse_request_validate_project() {
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\"}");
+        let bytes = Bytes::from(
+            "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/99\"}",
+        );
         Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "public key")]
     fn test_parse_request_validate_key() {
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\"}");
+        let bytes = Bytes::from(
+            "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:@sentry.io/42\"}",
+        );
         Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "origin")]
     fn test_parse_request_validate_origin() {
-        let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}");
+        let bytes = Bytes::from(
+            "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}",
+        );
         Envelope::parse_request(bytes, request_meta()).unwrap();
     }
 
@@ -1151,7 +1169,9 @@ mod tests {
 
         // Envelope only created in order to run the parametrize dsc method.
         let mut envelope = {
-            let bytes = bytes::Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n");
+            let bytes = bytes::Bytes::from(
+                "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n",
+            );
             *Envelope::parse_bytes(bytes).unwrap()
         };
         envelope.set_dsc(dsc.clone());

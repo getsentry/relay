@@ -17,12 +17,12 @@ use serde::{Deserialize, Serialize};
 use relay_event_schema::protocol::EventId;
 use relay_metrics::FiniteF64;
 
+use crate::MAX_PROFILE_CHUNK_DURATION;
 use crate::error::ProfileError;
 use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::types::ClientSdk;
 use crate::utils::default_client_sdk;
-use crate::MAX_PROFILE_CHUNK_DURATION;
 
 const MAX_PROFILE_CHUNK_DURATION_SECS: f64 = MAX_PROFILE_CHUNK_DURATION.as_secs_f64();
 #[derive(Debug, Serialize, Deserialize)]
@@ -222,7 +222,7 @@ pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
 mod tests {
     use relay_metrics::FiniteF64;
 
-    use crate::sample::v2::{parse, ProfileData, Sample};
+    use crate::sample::v2::{ProfileData, Sample, parse};
 
     #[test]
     fn test_roundtrip() {

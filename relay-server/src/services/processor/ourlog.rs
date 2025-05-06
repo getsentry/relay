@@ -18,7 +18,7 @@ use {
     crate::services::processor::ProcessingError,
     relay_dynamic_config::ProjectConfig,
     relay_event_normalization::SchemaProcessor,
-    relay_event_schema::processor::{process_value, ProcessingState},
+    relay_event_schema::processor::{ProcessingState, process_value},
     relay_event_schema::protocol::{OurLog, OurLogAttributeType},
     relay_ourlogs::OtelLog,
     relay_pii::PiiProcessor,
@@ -261,10 +261,12 @@ mod tests {
     fn test_logs_sampled_default() {
         let global_config = GlobalConfig::default();
         let config = Arc::new(Config::default());
-        assert!(global_config
-            .options
-            .ourlogs_ingestion_sample_rate
-            .is_none());
+        assert!(
+            global_config
+                .options
+                .ourlogs_ingestion_sample_rate
+                .is_none()
+        );
         let (mut managed_envelope, project_info) = params();
         filter(&mut managed_envelope, config, project_info, &global_config);
         assert!(

@@ -288,7 +288,7 @@ fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{get_path, SerializableAnnotated};
+    use relay_protocol::{SerializableAnnotated, get_path};
 
     #[test]
     fn parse_otel_log() {

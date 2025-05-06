@@ -268,7 +268,7 @@ impl FromValue for Contexts {
     fn from_value(mut annotated: Annotated<Value>) -> Annotated<Self> {
         if let Annotated(Some(Value::Object(ref mut items)), _) = annotated {
             for (key, value) in items.iter_mut() {
-                if let Annotated(Some(Value::Object(ref mut items)), _) = value {
+                if let Annotated(Some(Value::Object(items)), _) = value {
                     if !items.contains_key("type") {
                         items.insert(
                             "type".to_string(),

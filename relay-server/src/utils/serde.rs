@@ -1,5 +1,5 @@
 use serde::de::IgnoredAny;
-use serde::{de, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de};
 
 /// Deserializes only the count of a sequence ignoring all individual items.
 #[derive(Clone, Copy, Debug, Default)]

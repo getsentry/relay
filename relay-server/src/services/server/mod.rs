@@ -2,9 +2,9 @@ use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::Request;
-use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
+use axum::extract::Request;
+use axum::http::{HeaderName, HeaderValue, header};
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
 use relay_config::Config;

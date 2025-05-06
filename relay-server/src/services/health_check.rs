@@ -4,7 +4,7 @@ use relay_config::Config;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
 use tokio::sync::watch;
-use tokio::time::{timeout, Instant};
+use tokio::time::{Instant, timeout};
 
 use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::metrics::RouterHandle;

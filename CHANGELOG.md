@@ -17,6 +17,7 @@
 **Internal**:
 
 - Remove threads with 1 non-idle sample in profiling chunks. ([#4694](https://github.com/getsentry/relay/pull/4694))
+- Migrate all Rust workspace crates to edition 2024. ([#4705](https://github.com/getsentry/relay/pull/4705))
 
 ## 25.4.0
 
@@ -508,6 +509,7 @@
 - Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
 - Add support for `CF-Connecting-IP` header. ([#3496](https://github.com/getsentry/relay/pull/3496))
 - Add `received_at` timestamp to `BucketMetadata` to measure the oldest received timestamp of the `Bucket`. ([#3488](https://github.com/getsentry/relay/pull/3488))
+- Properly identify meta web crawlers when filtering out web crawlers. ([#4699](https://github.com/getsentry/relay/pull/4699))
 
 **Internal**:
 

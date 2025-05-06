@@ -11,7 +11,7 @@ use sentry::types::Dsn;
 use sentry::{TracesSampler, TransactionContext};
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{prelude::*, EnvFilter, Layer};
+use tracing_subscriber::{EnvFilter, Layer, prelude::*};
 
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
@@ -280,6 +280,11 @@ fn get_default_filters() -> EnvFilter {
 
 /// Initialize the logging system and reporting to Sentry.
 ///
+/// # Safety
+///
+/// The function is not safe to be called from a multi-threaded program,
+/// due to modifications of environment variables.
+///
 /// # Example
 ///
 /// ```
@@ -290,11 +295,13 @@ fn get_default_filters() -> EnvFilter {
 ///
 /// let sentry_config = relay_log::SentryConfig::default();
 ///
-/// relay_log::init(&log_config, &sentry_config);
+/// unsafe { relay_log::init(&log_config, &sentry_config) };
 /// ```
-pub fn init(config: &LogConfig, sentry: &SentryConfig) {
+pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
     if config.enable_backtraces {
-        env::set_var("RUST_BACKTRACE", "full");
+        unsafe {
+            env::set_var("RUST_BACKTRACE", "full");
+        }
     }
 
     let subscriber = tracing_subscriber::fmt::layer()

@@ -88,7 +88,7 @@ impl From<Tags> for Object<JsonLenientString> {
     fn from(value: Tags) -> Self {
         value
             .0
-             .0
+            .0
             .into_iter()
             .flat_map(Annotated::into_value)
             .flat_map(|p| Some((p.0.into_value()?, p.1.map_value(Into::into))))

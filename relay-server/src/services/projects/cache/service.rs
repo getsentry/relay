@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
 use futures::StreamExt as _;
+use futures::future::BoxFuture;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_statsd::metric;

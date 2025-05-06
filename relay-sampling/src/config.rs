@@ -542,15 +542,19 @@ mod tests {
         let mut time_range_without_start = time_range;
         time_range_without_start.start = None;
 
-        assert!(decaying_fn
-            .adjust_sample_rate(1.0, halfway, time_range_without_start)
-            .is_none());
+        assert!(
+            decaying_fn
+                .adjust_sample_rate(1.0, halfway, time_range_without_start)
+                .is_none()
+        );
 
         let mut time_range_without_end = time_range;
         time_range_without_end.end = None;
 
-        assert!(decaying_fn
-            .adjust_sample_rate(1.0, halfway, time_range_without_end)
-            .is_none());
+        assert!(
+            decaying_fn
+                .adjust_sample_rate(1.0, halfway, time_range_without_end)
+                .is_none()
+        );
     }
 }

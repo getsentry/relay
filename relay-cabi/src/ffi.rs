@@ -88,7 +88,7 @@ impl RelayErrorCode {
 }
 
 /// Initializes the library
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn relay_init() {
     relay_ffi::set_panic_hook();
 }
@@ -96,7 +96,7 @@ pub extern "C" fn relay_init() {
 /// Returns the last error code.
 ///
 /// If there is no error, 0 is returned.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn relay_err_get_last_code() -> RelayErrorCode {
     relay_ffi::with_last_error(RelayErrorCode::from_error).unwrap_or(RelayErrorCode::NoError)
 }
@@ -105,7 +105,7 @@ pub extern "C" fn relay_err_get_last_code() -> RelayErrorCode {
 ///
 /// If there is no error an empty string is returned.  This allocates new memory
 /// that needs to be freed with `relay_str_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn relay_err_get_last_message() -> RelayStr {
     use std::fmt::Write;
     relay_ffi::with_last_error(|err| {
@@ -119,7 +119,7 @@ pub extern "C" fn relay_err_get_last_message() -> RelayStr {
 }
 
 /// Returns the panic information as string.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn relay_err_get_backtrace() -> RelayStr {
     let backtrace = relay_ffi::with_last_error(|error| error.backtrace().to_string())
         .filter(|bt| !bt.is_empty());
@@ -131,7 +131,7 @@ pub extern "C" fn relay_err_get_backtrace() -> RelayStr {
 }
 
 /// Clears the last error.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn relay_err_clear() {
     relay_ffi::take_last_error();
 }

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
-use serde::{de, Deserialize};
+use serde::{Deserialize, de};
 use serde_json::{Map, Value};
 
 use crate::types::ClientSdk;

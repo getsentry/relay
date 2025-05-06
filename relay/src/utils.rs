@@ -2,8 +2,8 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::Result;
-use dialoguer::theme::{ColorfulTheme, Theme};
 use dialoguer::Input;
+use dialoguer::theme::{ColorfulTheme, Theme};
 use once_cell::sync::Lazy;
 
 static THEME: Lazy<ColorfulTheme> = Lazy::new(ColorfulTheme::default);

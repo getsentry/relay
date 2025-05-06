@@ -1,6 +1,6 @@
+use crate::MemoryStat;
 use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::processor::EnvelopeProcessorServicePool;
-use crate::MemoryStat;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
 };

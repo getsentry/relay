@@ -42,7 +42,7 @@ impl TransactionSource {
             Self::Sanitized => "sanitized",
             Self::Task => "task",
             Self::Unknown => "unknown",
-            Self::Other(ref s) => s,
+            Self::Other(s) => s,
         }
     }
 }

@@ -26,7 +26,7 @@ mod traces;
 mod unreal;
 
 use axum::extract::DefaultBodyLimit;
-use axum::routing::{any, get, post, Router};
+use axum::routing::{Router, any, get, post};
 use relay_config::Config;
 
 use crate::middlewares;

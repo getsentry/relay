@@ -23,7 +23,7 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use relay_system::{channel, Addr, Interface};
+use relay_system::{Addr, Interface, channel};
 use tokio::task::JoinHandle;
 
 /// Setup the test environment.

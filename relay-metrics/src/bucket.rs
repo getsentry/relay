@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::protocol::{
-    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricName,
-    MetricResourceIdentifier, MetricType, SetType,
+    self, CounterType, DistributionType, GaugeType, MetricName, MetricResourceIdentifier,
+    MetricType, SetType, hash_set_value,
 };
 use crate::{FiniteF64, MetricNamespace, ParseMetricError};
 

@@ -553,7 +553,7 @@ impl Event {
         let headers = self.request.value()?.headers.value()?;
 
         for item in headers.iter() {
-            if let Some((ref o_k, ref v)) = item.value() {
+            if let Some((o_k, v)) = item.value() {
                 if let Some(k) = o_k.as_str() {
                     if k.eq_ignore_ascii_case("user-agent") {
                         return v.as_str();
@@ -577,7 +577,7 @@ impl Event {
 
         // Iterate recursively to fetch nested values
         for key in path {
-            if let Value::Object(ref object) = value {
+            if let Value::Object(object) = value {
                 value = object.get(key)?.value()?;
             } else {
                 return None;

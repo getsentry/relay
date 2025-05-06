@@ -80,12 +80,12 @@
 //! use std::ffi::CString;
 //! use std::os::raw::c_char;
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! pub unsafe extern "C" fn init_ffi() {
 //!     relay_ffi::set_panic_hook();
 //! }
 //!
-//! #[no_mangle]
+//! #[unsafe(no_mangle)]
 //! pub unsafe extern "C" fn last_strerror() -> *mut c_char {
 //!     let ptr_opt = relay_ffi::with_last_error(|err| {
 //!         CString::new(err.to_string())
@@ -144,9 +144,9 @@ pub mod __internal {
             Ok(Ok(result)) => result,
             Ok(Err(err)) => {
                 set_last_error(err);
-                std::mem::zeroed()
+                unsafe { std::mem::zeroed() }
             }
-            Err(_) => std::mem::zeroed(),
+            Err(_) => unsafe { std::mem::zeroed() },
         }
     }
 }

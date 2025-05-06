@@ -5,10 +5,10 @@ use relay_event_schema::protocol::{
 use relay_metrics::Bucket;
 use uuid::Uuid;
 
+use crate::metrics_extraction::IntoMetric;
 use crate::metrics_extraction::sessions::types::{
     CommonTags, SessionMetric, SessionSessionTags, SessionUserTags,
 };
-use crate::metrics_extraction::IntoMetric;
 
 pub mod types;
 

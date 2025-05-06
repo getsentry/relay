@@ -14,7 +14,7 @@ use relay_protocol::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{
-    process_value, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
+    ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType, process_value,
 };
 
 /// An array-like wrapper used in various places.

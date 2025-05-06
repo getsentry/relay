@@ -1011,8 +1011,7 @@ mod tests {
         });
 
         let formatted = format_rate_limits(&rate_limits);
-        let expected =
-            "42:metric_bucket:organization:my_limit:custom;spans, 42:metric_bucket:organization::spans";
+        let expected = "42:metric_bucket:organization:my_limit:custom;spans, 42:metric_bucket:organization::spans";
         assert_eq!(formatted, expected);
     }
 

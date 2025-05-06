@@ -8,8 +8,8 @@ use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use smallvec::SmallVec;
 
-use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 use crate::REJECT_ALL_SECS;
+use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 
 /// A monotonic expiration marker for rate limits.
 ///
@@ -237,7 +237,7 @@ impl RateLimit {
             RateLimitScope::Global => true,
             RateLimitScope::Organization(org_id) => scoping.organization_id == org_id,
             RateLimitScope::Project(project_id) => scoping.project_id == project_id,
-            RateLimitScope::Key(ref key) => scoping.project_key == *key,
+            RateLimitScope::Key(key) => scoping.project_key == key,
         }
     }
 }
@@ -492,8 +492,8 @@ mod tests {
     use smallvec::smallvec;
 
     use super::*;
-    use crate::quota::DataCategory;
     use crate::MetricNamespaceScoping;
+    use crate::quota::DataCategory;
 
     #[test]
     fn test_parse_retry_after() {

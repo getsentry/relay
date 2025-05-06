@@ -187,7 +187,7 @@ impl Controller {
 
 #[cfg(unix)]
 async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
-    use tokio::signal::unix::{signal, SignalKind};
+    use tokio::signal::unix::{SignalKind, signal};
 
     let mut sig_int = signal(SignalKind::interrupt())?;
     let mut sig_quit = signal(SignalKind::quit())?;

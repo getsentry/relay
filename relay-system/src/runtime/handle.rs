@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use futures::stream::FuturesUnordered;
 use futures::StreamExt as _;
+use futures::stream::FuturesUnordered;
 
 use crate::runtime::metrics::TokioCallbackMetrics;
 use crate::{RuntimeMetrics, ServiceJoinHandle, ServiceRegistry, ServiceSpawn, ServicesMetrics};

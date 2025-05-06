@@ -1,5 +1,5 @@
-use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::sync::{Arc, Mutex};
 
 use sentry_kafka_schemas::{Schema as SentrySchema, SchemaError as SentrySchemaError};

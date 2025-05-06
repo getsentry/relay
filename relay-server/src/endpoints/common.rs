@@ -1,6 +1,6 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 use relay_config::RelayMode;
 use relay_event_schema::protocol::{EventId, EventType};

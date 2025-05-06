@@ -35,7 +35,7 @@ else
     # in some environments the wrong edition is being detected, so we
     # double-set it here. the exact details were lost, but --edition was added
     # in https://github.com/getsentry/relay/pull/797
-    check_changed_files rs $cargo_fmt --check --edition=2021 --color=always || exit 1
+    check_changed_files rs $cargo_fmt --check --edition=2024 --color=always || exit 1
 fi
 
 black="black"

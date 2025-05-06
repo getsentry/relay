@@ -275,8 +275,8 @@ mod tests {
         Request, Span, SpanId, Stacktrace, TagEntry, Tags, TraceContext, User, Values,
     };
     use relay_protocol::{
-        assert_annotated_snapshot, get_path, get_value, Annotated, Error, ErrorKind, FromValue,
-        Object, SerializableAnnotated, Value,
+        Annotated, Error, ErrorKind, FromValue, Object, SerializableAnnotated, Value,
+        assert_annotated_snapshot, get_path, get_value,
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
@@ -284,7 +284,7 @@ mod tests {
 
     use crate::stacktrace::normalize_non_raw_frame;
     use crate::validation::validate_event;
-    use crate::{normalize_event, EventValidationConfig, GeoIpLookup, NormalizationConfig};
+    use crate::{EventValidationConfig, GeoIpLookup, NormalizationConfig, normalize_event};
 
     use super::*;
 

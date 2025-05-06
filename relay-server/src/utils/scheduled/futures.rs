@@ -6,8 +6,8 @@ use std::{
 
 use crate::utils::ScheduledQueue;
 use futures::{
-    stream::{FusedStream, FuturesUnordered},
     Stream, StreamExt,
+    stream::{FusedStream, FuturesUnordered},
 };
 use tokio::time::Instant;
 
@@ -90,7 +90,7 @@ where
 mod tests {
     use std::time::Duration;
 
-    use futures::future::{ready, Ready};
+    use futures::future::{Ready, ready};
 
     use super::*;
 

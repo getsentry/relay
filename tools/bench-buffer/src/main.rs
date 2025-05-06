@@ -54,7 +54,9 @@ async fn main() {
         duration_secs,
         db,
     } = args;
-    relay_log::init(&Default::default(), &Default::default());
+    unsafe {
+        relay_log::init(&Default::default(), &Default::default());
+    }
 
     let dir = tempfile::tempdir().unwrap();
     let path = db.unwrap_or(dir.path().join("envelopes.db"));

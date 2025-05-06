@@ -1,7 +1,7 @@
 //! Returns captured events.
 
 use axum::extract::Path;
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 use relay_event_schema::protocol::EventId;
 

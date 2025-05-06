@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use regex::Regex;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 use crate::config::RuleType;
 
@@ -53,7 +53,7 @@ pub fn get_regex_for_rule_type(
     let kv = PatternType::KeyValue;
 
     match ty {
-        RuleType::RedactPair(ref redact_pair) => {
+        RuleType::RedactPair(redact_pair) => {
             if let Ok(pattern) = redact_pair.key_pattern.compiled() {
                 smallvec![(kv, pattern, ReplaceBehavior::replace_value())]
             } else {
@@ -64,7 +64,7 @@ pub fn get_regex_for_rule_type(
             smallvec![(kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value())]
         }
         RuleType::Anything => smallvec![(v, &*ANYTHING_REGEX, ReplaceBehavior::replace_match())],
-        RuleType::Pattern(ref r) => {
+        RuleType::Pattern(r) => {
             let replace_behavior = match r.replace_groups {
                 Some(ref groups) => {
                     ReplaceBehavior::replace_groups(groups.iter().copied().collect())
@@ -116,12 +116,14 @@ macro_rules! regex {
 
             #[test]
             fn supports_byte_mode() {
-                assert!(regex::bytes::RegexBuilder::new($name.as_str())
-                    .unicode(false)
-                    .multi_line(false)
-                    .dot_matches_new_line(true)
-                    .build()
-                    .is_ok());
+                assert!(
+                    regex::bytes::RegexBuilder::new($name.as_str())
+                        .unicode(false)
+                        .multi_line(false)
+                        .dot_matches_new_line(true)
+                        .build()
+                        .is_ok()
+                );
             }
         }
         use $name::$name;

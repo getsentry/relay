@@ -1,13 +1,13 @@
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::task::{Context, Poll};
 
+use futures::FutureExt;
 use futures::future::CatchUnwind;
 use futures::stream::{FusedStream, FuturesUnordered, Stream};
-use futures::FutureExt;
 use pin_project_lite::pin_project;
 use tokio::task::Unconstrained;
 
@@ -208,12 +208,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::{future::BoxFuture, FutureExt};
+    use futures::{FutureExt, future::BoxFuture};
     use std::future;
     use std::sync::atomic::AtomicBool;
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
     };
     use std::time::Duration;
 

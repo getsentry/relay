@@ -362,8 +362,8 @@ impl Service for GlobalConfigService {
                 Err(e) => {
                     relay_log::error!("failed to load global config from file: {}", e);
                     relay_log::info!(
-                                "serving default global configs due to failure to load global config from file"
-                            );
+                        "serving default global configs due to failure to load global config from file"
+                    );
                     self.global_config_watch
                         .send_replace(Status::Ready(Arc::default()));
                 }

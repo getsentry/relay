@@ -216,7 +216,7 @@ impl Outcome {
             }
             #[cfg(feature = "processing")]
             Outcome::CardinalityLimited(id) => Some(Cow::Borrowed(id)),
-            Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
+            Outcome::ClientDiscard(discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
             Outcome::Accepted => None,
         }

@@ -1,5 +1,5 @@
 use serde::de::value::Error;
-use serde::{ser, Serialize};
+use serde::{Serialize, ser};
 use smallvec::SmallVec;
 
 use crate::traits::{IntoValue, SkipSerialization};

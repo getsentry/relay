@@ -1,7 +1,7 @@
+use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter};
-use axum::RequestExt;
+use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
@@ -251,12 +251,12 @@ pub fn route(config: &Config) -> MethodRouter<ServiceState> {
 #[cfg(test)]
 mod tests {
     use crate::envelope::ContentType;
-    use crate::utils::{multipart_items, FormDataIter};
+    use crate::utils::{FormDataIter, multipart_items};
     use axum::body::Body;
-    use bzip2::write::BzEncoder;
     use bzip2::Compression as BzCompression;
-    use flate2::write::GzEncoder;
+    use bzip2::write::BzEncoder;
     use flate2::Compression as GzCompression;
+    use flate2::write::GzEncoder;
     use liblzma::write::XzEncoder;
     use relay_config::Config;
     use std::io::Write;

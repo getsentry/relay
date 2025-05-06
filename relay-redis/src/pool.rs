@@ -1,6 +1,6 @@
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleError, RecycleResult};
-use deadpool_redis::cluster::Manager as ClusterManager;
 use deadpool_redis::Manager as SingleManager;
+use deadpool_redis::cluster::Manager as ClusterManager;
 use futures::FutureExt;
 use std::ops::{Deref, DerefMut};
 

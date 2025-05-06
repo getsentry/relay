@@ -1,6 +1,6 @@
 use relay_common::time::UnixTimestamp;
-use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
+use serde::ser::{SerializeMap, SerializeSeq};
 
 use crate::{
     BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType, SetValue,
@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
 
-use crate::bucket::Bucket;
 use crate::BucketValue;
+use crate::bucket::Bucket;
 
 /// The fraction of size passed to [`BucketsView::by_size()`] at which buckets will be split. A value of
 /// `2` means that all buckets smaller than half of `metrics_max_batch_size` will be moved in their entirety,
@@ -225,7 +225,9 @@ impl<'a> Iterator for BucketsViewIter<'a> {
         let next = BucketView::new(next).select(self.current.bucket..end);
         let Some(next) = next else {
             debug_assert!(false, "invariant violated, invalid bucket split");
-            relay_log::error!("Internal invariant violated, invalid bucket split, dropping all remaining buckets.");
+            relay_log::error!(
+                "Internal invariant violated, invalid bucket split, dropping all remaining buckets."
+            );
             return None;
         };
 
@@ -302,7 +304,9 @@ where
             let bucket = BucketView::new(bucket).select(self.current.bucket..bucket.value.len());
             let Some(bucket) = bucket else {
                 debug_assert!(false, "internal invariant violated, invalid bucket split");
-                relay_log::error!("Internal invariant violated, invalid bucket split, dropping all remaining buckets.");
+                relay_log::error!(
+                    "Internal invariant violated, invalid bucket split, dropping all remaining buckets."
+                );
                 return None;
             };
 

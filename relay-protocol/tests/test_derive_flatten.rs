@@ -1,7 +1,7 @@
 #![cfg(feature = "derive")]
 
 use relay_protocol::{
-    assert_annotated_snapshot, Annotated, Empty, FromValue, IntoValue, Object, Value,
+    Annotated, Empty, FromValue, IntoValue, Object, Value, assert_annotated_snapshot,
 };
 
 #[test]

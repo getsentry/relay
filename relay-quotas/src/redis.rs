@@ -6,10 +6,10 @@ use relay_redis::redis::Script;
 use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
 use thiserror::Error;
 
+use crate::REJECT_ALL_SECS;
 use crate::global::GlobalLimiter;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::REJECT_ALL_SECS;
 
 /// The `grace` period allows accommodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
@@ -383,8 +383,8 @@ mod tests {
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_redis::redis::AsyncCommands;
     use relay_redis::RedisConfigOptions;
+    use relay_redis::redis::AsyncCommands;
     use smallvec::smallvec;
     use tokio::sync::Mutex;
 
@@ -681,32 +681,40 @@ mod tests {
         let rate_limiter = build_rate_limiter();
 
         // limit is 1, so first call not rate limited
-        assert!(!rate_limiter
-            .is_rate_limited(quotas, scoping, 1, false)
-            .await
-            .unwrap()
-            .is_limited());
+        assert!(
+            !rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
 
         // quota is now exhausted
-        assert!(rate_limiter
-            .is_rate_limited(quotas, scoping, 1, false)
-            .await
-            .unwrap()
-            .is_limited());
+        assert!(
+            rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
 
         // quota is exhausted, regardless of the quantity
-        assert!(rate_limiter
-            .is_rate_limited(quotas, scoping, 0, false)
-            .await
-            .unwrap()
-            .is_limited());
+        assert!(
+            rate_limiter
+                .is_rate_limited(quotas, scoping, 0, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
 
         // quota is exhausted, regardless of the quantity
-        assert!(rate_limiter
-            .is_rate_limited(quotas, scoping, 1, false)
-            .await
-            .unwrap()
-            .is_limited());
+        assert!(
+            rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .await
+                .unwrap()
+                .is_limited()
+        );
     }
 
     #[tokio::test]

@@ -50,7 +50,7 @@ where
             continue;
         }
 
-        if let Some(ref condition) = &metric_spec.condition {
+        if let Some(condition) = &metric_spec.condition {
             if !condition.matches(instance) {
                 continue;
             }

@@ -77,7 +77,7 @@ impl Processor for RemoveOtherProcessor {
 mod tests {
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{Context, Contexts, OsContext, User, Values};
-    use relay_protocol::{get_value, FromValue};
+    use relay_protocol::{FromValue, get_value};
     use similar_asserts::assert_eq;
 
     use super::*;

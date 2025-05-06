@@ -12,8 +12,8 @@ use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use syn::{ItemEnum, ItemStruct, UseTree};
 
-use crate::pii_finder::{FieldsWithAttribute, PiiFinder};
 use crate::EnumOrStruct;
+use crate::pii_finder::{FieldsWithAttribute, PiiFinder};
 
 pub struct TypesAndScopedPaths {
     // Maps the path name of an item to its actual AST node.

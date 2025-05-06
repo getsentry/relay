@@ -1,14 +1,14 @@
 use std::io::{ErrorKind, Read};
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use crate::envelope::EnvelopeError;
 
+use crate::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
-use crate::Envelope;
 use bytes::{Buf, Bytes};
 use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
@@ -120,9 +120,11 @@ impl TryFrom<DatabaseEnvelope> for Box<Envelope> {
 
         let mut envelope = Envelope::parse_bytes(Bytes::from(encoded_envelope))?;
         debug_assert_eq!(envelope.meta().public_key(), own_key);
-        debug_assert!(envelope
-            .sampling_key()
-            .is_none_or(|key| key == sampling_key));
+        debug_assert!(
+            envelope
+                .sampling_key()
+                .is_none_or(|key| key == sampling_key)
+        );
 
         envelope.set_received_at(received_at);
 
@@ -678,17 +680,19 @@ mod tests {
         // We insert 10 envelopes.
         let batches = [mock_envelopes(5), mock_envelopes(5)];
         for batch in &batches {
-            assert!(envelope_store
-                .insert_batch(
-                    batch
-                        .iter()
-                        .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap()
-                )
-                .await
-                .is_ok());
+            assert!(
+                envelope_store
+                    .insert_batch(
+                        batch
+                            .iter()
+                            .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                            .collect::<Vec<_>>()
+                            .try_into()
+                            .unwrap()
+                    )
+                    .await
+                    .is_ok()
+            );
         }
 
         // We check that if we load 5, we get the newest 5.
@@ -720,11 +724,13 @@ mod tests {
         }
 
         // Store is empty.
-        assert!(envelope_store
-            .delete_batch(own_key, sampling_key)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            envelope_store
+                .delete_batch(own_key, sampling_key)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -738,17 +744,19 @@ mod tests {
         // We insert 10 envelopes.
         let inserted = mock_envelopes(1);
 
-        assert!(envelope_store
-            .insert_batch(
-                inserted
-                    .iter()
-                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap()
-            )
-            .await
-            .is_ok());
+        assert!(
+            envelope_store
+                .insert_batch(
+                    inserted
+                        .iter()
+                        .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap()
+                )
+                .await
+                .is_ok()
+        );
 
         // We check that if we load 5, we get the newest 5.
         let extracted = envelope_store
@@ -764,11 +772,13 @@ mod tests {
         );
 
         // Store is empty.
-        assert!(envelope_store
-            .delete_batch(own_key, sampling_key)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            envelope_store
+                .delete_batch(own_key, sampling_key)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]

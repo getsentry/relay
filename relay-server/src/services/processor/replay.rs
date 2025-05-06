@@ -5,10 +5,10 @@ use std::sync::Arc;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
-use crate::services::processor::{should_filter, ProcessingError, ReplayGroup};
+use crate::services::processor::{ProcessingError, ReplayGroup, should_filter};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{sample, TypedEnvelope};
+use crate::utils::{TypedEnvelope, sample};
 use bytes::Bytes;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;

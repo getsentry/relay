@@ -20,7 +20,7 @@ use crate::sample::v1::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::types::{ClientSdk, DebugMeta};
 use crate::utils::{default_client_sdk, deserialize_number_from_string, is_zero};
-use crate::{ProfileError, MAX_PROFILE_DURATION};
+use crate::{MAX_PROFILE_DURATION, ProfileError};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProfileMetadata {
