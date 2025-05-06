@@ -4184,7 +4184,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "sentry",
- "sentry_protos 0.1.74",
+ "sentry_protos",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -4693,7 +4693,7 @@ dependencies = [
  "prettyplease",
  "prost",
  "schemars",
- "sentry_protos 0.1.74 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sentry_protos",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4765,19 +4765,6 @@ dependencies = [
  "time",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "sentry_protos"
-version = "0.1.74"
-dependencies = [
- "glob",
- "prost",
- "prost-types",
- "regex",
- "tokio",
- "tonic",
- "tonic-build",
 ]
 
 [[package]]
