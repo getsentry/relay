@@ -396,9 +396,10 @@ jobs:
           submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
-        with:
-          key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
+
+      # - uses: swatinem/rust-cache@v2
+      #   with:
+      #     key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:

@@ -4100,7 +4100,7 @@ dependencies = [
 
 [[package]]
 name = "relay-prosperoconv"
-version = "0.1.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "dircpy",
