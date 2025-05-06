@@ -20,17 +20,16 @@ jobs:
           - aarch64
 
     name: Python Linux ${{ matrix.build-arch }}
-    runs-on: ubuntu-latest
+    runs-on: |-
+      ${{fromJson('{
+        "x86_64": "ubuntu-latest",
+        "aarch64": "ubuntu-24.04-arm"
+      }')[matrix.build-arch] }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - if: matrix.build-arch == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Build in Docker
         run: scripts/docker-manylinux.sh

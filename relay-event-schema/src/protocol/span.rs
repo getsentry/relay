@@ -209,7 +209,7 @@ impl Getter for Span {
 
 /// Indexable fields added by sentry (server-side).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[metastructure(trim = false)]
+#[metastructure(trim = false, pii = "maybe")]
 pub struct SentryTags {
     pub release: Annotated<String>,
     #[metastructure(pii = "true")]

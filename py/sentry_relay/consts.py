@@ -36,6 +36,8 @@ class DataCategory(IntEnum):
     LOG_BYTE = 24
     PROFILE_DURATION_UI = 25
     PROFILE_CHUNK_UI = 26
+    SEER_AUTOFIX = 27
+    SEER_SCANNER = 28
     UNKNOWN = -1
     # end generated
 

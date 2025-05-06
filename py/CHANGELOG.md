@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.9
+
+- Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
+
 ## 0.9.8
 
 ### Various fixes & improvements

@@ -1,6 +1,7 @@
 use relay_config::Config;
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
+use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
 use crate::utils::{ItemAction, ManagedEnvelope};
 
 /// Checks for size limits of items in this envelope.
@@ -22,7 +23,10 @@ use crate::utils::{ItemAction, ManagedEnvelope};
 ///  - `max_session_count`
 ///  - `max_span_size`
 ///  - `max_statsd_size`
-pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Result<(), ItemType> {
+pub fn check_envelope_size_limits(
+    config: &Config,
+    envelope: &Envelope,
+) -> Result<(), DiscardItemType> {
     const NO_LIMIT: usize = usize::MAX;
 
     let mut event_size = 0;
@@ -70,21 +74,26 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Resul
         };
 
         if item.len() > max_size {
-            return Err(item.ty().clone());
+            return Err(item
+                .attachment_type()
+                .map(|t| t.into())
+                .unwrap_or_else(|| item.ty().into()));
         }
     }
 
     if event_size > config.max_event_size() {
-        return Err(ItemType::Event);
+        return Err(DiscardItemType::Event);
     }
     if attachments_size > config.max_attachments_size() {
-        return Err(ItemType::Attachment);
+        return Err(DiscardItemType::Attachment(
+            DiscardAttachmentType::Attachment,
+        ));
     }
     if session_count > config.max_session_count() {
-        return Err(ItemType::Session);
+        return Err(DiscardItemType::Session);
     }
     if client_reports_size > config.max_client_reports_size() {
-        return Err(ItemType::ClientReport);
+        return Err(DiscardItemType::ClientReport);
     }
 
     Ok(())
