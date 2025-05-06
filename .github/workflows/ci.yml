@@ -407,7 +407,7 @@ jobs:
 
       - name: Compile
         run: |
-          cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
+          RUSTFLAGS="--cfg sentry --cfg tokio_unstable" cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
 
       - name: Split debug info
         run: |
