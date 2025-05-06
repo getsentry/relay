@@ -512,16 +512,12 @@ impl StoreService {
 
         if let KafkaMessage::Span {
             ref mut ignore_trace_id_partitioning,
-            message: ref span,
             ..
         } = message
         {
             let global_config = self.global_config.current();
-            let config_projects = &global_config
-                .options
-                .spans_ignore_trace_id_partitioning_projects;
             *ignore_trace_id_partitioning =
-                config_projects.contains(&0) || config_projects.contains(&span.project_id);
+                global_config.options.spans_ignore_trace_id_partitioning;
         }
 
         let topic_name = self.producer.client.send_message(topic, &message)?;
