@@ -1007,13 +1007,18 @@ impl StoreService {
             )
             .to_le_bytes()
             .to_vec();
+            let received_nanos = if let Some(received) = received_at.timestamp_nanos_opt() {
+                received % 1_000_000_000
+            } else {
+                0
+            };
             let mut trace_item = TraceItem {
                 item_type: TraceItemType::Log.into(),
                 organization_id: scoping.organization_id.value(),
                 project_id: scoping.project_id.value(),
                 received: Some(Timestamp {
                     seconds: safe_timestamp(received_at) as i64,
-                    nanos: 0,
+                    nanos: received_nanos as i32,
                 }),
                 retention_days: retention_days.into(),
                 timestamp: Some(Timestamp {
@@ -1030,7 +1035,13 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.timestamp_precise".to_string(),
                 AnyValue {
-                    value: Some(Value::IntValue(log.timestamp_nanos as i64)),
+                    value: Some(Value::StringValue(log.timestamp_nanos.to_string())),
+                },
+            );
+            trace_item.attributes.insert(
+                "sentry.timestamp_nanos".to_string(),
+                AnyValue {
+                    value: Some(Value::StringValue(log.timestamp_nanos.to_string())),
                 },
             );
             trace_item.attributes.insert(
@@ -1056,6 +1067,15 @@ impl StoreService {
                 },
             );
 
+            if let Some(span_id) = log.span_id {
+                trace_item.attributes.insert(
+                    "sentry.span_id".to_string(),
+                    AnyValue {
+                        value: Some(Value::StringValue(span_id.to_string())),
+                    },
+                );
+            }
+
             for (name, attribute) in log.attributes.unwrap_or_default() {
                 if let Some(attribute_value) = attribute {
                     if let Some(v) = attribute_value.value {
@@ -1079,6 +1099,7 @@ impl StoreService {
                     }
                 }
             }
+
             let mut message = Vec::new();
 
             if trace_item.encode(&mut message).is_err() {
@@ -1615,7 +1636,8 @@ struct LogKafkaMessage<'a> {
     retention_days: u16,
     #[serde(default)]
     received: u64,
-    body: &'a RawValue,
+    #[serde(default)]
+    body: Cow<'a, str>,
 
     trace_id: EventId,
     #[serde(default, skip_serializing_if = "Option::is_none")]

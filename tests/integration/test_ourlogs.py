@@ -1,8 +1,14 @@
 import json
+
 from datetime import datetime, timedelta, timezone
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
+
+from sentry_protos.snuba.v1.trace_item_pb2 import TraceItem, AnyValue
+from sentry_protos.snuba.v1.request_common_pb2 import TraceItemType
+from google.protobuf.timestamp_pb2 import Timestamp
+from google.protobuf.json_format import MessageToDict
 
 from .asserts.time import time_within_delta
 
@@ -87,37 +93,52 @@ def test_ourlog_extraction_with_otel_logs(
     envelope = envelope_with_otel_logs(start)
     relay.send_envelope(project_id, envelope)
 
-    ourlogs = ourlogs_consumer.get_ourlogs()
-    expected = {
-        "organization_id": 1,
-        "project_id": 42,
-        "retention_days": 90,
-        "timestamp_nanos": int(start.timestamp() * 1e9),
-        "observed_timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "body": "Example log record",
-        "trace_flags": 0,
-        "span_id": "eee19b7ec3c1b174",
-        "severity_text": "Information",
-        "severity_number": 10,
-        "received": time_within_delta(start, expect_resolution="s"),
-        "attributes": {
-            "string.attribute": {"string_value": "some string"},
-            "boolean.attribute": {"bool_value": True},
-            "int.attribute": {"int_value": 10},
-            "double.attribute": {"double_value": 637.704},
-            "sentry.severity_number": {"int_value": 10},
-            "sentry.severity_text": {"string_value": "Information"},
-            "sentry.timestamp_nanos": {
-                "string_value": str(int(start.timestamp() * 1e9))
-            },
-            "sentry.trace_flags": {"int_value": 0},
+    timestamp_nanos = int(start.timestamp() * 1e9)
+    timestamp_proto = Timestamp()
+    timestamp_proto.FromNanoseconds(timestamp_nanos)
+
+    received_nanos = int(start.timestamp() * 1e6) * 1000
+    received_proto = Timestamp()
+    received_proto.FromNanoseconds(received_nanos)
+
+    expected_log = TraceItem(
+        organization_id=1,
+        project_id=project_id,
+        timestamp=timestamp_proto,
+        trace_id="5b8efff798038103d269b633813fc60c",
+        item_id=timestamp_nanos.to_bytes(
+            length=16,
+            byteorder="little",
+            signed=False,
+        ),
+        item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+        attributes={
+            "boolean.attribute": AnyValue(bool_value=True),
+            "double.attribute": AnyValue(double_value=637.704),
+            "int.attribute": AnyValue(int_value=10),
+            "string.attribute": AnyValue(string_value="some string"),
+            "sentry.body": AnyValue(string_value="Example log record"),
+            "sentry.severity_number": AnyValue(int_value=10),
+            "sentry.severity_text": AnyValue(string_value="Information"),
+            "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
+            "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
+            "sentry.timestamp_precise": AnyValue(string_value=str(timestamp_nanos)),
+            "sentry.trace_flags": AnyValue(int_value=0),
         },
-    }
+        received=received_proto,
+        retention_days=90,
+        client_sample_rate=1.0,
+        server_sample_rate=1.0,
+    )
 
-    del ourlogs[0]["attributes"]["sentry.observed_timestamp_nanos"]
+    logs = ourlogs_consumer.get_ourlogs()
 
-    assert ourlogs == [expected]
+    # reset and remove values changing values
+    logs[0].received = start
+    expected_log.item_id = logs[0].item_id
+    del logs[0].attributes["sentry.observed_timestamp_nanos"]
+
+    assert [MessageToDict(log) for log in logs] == [MessageToDict(expected_log)]
 
     ourlogs_consumer.assert_empty()
 
@@ -241,53 +262,82 @@ def test_ourlog_extraction_with_sentry_logs(
     )
     relay.send_envelope(project_id, envelope)
 
-    ourlogs = ourlogs_consumer.get_ourlogs()
-    assert ourlogs == [
-        {
-            "organization_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
-            "observed_timestamp_nanos": time_within_delta(
-                start, expect_resolution="ns"
+    timestamp_nanos = int(start.timestamp() * 1e9)
+    timestamp_proto = Timestamp()
+    timestamp_proto.FromNanoseconds(timestamp_nanos)
+
+    received_nanos = int(start.timestamp() * 1e6) * 1000
+    received_proto = Timestamp()
+    received_proto.FromNanoseconds(received_nanos)
+
+    expected_logs = [
+        TraceItem(
+            organization_id=1,
+            project_id=project_id,
+            timestamp=timestamp_proto,
+            trace_id="5b8efff798038103d269b633813fc60c",
+            item_id=timestamp_nanos.to_bytes(
+                length=16,
+                byteorder="little",
+                signed=False,
             ),
-            "received": time_within_delta(start, expect_resolution="s"),
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b175",
-            "body": "This is really bad",
-            "severity_text": "error",
-            "severity_number": 17,
-            "attributes": {
-                "sentry.severity_number": {"int_value": 17},
-                "sentry.severity_text": {"string_value": "error"},
+            item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+            attributes={
+                "sentry.body": AnyValue(string_value="This is really bad"),
+                "sentry.severity_number": AnyValue(int_value=17),
+                "sentry.severity_text": AnyValue(string_value="error"),
+                "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
             },
-        },
-        {
-            "organization_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
-            "observed_timestamp_nanos": time_within_delta(
-                start, expect_resolution="ns"
+            received=received_proto,
+            retention_days=90,
+            client_sample_rate=1.0,
+            server_sample_rate=1.0,
+        ),
+        TraceItem(
+            organization_id=1,
+            project_id=project_id,
+            timestamp=timestamp_proto,
+            trace_id="5b8efff798038103d269b633813fc60c",
+            item_id=timestamp_nanos.to_bytes(
+                length=16,
+                byteorder="little",
+                signed=False,
             ),
-            "received": time_within_delta(start, expect_resolution="s"),
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "body": "Example log record",
-            "span_id": "eee19b7ec3c1b174",
-            "severity_text": "info",
-            "severity_number": 9,
-            "attributes": {
-                "boolean.attribute": {"bool_value": True},
-                "double.attribute": {"double_value": 1.23},
-                "integer.attribute": {"int_value": 42},
-                "string.attribute": {"string_value": "some string"},
-                "valid_string_with_other": {"string_value": "test"},
-                "pii": {"string_value": "[creditcard]"},
-                "sentry.severity_number": {"int_value": 9},
-                "sentry.severity_text": {"string_value": "info"},
+            item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+            attributes={
+                "boolean.attribute": AnyValue(bool_value=True),
+                "double.attribute": AnyValue(double_value=1.23),
+                "integer.attribute": AnyValue(int_value=42),
+                "pii": AnyValue(string_value="4242 4242 4242 4242"),
+                "sentry.body": AnyValue(string_value="Example log record"),
+                "sentry.severity_number": AnyValue(int_value=10),
+                "sentry.severity_text": AnyValue(string_value="info"),
+                "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
+                "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
+                "sentry.timestamp_precise": AnyValue(string_value=str(timestamp_nanos)),
+                "sentry.trace_flags": AnyValue(int_value=0),
+                "string.attribute": AnyValue(string_value="some string"),
             },
-        },
+            received=received_proto,
+            retention_days=90,
+            client_sample_rate=1.0,
+            server_sample_rate=1.0,
+        ),
     ]
+
+    logs = ourlogs_consumer.get_ourlogs()
+
+    # reset and remove values changing values
+    for log in logs:
+        log.received = start
+
+    for expected_log in expected_logs:
+        expected_log.item_id = logs[0].item_id
+
+    assert [MessageToDict(log) for log in logs] == [
+        MessageToDict(expected_log) for expected_log in expected_logs
+    ]
+
     ourlogs_consumer.assert_empty()
 
 
@@ -296,7 +346,6 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     relay_with_processing,
     ourlogs_consumer,
 ):
-
     ourlogs_consumer = ourlogs_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -318,24 +367,53 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     )
     relay.send_envelope(project_id, envelope)
 
-    ourlogs = ourlogs_consumer.get_ourlogs()
-    expected = {
-        "organization_id": 1,
-        "project_id": 42,
-        "retention_days": 90,
-        "timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
-        "observed_timestamp_nanos": time_within_delta(start, expect_resolution="ns"),
-        "received": time_within_delta(start, expect_resolution="s"),
-        "trace_id": "5b8efff798038103d269b633813fc60c",
-        "body": "Example log record 2",
-        "severity_text": "warn",
-        "severity_number": 13,
-        "attributes": {
-            "sentry.severity_number": {"int_value": 13},
-            "sentry.severity_text": {"string_value": "warn"},
-        },
-    }
-    assert ourlogs == [expected]
+    timestamp_nanos = int(start.timestamp() * 1e9)
+    timestamp_proto = Timestamp()
+    timestamp_proto.FromNanoseconds(timestamp_nanos)
+
+    received_nanos = int(start.timestamp() * 1e6) * 1000
+    received_proto = Timestamp()
+    received_proto.FromNanoseconds(received_nanos)
+
+    expected_logs = [
+        TraceItem(
+            organization_id=1,
+            project_id=project_id,
+            timestamp=timestamp_proto,
+            trace_id="5b8efff798038103d269b633813fc60c",
+            item_id=timestamp_nanos.to_bytes(
+                length=16,
+                byteorder="little",
+                signed=False,
+            ),
+            item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+            attributes={
+                "sentry.body": AnyValue(string_value="Example log record 2"),
+                "sentry.severity_number": AnyValue(int_value=13),
+                "sentry.severity_text": AnyValue(string_value="warn"),
+                "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
+                "sentry.timestamp_precise": AnyValue(string_value=str(timestamp_nanos)),
+            },
+            received=received_proto,
+            retention_days=90,
+            client_sample_rate=1.0,
+            server_sample_rate=1.0,
+        ),
+    ]
+
+    logs = ourlogs_consumer.get_ourlogs()
+
+    # reset and remove values changing values
+    for log in logs:
+        log.received = start
+
+    for expected_log in expected_logs:
+        expected_log.item_id = logs[0].item_id
+
+    assert [MessageToDict(log) for log in logs] == [
+        MessageToDict(expected_log) for expected_log in expected_logs
+    ]
+
     ourlogs_consumer.assert_empty()
 
 
