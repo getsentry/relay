@@ -16,6 +16,8 @@ processing = [
   "dep:minidump",
   "dep:symbolic-common",
   "dep:symbolic-unreal",
+  "dep:prost-types",
+  "sentry_protos",
   "relay-cardinality/redis",
   "relay-config/processing",
   "relay-kafka/producer",
@@ -97,8 +99,8 @@ reqwest = { workspace = true, features = [
 ] }
 rmp-serde = { workspace = true }
 sentry = { workspace = true, features = ["tower-http"] }
-sentry_protos = { workspace = true }
-prost-types = { workspace = true }
+sentry_protos = { workspace = true, optional = true }
+prost-types = { workspace = true , optional = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
