@@ -19,6 +19,8 @@ use relay_config::Config;
 use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use prost::Message as _;
+use prost_types::Timestamp;
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, FiniteF64, GaugeValue,
@@ -28,6 +30,8 @@ use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
+use sentry_protos::snuba::v1::any_value::Value;
+use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType};
 use serde::{Deserialize, Serialize};
 use serde_json::Deserializer;
 use serde_json::value::RawValue;
@@ -959,7 +963,6 @@ impl StoreService {
         let payload_len = payload.len();
 
         let d = &mut Deserializer::from_slice(&payload);
-
         let logs: LogKafkaMessages = match serde_path_to_error::deserialize(d) {
             Ok(logs) => logs,
             Err(error) => {
@@ -989,18 +992,104 @@ impl StoreService {
             }
         };
 
-        for mut log in logs.items {
-            log.organization_id = scoping.organization_id.value();
-            log.project_id = scoping.project_id.value();
-            log.retention_days = retention_days;
-            log.received = safe_timestamp(received_at);
+        for log in logs.items {
+            let timestamp_seconds = log.timestamp_nanos / 1_000_000_000;
+            let timestamp_nanos = log.timestamp_nanos % 1_000_000_000;
+            let item_id = u128::from_be_bytes(
+                *Uuid::new_v7(uuid::Timestamp::from_unix(
+                    uuid::NoContext,
+                    timestamp_seconds,
+                    timestamp_nanos as u32,
+                ))
+                .as_bytes(),
+            )
+            .to_le_bytes()
+            .to_vec();
+            let mut trace_item = TraceItem {
+                item_type: TraceItemType::Log.into(),
+                organization_id: scoping.organization_id.value(),
+                project_id: scoping.project_id.value(),
+                received: Some(Timestamp {
+                    seconds: safe_timestamp(received_at) as i64,
+                    nanos: 0,
+                }),
+                retention_days: retention_days.into(),
+                timestamp: Some(Timestamp {
+                    seconds: timestamp_seconds as i64,
+                    nanos: timestamp_nanos as i32,
+                }),
+                trace_id: log.trace_id.to_string(),
+                item_id,
+                attributes: Default::default(),
+                client_sample_rate: 1.0,
+                server_sample_rate: 1.0,
+            };
+
+            trace_item.attributes.insert(
+                "sentry.timestamp_precise".to_string(),
+                AnyValue {
+                    value: Some(Value::IntValue(log.timestamp_nanos as i64)),
+                },
+            );
+            trace_item.attributes.insert(
+                "sentry.severity_text".to_string(),
+                AnyValue {
+                    value: Some(Value::StringValue(
+                        log.severity_text.unwrap_or_else(|| "INFO".into()).into(),
+                    )),
+                },
+            );
+            trace_item.attributes.insert(
+                "sentry.severity_number".to_string(),
+                AnyValue {
+                    value: Some(Value::IntValue(
+                        log.severity_number.unwrap_or_default().into(),
+                    )),
+                },
+            );
+            trace_item.attributes.insert(
+                "sentry.body".to_string(),
+                AnyValue {
+                    value: Some(Value::StringValue(log.body.to_string())),
+                },
+            );
+
+            for (name, attribute) in log.attributes.unwrap_or_default() {
+                if let Some(attribute_value) = attribute {
+                    if let Some(v) = attribute_value.value {
+                        let any_value = match v {
+                            LogAttributeValue::String(value) => AnyValue {
+                                value: Some(Value::StringValue(value)),
+                            },
+                            LogAttributeValue::Int(value) => AnyValue {
+                                value: Some(Value::IntValue(value)),
+                            },
+                            LogAttributeValue::Bool(value) => AnyValue {
+                                value: Some(Value::BoolValue(value)),
+                            },
+                            LogAttributeValue::Double(value) => AnyValue {
+                                value: Some(Value::DoubleValue(value)),
+                            },
+                            LogAttributeValue::Unknown(_) => continue,
+                        };
+
+                        trace_item.attributes.insert(name.into(), any_value);
+                    }
+                }
+            }
+
+            let mut message = vec![];
+
+            if trace_item.encode(&mut message).is_err() {
+                return Ok(());
+            };
 
             let message = KafkaMessage::Log {
-                headers: BTreeMap::from([(
-                    "project_id".to_string(),
-                    scoping.project_id.to_string(),
-                )]),
-                message: log,
+                headers: BTreeMap::from([
+                    ("project_id".to_string(), scoping.project_id.to_string()),
+                    ("item_type".to_string(), "3".to_string()),
+                ]),
+                message,
             };
 
             self.produce(KafkaTopic::OurLogs, message)?;
@@ -1592,8 +1681,7 @@ enum KafkaMessage<'a> {
     Log {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
-        #[serde(flatten)]
-        message: LogKafkaMessage<'a>,
+        message: Vec<u8>,
     },
     ProfileChunk(ProfileChunkKafkaMessage),
 }
