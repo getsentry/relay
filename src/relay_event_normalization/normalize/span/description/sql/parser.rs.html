@@ -317,9 +317,9 @@
 <a href=#317 id=317 data-nosnippet>317</a>                <span class="kw-2">*</span>expr = take_expr(inner);
 <a href=#318 id=318 data-nosnippet>318</a>            }
 <a href=#319 id=319 data-nosnippet>319</a>            Expr::BinaryOp {
-<a href=#320 id=320 data-nosnippet>320</a>                <span class="kw-2">ref mut </span>left,
+<a href=#320 id=320 data-nosnippet>320</a>                left,
 <a href=#321 id=321 data-nosnippet>321</a>                op: op @ (BinaryOperator::Or | BinaryOperator::And),
-<a href=#322 id=322 data-nosnippet>322</a>                <span class="kw-2">ref mut </span>right,
+<a href=#322 id=322 data-nosnippet>322</a>                right,
 <a href=#323 id=323 data-nosnippet>323</a>            } =&gt; {
 <a href=#324 id=324 data-nosnippet>324</a>                remove_redundant_parentheses(op, left);
 <a href=#325 id=325 data-nosnippet>325</a>                remove_redundant_parentheses(op, right);
@@ -855,11 +855,14 @@
 <a href=#855 id=855 data-nosnippet>855</a>    <span class="attr">#[test]
 <a href=#856 id=856 data-nosnippet>856</a>    </span><span class="kw">fn </span>parse_deep_expression() {
 <a href=#857 id=857 data-nosnippet>857</a>        <span class="kw">let </span>query = <span class="string">"SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1"</span>;
-<a href=#858 id=858 data-nosnippet>858</a>        <span class="macro">assert_eq!</span>(normalize_parsed_queries(<span class="prelude-val">None</span>, query).unwrap().<span class="number">0</span>, <span class="string">"SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"</span>);
-<a href=#859 id=859 data-nosnippet>859</a>    }
-<a href=#860 id=860 data-nosnippet>860</a>
-<a href=#861 id=861 data-nosnippet>861</a>    <span class="attr">#[test]
-<a href=#862 id=862 data-nosnippet>862</a>    </span><span class="kw">fn </span>parse_dont_panic() {
-<a href=#863 id=863 data-nosnippet>863</a>        <span class="macro">assert!</span>(parse_query_inner(<span class="prelude-val">None</span>, <span class="string">"REPLACE g;'341234c"</span>).is_err());
-<a href=#864 id=864 data-nosnippet>864</a>    }
-<a href=#865 id=865 data-nosnippet>865</a>}</code></pre></div></section></main></body></html>
+<a href=#858 id=858 data-nosnippet>858</a>        <span class="macro">assert_eq!</span>(
+<a href=#859 id=859 data-nosnippet>859</a>            normalize_parsed_queries(<span class="prelude-val">None</span>, query).unwrap().<span class="number">0</span>,
+<a href=#860 id=860 data-nosnippet>860</a>            <span class="string">"SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
+<a href=#861 id=861 data-nosnippet>861</a>        </span>);
+<a href=#862 id=862 data-nosnippet>862</a>    }
+<a href=#863 id=863 data-nosnippet>863</a>
+<a href=#864 id=864 data-nosnippet>864</a>    <span class="attr">#[test]
+<a href=#865 id=865 data-nosnippet>865</a>    </span><span class="kw">fn </span>parse_dont_panic() {
+<a href=#866 id=866 data-nosnippet>866</a>        <span class="macro">assert!</span>(parse_query_inner(<span class="prelude-val">None</span>, <span class="string">"REPLACE g;'341234c"</span>).is_err());
+<a href=#867 id=867 data-nosnippet>867</a>    }
+<a href=#868 id=868 data-nosnippet>868</a>}</code></pre></div></section></main></body></html>

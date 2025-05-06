@@ -6,8 +6,8 @@
 <a href=#6 id=6 data-nosnippet>6</a>
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::utils::ScheduledQueue;
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>futures::{
-<a href=#9 id=9 data-nosnippet>9</a>    stream::{FusedStream, FuturesUnordered},
-<a href=#10 id=10 data-nosnippet>10</a>    Stream, StreamExt,
+<a href=#9 id=9 data-nosnippet>9</a>    Stream, StreamExt,
+<a href=#10 id=10 data-nosnippet>10</a>    stream::{FusedStream, FuturesUnordered},
 <a href=#11 id=11 data-nosnippet>11</a>};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>tokio::time::Instant;
 <a href=#13 id=13 data-nosnippet>13</a>
@@ -90,7 +90,7 @@
 <a href=#90 id=90 data-nosnippet>90</a></span><span class="kw">mod </span>tests {
 <a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">use </span>std::time::Duration;
 <a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">use </span>futures::future::{ready, Ready};
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">use </span>futures::future::{Ready, ready};
 <a href=#94 id=94 data-nosnippet>94</a>
 <a href=#95 id=95 data-nosnippet>95</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#96 id=96 data-nosnippet>96</a>

@@ -324,10 +324,10 @@
 <a href=#324 id=324 data-nosnippet>324</a>            <span class="kw">return </span><span class="self">self</span>;
 <a href=#325 id=325 data-nosnippet>325</a>        };
 <a href=#326 id=326 data-nosnippet>326</a>
-<a href=#327 id=327 data-nosnippet>327</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(previous) = <span class="self">self</span>.<span class="number">0 </span>.<span class="number">0</span>.get_mut(<span class="kw-2">&amp;</span>feature) {
+<a href=#327 id=327 data-nosnippet>327</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(previous) = <span class="self">self</span>.<span class="number">0.0</span>.get_mut(<span class="kw-2">&amp;</span>feature) {
 <a href=#328 id=328 data-nosnippet>328</a>            <span class="kw-2">*</span>previous = previous.saturating_add(weight.get());
 <a href=#329 id=329 data-nosnippet>329</a>        } <span class="kw">else </span>{
-<a href=#330 id=330 data-nosnippet>330</a>            <span class="self">self</span>.<span class="number">0 </span>.<span class="number">0</span>.insert(feature, weight);
+<a href=#330 id=330 data-nosnippet>330</a>            <span class="self">self</span>.<span class="number">0.0</span>.insert(feature, weight);
 <a href=#331 id=331 data-nosnippet>331</a>        }
 <a href=#332 id=332 data-nosnippet>332</a>
 <a href=#333 id=333 data-nosnippet>333</a>        <span class="self">self
@@ -336,9 +336,9 @@
 <a href=#336 id=336 data-nosnippet>336</a>    <span class="doccomment">/// Sets the specified `weight` for an [`AppFeature`].
 <a href=#337 id=337 data-nosnippet>337</a>    </span><span class="kw">pub fn </span>weight(<span class="kw-2">&amp;mut </span><span class="self">self</span>, feature: AppFeature, weight: usize) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
 <a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(weight) = NonZeroUsize::new(weight) {
-<a href=#339 id=339 data-nosnippet>339</a>            <span class="self">self</span>.<span class="number">0 </span>.<span class="number">0</span>.insert(feature, weight);
+<a href=#339 id=339 data-nosnippet>339</a>            <span class="self">self</span>.<span class="number">0.0</span>.insert(feature, weight);
 <a href=#340 id=340 data-nosnippet>340</a>        } <span class="kw">else </span>{
-<a href=#341 id=341 data-nosnippet>341</a>            <span class="self">self</span>.<span class="number">0 </span>.<span class="number">0</span>.remove(<span class="kw-2">&amp;</span>feature);
+<a href=#341 id=341 data-nosnippet>341</a>            <span class="self">self</span>.<span class="number">0.0</span>.remove(<span class="kw-2">&amp;</span>feature);
 <a href=#342 id=342 data-nosnippet>342</a>        }
 <a href=#343 id=343 data-nosnippet>343</a>        <span class="self">self
 <a href=#344 id=344 data-nosnippet>344</a>    </span>}

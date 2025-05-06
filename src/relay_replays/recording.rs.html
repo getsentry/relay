@@ -17,14 +17,14 @@
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>std::io::Read;
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>std::rc::Rc;
 <a href=#19 id=19 data-nosnippet>19</a>
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>flate2::bufread::ZlibDecoder;
-<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>flate2::write::ZlibEncoder;
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>flate2::Compression;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>flate2::Compression;
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>flate2::bufread::ZlibDecoder;
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>flate2::write::ZlibEncoder;
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>once_cell::sync::Lazy;
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>relay_pii::{PiiConfig, PiiProcessor};
 <a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>relay_protocol::Meta;
-<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>serde::{de, ser, Deserializer};
+<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>serde::{Deserializer, de, ser};
 <a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span>serde_json::value::RawValue;
 <a href=#29 id=29 data-nosnippet>29</a>
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span>relay_pii::transform::Transform;

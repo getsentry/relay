@@ -14,7 +14,7 @@
 <a href=#14 id=14 data-nosnippet>14</a>
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{should_filter, SpanGroup};
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{SpanGroup, should_filter};
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::utils::TypedEnvelope;
 <a href=#20 id=20 data-nosnippet>20</a>
@@ -160,9 +160,9 @@
 <a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">use </span>std::collections::BTreeMap;
 <a href=#161 id=161 data-nosnippet>161</a>
 <a href=#162 id=162 data-nosnippet>162</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
-<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, TypedEnvelope};
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">use </span><span class="kw">crate</span>::Envelope;
+<a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">use </span><span class="kw">crate</span>::Envelope;
+<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, TypedEnvelope};
 <a href=#166 id=166 data-nosnippet>166</a>    <span class="kw">use </span>bytes::Bytes;
 <a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">use </span>relay_spans::otel_trace::Span <span class="kw">as </span>OtelSpan;
 <a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">use </span>relay_system::Addr;

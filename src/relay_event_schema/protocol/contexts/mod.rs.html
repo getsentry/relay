@@ -268,7 +268,7 @@
 <a href=#268 id=268 data-nosnippet>268</a>    <span class="kw">fn </span>from_value(<span class="kw-2">mut </span>annotated: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
 <a href=#269 id=269 data-nosnippet>269</a>        <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(Value::Object(<span class="kw-2">ref mut </span>items)), <span class="kw">_</span>) = annotated {
 <a href=#270 id=270 data-nosnippet>270</a>            <span class="kw">for </span>(key, value) <span class="kw">in </span>items.iter_mut() {
-<a href=#271 id=271 data-nosnippet>271</a>                <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(Value::Object(<span class="kw-2">ref mut </span>items)), <span class="kw">_</span>) = value {
+<a href=#271 id=271 data-nosnippet>271</a>                <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(Value::Object(items)), <span class="kw">_</span>) = value {
 <a href=#272 id=272 data-nosnippet>272</a>                    <span class="kw">if </span>!items.contains_key(<span class="string">"type"</span>) {
 <a href=#273 id=273 data-nosnippet>273</a>                        items.insert(
 <a href=#274 id=274 data-nosnippet>274</a>                            <span class="string">"type"</span>.to_string(),

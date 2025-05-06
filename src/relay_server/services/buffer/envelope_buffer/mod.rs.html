@@ -9,13 +9,13 @@
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>hashbrown::HashSet;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>relay_config::Config;
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>tokio::time::{timeout, Instant};
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>tokio::time::{Instant, timeout};
 <a href=#13 id=13 data-nosnippet>13</a>
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::envelope::Item;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
-<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_stack::EnvelopeStack;
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_stack::EnvelopeStack;
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::memory::MemoryStackProvider;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::sqlite::SqliteStackProvider;
@@ -719,13 +719,13 @@
 <a href=#719 id=719 data-nosnippet>719</a>    <span class="kw">use </span>std::sync::Arc;
 <a href=#720 id=720 data-nosnippet>720</a>    <span class="kw">use </span>uuid::Uuid;
 <a href=#721 id=721 data-nosnippet>721</a>
-<a href=#722 id=722 data-nosnippet>722</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::{Item, ItemType};
-<a href=#723 id=723 data-nosnippet>723</a>    <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<a href=#724 id=724 data-nosnippet>724</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
-<a href=#725 id=725 data-nosnippet>725</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
-<a href=#726 id=726 data-nosnippet>726</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::testutils::utils::mock_envelopes;
-<a href=#727 id=727 data-nosnippet>727</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::MemoryStat;
-<a href=#728 id=728 data-nosnippet>728</a>    <span class="kw">use </span><span class="kw">crate</span>::SqliteEnvelopeStore;
+<a href=#722 id=722 data-nosnippet>722</a>    <span class="kw">use </span><span class="kw">crate</span>::SqliteEnvelopeStore;
+<a href=#723 id=723 data-nosnippet>723</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::{Item, ItemType};
+<a href=#724 id=724 data-nosnippet>724</a>    <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<a href=#725 id=725 data-nosnippet>725</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
+<a href=#726 id=726 data-nosnippet>726</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
+<a href=#727 id=727 data-nosnippet>727</a>    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::testutils::utils::mock_envelopes;
+<a href=#728 id=728 data-nosnippet>728</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::MemoryStat;
 <a href=#729 id=729 data-nosnippet>729</a>
 <a href=#730 id=730 data-nosnippet>730</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#731 id=731 data-nosnippet>731</a>
@@ -1080,29 +1080,31 @@
 <a href=#1080 id=1080 data-nosnippet>1080</a>        <span class="comment">// We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
 <a href=#1081 id=1081 data-nosnippet>1081</a>        // belong to the same project keys, so they belong to the same envelope stack.
 <a href=#1082 id=1082 data-nosnippet>1082</a>        </span><span class="kw">let </span>envelopes = mock_envelopes(<span class="number">10</span>);
-<a href=#1083 id=1083 data-nosnippet>1083</a>        <span class="macro">assert!</span>(store
-<a href=#1084 id=1084 data-nosnippet>1084</a>            .insert_batch(
-<a href=#1085 id=1085 data-nosnippet>1085</a>                envelopes
-<a href=#1086 id=1086 data-nosnippet>1086</a>                    .into_iter()
-<a href=#1087 id=1087 data-nosnippet>1087</a>                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
-<a href=#1088 id=1088 data-nosnippet>1088</a>                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#1089 id=1089 data-nosnippet>1089</a>                    .try_into()
-<a href=#1090 id=1090 data-nosnippet>1090</a>                    .unwrap()
-<a href=#1091 id=1091 data-nosnippet>1091</a>            )
-<a href=#1092 id=1092 data-nosnippet>1092</a>            .<span class="kw">await
-<a href=#1093 id=1093 data-nosnippet>1093</a>            </span>.is_ok());
-<a href=#1094 id=1094 data-nosnippet>1094</a>
-<a href=#1095 id=1095 data-nosnippet>1095</a>        <span class="comment">// We assume that the buffer is empty.
-<a href=#1096 id=1096 data-nosnippet>1096</a>        </span><span class="macro">assert!</span>(buffer.priority_queue.is_empty());
-<a href=#1097 id=1097 data-nosnippet>1097</a>        <span class="macro">assert!</span>(buffer.stacks_by_project.is_empty());
-<a href=#1098 id=1098 data-nosnippet>1098</a>
-<a href=#1099 id=1099 data-nosnippet>1099</a>        buffer.initialize().<span class="kw">await</span>;
+<a href=#1083 id=1083 data-nosnippet>1083</a>        <span class="macro">assert!</span>(
+<a href=#1084 id=1084 data-nosnippet>1084</a>            store
+<a href=#1085 id=1085 data-nosnippet>1085</a>                .insert_batch(
+<a href=#1086 id=1086 data-nosnippet>1086</a>                    envelopes
+<a href=#1087 id=1087 data-nosnippet>1087</a>                        .into_iter()
+<a href=#1088 id=1088 data-nosnippet>1088</a>                        .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+<a href=#1089 id=1089 data-nosnippet>1089</a>                        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#1090 id=1090 data-nosnippet>1090</a>                        .try_into()
+<a href=#1091 id=1091 data-nosnippet>1091</a>                        .unwrap()
+<a href=#1092 id=1092 data-nosnippet>1092</a>                )
+<a href=#1093 id=1093 data-nosnippet>1093</a>                .<span class="kw">await
+<a href=#1094 id=1094 data-nosnippet>1094</a>                </span>.is_ok()
+<a href=#1095 id=1095 data-nosnippet>1095</a>        );
+<a href=#1096 id=1096 data-nosnippet>1096</a>
+<a href=#1097 id=1097 data-nosnippet>1097</a>        <span class="comment">// We assume that the buffer is empty.
+<a href=#1098 id=1098 data-nosnippet>1098</a>        </span><span class="macro">assert!</span>(buffer.priority_queue.is_empty());
+<a href=#1099 id=1099 data-nosnippet>1099</a>        <span class="macro">assert!</span>(buffer.stacks_by_project.is_empty());
 <a href=#1100 id=1100 data-nosnippet>1100</a>
-<a href=#1101 id=1101 data-nosnippet>1101</a>        <span class="comment">// We assume that we loaded only 1 envelope stack, because of the project keys combinations
-<a href=#1102 id=1102 data-nosnippet>1102</a>        // of the envelopes we inserted above.
-<a href=#1103 id=1103 data-nosnippet>1103</a>        </span><span class="macro">assert_eq!</span>(buffer.priority_queue.len(), <span class="number">1</span>);
-<a href=#1104 id=1104 data-nosnippet>1104</a>        <span class="comment">// We expect to have an entry per project key, since we have 1 pair, the total entries
-<a href=#1105 id=1105 data-nosnippet>1105</a>        // should be 2.
-<a href=#1106 id=1106 data-nosnippet>1106</a>        </span><span class="macro">assert_eq!</span>(buffer.stacks_by_project.len(), <span class="number">2</span>);
-<a href=#1107 id=1107 data-nosnippet>1107</a>    }
-<a href=#1108 id=1108 data-nosnippet>1108</a>}</code></pre></div></section></main></body></html>
+<a href=#1101 id=1101 data-nosnippet>1101</a>        buffer.initialize().<span class="kw">await</span>;
+<a href=#1102 id=1102 data-nosnippet>1102</a>
+<a href=#1103 id=1103 data-nosnippet>1103</a>        <span class="comment">// We assume that we loaded only 1 envelope stack, because of the project keys combinations
+<a href=#1104 id=1104 data-nosnippet>1104</a>        // of the envelopes we inserted above.
+<a href=#1105 id=1105 data-nosnippet>1105</a>        </span><span class="macro">assert_eq!</span>(buffer.priority_queue.len(), <span class="number">1</span>);
+<a href=#1106 id=1106 data-nosnippet>1106</a>        <span class="comment">// We expect to have an entry per project key, since we have 1 pair, the total entries
+<a href=#1107 id=1107 data-nosnippet>1107</a>        // should be 2.
+<a href=#1108 id=1108 data-nosnippet>1108</a>        </span><span class="macro">assert_eq!</span>(buffer.stacks_by_project.len(), <span class="number">2</span>);
+<a href=#1109 id=1109 data-nosnippet>1109</a>    }
+<a href=#1110 id=1110 data-nosnippet>1110</a>}</code></pre></div></section></main></body></html>

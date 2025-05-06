@@ -19,7 +19,7 @@
 <a href=#19 id=19 data-nosnippet>19</a>//!     ..SentryConfig::default()
 <a href=#20 id=20 data-nosnippet>20</a>//! };
 <a href=#21 id=21 data-nosnippet>21</a>//!
-<a href=#22 id=22 data-nosnippet>22</a>//! relay_log::init(&amp;log_config, &amp;sentry_config);
+<a href=#22 id=22 data-nosnippet>22</a>//! unsafe { relay_log::init(&amp;log_config, &amp;sentry_config); }
 <a href=#23 id=23 data-nosnippet>23</a>//! ```
 <a href=#24 id=24 data-nosnippet>24</a>//!
 <a href=#25 id=25 data-nosnippet>25</a>//! # Logging
@@ -125,8 +125,8 @@
 <a href=#125 id=125 data-nosnippet>125</a><span class="kw">mod </span>utils;
 <a href=#126 id=126 data-nosnippet>126</a><span class="comment">// Expose the minimal log facade.
 <a href=#127 id=127 data-nosnippet>127</a></span><span class="attr">#[doc(inline)]
-<a href=#128 id=128 data-nosnippet>128</a></span><span class="kw">pub use </span>tracing::{debug, error, info, trace, warn, Level};
+<a href=#128 id=128 data-nosnippet>128</a></span><span class="kw">pub use </span>tracing::{Level, debug, error, info, trace, warn};
 <a href=#129 id=129 data-nosnippet>129</a><span class="comment">// Expose the minimal error reporting API.
 <a href=#130 id=130 data-nosnippet>130</a></span><span class="attr">#[doc(inline)]
-<a href=#131 id=131 data-nosnippet>131</a></span><span class="kw">pub use </span>sentry_core::{<span class="self">self </span><span class="kw">as </span>sentry, capture_error, configure_scope, protocol, with_scope, Hub};
+<a href=#131 id=131 data-nosnippet>131</a></span><span class="kw">pub use </span>sentry_core::{<span class="self">self </span><span class="kw">as </span>sentry, Hub, capture_error, configure_scope, protocol, with_scope};
 <a href=#132 id=132 data-nosnippet>132</a><span class="kw">pub use </span>utils::<span class="kw-2">*</span>;</code></pre></div></section></main></body></html>

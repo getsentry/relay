@@ -58,7 +58,7 @@
 <a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#59 id=59 data-nosnippet>59</a>    }
 <a href=#60 id=60 data-nosnippet>60</a>
-<a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>event), <span class="kw-2">ref mut </span>meta) = event <span class="kw">else </span>{
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(event), meta) = event <span class="kw">else </span>{
 <a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#63 id=63 data-nosnippet>63</a>    };
 <a href=#64 id=64 data-nosnippet>64</a>
@@ -316,7 +316,7 @@
 <a href=#316 id=316 data-nosnippet>316</a>    <span class="kw">use </span>chrono::TimeZone;
 <a href=#317 id=317 data-nosnippet>317</a>    <span class="kw">use </span>relay_base_schema::spans::SpanStatus;
 <a href=#318 id=318 data-nosnippet>318</a>    <span class="kw">use </span>relay_event_schema::protocol::{Contexts, SpanId};
-<a href=#319 id=319 data-nosnippet>319</a>    <span class="kw">use </span>relay_protocol::{get_value, Object};
+<a href=#319 id=319 data-nosnippet>319</a>    <span class="kw">use </span>relay_protocol::{Object, get_value};
 <a href=#320 id=320 data-nosnippet>320</a>
 <a href=#321 id=321 data-nosnippet>321</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#322 id=322 data-nosnippet>322</a>
@@ -826,34 +826,38 @@
 <a href=#826 id=826 data-nosnippet>826</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 <a href=#827 id=827 data-nosnippet>827</a>
 <a href=#828 id=828 data-nosnippet>828</a>        <span class="macro">assert!</span>(validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).is_err());
-<a href=#829 id=829 data-nosnippet>829</a>        <span class="macro">assert!</span>(validate_event(
-<a href=#830 id=830 data-nosnippet>830</a>            <span class="kw-2">&amp;mut </span>event,
-<a href=#831 id=831 data-nosnippet>831</a>            <span class="kw-2">&amp;</span>EventValidationConfig {
-<a href=#832 id=832 data-nosnippet>832</a>                is_validated: <span class="bool-val">true</span>,
-<a href=#833 id=833 data-nosnippet>833</a>                ..Default::default()
-<a href=#834 id=834 data-nosnippet>834</a>            }
-<a href=#835 id=835 data-nosnippet>835</a>        )
-<a href=#836 id=836 data-nosnippet>836</a>        .is_ok());
-<a href=#837 id=837 data-nosnippet>837</a>    }
-<a href=#838 id=838 data-nosnippet>838</a>
-<a href=#839 id=839 data-nosnippet>839</a>    <span class="attr">#[test]
-<a href=#840 id=840 data-nosnippet>840</a>    </span><span class="kw">fn </span>test_skip_event_timestamp_validation_on_renormalization() {
-<a href=#841 id=841 data-nosnippet>841</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#842 id=842 data-nosnippet>842</a>  "event_id": "52df9022835246eeb317dbd739ccd059",
-<a href=#843 id=843 data-nosnippet>843</a>  "transaction": "completely outdated transaction",
-<a href=#844 id=844 data-nosnippet>844</a>  "start_timestamp": -2,
-<a href=#845 id=845 data-nosnippet>845</a>  "timestamp": -1
-<a href=#846 id=846 data-nosnippet>846</a>}"#</span>;
-<a href=#847 id=847 data-nosnippet>847</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
-<a href=#848 id=848 data-nosnippet>848</a>
-<a href=#849 id=849 data-nosnippet>849</a>        <span class="macro">assert!</span>(validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).is_err());
-<a href=#850 id=850 data-nosnippet>850</a>        <span class="macro">assert!</span>(validate_event(
-<a href=#851 id=851 data-nosnippet>851</a>            <span class="kw-2">&amp;mut </span>event,
-<a href=#852 id=852 data-nosnippet>852</a>            <span class="kw-2">&amp;</span>EventValidationConfig {
-<a href=#853 id=853 data-nosnippet>853</a>                is_validated: <span class="bool-val">true</span>,
-<a href=#854 id=854 data-nosnippet>854</a>                ..Default::default()
-<a href=#855 id=855 data-nosnippet>855</a>            }
-<a href=#856 id=856 data-nosnippet>856</a>        )
-<a href=#857 id=857 data-nosnippet>857</a>        .is_ok());
-<a href=#858 id=858 data-nosnippet>858</a>    }
-<a href=#859 id=859 data-nosnippet>859</a>}</code></pre></div></section></main></body></html>
+<a href=#829 id=829 data-nosnippet>829</a>        <span class="macro">assert!</span>(
+<a href=#830 id=830 data-nosnippet>830</a>            validate_event(
+<a href=#831 id=831 data-nosnippet>831</a>                <span class="kw-2">&amp;mut </span>event,
+<a href=#832 id=832 data-nosnippet>832</a>                <span class="kw-2">&amp;</span>EventValidationConfig {
+<a href=#833 id=833 data-nosnippet>833</a>                    is_validated: <span class="bool-val">true</span>,
+<a href=#834 id=834 data-nosnippet>834</a>                    ..Default::default()
+<a href=#835 id=835 data-nosnippet>835</a>                }
+<a href=#836 id=836 data-nosnippet>836</a>            )
+<a href=#837 id=837 data-nosnippet>837</a>            .is_ok()
+<a href=#838 id=838 data-nosnippet>838</a>        );
+<a href=#839 id=839 data-nosnippet>839</a>    }
+<a href=#840 id=840 data-nosnippet>840</a>
+<a href=#841 id=841 data-nosnippet>841</a>    <span class="attr">#[test]
+<a href=#842 id=842 data-nosnippet>842</a>    </span><span class="kw">fn </span>test_skip_event_timestamp_validation_on_renormalization() {
+<a href=#843 id=843 data-nosnippet>843</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#844 id=844 data-nosnippet>844</a>  "event_id": "52df9022835246eeb317dbd739ccd059",
+<a href=#845 id=845 data-nosnippet>845</a>  "transaction": "completely outdated transaction",
+<a href=#846 id=846 data-nosnippet>846</a>  "start_timestamp": -2,
+<a href=#847 id=847 data-nosnippet>847</a>  "timestamp": -1
+<a href=#848 id=848 data-nosnippet>848</a>}"#</span>;
+<a href=#849 id=849 data-nosnippet>849</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+<a href=#850 id=850 data-nosnippet>850</a>
+<a href=#851 id=851 data-nosnippet>851</a>        <span class="macro">assert!</span>(validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).is_err());
+<a href=#852 id=852 data-nosnippet>852</a>        <span class="macro">assert!</span>(
+<a href=#853 id=853 data-nosnippet>853</a>            validate_event(
+<a href=#854 id=854 data-nosnippet>854</a>                <span class="kw-2">&amp;mut </span>event,
+<a href=#855 id=855 data-nosnippet>855</a>                <span class="kw-2">&amp;</span>EventValidationConfig {
+<a href=#856 id=856 data-nosnippet>856</a>                    is_validated: <span class="bool-val">true</span>,
+<a href=#857 id=857 data-nosnippet>857</a>                    ..Default::default()
+<a href=#858 id=858 data-nosnippet>858</a>                }
+<a href=#859 id=859 data-nosnippet>859</a>            )
+<a href=#860 id=860 data-nosnippet>860</a>            .is_ok()
+<a href=#861 id=861 data-nosnippet>861</a>        );
+<a href=#862 id=862 data-nosnippet>862</a>    }
+<a href=#863 id=863 data-nosnippet>863</a>}</code></pre></div></section></main></body></html>

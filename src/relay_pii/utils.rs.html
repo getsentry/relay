@@ -17,8 +17,8 @@
 <a href=#17 id=17 data-nosnippet>17</a>    // * tag keys need to be trimmed too and therefore need to have a path
 <a href=#18 id=18 data-nosnippet>18</a>
 <a href=#19 id=19 data-nosnippet>19</a>    </span><span class="kw">for </span>(idx, annotated) <span class="kw">in </span>value.iter_mut().enumerate() {
-<a href=#20 id=20 data-nosnippet>20</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>pair) = annotated.value_mut() {
-<a href=#21 id=21 data-nosnippet>21</a>            <span class="kw">let </span>(<span class="kw-2">ref mut </span>key, <span class="kw-2">ref mut </span>value) = pair.as_pair_mut();
+<a href=#20 id=20 data-nosnippet>20</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(pair) = annotated.value_mut() {
+<a href=#21 id=21 data-nosnippet>21</a>            <span class="kw">let </span>(key, value) = pair.as_pair_mut();
 <a href=#22 id=22 data-nosnippet>22</a>            <span class="kw">let </span>value_type = ValueType::for_field(value);
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(key_name) = key.as_str() {

@@ -10,7 +10,7 @@
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_protocol::Value;
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>relay_quotas::DataCategory;
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>serde::{Deserialize, Serialize};
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>smallvec::{smallvec, SmallVec};
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>smallvec::{SmallVec, smallvec};
 <a href=#14 id=14 data-nosnippet>14</a>
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, EnvelopeError};
 <a href=#16 id=16 data-nosnippet>16</a>
@@ -613,7 +613,7 @@
 <a href=#613 id=613 data-nosnippet>613</a>    <span class="doccomment">/// Returns the item type as a string.
 <a href=#614 id=614 data-nosnippet>614</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
 <a href=#615 id=615 data-nosnippet>615</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#616 id=616 data-nosnippet>616</a>            <span class="self">Self</span>::Unknown(<span class="kw-2">ref </span>s) =&gt; s,
+<a href=#616 id=616 data-nosnippet>616</a>            <span class="self">Self</span>::Unknown(s) =&gt; s,
 <a href=#617 id=617 data-nosnippet>617</a>            <span class="kw">_ </span>=&gt; <span class="self">self</span>.name(),
 <a href=#618 id=618 data-nosnippet>618</a>        }
 <a href=#619 id=619 data-nosnippet>619</a>    }

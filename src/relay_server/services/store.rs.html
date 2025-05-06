@@ -10,8 +10,8 @@
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>bytes::Bytes;
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>chrono::{DateTime, Utc};
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>futures::future::BoxFuture;
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>futures::FutureExt;
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>futures::FutureExt;
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>futures::future::BoxFuture;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>relay_base_schema::project::ProjectId;
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -29,8 +29,8 @@
 <a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span>relay_threading::AsyncPool;
 <a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span>serde::{Deserialize, Serialize};
-<a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span>serde_json::value::RawValue;
-<a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>serde_json::Deserializer;
+<a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span>serde_json::Deserializer;
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>serde_json::value::RawValue;
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span>uuid::Uuid;
 <a href=#35 id=35 data-nosnippet>35</a>
 <a href=#36 id=36 data-nosnippet>36</a><span class="kw">use </span><span class="kw">crate</span>::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
@@ -1714,41 +1714,37 @@
 <a href=#1714 id=1714 data-nosnippet>1714</a>}
 <a href=#1715 id=1715 data-nosnippet>1715</a>
 <a href=#1716 id=1716 data-nosnippet>1716</a><span class="kw">fn </span>bool_to_str(value: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#1717 id=1717 data-nosnippet>1717</a>    <span class="kw">if </span>value {
-<a href=#1718 id=1718 data-nosnippet>1718</a>        <span class="string">"true"
-<a href=#1719 id=1719 data-nosnippet>1719</a>    </span>} <span class="kw">else </span>{
-<a href=#1720 id=1720 data-nosnippet>1720</a>        <span class="string">"false"
-<a href=#1721 id=1721 data-nosnippet>1721</a>    </span>}
-<a href=#1722 id=1722 data-nosnippet>1722</a>}
-<a href=#1723 id=1723 data-nosnippet>1723</a>
-<a href=#1724 id=1724 data-nosnippet>1724</a><span class="doccomment">/// Returns a safe timestamp for Kafka.
-<a href=#1725 id=1725 data-nosnippet>1725</a>///
-<a href=#1726 id=1726 data-nosnippet>1726</a>/// Kafka expects timestamps to be in UTC and in seconds since epoch.
-<a href=#1727 id=1727 data-nosnippet>1727</a></span><span class="kw">fn </span>safe_timestamp(timestamp: DateTime&lt;Utc&gt;) -&gt; u64 {
-<a href=#1728 id=1728 data-nosnippet>1728</a>    <span class="kw">let </span>ts = timestamp.timestamp();
-<a href=#1729 id=1729 data-nosnippet>1729</a>    <span class="kw">if </span>ts &gt;= <span class="number">0 </span>{
-<a href=#1730 id=1730 data-nosnippet>1730</a>        <span class="kw">return </span>ts <span class="kw">as </span>u64;
-<a href=#1731 id=1731 data-nosnippet>1731</a>    }
+<a href=#1717 id=1717 data-nosnippet>1717</a>    <span class="kw">if </span>value { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>}
+<a href=#1718 id=1718 data-nosnippet>1718</a>}
+<a href=#1719 id=1719 data-nosnippet>1719</a>
+<a href=#1720 id=1720 data-nosnippet>1720</a><span class="doccomment">/// Returns a safe timestamp for Kafka.
+<a href=#1721 id=1721 data-nosnippet>1721</a>///
+<a href=#1722 id=1722 data-nosnippet>1722</a>/// Kafka expects timestamps to be in UTC and in seconds since epoch.
+<a href=#1723 id=1723 data-nosnippet>1723</a></span><span class="kw">fn </span>safe_timestamp(timestamp: DateTime&lt;Utc&gt;) -&gt; u64 {
+<a href=#1724 id=1724 data-nosnippet>1724</a>    <span class="kw">let </span>ts = timestamp.timestamp();
+<a href=#1725 id=1725 data-nosnippet>1725</a>    <span class="kw">if </span>ts &gt;= <span class="number">0 </span>{
+<a href=#1726 id=1726 data-nosnippet>1726</a>        <span class="kw">return </span>ts <span class="kw">as </span>u64;
+<a href=#1727 id=1727 data-nosnippet>1727</a>    }
+<a href=#1728 id=1728 data-nosnippet>1728</a>
+<a href=#1729 id=1729 data-nosnippet>1729</a>    <span class="comment">// We assume this call can't return &lt; 0.
+<a href=#1730 id=1730 data-nosnippet>1730</a>    </span>Utc::now().timestamp() <span class="kw">as </span>u64
+<a href=#1731 id=1731 data-nosnippet>1731</a>}
 <a href=#1732 id=1732 data-nosnippet>1732</a>
-<a href=#1733 id=1733 data-nosnippet>1733</a>    <span class="comment">// We assume this call can't return &lt; 0.
-<a href=#1734 id=1734 data-nosnippet>1734</a>    </span>Utc::now().timestamp() <span class="kw">as </span>u64
-<a href=#1735 id=1735 data-nosnippet>1735</a>}
+<a href=#1733 id=1733 data-nosnippet>1733</a><span class="attr">#[cfg(test)]
+<a href=#1734 id=1734 data-nosnippet>1734</a></span><span class="kw">mod </span>tests {
+<a href=#1735 id=1735 data-nosnippet>1735</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#1736 id=1736 data-nosnippet>1736</a>
-<a href=#1737 id=1737 data-nosnippet>1737</a><span class="attr">#[cfg(test)]
-<a href=#1738 id=1738 data-nosnippet>1738</a></span><span class="kw">mod </span>tests {
-<a href=#1739 id=1739 data-nosnippet>1739</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#1740 id=1740 data-nosnippet>1740</a>
-<a href=#1741 id=1741 data-nosnippet>1741</a>    <span class="attr">#[test]
-<a href=#1742 id=1742 data-nosnippet>1742</a>    </span><span class="kw">fn </span>disallow_outcomes() {
-<a href=#1743 id=1743 data-nosnippet>1743</a>        <span class="kw">let </span>config = Config::default();
-<a href=#1744 id=1744 data-nosnippet>1744</a>        <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config).unwrap();
-<a href=#1745 id=1745 data-nosnippet>1745</a>
-<a href=#1746 id=1746 data-nosnippet>1746</a>        <span class="kw">for </span>topic <span class="kw">in </span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-<a href=#1747 id=1747 data-nosnippet>1747</a>            <span class="kw">let </span>res = producer
-<a href=#1748 id=1748 data-nosnippet>1748</a>                .client
-<a href=#1749 id=1749 data-nosnippet>1749</a>                .send(topic, <span class="string">b"0123456789abcdef"</span>, <span class="prelude-val">None</span>, <span class="string">"foo"</span>, <span class="string">b""</span>);
-<a href=#1750 id=1750 data-nosnippet>1750</a>
-<a href=#1751 id=1751 data-nosnippet>1751</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, <span class="prelude-val">Err</span>(ClientError::InvalidTopicName)));
-<a href=#1752 id=1752 data-nosnippet>1752</a>        }
-<a href=#1753 id=1753 data-nosnippet>1753</a>    }
-<a href=#1754 id=1754 data-nosnippet>1754</a>}</code></pre></div></section></main></body></html>
+<a href=#1737 id=1737 data-nosnippet>1737</a>    <span class="attr">#[test]
+<a href=#1738 id=1738 data-nosnippet>1738</a>    </span><span class="kw">fn </span>disallow_outcomes() {
+<a href=#1739 id=1739 data-nosnippet>1739</a>        <span class="kw">let </span>config = Config::default();
+<a href=#1740 id=1740 data-nosnippet>1740</a>        <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config).unwrap();
+<a href=#1741 id=1741 data-nosnippet>1741</a>
+<a href=#1742 id=1742 data-nosnippet>1742</a>        <span class="kw">for </span>topic <span class="kw">in </span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
+<a href=#1743 id=1743 data-nosnippet>1743</a>            <span class="kw">let </span>res = producer
+<a href=#1744 id=1744 data-nosnippet>1744</a>                .client
+<a href=#1745 id=1745 data-nosnippet>1745</a>                .send(topic, <span class="string">b"0123456789abcdef"</span>, <span class="prelude-val">None</span>, <span class="string">"foo"</span>, <span class="string">b""</span>);
+<a href=#1746 id=1746 data-nosnippet>1746</a>
+<a href=#1747 id=1747 data-nosnippet>1747</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, <span class="prelude-val">Err</span>(ClientError::InvalidTopicName)));
+<a href=#1748 id=1748 data-nosnippet>1748</a>        }
+<a href=#1749 id=1749 data-nosnippet>1749</a>    }
+<a href=#1750 id=1750 data-nosnippet>1750</a>}</code></pre></div></section></main></body></html>

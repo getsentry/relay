@@ -172,9 +172,9 @@
 <a href=#172 id=172 data-nosnippet>172</a>
 <a href=#173 id=173 data-nosnippet>173</a><span class="attr">#[cfg(test)]
 <a href=#174 id=174 data-nosnippet>174</a></span><span class="kw">mod </span>tests {
-<a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">use </span>relay_event_schema::processor::{ProcessingState, process_value};
 <a href=#176 id=176 data-nosnippet>176</a>    <span class="kw">use </span>relay_event_schema::protocol::Event;
-<a href=#177 id=177 data-nosnippet>177</a>    <span class="kw">use </span>relay_protocol::{assert_annotated_snapshot, FromValue};
+<a href=#177 id=177 data-nosnippet>177</a>    <span class="kw">use </span>relay_protocol::{FromValue, assert_annotated_snapshot};
 <a href=#178 id=178 data-nosnippet>178</a>    <span class="kw">use </span>similar_asserts::assert_eq;
 <a href=#179 id=179 data-nosnippet>179</a>
 <a href=#180 id=180 data-nosnippet>180</a>    <span class="kw">use </span><span class="kw">crate</span>::PiiProcessor;

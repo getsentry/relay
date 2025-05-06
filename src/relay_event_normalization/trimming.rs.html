@@ -442,7 +442,7 @@
 <a href=#442 id=442 data-nosnippet>442</a>        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, SentryTags, Span, SpanId,
 <a href=#443 id=443 data-nosnippet>443</a>        TagEntry, Tags, Timestamp, TraceId, Values,
 <a href=#444 id=444 data-nosnippet>444</a>    };
-<a href=#445 id=445 data-nosnippet>445</a>    <span class="kw">use </span>relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
+<a href=#445 id=445 data-nosnippet>445</a>    <span class="kw">use </span>relay_protocol::{Map, Remark, SerializableAnnotated, get_value};
 <a href=#446 id=446 data-nosnippet>446</a>    <span class="kw">use </span>similar_asserts::assert_eq;
 <a href=#447 id=447 data-nosnippet>447</a>
 <a href=#448 id=448 data-nosnippet>448</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -715,7 +715,7 @@
 <a href=#715 id=715 data-nosnippet>715</a>        <span class="kw">let </span>contexts = contexts.value().unwrap();
 <a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..<span class="number">2 </span>{
 <a href=#717 id=717 data-nosnippet>717</a>            <span class="kw">let </span>other = <span class="kw">match </span>contexts.get_key(<span class="macro">format!</span>(<span class="string">"despacito{i}"</span>)).unwrap() {
-<a href=#718 id=718 data-nosnippet>718</a>                Context::Other(<span class="kw-2">ref </span>x) =&gt; x,
+<a href=#718 id=718 data-nosnippet>718</a>                Context::Other(x) =&gt; x,
 <a href=#719 id=719 data-nosnippet>719</a>                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Context has changed type!"</span>),
 <a href=#720 id=720 data-nosnippet>720</a>            };
 <a href=#721 id=721 data-nosnippet>721</a>

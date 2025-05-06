@@ -15,7 +15,7 @@
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{CountFor, ItemType};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-<a href=#18 id=18 data-nosnippet>18</a>    event_category, EventProcessing, Sampling, SpansExtracted, TransactionGroup,
+<a href=#18 id=18 data-nosnippet>18</a>    EventProcessing, Sampling, SpansExtracted, TransactionGroup, event_category,
 <a href=#19 id=19 data-nosnippet>19</a>};
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, SamplingResult, TypedEnvelope};
@@ -99,7 +99,7 @@
 <a href=#99 id=99 data-nosnippet>99</a>
 <a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">let </span>root_state = sampling_project_info.as_ref();
 <a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">let </span>root_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
-<a href=#102 id=102 data-nosnippet>102</a>        <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="prelude-val">Some</span>(ErrorBoundary::Ok(config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
 <a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
 <a href=#104 id=104 data-nosnippet>104</a>    };
 <a href=#105 id=105 data-nosnippet>105</a>
@@ -240,7 +240,7 @@
 <a href=#240 id=240 data-nosnippet>240</a>
 <a href=#241 id=241 data-nosnippet>241</a>    <span class="kw">let </span>root_state = sampling_project_info.as_ref();
 <a href=#242 id=242 data-nosnippet>242</a>    <span class="kw">let </span>sampling_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
-<a href=#243 id=243 data-nosnippet>243</a>        <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) =&gt; config,
+<a href=#243 id=243 data-nosnippet>243</a>        <span class="prelude-val">Some</span>(ErrorBoundary::Ok(config)) =&gt; config,
 <a href=#244 id=244 data-nosnippet>244</a>        <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
 <a href=#245 id=245 data-nosnippet>245</a>    };
 <a href=#246 id=246 data-nosnippet>246</a>

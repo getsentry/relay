@@ -216,7 +216,7 @@
 <a href=#216 id=216 data-nosnippet>216</a>            }
 <a href=#217 id=217 data-nosnippet>217</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#218 id=218 data-nosnippet>218</a>            </span>Outcome::CardinalityLimited(id) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(id)),
-<a href=#219 id=219 data-nosnippet>219</a>            Outcome::ClientDiscard(<span class="kw-2">ref </span>discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason)),
+<a href=#219 id=219 data-nosnippet>219</a>            Outcome::ClientDiscard(discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason)),
 <a href=#220 id=220 data-nosnippet>220</a>            Outcome::Abuse =&gt; <span class="prelude-val">None</span>,
 <a href=#221 id=221 data-nosnippet>221</a>            Outcome::Accepted =&gt; <span class="prelude-val">None</span>,
 <a href=#222 id=222 data-nosnippet>222</a>        }

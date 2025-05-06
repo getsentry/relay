@@ -362,8 +362,8 @@
 <a href=#362 id=362 data-nosnippet>362</a>                <span class="prelude-val">Err</span>(e) =&gt; {
 <a href=#363 id=363 data-nosnippet>363</a>                    <span class="macro">relay_log::error!</span>(<span class="string">"failed to load global config from file: {}"</span>, e);
 <a href=#364 id=364 data-nosnippet>364</a>                    <span class="macro">relay_log::info!</span>(
-<a href=#365 id=365 data-nosnippet>365</a>                                <span class="string">"serving default global configs due to failure to load global config from file"
-<a href=#366 id=366 data-nosnippet>366</a>                            </span>);
+<a href=#365 id=365 data-nosnippet>365</a>                        <span class="string">"serving default global configs due to failure to load global config from file"
+<a href=#366 id=366 data-nosnippet>366</a>                    </span>);
 <a href=#367 id=367 data-nosnippet>367</a>                    <span class="self">self</span>.global_config_watch
 <a href=#368 id=368 data-nosnippet>368</a>                        .send_replace(Status::Ready(Arc::default()));
 <a href=#369 id=369 data-nosnippet>369</a>                }

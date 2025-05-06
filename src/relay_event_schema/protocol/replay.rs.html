@@ -233,7 +233,7 @@
 <a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span>headers = <span class="self">self</span>.request.value()<span class="question-mark">?</span>.headers.value()<span class="question-mark">?</span>;
 <a href=#234 id=234 data-nosnippet>234</a>
 <a href=#235 id=235 data-nosnippet>235</a>        <span class="kw">for </span>item <span class="kw">in </span>headers.iter() {
-<a href=#236 id=236 data-nosnippet>236</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw-2">ref </span>o_k, <span class="kw-2">ref </span>v)) = item.value() {
+<a href=#236 id=236 data-nosnippet>236</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>((o_k, v)) = item.value() {
 <a href=#237 id=237 data-nosnippet>237</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(k) = o_k.as_str() {
 <a href=#238 id=238 data-nosnippet>238</a>                    <span class="kw">if </span>k.eq_ignore_ascii_case(<span class="string">"user-agent"</span>) {
 <a href=#239 id=239 data-nosnippet>239</a>                        <span class="kw">return </span>v.as_str();

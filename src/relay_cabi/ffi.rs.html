@@ -88,7 +88,7 @@
 <a href=#88 id=88 data-nosnippet>88</a>}
 <a href=#89 id=89 data-nosnippet>89</a>
 <a href=#90 id=90 data-nosnippet>90</a><span class="doccomment">/// Initializes the library
-<a href=#91 id=91 data-nosnippet>91</a></span><span class="attr">#[no_mangle]
+<a href=#91 id=91 data-nosnippet>91</a></span><span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 <a href=#92 id=92 data-nosnippet>92</a></span><span class="kw">pub extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_init() {
 <a href=#93 id=93 data-nosnippet>93</a>    relay_ffi::set_panic_hook();
 <a href=#94 id=94 data-nosnippet>94</a>}
@@ -96,7 +96,7 @@
 <a href=#96 id=96 data-nosnippet>96</a><span class="doccomment">/// Returns the last error code.
 <a href=#97 id=97 data-nosnippet>97</a>///
 <a href=#98 id=98 data-nosnippet>98</a>/// If there is no error, 0 is returned.
-<a href=#99 id=99 data-nosnippet>99</a></span><span class="attr">#[no_mangle]
+<a href=#99 id=99 data-nosnippet>99</a></span><span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 <a href=#100 id=100 data-nosnippet>100</a></span><span class="kw">pub extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_err_get_last_code() -&gt; RelayErrorCode {
 <a href=#101 id=101 data-nosnippet>101</a>    relay_ffi::with_last_error(RelayErrorCode::from_error).unwrap_or(RelayErrorCode::NoError)
 <a href=#102 id=102 data-nosnippet>102</a>}
@@ -105,7 +105,7 @@
 <a href=#105 id=105 data-nosnippet>105</a>///
 <a href=#106 id=106 data-nosnippet>106</a>/// If there is no error an empty string is returned.  This allocates new memory
 <a href=#107 id=107 data-nosnippet>107</a>/// that needs to be freed with `relay_str_free`.
-<a href=#108 id=108 data-nosnippet>108</a></span><span class="attr">#[no_mangle]
+<a href=#108 id=108 data-nosnippet>108</a></span><span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 <a href=#109 id=109 data-nosnippet>109</a></span><span class="kw">pub extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_err_get_last_message() -&gt; RelayStr {
 <a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">use </span>std::fmt::Write;
 <a href=#111 id=111 data-nosnippet>111</a>    relay_ffi::with_last_error(|err| {
@@ -119,7 +119,7 @@
 <a href=#119 id=119 data-nosnippet>119</a>}
 <a href=#120 id=120 data-nosnippet>120</a>
 <a href=#121 id=121 data-nosnippet>121</a><span class="doccomment">/// Returns the panic information as string.
-<a href=#122 id=122 data-nosnippet>122</a></span><span class="attr">#[no_mangle]
+<a href=#122 id=122 data-nosnippet>122</a></span><span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 <a href=#123 id=123 data-nosnippet>123</a></span><span class="kw">pub extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_err_get_backtrace() -&gt; RelayStr {
 <a href=#124 id=124 data-nosnippet>124</a>    <span class="kw">let </span>backtrace = relay_ffi::with_last_error(|error| error.backtrace().to_string())
 <a href=#125 id=125 data-nosnippet>125</a>        .filter(|bt| !bt.is_empty());
@@ -131,7 +131,7 @@
 <a href=#131 id=131 data-nosnippet>131</a>}
 <a href=#132 id=132 data-nosnippet>132</a>
 <a href=#133 id=133 data-nosnippet>133</a><span class="doccomment">/// Clears the last error.
-<a href=#134 id=134 data-nosnippet>134</a></span><span class="attr">#[no_mangle]
+<a href=#134 id=134 data-nosnippet>134</a></span><span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 <a href=#135 id=135 data-nosnippet>135</a></span><span class="kw">pub extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_err_clear() {
 <a href=#136 id=136 data-nosnippet>136</a>    relay_ffi::take_last_error();
 <a href=#137 id=137 data-nosnippet>137</a>}</code></pre></div></section></main></body></html>

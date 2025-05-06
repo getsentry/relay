@@ -23,10 +23,10 @@
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>relay_system::{
 <a href=#24 id=24 data-nosnippet>24</a>    AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 <a href=#25 id=25 data-nosnippet>25</a>};
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>reqwest::header;
-<a href=#27 id=27 data-nosnippet>27</a><span class="kw">pub use </span>reqwest::Method;
-<a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span>serde::de::DeserializeOwned;
-<a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span>serde::Serialize;
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">pub use </span>reqwest::Method;
+<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>reqwest::header;
+<a href=#28 id=28 data-nosnippet>28</a><span class="kw">use </span>serde::Serialize;
+<a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span>serde::de::DeserializeOwned;
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span>tokio::sync::mpsc;
 <a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span>tokio::time::Instant;
 <a href=#32 id=32 data-nosnippet>32</a>
@@ -601,8 +601,8 @@
 <a href=#601 id=601 data-nosnippet>601</a>        <span class="prelude-val">Err</span>(e) =&gt; e.description(),
 <a href=#602 id=602 data-nosnippet>602</a>    };
 <a href=#603 id=603 data-nosnippet>603</a>    <span class="kw">let </span>status_code = <span class="kw">match </span>send_result {
-<a href=#604 id=604 data-nosnippet>604</a>        <span class="prelude-val">Ok</span>(<span class="kw-2">ref </span>response) =&gt; <span class="prelude-val">Some</span>(response.status()),
-<a href=#605 id=605 data-nosnippet>605</a>        <span class="prelude-val">Err</span>(<span class="kw-2">ref </span>error) =&gt; error.status_code(),
+<a href=#604 id=604 data-nosnippet>604</a>        <span class="prelude-val">Ok</span>(response) =&gt; <span class="prelude-val">Some</span>(response.status()),
+<a href=#605 id=605 data-nosnippet>605</a>        <span class="prelude-val">Err</span>(error) =&gt; error.status_code(),
 <a href=#606 id=606 data-nosnippet>606</a>    };
 <a href=#607 id=607 data-nosnippet>607</a>    <span class="kw">let </span>status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or(<span class="string">"-"</span>);
 <a href=#608 id=608 data-nosnippet>608</a>

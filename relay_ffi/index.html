@@ -62,12 +62,12 @@ relay_ffi::set_panic_hook();
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::ffi::CString;
 <span class="kw">use </span>std::os::raw::c_char;
 
-<span class="attr">#[no_mangle]
+<span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 </span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>init_ffi() {
     relay_ffi::set_panic_hook();
 }
 
-<span class="attr">#[no_mangle]
+<span class="attr">#[<span class="kw">unsafe</span>(no_mangle)]
 </span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>last_strerror() -&gt; <span class="kw-2">*mut </span>c_char {
     <span class="kw">let </span>ptr_opt = relay_ffi::with_last_error(|err| {
         CString::new(err.to_string())

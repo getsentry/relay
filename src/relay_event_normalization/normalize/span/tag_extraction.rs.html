@@ -18,13 +18,13 @@
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>url::Url;
 <a href=#20 id=20 data-nosnippet>20</a>
-<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::span::country_subregion::Subregion;
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::span::description::{
-<a href=#23 id=23 data-nosnippet>23</a>    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
-<a href=#24 id=24 data-nosnippet>24</a>};
-<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::span::TABLE_NAME_REGEX;
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::span::TABLE_NAME_REGEX;
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::span::country_subregion::Subregion;
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::span::description::{
+<a href=#24 id=24 data-nosnippet>24</a>    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
+<a href=#25 id=25 data-nosnippet>25</a>};
 <a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span><span class="kw">crate</span>::utils::{
-<a href=#27 id=27 data-nosnippet>27</a>    extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
+<a href=#27 id=27 data-nosnippet>27</a>    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, http_status_code_from_span,
 <a href=#28 id=28 data-nosnippet>28</a>};
 <a href=#29 id=29 data-nosnippet>29</a>
 <a href=#30 id=30 data-nosnippet>30</a><span class="doccomment">/// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
@@ -1485,11 +1485,11 @@
 <a href=#1485 id=1485 data-nosnippet>1485</a></span><span class="kw">mod </span>tests {
 <a href=#1486 id=1486 data-nosnippet>1486</a>    <span class="kw">use </span>insta::assert_debug_snapshot;
 <a href=#1487 id=1487 data-nosnippet>1487</a>    <span class="kw">use </span>relay_event_schema::protocol::{Request, SpanData};
-<a href=#1488 id=1488 data-nosnippet>1488</a>    <span class="kw">use </span>relay_protocol::{get_value, Getter, Object};
+<a href=#1488 id=1488 data-nosnippet>1488</a>    <span class="kw">use </span>relay_protocol::{Getter, Object, get_value};
 <a href=#1489 id=1489 data-nosnippet>1489</a>
 <a href=#1490 id=1490 data-nosnippet>1490</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#1491 id=1491 data-nosnippet>1491</a>    <span class="kw">use </span><span class="kw">crate</span>::span::description::{scrub_queries, Mode};
-<a href=#1492 id=1492 data-nosnippet>1492</a>    <span class="kw">use crate</span>::{normalize_event, NormalizationConfig};
+<a href=#1491 id=1491 data-nosnippet>1491</a>    <span class="kw">use </span><span class="kw">crate</span>::span::description::{Mode, scrub_queries};
+<a href=#1492 id=1492 data-nosnippet>1492</a>    <span class="kw">use crate</span>::{NormalizationConfig, normalize_event};
 <a href=#1493 id=1493 data-nosnippet>1493</a>
 <a href=#1494 id=1494 data-nosnippet>1494</a>    <span class="attr">#[test]
 <a href=#1495 id=1495 data-nosnippet>1495</a>    </span><span class="kw">fn </span>test_truncate_string_no_panic() {

@@ -17,12 +17,12 @@
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>relay_event_schema::protocol::EventId;
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>relay_metrics::FiniteF64;
 <a href=#19 id=19 data-nosnippet>19</a>
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::error::ProfileError;
-<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::measurements::ChunkMeasurement;
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::sample::{DebugMeta, Frame, ThreadMetadata, Version};
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::types::ClientSdk;
-<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::utils::default_client_sdk;
-<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::MAX_PROFILE_CHUNK_DURATION;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::MAX_PROFILE_CHUNK_DURATION;
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::error::ProfileError;
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::measurements::ChunkMeasurement;
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::sample::{DebugMeta, Frame, ThreadMetadata, Version};
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::types::ClientSdk;
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span><span class="kw">crate</span>::utils::default_client_sdk;
 <a href=#26 id=26 data-nosnippet>26</a>
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">const </span>MAX_PROFILE_CHUNK_DURATION_SECS: f64 = MAX_PROFILE_CHUNK_DURATION.as_secs_f64();
 <a href=#28 id=28 data-nosnippet>28</a><span class="attr">#[derive(Debug, Serialize, Deserialize)]
@@ -222,7 +222,7 @@
 <a href=#222 id=222 data-nosnippet>222</a></span><span class="kw">mod </span>tests {
 <a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">use </span>relay_metrics::FiniteF64;
 <a href=#224 id=224 data-nosnippet>224</a>
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">use </span><span class="kw">crate</span>::sample::v2::{parse, ProfileData, Sample};
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">use </span><span class="kw">crate</span>::sample::v2::{ProfileData, Sample, parse};
 <a href=#226 id=226 data-nosnippet>226</a>
 <a href=#227 id=227 data-nosnippet>227</a>    <span class="attr">#[test]
 <a href=#228 id=228 data-nosnippet>228</a>    </span><span class="kw">fn </span>test_roundtrip() {

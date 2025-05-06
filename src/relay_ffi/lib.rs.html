@@ -80,12 +80,12 @@
 <a href=#80 id=80 data-nosnippet>80</a>//! use std::ffi::CString;
 <a href=#81 id=81 data-nosnippet>81</a>//! use std::os::raw::c_char;
 <a href=#82 id=82 data-nosnippet>82</a>//!
-<a href=#83 id=83 data-nosnippet>83</a>//! #[no_mangle]
+<a href=#83 id=83 data-nosnippet>83</a>//! #[unsafe(no_mangle)]
 <a href=#84 id=84 data-nosnippet>84</a>//! pub unsafe extern "C" fn init_ffi() {
 <a href=#85 id=85 data-nosnippet>85</a>//!     relay_ffi::set_panic_hook();
 <a href=#86 id=86 data-nosnippet>86</a>//! }
 <a href=#87 id=87 data-nosnippet>87</a>//!
-<a href=#88 id=88 data-nosnippet>88</a>//! #[no_mangle]
+<a href=#88 id=88 data-nosnippet>88</a>//! #[unsafe(no_mangle)]
 <a href=#89 id=89 data-nosnippet>89</a>//! pub unsafe extern "C" fn last_strerror() -&gt; *mut c_char {
 <a href=#90 id=90 data-nosnippet>90</a>//!     let ptr_opt = relay_ffi::with_last_error(|err| {
 <a href=#91 id=91 data-nosnippet>91</a>//!         CString::new(err.to_string())
@@ -144,9 +144,9 @@
 <a href=#144 id=144 data-nosnippet>144</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(result)) =&gt; result,
 <a href=#145 id=145 data-nosnippet>145</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(err)) =&gt; {
 <a href=#146 id=146 data-nosnippet>146</a>                set_last_error(err);
-<a href=#147 id=147 data-nosnippet>147</a>                std::mem::zeroed()
+<a href=#147 id=147 data-nosnippet>147</a>                <span class="kw">unsafe </span>{ std::mem::zeroed() }
 <a href=#148 id=148 data-nosnippet>148</a>            }
-<a href=#149 id=149 data-nosnippet>149</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; std::mem::zeroed(),
+<a href=#149 id=149 data-nosnippet>149</a>            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">unsafe </span>{ std::mem::zeroed() },
 <a href=#150 id=150 data-nosnippet>150</a>        }
 <a href=#151 id=151 data-nosnippet>151</a>    }
 <a href=#152 id=152 data-nosnippet>152</a>}

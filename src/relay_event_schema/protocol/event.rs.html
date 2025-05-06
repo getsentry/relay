@@ -553,7 +553,7 @@
 <a href=#553 id=553 data-nosnippet>553</a>        <span class="kw">let </span>headers = <span class="self">self</span>.request.value()<span class="question-mark">?</span>.headers.value()<span class="question-mark">?</span>;
 <a href=#554 id=554 data-nosnippet>554</a>
 <a href=#555 id=555 data-nosnippet>555</a>        <span class="kw">for </span>item <span class="kw">in </span>headers.iter() {
-<a href=#556 id=556 data-nosnippet>556</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw-2">ref </span>o_k, <span class="kw-2">ref </span>v)) = item.value() {
+<a href=#556 id=556 data-nosnippet>556</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>((o_k, v)) = item.value() {
 <a href=#557 id=557 data-nosnippet>557</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(k) = o_k.as_str() {
 <a href=#558 id=558 data-nosnippet>558</a>                    <span class="kw">if </span>k.eq_ignore_ascii_case(<span class="string">"user-agent"</span>) {
 <a href=#559 id=559 data-nosnippet>559</a>                        <span class="kw">return </span>v.as_str();
@@ -577,7 +577,7 @@
 <a href=#577 id=577 data-nosnippet>577</a>
 <a href=#578 id=578 data-nosnippet>578</a>        <span class="comment">// Iterate recursively to fetch nested values
 <a href=#579 id=579 data-nosnippet>579</a>        </span><span class="kw">for </span>key <span class="kw">in </span>path {
-<a href=#580 id=580 data-nosnippet>580</a>            <span class="kw">if let </span>Value::Object(<span class="kw-2">ref </span>object) = value {
+<a href=#580 id=580 data-nosnippet>580</a>            <span class="kw">if let </span>Value::Object(object) = value {
 <a href=#581 id=581 data-nosnippet>581</a>                value = object.get(key)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
 <a href=#582 id=582 data-nosnippet>582</a>            } <span class="kw">else </span>{
 <a href=#583 id=583 data-nosnippet>583</a>                <span class="kw">return </span><span class="prelude-val">None</span>;
