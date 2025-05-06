@@ -12,7 +12,10 @@ fn main() {
     println!("cargo:rerun-if-changed=prosperoconv.version");
 
     if !cfg!(sentry) {
+        println!("cargo:warning=Sentry flag not set");
         return;
+    } else {
+        println!("cargo:warning=Sentry flag set");
     }
 
     match fs::read_to_string("src/lib.rs") {
