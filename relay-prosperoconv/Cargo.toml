@@ -24,5 +24,9 @@ sentry = "0.36.0"
 tracing = "0.1.40"
 watto = "0.1.0"
 
+[build-dependencies]
+dircpy = "0.3.19"
+tempfile = "3.19.1"
+
 [features]
 default = []

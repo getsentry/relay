@@ -1,6 +1,7 @@
+use dircpy::CopyBuilder;
 use std::fs;
-use std::path::Path;
 use std::process::Command;
+use tempfile::tempdir;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -10,15 +11,24 @@ fn main() {
         return;
     }
 
-    if Path::new("src/event.rs").exists() {
-        println!("cargo:warning=PlayStation files already present, skipping setup");
-        return;
+    if let Ok(metadata) = fs::metadata("src/lib.rs") {
+        if metadata.is_file() && metadata.len() > 10 {
+            println!("cargo:warning=PlayStation files already present, skipping setup");
+            return;
+        }
     }
-    println!("cargo:warning=Setting up PlayStation support");
 
-    let temp_dir = "/tmp/tempest";
+    println!("cargo:warning=Setting up PlayStation support");
+    let temp_dir = tempdir().expect("Failed to make temp_dir");
+    let temp_dir_path = temp_dir.path();
+    let temp_dir_str = temp_dir_path.to_string_lossy().to_string();
+
     if !Command::new("git")
-        .args(["clone", "git@github.com:getsentry/tempest.git", temp_dir])
+        .args([
+            "clone",
+            "git@github.com:getsentry/tempest.git",
+            &temp_dir_str,
+        ])
         .status()
         .map(|x| x.success())
         .unwrap_or(false)
@@ -27,7 +37,7 @@ fn main() {
             .args([
                 "clone",
                 "https://github.com/getsentry/tempest.git",
-                temp_dir,
+                &temp_dir_str,
             ])
             .status()
             .expect("Failed to clone tempest repository");
@@ -35,18 +45,19 @@ fn main() {
 
     Command::new("git")
         .args(["checkout", "tobias-wilfert/feat/test"])
-        .current_dir(temp_dir)
+        .current_dir(&temp_dir_path)
         .status()
         .expect("Failed to checkout branch");
 
-    Command::new("cp")
-        .args([
-            "-rf",
-            &format!("{}/crates/prosperoconv/src/.", temp_dir),
-            "src/",
-        ])
-        .status()
+    CopyBuilder::new(&temp_dir_path.join("crates/prosperoconv/src"), "src")
+        .overwrite(true)
+        .run()
         .expect("Failed to copy files");
 
-    fs::remove_dir_all(temp_dir).expect("Failed to remove temp directory");
+    Command::new("git")
+        .args(["update-index", "--skip-worktree", "src/lib.rs"])
+        .status()
+        .expect("Failed to skip worktree");
+
+    fs::remove_dir_all(&temp_dir_path).expect("Failed to remove temp directory");
 }
