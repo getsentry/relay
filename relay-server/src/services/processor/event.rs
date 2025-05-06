@@ -8,7 +8,7 @@ use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
-use relay_event_normalization::{nel, ClockDriftProcessor};
+use relay_event_normalization::{ClockDriftProcessor, nel};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
@@ -24,8 +24,8 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    event_category, event_type, EventFullyNormalized, EventMetricsExtracted, EventProcessing,
-    ExtractedEvent, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
+    EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent,
+    MINIMUM_CLOCK_DRIFT, ProcessingError, SpansExtracted, event_category, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};

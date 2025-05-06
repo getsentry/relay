@@ -13,12 +13,12 @@ use relay_event_schema::protocol::{
 use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 use relay_sampling::evaluation::SamplingDecision;
 
+use crate::metrics_extraction::IntoMetric;
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
     TransactionMeasurementTags, TransactionMetric,
 };
-use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
 use crate::utils;
 
@@ -494,9 +494,10 @@ mod tests {
         AcceptTransactionNames, CombinedMetricExtractionConfig, MetricExtractionConfig, TagMapping,
     };
     use relay_event_normalization::{
-        normalize_event, set_default_transaction_source, validate_event, BreakdownsConfig,
-        CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
-        PerformanceScoreConfig, PerformanceScoreProfile, PerformanceScoreWeightedComponent,
+        BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig,
+        NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
+        PerformanceScoreWeightedComponent, normalize_event, set_default_transaction_source,
+        validate_event,
     };
     use relay_metrics::BucketValue;
     use relay_protocol::{Annotated, RuleCondition};

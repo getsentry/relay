@@ -237,7 +237,7 @@ mod tests {
                 Some("https"),
                 Some("api.example.com"),
                 None,
-            )
+            ),
         ];
 
         for (url, scheme, domain, port) in examples {

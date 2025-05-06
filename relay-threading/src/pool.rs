@@ -7,8 +7,8 @@ use crate::builder::AsyncPoolBuilder;
 use crate::metrics::AsyncPoolMetrics;
 use crate::multiplexing::Multiplexed;
 use crate::{PanicHandler, ThreadMetrics};
-use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::future::BoxFuture;
 use relay_system::MonitoredFuture;
 
 /// Default name of the pool.
@@ -260,13 +260,13 @@ mod tests {
     use std::panic::AssertUnwindSafe;
     use std::sync::atomic::AtomicBool;
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     };
     use std::time::{Duration, Instant};
 
-    use futures::future::BoxFuture;
     use futures::FutureExt;
+    use futures::future::BoxFuture;
     use tokio::runtime::Runtime;
     use tokio::sync::Semaphore;
     use tokio::{runtime::Handle, time::sleep};

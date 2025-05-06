@@ -4,6 +4,7 @@ use relay_statsd::metric;
 use std::time::Duration;
 
 use crate::{
+    CardinalityLimit, Result,
     limiter::{CardinalityReport, Entry, Limiter, Reporter, Scoping},
     redis::{
         cache::{Cache, CacheOutcome},
@@ -12,7 +13,6 @@ use crate::{
         state::{LimitState, RedisEntry},
     },
     statsd::{CardinalityLimiterHistograms, CardinalityLimiterTimers},
-    CardinalityLimit, Result,
 };
 use relay_common::time::UnixTimestamp;
 
@@ -274,7 +274,7 @@ mod tests {
     use relay_base_schema::metrics::{MetricName, MetricNamespace::*, MetricType};
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::ProjectId;
-    use relay_redis::{redis, RedisConfigOptions};
+    use relay_redis::{RedisConfigOptions, redis};
 
     use crate::limiter::EntryId;
     use crate::redis::{KEY_PREFIX, KEY_VERSION};
@@ -643,14 +643,18 @@ mod tests {
         let m = MetricName::from("a");
 
         let entries1 = [Entry::new(EntryId(0), Custom, &m, 0)];
-        assert!(limiter
-            .test_limits(scoping1, limits, entries1)
-            .await
-            .is_empty());
-        assert!(limiter
-            .test_limits(scoping2, limits, entries1)
-            .await
-            .is_empty());
+        assert!(
+            limiter
+                .test_limits(scoping1, limits, entries1)
+                .await
+                .is_empty()
+        );
+        assert!(
+            limiter
+                .test_limits(scoping2, limits, entries1)
+                .await
+                .is_empty()
+        );
 
         // Make sure `entries2` is not accepted.
         let entries2 = [Entry::new(EntryId(1), Custom, &m, 1)];

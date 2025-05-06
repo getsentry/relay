@@ -229,7 +229,7 @@ pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>
 impl Headers {
     pub fn get_header(&self, key: &str) -> Option<&str> {
         for item in self.iter() {
-            if let Some((ref k, ref v)) = item.value() {
+            if let Some((k, v)) = item.value() {
                 if k.as_str() == Some(key) {
                     return v.as_str();
                 }

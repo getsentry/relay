@@ -11,7 +11,7 @@ use indexmap::IndexMap;
 use relay_pattern::{CaseInsensitive, TypedPatterns};
 use relay_protocol::RuleCondition;
 use serde::ser::SerializeSeq;
-use serde::{de, Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer, de};
 
 /// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

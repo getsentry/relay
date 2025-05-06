@@ -10,4 +10,4 @@ mod spawn;
 pub use self::handle::{Handle, ServiceSet};
 pub use self::metrics::RuntimeMetrics;
 pub use self::runtime::{Builder, Runtime};
-pub use self::spawn::{spawn, spawn_in, TaskId};
+pub use self::spawn::{TaskId, spawn, spawn_in};

@@ -23,10 +23,10 @@ use relay_quotas::{
 use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
-use reqwest::header;
 pub use reqwest::Method;
-use serde::de::DeserializeOwned;
+use reqwest::header;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
@@ -601,8 +601,8 @@ fn emit_response_metrics(
         Err(e) => e.description(),
     };
     let status_code = match send_result {
-        Ok(ref response) => Some(response.status()),
-        Err(ref error) => error.status_code(),
+        Ok(response) => Some(response.status()),
+        Err(error) => error.status_code(),
     };
     let status_str = status_code.as_ref().map(|c| c.as_str()).unwrap_or("-");
 

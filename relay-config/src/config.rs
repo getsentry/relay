@@ -9,7 +9,7 @@ use std::time::Duration;
 use std::{env, fmt, fs, io};
 
 use anyhow::Context;
-use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
+use relay_auth::{PublicKey, RelayId, SecretKey, generate_key_pair, generate_relay_id};
 use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
@@ -23,7 +23,7 @@ use uuid::Uuid;
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
-use crate::{build_redis_configs, RedisConfig, RedisConfigs, RedisConfigsRef};
+use crate::{RedisConfig, RedisConfigs, RedisConfigsRef, build_redis_configs};
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 

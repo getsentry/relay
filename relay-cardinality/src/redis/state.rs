@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use relay_statsd::metric;
 
 use crate::{
+    CardinalityLimit,
     limiter::{Entry, EntryId, Scoping},
     redis::quota::{PartialQuotaScoping, QuotaScoping},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterSets},
-    CardinalityLimit,
 };
 
 /// Internal state combining relevant entries for the respective quotas.

@@ -442,7 +442,7 @@ mod tests {
         Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, SentryTags, Span, SpanId,
         TagEntry, Tags, Timestamp, TraceId, Values,
     };
-    use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
+    use relay_protocol::{Map, Remark, SerializableAnnotated, get_value};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -715,7 +715,7 @@ mod tests {
         let contexts = contexts.value().unwrap();
         for i in 1..2 {
             let other = match contexts.get_key(format!("despacito{i}")).unwrap() {
-                Context::Other(ref x) => x,
+                Context::Other(x) => x,
                 _ => panic!("Context has changed type!"),
             };
 

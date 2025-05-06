@@ -389,7 +389,7 @@ mod tests {
     use std::borrow::Cow;
 
     use relay_event_schema::processor::{
-        process_value, EnumSet, FieldAttrs, Pii, ProcessingState, ValueType,
+        EnumSet, FieldAttrs, Pii, ProcessingState, ValueType, process_value,
     };
     use relay_protocol::{Annotated, Remark, RemarkType};
     use similar_asserts::assert_eq;

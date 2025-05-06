@@ -150,13 +150,13 @@ pub fn make_app() -> Command {
                 .arg(
                     Arg::new("instance")
                         .long("instance")
-                        .help("The instance type of this Relay.")
+                        .help("The instance type of this Relay."),
                 )
                 .arg(
                     Arg::new("server_name")
                         .long("server-name")
-                        .help("The server name reported to Sentry.")
-                )
+                        .help("The server name reported to Sentry."),
+                ),
         )
         .subcommand(
             Command::new("credentials")

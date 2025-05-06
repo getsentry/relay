@@ -28,14 +28,16 @@ unsafe extern "C" fn transport_proxy(
     }
 
     let mut len = 0;
-    let buf = native::sentry_envelope_serialize(envelope, &mut len);
+    let buf = unsafe { native::sentry_envelope_serialize(envelope, &mut len) };
 
     if !buf.is_null() && len > 0 {
-        let transport: Transport = std::mem::transmute(tx_pointer);
-        transport(std::slice::from_raw_parts(buf as *const u8, len));
+        let transport: Transport = unsafe { std::mem::transmute(tx_pointer) };
+        transport(unsafe { std::slice::from_raw_parts(buf as *const u8, len) });
     }
 
-    native::sentry_free(buf as _);
+    unsafe {
+        native::sentry_free(buf as _);
+    }
 }
 
 /// Captures process crashes and reports them to Sentry.

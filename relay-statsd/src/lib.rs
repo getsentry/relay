@@ -628,8 +628,8 @@ mod tests {
     use cadence::{NopMetricSink, StatsdClient};
 
     use crate::{
-        set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient,
-        TimerMetric,
+        GaugeMetric, MetricsClient, TimerMetric, set_client, with_capturing_test_client,
+        with_client,
     };
 
     enum TestGauges {

@@ -10,9 +10,9 @@ use relay_base_schema::{
     project::ProjectId,
 };
 use relay_cardinality::{
-    limiter::{Entry, EntryId, Limiter, Reporter, Scoping},
     CardinalityLimit, CardinalityReport, CardinalityScope, RedisSetLimiter, RedisSetLimiterOptions,
     SlidingWindow,
+    limiter::{Entry, EntryId, Limiter, Reporter, Scoping},
 };
 use relay_redis::{AsyncRedisClient, RedisConfigOptions};
 

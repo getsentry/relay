@@ -58,7 +58,7 @@ pub fn validate_event(
         return Ok(());
     }
 
-    let Annotated(Some(ref mut event), ref mut meta) = event else {
+    let Annotated(Some(event), meta) = event else {
         return Ok(());
     };
 
@@ -316,7 +316,7 @@ mod tests {
     use chrono::TimeZone;
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::protocol::{Contexts, SpanId};
-    use relay_protocol::{get_value, Object};
+    use relay_protocol::{Object, get_value};
 
     use super::*;
 
@@ -826,14 +826,16 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         assert!(validate_event(&mut event, &EventValidationConfig::default()).is_err());
-        assert!(validate_event(
-            &mut event,
-            &EventValidationConfig {
-                is_validated: true,
-                ..Default::default()
-            }
-        )
-        .is_ok());
+        assert!(
+            validate_event(
+                &mut event,
+                &EventValidationConfig {
+                    is_validated: true,
+                    ..Default::default()
+                }
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -847,13 +849,15 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         assert!(validate_event(&mut event, &EventValidationConfig::default()).is_err());
-        assert!(validate_event(
-            &mut event,
-            &EventValidationConfig {
-                is_validated: true,
-                ..Default::default()
-            }
-        )
-        .is_ok());
+        assert!(
+            validate_event(
+                &mut event,
+                &EventValidationConfig {
+                    is_validated: true,
+                    ..Default::default()
+                }
+            )
+            .is_ok()
+        );
     }
 }

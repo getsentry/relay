@@ -16,7 +16,7 @@ use crate::metrics::{
     self, MetricExtractionConfig, Metrics, SessionMetricsConfig, TaggingRule,
     TransactionMetricsConfig,
 };
-use crate::{defaults, GRADUATED_FEATURE_FLAGS};
+use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]

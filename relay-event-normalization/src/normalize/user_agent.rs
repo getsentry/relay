@@ -182,7 +182,7 @@ impl<'a> RawUserAgentInfo<&'a str> {
         let mut contexts: RawUserAgentInfo<&str> = Self::default();
 
         for item in headers.iter() {
-            if let Some((ref o_k, ref v)) = item.value() {
+            if let Some((o_k, v)) = item.value() {
                 if let Some(k) = o_k.as_str() {
                     contexts.set_ua_field_from_header(k, v.as_str());
                 }
@@ -491,8 +491,7 @@ mod tests {
         }
     }
 
-    const GOOD_UA: &str =
-            "Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19";
+    const GOOD_UA: &str = "Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19";
 
     #[test]
     fn test_version_none() {

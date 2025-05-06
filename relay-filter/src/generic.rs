@@ -406,11 +406,13 @@ mod tests {
     fn test_both_combined_when_supported_project_and_global_version() {
         let project = enabled_filter("supported-project");
         let global = enabled_filter("supported-global");
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([
-            project.filters.first().unwrap().1.into(),
-            global.filters.first().unwrap().1.into()
-        ]
-        .into_iter()));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([
+                project.filters.first().unwrap().1.into(),
+                global.filters.first().unwrap().1.into()
+            ]
+            .into_iter())
+        );
     }
 
     #[test]
@@ -439,38 +441,44 @@ mod tests {
     fn test_global_combined_when_empty_project_disabled_global_filter() {
         let project = empty_filter();
         let global = disabled_filter("disabled-global");
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([global
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into()]
-        .into_iter()));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([global
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into()]
+            .into_iter())
+        );
     }
 
     #[test]
     fn test_global_combined_when_empty_project_enabled_global_filters() {
         let project = empty_filter();
         let global = enabled_filter("enabled-global");
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([global
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into()]
-        .into_iter()));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([global
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into()]
+            .into_iter())
+        );
     }
 
     #[test]
     fn test_global_combined_when_empty_project_enabled_flag_global() {
         let project = empty_filter();
         let global = enabled_flag_filter("skip");
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([global
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into()]));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([global
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into()])
+        );
     }
 
     #[test]
@@ -491,13 +499,15 @@ mod tests {
     #[test]
     fn test_project_combined_when_disabled_project_missing_global() {
         let project = disabled_filter("disabled-project");
-        assert!(merge_generic_filters(&project, None, 1).eq([project
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into(),]
-        .into_iter()));
+        assert!(
+            merge_generic_filters(&project, None, 1).eq([project
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into(),]
+            .into_iter())
+        );
     }
 
     #[test]
@@ -533,7 +543,9 @@ mod tests {
             is_enabled: false,
             condition: global.filters.first().unwrap().1.condition.clone(),
         };
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([expected.into()].into_iter()));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([expected.into()].into_iter())
+        );
     }
 
     #[test]
@@ -554,13 +566,15 @@ mod tests {
     #[test]
     fn test_project_combined_when_enabled_flag_project_missing_global() {
         let project = enabled_flag_filter("filter");
-        assert!(merge_generic_filters(&project, None, 1).eq([project
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into()]
-        .into_iter()));
+        assert!(
+            merge_generic_filters(&project, None, 1).eq([project
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into()]
+            .into_iter())
+        );
     }
 
     #[test]
@@ -580,12 +594,14 @@ mod tests {
     #[test]
     fn test_project_combined_when_disabled_flag_project_missing_global() {
         let project = disabled_flag_filter("filter");
-        assert!(merge_generic_filters(&project, None, 1).eq([project
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into()]));
+        assert!(
+            merge_generic_filters(&project, None, 1).eq([project
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into()])
+        );
     }
 
     #[test]
@@ -606,13 +622,15 @@ mod tests {
     #[test]
     fn test_project_combined_when_enabled_project_missing_global() {
         let project = enabled_filter("enabled-project");
-        assert!(merge_generic_filters(&project, None, 1).eq([project
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into()]
-        .into_iter()));
+        assert!(
+            merge_generic_filters(&project, None, 1).eq([project
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into()]
+            .into_iter())
+        );
     }
 
     #[test]
@@ -624,19 +642,23 @@ mod tests {
             is_enabled: true,
             condition: global.filters.first().unwrap().1.condition.clone(),
         };
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([expected.into()].into_iter()));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([expected.into()].into_iter())
+        );
     }
 
     #[test]
     fn test_global_combined_when_disabled_flag_project_disabled_global() {
         let project = disabled_flag_filter("filter");
         let global = disabled_filter("filter");
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([global
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into()]));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([global
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into()])
+        );
     }
 
     #[test]
@@ -658,13 +680,15 @@ mod tests {
     fn test_global_combined_when_enabled_flag_project_enabled_global() {
         let project = enabled_flag_filter("filter");
         let global = enabled_filter("filter");
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([global
-            .filters
-            .first()
-            .unwrap()
-            .1
-            .into()]
-        .into_iter()));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([global
+                .filters
+                .first()
+                .unwrap()
+                .1
+                .into()]
+            .into_iter())
+        );
     }
 
     #[test]
@@ -676,7 +700,9 @@ mod tests {
             is_enabled: false,
             condition: global.filters.first().unwrap().1.condition.clone(),
         };
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([expected.into()].into_iter()));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([expected.into()].into_iter())
+        );
     }
 
     #[test]
@@ -758,13 +784,15 @@ mod tests {
         let expected2 = &project.filters[2];
         let expected3 = &global.filters[1];
 
-        assert!(merge_generic_filters(&project, Some(&global), 1).eq([
-            expected0.into(),
-            expected1.into(),
-            expected2.into(),
-            expected3.into()
-        ]
-        .into_iter()));
+        assert!(
+            merge_generic_filters(&project, Some(&global), 1).eq([
+                expected0.into(),
+                expected1.into(),
+                expected2.into(),
+                expected3.into()
+            ]
+            .into_iter())
+        );
     }
 
     #[test]

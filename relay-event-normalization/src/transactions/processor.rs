@@ -10,8 +10,8 @@ use relay_event_schema::protocol::{Event, Span, SpanStatus, TraceContext, Transa
 use relay_protocol::{Annotated, Meta, Remark, RemarkType, RuleCondition};
 use serde::{Deserialize, Serialize};
 
-use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::TransactionNameRule;
+use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 
 /// Configuration for sanitizing unparameterized transaction names.
 #[derive(Clone, Copy, Debug, Default)]
@@ -740,12 +740,14 @@ mod tests {
     fn test_allows_valid_transaction_event_with_spans() {
         let mut event = new_test_event();
 
-        assert!(process_value(
-            &mut event,
-            &mut TransactionsProcessor::default(),
-            ProcessingState::root(),
-        )
-        .is_ok());
+        assert!(
+            process_value(
+                &mut event,
+                &mut TransactionsProcessor::default(),
+                ProcessingState::root(),
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -1248,12 +1250,14 @@ mod tests {
             get_value!(event.transaction!),
             "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
         );
-        assert!(get_value!(event!)
-            .transaction
-            .meta()
-            .iter_remarks()
-            .next()
-            .is_none());
+        assert!(
+            get_value!(event!)
+                .transaction
+                .meta()
+                .iter_remarks()
+                .next()
+                .is_none()
+        );
         assert_eq!(
             get_value!(event.transaction_info.source!).as_str(),
             "foobar"

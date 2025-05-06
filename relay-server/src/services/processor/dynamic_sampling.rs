@@ -15,7 +15,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use crate::envelope::{CountFor, ItemType};
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    event_category, EventProcessing, Sampling, SpansExtracted, TransactionGroup,
+    EventProcessing, Sampling, SpansExtracted, TransactionGroup, event_category,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{self, SamplingResult, TypedEnvelope};
@@ -99,7 +99,7 @@ where
 
     let root_state = sampling_project_info.as_ref();
     let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
-        Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
+        Some(ErrorBoundary::Ok(config)) if !config.unsupported() => Some(config),
         _ => None,
     };
 
@@ -240,7 +240,7 @@ pub async fn tag_error_with_sampling_decision<Group: EventProcessing>(
 
     let root_state = sampling_project_info.as_ref();
     let sampling_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
-        Some(ErrorBoundary::Ok(ref config)) => config,
+        Some(ErrorBoundary::Ok(config)) => config,
         _ => return,
     };
 

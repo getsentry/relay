@@ -1,7 +1,7 @@
 use relay_system::RawMetrics;
 use std::cmp::max;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Metrics for a single thread in an asynchronous pool.
 ///

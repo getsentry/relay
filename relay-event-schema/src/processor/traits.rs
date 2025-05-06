@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 use relay_protocol::{FromValue, IntoValue, Meta};
 
-use crate::processor::{process_value, ProcessingState, ValueType};
+use crate::processor::{ProcessingState, ValueType, process_value};
 
 /// Used to indicate how to handle an annotated value in a callback.
 #[must_use = "This `ProcessingAction` must be handled by `Annotated::apply`"]
@@ -136,7 +136,7 @@ pub trait Processor: Sized {
 }
 
 #[doc(inline)]
-pub use enumset::{enum_set, EnumSet};
+pub use enumset::{EnumSet, enum_set};
 
 /// A recursively processable value.
 pub trait ProcessValue: FromValue + IntoValue + Debug + Clone {

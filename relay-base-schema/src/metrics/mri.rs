@@ -463,9 +463,7 @@ mod tests {
     fn test_normalize_name_length() {
         let long_mri = "c:custom/ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
         assert_eq!(
-            MetricResourceIdentifier::parse(long_mri)
-                .unwrap()
-                .name,
+            MetricResourceIdentifier::parse(long_mri).unwrap().name,
             "ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
         );
 

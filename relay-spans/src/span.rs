@@ -8,7 +8,7 @@ use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_event_schema::protocol::SpanKind;
 
 use crate::otel_trace::{
-    status::StatusCode as OtelStatusCode, Span as OtelSpan, SpanFlags as OtelSpanFlags,
+    Span as OtelSpan, SpanFlags as OtelSpanFlags, status::StatusCode as OtelStatusCode,
 };
 use crate::status_codes;
 use relay_event_schema::protocol::{

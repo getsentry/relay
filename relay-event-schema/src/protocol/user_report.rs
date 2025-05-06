@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::utils::null_to_default;
 use crate::protocol::EventId;
+use crate::protocol::utils::null_to_default;
 
 /// User feedback for an event as sent by the client to the userfeedback/userreport endpoint.
 ///

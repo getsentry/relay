@@ -5,8 +5,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::protocol::utils::null_to_default;
 use crate::protocol::IpAddr;
+use crate::protocol::utils::null_to_default;
 
 /// The type of session event we're dealing with.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

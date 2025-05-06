@@ -13,7 +13,7 @@ use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{event_type, should_filter, TransactionGroup};
+use crate::services::processor::{TransactionGroup, event_type, should_filter};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{ItemAction, TypedEnvelope};
 
