@@ -7,8 +7,7 @@ use relay_event_schema::protocol::{
     AppContext, Context, Contexts, DeviceContext, LenientString, OsContext, RuntimeContext, Tags,
 };
 use relay_event_schema::protocol::{Event, TagEntry};
-use relay_prosperoconv::write_dump;
-use relay_prosperoconv::{extract_data, ProsperoDump};
+use relay_prosperoconv::{self, ProsperoDump};
 use relay_protocol::{Annotated, Object};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
@@ -31,13 +30,13 @@ pub fn process(
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);
 
         let event = event.get_or_insert_with(Event::default);
-        let data = extract_data(&item.payload()).map_err(|err| {
+        let data = relay_prosperoconv::extract_data(&item.payload()).map_err(|err| {
             ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {}", err))
         })?;
         let prospero_dump = ProsperoDump::parse(&data).map_err(|err| {
             ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {}", err))
         })?;
-        let minidump_buffer = write_dump(&prospero_dump).map_err(|err| {
+        let minidump_buffer = relay_prosperoconv::write_dump(&prospero_dump).map_err(|err| {
             ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {}", err))
         })?;
         update_sentry_event(event, &prospero_dump);
@@ -64,7 +63,7 @@ pub fn process(
             envelope.add_item(item);
         }
 
-        let mut console_log = prospero_dump.system_log.to_string();
+        let mut console_log = prospero_dump.system_log.into_owned();
         for log_line in prospero_dump.log_lines {
             console_log.push_str(log_line);
         }
@@ -127,10 +126,11 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
     }
     if let Some(username) = prospero.userdata.get("sentry.user.username") {
         event.user.get_or_insert_with(Default::default).username =
-            Annotated::new(LenientString(username.to_string()));
+            Annotated::new(LenientString(username.clone().into_owned()));
     }
     if let Some(email) = prospero.userdata.get("sentry.user.email") {
-        event.user.get_or_insert_with(Default::default).email = Annotated::new(email.to_string());
+        event.user.get_or_insert_with(Default::default).email =
+            Annotated::new(email.clone().into_owned());
     }
 
     let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
@@ -138,28 +138,28 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
         ($key:expr, $value:expr) => {
             tags.push(Annotated::new(TagEntry(
                 Annotated::new($key.into()),
-                Annotated::new($value),
+                Annotated::new($value.into()),
             )));
         };
     }
 
-    add_tag!("cpu_vendor", "Sony".into());
-    add_tag!("os.name", "PlayStation".into());
+    add_tag!("cpu_vendor", "Sony");
+    add_tag!("os.name", "PlayStation");
 
     let platform = "PS5";
-    runtime_context.name = Annotated::new(platform.into());
-    device_context.model = Annotated::new(platform.into());
+    runtime_context.name = Annotated::new(platform.to_owned());
+    device_context.model = Annotated::new(platform.to_owned());
 
     add_tag!("cpu_brand", format!("{platform} CPU"));
-    add_tag!("runtime.name", platform.into());
+    add_tag!("runtime.name", platform);
 
     if let Some(system_version) = &prospero.sdk_version {
         add_tag!("os", format!("PlayStation {system_version}"));
-        add_tag!("runtime", system_version.into());
-        add_tag!("runtime.version", system_version.into());
+        add_tag!("runtime", system_version);
+        add_tag!("runtime.version", system_version);
 
-        os_context.version = Annotated::new(system_version.into());
-        runtime_context.version = Annotated::new(system_version.into());
+        os_context.version = Annotated::new(system_version.to_owned());
+        runtime_context.version = Annotated::new(system_version.to_owned());
     }
 
     for (k, v) in &prospero.userdata {
@@ -169,20 +169,23 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
                 if let Context::Other(map) =
                     contexts.get_or_insert_with(context_name, || Context::Other(Object::new()))
                 {
-                    map.insert(field_name.into(), Annotated::new(v.to_string().into()));
+                    map.insert(
+                        field_name.to_owned(),
+                        Annotated::new(v.clone().into_owned().into()),
+                    );
                 }
             }
         } else {
             let tag = k.strip_prefix("sentry.").unwrap_or(k);
-            add_tag!(tag, v.to_string());
+            add_tag!(tag, v.to_owned());
         }
     }
 
     if let Some(app_info) = &prospero.app_info {
-        add_tag!("titleId", app_info.title_id.into());
+        add_tag!("titleId", app_info.title_id);
 
         contexts.get_or_default::<AppContext>().app_version =
-            Annotated::new(app_info.version.into());
+            Annotated::new(app_info.version.to_owned());
     }
 
     contexts.add(device_context);
@@ -209,7 +212,7 @@ mod tests {
         update_sentry_event(&mut event, &prospero);
         assert_eq!(
             event.release,
-            Annotated::new(LenientString("1.2.3.4".into()))
+            Annotated::new(LenientString("1.2.3.4".to_owned()))
         );
     }
 
@@ -233,16 +236,16 @@ mod tests {
         // Check the event fields
         assert_eq!(
             event.release,
-            Annotated::new(LenientString("1.2.3.4".into()))
+            Annotated::new(LenientString("1.2.3.4".to_owned()))
         );
-        assert_eq!(event.environment, Annotated::new("production".into()));
+        assert_eq!(event.environment, Annotated::new("production".to_owned()));
 
         if let Some(user) = event.user.0 {
             assert_eq!(
                 user.username,
-                Annotated::new(LenientString("janedoe".into()))
+                Annotated::new(LenientString("janedoe".to_owned()))
             );
-            assert_eq!(user.email, Annotated::new("janedoe@example.com".into()));
+            assert_eq!(user.email, Annotated::new("janedoe@example.com".to_owned()));
         } else {
             panic!("User information not set in the event");
         }
@@ -317,7 +320,7 @@ mod tests {
                 ("sentry.context.runtime.name", Cow::Borrowed("Xbox")),
                 ("sentry.context.runtime.version", Cow::Borrowed("0.0.0")),
             ]),
-            sdk_version: Some("5.0.0".into()),
+            sdk_version: Some("5.0.0".to_owned()),
             ..Default::default()
         };
 
@@ -327,8 +330,8 @@ mod tests {
         // Ensure that the runtime context values are not overwritten
         if let Some(Context::Runtime(runtime)) = event.contexts.value().unwrap().get_key("runtime")
         {
-            assert_eq!(runtime.name, Annotated::new("PS5".into()));
-            assert_eq!(runtime.version, Annotated::new("5.0.0".into()));
+            assert_eq!(runtime.name, Annotated::new("PS5".to_owned()));
+            assert_eq!(runtime.version, Annotated::new("5.0.0".to_owned()));
         } else {
             panic!("Runtime context not found or has wrong type");
         }
