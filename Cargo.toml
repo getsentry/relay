@@ -67,6 +67,7 @@ relay-ua = { path = "relay-ua" }
 relay-test = { path = "relay-test" }
 relay-protocol-derive = { path = "relay-protocol-derive" }
 relay-event-derive = { path = "relay-event-derive" }
+sentry_protos = { path = "sentry_protos" }
 
 ahash = "0.8.11"
 android_trace_log = { version = "0.3.0", features = ["serde"] }
@@ -163,7 +164,6 @@ sentry-core = "0.36.0"
 sentry-kafka-schemas = { version = "0.1.129", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.36.0"
-sentry_protos = "0.1.74"
 prost-types = "0.13.3"
 semver = "1.0.23"
 serde = { version = "1.0.215", features = ["derive", "rc"] }
