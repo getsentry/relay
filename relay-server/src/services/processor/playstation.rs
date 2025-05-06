@@ -2,6 +2,7 @@
 //!
 //! These functions are included only in the processing mode.
 
+use relay_config::Config;
 use relay_event_schema::protocol::{
     AppContext, Context, Contexts, DeviceContext, LenientString, OsContext, RuntimeContext, Tags,
 };
@@ -14,17 +15,21 @@ use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::services::processor::metric;
 use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
 use crate::statsd::RelayCounters;
+use crate::utils;
 use crate::utils::TypedEnvelope;
 
 pub fn process(
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
     event: &mut Annotated<Event>,
+    config: &Config,
 ) -> Result<Option<EventFullyNormalized>, ProcessingError> {
     let envelope = &mut managed_envelope.envelope_mut();
     if let Some(item) = envelope.take_item_by(|item| {
         item.ty() == &ItemType::Attachment
             && item.attachment_type() == Some(&AttachmentType::Prosperodump)
     }) {
+        metric!(counter(RelayCounters::PlaystationProcessing) += 1);
+
         let event = event.get_or_insert_with(Event::default);
         let data = extract_data(&item.payload()).map_err(|err| {
             ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {}", err))
@@ -71,8 +76,11 @@ pub fn process(
             envelope.add_item(item);
         }
 
-        metric!(counter(RelayCounters::PlaystationProcessing) += 1);
-        return Ok(Some(EventFullyNormalized(false)));
+        if let Err(offender) = utils::check_envelope_size_limits(config, envelope) {
+            return Err(ProcessingError::PayloadTooLarge(offender));
+        } else {
+            return Ok(Some(EventFullyNormalized(false)));
+        }
     }
     Ok(None)
 }
@@ -83,9 +91,9 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
     let mut device_context = DeviceContext {
         name: prospero
             .system_name
-            .map(|s| Annotated::new(s.to_string()))
+            .map(|s| Annotated::new(s.to_owned()))
             .unwrap_or_default(),
-        arch: Annotated::new("x86_64".into()),
+        arch: Annotated::new("x86_64".to_owned()),
         model_id: prospero
             .hardware_id
             .clone()

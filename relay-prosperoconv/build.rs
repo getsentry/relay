@@ -69,4 +69,6 @@ fn main() {
         .expect("Failed to skip worktree");
 
     fs::remove_dir_all(temp_dir_path).expect("Failed to remove temp directory");
+
+    println!("cargo:warning=Finished setting up");
 }
