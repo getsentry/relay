@@ -105,6 +105,7 @@ jobs:
               - '.github/workflows/ci.yml'
 
   test:
+    needs: build-setup
     timeout-minutes: 20
     strategy:
       fail-fast: false

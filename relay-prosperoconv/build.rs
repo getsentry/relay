@@ -45,11 +45,11 @@ fn main() {
 
     Command::new("git")
         .args(["checkout", "tobias-wilfert/feat/test"])
-        .current_dir(&temp_dir_path)
+        .current_dir(temp_dir_path)
         .status()
         .expect("Failed to checkout branch");
 
-    CopyBuilder::new(&temp_dir_path.join("crates/prosperoconv/src"), "src")
+    CopyBuilder::new(temp_dir_path.join("crates/prosperoconv/src"), "src")
         .overwrite(true)
         .run()
         .expect("Failed to copy files");
@@ -59,5 +59,5 @@ fn main() {
         .status()
         .expect("Failed to skip worktree");
 
-    fs::remove_dir_all(&temp_dir_path).expect("Failed to remove temp directory");
+    fs::remove_dir_all(temp_dir_path).expect("Failed to remove temp directory");
 }
