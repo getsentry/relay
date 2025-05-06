@@ -5,7 +5,7 @@ use std::io::{self, Read};
 use axum::extract::{DefaultBodyLimit, Query};
 use axum::http::header;
 use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter};
+use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use data_encoding::BASE64;
 use flate2::bufread::ZlibDecoder;

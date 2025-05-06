@@ -1,7 +1,7 @@
+use axum::RequestExt;
 use axum::extract::{MatchedPath, Request};
 use axum::middleware::Next;
 use axum::response::Response;
-use axum::RequestExt;
 use std::time::Instant;
 
 use crate::extractors::ReceivedAt;

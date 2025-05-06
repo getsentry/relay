@@ -9,7 +9,7 @@
 use std::str::FromStr;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::spanned::Spanned;
 use syn::{Data, Error, Lit, LitStr};
 use synstructure::decl_derive;

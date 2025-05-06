@@ -2,9 +2,9 @@
 
 use std::error::Error;
 use std::num::NonZeroU8;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::Arc;
 use std::time::Duration;
 
 use ahash::RandomState;
@@ -17,7 +17,7 @@ use relay_system::ServiceSpawnExt as _;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_system::{Controller, Shutdown};
 use tokio::sync::watch;
-use tokio::time::{timeout, Instant};
+use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
@@ -30,9 +30,9 @@ use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, Proj
 use crate::services::test_store::TestStore;
 use crate::statsd::RelayCounters;
 
-use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
+use crate::utils::ManagedEnvelope;
 
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
@@ -439,9 +439,9 @@ impl EnvelopeBufferService {
                 }
                 Err(error) => {
                     relay_log::error!(
-                    error = &error as &dyn Error,
-                    "the envelope buffer didn't shut down in time, some envelopes might be lost",
-                );
+                        error = &error as &dyn Error,
+                        "the envelope buffer didn't shut down in time, some envelopes might be lost",
+                    );
                 }
             }
         }
@@ -605,7 +605,7 @@ impl Service for EnvelopeBufferService {
         {
             let dequeue1 = dequeue.clone();
             relay_system::spawn!(async move {
-                use tokio::signal::unix::{signal, SignalKind};
+                use tokio::signal::unix::{SignalKind, signal};
                 let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
                     return;
                 };
@@ -693,9 +693,9 @@ impl Service for EnvelopeBufferService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MemoryStat;
     use crate::services::projects::project::{ProjectInfo, ProjectState};
     use crate::testutils::new_envelope;
-    use crate::MemoryStat;
     use chrono::Utc;
     use relay_base_schema::project::ProjectKey;
     use relay_dynamic_config::GlobalConfig;

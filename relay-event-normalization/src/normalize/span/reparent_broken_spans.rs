@@ -12,7 +12,7 @@ use relay_protocol::Error;
 /// This is to avoid any nasty surprises in the span buffer specifically. Other readers of spans
 /// (such as the frontend's tree component) were already able to deal with detached spans.
 pub fn reparent_broken_spans(event: &mut Event) {
-    let Some(ref mut spans) = event.spans.value_mut() else {
+    let Some(spans) = event.spans.value_mut() else {
         return;
     };
 

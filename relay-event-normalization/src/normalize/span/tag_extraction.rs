@@ -18,13 +18,13 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
+use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description,
 };
-use crate::span::TABLE_NAME_REGEX;
 use crate::utils::{
-    extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
+    MAIN_THREAD_NAME, MOBILE_SDKS, extract_transaction_op, http_status_code_from_span,
 };
 
 /// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
@@ -1485,11 +1485,11 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 mod tests {
     use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{Request, SpanData};
-    use relay_protocol::{get_value, Getter, Object};
+    use relay_protocol::{Getter, Object, get_value};
 
     use super::*;
-    use crate::span::description::{scrub_queries, Mode};
-    use crate::{normalize_event, NormalizationConfig};
+    use crate::span::description::{Mode, scrub_queries};
+    use crate::{NormalizationConfig, normalize_event};
 
     #[test]
     fn test_truncate_string_no_panic() {

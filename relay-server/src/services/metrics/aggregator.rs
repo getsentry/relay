@@ -1,14 +1,14 @@
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
 
-use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
+use hashbrown::hash_map::Entry;
 use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
-use relay_metrics::aggregator::{self, AggregateMetricsError, AggregatorConfig, Partition};
 use relay_metrics::Bucket;
+use relay_metrics::aggregator::{self, AggregateMetricsError, AggregatorConfig, Partition};
 use relay_quotas::{RateLimits, Scoping};
 use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service};
 use tokio::time::{Instant, Sleep};
@@ -421,7 +421,7 @@ mod tests {
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::ProjectId;
     use relay_common::time::UnixTimestamp;
-    use relay_metrics::{aggregator::AggregatorConfig, BucketMetadata, BucketValue};
+    use relay_metrics::{BucketMetadata, BucketValue, aggregator::AggregatorConfig};
 
     use super::*;
 

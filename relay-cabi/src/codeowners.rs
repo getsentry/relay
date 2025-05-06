@@ -95,14 +95,14 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
 }
 
 /// Returns `true` if the codeowners path matches the value, `false` otherwise.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_is_codeowners_path_match(
     value: *const RelayBuf,
     pattern: *const RelayStr,
 ) -> bool {
-    let value = (*value).as_bytes();
-    let pat = (*pattern).as_str();
+    let value = unsafe { (*value).as_bytes() };
+    let pat = unsafe { (*pattern).as_str() };
 
     let mut cache = CODEOWNERS_CACHE.lock().unwrap();
 

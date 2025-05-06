@@ -7,8 +7,8 @@ use std::iter::FusedIterator;
 use utf16string::{LittleEndian, WStr};
 
 use crate::compiledconfig::RuleRef;
-use crate::regexes::{get_regex_for_rule_type, ReplaceBehavior};
-use crate::{transform, utils, CompiledPiiConfig, JsonScrubError, JsonScrubVisitor, Redaction};
+use crate::regexes::{ReplaceBehavior, get_regex_for_rule_type};
+use crate::{CompiledPiiConfig, JsonScrubError, JsonScrubVisitor, Redaction, transform, utils};
 
 /// The minimum length a string needs to be in a binary blob.
 ///
@@ -57,7 +57,7 @@ fn apply_regex_to_utf8_bytes(
                 }
 
                 match replace_behavior {
-                    ReplaceBehavior::Groups(ref replace_groups) => {
+                    ReplaceBehavior::Groups(replace_groups) => {
                         if replace_groups.contains(&(idx as u8)) {
                             matches.push((group.start(), group.end()));
                         }
@@ -93,7 +93,7 @@ fn apply_regex_to_utf16le_bytes(
                     match_wstr.apply_redaction(&rule.redaction);
                 }
             }
-            ReplaceBehavior::Groups(ref replace_groups) => {
+            ReplaceBehavior::Groups(replace_groups) => {
                 for captures in regex.captures_iter(&segment.decoded) {
                     for group_idx in replace_groups.iter() {
                         if let Some(re_match) = captures.get(*group_idx as usize) {
@@ -174,7 +174,7 @@ trait StringMods: AsRef<[u8]> {
                 let hashed = utils::hash_value(self.as_ref());
                 self.swap_content(&hashed, PADDING);
             }
-            Redaction::Replace(ref replace) => {
+            Redaction::Replace(replace) => {
                 self.swap_content(replace.text.as_str(), PADDING);
             }
             Redaction::Other => relay_log::warn!("Incoming redaction is not supported"),
@@ -494,16 +494,10 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         path: &mut WStr<LittleEndian>,
         state: &ProcessingState<'_>,
     ) -> bool {
-        let index =
-            path.char_indices().rev().find_map(
-                |(i, c)| {
-                    if c == '/' || c == '\\' {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                },
-            );
+        let index = path
+            .char_indices()
+            .rev()
+            .find_map(|(i, c)| if c == '/' || c == '\\' { Some(i) } else { None });
 
         if let Some(index) = index {
             let data = unsafe { &mut path.as_bytes_mut()[..index] };

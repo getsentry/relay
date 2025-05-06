@@ -240,8 +240,8 @@ impl MemoryChecker {
 #[cfg(test)]
 mod tests {
     use relay_config::Config;
-    use std::sync::atomic::Ordering;
     use std::sync::Arc;
+    use std::sync::atomic::Ordering;
     use std::thread::sleep;
     use std::time::Duration;
 

@@ -136,7 +136,7 @@ enum Mut<'a, T> {
 impl<T> Mut<'_, T> {
     fn as_mut(&mut self) -> &mut T {
         match self {
-            Self::Owned(ref mut t) => t,
+            Self::Owned(t) => t,
             Self::Borrowed(t) => t,
         }
     }

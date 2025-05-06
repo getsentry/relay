@@ -2,10 +2,10 @@
 //!
 //! These functions are included only in the processing mode.
 
+use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeError, Item, ItemType};
 use crate::services::processor::{ErrorGroup, ProcessingError};
 use crate::utils::{self, TypedEnvelope};
-use crate::Envelope;
 use bytes::{Buf, Bytes};
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;

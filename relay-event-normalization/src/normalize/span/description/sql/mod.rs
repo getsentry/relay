@@ -194,7 +194,8 @@ mod tests {
         ($name:ident, $description_in:expr, $output:literal) => {
             #[test]
             fn $name() {
-                let (scrubbed, _mode) = scrub_queries(None, $description_in);
+                let description_in = $description_in;
+                let (scrubbed, _mode) = scrub_queries(None, description_in);
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };
@@ -832,7 +833,7 @@ mod tests {
         {
             let repeated = ["(a.id = %s OR a.org = %s)"].repeat(64);
             let repeated = itertools::join(repeated, " OR ");
-            format!("SELECT * FROM a WHERE a.status = %s OR {repeated}").as_str()
+            &format!("SELECT * FROM a WHERE a.status = %s OR {repeated}")
         },
         "SELECT * FROM a WHERE status = %s OR id = %s OR org = %s"
     );
@@ -995,7 +996,7 @@ mod tests {
 
     scrub_sql_test!(
         create_index_hex,
-    	"CREATE INDEX name_0123456789abcdef0123456789abcdef ON table_0123456789abcdef0123456789abcdef USING gist (geometry)",
+        "CREATE INDEX name_0123456789abcdef0123456789abcdef ON table_0123456789abcdef0123456789abcdef USING gist (geometry)",
         "CREATE INDEX name_{%s} ON table_{%s} USING gist (geometry)"
     );
 

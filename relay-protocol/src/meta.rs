@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use serde::ser::SerializeSeq;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use smallvec::SmallVec;
 
 use crate::traits::IntoValue;

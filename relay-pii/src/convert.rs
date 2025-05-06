@@ -172,9 +172,9 @@ pub fn to_pii_config(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::processor::{process_value, ProcessingState};
+    use relay_event_schema::processor::{ProcessingState, process_value};
     use relay_event_schema::protocol::Event;
-    use relay_protocol::{assert_annotated_snapshot, FromValue};
+    use relay_protocol::{FromValue, assert_annotated_snapshot};
     use similar_asserts::assert_eq;
 
     use crate::PiiProcessor;

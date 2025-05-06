@@ -5,7 +5,7 @@ use std::convert::Infallible;
 use axum::extract::rejection::BytesRejection;
 use axum::extract::{DefaultBodyLimit, FromRequest, Request};
 use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter};
+use axum::routing::{MethodRouter, post};
 use axum::{Json, RequestExt};
 use bytes::Bytes;
 use relay_config::Config;

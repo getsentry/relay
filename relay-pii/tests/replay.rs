@@ -1,7 +1,7 @@
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Replay;
 use relay_pii::{DataScrubbingConfig, PiiProcessor};
-use relay_protocol::{get_value, Annotated};
+use relay_protocol::{Annotated, get_value};
 
 fn simple_enabled_config() -> DataScrubbingConfig {
     let mut scrub_config = DataScrubbingConfig::default();

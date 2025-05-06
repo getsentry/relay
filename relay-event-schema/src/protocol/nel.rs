@@ -182,7 +182,7 @@ pub struct NetworkReportRaw {
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::{assert_annotated_snapshot, Annotated};
+    use relay_protocol::{Annotated, assert_annotated_snapshot};
 
     use crate::protocol::NetworkReportRaw;
 

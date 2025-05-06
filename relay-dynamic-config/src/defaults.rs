@@ -965,9 +965,11 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         LazyGlob::new("d:spans/duration_light@millisecond"),
                         LazyGlob::new("d:spans/exclusive_time_light@millisecond"),
                     ],
-                    tags: vec![Tag::with_key("environment")
-                        .from_field("span.sentry_tags.environment")
-                        .when(is_cache.clone() | is_queue_op.clone())],
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .when(is_cache.clone() | is_queue_op.clone()),
+                    ],
                 },
             ],
         ),

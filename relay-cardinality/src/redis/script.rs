@@ -1,6 +1,6 @@
 use relay_redis::{
-    redis::{self, FromRedisValue, Script},
     AsyncRedisConnection, RedisScripts,
+    redis::{self, FromRedisValue, Script},
 };
 
 use crate::Result;

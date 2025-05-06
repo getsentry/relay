@@ -9,7 +9,7 @@ use relay_protocol::Annotated;
 use crate::event::normalize_user_geoinfo;
 use crate::normalize::user_agent;
 use crate::user_agent::RawUserAgentInfo;
-use crate::{trimming, GeoIpLookup};
+use crate::{GeoIpLookup, trimming};
 
 /// Replay validation or normalization error.
 ///
@@ -182,7 +182,7 @@ mod tests {
 
     use chrono::{TimeZone, Utc};
     use insta::assert_json_snapshot;
-    use relay_protocol::{assert_annotated_snapshot, get_value, SerializableAnnotated};
+    use relay_protocol::{SerializableAnnotated, assert_annotated_snapshot, get_value};
     use uuid::Uuid;
 
     use relay_event_schema::protocol::{

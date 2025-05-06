@@ -37,12 +37,12 @@ use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_config::{RedisConfigRef, RedisConfigsRef};
 #[cfg(feature = "processing")]
-use relay_redis::redis::Script;
-#[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
 #[cfg(feature = "processing")]
+use relay_redis::redis::Script;
+#[cfg(feature = "processing")]
 use relay_redis::{RedisClients, RedisError, RedisScripts};
-use relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt as _};
+use relay_system::{Addr, Service, ServiceSpawn, ServiceSpawnExt as _, channel};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, thiserror::Error)]

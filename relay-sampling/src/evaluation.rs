@@ -7,8 +7,8 @@ use std::ops::ControlFlow;
 use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
-use rand::distributions::Uniform;
 use rand::Rng;
+use rand::distributions::Uniform;
 use rand_pcg::Pcg32;
 #[cfg(feature = "redis")]
 use relay_base_schema::organization::OrganizationId;
@@ -409,9 +409,9 @@ mod tests {
     use std::str::FromStr;
     use uuid::Uuid;
 
+    use crate::DynamicSamplingContext;
     use crate::config::{DecayingFunction, RuleType, TimeRange};
     use crate::dsc::TraceUserContext;
-    use crate::DynamicSamplingContext;
 
     use super::*;
 

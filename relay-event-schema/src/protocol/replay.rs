@@ -233,7 +233,7 @@ impl Replay {
         let headers = self.request.value()?.headers.value()?;
 
         for item in headers.iter() {
-            if let Some((ref o_k, ref v)) = item.value() {
+            if let Some((o_k, v)) = item.value() {
                 if let Some(k) = o_k.as_str() {
                     if k.eq_ignore_ascii_case("user-agent") {
                         return v.as_str();

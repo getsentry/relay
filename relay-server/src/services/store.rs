@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::future::BoxFuture;
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
@@ -29,8 +29,8 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 use serde::{Deserialize, Serialize};
-use serde_json::value::RawValue;
 use serde_json::Deserializer;
+use serde_json::value::RawValue;
 use uuid::Uuid;
 
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
@@ -1714,11 +1714,7 @@ fn is_slow_item(item: &Item) -> bool {
 }
 
 fn bool_to_str(value: bool) -> &'static str {
-    if value {
-        "true"
-    } else {
-        "false"
-    }
+    if value { "true" } else { "false" }
 }
 
 /// Returns a safe timestamp for Kafka.

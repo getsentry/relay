@@ -12,19 +12,19 @@ use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use futures::future::BoxFuture;
+use flate2::write::{GzEncoder, ZlibEncoder};
 use futures::FutureExt;
+use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
-    normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
-    EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
-    TransactionNameConfig,
+    ClockDriftProcessor, CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup,
+    MeasurementsConfig, NormalizationConfig, RawUserAgentInfo, TransactionNameConfig,
+    normalize_event, validate_event,
 };
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
@@ -39,7 +39,7 @@ use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, Sampling
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
@@ -564,9 +564,7 @@ impl ProcessingError {
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
-            Self::InvalidUnrealReport(ref err)
-                if err.kind() == Unreal4ErrorKind::BadCompression =>
-            {
+            Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
                 Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
             #[cfg(feature = "processing")]
@@ -1336,7 +1334,7 @@ impl EnvelopeProcessorService {
         let global = self.inner.global_config.current();
         let combined_config = {
             let config = match &project_info.config.metric_extraction {
-                ErrorBoundary::Ok(ref config) if config.is_supported() => config,
+                ErrorBoundary::Ok(config) if config.is_supported() => config,
                 _ => return Ok(event_metrics_extracted),
             };
             let global_config = match &global.metric_extraction {
@@ -3735,10 +3733,10 @@ mod tests {
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
 
+    use crate::metrics_extraction::IntoMetric;
     use crate::metrics_extraction::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
-    use crate::metrics_extraction::IntoMetric;
     use crate::testutils::{self, create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
@@ -3983,7 +3981,12 @@ mod tests {
             .unwrap();
 
         // IP-like data must be masked
-        assert_eq!(Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"), headers.get_header("User-Agent"));
+        assert_eq!(
+            Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"
+            ),
+            headers.get_header("User-Agent")
+        );
         // But we still get correct browser and version number
         let contexts = event.contexts.into_value().unwrap();
         let browser = contexts.0.get("browser").unwrap();

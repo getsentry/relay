@@ -230,7 +230,7 @@ impl<'de> Deserialize<'de> for UnixTimestamp {
 
 #[cfg(test)]
 mod tests {
-    use serde_test::{assert_de_tokens, assert_de_tokens_error, assert_tokens, Token};
+    use serde_test::{Token, assert_de_tokens, assert_de_tokens_error, assert_tokens};
 
     use super::*;
 

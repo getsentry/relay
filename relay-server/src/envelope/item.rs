@@ -10,7 +10,7 @@ use relay_event_schema::protocol::EventType;
 use relay_protocol::Value;
 use relay_quotas::DataCategory;
 use serde::{Deserialize, Serialize};
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 
@@ -613,7 +613,7 @@ impl ItemType {
     /// Returns the item type as a string.
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Unknown(ref s) => s,
+            Self::Unknown(s) => s,
             _ => self.name(),
         }
     }

@@ -88,8 +88,13 @@ impl fmt::Display for Error {
             ErrorKind::NestedAlternates => write!(f, "Nested alternates"),
             ErrorKind::UnbalancedAlternates => write!(f, "Unbalanced alternates"),
             ErrorKind::DanglingEscape => write!(f, "Dangling escape"),
-            ErrorKind::Complexity { complexity, max_complexity } =>
-                write!(f, "Pattern complexity ({complexity}) exceeds maximum allowed complexity ({max_complexity})"),
+            ErrorKind::Complexity {
+                complexity,
+                max_complexity,
+            } => write!(
+                f,
+                "Pattern complexity ({complexity}) exceeds maximum allowed complexity ({max_complexity})"
+            ),
         }
     }
 }
@@ -730,7 +735,7 @@ impl Tokens {
             // TODO: separator special handling (?)
             (Some(Token::Wildcard), Token::Wildcard) => {}
             // Collapse multiple literals into one.
-            (Some(Token::Literal(ref mut last)), Token::Literal(s)) => last.push(&s),
+            (Some(Token::Literal(last)), Token::Literal(s)) => last.push(&s),
             // Ignore empty class tokens.
             (_, Token::Class { negated: _, ranges }) if ranges.is_empty() => {}
             // Everything else is just another token.
@@ -835,7 +840,7 @@ impl Ranges {
         match self {
             Self::Empty => *self = Self::Single(range),
             Self::Single(single) => *self = Self::Multiple(vec![*single, range]),
-            Self::Multiple(ref mut v) => v.push(range),
+            Self::Multiple(v) => v.push(range),
         }
     }
 
@@ -1848,22 +1853,30 @@ mod tests {
 
     #[test]
     fn test_builder_complexity() {
-        assert!(Pattern::builder("{foo,bar}")
-            .max_complexity(1)
-            .build()
-            .is_err());
-        assert!(Pattern::builder("{foo,bar}")
-            .max_complexity(2)
-            .build()
-            .is_ok());
-        assert!(Pattern::builder("{foo,bar}/{*.html,*.js,*.css}")
-            .max_complexity(5)
-            .build()
-            .is_err());
-        assert!(Pattern::builder("{foo,bar}/{*.html,*.js,*.css}")
-            .max_complexity(6)
-            .build()
-            .is_ok());
+        assert!(
+            Pattern::builder("{foo,bar}")
+                .max_complexity(1)
+                .build()
+                .is_err()
+        );
+        assert!(
+            Pattern::builder("{foo,bar}")
+                .max_complexity(2)
+                .build()
+                .is_ok()
+        );
+        assert!(
+            Pattern::builder("{foo,bar}/{*.html,*.js,*.css}")
+                .max_complexity(5)
+                .build()
+                .is_err()
+        );
+        assert!(
+            Pattern::builder("{foo,bar}/{*.html,*.js,*.css}")
+                .max_complexity(6)
+                .build()
+                .is_ok()
+        );
     }
 
     #[test]

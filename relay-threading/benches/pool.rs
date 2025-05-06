@@ -1,9 +1,9 @@
 use std::future::Future;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use futures::future::{BoxFuture, FutureExt};
 use relay_threading::AsyncPoolBuilder;
 use tokio::runtime::Runtime;

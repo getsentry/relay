@@ -30,7 +30,7 @@ use data_encoding::BASE64URL_NOPAD;
 use ed25519_dalek::{Signer, Verifier};
 use hmac::{Hmac, Mac};
 use rand::rngs::OsRng;
-use rand::{thread_rng, RngCore};
+use rand::{RngCore, thread_rng};
 use relay_common::time::UnixTimestamp;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -706,9 +706,9 @@ mod tests {
             "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU"
         );
         assert_eq!(
-        format!("{sk:#}"),
-        "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
-    );
+            format!("{sk:#}"),
+            "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
+        );
         assert_eq!(
             pk.to_string(),
             "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
@@ -755,8 +755,7 @@ mod tests {
         let sig = sk.sign(data);
         assert!(pk.verify(data, &sig));
 
-        let bad_sig =
-        "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
+        let bad_sig = "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
         assert!(!pk.verify(data, bad_sig));
     }
 

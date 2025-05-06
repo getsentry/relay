@@ -27,7 +27,7 @@ pub enum GlobFlags {
 /// Performs a glob operation on bytes.
 ///
 /// Returns `true` if the glob matches, `false` otherwise.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_is_glob_match(
     value: *const RelayBuf,
@@ -48,7 +48,11 @@ pub unsafe extern "C" fn relay_is_glob_match(
     if (flags & GlobFlags::AllowNewline as u32) != 0 {
         options.allow_newline = true;
     }
-    glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options)
+    glob_match_bytes(
+        unsafe { (*value).as_bytes() },
+        unsafe { (*pat).as_str() },
+        options,
+    )
 }
 
 /// LRU cache for [`Regex`]s in relation to [`GlobOptions`] and the provided string pattern.

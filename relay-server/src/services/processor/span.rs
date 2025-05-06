@@ -14,7 +14,7 @@ use relay_spans::otel_trace::TracesData;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{should_filter, SpanGroup};
+use crate::services::processor::{SpanGroup, should_filter};
 use crate::utils::ItemAction;
 use crate::utils::TypedEnvelope;
 
@@ -160,9 +160,9 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+    use crate::Envelope;
     use crate::services::processor::ProcessingGroup;
     use crate::utils::{ManagedEnvelope, TypedEnvelope};
-    use crate::Envelope;
     use bytes::Bytes;
     use relay_spans::otel_trace::Span as OtelSpan;
     use relay_system::Addr;

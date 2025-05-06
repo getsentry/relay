@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// Handle to the [`Runtime`](crate::Runtime)'s metrics.

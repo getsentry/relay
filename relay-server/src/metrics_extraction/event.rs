@@ -173,7 +173,7 @@ mod tests {
         ErrorBoundary, Feature, FeatureSet, GlobalConfig, MetricExtractionConfig,
         MetricExtractionGroups, ProjectConfig,
     };
-    use relay_event_normalization::{normalize_event, NormalizationConfig};
+    use relay_event_normalization::{NormalizationConfig, normalize_event};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
 
@@ -1563,14 +1563,18 @@ mod tests {
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
-        assert!(metrics
-            .project_metrics
-            .iter()
-            .any(|b| &*b.name == "d:spans/exclusive_time@millisecond"));
-        assert!(metrics
-            .project_metrics
-            .iter()
-            .any(|b| &*b.name == "d:spans/exclusive_time_light@millisecond"));
+        assert!(
+            metrics
+                .project_metrics
+                .iter()
+                .any(|b| &*b.name == "d:spans/exclusive_time@millisecond")
+        );
+        assert!(
+            metrics
+                .project_metrics
+                .iter()
+                .any(|b| &*b.name == "d:spans/exclusive_time_light@millisecond")
+        );
     }
 
     #[test]

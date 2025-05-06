@@ -2,8 +2,8 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, FromRequestParts};
-use axum::http::request::Parts;
 use axum::http::HeaderMap;
+use axum::http::request::Parts;
 
 #[derive(Debug)]
 pub struct ForwardedFor(String);

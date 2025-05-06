@@ -17,8 +17,8 @@ pub fn process_pairlist<P: Processor, T: ProcessValue + AsPair>(
     // * tag keys need to be trimmed too and therefore need to have a path
 
     for (idx, annotated) in value.iter_mut().enumerate() {
-        if let Some(ref mut pair) = annotated.value_mut() {
-            let (ref mut key, ref mut value) = pair.as_pair_mut();
+        if let Some(pair) = annotated.value_mut() {
+            let (key, value) = pair.as_pair_mut();
             let value_type = ValueType::for_field(value);
 
             if let Some(key_name) = key.as_str() {

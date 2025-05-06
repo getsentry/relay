@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use itertools::Itertools;
 use regex::Regex;
 use relay_base_schema::metrics::{
-    can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
+    DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
@@ -29,12 +29,12 @@ use uuid::Uuid;
 use crate::normalize::request;
 use crate::span::ai::normalize_ai_measurements;
 use crate::span::tag_extraction::extract_span_tags_from_event;
-use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
+use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
-    breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
-    transactions, trimming, user_agent, BorrowedSpanOpDefaults, BreakdownsConfig,
-    CombinedMeasurementsConfig, GeoIpLookup, MaxChars, ModelCosts, PerformanceScoreConfig,
-    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
+    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
+    ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
+    stacktrace, transactions, trimming, user_agent,
 };
 
 /// Configuration for [`normalize_event`].
@@ -209,7 +209,7 @@ impl Default for NormalizationConfig<'_> {
 /// Normalization consists of applying a series of transformations on the event
 /// payload based on the given configuration.
 pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfig) {
-    let Annotated(Some(ref mut event), ref mut meta) = event else {
+    let Annotated(Some(event), meta) = event else {
         return;
     };
 
@@ -360,7 +360,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
-    if let Some(ref mut contexts) = event.contexts.value_mut() {
+    if let Some(contexts) = event.contexts.value_mut() {
         if let Some(replay_id) = replay_id {
             contexts.add(ReplayContext {
                 replay_id: Annotated::new(EventId(replay_id)),
@@ -1503,7 +1503,7 @@ mod tests {
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
-    use relay_protocol::{get_value, SerializableAnnotated};
+    use relay_protocol::{SerializableAnnotated, get_value};
     use serde_json::json;
 
     use super::*;
@@ -1830,13 +1830,17 @@ mod tests {
         let client_ip = Some(&ipaddr);
 
         let user_agent = RawUserAgentInfo {
-            user_agent: Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0"),
+            user_agent: Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0",
+            ),
             client_hints: ClientHints {
                 sec_ch_ua_platform: Some("macOS"),
                 sec_ch_ua_platform_version: Some("13.2.0"),
-                sec_ch_ua: Some(r#""Chromium";v="110", "Not A(Brand";v="24", "Google Chrome";v="110""#),
+                sec_ch_ua: Some(
+                    r#""Chromium";v="110", "Not A(Brand";v="24", "Google Chrome";v="110""#,
+                ),
                 sec_ch_ua_model: Some("some model"),
-            }
+            },
         };
 
         // This call should fill the event headers with info from the user_agent which is

@@ -137,8 +137,8 @@ fn set_current_thread_priority(_kind: ThreadKind) {
 mod tests {
     use crate::utils::{ThreadKind, ThreadPoolBuilder};
     use futures::FutureExt;
-    use std::sync::atomic::{AtomicI32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicI32, Ordering};
     use tokio::runtime::Handle;
     use tokio::sync::Barrier;
 

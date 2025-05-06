@@ -18,7 +18,7 @@ use crate::debug_image::get_proguard_image;
 use crate::measurements::ChunkMeasurement;
 use crate::sample::v2::ProfileData;
 use crate::types::{ClientSdk, DebugMeta};
-use crate::{ProfileError, MAX_PROFILE_CHUNK_DURATION};
+use crate::{MAX_PROFILE_CHUNK_DURATION, ProfileError};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Metadata {

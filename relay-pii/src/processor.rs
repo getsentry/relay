@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 use relay_event_schema::processor::{
-    self, enum_set, process_value, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult,
-    ProcessingState, Processor, ValueType,
+    self, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ValueType, enum_set, process_value,
 };
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
@@ -16,7 +16,7 @@ use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
 use crate::redactions::Redaction;
-use crate::regexes::{self, PatternType, ReplaceBehavior, ANYTHING_REGEX};
+use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
 use crate::utils;
 
 /// A processor that performs PII stripping.
@@ -114,7 +114,7 @@ impl Processor for PiiProcessor<'_> {
             for annotated in array {
                 let mut mapped = mem::take(annotated).map_value(T::into_value);
 
-                if let Some(Value::Array(ref mut pair)) = mapped.value_mut() {
+                if let Some(Value::Array(pair)) = mapped.value_mut() {
                     let mut value = mem::take(&mut pair[1]);
                     let value_type = ValueType::for_field(&value);
 
@@ -160,7 +160,7 @@ impl Processor for PiiProcessor<'_> {
 
     fn process_native_image_path(
         &mut self,
-        NativeImagePath(ref mut value): &mut NativeImagePath,
+        NativeImagePath(value): &mut NativeImagePath,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
@@ -182,7 +182,7 @@ impl Processor for PiiProcessor<'_> {
                     basename[1..].clone_into(value);
                 }
                 Err(ProcessingAction::InvalidTransaction(x)) => {
-                    return Err(ProcessingAction::InvalidTransaction(x))
+                    return Err(ProcessingAction::InvalidTransaction(x));
                 }
             }
         }
@@ -580,7 +580,7 @@ mod tests {
         Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
-    use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object};
+    use relay_protocol::{FromValue, Object, assert_annotated_snapshot, get_value};
     use serde_json::json;
 
     use super::*;
@@ -1168,15 +1168,17 @@ mod tests {
             let mut processor = PiiProcessor::new(config.compiled());
             process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-            assert!(event
-                .value()
-                .unwrap()
-                .logentry
-                .value()
-                .unwrap()
-                .formatted
-                .value()
-                .is_none());
+            assert!(
+                event
+                    .value()
+                    .unwrap()
+                    .logentry
+                    .value()
+                    .unwrap()
+                    .formatted
+                    .value()
+                    .is_none()
+            );
         }
     }
 

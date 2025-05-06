@@ -1,9 +1,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+use pest::Parser;
 use pest::error::Error;
 use pest::iterators::Pair;
-use pest::Parser;
 use relay_event_schema::processor::Path;
 use smallvec::SmallVec;
 
@@ -144,7 +144,7 @@ impl SelectorPathItem {
                     }
             }
             (SelectorPathItem::Index(idx), _) => state.path().index() == Some(*idx),
-            (SelectorPathItem::Key(ref key), _) => state
+            (SelectorPathItem::Key(key), _) => state
                 .path()
                 .key()
                 .map(|k| k.eq_ignore_ascii_case(key))

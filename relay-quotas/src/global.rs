@@ -4,8 +4,8 @@ use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::{AsyncRedisClient, AsyncRedisConnection, RedisError, RedisScripts};
 
-use crate::redis::RedisQuota;
 use crate::RateLimitingError;
+use crate::redis::RedisQuota;
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
@@ -432,17 +432,19 @@ mod tests {
         let mut rl = GlobalRateLimiter::default();
 
         let redis_quota = [build_redis_quota(&quota, &scoping)];
-        assert!(!rl
-            .filter_rate_limited(&client, &redis_quota, 11)
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            !rl.filter_rate_limited(&client, &redis_quota, 11)
+                .await
+                .unwrap()
+                .is_empty()
+        );
 
-        assert!(rl
-            .filter_rate_limited(&client, &redis_quota, 10)
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            rl.filter_rate_limited(&client, &redis_quota, 10)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -513,17 +515,19 @@ mod tests {
         let mut rl = GlobalRateLimiter::default();
 
         let redis_quota = [RedisQuota::new(&quota, item_scoping, ts).unwrap()];
-        assert!(rl
-            .filter_rate_limited(&client, &redis_quota, 200)
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            rl.filter_rate_limited(&client, &redis_quota, 200)
+                .await
+                .unwrap()
+                .is_empty()
+        );
 
-        assert!(!rl
-            .filter_rate_limited(&client, &redis_quota, 1)
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            !rl.filter_rate_limited(&client, &redis_quota, 1)
+                .await
+                .unwrap()
+                .is_empty()
+        );
 
         // Fast forward time.
         let redis_quota =
@@ -531,17 +535,19 @@ mod tests {
                 RedisQuota::new(&quota, item_scoping, ts + Duration::from_secs(window + 1))
                     .unwrap(),
             ];
-        assert!(rl
-            .filter_rate_limited(&client, &redis_quota, 200)
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            rl.filter_rate_limited(&client, &redis_quota, 200)
+                .await
+                .unwrap()
+                .is_empty()
+        );
 
-        assert!(!rl
-            .filter_rate_limited(&client, &redis_quota, 1)
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            !rl.filter_rate_limited(&client, &redis_quota, 1)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -562,11 +568,12 @@ mod tests {
         let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64;
         for _ in 0..redis_threshold + 10 {
             let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
-            assert!(rl
-                .filter_rate_limited(&client, &[redis_quota], quantity)
-                .await
-                .unwrap()
-                .is_empty());
+            assert!(
+                rl.filter_rate_limited(&client, &[redis_quota], quantity)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
         }
 
         // Grab a new rate limiter and make sure even with the infinite limit,
@@ -576,10 +583,11 @@ mod tests {
         quota.limit = Some(redis_threshold);
         let redis_quota = RedisQuota::new(&quota, item_scoping, timestamp).unwrap();
 
-        assert!(!rl
-            .filter_rate_limited(&client, &[redis_quota], quantity)
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            !rl.filter_rate_limited(&client, &[redis_quota], quantity)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 }

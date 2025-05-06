@@ -8,11 +8,11 @@ use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    dynamic_sampling, event_type, EventMetricsExtracted, ProcessingError,
-    ProcessingExtractedMetrics, SpanGroup, SpansExtracted, TransactionGroup,
+    EventMetricsExtracted, ProcessingError, ProcessingExtractedMetrics, SpanGroup, SpansExtracted,
+    TransactionGroup, dynamic_sampling, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
+use crate::utils::{ItemAction, ManagedEnvelope, TypedEnvelope, sample};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -22,13 +22,13 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use relay_event_normalization::{
-    normalize_measurements, normalize_performance_score, normalize_transaction_name,
-    span::tag_extraction, validate_span, BorrowedSpanOpDefaults, ClientHints,
-    CombinedMeasurementsConfig, FromUserAgentInfo, GeoIpLookup, MeasurementsConfig, ModelCosts,
-    PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor, TimestampProcessor,
-    TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
+    BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
+    GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
+    SchemaProcessor, TimestampProcessor, TransactionNameRule, TransactionsProcessor,
+    TrimmingProcessor, normalize_measurements, normalize_performance_score,
+    normalize_transaction_name, span::tag_extraction, validate_span,
 };
-use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{
     BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
@@ -740,13 +740,13 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
         .as_mut()
         .ok_or(anyhow::anyhow!("empty span"))?;
     let Span {
-        ref exclusive_time,
-        ref mut tags,
-        ref mut sentry_tags,
-        ref mut start_timestamp,
-        ref mut timestamp,
-        ref mut span_id,
-        ref mut trace_id,
+        exclusive_time,
+        tags,
+        sentry_tags,
+        start_timestamp,
+        timestamp,
+        span_id,
+        trace_id,
         ..
     } = inner;
 
@@ -1175,7 +1175,9 @@ mod tests {
             .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
-            Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
+            Some(
+                "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)",
+            ),
             ClientHints::default(),
         );
         assert_eq!(
@@ -1190,7 +1192,9 @@ mod tests {
         let mut span: Annotated<Span> = Annotated::from_json(r#"{}"#).unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
-            Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
+            Some(
+                "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)",
+            ),
             ClientHints::default(),
         );
         assert_eq!(

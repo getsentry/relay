@@ -12,13 +12,13 @@ use itertools::Itertools;
 use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
+use crate::MAX_PROFILE_DURATION;
 use crate::error::ProfileError;
 use crate::measurements::LegacyMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::transaction_metadata::TransactionMetadata;
 use crate::types::ClientSdk;
 use crate::utils::{default_client_sdk, deserialize_number_from_string, string_is_null_or_empty};
-use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 

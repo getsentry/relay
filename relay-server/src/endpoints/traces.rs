@@ -1,8 +1,8 @@
+use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter};
-use axum::RequestExt;
+use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use relay_config::Config;
 use relay_dynamic_config::Feature;

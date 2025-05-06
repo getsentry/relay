@@ -5,7 +5,7 @@ use relay_protocol::{
     Annotated, DeserializableAnnotated, FromValue, IntoValue, SerializableAnnotated,
 };
 use serde::ser::SerializeSeq;
-use serde::{de, ser, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de, ser};
 use smallvec::SmallVec;
 
 use crate::envelope::{ContentType, Item};

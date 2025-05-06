@@ -128,11 +128,11 @@ mod tests {
     use relay_config::Config;
     use uuid::Uuid;
 
+    use crate::EnvelopeStack;
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
     use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
     use crate::services::buffer::testutils::utils::mock_envelopes;
-    use crate::EnvelopeStack;
 
     fn mock_config() -> Arc<Config> {
         let path = std::env::temp_dir()

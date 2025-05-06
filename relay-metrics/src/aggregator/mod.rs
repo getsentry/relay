@@ -7,8 +7,8 @@ use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 
-use crate::statsd::{MetricCounters, MetricGauges};
 use crate::Bucket;
+use crate::statsd::{MetricCounters, MetricGauges};
 
 mod config;
 mod inner;
