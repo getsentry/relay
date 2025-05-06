@@ -129,26 +129,26 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
     macro_rules! add_tag {
         ($key:expr, $value:expr) => {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new($key),
+                Annotated::new($key.into()),
                 Annotated::new($value),
             )));
         };
     }
 
-    add_tag!("cpu_vendor".into(), "Sony".into());
-    add_tag!("os.name".into(), "PlayStation".into());
+    add_tag!("cpu_vendor", "Sony".into());
+    add_tag!("os.name", "PlayStation".into());
 
     let platform = "PS5";
     runtime_context.name = Annotated::new(platform.into());
     device_context.model = Annotated::new(platform.into());
 
-    add_tag!("cpu_brand".into(), format!("{platform} CPU"));
-    add_tag!("runtime.name".into(), platform.into());
+    add_tag!("cpu_brand", format!("{platform} CPU"));
+    add_tag!("runtime.name", platform.into());
 
     if let Some(system_version) = &prospero.sdk_version {
-        add_tag!("os".into(), format!("PlayStation {system_version}"));
-        add_tag!("runtime".into(), system_version.into());
-        add_tag!("runtime.version".into(), system_version.into());
+        add_tag!("os", format!("PlayStation {system_version}"));
+        add_tag!("runtime", system_version.into());
+        add_tag!("runtime.version", system_version.into());
 
         os_context.version = Annotated::new(system_version.into());
         runtime_context.version = Annotated::new(system_version.into());
@@ -166,12 +166,12 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
             }
         } else {
             let tag = k.strip_prefix("sentry.").unwrap_or(k);
-            add_tag!(tag.into(), v.to_string());
+            add_tag!(tag, v.to_string());
         }
     }
 
     if let Some(app_info) = &prospero.app_info {
-        add_tag!("titleId".into(), app_info.title_id.into());
+        add_tag!("titleId", app_info.title_id.into());
 
         contexts.get_or_default::<AppContext>().app_version =
             Annotated::new(app_info.version.into());

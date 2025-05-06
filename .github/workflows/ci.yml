@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
       - name: Install libcurl-dev
@@ -37,10 +38,10 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'sentry')
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - uses: actions/setup-python@v5
         with:
@@ -116,6 +117,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -126,10 +128,11 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'sentry')
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        # Windows needs an older versino of the ssh agent: https://github.com/webfactory/ssh-agent/pull/17
         uses: webfactory/ssh-agent@v0.7.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
@@ -148,6 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -178,10 +182,10 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'sentry')
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
@@ -716,6 +720,7 @@ jobs:
     timeout-minutes: 30
     env:
       RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -763,10 +768,10 @@ jobs:
           key: ${{ github.job }}
 
       - name: Setup SSH agent
-        if: contains(env.RUSTFLAGS, 'sentry')
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - uses: actions/setup-python@v5
         with:

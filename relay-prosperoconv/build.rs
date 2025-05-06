@@ -1,27 +1,36 @@
-use dircpy::CopyBuilder;
 use std::fs;
 use std::process::Command;
+
+use dircpy::CopyBuilder;
 use tempfile::tempdir;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=RUSTFLAGS");
+    println!("cargo:rerun-if-changed=prosperoconv.version");
 
     if !cfg!(sentry) {
         return;
     }
 
-    if let Ok(metadata) = fs::metadata("src/lib.rs") {
-        if metadata.is_file() && metadata.len() > 10 {
+    match fs::read_to_string("src/lib.rs") {
+        Ok(content) if !content.trim().is_empty() => {
             println!("cargo:warning=PlayStation files already present, skipping setup");
             return;
         }
+        _ => {
+            println!("cargo:warning=Setting up PlayStation support");
+        }
     }
 
-    println!("cargo:warning=Setting up PlayStation support");
     let temp_dir = tempdir().expect("Failed to make temp_dir");
     let temp_dir_path = temp_dir.path();
     let temp_dir_str = temp_dir_path.to_string_lossy().to_string();
+
+    let version = fs::read_to_string("prosperoconv.version")
+        .expect("Failed to read prosperoconv.version file")
+        .trim()
+        .to_string();
 
     if !Command::new("git")
         .args([
@@ -44,7 +53,7 @@ fn main() {
     }
 
     Command::new("git")
-        .args(["checkout", "tobias-wilfert/feat/test"])
+        .args(["checkout", &version])
         .current_dir(temp_dir_path)
         .status()
         .expect("Failed to checkout branch");
