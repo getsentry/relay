@@ -19,7 +19,7 @@
 //!     ..SentryConfig::default()
 //! };
 //!
-//! relay_log::init(&log_config, &sentry_config);
+//! unsafe { relay_log::init(&log_config, &sentry_config); }
 //! ```
 //!
 //! # Logging

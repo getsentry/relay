@@ -280,6 +280,11 @@ fn get_default_filters() -> EnvFilter {
 
 /// Initialize the logging system and reporting to Sentry.
 ///
+/// # Safety
+///
+/// The function is not safe to be called from a multi-threaded program,
+/// due to modifications of environment variables.
+///
 /// # Example
 ///
 /// ```
@@ -290,9 +295,9 @@ fn get_default_filters() -> EnvFilter {
 ///
 /// let sentry_config = relay_log::SentryConfig::default();
 ///
-/// relay_log::init(&log_config, &sentry_config);
+/// unsafe { relay_log::init(&log_config, &sentry_config) };
 /// ```
-pub fn init(config: &LogConfig, sentry: &SentryConfig) {
+pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
     if config.enable_backtraces {
         unsafe {
             env::set_var("RUST_BACKTRACE", "full");
