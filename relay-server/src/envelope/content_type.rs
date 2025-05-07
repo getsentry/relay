@@ -73,6 +73,15 @@ impl ContentType {
             None
         }
     }
+
+    /// Returns `true` if this is an unknown content type starting with `"application/vnd.sentry."`.
+    ///
+    /// This indicates that this is a content type we use to disambiguate between versions of the same
+    /// item type, but which this Relay doesn't yet know about. Items with such content types should be
+    /// forwarded upstream.
+    pub(crate) fn is_unknown_sentry(&self) -> bool {
+        matches!(self, ContentType::Other(content_type) if content_type.starts_with("application/vnd.sentry."))
+    }
 }
 
 impl fmt::Display for ContentType {

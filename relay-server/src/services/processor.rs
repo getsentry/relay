@@ -259,8 +259,12 @@ pub enum ProcessingGroup {
     Metrics,
     /// ProfileChunk.
     ProfileChunk,
-    /// Unknown item types will be forwarded upstream (to processing Relay), where we will
+    /// Unknown items will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
+    ///
+    /// An item is unknown if
+    /// * its item type is unknown, or
+    /// * its content type is unknown and starts with `"application/vnd.sentry."`.
     ForwardUnknown,
     /// All the items in the envelope that could not be grouped.
     Ungrouped,
@@ -408,9 +412,15 @@ impl ProcessingGroup {
             let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
             let envelope = Envelope::from_parts(headers, items);
             let item_type = item.ty();
-            let group = if matches!(item_type, &ItemType::CheckIn) {
+            // Forward items with unknown, but Sentry-defined content types as unknown, even
+            // if the item type is known.
+            // This indicates that we are using the content type to introduce a new variant of an existing
+            // item type which should be handled upstream.
+            let group = if item.content_type().is_some_and(|ty| ty.is_unknown_sentry()) {
+                ProcessingGroup::ForwardUnknown
+            } else if matches!(item_type, &ItemType::CheckIn) {
                 ProcessingGroup::CheckIn
-            } else if matches!(item.ty(), &ItemType::ClientReport) {
+            } else if matches!(item_type, &ItemType::ClientReport) {
                 ProcessingGroup::ClientReport
             } else if matches!(item_type, &ItemType::Unknown(_)) {
                 ProcessingGroup::ForwardUnknown
