@@ -9,10 +9,14 @@ pub struct BrowserContext {
     pub browser: Annotated<String>,
 
     /// Display name of the browser application.
+    /// This field is optional and can be inferred from user_agent if not provided.
     pub name: Annotated<String>,
 
     /// Version string of the browser.
     pub version: Annotated<String>,
+
+    /// Original user agent string.
+    pub user_agent: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
@@ -61,6 +65,7 @@ mod tests {
   "browser": "Google Chrome 67.0.3396.99",
   "name": "Google Chrome",
   "version": "67.0.3396.99",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36",
   "other": "value",
   "type": "browser"
 }"#;
@@ -68,6 +73,7 @@ mod tests {
             browser: Annotated::new(String::from("Google Chrome 67.0.3396.99")),
             name: Annotated::new("Google Chrome".to_string()),
             version: Annotated::new("67.0.3396.99".to_string()),
+            user_agent: Annotated::new("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36".to_string()),
             other: {
                 let mut map = Object::new();
                 map.insert(
