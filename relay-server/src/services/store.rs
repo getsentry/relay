@@ -1033,34 +1033,6 @@ impl StoreService {
             };
 
             trace_item.attributes.insert(
-                "sentry.timestamp_precise".to_string(),
-                AnyValue {
-                    value: Some(Value::StringValue(log.timestamp_nanos.to_string())),
-                },
-            );
-            trace_item.attributes.insert(
-                "sentry.timestamp_nanos".to_string(),
-                AnyValue {
-                    value: Some(Value::StringValue(log.timestamp_nanos.to_string())),
-                },
-            );
-            trace_item.attributes.insert(
-                "sentry.severity_text".to_string(),
-                AnyValue {
-                    value: Some(Value::StringValue(
-                        log.severity_text.unwrap_or_else(|| "INFO".into()).into(),
-                    )),
-                },
-            );
-            trace_item.attributes.insert(
-                "sentry.severity_number".to_string(),
-                AnyValue {
-                    value: Some(Value::IntValue(
-                        log.severity_number.unwrap_or_default().into(),
-                    )),
-                },
-            );
-            trace_item.attributes.insert(
                 "sentry.body".to_string(),
                 AnyValue {
                     value: Some(Value::StringValue(log.body.to_string())),

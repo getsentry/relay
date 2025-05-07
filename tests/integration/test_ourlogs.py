@@ -1,4 +1,5 @@
 import json
+import base64
 
 from datetime import datetime, timedelta, timezone
 
@@ -93,52 +94,56 @@ def test_ourlog_extraction_with_otel_logs(
     envelope = envelope_with_otel_logs(start)
     relay.send_envelope(project_id, envelope)
 
-    timestamp_nanos = int(start.timestamp() * 1e9)
+    timestamp_nanos = round(start.timestamp() * 1e9)
     timestamp_proto = Timestamp()
     timestamp_proto.FromNanoseconds(timestamp_nanos)
 
-    received_nanos = int(start.timestamp() * 1e6) * 1000
-    received_proto = Timestamp()
-    received_proto.FromNanoseconds(received_nanos)
+    expected_logs = [
+        MessageToDict(
+            TraceItem(
+                organization_id=1,
+                project_id=project_id,
+                timestamp=timestamp_proto,
+                trace_id="5b8efff798038103d269b633813fc60c",
+                item_id=timestamp_nanos.to_bytes(
+                    length=16,
+                    byteorder="little",
+                    signed=False,
+                ),
+                item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+                attributes={
+                    "boolean.attribute": AnyValue(bool_value=True),
+                    "double.attribute": AnyValue(double_value=637.704),
+                    "int.attribute": AnyValue(int_value=10),
+                    "string.attribute": AnyValue(string_value="some string"),
+                    "sentry.body": AnyValue(string_value="Example log record"),
+                    "sentry.severity_number": AnyValue(int_value=10),
+                    "sentry.severity_text": AnyValue(string_value="Information"),
+                    "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
+                    "sentry.timestamp_nanos": AnyValue(
+                        string_value=str(timestamp_nanos)
+                    ),
+                    "sentry.trace_flags": AnyValue(int_value=0),
+                },
+                received=timestamp_proto,
+                retention_days=90,
+                client_sample_rate=1.0,
+                server_sample_rate=1.0,
+            )
+        )
+    ]
 
-    expected_log = TraceItem(
-        organization_id=1,
-        project_id=project_id,
-        timestamp=timestamp_proto,
-        trace_id="5b8efff798038103d269b633813fc60c",
-        item_id=timestamp_nanos.to_bytes(
-            length=16,
-            byteorder="little",
-            signed=False,
-        ),
-        item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
-        attributes={
-            "boolean.attribute": AnyValue(bool_value=True),
-            "double.attribute": AnyValue(double_value=637.704),
-            "int.attribute": AnyValue(int_value=10),
-            "string.attribute": AnyValue(string_value="some string"),
-            "sentry.body": AnyValue(string_value="Example log record"),
-            "sentry.severity_number": AnyValue(int_value=10),
-            "sentry.severity_text": AnyValue(string_value="Information"),
-            "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
-            "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
-            "sentry.timestamp_precise": AnyValue(string_value=str(timestamp_nanos)),
-            "sentry.trace_flags": AnyValue(int_value=0),
-        },
-        received=received_proto,
-        retention_days=90,
-        client_sample_rate=1.0,
-        server_sample_rate=1.0,
-    )
-
-    logs = ourlogs_consumer.get_ourlogs()
+    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
     # reset and remove values changing values
-    logs[0].received = start
-    expected_log.item_id = logs[0].item_id
-    del logs[0].attributes["sentry.observed_timestamp_nanos"]
+    for log in logs:
+        del log["attributes"]["sentry.observed_timestamp_nanos"]
 
-    assert [MessageToDict(log) for log in logs] == [MessageToDict(expected_log)]
+    for expected_log in expected_logs:
+        expected_log["itemId"] = logs[0]["itemId"]
+        expected_log["received"] = logs[0]["received"]
+
+    assert logs == expected_logs
 
     ourlogs_consumer.assert_empty()
 
@@ -262,81 +267,80 @@ def test_ourlog_extraction_with_sentry_logs(
     )
     relay.send_envelope(project_id, envelope)
 
-    timestamp_nanos = int(start.timestamp() * 1e9)
+    timestamp_nanos = int(start.timestamp() * 1e6) * 1000
     timestamp_proto = Timestamp()
     timestamp_proto.FromNanoseconds(timestamp_nanos)
 
-    received_nanos = int(start.timestamp() * 1e6) * 1000
-    received_proto = Timestamp()
-    received_proto.FromNanoseconds(received_nanos)
-
     expected_logs = [
-        TraceItem(
-            organization_id=1,
-            project_id=project_id,
-            timestamp=timestamp_proto,
-            trace_id="5b8efff798038103d269b633813fc60c",
-            item_id=timestamp_nanos.to_bytes(
-                length=16,
-                byteorder="little",
-                signed=False,
+        MessageToDict(log)
+        for log in [
+            TraceItem(
+                organization_id=1,
+                project_id=project_id,
+                timestamp=timestamp_proto,
+                trace_id="5b8efff798038103d269b633813fc60c",
+                item_id=timestamp_nanos.to_bytes(
+                    length=16,
+                    byteorder="little",
+                    signed=False,
+                ),
+                item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+                attributes={
+                    "sentry.body": AnyValue(string_value="This is really bad"),
+                    "sentry.severity_number": AnyValue(int_value=17),
+                    "sentry.severity_text": AnyValue(string_value="error"),
+                    "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b175"),
+                },
+                received=timestamp_proto,
+                retention_days=90,
+                client_sample_rate=1.0,
+                server_sample_rate=1.0,
             ),
-            item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
-            attributes={
-                "sentry.body": AnyValue(string_value="This is really bad"),
-                "sentry.severity_number": AnyValue(int_value=17),
-                "sentry.severity_text": AnyValue(string_value="error"),
-                "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
-            },
-            received=received_proto,
-            retention_days=90,
-            client_sample_rate=1.0,
-            server_sample_rate=1.0,
-        ),
-        TraceItem(
-            organization_id=1,
-            project_id=project_id,
-            timestamp=timestamp_proto,
-            trace_id="5b8efff798038103d269b633813fc60c",
-            item_id=timestamp_nanos.to_bytes(
-                length=16,
-                byteorder="little",
-                signed=False,
+            TraceItem(
+                organization_id=1,
+                project_id=project_id,
+                timestamp=timestamp_proto,
+                trace_id="5b8efff798038103d269b633813fc60c",
+                item_id=timestamp_nanos.to_bytes(
+                    length=16,
+                    byteorder="little",
+                    signed=False,
+                ),
+                item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+                attributes={
+                    "boolean.attribute": AnyValue(bool_value=True),
+                    "double.attribute": AnyValue(double_value=1.23),
+                    "integer.attribute": AnyValue(int_value=42),
+                    "pii": AnyValue(string_value="[creditcard]"),
+                    "sentry.body": AnyValue(string_value="Example log record"),
+                    "sentry.severity_number": AnyValue(int_value=9),
+                    "sentry.severity_text": AnyValue(string_value="info"),
+                    "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
+                    "string.attribute": AnyValue(string_value="some string"),
+                    "valid_string_with_other": AnyValue(string_value="test"),
+                },
+                received=timestamp_proto,
+                retention_days=90,
+                client_sample_rate=1.0,
+                server_sample_rate=1.0,
             ),
-            item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
-            attributes={
-                "boolean.attribute": AnyValue(bool_value=True),
-                "double.attribute": AnyValue(double_value=1.23),
-                "integer.attribute": AnyValue(int_value=42),
-                "pii": AnyValue(string_value="4242 4242 4242 4242"),
-                "sentry.body": AnyValue(string_value="Example log record"),
-                "sentry.severity_number": AnyValue(int_value=10),
-                "sentry.severity_text": AnyValue(string_value="info"),
-                "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
-                "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
-                "sentry.timestamp_precise": AnyValue(string_value=str(timestamp_nanos)),
-                "sentry.trace_flags": AnyValue(int_value=0),
-                "string.attribute": AnyValue(string_value="some string"),
-            },
-            received=received_proto,
-            retention_days=90,
-            client_sample_rate=1.0,
-            server_sample_rate=1.0,
-        ),
+        ]
     ]
 
-    logs = ourlogs_consumer.get_ourlogs()
+    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
     # reset and remove values changing values
     for log in logs:
-        log.received = start
+        log["received"] = start.isoformat(sep="T")[:-6] + "Z"
+        log["timestamp"] = start.isoformat(sep="T")[:-6] + "Z"
 
-    for expected_log in expected_logs:
-        expected_log.item_id = logs[0].item_id
+    for i, expected_log in enumerate(expected_logs):
+        # we can't generate a uuid7 yet so we need to replace the item_id
+        expected_log["itemId"] = logs[i]["itemId"]
+        # received is the timestamp generated on the server when we received the log
+        expected_log["received"] = logs[i]["received"]
 
-    assert [MessageToDict(log) for log in logs] == [
-        MessageToDict(expected_log) for expected_log in expected_logs
-    ]
+    assert logs == expected_logs
 
     ourlogs_consumer.assert_empty()
 
@@ -367,13 +371,9 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     )
     relay.send_envelope(project_id, envelope)
 
-    timestamp_nanos = int(start.timestamp() * 1e9)
+    timestamp_nanos = int(start.timestamp() * 1e6) * 1000
     timestamp_proto = Timestamp()
     timestamp_proto.FromNanoseconds(timestamp_nanos)
-
-    received_nanos = int(start.timestamp() * 1e6) * 1000
-    received_proto = Timestamp()
-    received_proto.FromNanoseconds(received_nanos)
 
     expected_logs = [
         TraceItem(
@@ -391,28 +391,25 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
                 "sentry.body": AnyValue(string_value="Example log record 2"),
                 "sentry.severity_number": AnyValue(int_value=13),
                 "sentry.severity_text": AnyValue(string_value="warn"),
-                "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
-                "sentry.timestamp_precise": AnyValue(string_value=str(timestamp_nanos)),
             },
-            received=received_proto,
+            received=timestamp_proto,
             retention_days=90,
             client_sample_rate=1.0,
             server_sample_rate=1.0,
         ),
     ]
 
-    logs = ourlogs_consumer.get_ourlogs()
+    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
     # reset and remove values changing values
     for log in logs:
-        log.received = start
+        log["received"] = start.isoformat(sep="T")[:-6] + "Z"
+        log["timestamp"] = start.isoformat(sep="T")[:-6] + "Z"
 
     for expected_log in expected_logs:
-        expected_log.item_id = logs[0].item_id
+        expected_log.item_id = base64.b64decode(logs[0]["itemId"])
 
-    assert [MessageToDict(log) for log in logs] == [
-        MessageToDict(expected_log) for expected_log in expected_logs
-    ]
+    assert logs == [MessageToDict(expected_log) for expected_log in expected_logs]
 
     ourlogs_consumer.assert_empty()
 
