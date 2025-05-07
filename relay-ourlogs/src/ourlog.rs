@@ -104,6 +104,20 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
             Value::I64(0),
         )),
     );
+    attribute_data.insert(
+        "sentry.body".to_string(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::String,
+            Value::String(body.clone()),
+        )),
+    );
+    attribute_data.insert(
+        "sentry.span_id".to_string(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::String,
+            Value::String(span_id.to_string()),
+        )),
+    );
 
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
@@ -200,6 +214,23 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
             ),
         )),
     );
+    attributes.insert(
+        "sentry.body".to_string(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::String,
+            Value::String(ourlog_value.body.value().cloned().unwrap_or_default()),
+        )),
+    );
+
+    if let Some(span_id) = ourlog_value.span_id.value() {
+        attributes.insert(
+            "sentry.span_id".to_string(),
+            Annotated::new(OurLogAttribute::new(
+                OurLogAttributeType::String,
+                Value::String(span_id.to_string()),
+            )),
+        );
+    }
 
     if let Some(value) = ourlog_value
         .attribute("sentry.severity_text")

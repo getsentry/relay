@@ -1032,22 +1032,6 @@ impl StoreService {
                 server_sample_rate: 1.0,
             };
 
-            trace_item.attributes.insert(
-                "sentry.body".to_string(),
-                AnyValue {
-                    value: Some(Value::StringValue(log.body.to_string())),
-                },
-            );
-
-            if let Some(span_id) = log.span_id {
-                trace_item.attributes.insert(
-                    "sentry.span_id".to_string(),
-                    AnyValue {
-                        value: Some(Value::StringValue(span_id.to_string())),
-                    },
-                );
-            }
-
             for (name, attribute) in log.attributes.unwrap_or_default() {
                 if let Some(attribute_value) = attribute {
                     if let Some(v) = attribute_value.value {
