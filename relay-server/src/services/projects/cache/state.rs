@@ -1,6 +1,7 @@
 use futures::StreamExt;
 use std::fmt;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
@@ -66,7 +67,7 @@ impl ProjectStore {
     /// [`ProjectState`] is still pending or already deemed expired.
     #[must_use = "an incomplete fetch must be retried"]
     pub fn complete_fetch(&mut self, fetch: CompletedFetch, config: &Config) -> Option<Fetch> {
-        let project_key = fetch.project_key;
+        let project_key = fetch.project_key();
 
         // Eviction is not possible for projects which are currently being fetched.
         // Hence if there was a started fetch, the project state must always exist at this stage.
@@ -333,10 +334,7 @@ impl Fetch {
 
     /// Completes the fetch with a result and returns a [`CompletedFetch`].
     pub fn complete(self, state: SourceProjectState) -> CompletedFetch {
-        CompletedFetch {
-            project_key: self.project_key,
-            state,
-        }
+        CompletedFetch { fetch: self, state }
     }
 
     fn with_revision(mut self, revision: Revision) -> Self {
@@ -349,14 +347,40 @@ impl Fetch {
 #[must_use = "a completed fetch must be acted upon"]
 #[derive(Debug)]
 pub struct CompletedFetch {
-    project_key: ProjectKey,
+    fetch: Fetch,
     state: SourceProjectState,
 }
 
 impl CompletedFetch {
     /// Returns the [`ProjectKey`] of the project which was fetched.
     pub fn project_key(&self) -> ProjectKey {
-        self.project_key
+        self.fetch.project_key
+    }
+
+    /// Returns the update latency of the fetched project config from the upstream.
+    ///
+    /// Is `None`, when no project config could be fetched, or if this was the first
+    /// fetch of a project config.
+    ///
+    /// Note: this latency is computed on access, it does not use the time when the [`Fetch`]
+    /// was marked as (completed)[`Fetch::complete`].
+    pub fn latency(&self) -> Option<Duration> {
+        // We're not interested in initial fetches. The latency on the first fetch
+        // has no meaning about how long it takes for an updated project config to be
+        // propagated to a Relay.
+        let is_first_fetch = self.fetch.revision().as_str().is_none();
+        if is_first_fetch {
+            return None;
+        }
+
+        let project_info = match &self.state {
+            SourceProjectState::New(ProjectState::Enabled(project_info)) => project_info,
+            // Not modified or deleted/disabled -> no latency to track.
+            _ => return None,
+        };
+
+        let elapsed = chrono::Utc::now() - project_info.last_change?;
+        elapsed.to_std().ok()
     }
 
     /// Returns `true` if the fetch completed with a pending status.
