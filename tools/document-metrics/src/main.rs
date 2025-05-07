@@ -64,20 +64,26 @@ fn add_doc_line(docs: &mut String, nv: &syn::MetaNameValue) {
 /// Adds the name of the feature if the given attribute is a `cfg(feature)` attribute.
 fn add_feature(features: &mut Vec<String>, l: &syn::MetaList) -> Result<()> {
     if l.path.is_ident("cfg") {
-        l.parse_nested_meta(|meta| {
-            if meta.path.is_ident("feature") {
-                let s = meta.value()?.parse::<LitStr>()?;
-                features.push(s.value());
-            } else if let Some(ident) = meta.path.get_ident() {
-                features.push(ident.to_string());
-            } else if !meta.input.peek(syn::Token![,]) {
-                // Ignore everything else.
-                let _ = meta.value()?.parse::<Lit>()?;
-            }
-            Ok(())
-        })?;
+        l.parse_nested_meta(|meta| process_meta_item(features, &meta))?;
     }
+    Ok(())
+}
 
+/// Recursively processes a meta item and its nested items.
+fn process_meta_item(
+    features: &mut Vec<String>,
+    meta: &syn::meta::ParseNestedMeta,
+) -> syn::Result<()> {
+    if meta.path.is_ident("feature") {
+        let s = meta.value()?.parse::<LitStr>()?;
+        features.push(s.value());
+    } else if meta.path.is_ident("all") {
+        meta.parse_nested_meta(|nested_meta| process_meta_item(features, &nested_meta))?;
+    } else if let Some(ident) = meta.path.get_ident() {
+        features.push(ident.to_string());
+    } else if !meta.input.peek(syn::Token![,]) {
+        let _ = meta.value()?.parse::<Lit>()?;
+    }
     Ok(())
 }
 
@@ -303,6 +309,9 @@ mod tests {
                 /// Another metric we test.
                 #[cfg(cfg_flag)]
                 ConditionalCompileSet,
+                /// Yet another metric we test.
+                #[cfg(all(cfg_flag, feature = "conditional"))]
+                MultiConditionalCompileSet,
             }
 
             impl SetMetric for TestSets {
@@ -313,6 +322,8 @@ mod tests {
                         Self::ConditionalSet => "test.conditional",
                         #[cfg(cfg_flag)]
                         Self::ConditionalCompileSet => "test.conditional_compile",
+                        #[cfg(all(cfg_flag, feature = "conditional"))]
+                        Self::MultiConditionalCompileSet => "test.multi_conditional_compile"
                     }
                 }
             }
@@ -335,6 +346,15 @@ mod tests {
                 description: "Another metric we test.",
                 features: [
                     "cfg_flag",
+                ],
+            },
+            Metric {
+                ty: Set,
+                name: "test.multi_conditional_compile",
+                description: "Yet another metric we test.",
+                features: [
+                    "cfg_flag",
+                    "conditional",
                 ],
             },
             Metric {
