@@ -410,6 +410,13 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
+    /// Latency of project config updates until they reach Relay.
+    ///
+    /// The metric is calculated by using the creation timestamp of the project config
+    /// and when Relay updates its local cache with the new project config.
+    ///
+    /// No metric is emitted when Relay fetches a project config for the first time.
+    ProjectCacheUpdateLatency,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
     /// resolve.
     ///
@@ -597,6 +604,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
+            RelayTimers::ProjectCacheUpdateLatency => "project_cache.latency",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::ViewHierarchyScrubbing => "scrubbing.view_hierarchy_scrubbing.duration",
