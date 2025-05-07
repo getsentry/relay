@@ -578,6 +578,13 @@ mod tests {
                     type: String,
                     other: {},
                 },
+                "sentry.body": OurLogAttribute {
+                    value: String(
+                        "Example log record",
+                    ),
+                    type: String,
+                    other: {},
+                },
                 "sentry.severity_number": OurLogAttribute {
                     value: I64(
                         9,
@@ -588,6 +595,13 @@ mod tests {
                 "sentry.severity_text": OurLogAttribute {
                     value: String(
                         "info",
+                    ),
+                    type: String,
+                    other: {},
+                },
+                "sentry.span_id": OurLogAttribute {
+                    value: String(
+                        "eee19b7ec3c1b174",
                     ),
                     type: String,
                     other: {},
@@ -661,7 +675,7 @@ mod tests {
             );
         }
 
-        insta::assert_debug_snapshot!(ourlog, @r###"
+        insta::assert_debug_snapshot!(ourlog, @r#"
         OurLog {
             timestamp: Timestamp(
                 2021-11-29T00:00:00Z,
@@ -674,6 +688,13 @@ mod tests {
                 "foo": OurLogAttribute {
                     value: String(
                         "9",
+                    ),
+                    type: String,
+                    other: {},
+                },
+                "sentry.body": OurLogAttribute {
+                    value: String(
+                        "",
                     ),
                     type: String,
                     other: {},
@@ -708,7 +729,7 @@ mod tests {
                 ),
             },
         }
-        "###);
+        "#);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&ourlog), @r###"
         {
