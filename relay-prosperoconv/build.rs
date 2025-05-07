@@ -11,7 +11,21 @@ fn main() {
     println!("cargo:rerun-if-env-changed=RUSTFLAGS");
     println!("cargo:rerun-if-changed=prosperoconv.version");
 
-    if !cfg!(sentry) {
+    // for (key, value) in std::env::vars() {
+    //     // if key.contains("cfg") {
+    //     println!("cargo:warning={}={}", key, value);
+    //     // }
+    // }
+
+    // println!(
+    //     "cargo:warning=Sentry flag {:?}",
+    //     std::env::var("CARGO_ENCODED_RUSTFLAGS") //.is_ok_and(|v| v.contains("--cfgsentry"))
+    // );
+
+    // https://doc.rust-lang.org/nightly/cargo/reference/config.html#buildrustflags
+    if !cfg!(sentry)
+        && !std::env::var("CARGO_ENCODED_RUSTFLAGS").is_ok_and(|v| v.contains("--cfg\u{1f}sentry"))
+    {
         println!("cargo:warning=Sentry flag not set");
         return;
     } else {
