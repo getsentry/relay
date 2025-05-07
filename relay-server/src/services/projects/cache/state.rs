@@ -379,6 +379,11 @@ impl CompletedFetch {
             _ => return None,
         };
 
+        // A matching revision is not an update.
+        if project_info.rev == self.fetch.revision() {
+            return None;
+        }
+
         let elapsed = chrono::Utc::now() - project_info.last_change?;
         elapsed.to_std().ok()
     }
