@@ -51,15 +51,7 @@ pub fn process(
             let mut item = Item::new(ItemType::Attachment);
             item.set_filename(file.name);
             item.set_attachment_type(AttachmentType::Attachment);
-
-            if let Some(content_type) = mime_guess::from_path(file.name)
-                .first()
-                .map(|m| ContentType::from(m.essence_str()))
-            {
-                item.set_payload(content_type, file.contents.to_owned());
-            } else {
-                item.set_payload_without_content_type(file.contents.to_owned());
-            }
+            item.set_payload(infer_content_type(file.name), file.contents.to_owned());
             envelope.add_item(item);
         }
 
@@ -98,12 +90,12 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
             .clone()
             .map(Annotated::new)
             .unwrap_or_default(),
-        other: [("manufacturer".into(), Annotated::new("Sony".into()))].into(),
+        other: [("manufacturer".to_owned(), Annotated::new("Sony".into()))].into(),
         ..Default::default()
     };
 
     let mut os_context = OsContext {
-        name: Annotated::new("PlayStation".into()),
+        name: Annotated::new("PlayStation".to_owned()),
         ..Default::default()
     };
     let mut runtime_context = RuntimeContext::default();
@@ -177,7 +169,7 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
             }
         } else {
             let tag = k.strip_prefix("sentry.").unwrap_or(k);
-            add_tag!(tag, v.to_owned());
+            add_tag!(tag, v.clone());
         }
     }
 
@@ -193,6 +185,18 @@ pub fn update_sentry_event(event: &mut Event, prospero: &ProsperoDump) {
     contexts.add(runtime_context);
 }
 
+fn infer_content_type(filename: &str) -> ContentType {
+    // Since we only receive a limited selection of files through this mechanism this simple logic
+    // should be enough.
+    let extension = filename.rsplit('.').next().map(str::to_lowercase);
+    match extension.as_deref() {
+        Some("txt") => ContentType::Text,
+        Some("json") => ContentType::Json,
+        Some("xml") => ContentType::Xml,
+        _ => ContentType::OctetStream,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,6 +204,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use relay_protocol::Value;
+
+    use insta::assert_debug_snapshot;
 
     #[test]
     fn test_event_release_setting() {
@@ -250,20 +256,9 @@ mod tests {
             panic!("User information not set in the event");
         }
 
-        // Checks the tags are present
+        // Checks the tags are correct
         let tags = event.tags.value().unwrap();
-        assert_eq!(tags.get("release"), Some("1.2.3.4"));
-        assert_eq!(tags.get("environment"), Some("production"));
-        assert_eq!(tags.get("user.username"), Some("janedoe"));
-        assert_eq!(tags.get("user.email"), Some("janedoe@example.com"));
-        assert_eq!(tags.get("santry.tag"), Some("other_value"));
-        assert_eq!(tags.get("other_tag"), Some("other_value"));
-
-        // Check that the raw tags are not present
-        assert!(!tags.0.contains("sentry.release"));
-        assert!(!tags.0.contains("sentry.environment"));
-        assert!(!tags.0.contains("sentry.user.username"));
-        assert!(!tags.0.contains("sentry.user.email"));
+        assert_debug_snapshot!(tags);
     }
 
     #[test]

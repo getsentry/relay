@@ -397,9 +397,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      # - uses: swatinem/rust-cache@v2
-      #   with:
-      #     key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -407,7 +407,7 @@ jobs:
 
       - name: Compile
         run: |
-          RUSTFLAGS="--cfg sentry --cfg tokio_unstable" cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
+          cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
 
       - name: Split debug info
         run: |
