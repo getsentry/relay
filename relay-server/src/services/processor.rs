@@ -412,18 +412,12 @@ impl ProcessingGroup {
             let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
             let envelope = Envelope::from_parts(headers, items);
             let item_type = item.ty();
-            // Forward items with unknown, but Sentry-defined content types as unknown, even
-            // if the item type is known.
-            // This indicates that we are using the content type to introduce a new variant of an existing
-            // item type which should be handled upstream.
-            let group = if item.content_type().is_some_and(|ty| ty.is_unknown_sentry()) {
+            let group = if item_is_unknown(item) {
                 ProcessingGroup::ForwardUnknown
             } else if matches!(item_type, &ItemType::CheckIn) {
                 ProcessingGroup::CheckIn
             } else if matches!(item_type, &ItemType::ClientReport) {
                 ProcessingGroup::ClientReport
-            } else if matches!(item_type, &ItemType::Unknown(_)) {
-                ProcessingGroup::ForwardUnknown
             } else {
                 // Cannot group this item type.
                 ProcessingGroup::Ungrouped
@@ -474,6 +468,15 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Ungrouped => AppFeature::UnattributedEnvelope,
         }
     }
+}
+
+/// Returns `true` if an item should be forwarded upstream as "unknown".
+///
+/// This is the case if the item's `ItemType` is `Unknown` or if its
+/// content type is `Other` and begins with `"application/vnd.sentry."`.
+fn item_is_unknown(item: &Item) -> bool {
+    matches!(item.ty(), &ItemType::Unknown(_))
+        || matches!(item.content_type(), Some(ContentType::Other(content_type)) if content_type.starts_with("application/vnd.sentry."))
 }
 
 /// An error returned when handling [`ProcessEnvelope`].
