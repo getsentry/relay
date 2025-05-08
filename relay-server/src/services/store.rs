@@ -1056,10 +1056,10 @@ impl StoreService {
 
             let message = KafkaMessage::Log {
                 headers: BTreeMap::from([
-                    ("project_id".to_string(), scoping.project_id.to_string()),
+                    ("project_id".to_owned(), scoping.project_id.to_string()),
                     (
-                        "item_type".to_string(),
-                        TraceItemType::Log.as_str_name().to_string(),
+                        "item_type".to_owned(),
+                        TraceItemType::Log.as_str_name().to_owned(),
                     ),
                 ]),
                 message: trace_item,
