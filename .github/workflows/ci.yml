@@ -116,8 +116,8 @@ jobs:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     env:
-      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
+      RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
