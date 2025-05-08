@@ -484,13 +484,6 @@ mod tests {
         let mut merged_log = Annotated::<OurLog>::from_json(json).unwrap();
         ourlog_merge_otel(&mut merged_log);
 
-        if let Some(log) = merged_log.value_mut() {
-            log.other.insert(
-                "observed_timestamp_nanos".to_owned(),
-                Annotated::new(Value::U64(1742481864000000000)),
-            );
-        }
-
         insta::assert_debug_snapshot!(merged_log, @r#"
         OurLog {
             timestamp: Timestamp(
@@ -538,21 +531,15 @@ mod tests {
                     type: String,
                     other: {},
                 },
+                "sentry.timestamp_precise": OurLogAttribute {
+                    value: I64(
+                        946684800000000000,
+                    ),
+                    type: Integer,
+                    other: {},
+                },
             },
-            other: {
-                "observed_timestamp_nanos": U64(
-                    1742481864000000000,
-                ),
-                "severity_number": I64(
-                    9,
-                ),
-                "severity_text": String(
-                    "info",
-                ),
-                "timestamp_nanos": U64(
-                    946684800000000000,
-                ),
-            },
+            other: {},
         }
         "#);
     }
@@ -576,8 +563,16 @@ mod tests {
         let mut data = Annotated::<OurLog>::from_json(json).unwrap();
         ourlog_merge_otel(&mut data);
         assert_eq!(
-            data.value().unwrap().other.get("severity_number"),
-            Some(&Annotated::new(Value::I64(0)))
+            data.value()
+                .unwrap()
+                .attributes
+                .value()
+                .unwrap()
+                .get("sentry.severity_number")
+                .unwrap()
+                .value()
+                .unwrap(),
+            &OurLogAttribute::new(OurLogAttributeType::Integer, Value::I64(0)),
         );
     }
 
@@ -600,13 +595,6 @@ mod tests {
             ..Default::default()
         });
         ourlog_merge_otel(&mut ourlog);
-
-        if let Some(log) = ourlog.value_mut() {
-            log.other.insert(
-                "observed_timestamp_nanos".to_owned(),
-                Annotated::new(Value::U64(1742481864000000000)),
-            );
-        }
 
         insta::assert_debug_snapshot!(ourlog, @r#"
         OurLog {
@@ -646,21 +634,15 @@ mod tests {
                     type: String,
                     other: {},
                 },
+                "sentry.timestamp_precise": OurLogAttribute {
+                    value: I64(
+                        1638144000000000000,
+                    ),
+                    type: Integer,
+                    other: {},
+                },
             },
-            other: {
-                "observed_timestamp_nanos": U64(
-                    1742481864000000000,
-                ),
-                "severity_number": I64(
-                    0,
-                ),
-                "severity_text": String(
-                    "info",
-                ),
-                "timestamp_nanos": U64(
-                    1638144000000000000,
-                ),
-            },
+            other: {},
         }
         "#);
 
@@ -684,12 +666,12 @@ mod tests {
             "sentry.severity_text": {
               "type": "string",
               "value": "info"
+            },
+            "sentry.timestamp_precise": {
+              "type": "integer",
+              "value": 1638144000000000000
             }
-          },
-          "observed_timestamp_nanos": 1742481864000000000,
-          "severity_number": 0,
-          "severity_text": "info",
-          "timestamp_nanos": 1638144000000000000
+          }
         }
         "#);
     }
