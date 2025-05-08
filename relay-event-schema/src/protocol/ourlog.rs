@@ -168,7 +168,7 @@ mod tests {
         }"#;
 
         let data = Annotated::<OurLog>::from_json(json).unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         OurLog {
             timestamp: Timestamp(
                 2018-12-13T16:51:00Z,
@@ -180,49 +180,49 @@ mod tests {
             level: Info,
             body: "Example log record",
             attributes: {
-                "boolean.attribute": OurLogAttribute {
+                "boolean.attribute": Attribute {
                     value: Bool(
                         true,
                     ),
                     type: Boolean,
                     other: {},
                 },
-                "double.attribute": OurLogAttribute {
+                "double.attribute": Attribute {
                     value: F64(
                         1.23,
                     ),
                     type: Double,
                     other: {},
                 },
-                "sentry.observed_timestamp_nanos": OurLogAttribute {
+                "sentry.observed_timestamp_nanos": Attribute {
                     value: String(
                         "1544712660300000000",
                     ),
                     type: Integer,
                     other: {},
                 },
-                "sentry.severity_number": OurLogAttribute {
+                "sentry.severity_number": Attribute {
                     value: String(
                         "10",
                     ),
                     type: Integer,
                     other: {},
                 },
-                "sentry.severity_text": OurLogAttribute {
+                "sentry.severity_text": Attribute {
                     value: String(
                         "info",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.trace_flags": OurLogAttribute {
+                "sentry.trace_flags": Attribute {
                     value: String(
                         "10",
                     ),
                     type: Integer,
                     other: {},
                 },
-                "string.attribute": OurLogAttribute {
+                "string.attribute": Attribute {
                     value: String(
                         "some string",
                     ),
@@ -232,7 +232,7 @@ mod tests {
             },
             other: {},
         }
-        "#);
+        "###);
 
         insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
         {
