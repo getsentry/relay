@@ -879,7 +879,7 @@
 <a href=#879 id=879 data-nosnippet>879</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#880 id=880 data-nosnippet>880</a>    </span>MetricDelayCount,
 <a href=#881 id=881 data-nosnippet>881</a>    <span class="doccomment">/// The amount of times PlayStation processing was attempted.
-<a href=#882 id=882 data-nosnippet>882</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#882 id=882 data-nosnippet>882</a>    </span><span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
 <a href=#883 id=883 data-nosnippet>883</a>    </span>PlaystationProcessing,
 <a href=#884 id=884 data-nosnippet>884</a>}
 <a href=#885 id=885 data-nosnippet>885</a>
@@ -928,7 +928,7 @@
 <a href=#928 id=928 data-nosnippet>928</a>            </span>RelayCounters::MetricDelaySum =&gt; <span class="string">"metrics.delay.sum"</span>,
 <a href=#929 id=929 data-nosnippet>929</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#930 id=930 data-nosnippet>930</a>            </span>RelayCounters::MetricDelayCount =&gt; <span class="string">"metrics.delay.count"</span>,
-<a href=#931 id=931 data-nosnippet>931</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#931 id=931 data-nosnippet>931</a>            <span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
 <a href=#932 id=932 data-nosnippet>932</a>            </span>RelayCounters::PlaystationProcessing =&gt; <span class="string">"processing.playstation"</span>,
 <a href=#933 id=933 data-nosnippet>933</a>        }
 <a href=#934 id=934 data-nosnippet>934</a>    }
