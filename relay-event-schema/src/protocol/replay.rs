@@ -33,7 +33,6 @@ use crate::protocol::{
     LenientString, OTAUpdatesContext, OsContext, ProfileContext, Request, ResponseContext, Tags,
     Timestamp, TraceContext, User,
 };
-use sentry_release_parser::Release as ParsedRelease;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -384,26 +383,11 @@ impl Getter for Replay {
                         .value()?
                         .get_header(rest)?
                         .into()
-                } else if let Some(rest) = path.strip_prefix("release.") {
-                    let release = self.parse_release()?;
-                    match rest {
-                        "build" => release.build_hash()?.into(),
-                        "package" => release.package()?.into(),
-                        "version.short" => release.version()?.raw_short().into(),
-                        _ => return None,
-                    }
                 } else {
                     return None;
                 }
             }
         })
-    }
-}
-
-impl Replay {
-    /// Returns parsed components of the Release string in [`Self::release`].
-    pub fn parse_release(&self) -> Option<ParsedRelease<'_>> {
-        sentry_release_parser::Release::parse(self.release.as_str()?).ok()
     }
 }
 
