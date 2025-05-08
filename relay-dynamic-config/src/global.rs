@@ -225,6 +225,17 @@ pub struct Options {
     )]
     pub deprecated2: f32,
 
+    /// Disable semantic partitioning of spans by trace ID. Use this in case there is partition
+    /// imbalance on the spans topic produced to by Relay (either snuba-spans or ingest-spans).
+    /// This will break the span buffer, and anything that depends on segments being assembled by
+    /// it (performance issue, etc). As of 2025-05-06, the span buffer is not yet rolled out to
+    /// most regions though.
+    #[serde(
+        rename = "relay.spans-ignore-trace-id-partitioning.projects",
+        skip_serializing_if = "is_default"
+    )]
+    pub spans_ignore_trace_id_partitioning: bool,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
