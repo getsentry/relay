@@ -664,6 +664,7 @@ mod tests {
         let mut ourlog = Annotated::new(OurLog {
             timestamp: Annotated::new(Timestamp(datetime)),
             attributes: Annotated::new(attributes),
+            body: Annotated::new("somebody".into()),
             ..Default::default()
         });
         ourlog_merge_otel(&mut ourlog);
@@ -683,7 +684,7 @@ mod tests {
             trace_id: ~,
             span_id: ~,
             level: ~,
-            body: ~,
+            body: "somebody",
             attributes: {
                 "foo": OurLogAttribute {
                     value: String(
@@ -694,7 +695,7 @@ mod tests {
                 },
                 "sentry.body": OurLogAttribute {
                     value: String(
-                        "",
+                        "somebody",
                     ),
                     type: String,
                     other: {},
@@ -731,13 +732,18 @@ mod tests {
         }
         "#);
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&ourlog), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&ourlog), @r#"
         {
           "timestamp": 1638144000.0,
+          "body": "somebody",
           "attributes": {
             "foo": {
               "type": "string",
               "value": "9"
+            },
+            "sentry.body": {
+              "type": "string",
+              "value": "somebody"
             },
             "sentry.severity_number": {
               "type": "integer",
@@ -753,6 +759,6 @@ mod tests {
           "severity_text": "info",
           "timestamp_nanos": 1638144000000000000
         }
-        "###);
+        "#);
     }
 }
