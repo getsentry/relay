@@ -70,7 +70,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
     let observed_time_unix_nano = UnixTimestamp::now().as_nanos();
 
     attribute_data.insert(
-        "sentry.severity_text".to_string(),
+        "sentry.severity_text".to_owned(),
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::String,
             Value::String(severity_text.clone()),
@@ -84,35 +84,35 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
         )),
     );
     attribute_data.insert(
-        "sentry.timestamp_nanos".to_string(),
+        "sentry.timestamp_nanos".to_owned(),
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::String,
             Value::String(time_unix_nano.to_string()),
         )),
     );
     attribute_data.insert(
-        "sentry.observed_timestamp_nanos".to_string(),
+        "sentry.observed_timestamp_nanos".to_owned(),
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::String,
             Value::String(observed_time_unix_nano.to_string()),
         )),
     );
     attribute_data.insert(
-        "sentry.trace_flags".to_string(),
+        "sentry.trace_flags".to_owned(),
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::Integer,
             Value::I64(0),
         )),
     );
     attribute_data.insert(
-        "sentry.body".to_string(),
+        "sentry.body".to_owned(),
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::String,
             Value::String(body.clone()),
         )),
     );
     attribute_data.insert(
-        "sentry.span_id".to_string(),
+        "sentry.span_id".to_owned(),
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::String,
             Value::String(span_id.to_string()),
@@ -151,20 +151,20 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
 
     let mut other = Object::default();
     other.insert(
-        "severity_text".to_string(),
+        "severity_text".to_owned(),
         Annotated::new(Value::String(severity_text)),
     );
     other.insert(
-        "severity_number".to_string(),
+        "severity_number".to_owned(),
         Annotated::new(Value::I64(severity_number as i64)),
     );
-    other.insert("trace_flags".to_string(), Annotated::new(Value::I64(0)));
+    other.insert("trace_flags".to_owned(), Annotated::new(Value::I64(0)));
     other.insert(
-        "timestamp_nanos".to_string(),
+        "timestamp_nanos".to_owned(),
         Annotated::new(Value::U64(otel_log.time_unix_nano)),
     );
     other.insert(
-        "observed_timestamp_nanos".to_string(),
+        "observed_timestamp_nanos".to_owned(),
         Annotated::new(Value::U64(observed_time_unix_nano)),
     );
 
@@ -215,7 +215,7 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
         )),
     );
     attributes.insert(
-        "sentry.body".to_string(),
+        "sentry.body".to_owned(),
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::String,
             Value::String(ourlog_value.body.value().cloned().unwrap_or_default()),
@@ -224,7 +224,7 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
 
     if let Some(span_id) = ourlog_value.span_id.value() {
         attributes.insert(
-            "sentry.span_id".to_string(),
+            "sentry.span_id".to_owned(),
             Annotated::new(OurLogAttribute::new(
                 OurLogAttributeType::String,
                 Value::String(span_id.to_string()),
@@ -554,7 +554,7 @@ mod tests {
 
         if let Some(log) = merged_log.value_mut() {
             log.other.insert(
-                "observed_timestamp_nanos".to_string(),
+                "observed_timestamp_nanos".to_owned(),
                 Annotated::new(Value::U64(1742481864000000000)),
             );
         }
@@ -654,10 +654,10 @@ mod tests {
     fn ourlog_merge_otel_log_with_timestamp() {
         let mut attributes = Object::new();
         attributes.insert(
-            "foo".to_string(),
+            "foo".to_owned(),
             Annotated::new(OurLogAttribute::new(
                 OurLogAttributeType::String,
-                Value::String("9".to_string()),
+                Value::String("9".to_owned()),
             )),
         );
         let datetime = Utc.with_ymd_and_hms(2021, 11, 29, 0, 0, 0).unwrap();
@@ -671,7 +671,7 @@ mod tests {
 
         if let Some(log) = ourlog.value_mut() {
             log.other.insert(
-                "observed_timestamp_nanos".to_string(),
+                "observed_timestamp_nanos".to_owned(),
                 Annotated::new(Value::U64(1742481864000000000)),
             );
         }
