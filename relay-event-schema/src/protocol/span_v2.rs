@@ -206,10 +206,10 @@ impl Empty for SpanV2Kind {
 }
 
 #[derive(Debug)]
-pub struct ParseSpanKindError;
+pub struct ParseSpanV2KindError;
 
 impl std::str::FromStr for SpanV2Kind {
-    type Err = ParseSpanKindError;
+    type Err = ParseSpanV2KindError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
@@ -219,7 +219,7 @@ impl std::str::FromStr for SpanV2Kind {
             "client" => Self::Client,
             "producer" => Self::Producer,
             "consumer" => Self::Consumer,
-            _ => return Err(ParseSpanKindError),
+            _ => return Err(ParseSpanV2KindError),
         })
     }
 }
