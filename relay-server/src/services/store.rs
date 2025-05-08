@@ -1005,18 +1005,13 @@ impl StoreService {
             )
             .to_le_bytes()
             .to_vec();
-            let received_nanos = if let Some(received) = received_at.timestamp_nanos_opt() {
-                received % 1_000_000_000
-            } else {
-                0
-            };
             let mut trace_item = TraceItem {
                 item_type: TraceItemType::Log.into(),
                 organization_id: scoping.organization_id.value(),
                 project_id: scoping.project_id.value(),
                 received: Some(Timestamp {
                     seconds: safe_timestamp(received_at) as i64,
-                    nanos: received_nanos as i32,
+                    nanos: 0,
                 }),
                 retention_days: retention_days.into(),
                 timestamp: Some(Timestamp {
