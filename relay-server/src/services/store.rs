@@ -1216,66 +1216,6 @@ where
     m.end()
 }
 
-fn serialize_log_attributes<S>(
-    map: &Option<BTreeMap<&str, Option<LogAttribute>>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let Some(map) = map else {
-        return serializer.serialize_none();
-    };
-    let mut m = serializer.serialize_map(Some(map.len()))?;
-    for (key, value) in map.iter() {
-        if let Some(value) = value {
-            if let Some(LogAttributeValue::Unknown(_)) = value.value {
-                continue;
-            }
-            m.serialize_entry(key, value)?;
-        }
-    }
-    m.end()
-}
-
-/**
- * This shouldn't be necessary with enum serialization, but since serde's tag doesn't work with `type` as it has to be renamed due to being a keyword,
- * this allows us to not emit the 'type' field, which would otherwise break the ourlogs consumer.
- */
-fn serialize_log_attribute_value<S>(
-    attr: &Option<LogAttributeValue>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let Some(attr) = attr else {
-        return serializer.serialize_none();
-    };
-
-    if let LogAttributeValue::Unknown(_) = attr {
-        return serializer.serialize_none();
-    }
-
-    let mut map = serializer.serialize_map(Some(1))?;
-    match attr {
-        LogAttributeValue::String(value) => {
-            map.serialize_entry("string_value", value)?;
-        }
-        LogAttributeValue::Int(value) => {
-            map.serialize_entry("int_value", value)?;
-        }
-        LogAttributeValue::Bool(value) => {
-            map.serialize_entry("bool_value", value)?;
-        }
-        LogAttributeValue::Double(value) => {
-            map.serialize_entry("double_value", value)?;
-        }
-        LogAttributeValue::Unknown(_) => (),
-    }
-    map.end()
-}
-
 /// Container payload for event messages.
 #[derive(Debug, Serialize)]
 struct EventKafkaMessage {
@@ -1549,7 +1489,7 @@ struct SpanKafkaMessage<'a> {
     _performance_issues_spans: Option<bool>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type", content = "value")]
 enum LogAttributeValue {
     #[serde(rename = "string")]
@@ -1561,55 +1501,30 @@ enum LogAttributeValue {
     #[serde(rename = "double")]
     Double(f64),
     #[serde(rename = "unknown")]
-    Unknown(String),
+    Unknown(()),
 }
 
 /// This is a temporary struct to convert the old attribute format to the new one.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct LogAttribute {
-    #[serde(flatten, serialize_with = "serialize_log_attribute_value")]
+    #[serde(flatten)]
     value: Option<LogAttributeValue>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 struct LogKafkaMessages<'a> {
     #[serde(borrow)]
     items: Vec<LogKafkaMessage<'a>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 struct LogKafkaMessage<'a> {
-    #[serde(default)]
-    organization_id: u64,
-    #[serde(default)]
-    project_id: u64,
+    trace_id: EventId,
     #[serde(default)]
     timestamp_nanos: u64,
-    #[serde(default)]
-    observed_timestamp_nanos: u64,
-    #[serde(default)]
-    retention_days: u16,
-    #[serde(default)]
-    received: u64,
-    #[serde(default)]
-    body: Cow<'a, str>,
-
-    trace_id: EventId,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    span_id: Option<&'a str>,
-    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    severity_text: Option<Cow<'a, str>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    severity_number: Option<i32>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_log_attributes"
-    )]
+    #[serde(borrow, default)]
     attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    trace_flags: Option<u64>,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
