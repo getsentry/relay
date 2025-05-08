@@ -56,8 +56,6 @@ pub enum StoreError {
     EncodingFailed(std::io::Error),
     #[error("failed to store event because event id was missing")]
     NoEventId,
-    #[error("failed to encode protobuf because the buffer is too small")]
-    ProtobufEncodingFailed,
 }
 
 struct Producer {
@@ -1056,12 +1054,6 @@ impl StoreService {
                 }
             }
 
-            let mut message = Vec::new();
-
-            if trace_item.encode(&mut message).is_err() {
-                return Err(StoreError::ProtobufEncodingFailed);
-            }
-
             let message = KafkaMessage::Log {
                 headers: BTreeMap::from([
                     ("project_id".to_string(), scoping.project_id.to_string()),
@@ -1070,7 +1062,7 @@ impl StoreService {
                         TraceItemType::Log.as_str_name().to_string(),
                     ),
                 ]),
-                message,
+                message: trace_item,
             };
 
             self.produce(KafkaTopic::Items, message)?;
@@ -1577,7 +1569,8 @@ enum KafkaMessage<'a> {
     },
     Log {
         headers: BTreeMap<String, String>,
-        message: Vec<u8>,
+        #[serde(skip)]
+        message: TraceItem,
     },
     ProfileChunk(ProfileChunkKafkaMessage),
 }
@@ -1680,7 +1673,15 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Log { message, .. } => Ok(Cow::Borrowed(message)),
+            KafkaMessage::Log { message, .. } => {
+                let mut payload = Vec::new();
+
+                if message.encode(&mut payload).is_err() {
+                    return Err(ClientError::ProtobufEncodingFailed);
+                }
+
+                Ok(Cow::Owned(payload))
+            }
             _ => rmp_serde::to_vec_named(&self)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidMsgPack),

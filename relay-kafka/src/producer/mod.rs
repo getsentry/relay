@@ -64,6 +64,11 @@ pub enum ClientError {
     /// Failed to validate the topic.
     #[error("failed to validate the topic with name {0}: {1:?}")]
     TopicError(String, rdkafka_sys::rd_kafka_resp_err_t),
+
+    /// Failed to encode the protobuf into the buffer
+    /// because the buffer is too small.
+    #[error("failed to encode protobuf because the buffer is too small")]
+    ProtobufEncodingFailed,
 }
 
 /// Describes the type which can be sent using kafka producer provided by this crate.
