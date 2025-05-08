@@ -31,13 +31,13 @@ pub fn process(
 
         let event = event.get_or_insert_with(Event::default);
         let data = relay_prosperoconv::extract_data(&item.payload()).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {}", err))
+            ProcessingError::InvalidPlaystationDump(format!("Failed to extract data: {err}"))
         })?;
         let prospero_dump = ProsperoDump::parse(&data).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {}", err))
+            ProcessingError::InvalidPlaystationDump(format!("Failed to parse dump: {err}"))
         })?;
         let minidump_buffer = relay_prosperoconv::write_dump(&prospero_dump).map_err(|err| {
-            ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {}", err))
+            ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
         })?;
         update_sentry_event(event, &prospero_dump);
 
@@ -203,8 +203,6 @@ mod tests {
     use std::borrow::Cow;
     use std::collections::BTreeMap;
 
-    use relay_protocol::Value;
-
     use insta::assert_debug_snapshot;
 
     #[test]
@@ -246,19 +244,71 @@ mod tests {
         );
         assert_eq!(event.environment, Annotated::new("production".to_owned()));
 
-        if let Some(user) = event.user.0 {
-            assert_eq!(
-                user.username,
-                Annotated::new(LenientString("janedoe".to_owned()))
-            );
-            assert_eq!(user.email, Annotated::new("janedoe@example.com".to_owned()));
-        } else {
-            panic!("User information not set in the event");
+        assert_debug_snapshot!(event.user, @r#"
+        User {
+            id: ~,
+            email: "janedoe@example.com",
+            ip_address: ~,
+            username: LenientString(
+                "janedoe",
+            ),
+            name: ~,
+            sentry_user: ~,
+            geo: ~,
+            segment: ~,
+            data: ~,
+            other: {},
         }
+        "#);
 
-        // Checks the tags are correct
-        let tags = event.tags.value().unwrap();
-        assert_debug_snapshot!(tags);
+        assert_debug_snapshot!(event.tags.value().unwrap(), @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "cpu_vendor",
+                        "Sony",
+                    ),
+                    TagEntry(
+                        "os.name",
+                        "PlayStation",
+                    ),
+                    TagEntry(
+                        "cpu_brand",
+                        "PS5 CPU",
+                    ),
+                    TagEntry(
+                        "runtime.name",
+                        "PS5",
+                    ),
+                    TagEntry(
+                        "other_tag",
+                        "other_value",
+                    ),
+                    TagEntry(
+                        "santry.tag",
+                        "other_value",
+                    ),
+                    TagEntry(
+                        "environment",
+                        "production",
+                    ),
+                    TagEntry(
+                        "release",
+                        "1.2.3.4",
+                    ),
+                    TagEntry(
+                        "user.email",
+                        "janedoe@example.com",
+                    ),
+                    TagEntry(
+                        "user.username",
+                        "janedoe",
+                    ),
+                ],
+            ),
+        )
+        "#);
     }
 
     #[test]
@@ -277,31 +327,29 @@ mod tests {
         update_sentry_event(&mut event, &prospero);
 
         // Check the game context is correct
-        if let Some(Context::Other(game_context)) = event.contexts.value().unwrap().get_key("game")
-        {
-            assert_eq!(
-                game_context.get("name").unwrap(),
-                &Annotated::new(Value::from("Foo"))
-            );
-            assert_eq!(
-                game_context.get("level").unwrap(),
-                &Annotated::new(Value::from("Bar"))
-            );
-        } else {
-            panic!("Game context not found or has wrong type");
-        }
+        assert_debug_snapshot!(event.contexts.value().unwrap().get_key("game").unwrap(), @r#"
+        Other(
+            {
+                "level": String(
+                    "Bar",
+                ),
+                "name": String(
+                    "Foo",
+                ),
+            },
+        )
+        "#);
 
         // Check that the player context is correct
-        if let Some(Context::Other(player_context)) =
-            event.contexts.value().unwrap().get_key("player")
-        {
-            assert_eq!(
-                player_context.get("level").unwrap(),
-                &Annotated::new(Value::from("42"))
-            );
-        } else {
-            panic!("Device context not found or has wrong type");
-        }
+        assert_debug_snapshot!(event.contexts.value().unwrap().get_key("player").unwrap(), @r#"
+        Other(
+            {
+                "level": String(
+                    "42",
+                ),
+            },
+        )
+        "#);
 
         // Check that the tag is unaffected
         let tags = event.tags.value().unwrap();
@@ -323,12 +371,17 @@ mod tests {
         update_sentry_event(&mut event, &prospero);
 
         // Ensure that the runtime context values are not overwritten
-        if let Some(Context::Runtime(runtime)) = event.contexts.value().unwrap().get_key("runtime")
-        {
-            assert_eq!(runtime.name, Annotated::new("PS5".to_owned()));
-            assert_eq!(runtime.version, Annotated::new("5.0.0".to_owned()));
-        } else {
-            panic!("Runtime context not found or has wrong type");
-        }
+        assert_debug_snapshot!(event.contexts.value().unwrap().get_key("runtime").unwrap(), @r#"
+        Runtime(
+            RuntimeContext {
+                runtime: ~,
+                name: "PS5",
+                version: "5.0.0",
+                build: ~,
+                raw_description: ~,
+                other: {},
+            },
+        )
+        "#);
     }
 }

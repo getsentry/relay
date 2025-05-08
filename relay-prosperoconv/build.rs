@@ -15,7 +15,6 @@ fn main() {
     if !cfg!(sentry)
         && !std::env::var("CARGO_ENCODED_RUSTFLAGS").is_ok_and(|v| v.contains("--cfg\u{1f}sentry"))
     {
-        println!("cargo:warning=Sentry flag not set");
         return;
     }
 
@@ -36,7 +35,7 @@ fn main() {
     let version = fs::read_to_string("prosperoconv.version")
         .expect("Failed to read prosperoconv.version file")
         .trim()
-        .to_string();
+        .to_owned();
 
     if !Command::new("git")
         .args([
