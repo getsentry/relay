@@ -52,8 +52,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
 
     let span_id = SpanId(hex::encode(span_id));
     let trace_id: TraceId = hex::encode(trace_id).parse()?;
-    let nanos = time_unix_nano;
-    let timestamp = Utc.timestamp_nanos(nanos as i64);
+    let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
 
     let body = body
         .and_then(|v| v.value)
@@ -88,6 +87,13 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::String,
             Value::String(time_unix_nano.to_string()),
+        )),
+    );
+    attribute_data.insert(
+        "sentry.timestamp_precise".to_owned(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::Integer,
+            Value::I64(time_unix_nano as i64),
         )),
     );
     attribute_data.insert(
@@ -148,26 +154,6 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
             _ => OurLogLevel::Info,
         },
     };
-
-    let mut other = Object::default();
-    other.insert(
-        "severity_text".to_owned(),
-        Annotated::new(Value::String(severity_text)),
-    );
-    other.insert(
-        "severity_number".to_owned(),
-        Annotated::new(Value::I64(severity_number as i64)),
-    );
-    other.insert("trace_flags".to_owned(), Annotated::new(Value::I64(0)));
-    other.insert(
-        "timestamp_nanos".to_owned(),
-        Annotated::new(Value::U64(otel_log.time_unix_nano)),
-    );
-    other.insert(
-        "observed_timestamp_nanos".to_owned(),
-        Annotated::new(Value::U64(observed_time_unix_nano)),
-    );
-
     let ourlog = OurLog {
         timestamp: Annotated::new(Timestamp(timestamp)),
         trace_id: Annotated::new(trace_id),
@@ -175,23 +161,38 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
         level: Annotated::new(level),
         attributes: Annotated::new(attribute_data),
         body: Annotated::new(body),
-        other,
+        other: Object::default(),
     };
 
     Ok(ourlog)
 }
 
 /// This fills attributes with OTel specific fields to be compatible with the otel schema.
-///
-/// This also currently backfills data into deprecated fields (other) on the OurLog protocol in order to continue working with the snuba consumers.
-///
-/// This will need to transform all fields into attributes to be ported to using the generic trace items consumers once they're done.
 pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
     let Some(ourlog_value) = ourlog.value_mut() else {
         return;
     };
 
     let attributes = ourlog_value.attributes.value_mut().get_or_insert_default();
+
+    attributes.insert(
+        "sentry.timestamp_precise".to_owned(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::Integer,
+            Value::I64(
+                ourlog_value
+                    .timestamp
+                    .value()
+                    .map(|timestamp| {
+                        timestamp
+                            .into_inner()
+                            .timestamp_nanos_opt()
+                            .unwrap_or_default()
+                    })
+                    .unwrap_or_default(),
+            ),
+        )),
+    );
     attributes.insert(
         "sentry.severity_number".to_owned(),
         Annotated::new(OurLogAttribute::new(
@@ -229,75 +230,6 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
                 OurLogAttributeType::String,
                 Value::String(span_id.to_string()),
             )),
-        );
-    }
-
-    if let Some(value) = ourlog_value
-        .attribute("sentry.severity_text")
-        .and_then(|v| v.as_str())
-    {
-        ourlog_value.other.insert(
-            "severity_text".to_owned(),
-            Annotated::new(Value::String(value.to_owned())),
-        );
-    }
-
-    if let Some(value) = ourlog_value
-        .attribute("sentry.severity_number")
-        .and_then(|v| v.value())
-    {
-        ourlog_value
-            .other
-            .insert("severity_number".to_owned(), Annotated::new(value.clone()));
-    }
-
-    if let Some(value) = ourlog_value
-        .attribute("sentry.trace_flags")
-        .and_then(|v| v.value())
-    {
-        ourlog_value
-            .other
-            .insert("trace_flags".to_owned(), Annotated::new(value.clone()));
-    }
-
-    if let Some(value) = ourlog_value
-        .attribute("sentry.observed_timestamp_nanos")
-        .and_then(|v| v.as_str())
-        .and_then(|v| v.parse().ok())
-    {
-        ourlog_value.other.insert(
-            "observed_timestamp_nanos".to_owned(),
-            Annotated::new(Value::U64(value)),
-        );
-    }
-
-    if let Some(value) = ourlog_value
-        .attribute("sentry.timestamp_nanos")
-        .and_then(|v| v.as_str())
-        .and_then(|v| v.parse().ok())
-    {
-        ourlog_value.other.insert(
-            "timestamp_nanos".to_owned(),
-            Annotated::new(Value::U64(value)),
-        );
-    }
-
-    // We ignore the passed observed time since Relay always acts as the collector in Sentry.
-    // We may change this in the future with forwarding Relays.
-    let observed_time_unix_nano = UnixTimestamp::now().as_nanos();
-    ourlog_value.other.insert(
-        "observed_timestamp_nanos".to_owned(),
-        Annotated::new(Value::U64(observed_time_unix_nano)),
-    );
-
-    if let Some(timestamp_nanos) = ourlog_value
-        .timestamp
-        .value()
-        .and_then(|timestamp| timestamp.0.timestamp_nanos_opt())
-    {
-        ourlog_value.other.insert(
-            "timestamp_nanos".to_owned(),
-            Annotated::new(Value::U64(timestamp_nanos as u64)),
         );
     }
 }
