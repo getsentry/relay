@@ -14,10 +14,10 @@ publish = false
 default = []
 processing = [
   "dep:minidump",
+  "dep:prost-types",
+  "dep:sentry_protos",
   "dep:symbolic-common",
   "dep:symbolic-unreal",
-  "dep:prost-types",
-  "sentry_protos",
   "relay-cardinality/redis",
   "relay-config/processing",
   "relay-kafka/producer",
@@ -33,11 +33,10 @@ workspace = true
 [dependencies]
 ahash = { workspace = true }
 anyhow = { workspace = true }
-serde_path_to_error = { workspace = true }
+arc-swap = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }
 axum-extra = { workspace = true }
 axum-server = { workspace = true }
-arc-swap = { workspace = true }
 backoff = { workspace = true }
 brotli = { workspace = true }
 bytecount = { workspace = true }
@@ -49,6 +48,7 @@ flate2 = { workspace = true }
 fnv = { workspace = true }
 futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
+hyper = { workspace = true }
 hyper-util = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
@@ -63,6 +63,7 @@ papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
 prost = { workspace = true }
+prost-types = { workspace = true, optional = true }
 rand = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
@@ -77,9 +78,9 @@ relay-event-schema = { workspace = true }
 relay-filter = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 relay-log = { workspace = true, features = ["sentry"] }
-relay-ourlogs = { workspace = true }
 relay-metrics = { workspace = true }
 relay-monitors = { workspace = true }
+relay-ourlogs = { workspace = true }
 relay-pii = { workspace = true }
 relay-profiling = { workspace = true }
 relay-protocol = { workspace = true }
@@ -98,12 +99,13 @@ reqwest = { workspace = true, features = [
   "native-tls-vendored",
 ] }
 rmp-serde = { workspace = true }
+semver = { workspace = true }
 sentry = { workspace = true, features = ["tower-http"] }
 sentry_protos = { workspace = true, optional = true }
-prost-types = { workspace = true , optional = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
+serde_path_to_error = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
 socket2 = { workspace = true }
 sqlx = { workspace = true, features = [
@@ -138,8 +140,6 @@ tower-http = { workspace = true, default-features = false, features = [
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true }
-semver = { workspace = true }
-hyper = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
