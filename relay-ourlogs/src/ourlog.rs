@@ -4,33 +4,18 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use crate::OtelLog;
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{
-    OurLog, OurLogAttribute, OurLogAttributeType, OurLogLevel, SpanId, Timestamp, TraceId,
+    Attribute, AttributeType, OurLog, OurLogLevel, SpanId, Timestamp, TraceId,
 };
 use relay_protocol::{Annotated, Error, Object, Value};
 
-fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
+fn otel_value_to_log_attribute(value: OtelValue) -> Option<Attribute> {
     match value {
-        OtelValue::BoolValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Boolean,
-            Value::Bool(v),
-        )),
-        OtelValue::DoubleValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Double,
-            Value::F64(v),
-        )),
-        OtelValue::IntValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
-            Value::I64(v),
-        )),
-        OtelValue::StringValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::String,
-            Value::String(v),
-        )),
+        OtelValue::BoolValue(v) => Some(Attribute::new(AttributeType::Boolean, Value::Bool(v))),
+        OtelValue::DoubleValue(v) => Some(Attribute::new(AttributeType::Double, Value::F64(v))),
+        OtelValue::IntValue(v) => Some(Attribute::new(AttributeType::Integer, Value::I64(v))),
+        OtelValue::StringValue(v) => Some(Attribute::new(AttributeType::String, Value::String(v))),
         OtelValue::BytesValue(v) => String::from_utf8(v).map_or(None, |str| {
-            Some(OurLogAttribute::new(
-                OurLogAttributeType::String,
-                Value::String(str),
-            ))
+            Some(Attribute::new(AttributeType::String, Value::String(str)))
         }),
         OtelValue::ArrayValue(_) => None,
         OtelValue::KvlistValue(_) => None,
@@ -71,38 +56,35 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
 
     attribute_data.insert(
         "sentry.severity_text".to_string(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(severity_text.clone()),
         )),
     );
     attribute_data.insert(
         "sentry.severity_number".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
+        Annotated::new(Attribute::new(
+            AttributeType::Integer,
             Value::I64(severity_number as i64),
         )),
     );
     attribute_data.insert(
         "sentry.timestamp_nanos".to_string(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(time_unix_nano.to_string()),
         )),
     );
     attribute_data.insert(
         "sentry.observed_timestamp_nanos".to_string(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(observed_time_unix_nano.to_string()),
         )),
     );
     attribute_data.insert(
         "sentry.trace_flags".to_string(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
-            Value::I64(0),
-        )),
+        Annotated::new(Attribute::new(AttributeType::Integer, Value::I64(0))),
     );
 
     for attribute in attributes.into_iter() {
@@ -180,8 +162,8 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
     let attributes = ourlog_value.attributes.value_mut().get_or_insert_default();
     attributes.insert(
         "sentry.severity_number".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
+        Annotated::new(Attribute::new(
+            AttributeType::Integer,
             Value::I64(level_to_otel_severity_number(
                 ourlog_value.level.value().cloned(),
             )),
@@ -189,8 +171,8 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
     );
     attributes.insert(
         "sentry.severity_text".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(
                 ourlog_value
                     .level
@@ -540,21 +522,21 @@ mod tests {
             level: Info,
             body: "Example log record",
             attributes: {
-                "foo": OurLogAttribute {
+                "foo": Attribute {
                     value: String(
                         "9",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.severity_number": OurLogAttribute {
+                "sentry.severity_number": Attribute {
                     value: I64(
                         9,
                     ),
                     type: Integer,
                     other: {},
                 },
-                "sentry.severity_text": OurLogAttribute {
+                "sentry.severity_text": Attribute {
                     value: String(
                         "info",
                     ),
@@ -610,8 +592,8 @@ mod tests {
         let mut attributes = Object::new();
         attributes.insert(
             "foo".to_string(),
-            Annotated::new(OurLogAttribute::new(
-                OurLogAttributeType::String,
+            Annotated::new(Attribute::new(
+                AttributeType::String,
                 Value::String("9".to_string()),
             )),
         );
@@ -640,21 +622,21 @@ mod tests {
             level: ~,
             body: ~,
             attributes: {
-                "foo": OurLogAttribute {
+                "foo": Attribute {
                     value: String(
                         "9",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.severity_number": OurLogAttribute {
+                "sentry.severity_number": Attribute {
                     value: I64(
                         0,
                     ),
                     type: Integer,
                     other: {},
                 },
-                "sentry.severity_text": OurLogAttribute {
+                "sentry.severity_text": Attribute {
                     value: String(
                         "info",
                     ),

@@ -4,7 +4,7 @@ use std::fmt::{self, Display};
 use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
-use crate::protocol::{SpanId, Timestamp, TraceId};
+use crate::protocol::{Attribute, SpanId, Timestamp, TraceId};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[metastructure(process_func = "process_ourlog", value_type = "OurLog")]
@@ -31,7 +31,7 @@ pub struct OurLog {
 
     /// Arbitrary attributes on a log.
     #[metastructure(pii = "true", trim = false)]
-    pub attributes: Annotated<Object<OurLogAttribute>>,
+    pub attributes: Annotated<Object<Attribute>>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
@@ -41,127 +41,6 @@ pub struct OurLog {
 impl OurLog {
     pub fn attribute(&self, key: &str) -> Option<&Annotated<Value>> {
         Some(&self.attributes.value()?.get(key)?.value()?.value.value)
-    }
-}
-
-#[derive(Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct OurLogAttribute {
-    #[metastructure(flatten)]
-    pub value: OurLogAttributeValue,
-
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
-    pub other: Object<Value>,
-}
-
-impl OurLogAttribute {
-    pub fn new(attribute_type: OurLogAttributeType, value: Value) -> Self {
-        Self {
-            value: OurLogAttributeValue {
-                ty: Annotated::new(attribute_type),
-                value: Annotated::new(value),
-            },
-            other: Object::new(),
-        }
-    }
-}
-
-impl fmt::Debug for OurLogAttribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OurLogAttribute")
-            .field("value", &self.value.value)
-            .field("type", &self.value.ty)
-            .field("other", &self.other)
-            .finish()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct OurLogAttributeValue {
-    #[metastructure(field = "type", required = true, trim = false)]
-    pub ty: Annotated<OurLogAttributeType>,
-    #[metastructure(required = true, pii = "true")]
-    pub value: Annotated<Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OurLogAttributeType {
-    Boolean,
-    Integer,
-    Double,
-    String,
-    Unknown(String),
-}
-
-impl ProcessValue for OurLogAttributeType {}
-
-impl OurLogAttributeType {
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Boolean => "boolean",
-            Self::Integer => "integer",
-            Self::Double => "double",
-            Self::String => "string",
-            Self::Unknown(value) => value,
-        }
-    }
-
-    pub fn unknown_string() -> String {
-        "unknown".to_string()
-    }
-}
-
-impl fmt::Display for OurLogAttributeType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl From<String> for OurLogAttributeType {
-    fn from(value: String) -> Self {
-        match value.as_str() {
-            "boolean" => Self::Boolean,
-            "integer" => Self::Integer,
-            "double" => Self::Double,
-            "string" => Self::String,
-            _ => Self::Unknown(value),
-        }
-    }
-}
-
-impl Empty for OurLogAttributeType {
-    #[inline]
-    fn is_empty(&self) -> bool {
-        false
-    }
-}
-
-impl FromValue for OurLogAttributeType {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match String::from_value(value) {
-            Annotated(Some(value), meta) => Annotated(Some(value.into()), meta),
-            Annotated(None, meta) => Annotated(None, meta),
-        }
-    }
-}
-
-impl IntoValue for OurLogAttributeType {
-    fn into_value(self) -> Value
-    where
-        Self: Sized,
-    {
-        Value::String(match self {
-            Self::Unknown(s) => s,
-            s => s.to_string(),
-        })
-    }
-
-    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
-    where
-        Self: Sized,
-        S: serde::Serializer,
-    {
-        serde::ser::Serialize::serialize(self.as_str(), s)
     }
 }
 

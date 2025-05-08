@@ -19,7 +19,7 @@ use {
     relay_dynamic_config::ProjectConfig,
     relay_event_normalization::SchemaProcessor,
     relay_event_schema::processor::{ProcessingState, process_value},
-    relay_event_schema::protocol::{OurLog, OurLogAttributeType},
+    relay_event_schema::protocol::{AttributeType, OurLog},
     relay_ourlogs::OtelLog,
     relay_pii::PiiProcessor,
     relay_protocol::{Annotated, ErrorKind, Value},
@@ -178,7 +178,7 @@ fn process_attribute_types(ourlog: &mut OurLog) {
     let attributes = attributes.iter_mut().map(|(_, attr)| attr);
 
     for attribute in attributes {
-        use OurLogAttributeType::*;
+        use AttributeType::*;
 
         let Some(inner) = attribute.value_mut() else {
             continue;
@@ -385,7 +385,7 @@ mod tests {
 
         insta::assert_debug_snapshot!(data.value().unwrap().attributes, @r###"
         {
-            "double_with_i64": OurLogAttribute {
+            "double_with_i64": Attribute {
                 value: I64(
                     -42,
                 ),
@@ -476,21 +476,21 @@ mod tests {
                     ),
                 ),
             },
-            "valid_bool": OurLogAttribute {
+            "valid_bool": Attribute {
                 value: Bool(
                     true,
                 ),
                 type: Boolean,
                 other: {},
             },
-            "valid_double": OurLogAttribute {
+            "valid_double": Attribute {
                 value: F64(
                     42.5,
                 ),
                 type: Double,
                 other: {},
             },
-            "valid_double_with_u64": OurLogAttribute {
+            "valid_double_with_u64": Attribute {
                 value: I64(
                     42,
                 ),
@@ -519,28 +519,28 @@ mod tests {
                     ),
                 ),
             },
-            "valid_int_i64": OurLogAttribute {
+            "valid_int_i64": Attribute {
                 value: I64(
                     -42,
                 ),
                 type: Integer,
                 other: {},
             },
-            "valid_int_u64": OurLogAttribute {
+            "valid_int_u64": Attribute {
                 value: I64(
                     42,
                 ),
                 type: Integer,
                 other: {},
             },
-            "valid_string": OurLogAttribute {
+            "valid_string": Attribute {
                 value: String(
                     "test",
                 ),
                 type: String,
                 other: {},
             },
-            "valid_string_with_other": OurLogAttribute {
+            "valid_string_with_other": Attribute {
                 value: String(
                     "test",
                 ),
