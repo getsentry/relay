@@ -24,8 +24,8 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     env:
-      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
-      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
+      RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
       - name: Install libcurl-dev
