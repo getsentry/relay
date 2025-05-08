@@ -10,6 +10,7 @@
 - Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
 - Allow pii scrubbing of all span `sentry_tags` fields. ([#4698](https://github.com/getsentry/relay/pull/4698))
 - Add killswitch for trace id partitioning. ([#4706](https://github.com/getsentry/relay/pull/4706))
+- Add `release.version.short` to Replay Events. ([#4714](https://github.com/getsentry/relay/pull/4714))
 
 **Bug Fixes**:
 
