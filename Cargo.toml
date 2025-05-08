@@ -31,6 +31,9 @@ dbg_macro = "warn"
 print_stdout = "warn"
 print_stderr = "warn"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
+
 [workspace.dependencies]
 relay-auth = { path = "relay-auth" }
 relay-base-schema = { path = "relay-base-schema" }
@@ -53,6 +56,7 @@ relay-ourlogs = { path = "relay-ourlogs" }
 relay-pattern = { path = "relay-pattern" }
 relay-pii = { path = "relay-pii" }
 relay-profiling = { path = "relay-profiling" }
+relay-prosperoconv = { path = "relay-prosperoconv" }
 relay-protocol = { path = "relay-protocol" }
 relay-quotas = { path = "relay-quotas" }
 relay-redis = { path = "relay-redis" }

@@ -20,8 +20,12 @@ env:
 
 jobs:
   lint:
+    needs: build-setup
     name: Lint
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
       - name: Install libcurl-dev
@@ -32,6 +36,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Setup SSH agent
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - uses: actions/setup-python@v5
         with:
@@ -96,6 +106,7 @@ jobs:
               - '.github/workflows/ci.yml'
 
   test:
+    needs: build-setup
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -104,6 +115,9 @@ jobs:
 
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      RUSTFLAGS: ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -112,6 +126,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Setup SSH agent
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        # Windows needs an older versino of the ssh agent: https://github.com/webfactory/ssh-agent/pull/17
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
@@ -124,9 +145,13 @@ jobs:
         run: cargo test --workspace
 
   test_all:
+    needs: build-setup
     timeout-minutes: 15
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -155,6 +180,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Setup SSH agent
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
@@ -229,11 +260,19 @@ jobs:
             echo 'targets=["x86_64-unknown-linux-gnu"]' >> $GITHUB_OUTPUT
             echo 'platforms=["linux/amd64"]' >> $GITHUB_OUTPUT
           fi
+
+          if [[ "${{ github.event.pull_request.head.repo.fork }}" != "true" ]] || [[ "${{ needs.build-setup.outputs.full_ci }}" == "true" ]]; then
+            echo "rustflags=--cfg sentry --cfg tokio_unstable" >> "$GITHUB_OUTPUT"
+          else
+            echo "rustflags=--cfg tokio_unstable" >> "$GITHUB_OUTPUT"
+          fi
+
     outputs:
       image_names: "${{ steps.set-outputs.outputs.image_names }}"
       targets: "${{ steps.set-outputs.outputs.targets }}"
       platforms: "${{ steps.set-outputs.outputs.platforms }}"
       full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
+      rustflags: "${{ steps.set-outputs.outputs.rustflags }}"
 
   build:
     needs: build-setup
@@ -326,9 +365,10 @@ jobs:
         "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm"
       }')[matrix.target] }}
 
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
+    if: "(!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') || needs.build-setup.outputs.full_ci == 'true'"
 
     env:
+      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
       FEATURES: |-
         ${{fromJson('{
@@ -356,9 +396,14 @@ jobs:
           submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
+
       - uses: swatinem/rust-cache@v2
         with:
           key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Compile
         run: |
@@ -670,9 +715,13 @@ jobs:
           exit "$status"
 
   test_integration:
+    needs: build-setup
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      RUSTFLAGS:  ${{ needs.build-setup.outputs.rustflags }}
+      SSH_PRIVATE_KEY:  ${{ secrets.SSH_PRIVATE_KEY }}
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -718,6 +767,12 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
+
+      - name: Setup SSH agent
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - uses: actions/setup-python@v5
         with:
