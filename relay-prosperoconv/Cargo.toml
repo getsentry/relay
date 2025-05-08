@@ -27,6 +27,3 @@ watto = "0.1.0"
 [build-dependencies]
 dircpy = "0.3.19"
 tempfile = "3.19.1"
-
-[features]
-default = []
