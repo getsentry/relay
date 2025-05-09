@@ -150,7 +150,6 @@ impl ProjectCacheService {
 
     fn handle_completed_fetch(&mut self, fetch: CompletedFetch) {
         let project_key = fetch.project_key();
-        let latency = fetch.latency();
 
         if let Some(fetch) = self.store.complete_fetch(fetch, &self.config) {
             relay_log::trace!(
@@ -164,10 +163,6 @@ impl ProjectCacheService {
         let _ = self
             .project_events_tx
             .send(ProjectChange::Ready(project_key));
-
-        if let Some(latency) = latency {
-            metric!(timer(RelayTimers::ProjectCacheUpdateLatency) = latency);
-        }
 
         metric!(
             gauge(RelayGauges::ProjectCacheNotificationChannel) =
