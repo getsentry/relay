@@ -273,9 +273,6 @@ impl ProjectRef<'_> {
     fn complete_fetch(&mut self, fetch: CompletedFetch, config: &Config) -> Option<ExpiryTime> {
         let now = Instant::now();
 
-        // Note: currently the latency also requires the project to be not disabled,
-        // because we do not store the last change timestamp for disabled projects,
-        // this limitation could be lifted.
         if let Some(latency) = fetch.latency() {
             let delay = match fetch.delay() {
                 Some(delay) if delay.as_secs() <= 15 => "lte15s",
@@ -428,6 +425,9 @@ impl CompletedFetch {
         let project_info = match &self.state {
             SourceProjectState::New(ProjectState::Enabled(project_info)) => project_info,
             // Not modified or deleted/disabled -> no latency to track.
+            //
+            // Currently we discard the last changed timestamp for disabled projects,
+            // it would be possible to do so and then also expose a latency for disabled projects.
             _ => return None,
         };
 
