@@ -134,8 +134,11 @@ def test_ourlog_extraction_with_otel_logs(
     logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
     for log, expected_log in zip(logs, expected_logs):
+        # we can't generate uuid7 with a specific timestamp
+        # in Python just yet so we're overriding it
         expected_log["itemId"] = log["itemId"]
-        # This field is set by Relay
+
+        # This field is set by Relay so we need to remove it
         del log["attributes"]["sentry.observed_timestamp_nanos"]
 
     assert logs == expected_logs
@@ -181,7 +184,9 @@ def test_ourlog_multiple_containers_not_allowed(
     relay.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
+
     outcomes.sort(key=lambda o: sorted(o.items()))
+
     assert 300 < outcomes[1].pop("quantity") < 400
     assert outcomes == [
         {
@@ -337,9 +342,10 @@ def test_ourlog_extraction_with_sentry_logs(
 
     logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
-    for i, expected_log in enumerate(expected_logs):
-        # we can't generate a uuid7 yet so we need to replace the item_id
-        expected_log["itemId"] = logs[i]["itemId"]
+    for log, expected_log in zip(logs, expected_logs):
+        # we can't generate uuid7 with a specific timestamp
+        # in Python just yet so we're overriding it
+        expected_log["itemId"] = log["itemId"]
 
     assert logs == expected_logs
 
@@ -377,42 +383,47 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     timestamp_proto.FromSeconds(int(timestamp))
 
     expected_logs = [
-        TraceItem(
-            organization_id=1,
-            project_id=project_id,
-            timestamp=timestamp_proto,
-            trace_id="5b8efff798038103d269b633813fc60c",
-            item_id=timestamp_nanos.to_bytes(
-                length=16,
-                byteorder="little",
-                signed=False,
-            ),
-            item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
-            attributes={
-                "sentry.body": AnyValue(string_value="Example log record 2"),
-                "sentry.observed_timestamp_nanos": AnyValue(
-                    string_value=str(timestamp_nanos)
+        MessageToDict(
+            TraceItem(
+                organization_id=1,
+                project_id=project_id,
+                timestamp=timestamp_proto,
+                trace_id="5b8efff798038103d269b633813fc60c",
+                item_id=timestamp_nanos.to_bytes(
+                    length=16,
+                    byteorder="little",
+                    signed=False,
                 ),
-                "sentry.severity_number": AnyValue(int_value=13),
-                "sentry.severity_text": AnyValue(string_value="warn"),
-                "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
-                "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
-                "sentry.trace_flags": AnyValue(int_value=0),
-            },
-            received=timestamp_proto,
-            retention_days=90,
-            client_sample_rate=1.0,
-            server_sample_rate=1.0,
+                item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+                attributes={
+                    "sentry.body": AnyValue(string_value="Example log record 2"),
+                    "sentry.observed_timestamp_nanos": AnyValue(
+                        string_value=str(timestamp_nanos)
+                    ),
+                    "sentry.severity_number": AnyValue(int_value=13),
+                    "sentry.severity_text": AnyValue(string_value="warn"),
+                    "sentry.timestamp_nanos": AnyValue(
+                        string_value=str(timestamp_nanos)
+                    ),
+                    "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
+                    "sentry.trace_flags": AnyValue(int_value=0),
+                },
+                received=timestamp_proto,
+                retention_days=90,
+                client_sample_rate=1.0,
+                server_sample_rate=1.0,
+            ),
         ),
     ]
 
     logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
     for log, expected_log in zip(logs, expected_logs):
-        # we can't generate a uuid7 yet so we need to replace the item_id
-        expected_log.item_id = base64.b64decode(logs[0]["itemId"])
+        # we can't generate uuid7 with a specific timestamp
+        # in Python just yet so we're overriding it
+        expected_log["itemId"] = log["itemId"]
 
-    assert logs == [MessageToDict(expected_log) for expected_log in expected_logs]
+    assert logs == expected_logs
 
     ourlogs_consumer.assert_empty()
 
