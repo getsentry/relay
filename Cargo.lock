@@ -3395,6 +3395,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-types"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
+dependencies = [
+ "prost",
+]
+
+[[package]]
 name = "psl"
 version = "2.1.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4252,6 +4261,7 @@ dependencies = [
  "pin-project-lite",
  "priority-queue",
  "prost",
+ "prost-types",
  "rand 0.8.5",
  "regex",
  "relay-auth",
@@ -4286,6 +4296,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "sentry",
+ "sentry_protos",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -4794,11 +4805,13 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "0.1.129"
+version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "790627715d4ea0e58e252dcb657a44146fde401b5520bbbc3b6500764ef71c86"
+checksum = "842b40ed84708cfdf5f5c634f9acca18918f6ff7af34b688fe8ebeb5d4a0fa19"
 dependencies = [
  "jsonschema",
+ "prost",
+ "sentry_protos",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -4868,6 +4881,18 @@ dependencies = [
  "time",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "sentry_protos"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51f7779da50a2f2507527e81589ab556d0588a301734cab5adb989a479a139be"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tokio",
+ "tonic",
 ]
 
 [[package]]

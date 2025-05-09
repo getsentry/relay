@@ -19,6 +19,8 @@ use relay_config::Config;
 use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use prost::Message as _;
+use prost_types::Timestamp;
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, FiniteF64, GaugeValue,
@@ -28,6 +30,8 @@ use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
+use sentry_protos::snuba::v1::any_value::Value;
+use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType};
 use serde::{Deserialize, Serialize};
 use serde_json::Deserializer;
 use serde_json::value::RawValue;
@@ -966,11 +970,9 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         relay_log::trace!("Producing log");
+
         let payload = item.payload();
-        let payload_len = payload.len();
-
         let d = &mut Deserializer::from_slice(&payload);
-
         let logs: LogKafkaMessages = match serde_path_to_error::deserialize(d) {
             Ok(logs) => logs,
             Err(error) => {
@@ -1000,21 +1002,75 @@ impl StoreService {
             }
         };
 
-        for mut log in logs.items {
-            log.organization_id = scoping.organization_id.value();
-            log.project_id = scoping.project_id.value();
-            log.retention_days = retention_days;
-            log.received = safe_timestamp(received_at);
-
-            let message = KafkaMessage::Log {
-                headers: BTreeMap::from([(
-                    "project_id".to_string(),
-                    scoping.project_id.to_string(),
-                )]),
-                message: log,
+        for log in logs.items {
+            let timestamp_seconds = log.timestamp as i64;
+            let timestamp_nanos = (log.timestamp.fract() * 1e9) as u32;
+            let item_id = u128::from_be_bytes(
+                *Uuid::new_v7(uuid::Timestamp::from_unix(
+                    uuid::NoContext,
+                    timestamp_seconds as u64,
+                    timestamp_nanos,
+                ))
+                .as_bytes(),
+            )
+            .to_le_bytes()
+            .to_vec();
+            let mut trace_item = TraceItem {
+                item_type: TraceItemType::Log.into(),
+                organization_id: scoping.organization_id.value(),
+                project_id: scoping.project_id.value(),
+                received: Some(Timestamp {
+                    seconds: safe_timestamp(received_at) as i64,
+                    nanos: 0,
+                }),
+                retention_days: retention_days.into(),
+                timestamp: Some(Timestamp {
+                    seconds: timestamp_seconds,
+                    nanos: 0,
+                }),
+                trace_id: log.trace_id.to_string(),
+                item_id,
+                attributes: Default::default(),
+                client_sample_rate: 1.0,
+                server_sample_rate: 1.0,
             };
 
-            self.produce(KafkaTopic::OurLogs, message)?;
+            for (name, attribute) in log.attributes.unwrap_or_default() {
+                if let Some(attribute_value) = attribute {
+                    if let Some(v) = attribute_value.value {
+                        let any_value = match v {
+                            LogAttributeValue::String(value) => AnyValue {
+                                value: Some(Value::StringValue(value)),
+                            },
+                            LogAttributeValue::Int(value) => AnyValue {
+                                value: Some(Value::IntValue(value)),
+                            },
+                            LogAttributeValue::Bool(value) => AnyValue {
+                                value: Some(Value::BoolValue(value)),
+                            },
+                            LogAttributeValue::Double(value) => AnyValue {
+                                value: Some(Value::DoubleValue(value)),
+                            },
+                            LogAttributeValue::Unknown(_) => continue,
+                        };
+
+                        trace_item.attributes.insert(name.into(), any_value);
+                    }
+                }
+            }
+
+            let message = KafkaMessage::Log {
+                headers: BTreeMap::from([
+                    ("project_id".to_owned(), scoping.project_id.to_string()),
+                    (
+                        "item_type".to_owned(),
+                        TraceItemType::Log.as_str_name().to_owned(),
+                    ),
+                ]),
+                message: trace_item,
+            };
+
+            self.produce(KafkaTopic::Items, message)?;
 
             // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
             self.outcome_aggregator.send(TrackOutcome {
@@ -1030,7 +1086,7 @@ impl StoreService {
                 category: DataCategory::LogByte,
                 event_id: None,
                 outcome: Outcome::Accepted,
-                quantity: payload_len as u32,
+                quantity: payload.len() as u32,
                 remote_addr: None,
                 scoping,
                 timestamp: received_at,
@@ -1155,66 +1211,6 @@ where
         }
     }
     m.end()
-}
-
-fn serialize_log_attributes<S>(
-    map: &Option<BTreeMap<&str, Option<LogAttribute>>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let Some(map) = map else {
-        return serializer.serialize_none();
-    };
-    let mut m = serializer.serialize_map(Some(map.len()))?;
-    for (key, value) in map.iter() {
-        if let Some(value) = value {
-            if let Some(LogAttributeValue::Unknown(_)) = value.value {
-                continue;
-            }
-            m.serialize_entry(key, value)?;
-        }
-    }
-    m.end()
-}
-
-/**
- * This shouldn't be necessary with enum serialization, but since serde's tag doesn't work with `type` as it has to be renamed due to being a keyword,
- * this allows us to not emit the 'type' field, which would otherwise break the ourlogs consumer.
- */
-fn serialize_log_attribute_value<S>(
-    attr: &Option<LogAttributeValue>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let Some(attr) = attr else {
-        return serializer.serialize_none();
-    };
-
-    if let LogAttributeValue::Unknown(_) = attr {
-        return serializer.serialize_none();
-    }
-
-    let mut map = serializer.serialize_map(Some(1))?;
-    match attr {
-        LogAttributeValue::String(value) => {
-            map.serialize_entry("string_value", value)?;
-        }
-        LogAttributeValue::Int(value) => {
-            map.serialize_entry("int_value", value)?;
-        }
-        LogAttributeValue::Bool(value) => {
-            map.serialize_entry("bool_value", value)?;
-        }
-        LogAttributeValue::Double(value) => {
-            map.serialize_entry("double_value", value)?;
-        }
-        LogAttributeValue::Unknown(_) => (),
-    }
-    map.end()
 }
 
 /// Container payload for event messages.
@@ -1490,7 +1486,7 @@ struct SpanKafkaMessage<'a> {
     _performance_issues_spans: Option<bool>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type", content = "value")]
 enum LogAttributeValue {
     #[serde(rename = "string")]
@@ -1502,54 +1498,30 @@ enum LogAttributeValue {
     #[serde(rename = "double")]
     Double(f64),
     #[serde(rename = "unknown")]
-    Unknown(String),
+    Unknown(()),
 }
 
 /// This is a temporary struct to convert the old attribute format to the new one.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct LogAttribute {
-    #[serde(flatten, serialize_with = "serialize_log_attribute_value")]
+    #[serde(flatten)]
     value: Option<LogAttributeValue>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 struct LogKafkaMessages<'a> {
     #[serde(borrow)]
     items: Vec<LogKafkaMessage<'a>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 struct LogKafkaMessage<'a> {
-    #[serde(default)]
-    organization_id: u64,
-    #[serde(default)]
-    project_id: u64,
-    #[serde(default)]
-    timestamp_nanos: u64,
-    #[serde(default)]
-    observed_timestamp_nanos: u64,
-    #[serde(default)]
-    retention_days: u16,
-    #[serde(default)]
-    received: u64,
-    body: &'a RawValue,
-
     trace_id: EventId,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    span_id: Option<&'a str>,
-    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    severity_text: Option<Cow<'a, str>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    severity_number: Option<i32>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_log_attributes"
-    )]
+    #[serde(default)]
+    timestamp: f64,
+    #[serde(borrow, default)]
     attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    trace_flags: Option<u64>,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
@@ -1603,10 +1575,9 @@ enum KafkaMessage<'a> {
         ignore_trace_id_partitioning: bool,
     },
     Log {
-        #[serde(skip)]
         headers: BTreeMap<String, String>,
-        #[serde(flatten)]
-        message: LogKafkaMessage<'a>,
+        #[serde(skip)]
+        message: TraceItem,
     },
     ProfileChunk(ProfileChunkKafkaMessage),
 }
@@ -1719,9 +1690,15 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Log { message, .. } => serde_json::to_vec(message)
-                .map(Cow::Owned)
-                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Log { message, .. } => {
+                let mut payload = Vec::new();
+
+                if message.encode(&mut payload).is_err() {
+                    return Err(ClientError::ProtobufEncodingFailed);
+                }
+
+                Ok(Cow::Owned(payload))
+            }
             _ => rmp_serde::to_vec_named(&self)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidMsgPack),
