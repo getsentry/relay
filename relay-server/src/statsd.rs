@@ -416,7 +416,12 @@ pub enum RelayTimers {
     /// and when Relay updates its local cache with the new project config.
     ///
     /// No metric is emitted when Relay fetches a project config for the first time.
+    ///
+    /// This metric is tagged with:
+    ///  - `delay`: Bucketed amount of seconds passed between fetches.
     ProjectCacheUpdateLatency,
+    /// Total time spent from starting to fetch a project config update to completing the fetch.
+    ProjectCacheFetchDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
     /// resolve.
     ///
@@ -605,6 +610,7 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
             RelayTimers::ProjectCacheUpdateLatency => "project_cache.latency",
+            RelayTimers::ProjectCacheFetchDuration => "project_cache.fetch.duration",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::ViewHierarchyScrubbing => "scrubbing.view_hierarchy_scrubbing.duration",
