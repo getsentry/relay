@@ -20,14 +20,12 @@ fn main() {
 
     match fs::read_to_string("src/lib.rs") {
         Ok(content) if !content.trim().is_empty() => {
-            println!("cargo:warning=PlayStation files already present, skipping setup");
             return;
         }
-        _ => {
-            println!("cargo:warning=Setting up PlayStation support");
-        }
+        _ => {}
     }
 
+    println!("cargo:warning=Setting up PlayStation support");
     let temp_dir = tempdir().expect("Failed to make temp_dir");
     let temp_dir_path = temp_dir.path();
     let temp_dir_str = temp_dir_path.to_string_lossy().to_string();
@@ -72,6 +70,4 @@ fn main() {
         .args(["update-index", "--skip-worktree", "src/lib.rs"])
         .status()
         .expect("Failed to skip worktree");
-
-    println!("cargo:warning=Finished setting up");
 }
