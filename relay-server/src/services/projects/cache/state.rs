@@ -395,7 +395,7 @@ impl CompletedFetch {
         self.fetch.project_key()
     }
 
-    /// Returns the amount of time passed since the last successful fetch for this project.
+    /// Returns the amount of time passed between the last successful fetch for this project and the start of this fetch.
     ///
     /// `None` if this is the first fetch.
     fn delay(&self) -> Option<Duration> {
