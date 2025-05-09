@@ -526,6 +526,13 @@ mod tests {
                     type: String,
                     other: {},
                 },
+                "sentry.observed_timestamp_nanos": OurLogAttribute {
+                    value: String(
+                        "946684800000000000",
+                    ),
+                    type: String,
+                    other: {},
+                },
                 "sentry.severity_number": OurLogAttribute {
                     value: I64(
                         9,
@@ -547,9 +554,23 @@ mod tests {
                     type: String,
                     other: {},
                 },
+                "sentry.timestamp_nanos": OurLogAttribute {
+                    value: String(
+                        "946684800000000000",
+                    ),
+                    type: String,
+                    other: {},
+                },
                 "sentry.timestamp_precise": OurLogAttribute {
                     value: I64(
                         946684800000000000,
+                    ),
+                    type: Integer,
+                    other: {},
+                },
+                "sentry.trace_flags": OurLogAttribute {
+                    value: I64(
+                        0,
                     ),
                     type: Integer,
                     other: {},
@@ -636,6 +657,13 @@ mod tests {
                     type: String,
                     other: {},
                 },
+                "sentry.observed_timestamp_nanos": OurLogAttribute {
+                    value: String(
+                        "1638144000000000000",
+                    ),
+                    type: String,
+                    other: {},
+                },
                 "sentry.severity_number": OurLogAttribute {
                     value: I64(
                         0,
@@ -650,9 +678,23 @@ mod tests {
                     type: String,
                     other: {},
                 },
+                "sentry.timestamp_nanos": OurLogAttribute {
+                    value: String(
+                        "1638144000000000000",
+                    ),
+                    type: String,
+                    other: {},
+                },
                 "sentry.timestamp_precise": OurLogAttribute {
                     value: I64(
                         1638144000000000000,
+                    ),
+                    type: Integer,
+                    other: {},
+                },
+                "sentry.trace_flags": OurLogAttribute {
+                    value: I64(
+                        0,
                     ),
                     type: Integer,
                     other: {},
@@ -675,6 +717,10 @@ mod tests {
               "type": "string",
               "value": "somebody"
             },
+            "sentry.observed_timestamp_nanos": {
+              "type": "string",
+              "value": "1638144000000000000"
+            },
             "sentry.severity_number": {
               "type": "integer",
               "value": 0
@@ -683,9 +729,17 @@ mod tests {
               "type": "string",
               "value": "info"
             },
+            "sentry.timestamp_nanos": {
+              "type": "string",
+              "value": "1638144000000000000"
+            },
             "sentry.timestamp_precise": {
               "type": "integer",
               "value": 1638144000000000000
+            },
+            "sentry.trace_flags": {
+              "type": "integer",
+              "value": 0
             }
           }
         }
