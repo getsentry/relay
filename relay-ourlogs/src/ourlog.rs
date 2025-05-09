@@ -3,6 +3,7 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use crate::OtelLog;
 use relay_common::time::UnixTimestamp;
+use relay_event_schema::protocol::datetime_to_timestamp;
 use relay_event_schema::protocol::{
     OurLog, OurLogAttribute, OurLogAttributeType, OurLogLevel, SpanId, Timestamp, TraceId,
 };
@@ -49,11 +50,9 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
         time_unix_nano,
         ..
     } = otel_log;
-
     let span_id = SpanId(hex::encode(span_id));
     let trace_id: TraceId = hex::encode(trace_id).parse()?;
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
-
     let body = body
         .and_then(|v| v.value)
         .and_then(|v| match v {
@@ -62,11 +61,10 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
         })
         .unwrap_or_else(String::new);
 
-    let mut attribute_data = Object::new();
-
     // We ignore the passed observed time since Relay always acts as the collector in Sentry.
     // We may change this in the future with forwarding Relays.
     let observed_time_unix_nano = UnixTimestamp::now().as_nanos();
+    let mut attribute_data = Object::new();
 
     attribute_data.insert(
         "sentry.severity_text".to_owned(),
@@ -172,24 +170,27 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
     let Some(ourlog_value) = ourlog.value_mut() else {
         return;
     };
-
     let attributes = ourlog_value.attributes.value_mut().get_or_insert_default();
+    // We can only extract microseconds as the conversion from float to Timestamp
+    // messes up with the precision and nanoseconds are never preserved.
+    let timestamp_nanos = ourlog_value
+        .timestamp
+        .value()
+        .map(|timestamp| {
+            ((datetime_to_timestamp(timestamp.into_inner()) * 1e6).round() as i64) * 1000
+        })
+        .unwrap_or_default();
 
     attributes.insert(
-        "sentry.timestamp_precise".to_owned(),
+        "sentry.severity_text".to_owned(),
         Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
-            Value::I64(
+            OurLogAttributeType::String,
+            Value::String(
                 ourlog_value
-                    .timestamp
+                    .level
                     .value()
-                    .map(|timestamp| {
-                        timestamp
-                            .into_inner()
-                            .timestamp_nanos_opt()
-                            .unwrap_or_default()
-                    })
-                    .unwrap_or_default(),
+                    .map(|level| level.to_string())
+                    .unwrap_or_else(|| "info".to_owned()),
             ),
         )),
     );
@@ -203,16 +204,31 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
         )),
     );
     attributes.insert(
-        "sentry.severity_text".to_owned(),
+        "sentry.timestamp_nanos".to_owned(),
         Annotated::new(OurLogAttribute::new(
             OurLogAttributeType::String,
-            Value::String(
-                ourlog_value
-                    .level
-                    .value()
-                    .map(|level| level.to_string())
-                    .unwrap_or_else(|| "info".to_owned()),
-            ),
+            Value::String(timestamp_nanos.to_string()),
+        )),
+    );
+    attributes.insert(
+        "sentry.timestamp_precise".to_owned(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::Integer,
+            Value::I64(timestamp_nanos),
+        )),
+    );
+    attributes.insert(
+        "sentry.observed_timestamp_nanos".to_owned(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::String,
+            Value::String(timestamp_nanos.to_string()),
+        )),
+    );
+    attributes.insert(
+        "sentry.trace_flags".to_owned(),
+        Annotated::new(OurLogAttribute::new(
+            OurLogAttributeType::Integer,
+            Value::I64(0),
         )),
     );
     attributes.insert(

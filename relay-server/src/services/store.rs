@@ -959,9 +959,8 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         relay_log::trace!("Producing log");
-        let payload = item.payload();
-        let payload_len = payload.len();
 
+        let payload = item.payload();
         let d = &mut Deserializer::from_slice(&payload);
         let logs: LogKafkaMessages = match serde_path_to_error::deserialize(d) {
             Ok(logs) => logs,
@@ -993,13 +992,13 @@ impl StoreService {
         };
 
         for log in logs.items {
-            let timestamp_seconds = log.timestamp_nanos / 1_000_000_000;
-            let timestamp_nanos = log.timestamp_nanos % 1_000_000_000;
+            let timestamp_seconds = log.timestamp as i64;
+            let timestamp_nanos = (log.timestamp.fract() * 1e9) as u32;
             let item_id = u128::from_be_bytes(
                 *Uuid::new_v7(uuid::Timestamp::from_unix(
                     uuid::NoContext,
-                    timestamp_seconds,
-                    timestamp_nanos as u32,
+                    timestamp_seconds as u64,
+                    timestamp_nanos,
                 ))
                 .as_bytes(),
             )
@@ -1015,8 +1014,8 @@ impl StoreService {
                 }),
                 retention_days: retention_days.into(),
                 timestamp: Some(Timestamp {
-                    seconds: timestamp_seconds as i64,
-                    nanos: timestamp_nanos as i32,
+                    seconds: timestamp_seconds,
+                    nanos: 0,
                 }),
                 trace_id: log.trace_id.to_string(),
                 item_id,
@@ -1076,7 +1075,7 @@ impl StoreService {
                 category: DataCategory::LogByte,
                 event_id: None,
                 outcome: Outcome::Accepted,
-                quantity: payload_len as u32,
+                quantity: payload.len() as u32,
                 remote_addr: None,
                 scoping,
                 timestamp: received_at,
@@ -1509,7 +1508,7 @@ struct LogKafkaMessages<'a> {
 struct LogKafkaMessage<'a> {
     trace_id: EventId,
     #[serde(default)]
-    timestamp_nanos: u64,
+    timestamp: f64,
     #[serde(borrow, default)]
     attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
 }

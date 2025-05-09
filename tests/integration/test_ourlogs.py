@@ -1,7 +1,7 @@
 import json
 import base64
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
@@ -35,16 +35,17 @@ def envelope_with_sentry_logs(*payloads: dict) -> Envelope:
     return envelope
 
 
-def envelope_with_otel_logs(start: datetime) -> Envelope:
+def envelope_with_otel_logs(timestamp_nanos: str) -> Envelope:
     envelope = Envelope()
+
     envelope.add_item(
         Item(
             type="otel_log",
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
-                        "timeUnixNano": str(int(start.timestamp() * 1e9)),
-                        "observedTimeUnixNano": str(int(start.timestamp() * 1e9)),
+                        "timeUnixNano": timestamp_nanos,
+                        "observedTimeUnixNano": timestamp_nanos,
                         "severityNumber": 10,
                         "severityText": "Information",
                         "traceId": "5B8EFFF798038103D269B633813FC60C",
@@ -67,6 +68,7 @@ def envelope_with_otel_logs(start: datetime) -> Envelope:
             ),
         )
     )
+
     return envelope
 
 
@@ -81,22 +83,17 @@ def test_ourlog_extraction_with_otel_logs(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-
     relay = relay_with_processing(options=TEST_CONFIG)
-
     start = datetime.now(timezone.utc)
+    timestamp = start.timestamp()
+    timestamp_nanos = int(timestamp * 1e9)
+    envelope = envelope_with_otel_logs(str(timestamp_nanos))
 
-    duration = timedelta(milliseconds=500)
-    now = datetime.now(timezone.utc)
-    end = now - timedelta(seconds=1)
-    start = end - duration
-
-    envelope = envelope_with_otel_logs(start)
     relay.send_envelope(project_id, envelope)
 
-    timestamp_nanos = round(start.timestamp() * 1e9)
     timestamp_proto = Timestamp()
-    timestamp_proto.FromNanoseconds(timestamp_nanos)
+
+    timestamp_proto.FromSeconds(int(timestamp))
 
     expected_logs = [
         MessageToDict(
@@ -115,7 +112,6 @@ def test_ourlog_extraction_with_otel_logs(
                     "boolean.attribute": AnyValue(bool_value=True),
                     "double.attribute": AnyValue(double_value=637.704),
                     "int.attribute": AnyValue(int_value=10),
-                    "string.attribute": AnyValue(string_value="some string"),
                     "sentry.body": AnyValue(string_value="Example log record"),
                     "sentry.severity_number": AnyValue(int_value=10),
                     "sentry.severity_text": AnyValue(string_value="Information"),
@@ -123,7 +119,9 @@ def test_ourlog_extraction_with_otel_logs(
                     "sentry.timestamp_nanos": AnyValue(
                         string_value=str(timestamp_nanos)
                     ),
+                    "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
                     "sentry.trace_flags": AnyValue(int_value=0),
+                    "string.attribute": AnyValue(string_value="some string"),
                 },
                 received=timestamp_proto,
                 retention_days=90,
@@ -135,13 +133,10 @@ def test_ourlog_extraction_with_otel_logs(
 
     logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
-    # reset and remove values changing values
-    for log in logs:
+    for log, expected_log in zip(logs, expected_logs):
+        expected_log["itemId"] = log["itemId"]
+        # This field is set by Relay
         del log["attributes"]["sentry.observed_timestamp_nanos"]
-
-    for expected_log in expected_logs:
-        expected_log["itemId"] = logs[0]["itemId"]
-        expected_log["received"] = logs[0]["received"]
 
     assert logs == expected_logs
 
@@ -156,7 +151,6 @@ def test_ourlog_multiple_containers_not_allowed(
 ):
     ourlogs_consumer = ourlogs_consumer()
     outcomes_consumer = outcomes_consumer()
-
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -164,9 +158,7 @@ def test_ourlog_multiple_containers_not_allowed(
     ]
 
     relay = relay_with_processing(options=TEST_CONFIG)
-
     start = datetime.now(timezone.utc)
-
     envelope = Envelope()
 
     for _ in range(2):
@@ -227,21 +219,19 @@ def test_ourlog_extraction_with_sentry_logs(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-
     relay = relay_with_processing(options=TEST_CONFIG)
-
     start = datetime.now(timezone.utc)
-
+    timestamp = start.timestamp()
     envelope = envelope_with_sentry_logs(
         {
-            "timestamp": start.timestamp(),
+            "timestamp": timestamp,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
             "level": "error",
             "body": "This is really bad",
         },
         {
-            "timestamp": start.timestamp(),
+            "timestamp": timestamp,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
             "level": "info",
@@ -265,11 +255,13 @@ def test_ourlog_extraction_with_sentry_logs(
             },
         },
     )
+
     relay.send_envelope(project_id, envelope)
 
-    timestamp_nanos = int(start.timestamp() * 1e6) * 1000
+    timestamp_nanos = int(timestamp * 1e6) * 1000
     timestamp_proto = Timestamp()
-    timestamp_proto.FromNanoseconds(timestamp_nanos)
+
+    timestamp_proto.FromSeconds(int(timestamp))
 
     expected_logs = [
         MessageToDict(log)
@@ -290,6 +282,14 @@ def test_ourlog_extraction_with_sentry_logs(
                     "sentry.severity_number": AnyValue(int_value=17),
                     "sentry.severity_text": AnyValue(string_value="error"),
                     "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b175"),
+                    "sentry.trace_flags": AnyValue(int_value=0),
+                    "sentry.observed_timestamp_nanos": AnyValue(
+                        string_value=str(timestamp_nanos)
+                    ),
+                    "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
+                    "sentry.timestamp_nanos": AnyValue(
+                        string_value=str(timestamp_nanos)
+                    ),
                 },
                 received=timestamp_proto,
                 retention_days=90,
@@ -315,9 +315,17 @@ def test_ourlog_extraction_with_sentry_logs(
                     "sentry.body": AnyValue(string_value="Example log record"),
                     "sentry.severity_number": AnyValue(int_value=9),
                     "sentry.severity_text": AnyValue(string_value="info"),
+                    "sentry.trace_flags": AnyValue(int_value=0),
                     "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
+                    "sentry.observed_timestamp_nanos": AnyValue(
+                        string_value=str(timestamp_nanos)
+                    ),
                     "string.attribute": AnyValue(string_value="some string"),
                     "valid_string_with_other": AnyValue(string_value="test"),
+                    "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
+                    "sentry.timestamp_nanos": AnyValue(
+                        string_value=str(timestamp_nanos)
+                    ),
                 },
                 received=timestamp_proto,
                 retention_days=90,
@@ -329,16 +337,9 @@ def test_ourlog_extraction_with_sentry_logs(
 
     logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
-    # reset and remove values changing values
-    for log in logs:
-        log["received"] = start.isoformat(sep="T")[:-6] + "Z"
-        log["timestamp"] = start.isoformat(sep="T")[:-6] + "Z"
-
     for i, expected_log in enumerate(expected_logs):
         # we can't generate a uuid7 yet so we need to replace the item_id
         expected_log["itemId"] = logs[i]["itemId"]
-        # received is the timestamp generated on the server when we received the log
-        expected_log["received"] = logs[i]["received"]
 
     assert logs == expected_logs
 
@@ -356,24 +357,24 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-
     relay = relay_with_processing(options=TEST_CONFIG)
-
     start = datetime.now(timezone.utc)
-
+    timestamp = start.timestamp()
     envelope = envelope_with_sentry_logs(
         {
-            "timestamp": start.timestamp(),
+            "timestamp": timestamp,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "level": "warn",
             "body": "Example log record 2",
         }
     )
+
     relay.send_envelope(project_id, envelope)
 
-    timestamp_nanos = int(start.timestamp() * 1e6) * 1000
+    timestamp_nanos = int(timestamp * 1e6) * 1000
     timestamp_proto = Timestamp()
-    timestamp_proto.FromNanoseconds(timestamp_nanos)
+
+    timestamp_proto.FromSeconds(int(timestamp))
 
     expected_logs = [
         TraceItem(
@@ -389,8 +390,14 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
             attributes={
                 "sentry.body": AnyValue(string_value="Example log record 2"),
+                "sentry.observed_timestamp_nanos": AnyValue(
+                    string_value=str(timestamp_nanos)
+                ),
                 "sentry.severity_number": AnyValue(int_value=13),
                 "sentry.severity_text": AnyValue(string_value="warn"),
+                "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
+                "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
+                "sentry.trace_flags": AnyValue(int_value=0),
             },
             received=timestamp_proto,
             retention_days=90,
@@ -401,12 +408,8 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
 
     logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
-    # reset and remove values changing values
-    for log in logs:
-        log["received"] = start.isoformat(sep="T")[:-6] + "Z"
-        log["timestamp"] = start.isoformat(sep="T")[:-6] + "Z"
-
-    for expected_log in expected_logs:
+    for log, expected_log in zip(logs, expected_logs):
+        # we can't generate a uuid7 yet so we need to replace the item_id
         expected_log.item_id = base64.b64decode(logs[0]["itemId"])
 
     assert logs == [MessageToDict(expected_log) for expected_log in expected_logs]
@@ -426,8 +429,9 @@ def test_ourlog_extraction_is_disabled_without_feature(
     project_config["config"]["features"] = []
 
     start = datetime.now(timezone.utc)
+    timestamp_nanos = str(int(start.timestamp() * 1e9))
+    envelope = envelope_with_otel_logs(str(timestamp_nanos))
 
-    envelope = envelope_with_otel_logs(start)
     relay.send_envelope(project_id, envelope)
 
     ourlogs = ourlogs_consumer.get_ourlogs()
