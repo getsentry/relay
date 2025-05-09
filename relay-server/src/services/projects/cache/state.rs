@@ -452,15 +452,28 @@ struct SharedProjectStateInner {
 }
 
 /// Current fetch state for a project.
+///
+/// ─────► Pending ◄─────┐
+///           │          │
+///           │          │Backoff
+///           ▼          │
+/// ┌───► InProgress ────┘
+/// │         │
+/// │         │
+/// │         ▼
+/// └───── Complete
 #[derive(Debug)]
 enum FetchState {
     /// There is a fetch currently in progress.
     InProgress,
     /// A successful fetch is pending.
     ///
-    /// This state is essentially only the initial state, a project
-    /// for the most part should always have a fetch in progress or be
-    /// in the non-pending state.
+    /// Projects which have not yet been fetched are in the pending state,
+    /// as well as projects which have a fetch in progress but were notified
+    /// from upstream that the project config is still pending.
+    ///
+    /// If the upstream notifies this instance about a pending config,
+    /// a backoff is applied, before trying again.
     Pending {
         /// Time when the next fetch should be attempted.
         ///
