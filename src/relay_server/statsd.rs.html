@@ -416,667 +416,673 @@
 <a href=#416 id=416 data-nosnippet>416</a>    /// and when Relay updates its local cache with the new project config.
 <a href=#417 id=417 data-nosnippet>417</a>    ///
 <a href=#418 id=418 data-nosnippet>418</a>    /// No metric is emitted when Relay fetches a project config for the first time.
-<a href=#419 id=419 data-nosnippet>419</a>    </span>ProjectCacheUpdateLatency,
-<a href=#420 id=420 data-nosnippet>420</a>    <span class="doccomment">/// Total time in milliseconds spent fetching queued project configuration updates requests to
-<a href=#421 id=421 data-nosnippet>421</a>    /// resolve.
-<a href=#422 id=422 data-nosnippet>422</a>    ///
-<a href=#423 id=423 data-nosnippet>423</a>    /// Relay updates projects in batches. Every update cycle, Relay requests
-<a href=#424 id=424 data-nosnippet>424</a>    /// `limits.max_concurrent_queries * cache.batch_size` projects from the upstream. This metric
-<a href=#425 id=425 data-nosnippet>425</a>    /// measures the wall clock time for all concurrent requests in this loop.
-<a href=#426 id=426 data-nosnippet>426</a>    ///
-<a href=#427 id=427 data-nosnippet>427</a>    /// Note that after an update loop has completed, there may be more projects pending updates.
-<a href=#428 id=428 data-nosnippet>428</a>    /// This is indicated by `project_state.pending`.
-<a href=#429 id=429 data-nosnippet>429</a>    </span>ProjectStateRequestDuration,
-<a href=#430 id=430 data-nosnippet>430</a>    <span class="doccomment">/// Time in milliseconds required to decompress a project config from redis.
+<a href=#419 id=419 data-nosnippet>419</a>    ///
+<a href=#420 id=420 data-nosnippet>420</a>    /// This metric is tagged with:
+<a href=#421 id=421 data-nosnippet>421</a>    ///  - `delay`: Bucketed amount of seconds passed between fetches.
+<a href=#422 id=422 data-nosnippet>422</a>    </span>ProjectCacheUpdateLatency,
+<a href=#423 id=423 data-nosnippet>423</a>    <span class="doccomment">/// Total time spent from starting to fetch a project config update to completing the fetch.
+<a href=#424 id=424 data-nosnippet>424</a>    </span>ProjectCacheFetchDuration,
+<a href=#425 id=425 data-nosnippet>425</a>    <span class="doccomment">/// Total time in milliseconds spent fetching queued project configuration updates requests to
+<a href=#426 id=426 data-nosnippet>426</a>    /// resolve.
+<a href=#427 id=427 data-nosnippet>427</a>    ///
+<a href=#428 id=428 data-nosnippet>428</a>    /// Relay updates projects in batches. Every update cycle, Relay requests
+<a href=#429 id=429 data-nosnippet>429</a>    /// `limits.max_concurrent_queries * cache.batch_size` projects from the upstream. This metric
+<a href=#430 id=430 data-nosnippet>430</a>    /// measures the wall clock time for all concurrent requests in this loop.
 <a href=#431 id=431 data-nosnippet>431</a>    ///
-<a href=#432 id=432 data-nosnippet>432</a>    /// Note that this also times the cases where project config is uncompressed,
-<a href=#433 id=433 data-nosnippet>433</a>    /// in which case the timer should be very close to zero.
-<a href=#434 id=434 data-nosnippet>434</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#435 id=435 data-nosnippet>435</a>    </span>ProjectStateDecompression,
-<a href=#436 id=436 data-nosnippet>436</a>    <span class="doccomment">/// Total duration in milliseconds for handling inbound web requests until the HTTP response is
-<a href=#437 id=437 data-nosnippet>437</a>    /// returned to the client.
-<a href=#438 id=438 data-nosnippet>438</a>    ///
-<a href=#439 id=439 data-nosnippet>439</a>    /// This does **not** correspond to the full event ingestion time. Requests for events that are
-<a href=#440 id=440 data-nosnippet>440</a>    /// not immediately rejected due to bad data or cached rate limits always return `200 OK`. Full
-<a href=#441 id=441 data-nosnippet>441</a>    /// validation and normalization occur asynchronously, which is reported by
-<a href=#442 id=442 data-nosnippet>442</a>    /// `event.processing_time`.
+<a href=#432 id=432 data-nosnippet>432</a>    /// Note that after an update loop has completed, there may be more projects pending updates.
+<a href=#433 id=433 data-nosnippet>433</a>    /// This is indicated by `project_state.pending`.
+<a href=#434 id=434 data-nosnippet>434</a>    </span>ProjectStateRequestDuration,
+<a href=#435 id=435 data-nosnippet>435</a>    <span class="doccomment">/// Time in milliseconds required to decompress a project config from redis.
+<a href=#436 id=436 data-nosnippet>436</a>    ///
+<a href=#437 id=437 data-nosnippet>437</a>    /// Note that this also times the cases where project config is uncompressed,
+<a href=#438 id=438 data-nosnippet>438</a>    /// in which case the timer should be very close to zero.
+<a href=#439 id=439 data-nosnippet>439</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#440 id=440 data-nosnippet>440</a>    </span>ProjectStateDecompression,
+<a href=#441 id=441 data-nosnippet>441</a>    <span class="doccomment">/// Total duration in milliseconds for handling inbound web requests until the HTTP response is
+<a href=#442 id=442 data-nosnippet>442</a>    /// returned to the client.
 <a href=#443 id=443 data-nosnippet>443</a>    ///
-<a href=#444 id=444 data-nosnippet>444</a>    /// This metric is tagged with:
-<a href=#445 id=445 data-nosnippet>445</a>    ///  - `method`: The HTTP method of the request.
-<a href=#446 id=446 data-nosnippet>446</a>    ///  - `route`: Unique dashed identifier of the endpoint.
-<a href=#447 id=447 data-nosnippet>447</a>    </span>RequestsDuration,
-<a href=#448 id=448 data-nosnippet>448</a>    <span class="doccomment">/// Time spent on minidump scrubbing.
-<a href=#449 id=449 data-nosnippet>449</a>    ///
-<a href=#450 id=450 data-nosnippet>450</a>    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
-<a href=#451 id=451 data-nosnippet>451</a>    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
-<a href=#452 id=452 data-nosnippet>452</a>    /// the parsed minidump, this duration is reported here with status of "n/a".
-<a href=#453 id=453 data-nosnippet>453</a>    ///
-<a href=#454 id=454 data-nosnippet>454</a>    /// This metric is tagged with:
-<a href=#455 id=455 data-nosnippet>455</a>    ///
-<a href=#456 id=456 data-nosnippet>456</a>    /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
-<a href=#457 id=457 data-nosnippet>457</a>    ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
-<a href=#458 id=458 data-nosnippet>458</a>    ///   but no scurbbing rules applied.
-<a href=#459 id=459 data-nosnippet>459</a>    </span>MinidumpScrubbing,
-<a href=#460 id=460 data-nosnippet>460</a>    <span class="doccomment">/// Time spent on view hierarchy scrubbing.
-<a href=#461 id=461 data-nosnippet>461</a>    ///
-<a href=#462 id=462 data-nosnippet>462</a>    /// This is the total time spent on parsing and scrubbing the view hierarchy json file.
-<a href=#463 id=463 data-nosnippet>463</a>    ///
-<a href=#464 id=464 data-nosnippet>464</a>    /// This metric is tagged with:
-<a href=#465 id=465 data-nosnippet>465</a>    ///
-<a href=#466 id=466 data-nosnippet>466</a>    /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-<a href=#467 id=467 data-nosnippet>467</a>    ///   scrubbing
-<a href=#468 id=468 data-nosnippet>468</a>    </span>ViewHierarchyScrubbing,
-<a href=#469 id=469 data-nosnippet>469</a>    <span class="doccomment">/// Time spend on attachment scrubbing.
+<a href=#444 id=444 data-nosnippet>444</a>    /// This does **not** correspond to the full event ingestion time. Requests for events that are
+<a href=#445 id=445 data-nosnippet>445</a>    /// not immediately rejected due to bad data or cached rate limits always return `200 OK`. Full
+<a href=#446 id=446 data-nosnippet>446</a>    /// validation and normalization occur asynchronously, which is reported by
+<a href=#447 id=447 data-nosnippet>447</a>    /// `event.processing_time`.
+<a href=#448 id=448 data-nosnippet>448</a>    ///
+<a href=#449 id=449 data-nosnippet>449</a>    /// This metric is tagged with:
+<a href=#450 id=450 data-nosnippet>450</a>    ///  - `method`: The HTTP method of the request.
+<a href=#451 id=451 data-nosnippet>451</a>    ///  - `route`: Unique dashed identifier of the endpoint.
+<a href=#452 id=452 data-nosnippet>452</a>    </span>RequestsDuration,
+<a href=#453 id=453 data-nosnippet>453</a>    <span class="doccomment">/// Time spent on minidump scrubbing.
+<a href=#454 id=454 data-nosnippet>454</a>    ///
+<a href=#455 id=455 data-nosnippet>455</a>    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
+<a href=#456 id=456 data-nosnippet>456</a>    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
+<a href=#457 id=457 data-nosnippet>457</a>    /// the parsed minidump, this duration is reported here with status of "n/a".
+<a href=#458 id=458 data-nosnippet>458</a>    ///
+<a href=#459 id=459 data-nosnippet>459</a>    /// This metric is tagged with:
+<a href=#460 id=460 data-nosnippet>460</a>    ///
+<a href=#461 id=461 data-nosnippet>461</a>    /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
+<a href=#462 id=462 data-nosnippet>462</a>    ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
+<a href=#463 id=463 data-nosnippet>463</a>    ///   but no scurbbing rules applied.
+<a href=#464 id=464 data-nosnippet>464</a>    </span>MinidumpScrubbing,
+<a href=#465 id=465 data-nosnippet>465</a>    <span class="doccomment">/// Time spent on view hierarchy scrubbing.
+<a href=#466 id=466 data-nosnippet>466</a>    ///
+<a href=#467 id=467 data-nosnippet>467</a>    /// This is the total time spent on parsing and scrubbing the view hierarchy json file.
+<a href=#468 id=468 data-nosnippet>468</a>    ///
+<a href=#469 id=469 data-nosnippet>469</a>    /// This metric is tagged with:
 <a href=#470 id=470 data-nosnippet>470</a>    ///
-<a href=#471 id=471 data-nosnippet>471</a>    /// This represents the total time spent on evaluating the scrubbing rules for an
-<a href=#472 id=472 data-nosnippet>472</a>    /// attachment and the attachment scrubbing itself, regardless of whether any rules were
-<a href=#473 id=473 data-nosnippet>473</a>    /// applied.  Note that minidumps which failed to be parsed (status="error" in
-<a href=#474 id=474 data-nosnippet>474</a>    /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
-<a href=#475 id=475 data-nosnippet>475</a>    /// towards this.
-<a href=#476 id=476 data-nosnippet>476</a>    ///
-<a href=#477 id=477 data-nosnippet>477</a>    /// This metric is tagged with:
-<a href=#478 id=478 data-nosnippet>478</a>    ///
-<a href=#479 id=479 data-nosnippet>479</a>    ///   - `attachment_type`: The type of attachment, e.g. "minidump".
-<a href=#480 id=480 data-nosnippet>480</a>    </span>AttachmentScrubbing,
-<a href=#481 id=481 data-nosnippet>481</a>    <span class="doccomment">/// Total time spent to send request to upstream Relay and handle the response.
-<a href=#482 id=482 data-nosnippet>482</a>    ///
-<a href=#483 id=483 data-nosnippet>483</a>    /// This metric is tagged with:
-<a href=#484 id=484 data-nosnippet>484</a>    ///
-<a href=#485 id=485 data-nosnippet>485</a>    ///   - `result`: What happened to the request, an enumeration with the following values:
-<a href=#486 id=486 data-nosnippet>486</a>    ///     * `success`: The request was sent and returned a success code `HTTP 2xx`
-<a href=#487 id=487 data-nosnippet>487</a>    ///     * `response_error`: The request was sent and it returned an HTTP error.
-<a href=#488 id=488 data-nosnippet>488</a>    ///     * `payload_failed`: The request was sent but there was an error in interpreting the response.
-<a href=#489 id=489 data-nosnippet>489</a>    ///     * `send_failed`: Failed to send the request due to a network error.
-<a href=#490 id=490 data-nosnippet>490</a>    ///     * `rate_limited`: The request was rate limited.
-<a href=#491 id=491 data-nosnippet>491</a>    ///     * `invalid_json`: The response could not be parsed back into JSON.
-<a href=#492 id=492 data-nosnippet>492</a>    ///   - `route`: The endpoint that was called on the upstream.
-<a href=#493 id=493 data-nosnippet>493</a>    ///   - `status-code`: The status code of the request when available, otherwise "-".
-<a href=#494 id=494 data-nosnippet>494</a>    ///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).
-<a href=#495 id=495 data-nosnippet>495</a>    </span>UpstreamRequestsDuration,
-<a href=#496 id=496 data-nosnippet>496</a>    <span class="doccomment">/// The delay between the timestamp stated in a payload and the receive time.
-<a href=#497 id=497 data-nosnippet>497</a>    ///
-<a href=#498 id=498 data-nosnippet>498</a>    /// SDKs cannot transmit payloads immediately in all cases. Sometimes, crashes require that
-<a href=#499 id=499 data-nosnippet>499</a>    /// events are sent after restarting the application. Similarly, SDKs buffer events during
-<a href=#500 id=500 data-nosnippet>500</a>    /// network downtimes for later transmission. This metric measures the delay between the time of
-<a href=#501 id=501 data-nosnippet>501</a>    /// the event and the time it arrives in Relay. The delay is measured after clock drift
-<a href=#502 id=502 data-nosnippet>502</a>    /// correction is applied.
-<a href=#503 id=503 data-nosnippet>503</a>    ///
-<a href=#504 id=504 data-nosnippet>504</a>    /// Only payloads with a delay of more than 1 minute are captured.
-<a href=#505 id=505 data-nosnippet>505</a>    ///
-<a href=#506 id=506 data-nosnippet>506</a>    /// This metric is tagged with:
-<a href=#507 id=507 data-nosnippet>507</a>    ///
-<a href=#508 id=508 data-nosnippet>508</a>    ///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,
-<a href=#509 id=509 data-nosnippet>509</a>    ///    `security`, or `session`.
-<a href=#510 id=510 data-nosnippet>510</a>    </span>TimestampDelay,
-<a href=#511 id=511 data-nosnippet>511</a>    <span class="doccomment">/// The time it takes the outcome aggregator to flush aggregated outcomes.
-<a href=#512 id=512 data-nosnippet>512</a>    </span>OutcomeAggregatorFlushTime,
-<a href=#513 id=513 data-nosnippet>513</a>    <span class="doccomment">/// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
-<a href=#514 id=514 data-nosnippet>514</a>    </span>ReplayRecordingProcessing,
-<a href=#515 id=515 data-nosnippet>515</a>    <span class="doccomment">/// Total time spent to send a request and receive the response from upstream.
-<a href=#516 id=516 data-nosnippet>516</a>    </span>GlobalConfigRequestDuration,
-<a href=#517 id=517 data-nosnippet>517</a>    <span class="doccomment">/// Timing in milliseconds for processing a message in the internal CPU pool.
-<a href=#518 id=518 data-nosnippet>518</a>    ///
-<a href=#519 id=519 data-nosnippet>519</a>    /// This metric is tagged with:
-<a href=#520 id=520 data-nosnippet>520</a>    ///
-<a href=#521 id=521 data-nosnippet>521</a>    ///  - `message`: The type of message that was processed.
-<a href=#522 id=522 data-nosnippet>522</a>    </span>ProcessMessageDuration,
-<a href=#523 id=523 data-nosnippet>523</a>    <span class="doccomment">/// Timing in milliseconds for processing a task in the project cache service.
-<a href=#524 id=524 data-nosnippet>524</a>    ///
-<a href=#525 id=525 data-nosnippet>525</a>    /// This metric is tagged with:
-<a href=#526 id=526 data-nosnippet>526</a>    /// - `task`: The type of the task the project cache does.
-<a href=#527 id=527 data-nosnippet>527</a>    </span>ProjectCacheTaskDuration,
-<a href=#528 id=528 data-nosnippet>528</a>    <span class="doccomment">/// Timing in milliseconds for handling and responding to a health check request.
+<a href=#471 id=471 data-nosnippet>471</a>    /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
+<a href=#472 id=472 data-nosnippet>472</a>    ///   scrubbing
+<a href=#473 id=473 data-nosnippet>473</a>    </span>ViewHierarchyScrubbing,
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="doccomment">/// Time spend on attachment scrubbing.
+<a href=#475 id=475 data-nosnippet>475</a>    ///
+<a href=#476 id=476 data-nosnippet>476</a>    /// This represents the total time spent on evaluating the scrubbing rules for an
+<a href=#477 id=477 data-nosnippet>477</a>    /// attachment and the attachment scrubbing itself, regardless of whether any rules were
+<a href=#478 id=478 data-nosnippet>478</a>    /// applied.  Note that minidumps which failed to be parsed (status="error" in
+<a href=#479 id=479 data-nosnippet>479</a>    /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
+<a href=#480 id=480 data-nosnippet>480</a>    /// towards this.
+<a href=#481 id=481 data-nosnippet>481</a>    ///
+<a href=#482 id=482 data-nosnippet>482</a>    /// This metric is tagged with:
+<a href=#483 id=483 data-nosnippet>483</a>    ///
+<a href=#484 id=484 data-nosnippet>484</a>    ///   - `attachment_type`: The type of attachment, e.g. "minidump".
+<a href=#485 id=485 data-nosnippet>485</a>    </span>AttachmentScrubbing,
+<a href=#486 id=486 data-nosnippet>486</a>    <span class="doccomment">/// Total time spent to send request to upstream Relay and handle the response.
+<a href=#487 id=487 data-nosnippet>487</a>    ///
+<a href=#488 id=488 data-nosnippet>488</a>    /// This metric is tagged with:
+<a href=#489 id=489 data-nosnippet>489</a>    ///
+<a href=#490 id=490 data-nosnippet>490</a>    ///   - `result`: What happened to the request, an enumeration with the following values:
+<a href=#491 id=491 data-nosnippet>491</a>    ///     * `success`: The request was sent and returned a success code `HTTP 2xx`
+<a href=#492 id=492 data-nosnippet>492</a>    ///     * `response_error`: The request was sent and it returned an HTTP error.
+<a href=#493 id=493 data-nosnippet>493</a>    ///     * `payload_failed`: The request was sent but there was an error in interpreting the response.
+<a href=#494 id=494 data-nosnippet>494</a>    ///     * `send_failed`: Failed to send the request due to a network error.
+<a href=#495 id=495 data-nosnippet>495</a>    ///     * `rate_limited`: The request was rate limited.
+<a href=#496 id=496 data-nosnippet>496</a>    ///     * `invalid_json`: The response could not be parsed back into JSON.
+<a href=#497 id=497 data-nosnippet>497</a>    ///   - `route`: The endpoint that was called on the upstream.
+<a href=#498 id=498 data-nosnippet>498</a>    ///   - `status-code`: The status code of the request when available, otherwise "-".
+<a href=#499 id=499 data-nosnippet>499</a>    ///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).
+<a href=#500 id=500 data-nosnippet>500</a>    </span>UpstreamRequestsDuration,
+<a href=#501 id=501 data-nosnippet>501</a>    <span class="doccomment">/// The delay between the timestamp stated in a payload and the receive time.
+<a href=#502 id=502 data-nosnippet>502</a>    ///
+<a href=#503 id=503 data-nosnippet>503</a>    /// SDKs cannot transmit payloads immediately in all cases. Sometimes, crashes require that
+<a href=#504 id=504 data-nosnippet>504</a>    /// events are sent after restarting the application. Similarly, SDKs buffer events during
+<a href=#505 id=505 data-nosnippet>505</a>    /// network downtimes for later transmission. This metric measures the delay between the time of
+<a href=#506 id=506 data-nosnippet>506</a>    /// the event and the time it arrives in Relay. The delay is measured after clock drift
+<a href=#507 id=507 data-nosnippet>507</a>    /// correction is applied.
+<a href=#508 id=508 data-nosnippet>508</a>    ///
+<a href=#509 id=509 data-nosnippet>509</a>    /// Only payloads with a delay of more than 1 minute are captured.
+<a href=#510 id=510 data-nosnippet>510</a>    ///
+<a href=#511 id=511 data-nosnippet>511</a>    /// This metric is tagged with:
+<a href=#512 id=512 data-nosnippet>512</a>    ///
+<a href=#513 id=513 data-nosnippet>513</a>    ///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,
+<a href=#514 id=514 data-nosnippet>514</a>    ///    `security`, or `session`.
+<a href=#515 id=515 data-nosnippet>515</a>    </span>TimestampDelay,
+<a href=#516 id=516 data-nosnippet>516</a>    <span class="doccomment">/// The time it takes the outcome aggregator to flush aggregated outcomes.
+<a href=#517 id=517 data-nosnippet>517</a>    </span>OutcomeAggregatorFlushTime,
+<a href=#518 id=518 data-nosnippet>518</a>    <span class="doccomment">/// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
+<a href=#519 id=519 data-nosnippet>519</a>    </span>ReplayRecordingProcessing,
+<a href=#520 id=520 data-nosnippet>520</a>    <span class="doccomment">/// Total time spent to send a request and receive the response from upstream.
+<a href=#521 id=521 data-nosnippet>521</a>    </span>GlobalConfigRequestDuration,
+<a href=#522 id=522 data-nosnippet>522</a>    <span class="doccomment">/// Timing in milliseconds for processing a message in the internal CPU pool.
+<a href=#523 id=523 data-nosnippet>523</a>    ///
+<a href=#524 id=524 data-nosnippet>524</a>    /// This metric is tagged with:
+<a href=#525 id=525 data-nosnippet>525</a>    ///
+<a href=#526 id=526 data-nosnippet>526</a>    ///  - `message`: The type of message that was processed.
+<a href=#527 id=527 data-nosnippet>527</a>    </span>ProcessMessageDuration,
+<a href=#528 id=528 data-nosnippet>528</a>    <span class="doccomment">/// Timing in milliseconds for processing a task in the project cache service.
 <a href=#529 id=529 data-nosnippet>529</a>    ///
 <a href=#530 id=530 data-nosnippet>530</a>    /// This metric is tagged with:
-<a href=#531 id=531 data-nosnippet>531</a>    ///  - `type`: The type of the health check, `liveness` or `readiness`.
-<a href=#532 id=532 data-nosnippet>532</a>    </span>HealthCheckDuration,
-<a href=#533 id=533 data-nosnippet>533</a>    <span class="doccomment">/// Temporary timing metric for how much time was spent evaluating span and transaction
-<a href=#534 id=534 data-nosnippet>534</a>    /// rate limits using the `RateLimitBuckets` message in the processor.
-<a href=#535 id=535 data-nosnippet>535</a>    ///
-<a href=#536 id=536 data-nosnippet>536</a>    /// This metric is tagged with:
-<a href=#537 id=537 data-nosnippet>537</a>    ///  - `category`: The data category evaluated.
-<a href=#538 id=538 data-nosnippet>538</a>    ///  - `limited`: Whether the batch is rate limited.
-<a href=#539 id=539 data-nosnippet>539</a>    ///  - `count`: How many items matching the data category are contained in the batch.
-<a href=#540 id=540 data-nosnippet>540</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#541 id=541 data-nosnippet>541</a>    </span>RateLimitBucketsDuration,
-<a href=#542 id=542 data-nosnippet>542</a>    <span class="doccomment">/// Timing in milliseconds for processing a task in the aggregator service.
-<a href=#543 id=543 data-nosnippet>543</a>    ///
-<a href=#544 id=544 data-nosnippet>544</a>    /// This metric is tagged with:
-<a href=#545 id=545 data-nosnippet>545</a>    ///  - `task`: The task being executed by the aggregator.
-<a href=#546 id=546 data-nosnippet>546</a>    ///  - `aggregator`: The name of the aggregator.
-<a href=#547 id=547 data-nosnippet>547</a>    </span>AggregatorServiceDuration,
-<a href=#548 id=548 data-nosnippet>548</a>    <span class="doccomment">/// Timing in milliseconds for processing a message in the metric router service.
-<a href=#549 id=549 data-nosnippet>549</a>    ///
-<a href=#550 id=550 data-nosnippet>550</a>    /// This metric is tagged with:
-<a href=#551 id=551 data-nosnippet>551</a>    ///  - `message`: The type of message that was processed.
-<a href=#552 id=552 data-nosnippet>552</a>    </span>MetricRouterServiceDuration,
-<a href=#553 id=553 data-nosnippet>553</a>    <span class="doccomment">/// Timing in milliseconds for processing a message in the metric store service.
+<a href=#531 id=531 data-nosnippet>531</a>    /// - `task`: The type of the task the project cache does.
+<a href=#532 id=532 data-nosnippet>532</a>    </span>ProjectCacheTaskDuration,
+<a href=#533 id=533 data-nosnippet>533</a>    <span class="doccomment">/// Timing in milliseconds for handling and responding to a health check request.
+<a href=#534 id=534 data-nosnippet>534</a>    ///
+<a href=#535 id=535 data-nosnippet>535</a>    /// This metric is tagged with:
+<a href=#536 id=536 data-nosnippet>536</a>    ///  - `type`: The type of the health check, `liveness` or `readiness`.
+<a href=#537 id=537 data-nosnippet>537</a>    </span>HealthCheckDuration,
+<a href=#538 id=538 data-nosnippet>538</a>    <span class="doccomment">/// Temporary timing metric for how much time was spent evaluating span and transaction
+<a href=#539 id=539 data-nosnippet>539</a>    /// rate limits using the `RateLimitBuckets` message in the processor.
+<a href=#540 id=540 data-nosnippet>540</a>    ///
+<a href=#541 id=541 data-nosnippet>541</a>    /// This metric is tagged with:
+<a href=#542 id=542 data-nosnippet>542</a>    ///  - `category`: The data category evaluated.
+<a href=#543 id=543 data-nosnippet>543</a>    ///  - `limited`: Whether the batch is rate limited.
+<a href=#544 id=544 data-nosnippet>544</a>    ///  - `count`: How many items matching the data category are contained in the batch.
+<a href=#545 id=545 data-nosnippet>545</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#546 id=546 data-nosnippet>546</a>    </span>RateLimitBucketsDuration,
+<a href=#547 id=547 data-nosnippet>547</a>    <span class="doccomment">/// Timing in milliseconds for processing a task in the aggregator service.
+<a href=#548 id=548 data-nosnippet>548</a>    ///
+<a href=#549 id=549 data-nosnippet>549</a>    /// This metric is tagged with:
+<a href=#550 id=550 data-nosnippet>550</a>    ///  - `task`: The task being executed by the aggregator.
+<a href=#551 id=551 data-nosnippet>551</a>    ///  - `aggregator`: The name of the aggregator.
+<a href=#552 id=552 data-nosnippet>552</a>    </span>AggregatorServiceDuration,
+<a href=#553 id=553 data-nosnippet>553</a>    <span class="doccomment">/// Timing in milliseconds for processing a message in the metric router service.
 <a href=#554 id=554 data-nosnippet>554</a>    ///
 <a href=#555 id=555 data-nosnippet>555</a>    /// This metric is tagged with:
 <a href=#556 id=556 data-nosnippet>556</a>    ///  - `message`: The type of message that was processed.
-<a href=#557 id=557 data-nosnippet>557</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#558 id=558 data-nosnippet>558</a>    </span>StoreServiceDuration,
-<a href=#559 id=559 data-nosnippet>559</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for initialize the buffer.
-<a href=#560 id=560 data-nosnippet>560</a>    </span>BufferInitialization,
-<a href=#561 id=561 data-nosnippet>561</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to pack &amp; spool a batch.
-<a href=#562 id=562 data-nosnippet>562</a>    ///
-<a href=#563 id=563 data-nosnippet>563</a>    /// Contains the time it takes to pack multiple envelopes into a single memory blob.
-<a href=#564 id=564 data-nosnippet>564</a>    </span>BufferSpool,
-<a href=#565 id=565 data-nosnippet>565</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to spool data to SQLite.
-<a href=#566 id=566 data-nosnippet>566</a>    </span>BufferSqlWrite,
-<a href=#567 id=567 data-nosnippet>567</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
-<a href=#568 id=568 data-nosnippet>568</a>    </span>BufferUnspool,
-<a href=#569 id=569 data-nosnippet>569</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to push.
-<a href=#570 id=570 data-nosnippet>570</a>    </span>BufferPush,
-<a href=#571 id=571 data-nosnippet>571</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to peek.
-<a href=#572 id=572 data-nosnippet>572</a>    </span>BufferPeek,
-<a href=#573 id=573 data-nosnippet>573</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to pop.
-<a href=#574 id=574 data-nosnippet>574</a>    </span>BufferPop,
-<a href=#575 id=575 data-nosnippet>575</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
-<a href=#576 id=576 data-nosnippet>576</a>    </span>BufferDrain,
-<a href=#577 id=577 data-nosnippet>577</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for an envelope to be serialized.
-<a href=#578 id=578 data-nosnippet>578</a>    </span>BufferEnvelopesSerialization,
-<a href=#579 id=579 data-nosnippet>579</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for an envelope to be compressed.
-<a href=#580 id=580 data-nosnippet>580</a>    </span>BufferEnvelopeCompression,
-<a href=#581 id=581 data-nosnippet>581</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for an envelope to be decompressed.
-<a href=#582 id=582 data-nosnippet>582</a>    </span>BufferEnvelopeDecompression,
-<a href=#583 id=583 data-nosnippet>583</a>    <span class="doccomment">/// Timing in milliseconds to the time it takes to read an HTTP body.
-<a href=#584 id=584 data-nosnippet>584</a>    </span>BodyReadDuration,
-<a href=#585 id=585 data-nosnippet>585</a>    <span class="doccomment">/// Timing in milliseconds to count spans in a serialized transaction payload.
-<a href=#586 id=586 data-nosnippet>586</a>    </span>CheckNestedSpans,
-<a href=#587 id=587 data-nosnippet>587</a>}
-<a href=#588 id=588 data-nosnippet>588</a>
-<a href=#589 id=589 data-nosnippet>589</a><span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
-<a href=#590 id=590 data-nosnippet>590</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#591 id=591 data-nosnippet>591</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#592 id=592 data-nosnippet>592</a>            RelayTimers::EventProcessingDeserialize =&gt; <span class="string">"event_processing.deserialize"</span>,
-<a href=#593 id=593 data-nosnippet>593</a>            RelayTimers::EventProcessingNormalization =&gt; <span class="string">"event_processing.normalization"</span>,
-<a href=#594 id=594 data-nosnippet>594</a>            RelayTimers::EventProcessingFiltering =&gt; <span class="string">"event_processing.filtering"</span>,
-<a href=#595 id=595 data-nosnippet>595</a>            RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">"event_processing.rate_limiting"</span>,
-<a href=#596 id=596 data-nosnippet>596</a>            RelayTimers::EventProcessingPii =&gt; <span class="string">"event_processing.pii"</span>,
-<a href=#597 id=597 data-nosnippet>597</a>            RelayTimers::EventProcessingSpanMetricsExtraction =&gt; {
-<a href=#598 id=598 data-nosnippet>598</a>                <span class="string">"event_processing.span_metrics_extraction"
-<a href=#599 id=599 data-nosnippet>599</a>            </span>}
-<a href=#600 id=600 data-nosnippet>600</a>            RelayTimers::EventProcessingSerialization =&gt; <span class="string">"event_processing.serialization"</span>,
-<a href=#601 id=601 data-nosnippet>601</a>            RelayTimers::EnvelopeWaitTime =&gt; <span class="string">"event.wait_time"</span>,
-<a href=#602 id=602 data-nosnippet>602</a>            RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">"event.processing_time"</span>,
-<a href=#603 id=603 data-nosnippet>603</a>            RelayTimers::EnvelopeTotalTime =&gt; <span class="string">"event.total_time"</span>,
-<a href=#604 id=604 data-nosnippet>604</a>            RelayTimers::ProjectStateRequestDuration =&gt; <span class="string">"project_state.request.duration"</span>,
-<a href=#605 id=605 data-nosnippet>605</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#606 id=606 data-nosnippet>606</a>            </span>RelayTimers::ProjectStateDecompression =&gt; <span class="string">"project_state.decompression"</span>,
-<a href=#607 id=607 data-nosnippet>607</a>            RelayTimers::ProjectCacheUpdateLatency =&gt; <span class="string">"project_cache.latency"</span>,
-<a href=#608 id=608 data-nosnippet>608</a>            RelayTimers::RequestsDuration =&gt; <span class="string">"requests.duration"</span>,
-<a href=#609 id=609 data-nosnippet>609</a>            RelayTimers::MinidumpScrubbing =&gt; <span class="string">"scrubbing.minidumps.duration"</span>,
-<a href=#610 id=610 data-nosnippet>610</a>            RelayTimers::ViewHierarchyScrubbing =&gt; <span class="string">"scrubbing.view_hierarchy_scrubbing.duration"</span>,
-<a href=#611 id=611 data-nosnippet>611</a>            RelayTimers::AttachmentScrubbing =&gt; <span class="string">"scrubbing.attachments.duration"</span>,
-<a href=#612 id=612 data-nosnippet>612</a>            RelayTimers::UpstreamRequestsDuration =&gt; <span class="string">"upstream.requests.duration"</span>,
-<a href=#613 id=613 data-nosnippet>613</a>            RelayTimers::TimestampDelay =&gt; <span class="string">"requests.timestamp_delay"</span>,
-<a href=#614 id=614 data-nosnippet>614</a>            RelayTimers::OutcomeAggregatorFlushTime =&gt; <span class="string">"outcomes.aggregator.flush_time"</span>,
-<a href=#615 id=615 data-nosnippet>615</a>            RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">"replay.recording.process"</span>,
-<a href=#616 id=616 data-nosnippet>616</a>            RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">"global_config.requests.duration"</span>,
-<a href=#617 id=617 data-nosnippet>617</a>            RelayTimers::ProcessMessageDuration =&gt; <span class="string">"processor.message.duration"</span>,
-<a href=#618 id=618 data-nosnippet>618</a>            RelayTimers::ProjectCacheTaskDuration =&gt; <span class="string">"project_cache.task.duration"</span>,
-<a href=#619 id=619 data-nosnippet>619</a>            RelayTimers::HealthCheckDuration =&gt; <span class="string">"health.message.duration"</span>,
-<a href=#620 id=620 data-nosnippet>620</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#621 id=621 data-nosnippet>621</a>            </span>RelayTimers::RateLimitBucketsDuration =&gt; <span class="string">"processor.rate_limit_buckets"</span>,
-<a href=#622 id=622 data-nosnippet>622</a>            RelayTimers::AggregatorServiceDuration =&gt; <span class="string">"metrics.aggregator.message.duration"</span>,
-<a href=#623 id=623 data-nosnippet>623</a>            RelayTimers::MetricRouterServiceDuration =&gt; <span class="string">"metrics.router.message.duration"</span>,
-<a href=#624 id=624 data-nosnippet>624</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#625 id=625 data-nosnippet>625</a>            </span>RelayTimers::StoreServiceDuration =&gt; <span class="string">"store.message.duration"</span>,
-<a href=#626 id=626 data-nosnippet>626</a>            RelayTimers::BufferInitialization =&gt; <span class="string">"buffer.initialization.duration"</span>,
-<a href=#627 id=627 data-nosnippet>627</a>            RelayTimers::BufferSpool =&gt; <span class="string">"buffer.spool.duration"</span>,
-<a href=#628 id=628 data-nosnippet>628</a>            RelayTimers::BufferSqlWrite =&gt; <span class="string">"buffer.write.duration"</span>,
-<a href=#629 id=629 data-nosnippet>629</a>            RelayTimers::BufferUnspool =&gt; <span class="string">"buffer.unspool.duration"</span>,
-<a href=#630 id=630 data-nosnippet>630</a>            RelayTimers::BufferPush =&gt; <span class="string">"buffer.push.duration"</span>,
-<a href=#631 id=631 data-nosnippet>631</a>            RelayTimers::BufferPeek =&gt; <span class="string">"buffer.peek.duration"</span>,
-<a href=#632 id=632 data-nosnippet>632</a>            RelayTimers::BufferPop =&gt; <span class="string">"buffer.pop.duration"</span>,
-<a href=#633 id=633 data-nosnippet>633</a>            RelayTimers::BufferDrain =&gt; <span class="string">"buffer.drain.duration"</span>,
-<a href=#634 id=634 data-nosnippet>634</a>            RelayTimers::BufferEnvelopesSerialization =&gt; <span class="string">"buffer.envelopes_serialization"</span>,
-<a href=#635 id=635 data-nosnippet>635</a>            RelayTimers::BufferEnvelopeCompression =&gt; <span class="string">"buffer.envelopes_compression"</span>,
-<a href=#636 id=636 data-nosnippet>636</a>            RelayTimers::BufferEnvelopeDecompression =&gt; <span class="string">"buffer.envelopes_decompression"</span>,
-<a href=#637 id=637 data-nosnippet>637</a>            RelayTimers::BodyReadDuration =&gt; <span class="string">"requests.body_read.duration"</span>,
-<a href=#638 id=638 data-nosnippet>638</a>            RelayTimers::CheckNestedSpans =&gt; <span class="string">"envelope.check_nested_spans"</span>,
-<a href=#639 id=639 data-nosnippet>639</a>        }
-<a href=#640 id=640 data-nosnippet>640</a>    }
-<a href=#641 id=641 data-nosnippet>641</a>}
-<a href=#642 id=642 data-nosnippet>642</a>
-<a href=#643 id=643 data-nosnippet>643</a><span class="doccomment">/// Counter metrics used by Relay
-<a href=#644 id=644 data-nosnippet>644</a></span><span class="kw">pub enum </span>RelayCounters {
-<a href=#645 id=645 data-nosnippet>645</a>    <span class="doccomment">/// Tracks the number of tasks driven to completion by the async pool.
-<a href=#646 id=646 data-nosnippet>646</a>    ///
-<a href=#647 id=647 data-nosnippet>647</a>    /// This metric is tagged with:
-<a href=#648 id=648 data-nosnippet>648</a>    /// - `pool`: the name of the pool.
-<a href=#649 id=649 data-nosnippet>649</a>    </span>AsyncPoolFinishedTasks,
-<a href=#650 id=650 data-nosnippet>650</a>    <span class="doccomment">/// Number of Events that had corrupted (unprintable) event attributes.
-<a href=#651 id=651 data-nosnippet>651</a>    ///
-<a href=#652 id=652 data-nosnippet>652</a>    /// This currently checks for `environment` and `release`, for which we know that
-<a href=#653 id=653 data-nosnippet>653</a>    /// some SDKs may send corrupted values.
-<a href=#654 id=654 data-nosnippet>654</a>    </span>EventCorrupted,
-<a href=#655 id=655 data-nosnippet>655</a>    <span class="doccomment">/// Number of envelopes accepted in the current time slot.
-<a href=#656 id=656 data-nosnippet>656</a>    ///
-<a href=#657 id=657 data-nosnippet>657</a>    /// This represents requests that have successfully passed rate limits and filters, and have
-<a href=#658 id=658 data-nosnippet>658</a>    /// been sent to the upstream.
-<a href=#659 id=659 data-nosnippet>659</a>    ///
-<a href=#660 id=660 data-nosnippet>660</a>    /// This metric is tagged with:
-<a href=#661 id=661 data-nosnippet>661</a>    ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
-<a href=#662 id=662 data-nosnippet>662</a>    ///    there was an error or bug.
-<a href=#663 id=663 data-nosnippet>663</a>    </span>EnvelopeAccepted,
-<a href=#664 id=664 data-nosnippet>664</a>    <span class="doccomment">/// Number of envelopes rejected in the current time slot.
+<a href=#557 id=557 data-nosnippet>557</a>    </span>MetricRouterServiceDuration,
+<a href=#558 id=558 data-nosnippet>558</a>    <span class="doccomment">/// Timing in milliseconds for processing a message in the metric store service.
+<a href=#559 id=559 data-nosnippet>559</a>    ///
+<a href=#560 id=560 data-nosnippet>560</a>    /// This metric is tagged with:
+<a href=#561 id=561 data-nosnippet>561</a>    ///  - `message`: The type of message that was processed.
+<a href=#562 id=562 data-nosnippet>562</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#563 id=563 data-nosnippet>563</a>    </span>StoreServiceDuration,
+<a href=#564 id=564 data-nosnippet>564</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for initialize the buffer.
+<a href=#565 id=565 data-nosnippet>565</a>    </span>BufferInitialization,
+<a href=#566 id=566 data-nosnippet>566</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to pack &amp; spool a batch.
+<a href=#567 id=567 data-nosnippet>567</a>    ///
+<a href=#568 id=568 data-nosnippet>568</a>    /// Contains the time it takes to pack multiple envelopes into a single memory blob.
+<a href=#569 id=569 data-nosnippet>569</a>    </span>BufferSpool,
+<a href=#570 id=570 data-nosnippet>570</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to spool data to SQLite.
+<a href=#571 id=571 data-nosnippet>571</a>    </span>BufferSqlWrite,
+<a href=#572 id=572 data-nosnippet>572</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
+<a href=#573 id=573 data-nosnippet>573</a>    </span>BufferUnspool,
+<a href=#574 id=574 data-nosnippet>574</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to push.
+<a href=#575 id=575 data-nosnippet>575</a>    </span>BufferPush,
+<a href=#576 id=576 data-nosnippet>576</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to peek.
+<a href=#577 id=577 data-nosnippet>577</a>    </span>BufferPeek,
+<a href=#578 id=578 data-nosnippet>578</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to pop.
+<a href=#579 id=579 data-nosnippet>579</a>    </span>BufferPop,
+<a href=#580 id=580 data-nosnippet>580</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
+<a href=#581 id=581 data-nosnippet>581</a>    </span>BufferDrain,
+<a href=#582 id=582 data-nosnippet>582</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for an envelope to be serialized.
+<a href=#583 id=583 data-nosnippet>583</a>    </span>BufferEnvelopesSerialization,
+<a href=#584 id=584 data-nosnippet>584</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for an envelope to be compressed.
+<a href=#585 id=585 data-nosnippet>585</a>    </span>BufferEnvelopeCompression,
+<a href=#586 id=586 data-nosnippet>586</a>    <span class="doccomment">/// Timing in milliseconds for the time it takes for an envelope to be decompressed.
+<a href=#587 id=587 data-nosnippet>587</a>    </span>BufferEnvelopeDecompression,
+<a href=#588 id=588 data-nosnippet>588</a>    <span class="doccomment">/// Timing in milliseconds to the time it takes to read an HTTP body.
+<a href=#589 id=589 data-nosnippet>589</a>    </span>BodyReadDuration,
+<a href=#590 id=590 data-nosnippet>590</a>    <span class="doccomment">/// Timing in milliseconds to count spans in a serialized transaction payload.
+<a href=#591 id=591 data-nosnippet>591</a>    </span>CheckNestedSpans,
+<a href=#592 id=592 data-nosnippet>592</a>}
+<a href=#593 id=593 data-nosnippet>593</a>
+<a href=#594 id=594 data-nosnippet>594</a><span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
+<a href=#595 id=595 data-nosnippet>595</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#596 id=596 data-nosnippet>596</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#597 id=597 data-nosnippet>597</a>            RelayTimers::EventProcessingDeserialize =&gt; <span class="string">"event_processing.deserialize"</span>,
+<a href=#598 id=598 data-nosnippet>598</a>            RelayTimers::EventProcessingNormalization =&gt; <span class="string">"event_processing.normalization"</span>,
+<a href=#599 id=599 data-nosnippet>599</a>            RelayTimers::EventProcessingFiltering =&gt; <span class="string">"event_processing.filtering"</span>,
+<a href=#600 id=600 data-nosnippet>600</a>            RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">"event_processing.rate_limiting"</span>,
+<a href=#601 id=601 data-nosnippet>601</a>            RelayTimers::EventProcessingPii =&gt; <span class="string">"event_processing.pii"</span>,
+<a href=#602 id=602 data-nosnippet>602</a>            RelayTimers::EventProcessingSpanMetricsExtraction =&gt; {
+<a href=#603 id=603 data-nosnippet>603</a>                <span class="string">"event_processing.span_metrics_extraction"
+<a href=#604 id=604 data-nosnippet>604</a>            </span>}
+<a href=#605 id=605 data-nosnippet>605</a>            RelayTimers::EventProcessingSerialization =&gt; <span class="string">"event_processing.serialization"</span>,
+<a href=#606 id=606 data-nosnippet>606</a>            RelayTimers::EnvelopeWaitTime =&gt; <span class="string">"event.wait_time"</span>,
+<a href=#607 id=607 data-nosnippet>607</a>            RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">"event.processing_time"</span>,
+<a href=#608 id=608 data-nosnippet>608</a>            RelayTimers::EnvelopeTotalTime =&gt; <span class="string">"event.total_time"</span>,
+<a href=#609 id=609 data-nosnippet>609</a>            RelayTimers::ProjectStateRequestDuration =&gt; <span class="string">"project_state.request.duration"</span>,
+<a href=#610 id=610 data-nosnippet>610</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#611 id=611 data-nosnippet>611</a>            </span>RelayTimers::ProjectStateDecompression =&gt; <span class="string">"project_state.decompression"</span>,
+<a href=#612 id=612 data-nosnippet>612</a>            RelayTimers::ProjectCacheUpdateLatency =&gt; <span class="string">"project_cache.latency"</span>,
+<a href=#613 id=613 data-nosnippet>613</a>            RelayTimers::ProjectCacheFetchDuration =&gt; <span class="string">"project_cache.fetch.duration"</span>,
+<a href=#614 id=614 data-nosnippet>614</a>            RelayTimers::RequestsDuration =&gt; <span class="string">"requests.duration"</span>,
+<a href=#615 id=615 data-nosnippet>615</a>            RelayTimers::MinidumpScrubbing =&gt; <span class="string">"scrubbing.minidumps.duration"</span>,
+<a href=#616 id=616 data-nosnippet>616</a>            RelayTimers::ViewHierarchyScrubbing =&gt; <span class="string">"scrubbing.view_hierarchy_scrubbing.duration"</span>,
+<a href=#617 id=617 data-nosnippet>617</a>            RelayTimers::AttachmentScrubbing =&gt; <span class="string">"scrubbing.attachments.duration"</span>,
+<a href=#618 id=618 data-nosnippet>618</a>            RelayTimers::UpstreamRequestsDuration =&gt; <span class="string">"upstream.requests.duration"</span>,
+<a href=#619 id=619 data-nosnippet>619</a>            RelayTimers::TimestampDelay =&gt; <span class="string">"requests.timestamp_delay"</span>,
+<a href=#620 id=620 data-nosnippet>620</a>            RelayTimers::OutcomeAggregatorFlushTime =&gt; <span class="string">"outcomes.aggregator.flush_time"</span>,
+<a href=#621 id=621 data-nosnippet>621</a>            RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">"replay.recording.process"</span>,
+<a href=#622 id=622 data-nosnippet>622</a>            RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">"global_config.requests.duration"</span>,
+<a href=#623 id=623 data-nosnippet>623</a>            RelayTimers::ProcessMessageDuration =&gt; <span class="string">"processor.message.duration"</span>,
+<a href=#624 id=624 data-nosnippet>624</a>            RelayTimers::ProjectCacheTaskDuration =&gt; <span class="string">"project_cache.task.duration"</span>,
+<a href=#625 id=625 data-nosnippet>625</a>            RelayTimers::HealthCheckDuration =&gt; <span class="string">"health.message.duration"</span>,
+<a href=#626 id=626 data-nosnippet>626</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#627 id=627 data-nosnippet>627</a>            </span>RelayTimers::RateLimitBucketsDuration =&gt; <span class="string">"processor.rate_limit_buckets"</span>,
+<a href=#628 id=628 data-nosnippet>628</a>            RelayTimers::AggregatorServiceDuration =&gt; <span class="string">"metrics.aggregator.message.duration"</span>,
+<a href=#629 id=629 data-nosnippet>629</a>            RelayTimers::MetricRouterServiceDuration =&gt; <span class="string">"metrics.router.message.duration"</span>,
+<a href=#630 id=630 data-nosnippet>630</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#631 id=631 data-nosnippet>631</a>            </span>RelayTimers::StoreServiceDuration =&gt; <span class="string">"store.message.duration"</span>,
+<a href=#632 id=632 data-nosnippet>632</a>            RelayTimers::BufferInitialization =&gt; <span class="string">"buffer.initialization.duration"</span>,
+<a href=#633 id=633 data-nosnippet>633</a>            RelayTimers::BufferSpool =&gt; <span class="string">"buffer.spool.duration"</span>,
+<a href=#634 id=634 data-nosnippet>634</a>            RelayTimers::BufferSqlWrite =&gt; <span class="string">"buffer.write.duration"</span>,
+<a href=#635 id=635 data-nosnippet>635</a>            RelayTimers::BufferUnspool =&gt; <span class="string">"buffer.unspool.duration"</span>,
+<a href=#636 id=636 data-nosnippet>636</a>            RelayTimers::BufferPush =&gt; <span class="string">"buffer.push.duration"</span>,
+<a href=#637 id=637 data-nosnippet>637</a>            RelayTimers::BufferPeek =&gt; <span class="string">"buffer.peek.duration"</span>,
+<a href=#638 id=638 data-nosnippet>638</a>            RelayTimers::BufferPop =&gt; <span class="string">"buffer.pop.duration"</span>,
+<a href=#639 id=639 data-nosnippet>639</a>            RelayTimers::BufferDrain =&gt; <span class="string">"buffer.drain.duration"</span>,
+<a href=#640 id=640 data-nosnippet>640</a>            RelayTimers::BufferEnvelopesSerialization =&gt; <span class="string">"buffer.envelopes_serialization"</span>,
+<a href=#641 id=641 data-nosnippet>641</a>            RelayTimers::BufferEnvelopeCompression =&gt; <span class="string">"buffer.envelopes_compression"</span>,
+<a href=#642 id=642 data-nosnippet>642</a>            RelayTimers::BufferEnvelopeDecompression =&gt; <span class="string">"buffer.envelopes_decompression"</span>,
+<a href=#643 id=643 data-nosnippet>643</a>            RelayTimers::BodyReadDuration =&gt; <span class="string">"requests.body_read.duration"</span>,
+<a href=#644 id=644 data-nosnippet>644</a>            RelayTimers::CheckNestedSpans =&gt; <span class="string">"envelope.check_nested_spans"</span>,
+<a href=#645 id=645 data-nosnippet>645</a>        }
+<a href=#646 id=646 data-nosnippet>646</a>    }
+<a href=#647 id=647 data-nosnippet>647</a>}
+<a href=#648 id=648 data-nosnippet>648</a>
+<a href=#649 id=649 data-nosnippet>649</a><span class="doccomment">/// Counter metrics used by Relay
+<a href=#650 id=650 data-nosnippet>650</a></span><span class="kw">pub enum </span>RelayCounters {
+<a href=#651 id=651 data-nosnippet>651</a>    <span class="doccomment">/// Tracks the number of tasks driven to completion by the async pool.
+<a href=#652 id=652 data-nosnippet>652</a>    ///
+<a href=#653 id=653 data-nosnippet>653</a>    /// This metric is tagged with:
+<a href=#654 id=654 data-nosnippet>654</a>    /// - `pool`: the name of the pool.
+<a href=#655 id=655 data-nosnippet>655</a>    </span>AsyncPoolFinishedTasks,
+<a href=#656 id=656 data-nosnippet>656</a>    <span class="doccomment">/// Number of Events that had corrupted (unprintable) event attributes.
+<a href=#657 id=657 data-nosnippet>657</a>    ///
+<a href=#658 id=658 data-nosnippet>658</a>    /// This currently checks for `environment` and `release`, for which we know that
+<a href=#659 id=659 data-nosnippet>659</a>    /// some SDKs may send corrupted values.
+<a href=#660 id=660 data-nosnippet>660</a>    </span>EventCorrupted,
+<a href=#661 id=661 data-nosnippet>661</a>    <span class="doccomment">/// Number of envelopes accepted in the current time slot.
+<a href=#662 id=662 data-nosnippet>662</a>    ///
+<a href=#663 id=663 data-nosnippet>663</a>    /// This represents requests that have successfully passed rate limits and filters, and have
+<a href=#664 id=664 data-nosnippet>664</a>    /// been sent to the upstream.
 <a href=#665 id=665 data-nosnippet>665</a>    ///
-<a href=#666 id=666 data-nosnippet>666</a>    /// This includes envelopes being rejected because they are malformed or any other errors during
-<a href=#667 id=667 data-nosnippet>667</a>    /// processing (including filtered events, invalid payloads, and rate limits).
-<a href=#668 id=668 data-nosnippet>668</a>    ///
-<a href=#669 id=669 data-nosnippet>669</a>    /// To check the rejection reason, check `events.outcomes`, instead.
-<a href=#670 id=670 data-nosnippet>670</a>    ///
-<a href=#671 id=671 data-nosnippet>671</a>    /// This metric is tagged with:
-<a href=#672 id=672 data-nosnippet>672</a>    ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
-<a href=#673 id=673 data-nosnippet>673</a>    ///    there was an error or bug.
-<a href=#674 id=674 data-nosnippet>674</a>    </span>EnvelopeRejected,
-<a href=#675 id=675 data-nosnippet>675</a>    <span class="doccomment">/// Number of items we processed per envelope.
-<a href=#676 id=676 data-nosnippet>676</a>    </span>EnvelopeItems,
-<a href=#677 id=677 data-nosnippet>677</a>    <span class="doccomment">/// Number of bytes we processed per envelope item.
-<a href=#678 id=678 data-nosnippet>678</a>    </span>EnvelopeItemBytes,
-<a href=#679 id=679 data-nosnippet>679</a>    <span class="doccomment">/// Number of times an envelope from the buffer is trying to be popped.
-<a href=#680 id=680 data-nosnippet>680</a>    </span>BufferTryPop,
-<a href=#681 id=681 data-nosnippet>681</a>    <span class="doccomment">/// Number of envelopes spool to disk.
-<a href=#682 id=682 data-nosnippet>682</a>    </span>BufferSpooledEnvelopes,
-<a href=#683 id=683 data-nosnippet>683</a>    <span class="doccomment">/// Number of envelopes unspooled from disk.
-<a href=#684 id=684 data-nosnippet>684</a>    </span>BufferUnspooledEnvelopes,
-<a href=#685 id=685 data-nosnippet>685</a>    <span class="doccomment">/// Number of project changed updates received by the buffer.
-<a href=#686 id=686 data-nosnippet>686</a>    </span>BufferProjectChangedEvent,
-<a href=#687 id=687 data-nosnippet>687</a>    <span class="doccomment">/// Number of times one or more projects of an envelope were pending when trying to pop
-<a href=#688 id=688 data-nosnippet>688</a>    /// their envelope.
-<a href=#689 id=689 data-nosnippet>689</a>    </span>BufferProjectPending,
-<a href=#690 id=690 data-nosnippet>690</a>    <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.
-<a href=#691 id=691 data-nosnippet>691</a>    ///
-<a href=#692 id=692 data-nosnippet>692</a>    /// This metric is tagged with:
-<a href=#693 id=693 data-nosnippet>693</a>    ///  - `outcome`: The basic cause for rejecting the event.
-<a href=#694 id=694 data-nosnippet>694</a>    ///  - `reason`: A more detailed identifier describing the rule or mechanism leading to the
-<a href=#695 id=695 data-nosnippet>695</a>    ///    outcome.
-<a href=#696 id=696 data-nosnippet>696</a>    ///  - `to`: Describes the destination of the outcome. Can be either 'kafka' (when in
-<a href=#697 id=697 data-nosnippet>697</a>    ///    processing mode) or 'http' (when outcomes are enabled in an external relay).
-<a href=#698 id=698 data-nosnippet>698</a>    ///
-<a href=#699 id=699 data-nosnippet>699</a>    /// Possible outcomes are:
-<a href=#700 id=700 data-nosnippet>700</a>    ///  - `filtered`: Dropped by inbound data filters. The reason specifies the filter that
-<a href=#701 id=701 data-nosnippet>701</a>    ///    matched.
-<a href=#702 id=702 data-nosnippet>702</a>    ///  - `rate_limited`: Dropped by organization, project, or DSN rate limit, as well as exceeding
-<a href=#703 id=703 data-nosnippet>703</a>    ///    the Sentry plan quota. The reason contains the rate limit or quota that was exceeded.
-<a href=#704 id=704 data-nosnippet>704</a>    ///  - `invalid`: Data was considered invalid and could not be recovered. The reason indicates
-<a href=#705 id=705 data-nosnippet>705</a>    ///    the validation that failed.
-<a href=#706 id=706 data-nosnippet>706</a>    </span>Outcomes,
-<a href=#707 id=707 data-nosnippet>707</a>    <span class="doccomment">/// Number of project state HTTP requests.
-<a href=#708 id=708 data-nosnippet>708</a>    ///
-<a href=#709 id=709 data-nosnippet>709</a>    /// Relay updates projects in batches. Every update cycle, Relay requests
-<a href=#710 id=710 data-nosnippet>710</a>    /// `limits.max_concurrent_queries` batches of `cache.batch_size` projects from the upstream.
-<a href=#711 id=711 data-nosnippet>711</a>    /// The duration of these requests is reported via `project_state.request.duration`.
-<a href=#712 id=712 data-nosnippet>712</a>    ///
-<a href=#713 id=713 data-nosnippet>713</a>    /// Note that after an update loop has completed, there may be more projects pending updates.
-<a href=#714 id=714 data-nosnippet>714</a>    /// This is indicated by `project_state.pending`.
-<a href=#715 id=715 data-nosnippet>715</a>    </span>ProjectStateRequest,
-<a href=#716 id=716 data-nosnippet>716</a>    <span class="doccomment">/// Number of times a project state is requested from the central Redis cache.
-<a href=#717 id=717 data-nosnippet>717</a>    ///
-<a href=#718 id=718 data-nosnippet>718</a>    /// This metric is tagged with:
-<a href=#719 id=719 data-nosnippet>719</a>    ///  - `hit`: One of:
-<a href=#720 id=720 data-nosnippet>720</a>    ///     - `revision`: the cached version was validated to be up to date using its revision.
-<a href=#721 id=721 data-nosnippet>721</a>    ///     - `project_config`: the request was handled by the cache.
-<a href=#722 id=722 data-nosnippet>722</a>    ///     - `project_config_revision`: the request was handled by the cache and the revision did
-<a href=#723 id=723 data-nosnippet>723</a>    ///       not change.
-<a href=#724 id=724 data-nosnippet>724</a>    ///     - `false`: the request will be sent to the sentry endpoint.
-<a href=#725 id=725 data-nosnippet>725</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#726 id=726 data-nosnippet>726</a>    </span>ProjectStateRedis,
-<a href=#727 id=727 data-nosnippet>727</a>    <span class="doccomment">/// Number of times a project had a fetch scheduled.
-<a href=#728 id=728 data-nosnippet>728</a>    </span>ProjectCacheSchedule,
-<a href=#729 id=729 data-nosnippet>729</a>    <span class="doccomment">/// Number of times an upstream request for a project config is completed.
-<a href=#730 id=730 data-nosnippet>730</a>    ///
-<a href=#731 id=731 data-nosnippet>731</a>    /// Completion can be because a result was returned or because the config request was
-<a href=#732 id=732 data-nosnippet>732</a>    /// dropped after there still was no response after a timeout.  This metrics has tags
-<a href=#733 id=733 data-nosnippet>733</a>    /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
-<a href=#734 id=734 data-nosnippet>734</a>    /// many attempts were made respectively.
-<a href=#735 id=735 data-nosnippet>735</a>    </span>ProjectUpstreamCompleted,
-<a href=#736 id=736 data-nosnippet>736</a>    <span class="doccomment">/// Number of times an upstream request for a project config failed.
-<a href=#737 id=737 data-nosnippet>737</a>    ///
-<a href=#738 id=738 data-nosnippet>738</a>    /// Failure can happen, for example, when there's a network error. Refer to
-<a href=#739 id=739 data-nosnippet>739</a>    /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
-<a href=#740 id=740 data-nosnippet>740</a>    </span>ProjectUpstreamFailed,
-<a href=#741 id=741 data-nosnippet>741</a>    <span class="doccomment">/// Number of Relay server starts.
-<a href=#742 id=742 data-nosnippet>742</a>    ///
-<a href=#743 id=743 data-nosnippet>743</a>    /// This can be used to track unwanted restarts due to crashes or termination.
-<a href=#744 id=744 data-nosnippet>744</a>    </span>ServerStarting,
-<a href=#745 id=745 data-nosnippet>745</a>    <span class="doccomment">/// Number of messages placed on the Kafka queues.
-<a href=#746 id=746 data-nosnippet>746</a>    ///
-<a href=#747 id=747 data-nosnippet>747</a>    /// When Relay operates as Sentry service and an Envelope item is successfully processed, each
-<a href=#748 id=748 data-nosnippet>748</a>    /// Envelope item results in a dedicated message on one of the ingestion topics on Kafka.
-<a href=#749 id=749 data-nosnippet>749</a>    ///
-<a href=#750 id=750 data-nosnippet>750</a>    /// This metric is tagged with:
-<a href=#751 id=751 data-nosnippet>751</a>    ///  - `event_type`: The kind of message produced to Kafka.
-<a href=#752 id=752 data-nosnippet>752</a>    ///  - `namespace` (only for metrics): The namespace that the metric belongs to.
-<a href=#753 id=753 data-nosnippet>753</a>    ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
-<a href=#754 id=754 data-nosnippet>754</a>    ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
-<a href=#755 id=755 data-nosnippet>755</a>    ///  - `platform` (only for event_type span): The platform from which the span was spent.
-<a href=#756 id=756 data-nosnippet>756</a>    ///  - `metric_type` (only for event_type metric): The metric type, counter, distribution,
-<a href=#757 id=757 data-nosnippet>757</a>    ///    gauge or set.
-<a href=#758 id=758 data-nosnippet>758</a>    ///  - `metric_encoding` (only for event_type metric): The encoding used for distribution and
-<a href=#759 id=759 data-nosnippet>759</a>    ///    set metrics.
-<a href=#760 id=760 data-nosnippet>760</a>    ///
-<a href=#761 id=761 data-nosnippet>761</a>    /// The message types can be:
-<a href=#762 id=762 data-nosnippet>762</a>    ///
-<a href=#763 id=763 data-nosnippet>763</a>    ///  - `event`: An error or transaction event. Error events are sent to `ingest-events`,
-<a href=#764 id=764 data-nosnippet>764</a>    ///    transactions to `ingest-transactions`, and errors with attachments are sent to
-<a href=#765 id=765 data-nosnippet>765</a>    ///    `ingest-attachments`.
-<a href=#766 id=766 data-nosnippet>766</a>    ///  - `attachment`: An attachment file associated with an error event, sent to
-<a href=#767 id=767 data-nosnippet>767</a>    ///    `ingest-attachments`.
-<a href=#768 id=768 data-nosnippet>768</a>    ///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.
-<a href=#769 id=769 data-nosnippet>769</a>    ///  - `session`: A release health session update, sent to `ingest-sessions`.
-<a href=#770 id=770 data-nosnippet>770</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#771 id=771 data-nosnippet>771</a>    </span>ProcessingMessageProduced,
-<a href=#772 id=772 data-nosnippet>772</a>    <span class="doccomment">/// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
-<a href=#773 id=773 data-nosnippet>773</a>    /// Minidump, Unreal.
-<a href=#774 id=774 data-nosnippet>774</a>    ///
-<a href=#775 id=775 data-nosnippet>775</a>    /// The events are counted before they are rate limited, filtered, or processed in any way.
-<a href=#776 id=776 data-nosnippet>776</a>    ///
-<a href=#777 id=777 data-nosnippet>777</a>    /// This metric is tagged with:
-<a href=#778 id=778 data-nosnippet>778</a>    ///  - `version`: The event protocol version number defaulting to `7`.
-<a href=#779 id=779 data-nosnippet>779</a>    </span>EventProtocol,
-<a href=#780 id=780 data-nosnippet>780</a>    <span class="doccomment">/// The number of transaction events processed by the source of the transaction name.
-<a href=#781 id=781 data-nosnippet>781</a>    ///
-<a href=#782 id=782 data-nosnippet>782</a>    /// This metric is tagged with:
-<a href=#783 id=783 data-nosnippet>783</a>    ///  - `platform`: The event's platform, such as `"javascript"`.
-<a href=#784 id=784 data-nosnippet>784</a>    ///  - `source`: The source of the transaction name on the client. See the [transaction source
-<a href=#785 id=785 data-nosnippet>785</a>    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
-<a href=#786 id=786 data-nosnippet>786</a>    ///    for all valid values.
-<a href=#787 id=787 data-nosnippet>787</a>    ///  - `contains_slashes`: Whether the transaction name contains `/`. We use this as a heuristic
-<a href=#788 id=788 data-nosnippet>788</a>    ///    to represent URL transactions.
-<a href=#789 id=789 data-nosnippet>789</a>    </span>EventTransaction,
-<a href=#790 id=790 data-nosnippet>790</a>    <span class="doccomment">/// The number of transaction events processed grouped by transaction name modifications.
-<a href=#791 id=791 data-nosnippet>791</a>    /// This metric is tagged with:
-<a href=#792 id=792 data-nosnippet>792</a>    ///  - `source_in`: The source of the transaction name before normalization.
-<a href=#793 id=793 data-nosnippet>793</a>    ///    See the [transaction source
-<a href=#794 id=794 data-nosnippet>794</a>    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
-<a href=#795 id=795 data-nosnippet>795</a>    ///    for all valid values.
-<a href=#796 id=796 data-nosnippet>796</a>    ///  - `change`: The mechanism that changed the transaction name.
-<a href=#797 id=797 data-nosnippet>797</a>    ///    Either `"none"`, `"pattern"`, `"rule"`, or `"both"`.
-<a href=#798 id=798 data-nosnippet>798</a>    ///  - `source_out`: The source of the transaction name after normalization.
-<a href=#799 id=799 data-nosnippet>799</a>    </span>TransactionNameChanges,
-<a href=#800 id=800 data-nosnippet>800</a>    <span class="doccomment">/// Number of HTTP requests reaching Relay.
-<a href=#801 id=801 data-nosnippet>801</a>    </span>Requests,
-<a href=#802 id=802 data-nosnippet>802</a>    <span class="doccomment">/// Number of completed HTTP requests.
-<a href=#803 id=803 data-nosnippet>803</a>    ///
-<a href=#804 id=804 data-nosnippet>804</a>    /// This metric is tagged with:
-<a href=#805 id=805 data-nosnippet>805</a>    ///
-<a href=#806 id=806 data-nosnippet>806</a>    ///  - `status_code`: The HTTP status code number.
-<a href=#807 id=807 data-nosnippet>807</a>    ///  - `method`: The HTTP method used in the request in uppercase.
-<a href=#808 id=808 data-nosnippet>808</a>    ///  - `route`: Unique dashed identifier of the endpoint.
-<a href=#809 id=809 data-nosnippet>809</a>    </span>ResponsesStatusCodes,
-<a href=#810 id=810 data-nosnippet>810</a>    <span class="doccomment">/// Number of evicted stale projects from the cache.
+<a href=#666 id=666 data-nosnippet>666</a>    /// This metric is tagged with:
+<a href=#667 id=667 data-nosnippet>667</a>    ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
+<a href=#668 id=668 data-nosnippet>668</a>    ///    there was an error or bug.
+<a href=#669 id=669 data-nosnippet>669</a>    </span>EnvelopeAccepted,
+<a href=#670 id=670 data-nosnippet>670</a>    <span class="doccomment">/// Number of envelopes rejected in the current time slot.
+<a href=#671 id=671 data-nosnippet>671</a>    ///
+<a href=#672 id=672 data-nosnippet>672</a>    /// This includes envelopes being rejected because they are malformed or any other errors during
+<a href=#673 id=673 data-nosnippet>673</a>    /// processing (including filtered events, invalid payloads, and rate limits).
+<a href=#674 id=674 data-nosnippet>674</a>    ///
+<a href=#675 id=675 data-nosnippet>675</a>    /// To check the rejection reason, check `events.outcomes`, instead.
+<a href=#676 id=676 data-nosnippet>676</a>    ///
+<a href=#677 id=677 data-nosnippet>677</a>    /// This metric is tagged with:
+<a href=#678 id=678 data-nosnippet>678</a>    ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
+<a href=#679 id=679 data-nosnippet>679</a>    ///    there was an error or bug.
+<a href=#680 id=680 data-nosnippet>680</a>    </span>EnvelopeRejected,
+<a href=#681 id=681 data-nosnippet>681</a>    <span class="doccomment">/// Number of items we processed per envelope.
+<a href=#682 id=682 data-nosnippet>682</a>    </span>EnvelopeItems,
+<a href=#683 id=683 data-nosnippet>683</a>    <span class="doccomment">/// Number of bytes we processed per envelope item.
+<a href=#684 id=684 data-nosnippet>684</a>    </span>EnvelopeItemBytes,
+<a href=#685 id=685 data-nosnippet>685</a>    <span class="doccomment">/// Number of times an envelope from the buffer is trying to be popped.
+<a href=#686 id=686 data-nosnippet>686</a>    </span>BufferTryPop,
+<a href=#687 id=687 data-nosnippet>687</a>    <span class="doccomment">/// Number of envelopes spool to disk.
+<a href=#688 id=688 data-nosnippet>688</a>    </span>BufferSpooledEnvelopes,
+<a href=#689 id=689 data-nosnippet>689</a>    <span class="doccomment">/// Number of envelopes unspooled from disk.
+<a href=#690 id=690 data-nosnippet>690</a>    </span>BufferUnspooledEnvelopes,
+<a href=#691 id=691 data-nosnippet>691</a>    <span class="doccomment">/// Number of project changed updates received by the buffer.
+<a href=#692 id=692 data-nosnippet>692</a>    </span>BufferProjectChangedEvent,
+<a href=#693 id=693 data-nosnippet>693</a>    <span class="doccomment">/// Number of times one or more projects of an envelope were pending when trying to pop
+<a href=#694 id=694 data-nosnippet>694</a>    /// their envelope.
+<a href=#695 id=695 data-nosnippet>695</a>    </span>BufferProjectPending,
+<a href=#696 id=696 data-nosnippet>696</a>    <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.
+<a href=#697 id=697 data-nosnippet>697</a>    ///
+<a href=#698 id=698 data-nosnippet>698</a>    /// This metric is tagged with:
+<a href=#699 id=699 data-nosnippet>699</a>    ///  - `outcome`: The basic cause for rejecting the event.
+<a href=#700 id=700 data-nosnippet>700</a>    ///  - `reason`: A more detailed identifier describing the rule or mechanism leading to the
+<a href=#701 id=701 data-nosnippet>701</a>    ///    outcome.
+<a href=#702 id=702 data-nosnippet>702</a>    ///  - `to`: Describes the destination of the outcome. Can be either 'kafka' (when in
+<a href=#703 id=703 data-nosnippet>703</a>    ///    processing mode) or 'http' (when outcomes are enabled in an external relay).
+<a href=#704 id=704 data-nosnippet>704</a>    ///
+<a href=#705 id=705 data-nosnippet>705</a>    /// Possible outcomes are:
+<a href=#706 id=706 data-nosnippet>706</a>    ///  - `filtered`: Dropped by inbound data filters. The reason specifies the filter that
+<a href=#707 id=707 data-nosnippet>707</a>    ///    matched.
+<a href=#708 id=708 data-nosnippet>708</a>    ///  - `rate_limited`: Dropped by organization, project, or DSN rate limit, as well as exceeding
+<a href=#709 id=709 data-nosnippet>709</a>    ///    the Sentry plan quota. The reason contains the rate limit or quota that was exceeded.
+<a href=#710 id=710 data-nosnippet>710</a>    ///  - `invalid`: Data was considered invalid and could not be recovered. The reason indicates
+<a href=#711 id=711 data-nosnippet>711</a>    ///    the validation that failed.
+<a href=#712 id=712 data-nosnippet>712</a>    </span>Outcomes,
+<a href=#713 id=713 data-nosnippet>713</a>    <span class="doccomment">/// Number of project state HTTP requests.
+<a href=#714 id=714 data-nosnippet>714</a>    ///
+<a href=#715 id=715 data-nosnippet>715</a>    /// Relay updates projects in batches. Every update cycle, Relay requests
+<a href=#716 id=716 data-nosnippet>716</a>    /// `limits.max_concurrent_queries` batches of `cache.batch_size` projects from the upstream.
+<a href=#717 id=717 data-nosnippet>717</a>    /// The duration of these requests is reported via `project_state.request.duration`.
+<a href=#718 id=718 data-nosnippet>718</a>    ///
+<a href=#719 id=719 data-nosnippet>719</a>    /// Note that after an update loop has completed, there may be more projects pending updates.
+<a href=#720 id=720 data-nosnippet>720</a>    /// This is indicated by `project_state.pending`.
+<a href=#721 id=721 data-nosnippet>721</a>    </span>ProjectStateRequest,
+<a href=#722 id=722 data-nosnippet>722</a>    <span class="doccomment">/// Number of times a project state is requested from the central Redis cache.
+<a href=#723 id=723 data-nosnippet>723</a>    ///
+<a href=#724 id=724 data-nosnippet>724</a>    /// This metric is tagged with:
+<a href=#725 id=725 data-nosnippet>725</a>    ///  - `hit`: One of:
+<a href=#726 id=726 data-nosnippet>726</a>    ///     - `revision`: the cached version was validated to be up to date using its revision.
+<a href=#727 id=727 data-nosnippet>727</a>    ///     - `project_config`: the request was handled by the cache.
+<a href=#728 id=728 data-nosnippet>728</a>    ///     - `project_config_revision`: the request was handled by the cache and the revision did
+<a href=#729 id=729 data-nosnippet>729</a>    ///       not change.
+<a href=#730 id=730 data-nosnippet>730</a>    ///     - `false`: the request will be sent to the sentry endpoint.
+<a href=#731 id=731 data-nosnippet>731</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#732 id=732 data-nosnippet>732</a>    </span>ProjectStateRedis,
+<a href=#733 id=733 data-nosnippet>733</a>    <span class="doccomment">/// Number of times a project had a fetch scheduled.
+<a href=#734 id=734 data-nosnippet>734</a>    </span>ProjectCacheSchedule,
+<a href=#735 id=735 data-nosnippet>735</a>    <span class="doccomment">/// Number of times an upstream request for a project config is completed.
+<a href=#736 id=736 data-nosnippet>736</a>    ///
+<a href=#737 id=737 data-nosnippet>737</a>    /// Completion can be because a result was returned or because the config request was
+<a href=#738 id=738 data-nosnippet>738</a>    /// dropped after there still was no response after a timeout.  This metrics has tags
+<a href=#739 id=739 data-nosnippet>739</a>    /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
+<a href=#740 id=740 data-nosnippet>740</a>    /// many attempts were made respectively.
+<a href=#741 id=741 data-nosnippet>741</a>    </span>ProjectUpstreamCompleted,
+<a href=#742 id=742 data-nosnippet>742</a>    <span class="doccomment">/// Number of times an upstream request for a project config failed.
+<a href=#743 id=743 data-nosnippet>743</a>    ///
+<a href=#744 id=744 data-nosnippet>744</a>    /// Failure can happen, for example, when there's a network error. Refer to
+<a href=#745 id=745 data-nosnippet>745</a>    /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
+<a href=#746 id=746 data-nosnippet>746</a>    </span>ProjectUpstreamFailed,
+<a href=#747 id=747 data-nosnippet>747</a>    <span class="doccomment">/// Number of Relay server starts.
+<a href=#748 id=748 data-nosnippet>748</a>    ///
+<a href=#749 id=749 data-nosnippet>749</a>    /// This can be used to track unwanted restarts due to crashes or termination.
+<a href=#750 id=750 data-nosnippet>750</a>    </span>ServerStarting,
+<a href=#751 id=751 data-nosnippet>751</a>    <span class="doccomment">/// Number of messages placed on the Kafka queues.
+<a href=#752 id=752 data-nosnippet>752</a>    ///
+<a href=#753 id=753 data-nosnippet>753</a>    /// When Relay operates as Sentry service and an Envelope item is successfully processed, each
+<a href=#754 id=754 data-nosnippet>754</a>    /// Envelope item results in a dedicated message on one of the ingestion topics on Kafka.
+<a href=#755 id=755 data-nosnippet>755</a>    ///
+<a href=#756 id=756 data-nosnippet>756</a>    /// This metric is tagged with:
+<a href=#757 id=757 data-nosnippet>757</a>    ///  - `event_type`: The kind of message produced to Kafka.
+<a href=#758 id=758 data-nosnippet>758</a>    ///  - `namespace` (only for metrics): The namespace that the metric belongs to.
+<a href=#759 id=759 data-nosnippet>759</a>    ///  - `is_segment` (only for event_type span): `true` the span is the root of a segment.
+<a href=#760 id=760 data-nosnippet>760</a>    ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
+<a href=#761 id=761 data-nosnippet>761</a>    ///  - `platform` (only for event_type span): The platform from which the span was spent.
+<a href=#762 id=762 data-nosnippet>762</a>    ///  - `metric_type` (only for event_type metric): The metric type, counter, distribution,
+<a href=#763 id=763 data-nosnippet>763</a>    ///    gauge or set.
+<a href=#764 id=764 data-nosnippet>764</a>    ///  - `metric_encoding` (only for event_type metric): The encoding used for distribution and
+<a href=#765 id=765 data-nosnippet>765</a>    ///    set metrics.
+<a href=#766 id=766 data-nosnippet>766</a>    ///
+<a href=#767 id=767 data-nosnippet>767</a>    /// The message types can be:
+<a href=#768 id=768 data-nosnippet>768</a>    ///
+<a href=#769 id=769 data-nosnippet>769</a>    ///  - `event`: An error or transaction event. Error events are sent to `ingest-events`,
+<a href=#770 id=770 data-nosnippet>770</a>    ///    transactions to `ingest-transactions`, and errors with attachments are sent to
+<a href=#771 id=771 data-nosnippet>771</a>    ///    `ingest-attachments`.
+<a href=#772 id=772 data-nosnippet>772</a>    ///  - `attachment`: An attachment file associated with an error event, sent to
+<a href=#773 id=773 data-nosnippet>773</a>    ///    `ingest-attachments`.
+<a href=#774 id=774 data-nosnippet>774</a>    ///  - `user_report`: A message from the user feedback dialog, sent to `ingest-events`.
+<a href=#775 id=775 data-nosnippet>775</a>    ///  - `session`: A release health session update, sent to `ingest-sessions`.
+<a href=#776 id=776 data-nosnippet>776</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#777 id=777 data-nosnippet>777</a>    </span>ProcessingMessageProduced,
+<a href=#778 id=778 data-nosnippet>778</a>    <span class="doccomment">/// Number of events that hit any of the store-like endpoints: Envelope, Store, Security,
+<a href=#779 id=779 data-nosnippet>779</a>    /// Minidump, Unreal.
+<a href=#780 id=780 data-nosnippet>780</a>    ///
+<a href=#781 id=781 data-nosnippet>781</a>    /// The events are counted before they are rate limited, filtered, or processed in any way.
+<a href=#782 id=782 data-nosnippet>782</a>    ///
+<a href=#783 id=783 data-nosnippet>783</a>    /// This metric is tagged with:
+<a href=#784 id=784 data-nosnippet>784</a>    ///  - `version`: The event protocol version number defaulting to `7`.
+<a href=#785 id=785 data-nosnippet>785</a>    </span>EventProtocol,
+<a href=#786 id=786 data-nosnippet>786</a>    <span class="doccomment">/// The number of transaction events processed by the source of the transaction name.
+<a href=#787 id=787 data-nosnippet>787</a>    ///
+<a href=#788 id=788 data-nosnippet>788</a>    /// This metric is tagged with:
+<a href=#789 id=789 data-nosnippet>789</a>    ///  - `platform`: The event's platform, such as `"javascript"`.
+<a href=#790 id=790 data-nosnippet>790</a>    ///  - `source`: The source of the transaction name on the client. See the [transaction source
+<a href=#791 id=791 data-nosnippet>791</a>    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
+<a href=#792 id=792 data-nosnippet>792</a>    ///    for all valid values.
+<a href=#793 id=793 data-nosnippet>793</a>    ///  - `contains_slashes`: Whether the transaction name contains `/`. We use this as a heuristic
+<a href=#794 id=794 data-nosnippet>794</a>    ///    to represent URL transactions.
+<a href=#795 id=795 data-nosnippet>795</a>    </span>EventTransaction,
+<a href=#796 id=796 data-nosnippet>796</a>    <span class="doccomment">/// The number of transaction events processed grouped by transaction name modifications.
+<a href=#797 id=797 data-nosnippet>797</a>    /// This metric is tagged with:
+<a href=#798 id=798 data-nosnippet>798</a>    ///  - `source_in`: The source of the transaction name before normalization.
+<a href=#799 id=799 data-nosnippet>799</a>    ///    See the [transaction source
+<a href=#800 id=800 data-nosnippet>800</a>    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
+<a href=#801 id=801 data-nosnippet>801</a>    ///    for all valid values.
+<a href=#802 id=802 data-nosnippet>802</a>    ///  - `change`: The mechanism that changed the transaction name.
+<a href=#803 id=803 data-nosnippet>803</a>    ///    Either `"none"`, `"pattern"`, `"rule"`, or `"both"`.
+<a href=#804 id=804 data-nosnippet>804</a>    ///  - `source_out`: The source of the transaction name after normalization.
+<a href=#805 id=805 data-nosnippet>805</a>    </span>TransactionNameChanges,
+<a href=#806 id=806 data-nosnippet>806</a>    <span class="doccomment">/// Number of HTTP requests reaching Relay.
+<a href=#807 id=807 data-nosnippet>807</a>    </span>Requests,
+<a href=#808 id=808 data-nosnippet>808</a>    <span class="doccomment">/// Number of completed HTTP requests.
+<a href=#809 id=809 data-nosnippet>809</a>    ///
+<a href=#810 id=810 data-nosnippet>810</a>    /// This metric is tagged with:
 <a href=#811 id=811 data-nosnippet>811</a>    ///
-<a href=#812 id=812 data-nosnippet>812</a>    /// Relay scans the in-memory project cache for stale entries in a regular interval configured
-<a href=#813 id=813 data-nosnippet>813</a>    /// by `cache.eviction_interval`.
-<a href=#814 id=814 data-nosnippet>814</a>    ///
-<a href=#815 id=815 data-nosnippet>815</a>    /// The cache duration for project states can be configured with the following options:
-<a href=#816 id=816 data-nosnippet>816</a>    ///
-<a href=#817 id=817 data-nosnippet>817</a>    ///  - `cache.project_expiry`: The time after which a project state counts as expired. It is
-<a href=#818 id=818 data-nosnippet>818</a>    ///    automatically refreshed if a request references the project after it has expired.
-<a href=#819 id=819 data-nosnippet>819</a>    ///  - `cache.project_grace_period`: The time after expiry at which the project state will still
-<a href=#820 id=820 data-nosnippet>820</a>    ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
-<a href=#821 id=821 data-nosnippet>821</a>    ///    requests wait for an update.
-<a href=#822 id=822 data-nosnippet>822</a>    </span>EvictingStaleProjectCaches,
-<a href=#823 id=823 data-nosnippet>823</a>    <span class="doccomment">/// Number of times that parsing a metrics bucket item from an envelope failed.
-<a href=#824 id=824 data-nosnippet>824</a>    </span>MetricBucketsParsingFailed,
-<a href=#825 id=825 data-nosnippet>825</a>    <span class="doccomment">/// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
-<a href=#826 id=826 data-nosnippet>826</a>    </span>MetricsTransactionNameExtracted,
-<a href=#827 id=827 data-nosnippet>827</a>    <span class="doccomment">/// Number of Events with an OpenTelemetry Context
-<a href=#828 id=828 data-nosnippet>828</a>    ///
-<a href=#829 id=829 data-nosnippet>829</a>    /// This metric is tagged with:
-<a href=#830 id=830 data-nosnippet>830</a>    ///  - `platform`: The event's platform, such as `"javascript"`.
-<a href=#831 id=831 data-nosnippet>831</a>    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
-<a href=#832 id=832 data-nosnippet>832</a>    ///    Sentry's SDKs and defaults to "proprietary".
-<a href=#833 id=833 data-nosnippet>833</a>    </span>OpenTelemetryEvent,
-<a href=#834 id=834 data-nosnippet>834</a>    <span class="doccomment">/// Number of global config fetches from upstream. Only 2XX responses are
-<a href=#835 id=835 data-nosnippet>835</a>    /// considered and ignores send errors (e.g. auth or network errors).
-<a href=#836 id=836 data-nosnippet>836</a>    ///
-<a href=#837 id=837 data-nosnippet>837</a>    /// This metric is tagged with:
-<a href=#838 id=838 data-nosnippet>838</a>    ///  - `success`: whether deserializing the global config succeeded.
-<a href=#839 id=839 data-nosnippet>839</a>    </span>GlobalConfigFetched,
-<a href=#840 id=840 data-nosnippet>840</a>    <span class="doccomment">/// The number of attachments processed in the same envelope as a user_report_v2 event.
-<a href=#841 id=841 data-nosnippet>841</a>    </span>FeedbackAttachments,
-<a href=#842 id=842 data-nosnippet>842</a>    <span class="doccomment">/// All COGS tracked values.
-<a href=#843 id=843 data-nosnippet>843</a>    ///
-<a href=#844 id=844 data-nosnippet>844</a>    /// This metric is tagged with:
-<a href=#845 id=845 data-nosnippet>845</a>    /// - `resource_id`: The COGS resource id.
-<a href=#846 id=846 data-nosnippet>846</a>    /// - `app_feature`: The COGS app feature.
-<a href=#847 id=847 data-nosnippet>847</a>    </span>CogsUsage,
-<a href=#848 id=848 data-nosnippet>848</a>    <span class="doccomment">/// The amount of times metrics of a project have been flushed without the project being
-<a href=#849 id=849 data-nosnippet>849</a>    /// fetched/available.
-<a href=#850 id=850 data-nosnippet>850</a>    </span>ProjectStateFlushMetricsNoProject,
-<a href=#851 id=851 data-nosnippet>851</a>    <span class="doccomment">/// Incremented every time a bucket is dropped.
-<a href=#852 id=852 data-nosnippet>852</a>    ///
-<a href=#853 id=853 data-nosnippet>853</a>    /// This should only happen when a project state is invalid during graceful shutdown.
-<a href=#854 id=854 data-nosnippet>854</a>    ///
-<a href=#855 id=855 data-nosnippet>855</a>    /// This metric is tagged with:
-<a href=#856 id=856 data-nosnippet>856</a>    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-<a href=#857 id=857 data-nosnippet>857</a>    </span>BucketsDropped,
-<a href=#858 id=858 data-nosnippet>858</a>    <span class="doccomment">/// Incremented every time a segment exceeds the expected limit.
-<a href=#859 id=859 data-nosnippet>859</a>    </span>ReplayExceededSegmentLimit,
-<a href=#860 id=860 data-nosnippet>860</a>    <span class="doccomment">/// Incremented every time the server accepts a new connection.
-<a href=#861 id=861 data-nosnippet>861</a>    </span>ServerSocketAccept,
-<a href=#862 id=862 data-nosnippet>862</a>    <span class="doccomment">/// Incremented every time the server aborts a connection because of an idle timeout.
-<a href=#863 id=863 data-nosnippet>863</a>    </span>ServerConnectionIdleTimeout,
-<a href=#864 id=864 data-nosnippet>864</a>    <span class="doccomment">/// The total delay of metric buckets in seconds.
-<a href=#865 id=865 data-nosnippet>865</a>    ///
-<a href=#866 id=866 data-nosnippet>866</a>    /// The delay is measured from initial creation of the bucket in an internal Relay
-<a href=#867 id=867 data-nosnippet>867</a>    /// until it is produced to Kafka.
-<a href=#868 id=868 data-nosnippet>868</a>    ///
-<a href=#869 id=869 data-nosnippet>869</a>    /// Use [`Self::MetricDelayCount`] to calculate the average delay.
-<a href=#870 id=870 data-nosnippet>870</a>    ///
-<a href=#871 id=871 data-nosnippet>871</a>    /// This metric is tagged with:
-<a href=#872 id=872 data-nosnippet>872</a>    /// - `namespace`: the metric namespace.
-<a href=#873 id=873 data-nosnippet>873</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#874 id=874 data-nosnippet>874</a>    </span>MetricDelaySum,
-<a href=#875 id=875 data-nosnippet>875</a>    <span class="doccomment">/// The amount of buckets counted for the [`Self::MetricDelaySum`] metric.
+<a href=#812 id=812 data-nosnippet>812</a>    ///  - `status_code`: The HTTP status code number.
+<a href=#813 id=813 data-nosnippet>813</a>    ///  - `method`: The HTTP method used in the request in uppercase.
+<a href=#814 id=814 data-nosnippet>814</a>    ///  - `route`: Unique dashed identifier of the endpoint.
+<a href=#815 id=815 data-nosnippet>815</a>    </span>ResponsesStatusCodes,
+<a href=#816 id=816 data-nosnippet>816</a>    <span class="doccomment">/// Number of evicted stale projects from the cache.
+<a href=#817 id=817 data-nosnippet>817</a>    ///
+<a href=#818 id=818 data-nosnippet>818</a>    /// Relay scans the in-memory project cache for stale entries in a regular interval configured
+<a href=#819 id=819 data-nosnippet>819</a>    /// by `cache.eviction_interval`.
+<a href=#820 id=820 data-nosnippet>820</a>    ///
+<a href=#821 id=821 data-nosnippet>821</a>    /// The cache duration for project states can be configured with the following options:
+<a href=#822 id=822 data-nosnippet>822</a>    ///
+<a href=#823 id=823 data-nosnippet>823</a>    ///  - `cache.project_expiry`: The time after which a project state counts as expired. It is
+<a href=#824 id=824 data-nosnippet>824</a>    ///    automatically refreshed if a request references the project after it has expired.
+<a href=#825 id=825 data-nosnippet>825</a>    ///  - `cache.project_grace_period`: The time after expiry at which the project state will still
+<a href=#826 id=826 data-nosnippet>826</a>    ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
+<a href=#827 id=827 data-nosnippet>827</a>    ///    requests wait for an update.
+<a href=#828 id=828 data-nosnippet>828</a>    </span>EvictingStaleProjectCaches,
+<a href=#829 id=829 data-nosnippet>829</a>    <span class="doccomment">/// Number of times that parsing a metrics bucket item from an envelope failed.
+<a href=#830 id=830 data-nosnippet>830</a>    </span>MetricBucketsParsingFailed,
+<a href=#831 id=831 data-nosnippet>831</a>    <span class="doccomment">/// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
+<a href=#832 id=832 data-nosnippet>832</a>    </span>MetricsTransactionNameExtracted,
+<a href=#833 id=833 data-nosnippet>833</a>    <span class="doccomment">/// Number of Events with an OpenTelemetry Context
+<a href=#834 id=834 data-nosnippet>834</a>    ///
+<a href=#835 id=835 data-nosnippet>835</a>    /// This metric is tagged with:
+<a href=#836 id=836 data-nosnippet>836</a>    ///  - `platform`: The event's platform, such as `"javascript"`.
+<a href=#837 id=837 data-nosnippet>837</a>    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
+<a href=#838 id=838 data-nosnippet>838</a>    ///    Sentry's SDKs and defaults to "proprietary".
+<a href=#839 id=839 data-nosnippet>839</a>    </span>OpenTelemetryEvent,
+<a href=#840 id=840 data-nosnippet>840</a>    <span class="doccomment">/// Number of global config fetches from upstream. Only 2XX responses are
+<a href=#841 id=841 data-nosnippet>841</a>    /// considered and ignores send errors (e.g. auth or network errors).
+<a href=#842 id=842 data-nosnippet>842</a>    ///
+<a href=#843 id=843 data-nosnippet>843</a>    /// This metric is tagged with:
+<a href=#844 id=844 data-nosnippet>844</a>    ///  - `success`: whether deserializing the global config succeeded.
+<a href=#845 id=845 data-nosnippet>845</a>    </span>GlobalConfigFetched,
+<a href=#846 id=846 data-nosnippet>846</a>    <span class="doccomment">/// The number of attachments processed in the same envelope as a user_report_v2 event.
+<a href=#847 id=847 data-nosnippet>847</a>    </span>FeedbackAttachments,
+<a href=#848 id=848 data-nosnippet>848</a>    <span class="doccomment">/// All COGS tracked values.
+<a href=#849 id=849 data-nosnippet>849</a>    ///
+<a href=#850 id=850 data-nosnippet>850</a>    /// This metric is tagged with:
+<a href=#851 id=851 data-nosnippet>851</a>    /// - `resource_id`: The COGS resource id.
+<a href=#852 id=852 data-nosnippet>852</a>    /// - `app_feature`: The COGS app feature.
+<a href=#853 id=853 data-nosnippet>853</a>    </span>CogsUsage,
+<a href=#854 id=854 data-nosnippet>854</a>    <span class="doccomment">/// The amount of times metrics of a project have been flushed without the project being
+<a href=#855 id=855 data-nosnippet>855</a>    /// fetched/available.
+<a href=#856 id=856 data-nosnippet>856</a>    </span>ProjectStateFlushMetricsNoProject,
+<a href=#857 id=857 data-nosnippet>857</a>    <span class="doccomment">/// Incremented every time a bucket is dropped.
+<a href=#858 id=858 data-nosnippet>858</a>    ///
+<a href=#859 id=859 data-nosnippet>859</a>    /// This should only happen when a project state is invalid during graceful shutdown.
+<a href=#860 id=860 data-nosnippet>860</a>    ///
+<a href=#861 id=861 data-nosnippet>861</a>    /// This metric is tagged with:
+<a href=#862 id=862 data-nosnippet>862</a>    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+<a href=#863 id=863 data-nosnippet>863</a>    </span>BucketsDropped,
+<a href=#864 id=864 data-nosnippet>864</a>    <span class="doccomment">/// Incremented every time a segment exceeds the expected limit.
+<a href=#865 id=865 data-nosnippet>865</a>    </span>ReplayExceededSegmentLimit,
+<a href=#866 id=866 data-nosnippet>866</a>    <span class="doccomment">/// Incremented every time the server accepts a new connection.
+<a href=#867 id=867 data-nosnippet>867</a>    </span>ServerSocketAccept,
+<a href=#868 id=868 data-nosnippet>868</a>    <span class="doccomment">/// Incremented every time the server aborts a connection because of an idle timeout.
+<a href=#869 id=869 data-nosnippet>869</a>    </span>ServerConnectionIdleTimeout,
+<a href=#870 id=870 data-nosnippet>870</a>    <span class="doccomment">/// The total delay of metric buckets in seconds.
+<a href=#871 id=871 data-nosnippet>871</a>    ///
+<a href=#872 id=872 data-nosnippet>872</a>    /// The delay is measured from initial creation of the bucket in an internal Relay
+<a href=#873 id=873 data-nosnippet>873</a>    /// until it is produced to Kafka.
+<a href=#874 id=874 data-nosnippet>874</a>    ///
+<a href=#875 id=875 data-nosnippet>875</a>    /// Use [`Self::MetricDelayCount`] to calculate the average delay.
 <a href=#876 id=876 data-nosnippet>876</a>    ///
 <a href=#877 id=877 data-nosnippet>877</a>    /// This metric is tagged with:
 <a href=#878 id=878 data-nosnippet>878</a>    /// - `namespace`: the metric namespace.
 <a href=#879 id=879 data-nosnippet>879</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#880 id=880 data-nosnippet>880</a>    </span>MetricDelayCount,
-<a href=#881 id=881 data-nosnippet>881</a>    <span class="doccomment">/// The amount of times PlayStation processing was attempted.
-<a href=#882 id=882 data-nosnippet>882</a>    </span><span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
-<a href=#883 id=883 data-nosnippet>883</a>    </span>PlaystationProcessing,
-<a href=#884 id=884 data-nosnippet>884</a>}
-<a href=#885 id=885 data-nosnippet>885</a>
-<a href=#886 id=886 data-nosnippet>886</a><span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
-<a href=#887 id=887 data-nosnippet>887</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#888 id=888 data-nosnippet>888</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#889 id=889 data-nosnippet>889</a>            RelayCounters::AsyncPoolFinishedTasks =&gt; <span class="string">"async_pool.finished_tasks"</span>,
-<a href=#890 id=890 data-nosnippet>890</a>            RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
-<a href=#891 id=891 data-nosnippet>891</a>            RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
-<a href=#892 id=892 data-nosnippet>892</a>            RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
-<a href=#893 id=893 data-nosnippet>893</a>            RelayCounters::EnvelopeItems =&gt; <span class="string">"event.items"</span>,
-<a href=#894 id=894 data-nosnippet>894</a>            RelayCounters::EnvelopeItemBytes =&gt; <span class="string">"event.item_bytes"</span>,
-<a href=#895 id=895 data-nosnippet>895</a>            RelayCounters::BufferTryPop =&gt; <span class="string">"buffer.try_pop"</span>,
-<a href=#896 id=896 data-nosnippet>896</a>            RelayCounters::BufferSpooledEnvelopes =&gt; <span class="string">"buffer.spooled_envelopes"</span>,
-<a href=#897 id=897 data-nosnippet>897</a>            RelayCounters::BufferUnspooledEnvelopes =&gt; <span class="string">"buffer.unspooled_envelopes"</span>,
-<a href=#898 id=898 data-nosnippet>898</a>            RelayCounters::BufferProjectChangedEvent =&gt; <span class="string">"buffer.project_changed_event"</span>,
-<a href=#899 id=899 data-nosnippet>899</a>            RelayCounters::BufferProjectPending =&gt; <span class="string">"buffer.project_pending"</span>,
-<a href=#900 id=900 data-nosnippet>900</a>            RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
-<a href=#901 id=901 data-nosnippet>901</a>            RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,
-<a href=#902 id=902 data-nosnippet>902</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#903 id=903 data-nosnippet>903</a>            </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">"project_state.redis.requests"</span>,
-<a href=#904 id=904 data-nosnippet>904</a>            RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">"project_upstream.completed"</span>,
-<a href=#905 id=905 data-nosnippet>905</a>            RelayCounters::ProjectUpstreamFailed =&gt; <span class="string">"project_upstream.failed"</span>,
-<a href=#906 id=906 data-nosnippet>906</a>            RelayCounters::ProjectCacheSchedule =&gt; <span class="string">"project_cache.schedule"</span>,
-<a href=#907 id=907 data-nosnippet>907</a>            RelayCounters::ServerStarting =&gt; <span class="string">"server.starting"</span>,
+<a href=#880 id=880 data-nosnippet>880</a>    </span>MetricDelaySum,
+<a href=#881 id=881 data-nosnippet>881</a>    <span class="doccomment">/// The amount of buckets counted for the [`Self::MetricDelaySum`] metric.
+<a href=#882 id=882 data-nosnippet>882</a>    ///
+<a href=#883 id=883 data-nosnippet>883</a>    /// This metric is tagged with:
+<a href=#884 id=884 data-nosnippet>884</a>    /// - `namespace`: the metric namespace.
+<a href=#885 id=885 data-nosnippet>885</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#886 id=886 data-nosnippet>886</a>    </span>MetricDelayCount,
+<a href=#887 id=887 data-nosnippet>887</a>    <span class="doccomment">/// The amount of times PlayStation processing was attempted.
+<a href=#888 id=888 data-nosnippet>888</a>    </span><span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
+<a href=#889 id=889 data-nosnippet>889</a>    </span>PlaystationProcessing,
+<a href=#890 id=890 data-nosnippet>890</a>}
+<a href=#891 id=891 data-nosnippet>891</a>
+<a href=#892 id=892 data-nosnippet>892</a><span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
+<a href=#893 id=893 data-nosnippet>893</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#895 id=895 data-nosnippet>895</a>            RelayCounters::AsyncPoolFinishedTasks =&gt; <span class="string">"async_pool.finished_tasks"</span>,
+<a href=#896 id=896 data-nosnippet>896</a>            RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
+<a href=#897 id=897 data-nosnippet>897</a>            RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
+<a href=#898 id=898 data-nosnippet>898</a>            RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
+<a href=#899 id=899 data-nosnippet>899</a>            RelayCounters::EnvelopeItems =&gt; <span class="string">"event.items"</span>,
+<a href=#900 id=900 data-nosnippet>900</a>            RelayCounters::EnvelopeItemBytes =&gt; <span class="string">"event.item_bytes"</span>,
+<a href=#901 id=901 data-nosnippet>901</a>            RelayCounters::BufferTryPop =&gt; <span class="string">"buffer.try_pop"</span>,
+<a href=#902 id=902 data-nosnippet>902</a>            RelayCounters::BufferSpooledEnvelopes =&gt; <span class="string">"buffer.spooled_envelopes"</span>,
+<a href=#903 id=903 data-nosnippet>903</a>            RelayCounters::BufferUnspooledEnvelopes =&gt; <span class="string">"buffer.unspooled_envelopes"</span>,
+<a href=#904 id=904 data-nosnippet>904</a>            RelayCounters::BufferProjectChangedEvent =&gt; <span class="string">"buffer.project_changed_event"</span>,
+<a href=#905 id=905 data-nosnippet>905</a>            RelayCounters::BufferProjectPending =&gt; <span class="string">"buffer.project_pending"</span>,
+<a href=#906 id=906 data-nosnippet>906</a>            RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
+<a href=#907 id=907 data-nosnippet>907</a>            RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,
 <a href=#908 id=908 data-nosnippet>908</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#909 id=909 data-nosnippet>909</a>            </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">"processing.event.produced"</span>,
-<a href=#910 id=910 data-nosnippet>910</a>            RelayCounters::EventProtocol =&gt; <span class="string">"event.protocol"</span>,
-<a href=#911 id=911 data-nosnippet>911</a>            RelayCounters::EventTransaction =&gt; <span class="string">"event.transaction"</span>,
-<a href=#912 id=912 data-nosnippet>912</a>            RelayCounters::TransactionNameChanges =&gt; <span class="string">"event.transaction_name_changes"</span>,
-<a href=#913 id=913 data-nosnippet>913</a>            RelayCounters::Requests =&gt; <span class="string">"requests"</span>,
-<a href=#914 id=914 data-nosnippet>914</a>            RelayCounters::ResponsesStatusCodes =&gt; <span class="string">"responses.status_codes"</span>,
-<a href=#915 id=915 data-nosnippet>915</a>            RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">"project_cache.eviction"</span>,
-<a href=#916 id=916 data-nosnippet>916</a>            RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">"metrics.buckets.parsing_failed"</span>,
-<a href=#917 id=917 data-nosnippet>917</a>            RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">"metrics.transaction_name"</span>,
-<a href=#918 id=918 data-nosnippet>918</a>            RelayCounters::OpenTelemetryEvent =&gt; <span class="string">"event.opentelemetry"</span>,
-<a href=#919 id=919 data-nosnippet>919</a>            RelayCounters::GlobalConfigFetched =&gt; <span class="string">"global_config.fetch"</span>,
-<a href=#920 id=920 data-nosnippet>920</a>            RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
-<a href=#921 id=921 data-nosnippet>921</a>            RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
-<a href=#922 id=922 data-nosnippet>922</a>            RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
-<a href=#923 id=923 data-nosnippet>923</a>            RelayCounters::BucketsDropped =&gt; <span class="string">"metrics.buckets.dropped"</span>,
-<a href=#924 id=924 data-nosnippet>924</a>            RelayCounters::ReplayExceededSegmentLimit =&gt; <span class="string">"replay.segment_limit_exceeded"</span>,
-<a href=#925 id=925 data-nosnippet>925</a>            RelayCounters::ServerSocketAccept =&gt; <span class="string">"server.http.accepted"</span>,
-<a href=#926 id=926 data-nosnippet>926</a>            RelayCounters::ServerConnectionIdleTimeout =&gt; <span class="string">"server.http.idle_timeout"</span>,
-<a href=#927 id=927 data-nosnippet>927</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#928 id=928 data-nosnippet>928</a>            </span>RelayCounters::MetricDelaySum =&gt; <span class="string">"metrics.delay.sum"</span>,
-<a href=#929 id=929 data-nosnippet>929</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#930 id=930 data-nosnippet>930</a>            </span>RelayCounters::MetricDelayCount =&gt; <span class="string">"metrics.delay.count"</span>,
-<a href=#931 id=931 data-nosnippet>931</a>            <span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
-<a href=#932 id=932 data-nosnippet>932</a>            </span>RelayCounters::PlaystationProcessing =&gt; <span class="string">"processing.playstation"</span>,
-<a href=#933 id=933 data-nosnippet>933</a>        }
-<a href=#934 id=934 data-nosnippet>934</a>    }
-<a href=#935 id=935 data-nosnippet>935</a>}
-<a href=#936 id=936 data-nosnippet>936</a>
-<a href=#937 id=937 data-nosnippet>937</a><span class="doccomment">/// Low-cardinality platform that can be used as a statsd tag.
-<a href=#938 id=938 data-nosnippet>938</a></span><span class="kw">pub enum </span>PlatformTag {
-<a href=#939 id=939 data-nosnippet>939</a>    Cocoa,
-<a href=#940 id=940 data-nosnippet>940</a>    Csharp,
-<a href=#941 id=941 data-nosnippet>941</a>    Edge,
-<a href=#942 id=942 data-nosnippet>942</a>    Go,
-<a href=#943 id=943 data-nosnippet>943</a>    Java,
-<a href=#944 id=944 data-nosnippet>944</a>    Javascript,
-<a href=#945 id=945 data-nosnippet>945</a>    Julia,
-<a href=#946 id=946 data-nosnippet>946</a>    Native,
-<a href=#947 id=947 data-nosnippet>947</a>    Node,
-<a href=#948 id=948 data-nosnippet>948</a>    Objc,
-<a href=#949 id=949 data-nosnippet>949</a>    Other,
-<a href=#950 id=950 data-nosnippet>950</a>    Perl,
-<a href=#951 id=951 data-nosnippet>951</a>    Php,
-<a href=#952 id=952 data-nosnippet>952</a>    Python,
-<a href=#953 id=953 data-nosnippet>953</a>    Ruby,
-<a href=#954 id=954 data-nosnippet>954</a>    Swift,
-<a href=#955 id=955 data-nosnippet>955</a>}
-<a href=#956 id=956 data-nosnippet>956</a>
-<a href=#957 id=957 data-nosnippet>957</a><span class="kw">impl </span>PlatformTag {
-<a href=#958 id=958 data-nosnippet>958</a>    <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-<a href=#959 id=959 data-nosnippet>959</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#960 id=960 data-nosnippet>960</a>            <span class="self">Self</span>::Cocoa =&gt; <span class="string">"cocoa"</span>,
-<a href=#961 id=961 data-nosnippet>961</a>            <span class="self">Self</span>::Csharp =&gt; <span class="string">"csharp"</span>,
-<a href=#962 id=962 data-nosnippet>962</a>            <span class="self">Self</span>::Edge =&gt; <span class="string">"edge"</span>,
-<a href=#963 id=963 data-nosnippet>963</a>            <span class="self">Self</span>::Go =&gt; <span class="string">"go"</span>,
-<a href=#964 id=964 data-nosnippet>964</a>            <span class="self">Self</span>::Java =&gt; <span class="string">"java"</span>,
-<a href=#965 id=965 data-nosnippet>965</a>            <span class="self">Self</span>::Javascript =&gt; <span class="string">"javascript"</span>,
-<a href=#966 id=966 data-nosnippet>966</a>            <span class="self">Self</span>::Julia =&gt; <span class="string">"julia"</span>,
-<a href=#967 id=967 data-nosnippet>967</a>            <span class="self">Self</span>::Native =&gt; <span class="string">"native"</span>,
-<a href=#968 id=968 data-nosnippet>968</a>            <span class="self">Self</span>::Node =&gt; <span class="string">"node"</span>,
-<a href=#969 id=969 data-nosnippet>969</a>            <span class="self">Self</span>::Objc =&gt; <span class="string">"objc"</span>,
-<a href=#970 id=970 data-nosnippet>970</a>            <span class="self">Self</span>::Other =&gt; <span class="string">"other"</span>,
-<a href=#971 id=971 data-nosnippet>971</a>            <span class="self">Self</span>::Perl =&gt; <span class="string">"perl"</span>,
-<a href=#972 id=972 data-nosnippet>972</a>            <span class="self">Self</span>::Php =&gt; <span class="string">"php"</span>,
-<a href=#973 id=973 data-nosnippet>973</a>            <span class="self">Self</span>::Python =&gt; <span class="string">"python"</span>,
-<a href=#974 id=974 data-nosnippet>974</a>            <span class="self">Self</span>::Ruby =&gt; <span class="string">"ruby"</span>,
-<a href=#975 id=975 data-nosnippet>975</a>            <span class="self">Self</span>::Swift =&gt; <span class="string">"swift"</span>,
-<a href=#976 id=976 data-nosnippet>976</a>        }
-<a href=#977 id=977 data-nosnippet>977</a>    }
-<a href=#978 id=978 data-nosnippet>978</a>}
-<a href=#979 id=979 data-nosnippet>979</a>
-<a href=#980 id=980 data-nosnippet>980</a><span class="kw">impl</span>&lt;S: AsRef&lt;str&gt;&gt; From&lt;S&gt; <span class="kw">for </span>PlatformTag {
-<a href=#981 id=981 data-nosnippet>981</a>    <span class="kw">fn </span>from(value: S) -&gt; <span class="self">Self </span>{
-<a href=#982 id=982 data-nosnippet>982</a>        <span class="kw">match </span>value.as_ref() {
-<a href=#983 id=983 data-nosnippet>983</a>            <span class="string">"cocoa" </span>=&gt; <span class="self">Self</span>::Cocoa,
-<a href=#984 id=984 data-nosnippet>984</a>            <span class="string">"csharp" </span>=&gt; <span class="self">Self</span>::Csharp,
-<a href=#985 id=985 data-nosnippet>985</a>            <span class="string">"edge" </span>=&gt; <span class="self">Self</span>::Edge,
-<a href=#986 id=986 data-nosnippet>986</a>            <span class="string">"go" </span>=&gt; <span class="self">Self</span>::Go,
-<a href=#987 id=987 data-nosnippet>987</a>            <span class="string">"java" </span>=&gt; <span class="self">Self</span>::Java,
-<a href=#988 id=988 data-nosnippet>988</a>            <span class="string">"javascript" </span>=&gt; <span class="self">Self</span>::Javascript,
-<a href=#989 id=989 data-nosnippet>989</a>            <span class="string">"julia" </span>=&gt; <span class="self">Self</span>::Julia,
-<a href=#990 id=990 data-nosnippet>990</a>            <span class="string">"native" </span>=&gt; <span class="self">Self</span>::Native,
-<a href=#991 id=991 data-nosnippet>991</a>            <span class="string">"node" </span>=&gt; <span class="self">Self</span>::Node,
-<a href=#992 id=992 data-nosnippet>992</a>            <span class="string">"objc" </span>=&gt; <span class="self">Self</span>::Objc,
-<a href=#993 id=993 data-nosnippet>993</a>            <span class="string">"perl" </span>=&gt; <span class="self">Self</span>::Perl,
-<a href=#994 id=994 data-nosnippet>994</a>            <span class="string">"php" </span>=&gt; <span class="self">Self</span>::Php,
-<a href=#995 id=995 data-nosnippet>995</a>            <span class="string">"python" </span>=&gt; <span class="self">Self</span>::Python,
-<a href=#996 id=996 data-nosnippet>996</a>            <span class="string">"ruby" </span>=&gt; <span class="self">Self</span>::Ruby,
-<a href=#997 id=997 data-nosnippet>997</a>            <span class="string">"swift" </span>=&gt; <span class="self">Self</span>::Swift,
-<a href=#998 id=998 data-nosnippet>998</a>            <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Other,
-<a href=#999 id=999 data-nosnippet>999</a>        }
-<a href=#1000 id=1000 data-nosnippet>1000</a>    }
-<a href=#1001 id=1001 data-nosnippet>1001</a>}
-<a href=#1002 id=1002 data-nosnippet>1002</a>
-<a href=#1003 id=1003 data-nosnippet>1003</a><span class="doccomment">/// Low-cardinality SDK name that can be used as a statsd tag.
-<a href=#1004 id=1004 data-nosnippet>1004</a></span><span class="kw">pub enum </span>ClientName&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#1005 id=1005 data-nosnippet>1005</a>    Ruby,
-<a href=#1006 id=1006 data-nosnippet>1006</a>    CocoaFlutter,
-<a href=#1007 id=1007 data-nosnippet>1007</a>    CocoaReactNative,
-<a href=#1008 id=1008 data-nosnippet>1008</a>    Cocoa,
-<a href=#1009 id=1009 data-nosnippet>1009</a>    Dotnet,
-<a href=#1010 id=1010 data-nosnippet>1010</a>    AndroidReactNative,
-<a href=#1011 id=1011 data-nosnippet>1011</a>    AndroidJava,
-<a href=#1012 id=1012 data-nosnippet>1012</a>    SpringBoot,
-<a href=#1013 id=1013 data-nosnippet>1013</a>    JavascriptBrowser,
-<a href=#1014 id=1014 data-nosnippet>1014</a>    Electron,
-<a href=#1015 id=1015 data-nosnippet>1015</a>    NestJs,
-<a href=#1016 id=1016 data-nosnippet>1016</a>    NextJs,
-<a href=#1017 id=1017 data-nosnippet>1017</a>    Node,
-<a href=#1018 id=1018 data-nosnippet>1018</a>    React,
-<a href=#1019 id=1019 data-nosnippet>1019</a>    Vue,
-<a href=#1020 id=1020 data-nosnippet>1020</a>    Native,
-<a href=#1021 id=1021 data-nosnippet>1021</a>    Laravel,
-<a href=#1022 id=1022 data-nosnippet>1022</a>    Symfony,
-<a href=#1023 id=1023 data-nosnippet>1023</a>    Php,
-<a href=#1024 id=1024 data-nosnippet>1024</a>    Python,
-<a href=#1025 id=1025 data-nosnippet>1025</a>    Other(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str),
-<a href=#1026 id=1026 data-nosnippet>1026</a>}
-<a href=#1027 id=1027 data-nosnippet>1027</a>
-<a href=#1028 id=1028 data-nosnippet>1028</a><span class="kw">impl </span>ClientName&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1029 id=1029 data-nosnippet>1029</a>    <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#1030 id=1030 data-nosnippet>1030</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#1031 id=1031 data-nosnippet>1031</a>            <span class="self">Self</span>::Ruby =&gt; <span class="string">"sentry-ruby"</span>,
-<a href=#1032 id=1032 data-nosnippet>1032</a>            <span class="self">Self</span>::CocoaFlutter =&gt; <span class="string">"sentry.cocoa.flutter"</span>,
-<a href=#1033 id=1033 data-nosnippet>1033</a>            <span class="self">Self</span>::CocoaReactNative =&gt; <span class="string">"sentry.cocoa.react-native"</span>,
-<a href=#1034 id=1034 data-nosnippet>1034</a>            <span class="self">Self</span>::Cocoa =&gt; <span class="string">"sentry.cocoa"</span>,
-<a href=#1035 id=1035 data-nosnippet>1035</a>            <span class="self">Self</span>::Dotnet =&gt; <span class="string">"sentry.dotnet"</span>,
-<a href=#1036 id=1036 data-nosnippet>1036</a>            <span class="self">Self</span>::AndroidReactNative =&gt; <span class="string">"sentry.java.android.react-native"</span>,
-<a href=#1037 id=1037 data-nosnippet>1037</a>            <span class="self">Self</span>::AndroidJava =&gt; <span class="string">"sentry.java.android"</span>,
-<a href=#1038 id=1038 data-nosnippet>1038</a>            <span class="self">Self</span>::SpringBoot =&gt; <span class="string">"sentry.java.spring-boot.jakarta"</span>,
-<a href=#1039 id=1039 data-nosnippet>1039</a>            <span class="self">Self</span>::JavascriptBrowser =&gt; <span class="string">"sentry.javascript.browser"</span>,
-<a href=#1040 id=1040 data-nosnippet>1040</a>            <span class="self">Self</span>::Electron =&gt; <span class="string">"sentry.javascript.electron"</span>,
-<a href=#1041 id=1041 data-nosnippet>1041</a>            <span class="self">Self</span>::NestJs =&gt; <span class="string">"sentry.javascript.nestjs"</span>,
-<a href=#1042 id=1042 data-nosnippet>1042</a>            <span class="self">Self</span>::NextJs =&gt; <span class="string">"sentry.javascript.nextjs"</span>,
-<a href=#1043 id=1043 data-nosnippet>1043</a>            <span class="self">Self</span>::Node =&gt; <span class="string">"sentry.javascript.node"</span>,
-<a href=#1044 id=1044 data-nosnippet>1044</a>            <span class="self">Self</span>::React =&gt; <span class="string">"sentry.javascript.react"</span>,
-<a href=#1045 id=1045 data-nosnippet>1045</a>            <span class="self">Self</span>::Vue =&gt; <span class="string">"sentry.javascript.vue"</span>,
-<a href=#1046 id=1046 data-nosnippet>1046</a>            <span class="self">Self</span>::Native =&gt; <span class="string">"sentry.native"</span>,
-<a href=#1047 id=1047 data-nosnippet>1047</a>            <span class="self">Self</span>::Laravel =&gt; <span class="string">"sentry.php.laravel"</span>,
-<a href=#1048 id=1048 data-nosnippet>1048</a>            <span class="self">Self</span>::Symfony =&gt; <span class="string">"sentry.php.symfony"</span>,
-<a href=#1049 id=1049 data-nosnippet>1049</a>            <span class="self">Self</span>::Php =&gt; <span class="string">"sentry.php"</span>,
-<a href=#1050 id=1050 data-nosnippet>1050</a>            <span class="self">Self</span>::Python =&gt; <span class="string">"sentry.python"</span>,
-<a href=#1051 id=1051 data-nosnippet>1051</a>            <span class="self">Self</span>::Other(<span class="kw">_</span>) =&gt; <span class="string">"other"</span>,
-<a href=#1052 id=1052 data-nosnippet>1052</a>        }
-<a href=#1053 id=1053 data-nosnippet>1053</a>    }
-<a href=#1054 id=1054 data-nosnippet>1054</a>}
-<a href=#1055 id=1055 data-nosnippet>1055</a>
-<a href=#1056 id=1056 data-nosnippet>1056</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; <span class="kw">for </span>ClientName&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#1057 id=1057 data-nosnippet>1057</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
-<a href=#1058 id=1058 data-nosnippet>1058</a>        <span class="kw">match </span>value {
-<a href=#1059 id=1059 data-nosnippet>1059</a>            <span class="string">"sentry-ruby" </span>=&gt; <span class="self">Self</span>::Ruby,
-<a href=#1060 id=1060 data-nosnippet>1060</a>            <span class="string">"sentry.cocoa.flutter" </span>=&gt; <span class="self">Self</span>::CocoaFlutter,
-<a href=#1061 id=1061 data-nosnippet>1061</a>            <span class="string">"sentry.cocoa.react-native" </span>=&gt; <span class="self">Self</span>::CocoaReactNative,
-<a href=#1062 id=1062 data-nosnippet>1062</a>            <span class="string">"sentry.cocoa" </span>=&gt; <span class="self">Self</span>::Cocoa,
-<a href=#1063 id=1063 data-nosnippet>1063</a>            <span class="string">"sentry.dotnet" </span>=&gt; <span class="self">Self</span>::Dotnet,
-<a href=#1064 id=1064 data-nosnippet>1064</a>            <span class="string">"sentry.java.android.react-native" </span>=&gt; <span class="self">Self</span>::AndroidReactNative,
-<a href=#1065 id=1065 data-nosnippet>1065</a>            <span class="string">"sentry.java.android" </span>=&gt; <span class="self">Self</span>::AndroidJava,
-<a href=#1066 id=1066 data-nosnippet>1066</a>            <span class="string">"sentry.java.spring-boot.jakarta" </span>=&gt; <span class="self">Self</span>::SpringBoot,
-<a href=#1067 id=1067 data-nosnippet>1067</a>            <span class="string">"sentry.javascript.browser" </span>=&gt; <span class="self">Self</span>::JavascriptBrowser,
-<a href=#1068 id=1068 data-nosnippet>1068</a>            <span class="string">"sentry.javascript.electron" </span>=&gt; <span class="self">Self</span>::Electron,
-<a href=#1069 id=1069 data-nosnippet>1069</a>            <span class="string">"sentry.javascript.nestjs" </span>=&gt; <span class="self">Self</span>::NestJs,
-<a href=#1070 id=1070 data-nosnippet>1070</a>            <span class="string">"sentry.javascript.nextjs" </span>=&gt; <span class="self">Self</span>::NextJs,
-<a href=#1071 id=1071 data-nosnippet>1071</a>            <span class="string">"sentry.javascript.node" </span>=&gt; <span class="self">Self</span>::Node,
-<a href=#1072 id=1072 data-nosnippet>1072</a>            <span class="string">"sentry.javascript.react" </span>=&gt; <span class="self">Self</span>::React,
-<a href=#1073 id=1073 data-nosnippet>1073</a>            <span class="string">"sentry.javascript.vue" </span>=&gt; <span class="self">Self</span>::Vue,
-<a href=#1074 id=1074 data-nosnippet>1074</a>            <span class="string">"sentry.native" </span>=&gt; <span class="self">Self</span>::Native,
-<a href=#1075 id=1075 data-nosnippet>1075</a>            <span class="string">"sentry.php.laravel" </span>=&gt; <span class="self">Self</span>::Laravel,
-<a href=#1076 id=1076 data-nosnippet>1076</a>            <span class="string">"sentry.php.symfony" </span>=&gt; <span class="self">Self</span>::Symfony,
-<a href=#1077 id=1077 data-nosnippet>1077</a>            <span class="string">"sentry.php" </span>=&gt; <span class="self">Self</span>::Php,
-<a href=#1078 id=1078 data-nosnippet>1078</a>            <span class="string">"sentry.python" </span>=&gt; <span class="self">Self</span>::Python,
-<a href=#1079 id=1079 data-nosnippet>1079</a>            other =&gt; <span class="self">Self</span>::Other(other),
-<a href=#1080 id=1080 data-nosnippet>1080</a>        }
-<a href=#1081 id=1081 data-nosnippet>1081</a>    }
-<a href=#1082 id=1082 data-nosnippet>1082</a>}</code></pre></div></section></main></body></html>
+<a href=#909 id=909 data-nosnippet>909</a>            </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">"project_state.redis.requests"</span>,
+<a href=#910 id=910 data-nosnippet>910</a>            RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">"project_upstream.completed"</span>,
+<a href=#911 id=911 data-nosnippet>911</a>            RelayCounters::ProjectUpstreamFailed =&gt; <span class="string">"project_upstream.failed"</span>,
+<a href=#912 id=912 data-nosnippet>912</a>            RelayCounters::ProjectCacheSchedule =&gt; <span class="string">"project_cache.schedule"</span>,
+<a href=#913 id=913 data-nosnippet>913</a>            RelayCounters::ServerStarting =&gt; <span class="string">"server.starting"</span>,
+<a href=#914 id=914 data-nosnippet>914</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#915 id=915 data-nosnippet>915</a>            </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">"processing.event.produced"</span>,
+<a href=#916 id=916 data-nosnippet>916</a>            RelayCounters::EventProtocol =&gt; <span class="string">"event.protocol"</span>,
+<a href=#917 id=917 data-nosnippet>917</a>            RelayCounters::EventTransaction =&gt; <span class="string">"event.transaction"</span>,
+<a href=#918 id=918 data-nosnippet>918</a>            RelayCounters::TransactionNameChanges =&gt; <span class="string">"event.transaction_name_changes"</span>,
+<a href=#919 id=919 data-nosnippet>919</a>            RelayCounters::Requests =&gt; <span class="string">"requests"</span>,
+<a href=#920 id=920 data-nosnippet>920</a>            RelayCounters::ResponsesStatusCodes =&gt; <span class="string">"responses.status_codes"</span>,
+<a href=#921 id=921 data-nosnippet>921</a>            RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">"project_cache.eviction"</span>,
+<a href=#922 id=922 data-nosnippet>922</a>            RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">"metrics.buckets.parsing_failed"</span>,
+<a href=#923 id=923 data-nosnippet>923</a>            RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">"metrics.transaction_name"</span>,
+<a href=#924 id=924 data-nosnippet>924</a>            RelayCounters::OpenTelemetryEvent =&gt; <span class="string">"event.opentelemetry"</span>,
+<a href=#925 id=925 data-nosnippet>925</a>            RelayCounters::GlobalConfigFetched =&gt; <span class="string">"global_config.fetch"</span>,
+<a href=#926 id=926 data-nosnippet>926</a>            RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
+<a href=#927 id=927 data-nosnippet>927</a>            RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
+<a href=#928 id=928 data-nosnippet>928</a>            RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
+<a href=#929 id=929 data-nosnippet>929</a>            RelayCounters::BucketsDropped =&gt; <span class="string">"metrics.buckets.dropped"</span>,
+<a href=#930 id=930 data-nosnippet>930</a>            RelayCounters::ReplayExceededSegmentLimit =&gt; <span class="string">"replay.segment_limit_exceeded"</span>,
+<a href=#931 id=931 data-nosnippet>931</a>            RelayCounters::ServerSocketAccept =&gt; <span class="string">"server.http.accepted"</span>,
+<a href=#932 id=932 data-nosnippet>932</a>            RelayCounters::ServerConnectionIdleTimeout =&gt; <span class="string">"server.http.idle_timeout"</span>,
+<a href=#933 id=933 data-nosnippet>933</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#934 id=934 data-nosnippet>934</a>            </span>RelayCounters::MetricDelaySum =&gt; <span class="string">"metrics.delay.sum"</span>,
+<a href=#935 id=935 data-nosnippet>935</a>            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#936 id=936 data-nosnippet>936</a>            </span>RelayCounters::MetricDelayCount =&gt; <span class="string">"metrics.delay.count"</span>,
+<a href=#937 id=937 data-nosnippet>937</a>            <span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
+<a href=#938 id=938 data-nosnippet>938</a>            </span>RelayCounters::PlaystationProcessing =&gt; <span class="string">"processing.playstation"</span>,
+<a href=#939 id=939 data-nosnippet>939</a>        }
+<a href=#940 id=940 data-nosnippet>940</a>    }
+<a href=#941 id=941 data-nosnippet>941</a>}
+<a href=#942 id=942 data-nosnippet>942</a>
+<a href=#943 id=943 data-nosnippet>943</a><span class="doccomment">/// Low-cardinality platform that can be used as a statsd tag.
+<a href=#944 id=944 data-nosnippet>944</a></span><span class="kw">pub enum </span>PlatformTag {
+<a href=#945 id=945 data-nosnippet>945</a>    Cocoa,
+<a href=#946 id=946 data-nosnippet>946</a>    Csharp,
+<a href=#947 id=947 data-nosnippet>947</a>    Edge,
+<a href=#948 id=948 data-nosnippet>948</a>    Go,
+<a href=#949 id=949 data-nosnippet>949</a>    Java,
+<a href=#950 id=950 data-nosnippet>950</a>    Javascript,
+<a href=#951 id=951 data-nosnippet>951</a>    Julia,
+<a href=#952 id=952 data-nosnippet>952</a>    Native,
+<a href=#953 id=953 data-nosnippet>953</a>    Node,
+<a href=#954 id=954 data-nosnippet>954</a>    Objc,
+<a href=#955 id=955 data-nosnippet>955</a>    Other,
+<a href=#956 id=956 data-nosnippet>956</a>    Perl,
+<a href=#957 id=957 data-nosnippet>957</a>    Php,
+<a href=#958 id=958 data-nosnippet>958</a>    Python,
+<a href=#959 id=959 data-nosnippet>959</a>    Ruby,
+<a href=#960 id=960 data-nosnippet>960</a>    Swift,
+<a href=#961 id=961 data-nosnippet>961</a>}
+<a href=#962 id=962 data-nosnippet>962</a>
+<a href=#963 id=963 data-nosnippet>963</a><span class="kw">impl </span>PlatformTag {
+<a href=#964 id=964 data-nosnippet>964</a>    <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+<a href=#965 id=965 data-nosnippet>965</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#966 id=966 data-nosnippet>966</a>            <span class="self">Self</span>::Cocoa =&gt; <span class="string">"cocoa"</span>,
+<a href=#967 id=967 data-nosnippet>967</a>            <span class="self">Self</span>::Csharp =&gt; <span class="string">"csharp"</span>,
+<a href=#968 id=968 data-nosnippet>968</a>            <span class="self">Self</span>::Edge =&gt; <span class="string">"edge"</span>,
+<a href=#969 id=969 data-nosnippet>969</a>            <span class="self">Self</span>::Go =&gt; <span class="string">"go"</span>,
+<a href=#970 id=970 data-nosnippet>970</a>            <span class="self">Self</span>::Java =&gt; <span class="string">"java"</span>,
+<a href=#971 id=971 data-nosnippet>971</a>            <span class="self">Self</span>::Javascript =&gt; <span class="string">"javascript"</span>,
+<a href=#972 id=972 data-nosnippet>972</a>            <span class="self">Self</span>::Julia =&gt; <span class="string">"julia"</span>,
+<a href=#973 id=973 data-nosnippet>973</a>            <span class="self">Self</span>::Native =&gt; <span class="string">"native"</span>,
+<a href=#974 id=974 data-nosnippet>974</a>            <span class="self">Self</span>::Node =&gt; <span class="string">"node"</span>,
+<a href=#975 id=975 data-nosnippet>975</a>            <span class="self">Self</span>::Objc =&gt; <span class="string">"objc"</span>,
+<a href=#976 id=976 data-nosnippet>976</a>            <span class="self">Self</span>::Other =&gt; <span class="string">"other"</span>,
+<a href=#977 id=977 data-nosnippet>977</a>            <span class="self">Self</span>::Perl =&gt; <span class="string">"perl"</span>,
+<a href=#978 id=978 data-nosnippet>978</a>            <span class="self">Self</span>::Php =&gt; <span class="string">"php"</span>,
+<a href=#979 id=979 data-nosnippet>979</a>            <span class="self">Self</span>::Python =&gt; <span class="string">"python"</span>,
+<a href=#980 id=980 data-nosnippet>980</a>            <span class="self">Self</span>::Ruby =&gt; <span class="string">"ruby"</span>,
+<a href=#981 id=981 data-nosnippet>981</a>            <span class="self">Self</span>::Swift =&gt; <span class="string">"swift"</span>,
+<a href=#982 id=982 data-nosnippet>982</a>        }
+<a href=#983 id=983 data-nosnippet>983</a>    }
+<a href=#984 id=984 data-nosnippet>984</a>}
+<a href=#985 id=985 data-nosnippet>985</a>
+<a href=#986 id=986 data-nosnippet>986</a><span class="kw">impl</span>&lt;S: AsRef&lt;str&gt;&gt; From&lt;S&gt; <span class="kw">for </span>PlatformTag {
+<a href=#987 id=987 data-nosnippet>987</a>    <span class="kw">fn </span>from(value: S) -&gt; <span class="self">Self </span>{
+<a href=#988 id=988 data-nosnippet>988</a>        <span class="kw">match </span>value.as_ref() {
+<a href=#989 id=989 data-nosnippet>989</a>            <span class="string">"cocoa" </span>=&gt; <span class="self">Self</span>::Cocoa,
+<a href=#990 id=990 data-nosnippet>990</a>            <span class="string">"csharp" </span>=&gt; <span class="self">Self</span>::Csharp,
+<a href=#991 id=991 data-nosnippet>991</a>            <span class="string">"edge" </span>=&gt; <span class="self">Self</span>::Edge,
+<a href=#992 id=992 data-nosnippet>992</a>            <span class="string">"go" </span>=&gt; <span class="self">Self</span>::Go,
+<a href=#993 id=993 data-nosnippet>993</a>            <span class="string">"java" </span>=&gt; <span class="self">Self</span>::Java,
+<a href=#994 id=994 data-nosnippet>994</a>            <span class="string">"javascript" </span>=&gt; <span class="self">Self</span>::Javascript,
+<a href=#995 id=995 data-nosnippet>995</a>            <span class="string">"julia" </span>=&gt; <span class="self">Self</span>::Julia,
+<a href=#996 id=996 data-nosnippet>996</a>            <span class="string">"native" </span>=&gt; <span class="self">Self</span>::Native,
+<a href=#997 id=997 data-nosnippet>997</a>            <span class="string">"node" </span>=&gt; <span class="self">Self</span>::Node,
+<a href=#998 id=998 data-nosnippet>998</a>            <span class="string">"objc" </span>=&gt; <span class="self">Self</span>::Objc,
+<a href=#999 id=999 data-nosnippet>999</a>            <span class="string">"perl" </span>=&gt; <span class="self">Self</span>::Perl,
+<a href=#1000 id=1000 data-nosnippet>1000</a>            <span class="string">"php" </span>=&gt; <span class="self">Self</span>::Php,
+<a href=#1001 id=1001 data-nosnippet>1001</a>            <span class="string">"python" </span>=&gt; <span class="self">Self</span>::Python,
+<a href=#1002 id=1002 data-nosnippet>1002</a>            <span class="string">"ruby" </span>=&gt; <span class="self">Self</span>::Ruby,
+<a href=#1003 id=1003 data-nosnippet>1003</a>            <span class="string">"swift" </span>=&gt; <span class="self">Self</span>::Swift,
+<a href=#1004 id=1004 data-nosnippet>1004</a>            <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Other,
+<a href=#1005 id=1005 data-nosnippet>1005</a>        }
+<a href=#1006 id=1006 data-nosnippet>1006</a>    }
+<a href=#1007 id=1007 data-nosnippet>1007</a>}
+<a href=#1008 id=1008 data-nosnippet>1008</a>
+<a href=#1009 id=1009 data-nosnippet>1009</a><span class="doccomment">/// Low-cardinality SDK name that can be used as a statsd tag.
+<a href=#1010 id=1010 data-nosnippet>1010</a></span><span class="kw">pub enum </span>ClientName&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#1011 id=1011 data-nosnippet>1011</a>    Ruby,
+<a href=#1012 id=1012 data-nosnippet>1012</a>    CocoaFlutter,
+<a href=#1013 id=1013 data-nosnippet>1013</a>    CocoaReactNative,
+<a href=#1014 id=1014 data-nosnippet>1014</a>    Cocoa,
+<a href=#1015 id=1015 data-nosnippet>1015</a>    Dotnet,
+<a href=#1016 id=1016 data-nosnippet>1016</a>    AndroidReactNative,
+<a href=#1017 id=1017 data-nosnippet>1017</a>    AndroidJava,
+<a href=#1018 id=1018 data-nosnippet>1018</a>    SpringBoot,
+<a href=#1019 id=1019 data-nosnippet>1019</a>    JavascriptBrowser,
+<a href=#1020 id=1020 data-nosnippet>1020</a>    Electron,
+<a href=#1021 id=1021 data-nosnippet>1021</a>    NestJs,
+<a href=#1022 id=1022 data-nosnippet>1022</a>    NextJs,
+<a href=#1023 id=1023 data-nosnippet>1023</a>    Node,
+<a href=#1024 id=1024 data-nosnippet>1024</a>    React,
+<a href=#1025 id=1025 data-nosnippet>1025</a>    Vue,
+<a href=#1026 id=1026 data-nosnippet>1026</a>    Native,
+<a href=#1027 id=1027 data-nosnippet>1027</a>    Laravel,
+<a href=#1028 id=1028 data-nosnippet>1028</a>    Symfony,
+<a href=#1029 id=1029 data-nosnippet>1029</a>    Php,
+<a href=#1030 id=1030 data-nosnippet>1030</a>    Python,
+<a href=#1031 id=1031 data-nosnippet>1031</a>    Other(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str),
+<a href=#1032 id=1032 data-nosnippet>1032</a>}
+<a href=#1033 id=1033 data-nosnippet>1033</a>
+<a href=#1034 id=1034 data-nosnippet>1034</a><span class="kw">impl </span>ClientName&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1035 id=1035 data-nosnippet>1035</a>    <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#1036 id=1036 data-nosnippet>1036</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1037 id=1037 data-nosnippet>1037</a>            <span class="self">Self</span>::Ruby =&gt; <span class="string">"sentry-ruby"</span>,
+<a href=#1038 id=1038 data-nosnippet>1038</a>            <span class="self">Self</span>::CocoaFlutter =&gt; <span class="string">"sentry.cocoa.flutter"</span>,
+<a href=#1039 id=1039 data-nosnippet>1039</a>            <span class="self">Self</span>::CocoaReactNative =&gt; <span class="string">"sentry.cocoa.react-native"</span>,
+<a href=#1040 id=1040 data-nosnippet>1040</a>            <span class="self">Self</span>::Cocoa =&gt; <span class="string">"sentry.cocoa"</span>,
+<a href=#1041 id=1041 data-nosnippet>1041</a>            <span class="self">Self</span>::Dotnet =&gt; <span class="string">"sentry.dotnet"</span>,
+<a href=#1042 id=1042 data-nosnippet>1042</a>            <span class="self">Self</span>::AndroidReactNative =&gt; <span class="string">"sentry.java.android.react-native"</span>,
+<a href=#1043 id=1043 data-nosnippet>1043</a>            <span class="self">Self</span>::AndroidJava =&gt; <span class="string">"sentry.java.android"</span>,
+<a href=#1044 id=1044 data-nosnippet>1044</a>            <span class="self">Self</span>::SpringBoot =&gt; <span class="string">"sentry.java.spring-boot.jakarta"</span>,
+<a href=#1045 id=1045 data-nosnippet>1045</a>            <span class="self">Self</span>::JavascriptBrowser =&gt; <span class="string">"sentry.javascript.browser"</span>,
+<a href=#1046 id=1046 data-nosnippet>1046</a>            <span class="self">Self</span>::Electron =&gt; <span class="string">"sentry.javascript.electron"</span>,
+<a href=#1047 id=1047 data-nosnippet>1047</a>            <span class="self">Self</span>::NestJs =&gt; <span class="string">"sentry.javascript.nestjs"</span>,
+<a href=#1048 id=1048 data-nosnippet>1048</a>            <span class="self">Self</span>::NextJs =&gt; <span class="string">"sentry.javascript.nextjs"</span>,
+<a href=#1049 id=1049 data-nosnippet>1049</a>            <span class="self">Self</span>::Node =&gt; <span class="string">"sentry.javascript.node"</span>,
+<a href=#1050 id=1050 data-nosnippet>1050</a>            <span class="self">Self</span>::React =&gt; <span class="string">"sentry.javascript.react"</span>,
+<a href=#1051 id=1051 data-nosnippet>1051</a>            <span class="self">Self</span>::Vue =&gt; <span class="string">"sentry.javascript.vue"</span>,
+<a href=#1052 id=1052 data-nosnippet>1052</a>            <span class="self">Self</span>::Native =&gt; <span class="string">"sentry.native"</span>,
+<a href=#1053 id=1053 data-nosnippet>1053</a>            <span class="self">Self</span>::Laravel =&gt; <span class="string">"sentry.php.laravel"</span>,
+<a href=#1054 id=1054 data-nosnippet>1054</a>            <span class="self">Self</span>::Symfony =&gt; <span class="string">"sentry.php.symfony"</span>,
+<a href=#1055 id=1055 data-nosnippet>1055</a>            <span class="self">Self</span>::Php =&gt; <span class="string">"sentry.php"</span>,
+<a href=#1056 id=1056 data-nosnippet>1056</a>            <span class="self">Self</span>::Python =&gt; <span class="string">"sentry.python"</span>,
+<a href=#1057 id=1057 data-nosnippet>1057</a>            <span class="self">Self</span>::Other(<span class="kw">_</span>) =&gt; <span class="string">"other"</span>,
+<a href=#1058 id=1058 data-nosnippet>1058</a>        }
+<a href=#1059 id=1059 data-nosnippet>1059</a>    }
+<a href=#1060 id=1060 data-nosnippet>1060</a>}
+<a href=#1061 id=1061 data-nosnippet>1061</a>
+<a href=#1062 id=1062 data-nosnippet>1062</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; <span class="kw">for </span>ClientName&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#1063 id=1063 data-nosnippet>1063</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
+<a href=#1064 id=1064 data-nosnippet>1064</a>        <span class="kw">match </span>value {
+<a href=#1065 id=1065 data-nosnippet>1065</a>            <span class="string">"sentry-ruby" </span>=&gt; <span class="self">Self</span>::Ruby,
+<a href=#1066 id=1066 data-nosnippet>1066</a>            <span class="string">"sentry.cocoa.flutter" </span>=&gt; <span class="self">Self</span>::CocoaFlutter,
+<a href=#1067 id=1067 data-nosnippet>1067</a>            <span class="string">"sentry.cocoa.react-native" </span>=&gt; <span class="self">Self</span>::CocoaReactNative,
+<a href=#1068 id=1068 data-nosnippet>1068</a>            <span class="string">"sentry.cocoa" </span>=&gt; <span class="self">Self</span>::Cocoa,
+<a href=#1069 id=1069 data-nosnippet>1069</a>            <span class="string">"sentry.dotnet" </span>=&gt; <span class="self">Self</span>::Dotnet,
+<a href=#1070 id=1070 data-nosnippet>1070</a>            <span class="string">"sentry.java.android.react-native" </span>=&gt; <span class="self">Self</span>::AndroidReactNative,
+<a href=#1071 id=1071 data-nosnippet>1071</a>            <span class="string">"sentry.java.android" </span>=&gt; <span class="self">Self</span>::AndroidJava,
+<a href=#1072 id=1072 data-nosnippet>1072</a>            <span class="string">"sentry.java.spring-boot.jakarta" </span>=&gt; <span class="self">Self</span>::SpringBoot,
+<a href=#1073 id=1073 data-nosnippet>1073</a>            <span class="string">"sentry.javascript.browser" </span>=&gt; <span class="self">Self</span>::JavascriptBrowser,
+<a href=#1074 id=1074 data-nosnippet>1074</a>            <span class="string">"sentry.javascript.electron" </span>=&gt; <span class="self">Self</span>::Electron,
+<a href=#1075 id=1075 data-nosnippet>1075</a>            <span class="string">"sentry.javascript.nestjs" </span>=&gt; <span class="self">Self</span>::NestJs,
+<a href=#1076 id=1076 data-nosnippet>1076</a>            <span class="string">"sentry.javascript.nextjs" </span>=&gt; <span class="self">Self</span>::NextJs,
+<a href=#1077 id=1077 data-nosnippet>1077</a>            <span class="string">"sentry.javascript.node" </span>=&gt; <span class="self">Self</span>::Node,
+<a href=#1078 id=1078 data-nosnippet>1078</a>            <span class="string">"sentry.javascript.react" </span>=&gt; <span class="self">Self</span>::React,
+<a href=#1079 id=1079 data-nosnippet>1079</a>            <span class="string">"sentry.javascript.vue" </span>=&gt; <span class="self">Self</span>::Vue,
+<a href=#1080 id=1080 data-nosnippet>1080</a>            <span class="string">"sentry.native" </span>=&gt; <span class="self">Self</span>::Native,
+<a href=#1081 id=1081 data-nosnippet>1081</a>            <span class="string">"sentry.php.laravel" </span>=&gt; <span class="self">Self</span>::Laravel,
+<a href=#1082 id=1082 data-nosnippet>1082</a>            <span class="string">"sentry.php.symfony" </span>=&gt; <span class="self">Self</span>::Symfony,
+<a href=#1083 id=1083 data-nosnippet>1083</a>            <span class="string">"sentry.php" </span>=&gt; <span class="self">Self</span>::Php,
+<a href=#1084 id=1084 data-nosnippet>1084</a>            <span class="string">"sentry.python" </span>=&gt; <span class="self">Self</span>::Python,
+<a href=#1085 id=1085 data-nosnippet>1085</a>            other =&gt; <span class="self">Self</span>::Other(other),
+<a href=#1086 id=1086 data-nosnippet>1086</a>        }
+<a href=#1087 id=1087 data-nosnippet>1087</a>    }
+<a href=#1088 id=1088 data-nosnippet>1088</a>}</code></pre></div></section></main></body></html>
