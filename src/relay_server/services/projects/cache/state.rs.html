@@ -304,18 +304,18 @@
 <a href=#304 id=304 data-nosnippet>304</a>            );
 <a href=#305 id=305 data-nosnippet>305</a>        }
 <a href=#306 id=306 data-nosnippet>306</a>
-<a href=#307 id=307 data-nosnippet>307</a>        <span class="self">self</span>.private.complete_fetch(<span class="kw-2">&amp;</span>fetch, now);
-<a href=#308 id=308 data-nosnippet>308</a>
-<a href=#309 id=309 data-nosnippet>309</a>        <span class="comment">// Keep the old state around if the current fetch is pending.
-<a href=#310 id=310 data-nosnippet>310</a>        // It may still be useful to callers.
-<a href=#311 id=311 data-nosnippet>311</a>        </span><span class="kw">match </span>fetch.state {
-<a href=#312 id=312 data-nosnippet>312</a>            SourceProjectState::New(state) <span class="kw">if </span>!state.is_pending() =&gt; {
+<a href=#307 id=307 data-nosnippet>307</a>        <span class="comment">// Update private and shared state with the new data.
+<a href=#308 id=308 data-nosnippet>308</a>        </span><span class="kw">let </span>expiry = <span class="self">self</span>.private.complete_fetch(<span class="kw-2">&amp;</span>fetch, now, config);
+<a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">match </span>fetch.state {
+<a href=#310 id=310 data-nosnippet>310</a>            <span class="comment">// Keep the old state around if the current fetch is pending.
+<a href=#311 id=311 data-nosnippet>311</a>            // It may still be useful to callers.
+<a href=#312 id=312 data-nosnippet>312</a>            </span>SourceProjectState::New(state) <span class="kw">if </span>!state.is_pending() =&gt; {
 <a href=#313 id=313 data-nosnippet>313</a>                <span class="self">self</span>.shared.set_project_state(state);
 <a href=#314 id=314 data-nosnippet>314</a>            }
 <a href=#315 id=315 data-nosnippet>315</a>            <span class="kw">_ </span>=&gt; {}
 <a href=#316 id=316 data-nosnippet>316</a>        }
 <a href=#317 id=317 data-nosnippet>317</a>
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="self">self</span>.private.expiry_time(config)
+<a href=#318 id=318 data-nosnippet>318</a>        expiry
 <a href=#319 id=319 data-nosnippet>319</a>    }
 <a href=#320 id=320 data-nosnippet>320</a>}
 <a href=#321 id=321 data-nosnippet>321</a>
@@ -581,97 +581,97 @@
 <a href=#581 id=581 data-nosnippet>581</a>        }
 <a href=#582 id=582 data-nosnippet>582</a>    }
 <a href=#583 id=583 data-nosnippet>583</a>
-<a href=#584 id=584 data-nosnippet>584</a>    <span class="doccomment">/// Returns the expiry time of the time project state.
-<a href=#585 id=585 data-nosnippet>585</a>    ///
-<a href=#586 id=586 data-nosnippet>586</a>    /// `None` if there is currently a fetch pending or in progress.
-<a href=#587 id=587 data-nosnippet>587</a>    </span><span class="kw">fn </span>expiry_time(<span class="kw-2">&amp;</span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Option</span>&lt;ExpiryTime&gt; {
-<a href=#588 id=588 data-nosnippet>588</a>        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.state {
-<a href=#589 id=589 data-nosnippet>589</a>            FetchState::Complete { when } =&gt; {
-<a href=#590 id=590 data-nosnippet>590</a>                <span class="macro">debug_assert_eq!</span>(<span class="prelude-val">Some</span>(when.<span class="number">0</span>), <span class="self">self</span>.last_fetch);
-<a href=#591 id=591 data-nosnippet>591</a>                <span class="prelude-val">Some</span>(when.expiry_time(config))
+<a href=#584 id=584 data-nosnippet>584</a>    <span class="kw">fn </span>try_begin_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, now: Instant, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Option</span>&lt;Fetch&gt; {
+<a href=#585 id=585 data-nosnippet>585</a>        <span class="kw">let </span>(initiated, when) = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.state {
+<a href=#586 id=586 data-nosnippet>586</a>            FetchState::InProgress =&gt; {
+<a href=#587 id=587 data-nosnippet>587</a>                <span class="macro">relay_log::trace!</span>(
+<a href=#588 id=588 data-nosnippet>588</a>                    tags.project_key = <span class="self">self</span>.project_key.as_str(),
+<a href=#589 id=589 data-nosnippet>589</a>                    <span class="string">"project fetch skipped, fetch in progress"
+<a href=#590 id=590 data-nosnippet>590</a>                </span>);
+<a href=#591 id=591 data-nosnippet>591</a>                <span class="kw">return </span><span class="prelude-val">None</span>;
 <a href=#592 id=592 data-nosnippet>592</a>            }
-<a href=#593 id=593 data-nosnippet>593</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#594 id=594 data-nosnippet>594</a>        }
-<a href=#595 id=595 data-nosnippet>595</a>    }
-<a href=#596 id=596 data-nosnippet>596</a>
-<a href=#597 id=597 data-nosnippet>597</a>    <span class="kw">fn </span>try_begin_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, now: Instant, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Option</span>&lt;Fetch&gt; {
-<a href=#598 id=598 data-nosnippet>598</a>        <span class="kw">let </span>(initiated, when) = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.state {
-<a href=#599 id=599 data-nosnippet>599</a>            FetchState::InProgress =&gt; {
-<a href=#600 id=600 data-nosnippet>600</a>                <span class="macro">relay_log::trace!</span>(
-<a href=#601 id=601 data-nosnippet>601</a>                    tags.project_key = <span class="self">self</span>.project_key.as_str(),
-<a href=#602 id=602 data-nosnippet>602</a>                    <span class="string">"project fetch skipped, fetch in progress"
-<a href=#603 id=603 data-nosnippet>603</a>                </span>);
-<a href=#604 id=604 data-nosnippet>604</a>                <span class="kw">return </span><span class="prelude-val">None</span>;
-<a href=#605 id=605 data-nosnippet>605</a>            }
-<a href=#606 id=606 data-nosnippet>606</a>            FetchState::Pending {
-<a href=#607 id=607 data-nosnippet>607</a>                initiated,
-<a href=#608 id=608 data-nosnippet>608</a>                next_fetch_attempt,
-<a href=#609 id=609 data-nosnippet>609</a>            } =&gt; {
-<a href=#610 id=610 data-nosnippet>610</a>                <span class="comment">// Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
-<a href=#611 id=611 data-nosnippet>611</a>                </span>(initiated.unwrap_or(now), <span class="kw-2">*</span>next_fetch_attempt)
-<a href=#612 id=612 data-nosnippet>612</a>            }
-<a href=#613 id=613 data-nosnippet>613</a>            FetchState::Complete { when: last_fetch } =&gt; {
-<a href=#614 id=614 data-nosnippet>614</a>                <span class="kw">if </span>last_fetch.check_expiry(now, config).is_fresh() {
-<a href=#615 id=615 data-nosnippet>615</a>                    <span class="comment">// The current state is up to date, no need to start another fetch.
-<a href=#616 id=616 data-nosnippet>616</a>                    </span><span class="macro">relay_log::trace!</span>(
-<a href=#617 id=617 data-nosnippet>617</a>                        tags.project_key = <span class="self">self</span>.project_key.as_str(),
-<a href=#618 id=618 data-nosnippet>618</a>                        <span class="string">"project fetch skipped, already up to date"
-<a href=#619 id=619 data-nosnippet>619</a>                    </span>);
-<a href=#620 id=620 data-nosnippet>620</a>                    <span class="kw">return </span><span class="prelude-val">None</span>;
-<a href=#621 id=621 data-nosnippet>621</a>                }
-<a href=#622 id=622 data-nosnippet>622</a>                (now, <span class="prelude-val">None</span>)
-<a href=#623 id=623 data-nosnippet>623</a>            }
-<a href=#624 id=624 data-nosnippet>624</a>        };
-<a href=#625 id=625 data-nosnippet>625</a>
-<a href=#626 id=626 data-nosnippet>626</a>        <span class="comment">// Mark a current fetch in progress.
-<a href=#627 id=627 data-nosnippet>627</a>        </span><span class="self">self</span>.state = FetchState::InProgress;
-<a href=#628 id=628 data-nosnippet>628</a>
-<a href=#629 id=629 data-nosnippet>629</a>        <span class="macro">relay_log::trace!</span>(
-<a href=#630 id=630 data-nosnippet>630</a>            tags.project_key = <span class="kw-2">&amp;</span><span class="self">self</span>.project_key.as_str(),
-<a href=#631 id=631 data-nosnippet>631</a>            attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>,
-<a href=#632 id=632 data-nosnippet>632</a>            <span class="string">"project state fetch scheduled in {:?}"</span>,
-<a href=#633 id=633 data-nosnippet>633</a>            when.unwrap_or(now).saturating_duration_since(now),
-<a href=#634 id=634 data-nosnippet>634</a>        );
+<a href=#593 id=593 data-nosnippet>593</a>            FetchState::Pending {
+<a href=#594 id=594 data-nosnippet>594</a>                initiated,
+<a href=#595 id=595 data-nosnippet>595</a>                next_fetch_attempt,
+<a href=#596 id=596 data-nosnippet>596</a>            } =&gt; {
+<a href=#597 id=597 data-nosnippet>597</a>                <span class="comment">// Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
+<a href=#598 id=598 data-nosnippet>598</a>                </span>(initiated.unwrap_or(now), <span class="kw-2">*</span>next_fetch_attempt)
+<a href=#599 id=599 data-nosnippet>599</a>            }
+<a href=#600 id=600 data-nosnippet>600</a>            FetchState::Complete { when } =&gt; {
+<a href=#601 id=601 data-nosnippet>601</a>                <span class="comment">// Sanity check to make sure timestamps do not drift.
+<a href=#602 id=602 data-nosnippet>602</a>                </span><span class="macro">debug_assert_eq!</span>(<span class="prelude-val">Some</span>(when.<span class="number">0</span>), <span class="self">self</span>.last_fetch);
+<a href=#603 id=603 data-nosnippet>603</a>
+<a href=#604 id=604 data-nosnippet>604</a>                <span class="kw">if </span>when.check_expiry(now, config).is_fresh() {
+<a href=#605 id=605 data-nosnippet>605</a>                    <span class="comment">// The current state is up to date, no need to start another fetch.
+<a href=#606 id=606 data-nosnippet>606</a>                    </span><span class="macro">relay_log::trace!</span>(
+<a href=#607 id=607 data-nosnippet>607</a>                        tags.project_key = <span class="self">self</span>.project_key.as_str(),
+<a href=#608 id=608 data-nosnippet>608</a>                        <span class="string">"project fetch skipped, already up to date"
+<a href=#609 id=609 data-nosnippet>609</a>                    </span>);
+<a href=#610 id=610 data-nosnippet>610</a>                    <span class="kw">return </span><span class="prelude-val">None</span>;
+<a href=#611 id=611 data-nosnippet>611</a>                }
+<a href=#612 id=612 data-nosnippet>612</a>
+<a href=#613 id=613 data-nosnippet>613</a>                (now, <span class="prelude-val">None</span>)
+<a href=#614 id=614 data-nosnippet>614</a>            }
+<a href=#615 id=615 data-nosnippet>615</a>        };
+<a href=#616 id=616 data-nosnippet>616</a>
+<a href=#617 id=617 data-nosnippet>617</a>        <span class="comment">// Mark a current fetch in progress.
+<a href=#618 id=618 data-nosnippet>618</a>        </span><span class="self">self</span>.state = FetchState::InProgress;
+<a href=#619 id=619 data-nosnippet>619</a>
+<a href=#620 id=620 data-nosnippet>620</a>        <span class="macro">relay_log::trace!</span>(
+<a href=#621 id=621 data-nosnippet>621</a>            tags.project_key = <span class="kw-2">&amp;</span><span class="self">self</span>.project_key.as_str(),
+<a href=#622 id=622 data-nosnippet>622</a>            attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>,
+<a href=#623 id=623 data-nosnippet>623</a>            <span class="string">"project state fetch scheduled in {:?}"</span>,
+<a href=#624 id=624 data-nosnippet>624</a>            when.unwrap_or(now).saturating_duration_since(now),
+<a href=#625 id=625 data-nosnippet>625</a>        );
+<a href=#626 id=626 data-nosnippet>626</a>
+<a href=#627 id=627 data-nosnippet>627</a>        <span class="prelude-val">Some</span>(Fetch {
+<a href=#628 id=628 data-nosnippet>628</a>            project_key: <span class="self">self</span>.project_key,
+<a href=#629 id=629 data-nosnippet>629</a>            previous_fetch: <span class="self">self</span>.last_fetch,
+<a href=#630 id=630 data-nosnippet>630</a>            initiated,
+<a href=#631 id=631 data-nosnippet>631</a>            when,
+<a href=#632 id=632 data-nosnippet>632</a>            revision: Revision::default(),
+<a href=#633 id=633 data-nosnippet>633</a>        })
+<a href=#634 id=634 data-nosnippet>634</a>    }
 <a href=#635 id=635 data-nosnippet>635</a>
-<a href=#636 id=636 data-nosnippet>636</a>        <span class="prelude-val">Some</span>(Fetch {
-<a href=#637 id=637 data-nosnippet>637</a>            project_key: <span class="self">self</span>.project_key,
-<a href=#638 id=638 data-nosnippet>638</a>            previous_fetch: <span class="self">self</span>.last_fetch,
-<a href=#639 id=639 data-nosnippet>639</a>            initiated,
-<a href=#640 id=640 data-nosnippet>640</a>            when,
-<a href=#641 id=641 data-nosnippet>641</a>            revision: Revision::default(),
-<a href=#642 id=642 data-nosnippet>642</a>        })
-<a href=#643 id=643 data-nosnippet>643</a>    }
-<a href=#644 id=644 data-nosnippet>644</a>
-<a href=#645 id=645 data-nosnippet>645</a>    <span class="kw">fn </span>complete_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fetch: <span class="kw-2">&amp;</span>CompletedFetch, now: Instant) {
-<a href=#646 id=646 data-nosnippet>646</a>        <span class="macro">debug_assert!</span>(
-<a href=#647 id=647 data-nosnippet>647</a>            <span class="macro">matches!</span>(<span class="self">self</span>.state, FetchState::InProgress),
-<a href=#648 id=648 data-nosnippet>648</a>            <span class="string">"fetch completed while there was no current fetch registered"
-<a href=#649 id=649 data-nosnippet>649</a>        </span>);
-<a href=#650 id=650 data-nosnippet>650</a>
-<a href=#651 id=651 data-nosnippet>651</a>        <span class="kw">if </span>fetch.is_pending() {
-<a href=#652 id=652 data-nosnippet>652</a>            <span class="kw">let </span>next_backoff = <span class="self">self</span>.backoff.next_backoff();
-<a href=#653 id=653 data-nosnippet>653</a>            <span class="kw">let </span>next_fetch_attempt = <span class="kw">match </span>next_backoff.is_zero() {
-<a href=#654 id=654 data-nosnippet>654</a>                <span class="bool-val">false </span>=&gt; now.checked_add(next_backoff),
-<a href=#655 id=655 data-nosnippet>655</a>                <span class="bool-val">true </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#636 id=636 data-nosnippet>636</a>    <span class="kw">fn </span>complete_fetch(
+<a href=#637 id=637 data-nosnippet>637</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#638 id=638 data-nosnippet>638</a>        fetch: <span class="kw-2">&amp;</span>CompletedFetch,
+<a href=#639 id=639 data-nosnippet>639</a>        now: Instant,
+<a href=#640 id=640 data-nosnippet>640</a>        config: <span class="kw-2">&amp;</span>Config,
+<a href=#641 id=641 data-nosnippet>641</a>    ) -&gt; <span class="prelude-ty">Option</span>&lt;ExpiryTime&gt; {
+<a href=#642 id=642 data-nosnippet>642</a>        <span class="macro">debug_assert!</span>(
+<a href=#643 id=643 data-nosnippet>643</a>            <span class="macro">matches!</span>(<span class="self">self</span>.state, FetchState::InProgress),
+<a href=#644 id=644 data-nosnippet>644</a>            <span class="string">"fetch completed while there was no current fetch registered"
+<a href=#645 id=645 data-nosnippet>645</a>        </span>);
+<a href=#646 id=646 data-nosnippet>646</a>
+<a href=#647 id=647 data-nosnippet>647</a>        <span class="kw">if </span>fetch.is_pending() {
+<a href=#648 id=648 data-nosnippet>648</a>            <span class="kw">let </span>next_backoff = <span class="self">self</span>.backoff.next_backoff();
+<a href=#649 id=649 data-nosnippet>649</a>            <span class="kw">let </span>next_fetch_attempt = <span class="kw">match </span>next_backoff.is_zero() {
+<a href=#650 id=650 data-nosnippet>650</a>                <span class="bool-val">false </span>=&gt; now.checked_add(next_backoff),
+<a href=#651 id=651 data-nosnippet>651</a>                <span class="bool-val">true </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#652 id=652 data-nosnippet>652</a>            };
+<a href=#653 id=653 data-nosnippet>653</a>            <span class="self">self</span>.state = FetchState::Pending {
+<a href=#654 id=654 data-nosnippet>654</a>                next_fetch_attempt,
+<a href=#655 id=655 data-nosnippet>655</a>                initiated: <span class="prelude-val">Some</span>(fetch.fetch.initiated),
 <a href=#656 id=656 data-nosnippet>656</a>            };
-<a href=#657 id=657 data-nosnippet>657</a>            <span class="self">self</span>.state = FetchState::Pending {
-<a href=#658 id=658 data-nosnippet>658</a>                next_fetch_attempt,
-<a href=#659 id=659 data-nosnippet>659</a>                initiated: <span class="prelude-val">Some</span>(fetch.fetch.initiated),
-<a href=#660 id=660 data-nosnippet>660</a>            };
-<a href=#661 id=661 data-nosnippet>661</a>            <span class="macro">relay_log::trace!</span>(
-<a href=#662 id=662 data-nosnippet>662</a>                tags.project_key = <span class="kw-2">&amp;</span><span class="self">self</span>.project_key.as_str(),
-<a href=#663 id=663 data-nosnippet>663</a>                <span class="string">"project state fetch completed but still pending"
-<a href=#664 id=664 data-nosnippet>664</a>            </span>);
-<a href=#665 id=665 data-nosnippet>665</a>        } <span class="kw">else </span>{
-<a href=#666 id=666 data-nosnippet>666</a>            <span class="macro">relay_log::trace!</span>(
-<a href=#667 id=667 data-nosnippet>667</a>                tags.project_key = <span class="kw-2">&amp;</span><span class="self">self</span>.project_key.as_str(),
-<a href=#668 id=668 data-nosnippet>668</a>                <span class="string">"project state fetch completed with non-pending config"
-<a href=#669 id=669 data-nosnippet>669</a>            </span>);
-<a href=#670 id=670 data-nosnippet>670</a>            <span class="self">self</span>.backoff.reset();
-<a href=#671 id=671 data-nosnippet>671</a>            <span class="self">self</span>.last_fetch = <span class="prelude-val">Some</span>(now);
-<a href=#672 id=672 data-nosnippet>672</a>            <span class="self">self</span>.state = FetchState::Complete {
-<a href=#673 id=673 data-nosnippet>673</a>                when: LastFetch(now),
-<a href=#674 id=674 data-nosnippet>674</a>            };
+<a href=#657 id=657 data-nosnippet>657</a>            <span class="macro">relay_log::trace!</span>(
+<a href=#658 id=658 data-nosnippet>658</a>                tags.project_key = <span class="kw-2">&amp;</span><span class="self">self</span>.project_key.as_str(),
+<a href=#659 id=659 data-nosnippet>659</a>                <span class="string">"project state fetch completed but still pending"
+<a href=#660 id=660 data-nosnippet>660</a>            </span>);
+<a href=#661 id=661 data-nosnippet>661</a>
+<a href=#662 id=662 data-nosnippet>662</a>            <span class="prelude-val">None
+<a href=#663 id=663 data-nosnippet>663</a>        </span>} <span class="kw">else </span>{
+<a href=#664 id=664 data-nosnippet>664</a>            <span class="macro">relay_log::trace!</span>(
+<a href=#665 id=665 data-nosnippet>665</a>                tags.project_key = <span class="kw-2">&amp;</span><span class="self">self</span>.project_key.as_str(),
+<a href=#666 id=666 data-nosnippet>666</a>                <span class="string">"project state fetch completed with non-pending config"
+<a href=#667 id=667 data-nosnippet>667</a>            </span>);
+<a href=#668 id=668 data-nosnippet>668</a>
+<a href=#669 id=669 data-nosnippet>669</a>            <span class="self">self</span>.backoff.reset();
+<a href=#670 id=670 data-nosnippet>670</a>            <span class="self">self</span>.last_fetch = <span class="prelude-val">Some</span>(now);
+<a href=#671 id=671 data-nosnippet>671</a>
+<a href=#672 id=672 data-nosnippet>672</a>            <span class="kw">let </span>when = LastFetch(now);
+<a href=#673 id=673 data-nosnippet>673</a>            <span class="self">self</span>.state = FetchState::Complete { when };
+<a href=#674 id=674 data-nosnippet>674</a>            <span class="prelude-val">Some</span>(when.expiry_time(config))
 <a href=#675 id=675 data-nosnippet>675</a>        }
 <a href=#676 id=676 data-nosnippet>676</a>    }
 <a href=#677 id=677 data-nosnippet>677</a>}
