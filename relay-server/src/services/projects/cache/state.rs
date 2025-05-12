@@ -398,7 +398,7 @@ impl CompletedFetch {
     fn delay(&self) -> Option<Duration> {
         self.fetch
             .previous_fetch
-            .map(|pf| pf.duration_since(self.fetch.initiated))
+            .map(|pf| self.fetch.initiated.duration_since(pf))
     }
 
     /// Returns the duration between first initiating the fetch and `now`.
