@@ -24,14 +24,15 @@ pub struct SpanV2 {
 
     /// The ID of the trace the span belongs to.
     /// The Span id.
-    #[metastructure(required = false, trim = false)]
+    #[metastructure(required = true, trim = false)]
     pub span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = 128)]
+    #[metastructure(required = true, max_chars = 128)]
     pub name: Annotated<OperationType>,
 
     /// The span's status.
+    #[metastructure(required = true)]
     pub status: Annotated<SpanV2Status>,
 
     /// Indicates whether a span's parent is remote.
@@ -43,13 +44,14 @@ pub struct SpanV2 {
     ///  - `empty`: unknown
     ///  - `false`: is not remote
     ///  - `true`: is remote
+    #[metastructure(required = true)]
     pub is_remote: Annotated<bool>,
 
     // Used to clarify the relationship between parents and children, or to distinguish between
     // spans, e.g. a `server` and `client` span with the same name.
     //
     // See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
-    #[metastructure(skip_serialization = "empty", trim = false)]
+    #[metastructure(required = true, skip_serialization = "empty", trim = false)]
     pub kind: Annotated<SpanV2Kind>,
 
     /// Timestamp when the span started.
