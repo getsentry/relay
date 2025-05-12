@@ -41,7 +41,6 @@ pub struct SpanV2 {
     /// `SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK` and `SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK`.
     ///
     /// The states are:
-    ///  - `empty`: unknown
     ///  - `false`: is not remote
     ///  - `true`: is remote
     #[metastructure(required = true)]
@@ -67,7 +66,7 @@ pub struct SpanV2 {
     pub attributes: Annotated<Object<Attribute>>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = true, pii = "maybe")]
+    #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
 }
 
