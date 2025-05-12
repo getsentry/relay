@@ -1,10 +1,6 @@
-use opentelemetry_proto::tonic::trace::v1::{
-    span::SpanKind as OtelSpanKind, status::StatusCode as OtelSpanStatus,
-};
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use std::fmt;
-use std::str::FromStr;
 
 use serde::Serialize;
 
@@ -78,23 +74,23 @@ impl SpanV2 {
 
 /// Status of a V2 span.
 ///
-/// This is a subset of OTEL's statuses (unset, ok, error).
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+/// This is a subset of OTEL's statuses (unset, ok, error), plus
+/// a catchall variant for forward compatibility.
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[repr(i32)]
 pub enum SpanV2Status {
-    Unset = OtelSpanStatus::Unset as i32,
-    Ok = OtelSpanStatus::Ok as i32,
-    Error = OtelSpanStatus::Error as i32,
+    Ok,
+    Error,
+    Unknown(String),
 }
 
 impl SpanV2Status {
     /// Returns the string representation of the status.
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
-            Self::Unset => "unset",
             Self::Ok => "ok",
             Self::Error => "error",
+            Self::Unknown(s) => s,
         }
     }
 }
@@ -118,27 +114,12 @@ impl fmt::Display for SpanV2Status {
     }
 }
 
-/// Error parsing a `SpanV2Status`.
-#[derive(Clone, Copy, Debug)]
-pub struct ParseSpanV2StatusError;
-
-impl fmt::Display for ParseSpanV2StatusError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid span status")
-    }
-}
-
-impl std::error::Error for ParseSpanV2StatusError {}
-
-impl FromStr for SpanV2Status {
-    type Err = ParseSpanV2StatusError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "unset" => Ok(Self::Unset),
-            "ok" => Ok(Self::Ok),
-            "error" => Ok(Self::Error),
-            _ => Err(ParseSpanV2StatusError),
+impl From<String> for SpanV2Status {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "ok" => Self::Ok,
+            "error" => Self::Error,
+            _ => Self::Unknown(value),
         }
     }
 }
@@ -148,9 +129,9 @@ impl FromValue for SpanV2Status {
     where
         Self: Sized,
     {
-        match value {
-            Annotated(Some(Value::String(s)), meta) => Annotated(Self::from_str(&s).ok(), meta),
-            Annotated(_, meta) => Annotated(None, meta),
+        match String::from_value(value) {
+            Annotated(Some(s), meta) => Annotated(Some(s.into()), meta),
+            Annotated(None, meta) => Annotated(None, meta),
         }
     }
 }
@@ -160,7 +141,10 @@ impl IntoValue for SpanV2Status {
     where
         Self: Sized,
     {
-        Value::String(self.to_string())
+        Value::String(match self {
+            SpanV2Status::Unknown(s) => s,
+            _ => self.to_string(),
+        })
     }
 
     fn serialize_payload<S>(
@@ -176,26 +160,29 @@ impl IntoValue for SpanV2Status {
     }
 }
 
+/// The kind of a V2 span.
+///
+/// This corresponds to OTEL's kind enum, plus a
+/// catchall variant for forward compatibility.
 #[derive(Clone, Debug, PartialEq, ProcessValue)]
-#[repr(i32)]
 pub enum SpanV2Kind {
-    Unspecified = OtelSpanKind::Unspecified as i32,
-    Internal = OtelSpanKind::Internal as i32,
-    Server = OtelSpanKind::Server as i32,
-    Client = OtelSpanKind::Client as i32,
-    Producer = OtelSpanKind::Producer as i32,
-    Consumer = OtelSpanKind::Consumer as i32,
+    Internal,
+    Server,
+    Client,
+    Producer,
+    Consumer,
+    Unknown(String),
 }
 
 impl SpanV2Kind {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
-            Self::Unspecified => "unspecified",
             Self::Internal => "internal",
             Self::Server => "server",
             Self::Client => "client",
             Self::Producer => "producer",
             Self::Consumer => "consumer",
+            Self::Unknown(s) => s,
         }
     }
 }
@@ -206,41 +193,9 @@ impl Empty for SpanV2Kind {
     }
 }
 
-#[derive(Debug)]
-pub struct ParseSpanV2KindError;
-
-impl std::str::FromStr for SpanV2Kind {
-    type Err = ParseSpanV2KindError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "unspecified" => Self::Unspecified,
-            "internal" => Self::Internal,
-            "server" => Self::Server,
-            "client" => Self::Client,
-            "producer" => Self::Producer,
-            "consumer" => Self::Consumer,
-            _ => return Err(ParseSpanV2KindError),
-        })
-    }
-}
-
 impl Default for SpanV2Kind {
     fn default() -> Self {
         Self::Internal
-    }
-}
-
-impl From<OtelSpanKind> for SpanV2Kind {
-    fn from(otel_kind: OtelSpanKind) -> Self {
-        match otel_kind {
-            OtelSpanKind::Unspecified => Self::Unspecified,
-            OtelSpanKind::Internal => Self::Internal,
-            OtelSpanKind::Server => Self::Server,
-            OtelSpanKind::Client => Self::Client,
-            OtelSpanKind::Producer => Self::Producer,
-            OtelSpanKind::Consumer => Self::Consumer,
-        }
     }
 }
 
@@ -250,13 +205,26 @@ impl fmt::Display for SpanV2Kind {
     }
 }
 
+impl From<String> for SpanV2Kind {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "internal" => Self::Internal,
+            "server" => Self::Server,
+            "client" => Self::Client,
+            "producer" => Self::Producer,
+            "consumer" => Self::Consumer,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
 impl FromValue for SpanV2Kind {
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized,
     {
         match value {
-            Annotated(Some(Value::String(s)), meta) => Annotated(Self::from_str(&s).ok(), meta),
+            Annotated(Some(Value::String(s)), meta) => Annotated(Some(Self::from(s)), meta),
             Annotated(_, meta) => Annotated(None, meta),
         }
     }
