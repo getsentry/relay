@@ -51,291 +51,295 @@
 <a href=#51 id=51 data-nosnippet>51</a>    </span>Spans,
 <a href=#52 id=52 data-nosnippet>52</a>    <span class="doccomment">/// Feedback events topic.
 <a href=#53 id=53 data-nosnippet>53</a>    </span>Feedback,
-<a href=#54 id=54 data-nosnippet>54</a>}
-<a href=#55 id=55 data-nosnippet>55</a>
-<a href=#56 id=56 data-nosnippet>56</a><span class="kw">impl </span>KafkaTopic {
-<a href=#57 id=57 data-nosnippet>57</a>    <span class="doccomment">/// Returns iterator over the variants of [`KafkaTopic`].
-<a href=#58 id=58 data-nosnippet>58</a>    /// It will have to be adjusted if the new variants are added.
-<a href=#59 id=59 data-nosnippet>59</a>    </span><span class="kw">pub fn </span>iter() -&gt; std::slice::Iter&lt;<span class="lifetime">'static</span>, <span class="self">Self</span>&gt; {
-<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">use </span>KafkaTopic::<span class="kw-2">*</span>;
-<a href=#61 id=61 data-nosnippet>61</a>        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">14</span>] = [
-<a href=#62 id=62 data-nosnippet>62</a>            Events,
-<a href=#63 id=63 data-nosnippet>63</a>            Attachments,
-<a href=#64 id=64 data-nosnippet>64</a>            Transactions,
-<a href=#65 id=65 data-nosnippet>65</a>            Outcomes,
-<a href=#66 id=66 data-nosnippet>66</a>            OutcomesBilling,
-<a href=#67 id=67 data-nosnippet>67</a>            MetricsSessions,
-<a href=#68 id=68 data-nosnippet>68</a>            MetricsGeneric,
-<a href=#69 id=69 data-nosnippet>69</a>            Profiles,
-<a href=#70 id=70 data-nosnippet>70</a>            ReplayEvents,
-<a href=#71 id=71 data-nosnippet>71</a>            ReplayRecordings,
-<a href=#72 id=72 data-nosnippet>72</a>            Monitors,
-<a href=#73 id=73 data-nosnippet>73</a>            OurLogs,
-<a href=#74 id=74 data-nosnippet>74</a>            Spans,
-<a href=#75 id=75 data-nosnippet>75</a>            Feedback,
-<a href=#76 id=76 data-nosnippet>76</a>        ];
-<a href=#77 id=77 data-nosnippet>77</a>        TOPICS.iter()
-<a href=#78 id=78 data-nosnippet>78</a>    }
-<a href=#79 id=79 data-nosnippet>79</a>}
-<a href=#80 id=80 data-nosnippet>80</a>
-<a href=#81 id=81 data-nosnippet>81</a><span class="macro">macro_rules!</span> define_topic_assignments {
-<a href=#82 id=82 data-nosnippet>82</a>    ($(<span class="macro-nonterminal">$field_name</span>:ident : (<span class="macro-nonterminal">$kafka_topic</span>:path, <span class="macro-nonterminal">$default_topic</span>:literal, <span class="macro-nonterminal">$doc</span>:literal)),* $(,)<span class="question-mark">?</span>) =&gt; {
-<a href=#83 id=83 data-nosnippet>83</a>        <span class="doccomment">/// Configuration for topics.
-<a href=#84 id=84 data-nosnippet>84</a>        </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
-<a href=#85 id=85 data-nosnippet>85</a>        #[serde(default)]
-<a href=#86 id=86 data-nosnippet>86</a>        </span><span class="kw">pub struct </span>TopicAssignments {
-<a href=#87 id=87 data-nosnippet>87</a>            $(
-<a href=#88 id=88 data-nosnippet>88</a>                <span class="attr">#[serde(alias = <span class="macro-nonterminal">$default_topic</span>)]
-<a href=#89 id=89 data-nosnippet>89</a>                #[doc = <span class="macro-nonterminal">$doc</span>]
-<a href=#90 id=90 data-nosnippet>90</a>                </span><span class="kw">pub </span><span class="macro-nonterminal">$field_name</span>: TopicAssignment,
-<a href=#91 id=91 data-nosnippet>91</a>            )*
-<a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>            <span class="doccomment">/// Additional topic assignments configured but currently unused by this Relay instance.
-<a href=#94 id=94 data-nosnippet>94</a>            </span><span class="attr">#[serde(flatten)]
-<a href=#95 id=95 data-nosnippet>95</a>            </span><span class="kw">pub </span>unused: BTreeMap&lt;String, TopicAssignment&gt;,
-<a href=#96 id=96 data-nosnippet>96</a>        }
-<a href=#97 id=97 data-nosnippet>97</a>
-<a href=#98 id=98 data-nosnippet>98</a>        <span class="kw">impl </span>TopicAssignments{
-<a href=#99 id=99 data-nosnippet>99</a>            <span class="doccomment">/// Get a topic assignment by [`KafkaTopic`] value
-<a href=#100 id=100 data-nosnippet>100</a>            </span><span class="attr">#[must_use]
-<a href=#101 id=101 data-nosnippet>101</a>            </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, kafka_topic: KafkaTopic) -&gt; <span class="kw-2">&amp;</span>TopicAssignment {
-<a href=#102 id=102 data-nosnippet>102</a>                <span class="kw">match </span>kafka_topic {
-<a href=#103 id=103 data-nosnippet>103</a>                    $(
-<a href=#104 id=104 data-nosnippet>104</a>                        <span class="macro-nonterminal">$kafka_topic </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="macro-nonterminal">$field_name</span>,
-<a href=#105 id=105 data-nosnippet>105</a>                    )*
-<a href=#106 id=106 data-nosnippet>106</a>                }
-<a href=#107 id=107 data-nosnippet>107</a>            }
-<a href=#108 id=108 data-nosnippet>108</a>        }
-<a href=#109 id=109 data-nosnippet>109</a>
-<a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">impl </span>Default <span class="kw">for </span>TopicAssignments {
-<a href=#111 id=111 data-nosnippet>111</a>            <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-<a href=#112 id=112 data-nosnippet>112</a>                <span class="self">Self </span>{
-<a href=#113 id=113 data-nosnippet>113</a>                    $(
-<a href=#114 id=114 data-nosnippet>114</a>                        <span class="macro-nonterminal">$field_name</span>: <span class="macro-nonterminal">$default_topic</span>.to_owned().into(),
-<a href=#115 id=115 data-nosnippet>115</a>                    )*
-<a href=#116 id=116 data-nosnippet>116</a>                    unused: BTreeMap::new(),
-<a href=#117 id=117 data-nosnippet>117</a>                }
-<a href=#118 id=118 data-nosnippet>118</a>            }
-<a href=#119 id=119 data-nosnippet>119</a>        }
-<a href=#120 id=120 data-nosnippet>120</a>    };
-<a href=#121 id=121 data-nosnippet>121</a>}
-<a href=#122 id=122 data-nosnippet>122</a>
-<a href=#123 id=123 data-nosnippet>123</a><span class="comment">// WARNING: When adding a topic here, make sure that the kafka topic exists or can be auto-created.
-<a href=#124 id=124 data-nosnippet>124</a>// Failure to do so will result in Relay crashing (if the `kafka_validate_topics` config flag is enabled),
-<a href=#125 id=125 data-nosnippet>125</a>// or event loss in the store service.
-<a href=#126 id=126 data-nosnippet>126</a></span><span class="macro">define_topic_assignments!</span> {
-<a href=#127 id=127 data-nosnippet>127</a>    events: (KafkaTopic::Events, <span class="string">"ingest-events"</span>, <span class="string">"Simple events topic name."</span>),
-<a href=#128 id=128 data-nosnippet>128</a>    attachments: (KafkaTopic::Attachments, <span class="string">"ingest-attachments"</span>, <span class="string">"Events with attachments topic name."</span>),
-<a href=#129 id=129 data-nosnippet>129</a>    transactions: (KafkaTopic::Transactions, <span class="string">"ingest-transactions"</span>, <span class="string">"Transaction events topic name."</span>),
-<a href=#130 id=130 data-nosnippet>130</a>    outcomes: (KafkaTopic::Outcomes, <span class="string">"outcomes"</span>, <span class="string">"Outcomes topic name."</span>),
-<a href=#131 id=131 data-nosnippet>131</a>    outcomes_billing: (KafkaTopic::OutcomesBilling, <span class="string">"outcomes-billing"</span>, <span class="string">"Outcomes topic name for billing critical outcomes."</span>),
-<a href=#132 id=132 data-nosnippet>132</a>    metrics_sessions: (KafkaTopic::MetricsSessions, <span class="string">"ingest-metrics"</span>, <span class="string">"Topic name for metrics extracted from sessions, aka release health."</span>),
-<a href=#133 id=133 data-nosnippet>133</a>    metrics_generic: (KafkaTopic::MetricsGeneric, <span class="string">"ingest-performance-metrics"</span>, <span class="string">"Topic name for all other kinds of metrics."</span>),
-<a href=#134 id=134 data-nosnippet>134</a>    profiles: (KafkaTopic::Profiles, <span class="string">"profiles"</span>, <span class="string">"Stacktrace topic name"</span>),
-<a href=#135 id=135 data-nosnippet>135</a>    replay_events: (KafkaTopic::ReplayEvents, <span class="string">"ingest-replay-events"</span>, <span class="string">"Replay Events topic name."</span>),
-<a href=#136 id=136 data-nosnippet>136</a>    replay_recordings: (KafkaTopic::ReplayRecordings, <span class="string">"ingest-replay-recordings"</span>, <span class="string">"Recordings topic name."</span>),
-<a href=#137 id=137 data-nosnippet>137</a>    ourlogs: (KafkaTopic::OurLogs, <span class="string">"snuba-ourlogs"</span>, <span class="string">"Logs from our logs product."</span>),
-<a href=#138 id=138 data-nosnippet>138</a>    monitors: (KafkaTopic::Monitors, <span class="string">"ingest-monitors"</span>, <span class="string">"Monitor check-ins."</span>),
-<a href=#139 id=139 data-nosnippet>139</a>    spans: (KafkaTopic::Spans, <span class="string">"snuba-spans"</span>, <span class="string">"Standalone spans without a transaction."</span>),
-<a href=#140 id=140 data-nosnippet>140</a>    feedback: (KafkaTopic::Feedback, <span class="string">"ingest-feedback-events"</span>, <span class="string">"Feedback events topic."</span>),
-<a href=#141 id=141 data-nosnippet>141</a>}
-<a href=#142 id=142 data-nosnippet>142</a>
-<a href=#143 id=143 data-nosnippet>143</a><span class="doccomment">/// Configuration for a "logical" topic/datasink that Relay should forward data into.
-<a href=#144 id=144 data-nosnippet>144</a>///
-<a href=#145 id=145 data-nosnippet>145</a>/// Can be either a string containing the kafka topic name to produce into (using the default
-<a href=#146 id=146 data-nosnippet>146</a>/// `kafka_config`), or an object containing keys `topic_name` and `kafka_config_name` for using a
-<a href=#147 id=147 data-nosnippet>147</a>/// custom kafka cluster.
+<a href=#54 id=54 data-nosnippet>54</a>    <span class="doccomment">/// Items topic
+<a href=#55 id=55 data-nosnippet>55</a>    </span>Items,
+<a href=#56 id=56 data-nosnippet>56</a>}
+<a href=#57 id=57 data-nosnippet>57</a>
+<a href=#58 id=58 data-nosnippet>58</a><span class="kw">impl </span>KafkaTopic {
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// Returns iterator over the variants of [`KafkaTopic`].
+<a href=#60 id=60 data-nosnippet>60</a>    /// It will have to be adjusted if the new variants are added.
+<a href=#61 id=61 data-nosnippet>61</a>    </span><span class="kw">pub fn </span>iter() -&gt; std::slice::Iter&lt;<span class="lifetime">'static</span>, <span class="self">Self</span>&gt; {
+<a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">use </span>KafkaTopic::<span class="kw-2">*</span>;
+<a href=#63 id=63 data-nosnippet>63</a>        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">15</span>] = [
+<a href=#64 id=64 data-nosnippet>64</a>            Events,
+<a href=#65 id=65 data-nosnippet>65</a>            Attachments,
+<a href=#66 id=66 data-nosnippet>66</a>            Transactions,
+<a href=#67 id=67 data-nosnippet>67</a>            Outcomes,
+<a href=#68 id=68 data-nosnippet>68</a>            OutcomesBilling,
+<a href=#69 id=69 data-nosnippet>69</a>            MetricsSessions,
+<a href=#70 id=70 data-nosnippet>70</a>            MetricsGeneric,
+<a href=#71 id=71 data-nosnippet>71</a>            Profiles,
+<a href=#72 id=72 data-nosnippet>72</a>            ReplayEvents,
+<a href=#73 id=73 data-nosnippet>73</a>            ReplayRecordings,
+<a href=#74 id=74 data-nosnippet>74</a>            Monitors,
+<a href=#75 id=75 data-nosnippet>75</a>            OurLogs,
+<a href=#76 id=76 data-nosnippet>76</a>            Spans,
+<a href=#77 id=77 data-nosnippet>77</a>            Feedback,
+<a href=#78 id=78 data-nosnippet>78</a>            Items,
+<a href=#79 id=79 data-nosnippet>79</a>        ];
+<a href=#80 id=80 data-nosnippet>80</a>        TOPICS.iter()
+<a href=#81 id=81 data-nosnippet>81</a>    }
+<a href=#82 id=82 data-nosnippet>82</a>}
+<a href=#83 id=83 data-nosnippet>83</a>
+<a href=#84 id=84 data-nosnippet>84</a><span class="macro">macro_rules!</span> define_topic_assignments {
+<a href=#85 id=85 data-nosnippet>85</a>    ($(<span class="macro-nonterminal">$field_name</span>:ident : (<span class="macro-nonterminal">$kafka_topic</span>:path, <span class="macro-nonterminal">$default_topic</span>:literal, <span class="macro-nonterminal">$doc</span>:literal)),* $(,)<span class="question-mark">?</span>) =&gt; {
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="doccomment">/// Configuration for topics.
+<a href=#87 id=87 data-nosnippet>87</a>        </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
+<a href=#88 id=88 data-nosnippet>88</a>        #[serde(default)]
+<a href=#89 id=89 data-nosnippet>89</a>        </span><span class="kw">pub struct </span>TopicAssignments {
+<a href=#90 id=90 data-nosnippet>90</a>            $(
+<a href=#91 id=91 data-nosnippet>91</a>                <span class="attr">#[serde(alias = <span class="macro-nonterminal">$default_topic</span>)]
+<a href=#92 id=92 data-nosnippet>92</a>                #[doc = <span class="macro-nonterminal">$doc</span>]
+<a href=#93 id=93 data-nosnippet>93</a>                </span><span class="kw">pub </span><span class="macro-nonterminal">$field_name</span>: TopicAssignment,
+<a href=#94 id=94 data-nosnippet>94</a>            )*
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a>            <span class="doccomment">/// Additional topic assignments configured but currently unused by this Relay instance.
+<a href=#97 id=97 data-nosnippet>97</a>            </span><span class="attr">#[serde(flatten)]
+<a href=#98 id=98 data-nosnippet>98</a>            </span><span class="kw">pub </span>unused: BTreeMap&lt;String, TopicAssignment&gt;,
+<a href=#99 id=99 data-nosnippet>99</a>        }
+<a href=#100 id=100 data-nosnippet>100</a>
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="kw">impl </span>TopicAssignments{
+<a href=#102 id=102 data-nosnippet>102</a>            <span class="doccomment">/// Get a topic assignment by [`KafkaTopic`] value
+<a href=#103 id=103 data-nosnippet>103</a>            </span><span class="attr">#[must_use]
+<a href=#104 id=104 data-nosnippet>104</a>            </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, kafka_topic: KafkaTopic) -&gt; <span class="kw-2">&amp;</span>TopicAssignment {
+<a href=#105 id=105 data-nosnippet>105</a>                <span class="kw">match </span>kafka_topic {
+<a href=#106 id=106 data-nosnippet>106</a>                    $(
+<a href=#107 id=107 data-nosnippet>107</a>                        <span class="macro-nonterminal">$kafka_topic </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="macro-nonterminal">$field_name</span>,
+<a href=#108 id=108 data-nosnippet>108</a>                    )*
+<a href=#109 id=109 data-nosnippet>109</a>                }
+<a href=#110 id=110 data-nosnippet>110</a>            }
+<a href=#111 id=111 data-nosnippet>111</a>        }
+<a href=#112 id=112 data-nosnippet>112</a>
+<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">impl </span>Default <span class="kw">for </span>TopicAssignments {
+<a href=#114 id=114 data-nosnippet>114</a>            <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+<a href=#115 id=115 data-nosnippet>115</a>                <span class="self">Self </span>{
+<a href=#116 id=116 data-nosnippet>116</a>                    $(
+<a href=#117 id=117 data-nosnippet>117</a>                        <span class="macro-nonterminal">$field_name</span>: <span class="macro-nonterminal">$default_topic</span>.to_owned().into(),
+<a href=#118 id=118 data-nosnippet>118</a>                    )*
+<a href=#119 id=119 data-nosnippet>119</a>                    unused: BTreeMap::new(),
+<a href=#120 id=120 data-nosnippet>120</a>                }
+<a href=#121 id=121 data-nosnippet>121</a>            }
+<a href=#122 id=122 data-nosnippet>122</a>        }
+<a href=#123 id=123 data-nosnippet>123</a>    };
+<a href=#124 id=124 data-nosnippet>124</a>}
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a><span class="comment">// WARNING: When adding a topic here, make sure that the kafka topic exists or can be auto-created.
+<a href=#127 id=127 data-nosnippet>127</a>// Failure to do so will result in Relay crashing (if the `kafka_validate_topics` config flag is enabled),
+<a href=#128 id=128 data-nosnippet>128</a>// or event loss in the store service.
+<a href=#129 id=129 data-nosnippet>129</a></span><span class="macro">define_topic_assignments!</span> {
+<a href=#130 id=130 data-nosnippet>130</a>    events: (KafkaTopic::Events, <span class="string">"ingest-events"</span>, <span class="string">"Simple events topic name."</span>),
+<a href=#131 id=131 data-nosnippet>131</a>    attachments: (KafkaTopic::Attachments, <span class="string">"ingest-attachments"</span>, <span class="string">"Events with attachments topic name."</span>),
+<a href=#132 id=132 data-nosnippet>132</a>    transactions: (KafkaTopic::Transactions, <span class="string">"ingest-transactions"</span>, <span class="string">"Transaction events topic name."</span>),
+<a href=#133 id=133 data-nosnippet>133</a>    outcomes: (KafkaTopic::Outcomes, <span class="string">"outcomes"</span>, <span class="string">"Outcomes topic name."</span>),
+<a href=#134 id=134 data-nosnippet>134</a>    outcomes_billing: (KafkaTopic::OutcomesBilling, <span class="string">"outcomes-billing"</span>, <span class="string">"Outcomes topic name for billing critical outcomes."</span>),
+<a href=#135 id=135 data-nosnippet>135</a>    metrics_sessions: (KafkaTopic::MetricsSessions, <span class="string">"ingest-metrics"</span>, <span class="string">"Topic name for metrics extracted from sessions, aka release health."</span>),
+<a href=#136 id=136 data-nosnippet>136</a>    metrics_generic: (KafkaTopic::MetricsGeneric, <span class="string">"ingest-performance-metrics"</span>, <span class="string">"Topic name for all other kinds of metrics."</span>),
+<a href=#137 id=137 data-nosnippet>137</a>    profiles: (KafkaTopic::Profiles, <span class="string">"profiles"</span>, <span class="string">"Stacktrace topic name"</span>),
+<a href=#138 id=138 data-nosnippet>138</a>    replay_events: (KafkaTopic::ReplayEvents, <span class="string">"ingest-replay-events"</span>, <span class="string">"Replay Events topic name."</span>),
+<a href=#139 id=139 data-nosnippet>139</a>    replay_recordings: (KafkaTopic::ReplayRecordings, <span class="string">"ingest-replay-recordings"</span>, <span class="string">"Recordings topic name."</span>),
+<a href=#140 id=140 data-nosnippet>140</a>    ourlogs: (KafkaTopic::OurLogs, <span class="string">"snuba-ourlogs"</span>, <span class="string">"Logs from our logs product."</span>),
+<a href=#141 id=141 data-nosnippet>141</a>    monitors: (KafkaTopic::Monitors, <span class="string">"ingest-monitors"</span>, <span class="string">"Monitor check-ins."</span>),
+<a href=#142 id=142 data-nosnippet>142</a>    spans: (KafkaTopic::Spans, <span class="string">"snuba-spans"</span>, <span class="string">"Standalone spans without a transaction."</span>),
+<a href=#143 id=143 data-nosnippet>143</a>    feedback: (KafkaTopic::Feedback, <span class="string">"ingest-feedback-events"</span>, <span class="string">"Feedback events topic."</span>),
+<a href=#144 id=144 data-nosnippet>144</a>    items: (KafkaTopic::Items, <span class="string">"snuba-items"</span>, <span class="string">"Items topic."</span>),
+<a href=#145 id=145 data-nosnippet>145</a>}
+<a href=#146 id=146 data-nosnippet>146</a>
+<a href=#147 id=147 data-nosnippet>147</a><span class="doccomment">/// Configuration for a "logical" topic/datasink that Relay should forward data into.
 <a href=#148 id=148 data-nosnippet>148</a>///
-<a href=#149 id=149 data-nosnippet>149</a>/// See documentation for `secondary_kafka_configs` for more information.
-<a href=#150 id=150 data-nosnippet>150</a></span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
-<a href=#151 id=151 data-nosnippet>151</a>#[serde(untagged)]
-<a href=#152 id=152 data-nosnippet>152</a></span><span class="kw">pub enum </span>TopicAssignment {
-<a href=#153 id=153 data-nosnippet>153</a>    <span class="doccomment">/// String containing the kafka topic name. In this case the default kafka cluster configured
-<a href=#154 id=154 data-nosnippet>154</a>    /// in `kafka_config` will be used.
-<a href=#155 id=155 data-nosnippet>155</a>    </span>Primary(String),
-<a href=#156 id=156 data-nosnippet>156</a>    <span class="doccomment">/// Object containing topic name and string identifier of one of the clusters configured in
-<a href=#157 id=157 data-nosnippet>157</a>    /// `secondary_kafka_configs`. In this case that custom kafka config will be used to produce
-<a href=#158 id=158 data-nosnippet>158</a>    /// data to the given topic name.
-<a href=#159 id=159 data-nosnippet>159</a>    </span>Secondary(KafkaTopicConfig),
-<a href=#160 id=160 data-nosnippet>160</a>}
-<a href=#161 id=161 data-nosnippet>161</a>
-<a href=#162 id=162 data-nosnippet>162</a><span class="doccomment">/// Configuration for topic
-<a href=#163 id=163 data-nosnippet>163</a></span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
-<a href=#164 id=164 data-nosnippet>164</a></span><span class="kw">pub struct </span>KafkaTopicConfig {
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// The topic name to use.
-<a href=#166 id=166 data-nosnippet>166</a>    </span><span class="attr">#[serde(rename = <span class="string">"name"</span>)]
-<a href=#167 id=167 data-nosnippet>167</a>    </span>topic_name: String,
-<a href=#168 id=168 data-nosnippet>168</a>    <span class="doccomment">/// The Kafka config name will be used to produce data to the given topic.
-<a href=#169 id=169 data-nosnippet>169</a>    </span><span class="attr">#[serde(rename = <span class="string">"config"</span>)]
-<a href=#170 id=170 data-nosnippet>170</a>    </span>kafka_config_name: String,
-<a href=#171 id=171 data-nosnippet>171</a>}
-<a href=#172 id=172 data-nosnippet>172</a>
-<a href=#173 id=173 data-nosnippet>173</a><span class="doccomment">/// Config for creating a Kafka producer.
-<a href=#174 id=174 data-nosnippet>174</a></span><span class="attr">#[derive(Debug)]
-<a href=#175 id=175 data-nosnippet>175</a></span><span class="kw">pub struct </span>KafkaParams&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#176 id=176 data-nosnippet>176</a>    <span class="doccomment">/// The topic name to use.
-<a href=#177 id=177 data-nosnippet>177</a>    </span><span class="kw">pub </span>topic_name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
-<a href=#178 id=178 data-nosnippet>178</a>    <span class="doccomment">/// The Kafka config name will be used to produce data.
-<a href=#179 id=179 data-nosnippet>179</a>    </span><span class="kw">pub </span>config_name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
-<a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// Parameters for the Kafka producer configuration.
-<a href=#181 id=181 data-nosnippet>181</a>    </span><span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[KafkaConfigParam],
-<a href=#182 id=182 data-nosnippet>182</a>}
-<a href=#183 id=183 data-nosnippet>183</a>
-<a href=#184 id=184 data-nosnippet>184</a><span class="kw">impl </span>From&lt;String&gt; <span class="kw">for </span>TopicAssignment {
-<a href=#185 id=185 data-nosnippet>185</a>    <span class="kw">fn </span>from(topic_name: String) -&gt; <span class="self">Self </span>{
-<a href=#186 id=186 data-nosnippet>186</a>        <span class="self">Self</span>::Primary(topic_name)
-<a href=#187 id=187 data-nosnippet>187</a>    }
-<a href=#188 id=188 data-nosnippet>188</a>}
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a><span class="kw">impl </span>TopicAssignment {
-<a href=#191 id=191 data-nosnippet>191</a>    <span class="doccomment">/// Get the kafka config for the current topic assignment.
-<a href=#192 id=192 data-nosnippet>192</a>    ///
-<a href=#193 id=193 data-nosnippet>193</a>    /// # Errors
-<a href=#194 id=194 data-nosnippet>194</a>    /// Returns [`ConfigError`] if the configuration for the current topic assignment is invalid.
-<a href=#195 id=195 data-nosnippet>195</a>    </span><span class="kw">pub fn </span>kafka_config&lt;<span class="lifetime">'a</span>&gt;(
-<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>,
-<a href=#197 id=197 data-nosnippet>197</a>        default_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Vec&lt;KafkaConfigParam&gt;,
-<a href=#198 id=198 data-nosnippet>198</a>        secondary_configs: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, Vec&lt;KafkaConfigParam&gt;&gt;,
-<a href=#199 id=199 data-nosnippet>199</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;KafkaParams&lt;<span class="lifetime">'a</span>&gt;, ConfigError&gt; {
-<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">let </span>kafka_config = <span class="kw">match </span><span class="self">self </span>{
-<a href=#201 id=201 data-nosnippet>201</a>            <span class="self">Self</span>::Primary(topic_name) =&gt; KafkaParams {
-<a href=#202 id=202 data-nosnippet>202</a>                topic_name,
-<a href=#203 id=203 data-nosnippet>203</a>                config_name: <span class="prelude-val">None</span>,
-<a href=#204 id=204 data-nosnippet>204</a>                params: default_config.as_slice(),
-<a href=#205 id=205 data-nosnippet>205</a>            },
-<a href=#206 id=206 data-nosnippet>206</a>            <span class="self">Self</span>::Secondary(KafkaTopicConfig {
-<a href=#207 id=207 data-nosnippet>207</a>                topic_name,
-<a href=#208 id=208 data-nosnippet>208</a>                kafka_config_name,
-<a href=#209 id=209 data-nosnippet>209</a>            }) =&gt; KafkaParams {
-<a href=#210 id=210 data-nosnippet>210</a>                config_name: <span class="prelude-val">Some</span>(kafka_config_name),
+<a href=#149 id=149 data-nosnippet>149</a>/// Can be either a string containing the kafka topic name to produce into (using the default
+<a href=#150 id=150 data-nosnippet>150</a>/// `kafka_config`), or an object containing keys `topic_name` and `kafka_config_name` for using a
+<a href=#151 id=151 data-nosnippet>151</a>/// custom kafka cluster.
+<a href=#152 id=152 data-nosnippet>152</a>///
+<a href=#153 id=153 data-nosnippet>153</a>/// See documentation for `secondary_kafka_configs` for more information.
+<a href=#154 id=154 data-nosnippet>154</a></span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
+<a href=#155 id=155 data-nosnippet>155</a>#[serde(untagged)]
+<a href=#156 id=156 data-nosnippet>156</a></span><span class="kw">pub enum </span>TopicAssignment {
+<a href=#157 id=157 data-nosnippet>157</a>    <span class="doccomment">/// String containing the kafka topic name. In this case the default kafka cluster configured
+<a href=#158 id=158 data-nosnippet>158</a>    /// in `kafka_config` will be used.
+<a href=#159 id=159 data-nosnippet>159</a>    </span>Primary(String),
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="doccomment">/// Object containing topic name and string identifier of one of the clusters configured in
+<a href=#161 id=161 data-nosnippet>161</a>    /// `secondary_kafka_configs`. In this case that custom kafka config will be used to produce
+<a href=#162 id=162 data-nosnippet>162</a>    /// data to the given topic name.
+<a href=#163 id=163 data-nosnippet>163</a>    </span>Secondary(KafkaTopicConfig),
+<a href=#164 id=164 data-nosnippet>164</a>}
+<a href=#165 id=165 data-nosnippet>165</a>
+<a href=#166 id=166 data-nosnippet>166</a><span class="doccomment">/// Configuration for topic
+<a href=#167 id=167 data-nosnippet>167</a></span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
+<a href=#168 id=168 data-nosnippet>168</a></span><span class="kw">pub struct </span>KafkaTopicConfig {
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="doccomment">/// The topic name to use.
+<a href=#170 id=170 data-nosnippet>170</a>    </span><span class="attr">#[serde(rename = <span class="string">"name"</span>)]
+<a href=#171 id=171 data-nosnippet>171</a>    </span>topic_name: String,
+<a href=#172 id=172 data-nosnippet>172</a>    <span class="doccomment">/// The Kafka config name will be used to produce data to the given topic.
+<a href=#173 id=173 data-nosnippet>173</a>    </span><span class="attr">#[serde(rename = <span class="string">"config"</span>)]
+<a href=#174 id=174 data-nosnippet>174</a>    </span>kafka_config_name: String,
+<a href=#175 id=175 data-nosnippet>175</a>}
+<a href=#176 id=176 data-nosnippet>176</a>
+<a href=#177 id=177 data-nosnippet>177</a><span class="doccomment">/// Config for creating a Kafka producer.
+<a href=#178 id=178 data-nosnippet>178</a></span><span class="attr">#[derive(Debug)]
+<a href=#179 id=179 data-nosnippet>179</a></span><span class="kw">pub struct </span>KafkaParams&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// The topic name to use.
+<a href=#181 id=181 data-nosnippet>181</a>    </span><span class="kw">pub </span>topic_name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+<a href=#182 id=182 data-nosnippet>182</a>    <span class="doccomment">/// The Kafka config name will be used to produce data.
+<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="kw">pub </span>config_name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
+<a href=#184 id=184 data-nosnippet>184</a>    <span class="doccomment">/// Parameters for the Kafka producer configuration.
+<a href=#185 id=185 data-nosnippet>185</a>    </span><span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[KafkaConfigParam],
+<a href=#186 id=186 data-nosnippet>186</a>}
+<a href=#187 id=187 data-nosnippet>187</a>
+<a href=#188 id=188 data-nosnippet>188</a><span class="kw">impl </span>From&lt;String&gt; <span class="kw">for </span>TopicAssignment {
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">fn </span>from(topic_name: String) -&gt; <span class="self">Self </span>{
+<a href=#190 id=190 data-nosnippet>190</a>        <span class="self">Self</span>::Primary(topic_name)
+<a href=#191 id=191 data-nosnippet>191</a>    }
+<a href=#192 id=192 data-nosnippet>192</a>}
+<a href=#193 id=193 data-nosnippet>193</a>
+<a href=#194 id=194 data-nosnippet>194</a><span class="kw">impl </span>TopicAssignment {
+<a href=#195 id=195 data-nosnippet>195</a>    <span class="doccomment">/// Get the kafka config for the current topic assignment.
+<a href=#196 id=196 data-nosnippet>196</a>    ///
+<a href=#197 id=197 data-nosnippet>197</a>    /// # Errors
+<a href=#198 id=198 data-nosnippet>198</a>    /// Returns [`ConfigError`] if the configuration for the current topic assignment is invalid.
+<a href=#199 id=199 data-nosnippet>199</a>    </span><span class="kw">pub fn </span>kafka_config&lt;<span class="lifetime">'a</span>&gt;(
+<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>,
+<a href=#201 id=201 data-nosnippet>201</a>        default_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Vec&lt;KafkaConfigParam&gt;,
+<a href=#202 id=202 data-nosnippet>202</a>        secondary_configs: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, Vec&lt;KafkaConfigParam&gt;&gt;,
+<a href=#203 id=203 data-nosnippet>203</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;KafkaParams&lt;<span class="lifetime">'a</span>&gt;, ConfigError&gt; {
+<a href=#204 id=204 data-nosnippet>204</a>        <span class="kw">let </span>kafka_config = <span class="kw">match </span><span class="self">self </span>{
+<a href=#205 id=205 data-nosnippet>205</a>            <span class="self">Self</span>::Primary(topic_name) =&gt; KafkaParams {
+<a href=#206 id=206 data-nosnippet>206</a>                topic_name,
+<a href=#207 id=207 data-nosnippet>207</a>                config_name: <span class="prelude-val">None</span>,
+<a href=#208 id=208 data-nosnippet>208</a>                params: default_config.as_slice(),
+<a href=#209 id=209 data-nosnippet>209</a>            },
+<a href=#210 id=210 data-nosnippet>210</a>            <span class="self">Self</span>::Secondary(KafkaTopicConfig {
 <a href=#211 id=211 data-nosnippet>211</a>                topic_name,
-<a href=#212 id=212 data-nosnippet>212</a>                params: secondary_configs
-<a href=#213 id=213 data-nosnippet>213</a>                    .get(kafka_config_name)
-<a href=#214 id=214 data-nosnippet>214</a>                    .ok_or(ConfigError::UnknownKafkaConfigName)<span class="question-mark">?</span>,
-<a href=#215 id=215 data-nosnippet>215</a>            },
-<a href=#216 id=216 data-nosnippet>216</a>        };
-<a href=#217 id=217 data-nosnippet>217</a>
-<a href=#218 id=218 data-nosnippet>218</a>        <span class="prelude-val">Ok</span>(kafka_config)
-<a href=#219 id=219 data-nosnippet>219</a>    }
-<a href=#220 id=220 data-nosnippet>220</a>}
+<a href=#212 id=212 data-nosnippet>212</a>                kafka_config_name,
+<a href=#213 id=213 data-nosnippet>213</a>            }) =&gt; KafkaParams {
+<a href=#214 id=214 data-nosnippet>214</a>                config_name: <span class="prelude-val">Some</span>(kafka_config_name),
+<a href=#215 id=215 data-nosnippet>215</a>                topic_name,
+<a href=#216 id=216 data-nosnippet>216</a>                params: secondary_configs
+<a href=#217 id=217 data-nosnippet>217</a>                    .get(kafka_config_name)
+<a href=#218 id=218 data-nosnippet>218</a>                    .ok_or(ConfigError::UnknownKafkaConfigName)<span class="question-mark">?</span>,
+<a href=#219 id=219 data-nosnippet>219</a>            },
+<a href=#220 id=220 data-nosnippet>220</a>        };
 <a href=#221 id=221 data-nosnippet>221</a>
-<a href=#222 id=222 data-nosnippet>222</a><span class="doccomment">/// A name value pair of Kafka config parameter.
-<a href=#223 id=223 data-nosnippet>223</a></span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
-<a href=#224 id=224 data-nosnippet>224</a></span><span class="kw">pub struct </span>KafkaConfigParam {
-<a href=#225 id=225 data-nosnippet>225</a>    <span class="doccomment">/// Name of the Kafka config parameter.
-<a href=#226 id=226 data-nosnippet>226</a>    </span><span class="kw">pub </span>name: String,
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="doccomment">/// Value of the Kafka config parameter.
-<a href=#228 id=228 data-nosnippet>228</a>    </span><span class="kw">pub </span>value: String,
-<a href=#229 id=229 data-nosnippet>229</a>}
-<a href=#230 id=230 data-nosnippet>230</a>
-<a href=#231 id=231 data-nosnippet>231</a><span class="attr">#[cfg(test)]
-<a href=#232 id=232 data-nosnippet>232</a></span><span class="kw">mod </span>tests {
-<a href=#233 id=233 data-nosnippet>233</a>
-<a href=#234 id=234 data-nosnippet>234</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#235 id=235 data-nosnippet>235</a>
-<a href=#236 id=236 data-nosnippet>236</a>    <span class="attr">#[test]
-<a href=#237 id=237 data-nosnippet>237</a>    </span><span class="kw">fn </span>test_kafka_config() {
-<a href=#238 id=238 data-nosnippet>238</a>        <span class="kw">let </span>yaml = <span class="string">r#"
-<a href=#239 id=239 data-nosnippet>239</a>ingest-events: "ingest-events-kafka-topic"
-<a href=#240 id=240 data-nosnippet>240</a>profiles:
-<a href=#241 id=241 data-nosnippet>241</a>    name: "ingest-profiles"
-<a href=#242 id=242 data-nosnippet>242</a>    config: "profiles"
-<a href=#243 id=243 data-nosnippet>243</a>ingest-metrics: "ingest-metrics-3"
-<a href=#244 id=244 data-nosnippet>244</a>transactions: "ingest-transactions-kafka-topic"
-<a href=#245 id=245 data-nosnippet>245</a>"#</span>;
-<a href=#246 id=246 data-nosnippet>246</a>
-<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span>def_config = <span class="macro">vec!</span>[KafkaConfigParam {
-<a href=#248 id=248 data-nosnippet>248</a>            name: <span class="string">"test"</span>.to_string(),
-<a href=#249 id=249 data-nosnippet>249</a>            value: <span class="string">"test-value"</span>.to_string(),
-<a href=#250 id=250 data-nosnippet>250</a>        }];
-<a href=#251 id=251 data-nosnippet>251</a>        <span class="kw">let </span><span class="kw-2">mut </span>second_config = BTreeMap::new();
-<a href=#252 id=252 data-nosnippet>252</a>        second_config.insert(
-<a href=#253 id=253 data-nosnippet>253</a>            <span class="string">"profiles"</span>.to_string(),
-<a href=#254 id=254 data-nosnippet>254</a>            <span class="macro">vec!</span>[KafkaConfigParam {
-<a href=#255 id=255 data-nosnippet>255</a>                name: <span class="string">"test"</span>.to_string(),
-<a href=#256 id=256 data-nosnippet>256</a>                value: <span class="string">"test-value"</span>.to_string(),
-<a href=#257 id=257 data-nosnippet>257</a>            }],
-<a href=#258 id=258 data-nosnippet>258</a>        );
-<a href=#259 id=259 data-nosnippet>259</a>
-<a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span>topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
-<a href=#261 id=261 data-nosnippet>261</a>        <span class="kw">let </span>events = topics.events;
-<a href=#262 id=262 data-nosnippet>262</a>        <span class="kw">let </span>profiles = topics.profiles;
-<a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">let </span>metrics_sessions = topics.metrics_sessions;
-<a href=#264 id=264 data-nosnippet>264</a>        <span class="kw">let </span>transactions = topics.transactions;
-<a href=#265 id=265 data-nosnippet>265</a>
-<a href=#266 id=266 data-nosnippet>266</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(events, TopicAssignment::Primary(<span class="kw">_</span>)));
-<a href=#267 id=267 data-nosnippet>267</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(profiles, TopicAssignment::Secondary { .. }));
-<a href=#268 id=268 data-nosnippet>268</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(metrics_sessions, TopicAssignment::Primary(<span class="kw">_</span>)));
-<a href=#269 id=269 data-nosnippet>269</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(transactions, TopicAssignment::Primary(<span class="kw">_</span>)));
-<a href=#270 id=270 data-nosnippet>270</a>
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">let </span>events_config = events
-<a href=#272 id=272 data-nosnippet>272</a>            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
-<a href=#273 id=273 data-nosnippet>273</a>            .expect(<span class="string">"Kafka config for events topic"</span>);
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#275 id=275 data-nosnippet>275</a>            events_config,
-<a href=#276 id=276 data-nosnippet>276</a>            KafkaParams {
-<a href=#277 id=277 data-nosnippet>277</a>                topic_name: <span class="string">"ingest-events-kafka-topic"</span>,
-<a href=#278 id=278 data-nosnippet>278</a>                ..
-<a href=#279 id=279 data-nosnippet>279</a>            }
-<a href=#280 id=280 data-nosnippet>280</a>        ));
-<a href=#281 id=281 data-nosnippet>281</a>
-<a href=#282 id=282 data-nosnippet>282</a>        <span class="kw">let </span>events_config = profiles
-<a href=#283 id=283 data-nosnippet>283</a>            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
-<a href=#284 id=284 data-nosnippet>284</a>            .expect(<span class="string">"Kafka config for profiles topic"</span>);
-<a href=#285 id=285 data-nosnippet>285</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#286 id=286 data-nosnippet>286</a>            events_config,
-<a href=#287 id=287 data-nosnippet>287</a>            KafkaParams {
-<a href=#288 id=288 data-nosnippet>288</a>                topic_name: <span class="string">"ingest-profiles"</span>,
-<a href=#289 id=289 data-nosnippet>289</a>                config_name: <span class="prelude-val">Some</span>(<span class="string">"profiles"</span>),
-<a href=#290 id=290 data-nosnippet>290</a>                ..
-<a href=#291 id=291 data-nosnippet>291</a>            }
-<a href=#292 id=292 data-nosnippet>292</a>        ));
-<a href=#293 id=293 data-nosnippet>293</a>
-<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">let </span>events_config = metrics_sessions
-<a href=#295 id=295 data-nosnippet>295</a>            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
-<a href=#296 id=296 data-nosnippet>296</a>            .expect(<span class="string">"Kafka config for metrics topic"</span>);
-<a href=#297 id=297 data-nosnippet>297</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#298 id=298 data-nosnippet>298</a>            events_config,
-<a href=#299 id=299 data-nosnippet>299</a>            KafkaParams {
-<a href=#300 id=300 data-nosnippet>300</a>                topic_name: <span class="string">"ingest-metrics-3"</span>,
-<a href=#301 id=301 data-nosnippet>301</a>                ..
-<a href=#302 id=302 data-nosnippet>302</a>            }
-<a href=#303 id=303 data-nosnippet>303</a>        ));
-<a href=#304 id=304 data-nosnippet>304</a>
-<a href=#305 id=305 data-nosnippet>305</a>        <span class="comment">// Legacy keys are still supported
-<a href=#306 id=306 data-nosnippet>306</a>        </span><span class="kw">let </span>transactions_config = transactions
-<a href=#307 id=307 data-nosnippet>307</a>            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
-<a href=#308 id=308 data-nosnippet>308</a>            .expect(<span class="string">"Kafka config for transactions topic"</span>);
-<a href=#309 id=309 data-nosnippet>309</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#310 id=310 data-nosnippet>310</a>            transactions_config,
-<a href=#311 id=311 data-nosnippet>311</a>            KafkaParams {
-<a href=#312 id=312 data-nosnippet>312</a>                topic_name: <span class="string">"ingest-transactions-kafka-topic"</span>,
-<a href=#313 id=313 data-nosnippet>313</a>                ..
-<a href=#314 id=314 data-nosnippet>314</a>            }
-<a href=#315 id=315 data-nosnippet>315</a>        ));
-<a href=#316 id=316 data-nosnippet>316</a>    }
-<a href=#317 id=317 data-nosnippet>317</a>
-<a href=#318 id=318 data-nosnippet>318</a>    <span class="attr">#[test]
-<a href=#319 id=319 data-nosnippet>319</a>    </span><span class="kw">fn </span>test_default_topic_is_valid() {
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">let </span>topic_assignments = TopicAssignments::default();
+<a href=#222 id=222 data-nosnippet>222</a>        <span class="prelude-val">Ok</span>(kafka_config)
+<a href=#223 id=223 data-nosnippet>223</a>    }
+<a href=#224 id=224 data-nosnippet>224</a>}
+<a href=#225 id=225 data-nosnippet>225</a>
+<a href=#226 id=226 data-nosnippet>226</a><span class="doccomment">/// A name value pair of Kafka config parameter.
+<a href=#227 id=227 data-nosnippet>227</a></span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
+<a href=#228 id=228 data-nosnippet>228</a></span><span class="kw">pub struct </span>KafkaConfigParam {
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="doccomment">/// Name of the Kafka config parameter.
+<a href=#230 id=230 data-nosnippet>230</a>    </span><span class="kw">pub </span>name: String,
+<a href=#231 id=231 data-nosnippet>231</a>    <span class="doccomment">/// Value of the Kafka config parameter.
+<a href=#232 id=232 data-nosnippet>232</a>    </span><span class="kw">pub </span>value: String,
+<a href=#233 id=233 data-nosnippet>233</a>}
+<a href=#234 id=234 data-nosnippet>234</a>
+<a href=#235 id=235 data-nosnippet>235</a><span class="attr">#[cfg(test)]
+<a href=#236 id=236 data-nosnippet>236</a></span><span class="kw">mod </span>tests {
+<a href=#237 id=237 data-nosnippet>237</a>
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#239 id=239 data-nosnippet>239</a>
+<a href=#240 id=240 data-nosnippet>240</a>    <span class="attr">#[test]
+<a href=#241 id=241 data-nosnippet>241</a>    </span><span class="kw">fn </span>test_kafka_config() {
+<a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">let </span>yaml = <span class="string">r#"
+<a href=#243 id=243 data-nosnippet>243</a>ingest-events: "ingest-events-kafka-topic"
+<a href=#244 id=244 data-nosnippet>244</a>profiles:
+<a href=#245 id=245 data-nosnippet>245</a>    name: "ingest-profiles"
+<a href=#246 id=246 data-nosnippet>246</a>    config: "profiles"
+<a href=#247 id=247 data-nosnippet>247</a>ingest-metrics: "ingest-metrics-3"
+<a href=#248 id=248 data-nosnippet>248</a>transactions: "ingest-transactions-kafka-topic"
+<a href=#249 id=249 data-nosnippet>249</a>"#</span>;
+<a href=#250 id=250 data-nosnippet>250</a>
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="kw">let </span>def_config = <span class="macro">vec!</span>[KafkaConfigParam {
+<a href=#252 id=252 data-nosnippet>252</a>            name: <span class="string">"test"</span>.to_string(),
+<a href=#253 id=253 data-nosnippet>253</a>            value: <span class="string">"test-value"</span>.to_string(),
+<a href=#254 id=254 data-nosnippet>254</a>        }];
+<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">let </span><span class="kw-2">mut </span>second_config = BTreeMap::new();
+<a href=#256 id=256 data-nosnippet>256</a>        second_config.insert(
+<a href=#257 id=257 data-nosnippet>257</a>            <span class="string">"profiles"</span>.to_string(),
+<a href=#258 id=258 data-nosnippet>258</a>            <span class="macro">vec!</span>[KafkaConfigParam {
+<a href=#259 id=259 data-nosnippet>259</a>                name: <span class="string">"test"</span>.to_string(),
+<a href=#260 id=260 data-nosnippet>260</a>                value: <span class="string">"test-value"</span>.to_string(),
+<a href=#261 id=261 data-nosnippet>261</a>            }],
+<a href=#262 id=262 data-nosnippet>262</a>        );
+<a href=#263 id=263 data-nosnippet>263</a>
+<a href=#264 id=264 data-nosnippet>264</a>        <span class="kw">let </span>topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
+<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">let </span>events = topics.events;
+<a href=#266 id=266 data-nosnippet>266</a>        <span class="kw">let </span>profiles = topics.profiles;
+<a href=#267 id=267 data-nosnippet>267</a>        <span class="kw">let </span>metrics_sessions = topics.metrics_sessions;
+<a href=#268 id=268 data-nosnippet>268</a>        <span class="kw">let </span>transactions = topics.transactions;
+<a href=#269 id=269 data-nosnippet>269</a>
+<a href=#270 id=270 data-nosnippet>270</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(events, TopicAssignment::Primary(<span class="kw">_</span>)));
+<a href=#271 id=271 data-nosnippet>271</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(profiles, TopicAssignment::Secondary { .. }));
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(metrics_sessions, TopicAssignment::Primary(<span class="kw">_</span>)));
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(transactions, TopicAssignment::Primary(<span class="kw">_</span>)));
+<a href=#274 id=274 data-nosnippet>274</a>
+<a href=#275 id=275 data-nosnippet>275</a>        <span class="kw">let </span>events_config = events
+<a href=#276 id=276 data-nosnippet>276</a>            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
+<a href=#277 id=277 data-nosnippet>277</a>            .expect(<span class="string">"Kafka config for events topic"</span>);
+<a href=#278 id=278 data-nosnippet>278</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#279 id=279 data-nosnippet>279</a>            events_config,
+<a href=#280 id=280 data-nosnippet>280</a>            KafkaParams {
+<a href=#281 id=281 data-nosnippet>281</a>                topic_name: <span class="string">"ingest-events-kafka-topic"</span>,
+<a href=#282 id=282 data-nosnippet>282</a>                ..
+<a href=#283 id=283 data-nosnippet>283</a>            }
+<a href=#284 id=284 data-nosnippet>284</a>        ));
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">let </span>events_config = profiles
+<a href=#287 id=287 data-nosnippet>287</a>            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
+<a href=#288 id=288 data-nosnippet>288</a>            .expect(<span class="string">"Kafka config for profiles topic"</span>);
+<a href=#289 id=289 data-nosnippet>289</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#290 id=290 data-nosnippet>290</a>            events_config,
+<a href=#291 id=291 data-nosnippet>291</a>            KafkaParams {
+<a href=#292 id=292 data-nosnippet>292</a>                topic_name: <span class="string">"ingest-profiles"</span>,
+<a href=#293 id=293 data-nosnippet>293</a>                config_name: <span class="prelude-val">Some</span>(<span class="string">"profiles"</span>),
+<a href=#294 id=294 data-nosnippet>294</a>                ..
+<a href=#295 id=295 data-nosnippet>295</a>            }
+<a href=#296 id=296 data-nosnippet>296</a>        ));
+<a href=#297 id=297 data-nosnippet>297</a>
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="kw">let </span>events_config = metrics_sessions
+<a href=#299 id=299 data-nosnippet>299</a>            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
+<a href=#300 id=300 data-nosnippet>300</a>            .expect(<span class="string">"Kafka config for metrics topic"</span>);
+<a href=#301 id=301 data-nosnippet>301</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#302 id=302 data-nosnippet>302</a>            events_config,
+<a href=#303 id=303 data-nosnippet>303</a>            KafkaParams {
+<a href=#304 id=304 data-nosnippet>304</a>                topic_name: <span class="string">"ingest-metrics-3"</span>,
+<a href=#305 id=305 data-nosnippet>305</a>                ..
+<a href=#306 id=306 data-nosnippet>306</a>            }
+<a href=#307 id=307 data-nosnippet>307</a>        ));
+<a href=#308 id=308 data-nosnippet>308</a>
+<a href=#309 id=309 data-nosnippet>309</a>        <span class="comment">// Legacy keys are still supported
+<a href=#310 id=310 data-nosnippet>310</a>        </span><span class="kw">let </span>transactions_config = transactions
+<a href=#311 id=311 data-nosnippet>311</a>            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
+<a href=#312 id=312 data-nosnippet>312</a>            .expect(<span class="string">"Kafka config for transactions topic"</span>);
+<a href=#313 id=313 data-nosnippet>313</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#314 id=314 data-nosnippet>314</a>            transactions_config,
+<a href=#315 id=315 data-nosnippet>315</a>            KafkaParams {
+<a href=#316 id=316 data-nosnippet>316</a>                topic_name: <span class="string">"ingest-transactions-kafka-topic"</span>,
+<a href=#317 id=317 data-nosnippet>317</a>                ..
+<a href=#318 id=318 data-nosnippet>318</a>            }
+<a href=#319 id=319 data-nosnippet>319</a>        ));
+<a href=#320 id=320 data-nosnippet>320</a>    }
 <a href=#321 id=321 data-nosnippet>321</a>
-<a href=#322 id=322 data-nosnippet>322</a>        <span class="comment">// A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
-<a href=#323 id=323 data-nosnippet>323</a>        </span><span class="kw">let </span>currrently_undefined_topics = [
-<a href=#324 id=324 data-nosnippet>324</a>            <span class="string">"ingest-attachments"</span>.to_string(),
-<a href=#325 id=325 data-nosnippet>325</a>            <span class="string">"ingest-transactions"</span>.to_string(),
-<a href=#326 id=326 data-nosnippet>326</a>            <span class="string">"profiles"</span>.to_string(),
-<a href=#327 id=327 data-nosnippet>327</a>            <span class="string">"ingest-monitors"</span>.to_string(),
-<a href=#328 id=328 data-nosnippet>328</a>        ];
-<a href=#329 id=329 data-nosnippet>329</a>
-<a href=#330 id=330 data-nosnippet>330</a>        <span class="kw">for </span>topic <span class="kw">in </span>KafkaTopic::iter() {
-<a href=#331 id=331 data-nosnippet>331</a>            <span class="kw">match </span>topic_assignments.get(<span class="kw-2">*</span>topic) {
-<a href=#332 id=332 data-nosnippet>332</a>                TopicAssignment::Primary(logical_topic_name) =&gt; {
-<a href=#333 id=333 data-nosnippet>333</a>                    <span class="kw">if </span>!currrently_undefined_topics.contains(logical_topic_name) {
-<a href=#334 id=334 data-nosnippet>334</a>                        <span class="macro">assert!</span>(sentry_kafka_schemas::get_schema(logical_topic_name, <span class="prelude-val">None</span>).is_ok());
-<a href=#335 id=335 data-nosnippet>335</a>                    }
-<a href=#336 id=336 data-nosnippet>336</a>                }
-<a href=#337 id=337 data-nosnippet>337</a>                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"invalid default"</span>),
-<a href=#338 id=338 data-nosnippet>338</a>            }
-<a href=#339 id=339 data-nosnippet>339</a>        }
-<a href=#340 id=340 data-nosnippet>340</a>    }
-<a href=#341 id=341 data-nosnippet>341</a>}</code></pre></div></section></main></body></html>
+<a href=#322 id=322 data-nosnippet>322</a>    <span class="attr">#[test]
+<a href=#323 id=323 data-nosnippet>323</a>    </span><span class="kw">fn </span>test_default_topic_is_valid() {
+<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw">let </span>topic_assignments = TopicAssignments::default();
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a>        <span class="comment">// A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
+<a href=#327 id=327 data-nosnippet>327</a>        </span><span class="kw">let </span>currrently_undefined_topics = [
+<a href=#328 id=328 data-nosnippet>328</a>            <span class="string">"ingest-attachments"</span>.to_string(),
+<a href=#329 id=329 data-nosnippet>329</a>            <span class="string">"ingest-transactions"</span>.to_string(),
+<a href=#330 id=330 data-nosnippet>330</a>            <span class="string">"profiles"</span>.to_string(),
+<a href=#331 id=331 data-nosnippet>331</a>            <span class="string">"ingest-monitors"</span>.to_string(),
+<a href=#332 id=332 data-nosnippet>332</a>        ];
+<a href=#333 id=333 data-nosnippet>333</a>
+<a href=#334 id=334 data-nosnippet>334</a>        <span class="kw">for </span>topic <span class="kw">in </span>KafkaTopic::iter() {
+<a href=#335 id=335 data-nosnippet>335</a>            <span class="kw">match </span>topic_assignments.get(<span class="kw-2">*</span>topic) {
+<a href=#336 id=336 data-nosnippet>336</a>                TopicAssignment::Primary(logical_topic_name) =&gt; {
+<a href=#337 id=337 data-nosnippet>337</a>                    <span class="kw">if </span>!currrently_undefined_topics.contains(logical_topic_name) {
+<a href=#338 id=338 data-nosnippet>338</a>                        <span class="macro">assert!</span>(sentry_kafka_schemas::get_schema(logical_topic_name, <span class="prelude-val">None</span>).is_ok());
+<a href=#339 id=339 data-nosnippet>339</a>                    }
+<a href=#340 id=340 data-nosnippet>340</a>                }
+<a href=#341 id=341 data-nosnippet>341</a>                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"invalid default"</span>),
+<a href=#342 id=342 data-nosnippet>342</a>            }
+<a href=#343 id=343 data-nosnippet>343</a>        }
+<a href=#344 id=344 data-nosnippet>344</a>    }
+<a href=#345 id=345 data-nosnippet>345</a>}</code></pre></div></section></main></body></html>

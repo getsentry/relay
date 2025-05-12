@@ -17,8 +17,8 @@ the folders where data will be stored.</p>
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.86.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.86.0/std/primitive.unit.html">()</a>, SqliteEnvelopeStoreError&gt;</h4></section></summary><div class="docblock"><p>Inserts one or more envelopes into the database.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.delete_batch" class="method"><a class="src rightside" href="../src/relay_server/services/buffer/envelope_store/sqlite.rs.html#464-476">Source</a><h4 class="code-header">pub async fn <a href="#method.delete_batch" class="fn">delete_batch</a>(
     &amp;mut self,
-    own_key: <a class="struct" href="../relay_base_schema/project/struct.ProjectKey.html" title="struct relay_base_schema::project::ProjectKey">ProjectKey</a>,
-    sampling_key: <a class="struct" href="../relay_base_schema/project/struct.ProjectKey.html" title="struct relay_base_schema::project::ProjectKey">ProjectKey</a>,
+    own_key: ProjectKey,
+    sampling_key: ProjectKey,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.86.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.86.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;DatabaseBatch&gt;, SqliteEnvelopeStoreError&gt;</h4></section></summary><div class="docblock"><p>Deletes and returns at most <code>limit</code> [<code>Envelope</code>]s from the database.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.project_key_pairs" class="method"><a class="src rightside" href="../src/relay_server/services/buffer/envelope_store/sqlite.rs.html#480-495">Source</a><h4 class="code-header">pub async fn <a href="#method.project_key_pairs" class="fn">project_key_pairs</a>(
     &amp;self,
