@@ -294,7 +294,7 @@ mod tests {
     },
     "http.response.status_code": {
       "type": "integer",
-      "value": "200"
+      "value": 200
     },
     "sentry.environment": {
       "type": "string",
@@ -342,7 +342,7 @@ mod tests {
             "sentry.transaction_info.source" => "url", String,
             "sentry.origin" => "manual", String,
             "server.address" => "DHWKN7KX6N.local", String,
-            "http.response.status_code" => "200", Integer,
+            "http.response.status_code" => 200i64, Integer,
         );
         let span = Annotated::new(SpanV2 {
             start_timestamp: Annotated::new(
