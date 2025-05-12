@@ -81,7 +81,7 @@ impl SpanV2 {
 pub enum SpanV2Status {
     Ok,
     Error,
-    Unknown(String),
+    Other(String),
 }
 
 impl SpanV2Status {
@@ -90,7 +90,7 @@ impl SpanV2Status {
         match self {
             Self::Ok => "ok",
             Self::Error => "error",
-            Self::Unknown(s) => s,
+            Self::Other(s) => s,
         }
     }
 }
@@ -119,7 +119,7 @@ impl From<String> for SpanV2Status {
         match value.as_str() {
             "ok" => Self::Ok,
             "error" => Self::Error,
-            _ => Self::Unknown(value),
+            _ => Self::Other(value),
         }
     }
 }
@@ -142,7 +142,7 @@ impl IntoValue for SpanV2Status {
         Self: Sized,
     {
         Value::String(match self {
-            SpanV2Status::Unknown(s) => s,
+            SpanV2Status::Other(s) => s,
             _ => self.to_string(),
         })
     }
@@ -171,7 +171,7 @@ pub enum SpanV2Kind {
     Client,
     Producer,
     Consumer,
-    Unknown(String),
+    Other(String),
 }
 
 impl SpanV2Kind {
@@ -182,7 +182,7 @@ impl SpanV2Kind {
             Self::Client => "client",
             Self::Producer => "producer",
             Self::Consumer => "consumer",
-            Self::Unknown(s) => s,
+            Self::Other(s) => s,
         }
     }
 }
@@ -213,7 +213,7 @@ impl From<String> for SpanV2Kind {
             "client" => Self::Client,
             "producer" => Self::Producer,
             "consumer" => Self::Consumer,
-            _ => Self::Unknown(value),
+            _ => Self::Other(value),
         }
     }
 }
