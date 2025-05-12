@@ -51,6 +51,8 @@ pub enum KafkaTopic {
     Spans,
     /// Feedback events topic.
     Feedback,
+    /// Items topic
+    Items,
 }
 
 impl KafkaTopic {
@@ -58,7 +60,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 14] = [
+        static TOPICS: [KafkaTopic; 15] = [
             Events,
             Attachments,
             Transactions,
@@ -73,6 +75,7 @@ impl KafkaTopic {
             OurLogs,
             Spans,
             Feedback,
+            Items,
         ];
         TOPICS.iter()
     }
@@ -138,6 +141,7 @@ define_topic_assignments! {
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
     spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
     feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
+    items: (KafkaTopic::Items, "snuba-items", "Items topic."),
 }
 
 /// Configuration for a "logical" topic/datasink that Relay should forward data into.
