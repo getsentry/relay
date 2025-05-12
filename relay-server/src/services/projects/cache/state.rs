@@ -13,7 +13,7 @@ use relay_statsd::metric;
 
 use crate::services::projects::project::{ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
-use crate::statsd::RelayHistograms;
+use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{RetryBackoff, UniqueScheduledQueue};
 
 /// The backing storage for a project cache.
@@ -85,6 +85,7 @@ impl ProjectStore {
                 new_fetch.is_none(),
                 "there cannot be a new fetch and a scheduled expiry"
             );
+
             self.evictions.schedule(when, project_key);
         }
 
@@ -271,6 +272,38 @@ impl ProjectRef<'_> {
 
     fn complete_fetch(&mut self, fetch: CompletedFetch, config: &Config) -> Option<ExpiryTime> {
         let now = Instant::now();
+
+        if let Some(latency) = fetch.latency() {
+            let delay = match fetch.delay() {
+                Some(delay) if delay.as_secs() <= 15 => "lte15s",
+                Some(delay) if delay.as_secs() <= 30 => "lte30s",
+                Some(delay) if delay.as_secs() <= 60 => "lte60s",
+                Some(delay) if delay.as_secs() <= 120 => "lte120",
+                Some(delay) if delay.as_secs() <= 300 => "lte300s",
+                Some(delay) if delay.as_secs() <= 600 => "lte600s",
+                Some(delay) if delay.as_secs() <= 1800 => "lte1800s",
+                Some(delay) if delay.as_secs() <= 3600 => "lte3600s",
+                Some(_) => "gt3600s",
+                None => "none",
+            };
+            metric!(
+                timer(RelayTimers::ProjectCacheUpdateLatency) = latency,
+                delay = delay
+            );
+        }
+
+        if !fetch.is_pending() {
+            let state = match fetch.state {
+                SourceProjectState::New(_) => "new",
+                SourceProjectState::NotModified => "not_modified",
+            };
+
+            metric!(
+                timer(RelayTimers::ProjectCacheFetchDuration) = fetch.duration(now),
+                state = state
+            );
+        }
+
         self.private.complete_fetch(&fetch, now);
 
         // Keep the old state around if the current fetch is pending.
@@ -306,6 +339,8 @@ impl Eviction {
 #[derive(Debug)]
 pub struct Fetch {
     project_key: ProjectKey,
+    previous_fetch: Option<Instant>,
+    initiated: Instant,
     when: Option<Instant>,
     revision: Revision,
 }
@@ -354,7 +389,21 @@ pub struct CompletedFetch {
 impl CompletedFetch {
     /// Returns the [`ProjectKey`] of the project which was fetched.
     pub fn project_key(&self) -> ProjectKey {
-        self.fetch.project_key
+        self.fetch.project_key()
+    }
+
+    /// Returns the amount of time passed between the last successful fetch for this project and the start of this fetch.
+    ///
+    /// `None` if this is the first fetch.
+    fn delay(&self) -> Option<Duration> {
+        self.fetch
+            .previous_fetch
+            .map(|pf| pf.duration_since(self.fetch.initiated))
+    }
+
+    /// Returns the duration between first initiating the fetch and `now`.
+    fn duration(&self, now: Instant) -> Duration {
+        now.duration_since(self.fetch.initiated)
     }
 
     /// Returns the update latency of the fetched project config from the upstream.
@@ -364,7 +413,7 @@ impl CompletedFetch {
     ///
     /// Note: this latency is computed on access, it does not use the time when the [`Fetch`]
     /// was marked as (completed)[`Fetch::complete`].
-    pub fn latency(&self) -> Option<Duration> {
+    fn latency(&self) -> Option<Duration> {
         // We're not interested in initial fetches. The latency on the first fetch
         // has no meaning about how long it takes for an updated project config to be
         // propagated to a Relay.
@@ -376,11 +425,14 @@ impl CompletedFetch {
         let project_info = match &self.state {
             SourceProjectState::New(ProjectState::Enabled(project_info)) => project_info,
             // Not modified or deleted/disabled -> no latency to track.
+            //
+            // Currently we discard the last changed timestamp for disabled projects,
+            // it would be possible to do so and then also expose a latency for disabled projects.
             _ => return None,
         };
 
         // A matching revision is not an update.
-        if project_info.rev == self.fetch.revision() {
+        if project_info.rev == self.fetch.revision {
             return None;
         }
 
@@ -475,6 +527,14 @@ enum FetchState {
     /// If the upstream notifies this instance about a pending config,
     /// a backoff is applied, before trying again.
     Pending {
+        /// Instant when the fetch was first initiated.
+        ///
+        /// A state may be transitioned multiple times from [`Self::Pending`] to [`Self::InProgress`]
+        /// and back to [`Self::Pending`]. This timestamp is the first time when the state
+        /// was transitioned from [`Self::Complete`] to [`Self::InProgress`].
+        ///
+        /// Only `None` on first fetch.
+        initiated: Option<Instant>,
         /// Time when the next fetch should be attempted.
         ///
         /// `None` means soon as possible.
@@ -483,7 +543,7 @@ enum FetchState {
     /// There was a successful non-pending fetch.
     Complete {
         /// Time when the fetch was completed.
-        last_fetch: LastFetch,
+        when: LastFetch,
     },
 }
 
@@ -498,6 +558,14 @@ struct PrivateProjectState {
     ///
     /// The backoff is reset after a successful, non-pending fetch.
     backoff: RetryBackoff,
+
+    /// The last time the state was successfully fetched.
+    ///
+    /// May be `None` when the state has never been successfully fetched.
+    ///
+    /// This is purely informational, all necessary information to make
+    /// state transitions is contained in [`FetchState`].
+    last_fetch: Option<Instant>,
 }
 
 impl PrivateProjectState {
@@ -505,21 +573,29 @@ impl PrivateProjectState {
         Self {
             project_key,
             state: FetchState::Pending {
+                initiated: None,
                 next_fetch_attempt: None,
             },
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            last_fetch: None,
         }
     }
 
+    /// Returns the expiry time of the time project state.
+    ///
+    /// `None` if there is currently a fetch pending or in progress.
     fn expiry_time(&self, config: &Config) -> Option<ExpiryTime> {
         match &self.state {
-            FetchState::Complete { last_fetch } => Some(last_fetch.expiry_time(config)),
+            FetchState::Complete { when } => {
+                debug_assert_eq!(Some(when.0), self.last_fetch);
+                Some(when.expiry_time(config))
+            }
             _ => None,
         }
     }
 
     fn try_begin_fetch(&mut self, now: Instant, config: &Config) -> Option<Fetch> {
-        let when = match &self.state {
+        let (initiated, when) = match &self.state {
             FetchState::InProgress => {
                 relay_log::trace!(
                     tags.project_key = self.project_key.as_str(),
@@ -527,11 +603,14 @@ impl PrivateProjectState {
                 );
                 return None;
             }
-            FetchState::Pending { next_fetch_attempt } => {
+            FetchState::Pending {
+                initiated,
+                next_fetch_attempt,
+            } => {
                 // Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
-                *next_fetch_attempt
+                (initiated.unwrap_or(now), *next_fetch_attempt)
             }
-            FetchState::Complete { last_fetch } => {
+            FetchState::Complete { when: last_fetch } => {
                 if last_fetch.check_expiry(now, config).is_fresh() {
                     // The current state is up to date, no need to start another fetch.
                     relay_log::trace!(
@@ -540,12 +619,12 @@ impl PrivateProjectState {
                     );
                     return None;
                 }
-                None
+                (now, None)
             }
         };
 
         // Mark a current fetch in progress.
-        self.state = FetchState::InProgress {};
+        self.state = FetchState::InProgress;
 
         relay_log::trace!(
             tags.project_key = &self.project_key.as_str(),
@@ -556,6 +635,8 @@ impl PrivateProjectState {
 
         Some(Fetch {
             project_key: self.project_key,
+            previous_fetch: self.last_fetch,
+            initiated,
             when,
             revision: Revision::default(),
         })
@@ -573,7 +654,10 @@ impl PrivateProjectState {
                 false => now.checked_add(next_backoff),
                 true => None,
             };
-            self.state = FetchState::Pending { next_fetch_attempt };
+            self.state = FetchState::Pending {
+                next_fetch_attempt,
+                initiated: Some(fetch.fetch.initiated),
+            };
             relay_log::trace!(
                 tags.project_key = &self.project_key.as_str(),
                 "project state fetch completed but still pending"
@@ -584,8 +668,9 @@ impl PrivateProjectState {
                 "project state fetch completed with non-pending config"
             );
             self.backoff.reset();
+            self.last_fetch = Some(now);
             self.state = FetchState::Complete {
-                last_fetch: LastFetch(now),
+                when: LastFetch(now),
             };
         }
     }
