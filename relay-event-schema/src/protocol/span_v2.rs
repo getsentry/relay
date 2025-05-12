@@ -314,9 +314,17 @@ mod tests {
   "status": "ok",
   "is_remote": true,
   "kind": "server",
-  "start_timestamp": 1742921669.158209,
-  "end_timestamp": 1742921669.180536,
+  "start_timestamp": 1742921669.25,
+  "end_timestamp": 1742921669.75,
   "attributes": {
+    "custom.error_rate": {
+      "type": "double",
+      "value": 0.5
+    },
+    "custom.is_green": {
+      "type": "boolean",
+      "value": true
+    },
     "http.response.status_code": {
       "type": "integer",
       "value": "200"
@@ -357,6 +365,8 @@ mod tests {
 }"#;
 
         let attributes = attrs!(
+            "custom.error_rate" => 0.5, Double,
+            "custom.is_green" => true, Boolean,
             "sentry.release" => "1.0.0" , String,
             "sentry.environment" => "local", String,
             "sentry.platform" => "php", String,
@@ -369,9 +379,9 @@ mod tests {
         );
         let span = Annotated::new(SpanV2 {
             start_timestamp: Annotated::new(
-                Utc.timestamp_opt(1742921669, 158209000).unwrap().into(),
+                Utc.timestamp_opt(1742921669, 250000000).unwrap().into(),
             ),
-            end_timestamp: Annotated::new(Utc.timestamp_opt(1742921669, 180536000).unwrap().into()),
+            end_timestamp: Annotated::new(Utc.timestamp_opt(1742921669, 750000000).unwrap().into()),
             name: Annotated::new("GET http://app.test/".to_owned()),
             trace_id: Annotated::new("6cf173d587eb48568a9b2e12dcfbea52".parse().unwrap()),
             span_id: Annotated::new(SpanId("438f40bd3b4a41ee".into())),
