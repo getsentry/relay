@@ -237,7 +237,7 @@ impl TopicAssignment {
                 params: secondary_configs
                     .get(kafka_config_name)
                     .ok_or(ConfigError::UnknownKafkaConfigName)?,
-                key_rate_limit: key_rate_limit.clone(),
+                key_rate_limit: *key_rate_limit,
             },
         };
 
