@@ -122,7 +122,6 @@ def test_ourlog_extraction_with_otel_logs(
                     "sentry.trace_flags": AnyValue(int_value=0),
                     "string.attribute": AnyValue(string_value="some string"),
                 },
-                received=timestamp_proto,
                 retention_days=90,
                 client_sample_rate=1.0,
                 server_sample_rate=1.0,
@@ -136,6 +135,7 @@ def test_ourlog_extraction_with_otel_logs(
         # we can't generate uuid7 with a specific timestamp
         # in Python just yet so we're overriding it
         expected_log["itemId"] = log["itemId"]
+        expected_log["received"] = time_within_delta()
 
         # This field is set by Relay so we need to remove it
         del log["attributes"]["sentry.observed_timestamp_nanos"]
@@ -295,7 +295,6 @@ def test_ourlog_extraction_with_sentry_logs(
                         string_value=str(timestamp_nanos)
                     ),
                 },
-                received=timestamp_proto,
                 retention_days=90,
                 client_sample_rate=1.0,
                 server_sample_rate=1.0,
@@ -331,7 +330,6 @@ def test_ourlog_extraction_with_sentry_logs(
                         string_value=str(timestamp_nanos)
                     ),
                 },
-                received=timestamp_proto,
                 retention_days=90,
                 client_sample_rate=1.0,
                 server_sample_rate=1.0,
@@ -345,6 +343,7 @@ def test_ourlog_extraction_with_sentry_logs(
         # we can't generate uuid7 with a specific timestamp
         # in Python just yet so we're overriding it
         expected_log["itemId"] = log["itemId"]
+        expected_log["received"] = time_within_delta()
 
     assert logs == expected_logs
 
@@ -407,7 +406,6 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
                     "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
                     "sentry.trace_flags": AnyValue(int_value=0),
                 },
-                received=timestamp_proto,
                 retention_days=90,
                 client_sample_rate=1.0,
                 server_sample_rate=1.0,
@@ -421,6 +419,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         # we can't generate uuid7 with a specific timestamp
         # in Python just yet so we're overriding it
         expected_log["itemId"] = log["itemId"]
+        expected_log["received"] = time_within_delta()
 
     assert logs == expected_logs
 
