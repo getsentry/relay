@@ -81,46 +81,20 @@ mod tests {
         let now = Instant::now();
         let key = [0; 16];
 
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(1), &key, 2),
-            2
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(2), &key, 2),
-            2
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(3), &key, 2),
-            2
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(4), &key, 2),
-            2
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(5), &key, 2),
-            2
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(6), &key, 2),
-            0
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(7), &key, 2),
-            0
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(8), &key, 2),
-            0
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(9), &key, 2),
-            0
-        );
-        assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(10), &key, 2),
-            0
-        );
+        for i in 1..=5 {
+            assert_eq!(
+                limiter.try_increment(now + Duration::from_secs(i), &key, 2),
+                2
+            );
+        }
+
+        for i in 6..=10 {
+            assert_eq!(
+                limiter.try_increment(now + Duration::from_secs(i), &key, 2),
+                0
+            );
+        }
+
         assert_eq!(
             limiter.try_increment(now + Duration::from_secs(11), &key, 2),
             2
