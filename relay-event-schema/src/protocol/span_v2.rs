@@ -12,14 +12,14 @@ use super::OperationType;
 /// A version 2 (transactionless) span.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue)]
 pub struct SpanV2 {
+    /// The ID of the trace to which this span belongs.
     #[metastructure(required = true, trim = false)]
     pub trace_id: Annotated<TraceId>,
 
     /// The ID of the span enclosing this span.
     pub parent_span_id: Annotated<SpanId>,
 
-    /// The ID of the trace the span belongs to.
-    /// The Span id.
+    /// The Span ID.
     #[metastructure(required = true, trim = false)]
     pub span_id: Annotated<SpanId>,
 
@@ -42,10 +42,10 @@ pub struct SpanV2 {
     #[metastructure(required = true)]
     pub is_remote: Annotated<bool>,
 
-    // Used to clarify the relationship between parents and children, or to distinguish between
-    // spans, e.g. a `server` and `client` span with the same name.
-    //
-    // See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
+    /// Used to clarify the relationship between parents and children, or to distinguish between
+    /// spans, e.g. a `server` and `client` span with the same name.
+    ///
+    /// See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
     #[metastructure(required = true, skip_serialization = "empty", trim = false)]
     pub kind: Annotated<SpanV2Kind>,
 
@@ -67,6 +67,7 @@ pub struct SpanV2 {
 }
 
 impl SpanV2 {
+    /// Returns the value of the attribute with the given name.
     pub fn attribute(&self, key: &str) -> Option<&Annotated<Value>> {
         Some(&self.attributes.value()?.get(key)?.value()?.value.value)
     }
@@ -79,8 +80,11 @@ impl SpanV2 {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpanV2Status {
+    /// The span completed successfully.
     Ok,
+    /// The span contains an error.
     Error,
+    /// Catchall variant for forward compatibility.
     Other(String),
 }
 
@@ -129,10 +133,7 @@ impl FromValue for SpanV2Status {
     where
         Self: Sized,
     {
-        match String::from_value(value) {
-            Annotated(Some(s), meta) => Annotated(Some(s.into()), meta),
-            Annotated(None, meta) => Annotated(None, meta),
-        }
+        String::from_value(value).map_value(|s| s.into())
     }
 }
 
@@ -166,11 +167,17 @@ impl IntoValue for SpanV2Status {
 /// catchall variant for forward compatibility.
 #[derive(Clone, Debug, PartialEq, ProcessValue)]
 pub enum SpanV2Kind {
+    /// An operation internal to an application.
     Internal,
+    /// Server-side processing requested by a client.
     Server,
+    /// A request from a client to a server.
     Client,
+    /// Scheduling of an operation.
     Producer,
+    /// Processing of a scheduled operation.
     Consumer,
+    /// Catchall variant for forward compatibility.
     Other(String),
 }
 
@@ -223,10 +230,7 @@ impl FromValue for SpanV2Kind {
     where
         Self: Sized,
     {
-        match value {
-            Annotated(Some(Value::String(s)), meta) => Annotated(Some(Self::from(s)), meta),
-            Annotated(_, meta) => Annotated(None, meta),
-        }
+        String::from_value(value).map_value(|s| s.into())
     }
 }
 
