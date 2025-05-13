@@ -5,33 +5,18 @@ use crate::OtelLog;
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::datetime_to_timestamp;
 use relay_event_schema::protocol::{
-    OurLog, OurLogAttribute, OurLogAttributeType, OurLogLevel, SpanId, Timestamp, TraceId,
+    Attribute, AttributeType, OurLog, OurLogLevel, SpanId, Timestamp, TraceId,
 };
 use relay_protocol::{Annotated, Error, Object, Value};
 
-fn otel_value_to_log_attribute(value: OtelValue) -> Option<OurLogAttribute> {
+fn otel_value_to_log_attribute(value: OtelValue) -> Option<Attribute> {
     match value {
-        OtelValue::BoolValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Boolean,
-            Value::Bool(v),
-        )),
-        OtelValue::DoubleValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Double,
-            Value::F64(v),
-        )),
-        OtelValue::IntValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
-            Value::I64(v),
-        )),
-        OtelValue::StringValue(v) => Some(OurLogAttribute::new(
-            OurLogAttributeType::String,
-            Value::String(v),
-        )),
+        OtelValue::BoolValue(v) => Some(Attribute::new(AttributeType::Boolean, Value::Bool(v))),
+        OtelValue::DoubleValue(v) => Some(Attribute::new(AttributeType::Double, Value::F64(v))),
+        OtelValue::IntValue(v) => Some(Attribute::new(AttributeType::Integer, Value::I64(v))),
+        OtelValue::StringValue(v) => Some(Attribute::new(AttributeType::String, Value::String(v))),
         OtelValue::BytesValue(v) => String::from_utf8(v).map_or(None, |str| {
-            Some(OurLogAttribute::new(
-                OurLogAttributeType::String,
-                Value::String(str),
-            ))
+            Some(Attribute::new(AttributeType::String, Value::String(str)))
         }),
         OtelValue::ArrayValue(_) => None,
         OtelValue::KvlistValue(_) => None,
@@ -68,57 +53,54 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
 
     attribute_data.insert(
         "sentry.severity_text".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(severity_text.clone()),
         )),
     );
     attribute_data.insert(
         "sentry.severity_number".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
+        Annotated::new(Attribute::new(
+            AttributeType::Integer,
             Value::I64(severity_number as i64),
         )),
     );
     attribute_data.insert(
         "sentry.timestamp_nanos".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(time_unix_nano.to_string()),
         )),
     );
     attribute_data.insert(
         "sentry.timestamp_precise".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
+        Annotated::new(Attribute::new(
+            AttributeType::Integer,
             Value::I64(time_unix_nano as i64),
         )),
     );
     attribute_data.insert(
         "sentry.observed_timestamp_nanos".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(observed_time_unix_nano.to_string()),
         )),
     );
     attribute_data.insert(
         "sentry.trace_flags".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
-            Value::I64(0),
-        )),
+        Annotated::new(Attribute::new(AttributeType::Integer, Value::I64(0))),
     );
     attribute_data.insert(
         "sentry.body".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(body.clone()),
         )),
     );
     attribute_data.insert(
         "sentry.span_id".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(span_id.to_string()),
         )),
     );
@@ -183,8 +165,8 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
 
     attributes.insert(
         "sentry.severity_text".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(
                 ourlog_value
                     .level
@@ -196,8 +178,8 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
     );
     attributes.insert(
         "sentry.severity_number".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
+        Annotated::new(Attribute::new(
+            AttributeType::Integer,
             Value::I64(level_to_otel_severity_number(
                 ourlog_value.level.value().cloned(),
             )),
@@ -205,36 +187,33 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
     );
     attributes.insert(
         "sentry.timestamp_nanos".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(timestamp_nanos.to_string()),
         )),
     );
     attributes.insert(
         "sentry.timestamp_precise".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
+        Annotated::new(Attribute::new(
+            AttributeType::Integer,
             Value::I64(timestamp_nanos),
         )),
     );
     attributes.insert(
         "sentry.observed_timestamp_nanos".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(timestamp_nanos.to_string()),
         )),
     );
     attributes.insert(
         "sentry.trace_flags".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::Integer,
-            Value::I64(0),
-        )),
+        Annotated::new(Attribute::new(AttributeType::Integer, Value::I64(0))),
     );
     attributes.insert(
         "sentry.body".to_owned(),
-        Annotated::new(OurLogAttribute::new(
-            OurLogAttributeType::String,
+        Annotated::new(Attribute::new(
+            AttributeType::String,
             Value::String(ourlog_value.body.value().cloned().unwrap_or_default()),
         )),
     );
@@ -242,8 +221,8 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
     if let Some(span_id) = ourlog_value.span_id.value() {
         attributes.insert(
             "sentry.span_id".to_owned(),
-            Annotated::new(OurLogAttribute::new(
-                OurLogAttributeType::String,
+            Annotated::new(Attribute::new(
+                AttributeType::String,
                 Value::String(span_id.to_string()),
             )),
         );
@@ -512,63 +491,63 @@ mod tests {
             level: Info,
             body: "Example log record",
             attributes: {
-                "foo": OurLogAttribute {
+                "foo": Attribute {
                     value: String(
                         "9",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.body": OurLogAttribute {
+                "sentry.body": Attribute {
                     value: String(
                         "Example log record",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.observed_timestamp_nanos": OurLogAttribute {
+                "sentry.observed_timestamp_nanos": Attribute {
                     value: String(
                         "946684800000000000",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.severity_number": OurLogAttribute {
+                "sentry.severity_number": Attribute {
                     value: I64(
                         9,
                     ),
                     type: Integer,
                     other: {},
                 },
-                "sentry.severity_text": OurLogAttribute {
+                "sentry.severity_text": Attribute {
                     value: String(
                         "info",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.span_id": OurLogAttribute {
+                "sentry.span_id": Attribute {
                     value: String(
                         "eee19b7ec3c1b174",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.timestamp_nanos": OurLogAttribute {
+                "sentry.timestamp_nanos": Attribute {
                     value: String(
                         "946684800000000000",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.timestamp_precise": OurLogAttribute {
+                "sentry.timestamp_precise": Attribute {
                     value: I64(
                         946684800000000000,
                     ),
                     type: Integer,
                     other: {},
                 },
-                "sentry.trace_flags": OurLogAttribute {
+                "sentry.trace_flags": Attribute {
                     value: I64(
                         0,
                     ),
@@ -609,7 +588,7 @@ mod tests {
                 .unwrap()
                 .value()
                 .unwrap(),
-            &OurLogAttribute::new(OurLogAttributeType::Integer, Value::I64(0)),
+            &Attribute::new(AttributeType::Integer, Value::I64(0)),
         );
     }
 
@@ -619,8 +598,8 @@ mod tests {
         let mut attributes = Object::new();
         attributes.insert(
             "foo".to_owned(),
-            Annotated::new(OurLogAttribute::new(
-                OurLogAttributeType::String,
+            Annotated::new(Attribute::new(
+                AttributeType::String,
                 Value::String("9".to_owned()),
             )),
         );
@@ -643,56 +622,56 @@ mod tests {
             level: ~,
             body: "somebody",
             attributes: {
-                "foo": OurLogAttribute {
+                "foo": Attribute {
                     value: String(
                         "9",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.body": OurLogAttribute {
+                "sentry.body": Attribute {
                     value: String(
                         "somebody",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.observed_timestamp_nanos": OurLogAttribute {
+                "sentry.observed_timestamp_nanos": Attribute {
                     value: String(
                         "1638144000000000000",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.severity_number": OurLogAttribute {
+                "sentry.severity_number": Attribute {
                     value: I64(
                         0,
                     ),
                     type: Integer,
                     other: {},
                 },
-                "sentry.severity_text": OurLogAttribute {
+                "sentry.severity_text": Attribute {
                     value: String(
                         "info",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.timestamp_nanos": OurLogAttribute {
+                "sentry.timestamp_nanos": Attribute {
                     value: String(
                         "1638144000000000000",
                     ),
                     type: String,
                     other: {},
                 },
-                "sentry.timestamp_precise": OurLogAttribute {
+                "sentry.timestamp_precise": Attribute {
                     value: I64(
                         1638144000000000000,
                     ),
                     type: Integer,
                     other: {},
                 },
-                "sentry.trace_flags": OurLogAttribute {
+                "sentry.trace_flags": Attribute {
                     value: I64(
                         0,
                     ),

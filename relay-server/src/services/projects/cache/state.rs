@@ -304,18 +304,18 @@ impl ProjectRef<'_> {
             );
         }
 
-        self.private.complete_fetch(&fetch, now);
-
-        // Keep the old state around if the current fetch is pending.
-        // It may still be useful to callers.
+        // Update private and shared state with the new data.
+        let expiry = self.private.complete_fetch(&fetch, now, config);
         match fetch.state {
+            // Keep the old state around if the current fetch is pending.
+            // It may still be useful to callers.
             SourceProjectState::New(state) if !state.is_pending() => {
                 self.shared.set_project_state(state);
             }
             _ => {}
         }
 
-        self.private.expiry_time(config)
+        expiry
     }
 }
 
@@ -398,7 +398,7 @@ impl CompletedFetch {
     fn delay(&self) -> Option<Duration> {
         self.fetch
             .previous_fetch
-            .map(|pf| pf.duration_since(self.fetch.initiated))
+            .map(|pf| self.fetch.initiated.duration_since(pf))
     }
 
     /// Returns the duration between first initiating the fetch and `now`.
@@ -581,19 +581,6 @@ impl PrivateProjectState {
         }
     }
 
-    /// Returns the expiry time of the time project state.
-    ///
-    /// `None` if there is currently a fetch pending or in progress.
-    fn expiry_time(&self, config: &Config) -> Option<ExpiryTime> {
-        match &self.state {
-            FetchState::Complete { when } => {
-                debug_assert_eq!(Some(when.0), self.last_fetch);
-                Some(when.expiry_time(config))
-            }
-            _ => None,
-        }
-    }
-
     fn try_begin_fetch(&mut self, now: Instant, config: &Config) -> Option<Fetch> {
         let (initiated, when) = match &self.state {
             FetchState::InProgress => {
@@ -610,8 +597,11 @@ impl PrivateProjectState {
                 // Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
                 (initiated.unwrap_or(now), *next_fetch_attempt)
             }
-            FetchState::Complete { when: last_fetch } => {
-                if last_fetch.check_expiry(now, config).is_fresh() {
+            FetchState::Complete { when } => {
+                // Sanity check to make sure timestamps do not drift.
+                debug_assert_eq!(Some(when.0), self.last_fetch);
+
+                if when.check_expiry(now, config).is_fresh() {
                     // The current state is up to date, no need to start another fetch.
                     relay_log::trace!(
                         tags.project_key = self.project_key.as_str(),
@@ -619,6 +609,7 @@ impl PrivateProjectState {
                     );
                     return None;
                 }
+
                 (now, None)
             }
         };
@@ -642,7 +633,12 @@ impl PrivateProjectState {
         })
     }
 
-    fn complete_fetch(&mut self, fetch: &CompletedFetch, now: Instant) {
+    fn complete_fetch(
+        &mut self,
+        fetch: &CompletedFetch,
+        now: Instant,
+        config: &Config,
+    ) -> Option<ExpiryTime> {
         debug_assert!(
             matches!(self.state, FetchState::InProgress),
             "fetch completed while there was no current fetch registered"
@@ -662,16 +658,20 @@ impl PrivateProjectState {
                 tags.project_key = &self.project_key.as_str(),
                 "project state fetch completed but still pending"
             );
+
+            None
         } else {
             relay_log::trace!(
                 tags.project_key = &self.project_key.as_str(),
                 "project state fetch completed with non-pending config"
             );
+
             self.backoff.reset();
             self.last_fetch = Some(now);
-            self.state = FetchState::Complete {
-                when: LastFetch(now),
-            };
+
+            let when = LastFetch(now);
+            self.state = FetchState::Complete { when };
+            Some(when.expiry_time(config))
         }
     }
 }
