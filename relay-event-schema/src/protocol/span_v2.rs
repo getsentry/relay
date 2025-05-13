@@ -24,7 +24,7 @@ pub struct SpanV2 {
     pub span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(required = true, max_chars = 128)]
+    #[metastructure(required = true)]
     pub name: Annotated<OperationType>,
 
     /// The span's status.
