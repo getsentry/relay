@@ -3948,6 +3948,7 @@ dependencies = [
 name = "relay-kafka"
 version = "25.4.0"
 dependencies = [
+ "parking_lot",
  "rdkafka",
  "rdkafka-sys",
  "relay-log",
@@ -4258,7 +4259,6 @@ dependencies = [
  "once_cell",
  "opentelemetry-proto",
  "papaya",
- "parking_lot",
  "pin-project-lite",
  "priority-queue",
  "prost",

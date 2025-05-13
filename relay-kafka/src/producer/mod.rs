@@ -4,7 +4,6 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use rdkafka::ClientConfig;
@@ -14,6 +13,8 @@ use relay_statsd::metric;
 use thiserror::Error;
 
 use crate::config::{KafkaParams, KafkaTopic};
+use crate::debounced::Debounced;
+use crate::limits::KafkaRateLimits;
 use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 
 mod utils;
@@ -139,6 +140,9 @@ impl fmt::Debug for Producer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
+    // rate limits are stored separately from producers because producers may be reused across
+    // topics if they have the same broker config. we shouldn't do that for rate limit state!
+    rate_limiters: HashMap<KafkaTopic, KafkaRateLimits>,
     #[cfg(feature = "schemas")]
     schema_validator: schemas::Validator,
 }
@@ -183,13 +187,28 @@ impl KafkaClient {
         variant: &str,
         payload: &[u8],
     ) -> Result<&str, ClientError> {
+        let now = Instant::now();
+
         let producer = self.producers.get(&topic).ok_or_else(|| {
             relay_log::error!(
                 "attempted to send message to {topic:?} using an unconfigured kafka producer",
             );
             ClientError::InvalidTopicName
         })?;
-        producer.send(key, headers, variant, payload)
+
+        if let Some(limiter) = self.rate_limiters.get(&topic) {
+            if limiter.try_increment(now, key, 1) < 1 {
+                metric!(
+                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
+                    variant = variant,
+                    topic = &producer.topic_name
+                );
+                return Ok(&producer.topic_name);
+            }
+        }
+
+        producer.send(now, key, headers, variant, payload)?;
+        Ok(&producer.topic_name)
     }
 }
 
@@ -197,6 +216,7 @@ impl KafkaClient {
 #[derive(Default)]
 pub struct KafkaClientBuilder {
     reused_producers: BTreeMap<Option<String>, Arc<ThreadedProducer>>,
+    rate_limiters: HashMap<KafkaTopic, KafkaRateLimits>,
     producers: HashMap<KafkaTopic, Producer>,
 }
 
@@ -224,7 +244,18 @@ impl KafkaClientBuilder {
             topic_name,
             config_name,
             params,
+            key_rate_limit,
         } = params;
+
+        if let Some(limit) = key_rate_limit {
+            self.rate_limiters.insert(
+                topic,
+                KafkaRateLimits::new(
+                    limit.limit_per_window,
+                    Duration::from_secs(limit.window_secs),
+                ),
+            );
+        }
 
         let config_name = config_name.map(str::to_string);
 
@@ -263,6 +294,7 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
+            rate_limiters: self.rate_limiters,
             #[cfg(feature = "schemas")]
             schema_validator: schemas::Validator::default(),
         }
@@ -282,11 +314,12 @@ impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
+        now: Instant,
         key: &[u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
-    ) -> Result<&str, ClientError> {
+    ) -> Result<(), ClientError> {
         metric!(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
             variant = variant
@@ -307,7 +340,7 @@ impl Producer {
             record = record.headers(kafka_headers);
         }
 
-        self.metrics.debounce(|| {
+        self.metrics.debounce(now, || {
             metric!(
                 gauge(KafkaGauges::InFlightCount) = self.producer.in_flight_count() as u64,
                 variant = variant,
@@ -315,86 +348,21 @@ impl Producer {
             );
         });
 
-        self.producer
-            .send(record)
-            .map(|_| topic_name)
-            .map_err(|(error, _message)| {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    tags.variant = variant,
-                    tags.topic = topic_name,
-                    "error sending kafka message",
-                );
-                metric!(
-                    counter(KafkaCounters::ProducerEnqueueError) += 1,
-                    variant = variant,
-                    topic = topic_name
-                );
-                ClientError::SendFailed(error)
-            })
-    }
-}
+        self.producer.send(record).map_err(|(error, _message)| {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                tags.variant = variant,
+                tags.topic = topic_name,
+                "error sending kafka message",
+            );
+            metric!(
+                counter(KafkaCounters::ProducerEnqueueError) += 1,
+                variant = variant,
+                topic = topic_name
+            );
+            ClientError::SendFailed(error)
+        })?;
 
-struct Debounced {
-    /// Time of last activation in seconds.
-    last_activation: AtomicU64,
-    /// Debounce interval in seconds.
-    interval: u64,
-    /// Relative instant used for measurements.
-    instant: Instant,
-}
-
-impl Debounced {
-    pub fn new(interval: u64) -> Self {
-        Self {
-            last_activation: AtomicU64::new(0),
-            interval,
-            instant: Instant::now(),
-        }
-    }
-
-    fn debounce(&self, f: impl FnOnce()) -> bool {
-        // Add interval to make sure it always triggers immediately.
-        let now = self.instant.elapsed().as_secs() + self.interval;
-
-        let prev = self.last_activation.load(Ordering::Relaxed);
-        if now.saturating_sub(prev) < self.interval {
-            return false;
-        }
-
-        if self
-            .last_activation
-            .compare_exchange(prev, now, Ordering::SeqCst, Ordering::Acquire)
-            .is_ok()
-        {
-            f();
-            return true;
-        }
-
-        false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::thread;
-
-    use super::*;
-
-    #[test]
-    fn test_debounce() {
-        let d = Debounced::new(1);
-
-        assert!(d.debounce(|| {}));
-        for _ in 0..10 {
-            assert!(!d.debounce(|| {}));
-        }
-
-        thread::sleep(Duration::from_secs(1));
-
-        assert!(d.debounce(|| {}));
-        for _ in 0..10 {
-            assert!(!d.debounce(|| {}));
-        }
+        Ok(())
     }
 }

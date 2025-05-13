@@ -7,7 +7,6 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::sync::Arc;
-use std::time::Duration;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -45,10 +44,6 @@ use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOut
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{FormDataIter, TypedEnvelope};
-
-mod span_system_limits;
-
-use span_system_limits::SpanSystemLimits;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -146,7 +141,6 @@ pub struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
-    span_system_limits: SpanSystemLimits,
     metric_outcomes: MetricOutcomes,
     producer: Producer,
 }
@@ -160,7 +154,6 @@ impl StoreService {
         metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
-        let span_system_limits = SpanSystemLimits::new(Duration::from_secs(30));
         Ok(Self {
             pool,
             config,
@@ -168,7 +161,6 @@ impl StoreService {
             outcome_aggregator,
             metric_outcomes,
             producer,
-            span_system_limits,
         })
     }
 
@@ -518,29 +510,9 @@ impl StoreService {
         &self,
         topic: KafkaTopic,
         // Takes message by value to ensure it is not being produced twice.
-        mut message: KafkaMessage,
+        message: KafkaMessage,
     ) -> Result<(), StoreError> {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
-
-        if let KafkaMessage::Span {
-            message:
-                SpanKafkaMessage {
-                    ref mut _span_buffer_rate_limited,
-                    trace_id,
-                    ..
-                },
-            ..
-        } = message
-        {
-            let global_config = self.global_config.current();
-
-            if let Some(limit) = global_config.options.spans_per_trace_per_minute_limit {
-                if self.span_system_limits.try_increment(trace_id.0, 1, limit) < 1 {
-                    metric!(counter(RelayCounters::SpanLimited) += 1);
-                    *_span_buffer_rate_limited = Some(true);
-                }
-            }
-        }
 
         let topic_name = self.producer.client.send_message(topic, &message)?;
 

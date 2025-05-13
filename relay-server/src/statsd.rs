@@ -887,9 +887,6 @@ pub enum RelayCounters {
     /// The amount of times PlayStation processing was attempted.
     #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
-    /// A span was limited due to internal system protections.
-    #[cfg(feature = "processing")]
-    SpanLimited,
 }
 
 impl CounterMetric for RelayCounters {
@@ -939,8 +936,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelayCount => "metrics.delay.count",
             #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
-            #[cfg(feature = "processing")]
-            RelayCounters::SpanLimited => "span.limited",
         }
     }
 }
