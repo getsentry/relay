@@ -36,13 +36,13 @@
 
 mod config;
 #[cfg(feature = "producer")]
+mod debounced;
+#[cfg(feature = "producer")]
 mod limits;
 #[cfg(feature = "producer")]
 mod producer;
 #[cfg(feature = "producer")]
 mod statsd;
-
-mod debounced;
 
 pub use config::*;
 #[cfg(feature = "producer")]
