@@ -231,7 +231,7 @@ pub struct Options {
     /// it (performance issue, etc). As of 2025-05-06, the span buffer is not yet rolled out to
     /// most regions though.
     #[serde(
-        rename = "relay.spans-ignore-trace-id-partitioning.projects",
+        rename = "relay.spans-ignore-trace-id-partitioning",
         skip_serializing_if = "is_default"
     )]
     pub spans_ignore_trace_id_partitioning: bool,

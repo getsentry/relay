@@ -9,7 +9,9 @@
 - Add OTA Updates Event Context for Expo and other applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
 - Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
 - Allow pii scrubbing of all span `sentry_tags` fields. ([#4698](https://github.com/getsentry/relay/pull/4698))
+- Add experimental playstation processing logic. ([#4680](https://github.com/getsentry/relay/pull/4680))
 - Add killswitch for trace id partitioning. ([#4706](https://github.com/getsentry/relay/pull/4706))
+- Add OTA Updates Event Context for Replay Events. ([#4711](https://github.com/getsentry/relay/pull/4711))
 
 **Bug Fixes**:
 
@@ -19,6 +21,7 @@
 
 - Remove threads with 1 non-idle sample in profiling chunks. ([#4694](https://github.com/getsentry/relay/pull/4694))
 - Migrate all Rust workspace crates to edition 2024. ([#4705](https://github.com/getsentry/relay/pull/4705))
+- Produce logs to the items topic. ([#4707](https://github.com/getsentry/relay/pull/4707))
 
 ## 25.4.0
 

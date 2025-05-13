@@ -21,11 +21,11 @@ rmp-serde = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
-sentry-kafka-schemas = { workspace = true, default_features = false, optional = true }
+sentry-kafka-schemas = { workspace = true, default-features = false, optional = true }
 
 [dev-dependencies]
 serde_yaml = { workspace = true }
-sentry-kafka-schemas = { workspace = true }
+sentry-kafka-schemas = { workspace = true, default-features = false }
 
 [features]
 default = []
