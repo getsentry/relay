@@ -4258,6 +4258,7 @@ dependencies = [
  "once_cell",
  "opentelemetry-proto",
  "papaya",
+ "parking_lot",
  "pin-project-lite",
  "priority-queue",
  "prost",

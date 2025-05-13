@@ -7,6 +7,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -44,6 +45,10 @@ use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOut
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{FormDataIter, TypedEnvelope};
+
+mod span_system_limits;
+
+use span_system_limits::SpanSystemLimits;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -141,6 +146,7 @@ pub struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
+    span_system_limits: SpanSystemLimits,
     metric_outcomes: MetricOutcomes,
     producer: Producer,
 }
@@ -154,6 +160,7 @@ impl StoreService {
         metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
+        let span_system_limits = SpanSystemLimits::new(Duration::from_secs(30));
         Ok(Self {
             pool,
             config,
@@ -161,6 +168,7 @@ impl StoreService {
             outcome_aggregator,
             metric_outcomes,
             producer,
+            span_system_limits,
         })
     }
 
@@ -515,13 +523,23 @@ impl StoreService {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
 
         if let KafkaMessage::Span {
-            ref mut ignore_trace_id_partitioning,
+            message:
+                SpanKafkaMessage {
+                    ref mut _span_buffer_rate_limited,
+                    trace_id,
+                    ..
+                },
             ..
         } = message
         {
             let global_config = self.global_config.current();
-            *ignore_trace_id_partitioning =
-                global_config.options.spans_ignore_trace_id_partitioning;
+
+            if let Some(limit) = global_config.options.spans_per_trace_per_minute_limit {
+                if self.span_system_limits.try_increment(trace_id.0, 1, limit) < 1 {
+                    metric!(counter(RelayCounters::SpanLimited) += 1);
+                    *_span_buffer_rate_limited = Some(true);
+                }
+            }
         }
 
         let topic_name = self.producer.client.send_message(topic, &message)?;
@@ -946,7 +964,6 @@ impl StoreService {
                     scoping.project_id.to_string(),
                 )]),
                 message: span,
-                ignore_trace_id_partitioning: false,
             },
         )?;
 
@@ -1484,6 +1501,9 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     _performance_issues_spans: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    _span_buffer_rate_limited: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1571,8 +1591,6 @@ enum KafkaMessage<'a> {
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
-        #[serde(skip)]
-        ignore_trace_id_partitioning: bool,
     },
     Log {
         headers: BTreeMap<String, String>,
@@ -1615,12 +1633,8 @@ impl Message for KafkaMessage<'_> {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
-            Self::Span {
-                message,
-                ignore_trace_id_partitioning,
-                ..
-            } => {
-                if *ignore_trace_id_partitioning {
+            Self::Span { message, .. } => {
+                if message._span_buffer_rate_limited.unwrap_or_default() {
                     Uuid::nil()
                 } else {
                     message.trace_id.0

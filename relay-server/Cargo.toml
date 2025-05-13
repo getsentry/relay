@@ -141,6 +141,7 @@ tower-http = { workspace = true, default-features = false, features = [
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true }
+parking_lot = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
