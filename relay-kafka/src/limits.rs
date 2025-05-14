@@ -45,11 +45,9 @@ impl KafkaRateLimits {
         });
 
         let increment = |value: &AtomicU64| {
-            // we're ok with a few data races, we just want to be fast and avoid locks.
-            // fetch_update is probably slower since it has stronger atomicity guarantees.
-            let granted = cmp::min(amount, value.load(Ordering::Relaxed));
-            value.fetch_sub(granted, Ordering::Relaxed);
-            granted
+            let actual_count = value.fetch_add(amount, Ordering::Relaxed);
+            let headroom = self.limit_per_window.saturating_sub(actual_count);
+            cmp::min(amount, headroom)
         };
 
         if let Some(value) = self.map.read().get(key) {
@@ -57,7 +55,7 @@ impl KafkaRateLimits {
         }
 
         let mut map_w = self.map.write();
-        map_w.insert(*key, AtomicU64::new(self.limit_per_window));
+        map_w.insert(*key, AtomicU64::new(0));
         increment(map_w.get(key).unwrap())
     }
 }
