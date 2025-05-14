@@ -3,6 +3,7 @@
 //! These functions are included only in the processing mode.
 
 use relay_config::Config;
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{
     AppContext, Context, Contexts, DeviceContext, LenientString, OsContext, RuntimeContext, Tags,
 };
@@ -13,6 +14,7 @@ use relay_protocol::{Annotated, Object};
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::services::processor::metric;
 use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
+use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
 use crate::utils;
 use crate::utils::TypedEnvelope;
@@ -21,8 +23,14 @@ pub fn process(
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
     event: &mut Annotated<Event>,
     config: &Config,
+    project_info: &ProjectInfo,
 ) -> Result<Option<EventFullyNormalized>, ProcessingError> {
     let envelope = &mut managed_envelope.envelope_mut();
+
+    if !project_info.has_feature(Feature::PlaystationIngestion) {
+        return Ok(None);
+    }
+
     if let Some(item) = envelope.take_item_by(|item| {
         item.ty() == &ItemType::Attachment
             && item.attachment_type() == Some(&AttachmentType::Prosperodump)

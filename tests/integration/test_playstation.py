@@ -82,7 +82,7 @@ def test_playstation_with_feature_flag(
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(
         PROJECT_ID,
-        extra={"config": {"features": ["projects:relay-playstation-ingestion"]}},
+        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
@@ -150,7 +150,7 @@ def test_playstation_attachment(
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(
         PROJECT_ID,
-        extra={"config": {"features": ["projects:relay-playstation-ingestion"]}},
+        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
@@ -218,3 +218,59 @@ def test_playstation_attachment(
     assert "_metrics" in event_data
     assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
     assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
+
+
+def test_playstation_attachment_no_feature_flag(
+    mini_sentry,
+    relay_with_playstation,
+    outcomes_consumer,
+    attachments_consumer,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("playstation.prosperodmp")
+    mini_sentry.add_full_project_config(
+        PROJECT_ID,
+    )
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+    relay = relay_with_playstation()
+
+    bogus_error = {
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "type": "error",
+        "exception": {"values": [{"type": "ValueError", "value": "Should not happen"}]},
+    }
+    envelope = Envelope()
+    envelope.add_event(bogus_error)
+
+    # Add the PlayStation dump as an attachment
+    envelope.add_item(
+        Item(
+            type="attachment",
+            payload=PayloadRef(bytes=playstation_dump),
+            headers={
+                "attachment_type": "playstation.prosperodump",
+                "filename": "playstation.prosperodmp",
+                "content_type": "application/octet-stream",
+            },
+        )
+    )
+    relay.send_envelope(PROJECT_ID, envelope)
+
+    while True:
+        _, message = attachments_consumer.get_message()
+        if message is None or message["type"] != "attachment_chunk":
+            event = message
+            break
+
+    assert event
+
+    assert len(event["attachments"]) == 1
+    attachment = event["attachments"][0]
+    assert attachment["attachment_type"] == "playstation.prosperodump"
+
+    event_data = json.loads(event["payload"])
+    assert event_data["type"] == "error"
+    assert "exception" in event_data
+    assert event_data["exception"]["values"][0]["type"] == "ValueError"
+    assert event_data["exception"]["values"][0]["value"] == "Should not happen"

@@ -10,8 +10,8 @@
 - Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
 - Allow pii scrubbing of all span `sentry_tags` fields. ([#4698](https://github.com/getsentry/relay/pull/4698))
 - Add experimental playstation processing logic. ([#4680](https://github.com/getsentry/relay/pull/4680))
-- Add killswitch for trace id partitioning. ([#4706](https://github.com/getsentry/relay/pull/4706))
 - Add OTA Updates Event Context for Replay Events. ([#4711](https://github.com/getsentry/relay/pull/4711))
+- Add partition key rate limiter. ([#4730](https://github.com/getsentry/relay/pull/4730))
 
 **Bug Fixes**:
 

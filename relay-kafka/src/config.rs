@@ -172,6 +172,21 @@ pub struct KafkaTopicConfig {
     /// The Kafka config name will be used to produce data to the given topic.
     #[serde(rename = "config")]
     kafka_config_name: String,
+    /// Optionally, a rate limit per partition key to protect against partition imbalance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    key_rate_limit: Option<KeyRateLimit>,
+}
+
+/// Produce rate limit configuration for a topic.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct KeyRateLimit {
+    /// Limit each partition key to N messages per `window_secs`.
+    pub limit_per_window: u64,
+
+    /// The size of the window to record counters for.
+    ///
+    /// Larger windows imply higher memory usage.
+    pub window_secs: u64,
 }
 
 /// Config for creating a Kafka producer.
@@ -183,6 +198,8 @@ pub struct KafkaParams<'a> {
     pub config_name: Option<&'a str>,
     /// Parameters for the Kafka producer configuration.
     pub params: &'a [KafkaConfigParam],
+    /// Optionally, a rate limit per partition key to protect against partition imbalance.
+    pub key_rate_limit: Option<KeyRateLimit>,
 }
 
 impl From<String> for TopicAssignment {
@@ -206,16 +223,21 @@ impl TopicAssignment {
                 topic_name,
                 config_name: None,
                 params: default_config.as_slice(),
+                // XXX: Rate limits can only be set if the non-default kafka broker config is used,
+                // i.e. in the Secondary codepath
+                key_rate_limit: None,
             },
             Self::Secondary(KafkaTopicConfig {
                 topic_name,
                 kafka_config_name,
+                key_rate_limit,
             }) => KafkaParams {
                 config_name: Some(kafka_config_name),
                 topic_name,
                 params: secondary_configs
                     .get(kafka_config_name)
                     .ok_or(ConfigError::UnknownKafkaConfigName)?,
+                key_rate_limit: *key_rate_limit,
             },
         };
 

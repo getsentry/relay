@@ -21,6 +21,13 @@ pub enum KafkaCounters {
     /// - `topic`: The Kafka topic being produced to.
     /// - `variant`: The Kafka message variant.
     ProducerEnqueueError,
+
+    /// Number of messages that were written to the wrong partition because of configured rate limits.
+    ///
+    /// Each topic in Relay can optionally be configured with a per-partition-key rate limit. This
+    /// rate limit does not drop messages, but instead disables semantic partitioning. Everytime
+    /// this happens for a message, this counter is incremented.
+    ProducerPartitionKeyRateLimit,
 }
 
 impl CounterMetric for KafkaCounters {
@@ -28,6 +35,7 @@ impl CounterMetric for KafkaCounters {
         match self {
             Self::ProcessingProduceError => "processing.produce.error",
             Self::ProducerEnqueueError => "producer.enqueue.error",
+            Self::ProducerPartitionKeyRateLimit => "producer.partition_key.rate_limit",
         }
     }
 }
