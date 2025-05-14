@@ -957,7 +957,7 @@ impl StoreService {
                     "project_id".to_string(),
                     scoping.project_id.to_string(),
                 )]),
-                message: span.clone(),
+                message: span,
             },
         )?;
 
