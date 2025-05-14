@@ -1,10 +1,10 @@
 use std::cmp;
-use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use hashbrown::HashMap;
 use parking_lot::RwLock;
 
 use crate::debounced::Debounced;

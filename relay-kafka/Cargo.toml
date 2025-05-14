@@ -24,6 +24,7 @@ thiserror = { workspace = true }
 sentry-kafka-schemas = { workspace = true, default-features = false, optional = true }
 parking_lot = { workspace = true }
 uuid = { workspace = true }
+hashbrown = { workspace = true }
 
 [dev-dependencies]
 serde_yaml = { workspace = true }

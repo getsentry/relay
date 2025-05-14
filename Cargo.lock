@@ -3948,6 +3948,7 @@ dependencies = [
 name = "relay-kafka"
 version = "25.4.0"
 dependencies = [
+ "hashbrown 0.14.5",
  "parking_lot",
  "rdkafka",
  "rdkafka-sys",
