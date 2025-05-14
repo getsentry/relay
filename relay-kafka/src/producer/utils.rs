@@ -1,10 +1,79 @@
 use std::error::Error;
 
+use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::{ClientContext, Message};
 use relay_statsd::metric;
 
 use crate::statsd::{KafkaCounters, KafkaGauges};
+
+/// A thin wrapper around [`OwnedHeaders`].
+///
+/// Unlike [`OwnedHeaders`], this will not allocate on creation.
+/// Allocations are tuned for the use-case in a [`super::Producer`].
+pub struct KafkaHeaders(Option<OwnedHeaders>);
+
+impl KafkaHeaders {
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    pub fn insert<V>(&mut self, header: Header<'_, &V>)
+    where
+        V: ToBytes + ?Sized,
+    {
+        self.extend(Some(header));
+    }
+
+    pub fn into_inner(self) -> Option<OwnedHeaders> {
+        self.0
+    }
+}
+
+impl<'a, 'b, V> Extend<Header<'a, &'b V>> for KafkaHeaders
+where
+    V: ToBytes + ?Sized,
+{
+    fn extend<T: IntoIterator<Item = Header<'a, &'b V>>>(&mut self, iter: T) {
+        let mut iter = iter.into_iter();
+
+        // Probe if the iterator is empty, if it is empty, no need to do anything.
+        let Some(first) = iter.next() else {
+            return;
+        };
+
+        self.0.get_or_insert_with(|| {
+            // Get a size hint from the iterator, +2 for the already removed
+            // first element and reserving space for 1 extra header which is conditionally
+            // added by the `Producer` in this crate.
+            //
+            // This means we might allocate a little bit too much, but we never have to resize
+            // and allocate a second time, a good trade-off.
+            let size = iter.size_hint().0 + 2;
+            OwnedHeaders::new_with_capacity(size)
+        });
+
+        // We need to take and unwrap here, because the `OwnedHeaders` API requires it.
+        let mut headers = self.0.take().unwrap();
+        headers = headers.insert(first);
+        for remaining in iter {
+            headers = headers.insert(remaining);
+        }
+
+        self.0 = Some(headers);
+    }
+}
+
+impl<'a, 'b, V> FromIterator<Header<'a, &'b V>> for KafkaHeaders
+where
+    V: ToBytes + ?Sized,
+{
+    fn from_iter<I: IntoIterator<Item = Header<'a, &'b V>>>(iter: I) -> Self {
+        let mut c = Self::new();
+        c.extend(iter);
+        c
+    }
+}
 
 /// Kafka client and producer context that logs statistics and producer errors.
 #[derive(Debug)]

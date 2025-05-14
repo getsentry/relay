@@ -1,4 +1,4 @@
-//! This module contains the kafka producer related code.
+//! This module contains the Kafka producer related code.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use rdkafka::ClientConfig;
-use rdkafka::message::{Header, OwnedHeaders};
+use rdkafka::message::Header;
 use rdkafka::producer::{BaseRecord, Producer as _};
 use relay_statsd::metric;
 use thiserror::Error;
@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::config::{KafkaParams, KafkaTopic};
 use crate::debounced::Debounced;
 use crate::limits::KafkaRateLimits;
+use crate::producer::utils::KafkaHeaders;
 use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 
 mod utils;
@@ -318,15 +319,14 @@ impl Producer {
             topic = topic_name,
         );
 
-        let mut kafka_headers = OwnedHeaders::new();
-        if let Some(headers) = headers {
-            for (key, value) in headers {
-                kafka_headers = kafka_headers.insert(Header {
-                    key,
-                    value: Some(value),
-                });
-            }
-        }
+        let mut headers = headers
+            .unwrap_or(&BTreeMap::new())
+            .iter()
+            .map(|(key, value)| Header {
+                key,
+                value: Some(value),
+            })
+            .collect::<KafkaHeaders>();
 
         let mut key = key;
         if let Some(ref limiter) = self.rate_limiter {
@@ -338,17 +338,18 @@ impl Producer {
                 );
 
                 key = Uuid::new_v4().into_bytes();
-                kafka_headers = kafka_headers.insert(Header {
+                headers.insert(Header {
                     key: "sentry-reshuffled",
                     value: Some("1"),
                 });
             }
         }
 
-        let record = BaseRecord::to(topic_name)
-            .key(&key)
-            .payload(payload)
-            .headers(kafka_headers);
+        let mut record = BaseRecord::to(topic_name).key(&key).payload(payload);
+
+        if let Some(headers) = headers.into_inner() {
+            record = record.headers(headers);
+        }
 
         self.metrics.debounce(now, || {
             metric!(
