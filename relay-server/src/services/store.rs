@@ -538,21 +538,17 @@ impl StoreService {
                     metric_encoding = metric.value.encoding().unwrap_or(""),
                 );
             }
-            KafkaMessage::Span {
-                is_segment,
-                parent_span_id,
-                platform,
-                ..
-            } => {
-                let has_parent = parent_span_id.is_some();
-                let platform = VALID_PLATFORMS.iter().find(|p| *p == platform);
+            KafkaMessage::Span { message: span, .. } => {
+                let is_segment = span.is_segment;
+                let has_parent = span.parent_span_id.is_some();
+                let platform = VALID_PLATFORMS.iter().find(|p| *p == &span.platform);
 
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = message.variant(),
                     topic = topic_name,
                     platform = platform.unwrap_or(&""),
-                    is_segment = bool_to_str(*is_segment),
+                    is_segment = bool_to_str(is_segment),
                     has_parent = bool_to_str(has_parent),
                     topic = topic_name,
                 );
@@ -930,11 +926,63 @@ impl StoreService {
             }
         };
 
+        span.duration_ms =
+            ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
+        span.event_id = event_id;
+        span.organization_id = scoping.organization_id.value();
+        span.project_id = scoping.project_id.value();
+        span.retention_days = retention_days;
+        span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
+
         if let Some(measurements) = &mut span.measurements {
             measurements
                 .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
         }
 
+        self.inner_produce_item_span(scoping, received_at, event_id, retention_days, span.clone())?;
+        self.inner_produce_span(scoping, span)?;
+
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::SpanIndexed,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: 1,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
+
+        Ok(())
+    }
+
+    fn inner_produce_span(
+        &self,
+        scoping: Scoping,
+        span: SpanKafkaMessage,
+    ) -> Result<(), StoreError> {
+        self.produce(
+            KafkaTopic::Spans,
+            KafkaMessage::Span {
+                headers: BTreeMap::from([(
+                    "project_id".to_string(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: span.clone(),
+                ignore_trace_id_partitioning: false,
+            },
+        )?;
+
+        Ok(())
+    }
+
+    fn inner_produce_item_span(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        event_id: Option<EventId>,
+        retention_days: u16,
+        span: SpanKafkaMessage,
+    ) -> Result<(), StoreError> {
         let mut trace_item = TraceItem {
             item_type: TraceItemType::Span.into(),
             organization_id: scoping.organization_id.value(),
@@ -1172,7 +1220,7 @@ impl StoreService {
 
         self.produce(
             KafkaTopic::Items,
-            KafkaMessage::Span {
+            KafkaMessage::Item {
                 headers: BTreeMap::from([
                     (
                         "item_type".to_string(),
@@ -1180,25 +1228,11 @@ impl StoreService {
                     ),
                     ("project_id".to_string(), scoping.project_id.to_string()),
                 ]),
+                item_type: TraceItemType::Span,
                 message: trace_item,
-                segment_id: span.segment_id,
-                is_segment: span.is_segment,
-                trace_id: span.trace_id,
-                parent_span_id: span.parent_span_id,
-                platform: span.platform,
-                ignore_trace_id_partitioning: false,
             },
         )?;
 
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::SpanIndexed,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
         Ok(())
     }
 
@@ -1636,7 +1670,7 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanLink<'a> {
     pub trace_id: &'a str,
     pub span_id: &'a str,
@@ -1646,13 +1680,13 @@ struct SpanLink<'a> {
     pub attributes: Option<&'a RawValue>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanMeasurement {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     value: Option<f64>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<String>,
@@ -1813,21 +1847,19 @@ enum KafkaMessage<'a> {
     ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
-    Span {
+    Item {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
         #[serde(skip)]
+        item_type: TraceItemType,
+        #[serde(skip)]
         message: TraceItem,
+    },
+    Span {
         #[serde(skip)]
-        platform: Cow<'a, str>,
-        #[serde(skip)]
-        is_segment: bool,
-        #[serde(skip)]
-        segment_id: Option<&'a str>,
-        #[serde(skip)]
-        parent_span_id: Option<&'a str>,
-        #[serde(skip)]
-        trace_id: EventId,
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: SpanKafkaMessage<'a>,
         #[serde(skip)]
         ignore_trace_id_partitioning: bool,
     },
@@ -1861,6 +1893,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Log { .. } => "log",
             KafkaMessage::Span { .. } => "span",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
+            KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
         }
     }
 
@@ -1873,14 +1906,14 @@ impl Message for KafkaMessage<'_> {
             Self::UserReport(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::Span {
-                trace_id,
+                message,
                 ignore_trace_id_partitioning,
                 ..
             } => {
                 if *ignore_trace_id_partitioning {
                     Uuid::nil()
                 } else {
-                    trace_id.0
+                    message.trace_id.0
                 }
             }
 
@@ -1895,7 +1928,8 @@ impl Message for KafkaMessage<'_> {
             | Self::Log { .. }
             | Self::ReplayRecordingNotChunked(_)
             | Self::ProfileChunk(_)
-            | Self::Metric { .. } => Uuid::nil(),
+            | Self::Metric { .. }
+            | Self::Item { .. } => Uuid::nil(),
         };
 
         if uuid.is_nil() {
@@ -1944,7 +1978,10 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Log { message, .. } | KafkaMessage::Span { message, .. } => {
+            KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Log { message, .. } | KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
 
                 if message.encode(&mut payload).is_err() {
