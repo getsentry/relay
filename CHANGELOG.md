@@ -22,6 +22,7 @@
 - Remove threads with 1 non-idle sample in profiling chunks. ([#4694](https://github.com/getsentry/relay/pull/4694))
 - Migrate all Rust workspace crates to edition 2024. ([#4705](https://github.com/getsentry/relay/pull/4705))
 - Produce logs to the items topic. ([#4707](https://github.com/getsentry/relay/pull/4707))
+- Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
 
 ## 25.4.0
 
