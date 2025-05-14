@@ -350,8 +350,6 @@ impl Producer {
             .payload(payload)
             .headers(kafka_headers);
 
-        // Make sure to set the headers if provided.
-
         self.metrics.debounce(now, || {
             metric!(
                 gauge(KafkaGauges::InFlightCount) = self.producer.in_flight_count() as u64,
