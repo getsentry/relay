@@ -1719,7 +1719,7 @@ mod tests {
         for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             let res = producer
                 .client
-                .send(topic, b"0123456789abcdef", None, "foo", b"");
+                .send(topic, *b"0123456789abcdef", None, "foo", b"");
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }

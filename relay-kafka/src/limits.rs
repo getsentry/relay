@@ -1,6 +1,5 @@
 use std::cmp;
 use std::fmt;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
@@ -21,11 +20,10 @@ type Key = [u8; 16];
 /// A partition key's message rate is measured in a single window. If the span rate ever exceeds this rate
 /// (`limit_per_window / window_size`), the partition key is limited for up to a duration of
 /// `window_size`.
-#[derive(Clone)]
 pub struct KafkaRateLimits {
     limit_per_window: u64,
-    map: Arc<RwLock<HashMap<Key, AtomicU64>>>,
-    wipe_debouncer: Arc<Debounced>,
+    map: RwLock<HashMap<Key, AtomicU64>>,
+    wipe_debouncer: Debounced,
     window_size: Duration,
 }
 
@@ -33,13 +31,14 @@ impl KafkaRateLimits {
     pub fn new(limit_per_window: u64, window_size: Duration) -> Self {
         KafkaRateLimits {
             map: Default::default(),
-            wipe_debouncer: Arc::new(Debounced::new(window_size.as_secs())),
+            wipe_debouncer: Debounced::new(window_size.as_secs()),
             limit_per_window,
             window_size,
         }
     }
+
     #[must_use]
-    pub fn try_increment(&self, now: Instant, key: &Key, amount: u64) -> u64 {
+    pub fn try_increment(&self, now: Instant, key: Key, amount: u64) -> u64 {
         self.wipe_debouncer.debounce(now, || {
             self.map.write().clear();
         });
@@ -50,13 +49,15 @@ impl KafkaRateLimits {
             cmp::min(amount, headroom)
         };
 
-        if let Some(value) = self.map.read().get(key) {
+        // Fast path, check if we already have a stored bucket.
+        if let Some(value) = self.map.read().get(&key) {
             return increment(value);
         }
 
+        // Slow path, get an exclusive lock and create the bucket if it wasn't already created in
+        // the meantime.
         let mut map_w = self.map.write();
-        map_w.insert(*key, AtomicU64::new(0));
-        increment(map_w.get(key).unwrap())
+        increment(map_w.entry(key).or_default())
     }
 }
 
@@ -81,20 +82,20 @@ mod tests {
 
         for i in 1..=5 {
             assert_eq!(
-                limiter.try_increment(now + Duration::from_secs(i), &key, 2),
+                limiter.try_increment(now + Duration::from_secs(i), key, 2),
                 2
             );
         }
 
         for i in 6..=10 {
             assert_eq!(
-                limiter.try_increment(now + Duration::from_secs(i), &key, 2),
+                limiter.try_increment(now + Duration::from_secs(i), key, 2),
                 0
             );
         }
 
         assert_eq!(
-            limiter.try_increment(now + Duration::from_secs(11), &key, 2),
+            limiter.try_increment(now + Duration::from_secs(11), key, 2),
             2
         );
     }

@@ -171,10 +171,10 @@ impl KafkaClient {
         self.schema_validator
             .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
-        let key = message.key();
+
         self.send(
             topic,
-            &key,
+            message.key(),
             message.headers(),
             message.variant(),
             &serialized,
@@ -187,7 +187,7 @@ impl KafkaClient {
     pub fn send(
         &self,
         topic: KafkaTopic,
-        key: &[u8; 16],
+        key: [u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
@@ -304,59 +304,53 @@ impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        key: &[u8; 16],
+        key: [u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
     ) -> Result<&str, ClientError> {
         let now = Instant::now();
+        let topic_name = self.topic_name.as_str();
 
         metric!(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
-            variant = variant
+            variant = variant,
+            topic = topic_name,
         );
 
-        let mut is_rate_limited = false;
-
-        let uuid;
-        let mut key = key;
-
-        if let Some(ref limiter) = self.rate_limiter {
-            if limiter.try_increment(now, key, 1) < 1 {
-                metric!(
-                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
-                    variant = variant,
-                    topic = &self.topic_name
-                );
-
-                // keep uuid alive so that borrow of key is not invalid...
-                uuid = Uuid::new_v4();
-                key = uuid.as_bytes();
-                is_rate_limited = true;
-            }
-        }
-
-        let topic_name = self.topic_name.as_str();
-        let mut record = BaseRecord::to(topic_name).key(key).payload(payload);
-
-        // Make sure to set the headers if provided.
+        let mut kafka_headers = OwnedHeaders::new();
         if let Some(headers) = headers {
-            let mut kafka_headers = OwnedHeaders::new();
             for (key, value) in headers {
                 kafka_headers = kafka_headers.insert(Header {
                     key,
                     value: Some(value),
                 });
             }
+        }
 
-            if is_rate_limited {
+        let mut key = key;
+        if let Some(ref limiter) = self.rate_limiter {
+            if limiter.try_increment(now, key, 1) < 1 {
+                metric!(
+                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
+                    variant = variant,
+                    topic = topic_name,
+                );
+
+                key = Uuid::new_v4().into_bytes();
                 kafka_headers = kafka_headers.insert(Header {
                     key: "sentry-reshuffled",
                     value: Some("1"),
                 });
             }
-            record = record.headers(kafka_headers);
         }
+
+        let record = BaseRecord::to(topic_name)
+            .key(&key)
+            .payload(payload)
+            .headers(kafka_headers);
+
+        // Make sure to set the headers if provided.
 
         self.metrics.debounce(now, || {
             metric!(
