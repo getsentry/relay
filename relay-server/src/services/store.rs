@@ -32,8 +32,8 @@ use relay_threading::AsyncPool;
 use sentry_protos::snuba::v1::any_value::Value;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType};
 use serde::{Deserialize, Serialize};
-use serde_json::Deserializer;
 use serde_json::value::RawValue;
+use serde_json::{Deserializer, Value as JsonValue};
 use uuid::Uuid;
 
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
@@ -929,11 +929,6 @@ impl StoreService {
             }
         };
 
-        span.duration_ms =
-            ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
-        span.event_id = event_id;
-        span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
-
         if let Some(measurements) = &mut span.measurements {
             measurements
                 .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
@@ -962,59 +957,83 @@ impl StoreService {
             server_sample_rate: 1.0,
         };
 
-        /*
-        for (name, attribute) in span.data {
-            if let Some(attribute_value) = attribute {
-                if let Some(v) = attribute_value.value {
-                    let any_value = match v {
-                        LogAttributeValue::String(value) => AnyValue {
-                            value: Some(Value::StringValue(value)),
-                        },
-                        LogAttributeValue::Int(value) => AnyValue {
-                            value: Some(Value::IntValue(value)),
-                        },
-                        LogAttributeValue::Bool(value) => AnyValue {
-                            value: Some(Value::BoolValue(value)),
-                        },
-                        LogAttributeValue::Double(value) => AnyValue {
-                            value: Some(Value::DoubleValue(value)),
-                        },
-                        LogAttributeValue::Unknown(_) => continue,
-                    };
+        if let Some(data) = span.data {
+            for (key, value) in data {
+                let any_value = match value {
+                    JsonValue::String(string) => AnyValue {
+                        value: Some(Value::StringValue(string)),
+                    },
+                    JsonValue::Number(number) => {
+                        if number.is_i64() || number.is_u64() {
+                            AnyValue {
+                                value: Some(Value::IntValue(number.as_i64().unwrap_or_default())),
+                            }
+                        } else {
+                            AnyValue {
+                                value: Some(Value::DoubleValue(
+                                    number.as_f64().unwrap_or_default(),
+                                )),
+                            }
+                        }
+                    }
+                    JsonValue::Bool(bool) => AnyValue {
+                        value: Some(Value::BoolValue(bool)),
+                    },
+                    JsonValue::Array(value) => AnyValue {
+                        value: Some(Value::StringValue(
+                            serde_json::to_string(&value).unwrap_or_default(),
+                        )),
+                    },
+                    JsonValue::Object(value) => AnyValue {
+                        value: Some(Value::StringValue(
+                            serde_json::to_string(&value).unwrap_or_default(),
+                        )),
+                    },
+                    _ => continue,
+                };
 
-                    trace_item.attributes.insert(name.into(), any_value);
-                }
+                trace_item.attributes.insert(key.into(), any_value);
             }
         }
-        */
 
         if let Some(measurements) = span.measurements {
             for (key, measurement) in measurements {
-                if let Some(m) = measurement {
-                    if let Some(value) = m.value {
-                        trace_item.attributes.insert(
-                            key.into(),
-                            AnyValue {
-                                value: Some(Value::DoubleValue(value)),
-                            },
-                        );
-                    }
-                }
+                let Some(m) = measurement else {
+                    continue;
+                };
+                let Some(value) = m.value else {
+                    continue;
+                };
+                trace_item.attributes.insert(
+                    key.into(),
+                    AnyValue {
+                        value: Some(Value::DoubleValue(value)),
+                    },
+                );
             }
         }
 
         if let Some(sentry_tags) = span.sentry_tags {
-            for (key, tag) in sentry_tags {
-                if let Some(value) = tag {
-                    trace_item.attributes.insert(
-                        key.into(),
-                        AnyValue {
-                            value: Some(Value::StringValue(value)),
-                        },
-                    );
-                }
+            for (name, tag) in sentry_tags {
+                let Some(value) = tag else {
+                    continue;
+                };
+
+                let key = if name == "description" {
+                    "sentry.normalized_description".to_string()
+                } else {
+                    format!("sentry.{name}")
+                };
+
+                trace_item.attributes.insert(
+                    key.to_owned(),
+                    AnyValue {
+                        value: Some(Value::StringValue(value)),
+                    },
+                );
             }
         }
+
         if let Some(tags) = span.tags {
             for (key, tag) in tags {
                 if let Some(value) = tag {
@@ -1028,8 +1047,88 @@ impl StoreService {
             }
         }
 
+        if let Some(description) = span.description {
+            trace_item.attributes.insert(
+                "sentry.raw_description".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(description)),
+                },
+            );
+        }
+
+        trace_item.attributes.insert(
+            "sentry.duration_ms".into(),
+            AnyValue {
+                value: Some(Value::IntValue(span.duration_ms.into())),
+            },
+        );
+
+        if let Some(event_id) = event_id {
+            trace_item.attributes.insert(
+                "sentry.event_id".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(event_id.0.as_simple().to_string())),
+                },
+            );
+        }
+
+        trace_item.attributes.insert(
+            "sentry.is_segment".into(),
+            AnyValue {
+                value: Some(Value::BoolValue(span.is_segment)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.exclusive_time_ms".into(),
+            AnyValue {
+                value: Some(Value::DoubleValue(span.exclusive_time_ms)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.start_timestamp_precise".into(),
+            AnyValue {
+                value: Some(Value::DoubleValue(span.start_timestamp_precise)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.end_timestamp_precise".into(),
+            AnyValue {
+                value: Some(Value::DoubleValue(span.end_timestamp_precise)),
+            },
+        );
+
+        if let Some(parent_span_id) = span.parent_span_id {
+            trace_item.attributes.insert(
+                "sentry.parent_span_id".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(parent_span_id.to_owned())),
+                },
+            );
+        }
+
+        if let Some(profile_id) = span.profile_id {
+            trace_item.attributes.insert(
+                "sentry.profile_id".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(profile_id.to_owned())),
+                },
+            );
+        }
+
+        if let Some(segment_id) = span.segment_id {
+            trace_item.attributes.insert(
+                "sentry.segment_id".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(segment_id.to_owned())),
+                },
+            );
+        }
+
         self.produce(
-            KafkaTopic::Spans,
+            KafkaTopic::Items,
             KafkaMessage::Span {
                 headers: BTreeMap::from([
                     (
@@ -1494,7 +1593,7 @@ struct SpanMeasurement {
 #[derive(Debug, Deserialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(default)]
-    description: Option<&'a RawValue>,
+    description: Option<String>,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
@@ -1508,7 +1607,7 @@ struct SpanKafkaMessage<'a> {
     is_remote: bool,
 
     #[serde(default)]
-    data: Option<&'a RawValue>,
+    data: Option<BTreeMap<&'a str, JsonValue>>,
     #[serde(default)]
     kind: Option<&'a str>,
     #[serde(default)]
