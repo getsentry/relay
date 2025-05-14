@@ -1004,12 +1004,22 @@ impl StoreService {
                 let Some(value) = m.value else {
                     continue;
                 };
-                trace_item.attributes.insert(
-                    key.into(),
-                    AnyValue {
-                        value: Some(Value::DoubleValue(value)),
-                    },
-                );
+                match key {
+                    Cow::Borrowed("client_sample_rate") if value > 0.0 => {
+                        trace_item.client_sample_rate = value
+                    }
+                    Cow::Borrowed("server_sample_rate") if value > 0.0 => {
+                        trace_item.server_sample_rate = value
+                    }
+                    _ => {
+                        trace_item.attributes.insert(
+                            key.into(),
+                            AnyValue {
+                                value: Some(Value::DoubleValue(value)),
+                            },
+                        );
+                    }
+                }
             }
         }
 
@@ -1100,6 +1110,20 @@ impl StoreService {
             },
         );
 
+        trace_item.attributes.insert(
+            "sentry.start_timestamp_ms".into(),
+            AnyValue {
+                value: Some(Value::IntValue(span.start_timestamp_ms as i64)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.is_remote".into(),
+            AnyValue {
+                value: Some(Value::BoolValue(span.is_remote)),
+            },
+        );
+
         if let Some(parent_span_id) = span.parent_span_id {
             trace_item.attributes.insert(
                 "sentry.parent_span_id".into(),
@@ -1123,6 +1147,24 @@ impl StoreService {
                 "sentry.segment_id".into(),
                 AnyValue {
                     value: Some(Value::StringValue(segment_id.to_owned())),
+                },
+            );
+        }
+
+        if let Some(origin) = span.origin {
+            trace_item.attributes.insert(
+                "sentry.origin".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(origin.to_string())),
+                },
+            );
+        }
+
+        if let Some(kind) = span.kind {
+            trace_item.attributes.insert(
+                "sentry.kind".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(kind.to_owned())),
                 },
             );
         }
