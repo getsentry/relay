@@ -3948,6 +3948,8 @@ dependencies = [
 name = "relay-kafka"
 version = "25.4.0"
 dependencies = [
+ "hashbrown 0.14.5",
+ "parking_lot",
  "rdkafka",
  "rdkafka-sys",
  "relay-log",
@@ -3958,6 +3960,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror 1.0.69",
+ "uuid",
 ]
 
 [[package]]

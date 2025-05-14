@@ -510,19 +510,9 @@ impl StoreService {
         &self,
         topic: KafkaTopic,
         // Takes message by value to ensure it is not being produced twice.
-        mut message: KafkaMessage,
+        message: KafkaMessage,
     ) -> Result<(), StoreError> {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
-
-        if let KafkaMessage::Span {
-            ref mut ignore_trace_id_partitioning,
-            ..
-        } = message
-        {
-            let global_config = self.global_config.current();
-            *ignore_trace_id_partitioning =
-                global_config.options.spans_ignore_trace_id_partitioning;
-        }
 
         let topic_name = self.producer.client.send_message(topic, &message)?;
 
@@ -946,7 +936,6 @@ impl StoreService {
                     scoping.project_id.to_string(),
                 )]),
                 message: span,
-                ignore_trace_id_partitioning: false,
             },
         )?;
 
@@ -1571,8 +1560,6 @@ enum KafkaMessage<'a> {
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
-        #[serde(skip)]
-        ignore_trace_id_partitioning: bool,
     },
     Log {
         headers: BTreeMap<String, String>,
@@ -1615,17 +1602,7 @@ impl Message for KafkaMessage<'_> {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
-            Self::Span {
-                message,
-                ignore_trace_id_partitioning,
-                ..
-            } => {
-                if *ignore_trace_id_partitioning {
-                    Uuid::nil()
-                } else {
-                    message.trace_id.0
-                }
-            }
+            Self::Span { message, .. } => message.trace_id.0,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1742,7 +1719,7 @@ mod tests {
         for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             let res = producer
                 .client
-                .send(topic, b"0123456789abcdef", None, "foo", b"");
+                .send(topic, *b"0123456789abcdef", None, "foo", b"");
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
