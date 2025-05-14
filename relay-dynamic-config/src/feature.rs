@@ -63,8 +63,8 @@ pub enum Feature {
     OtelEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
-    /// Serialized as `project:relay-playstation-ingestion`.
-    #[serde(rename = "projects:relay-playstation-ingestion")]
+    /// Serialized as `organizations:relay-playstation-ingestion`.
+    #[serde(rename = "organizations:relay-playstation-ingestion")]
     PlaystationIngestion,
     /// Discard transactions in a spans-only world.
     ///
