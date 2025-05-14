@@ -42,7 +42,7 @@ where
             return;
         };
 
-        self.0.get_or_insert_with(|| {
+        let mut headers = self.0.take().unwrap_or_else(|| {
             // Get a size hint from the iterator, +2 for the already removed
             // first element and reserving space for 1 extra header which is conditionally
             // added by the `Producer` in this crate.
@@ -52,9 +52,6 @@ where
             let size = iter.size_hint().0 + 2;
             OwnedHeaders::new_with_capacity(size)
         });
-
-        // We need to take and unwrap here, because the `OwnedHeaders` API requires it.
-        let mut headers = self.0.take().unwrap();
         headers = headers.insert(first);
         for remaining in iter {
             headers = headers.insert(remaining);
