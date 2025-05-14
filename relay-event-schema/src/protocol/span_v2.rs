@@ -1,4 +1,4 @@
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
 
 use std::fmt;
 
@@ -56,6 +56,10 @@ pub struct SpanV2 {
     /// Timestamp when the span was ended.
     #[metastructure(required = true)]
     pub end_timestamp: Annotated<Timestamp>,
+
+    /// Links from this span to other spans.
+    #[metastructure(pii = "maybe")]
+    pub links: Annotated<Array<SpanV2Link>>,
 
     /// Arbitrary attributes on a span.
     #[metastructure(pii = "true", trim = false)]
@@ -255,6 +259,31 @@ impl IntoValue for SpanV2Kind {
     }
 }
 
+/// A link from a span to another span.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(trim = false)]
+pub struct SpanV2Link {
+    /// The trace id of the linked span.
+    #[metastructure(required = true, trim = false)]
+    pub trace_id: Annotated<TraceId>,
+
+    /// The span id of the linked span.
+    #[metastructure(required = true, trim = false)]
+    pub span_id: Annotated<SpanId>,
+
+    /// Whether the linked span was positively/negatively sampled.
+    #[metastructure(trim = false)]
+    pub sampled: Annotated<bool>,
+
+    /// Span link attributes, similar to span attributes/data.
+    #[metastructure(pii = "maybe", trim = false)]
+    pub attributes: Annotated<Object<Attribute>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties, retain = true, pii = "maybe", trim = false)]
+    pub other: Object<Value>,
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -287,6 +316,19 @@ mod tests {
   "kind": "server",
   "start_timestamp": 1742921669.25,
   "end_timestamp": 1742921669.75,
+  "links": [
+    {
+      "trace_id": "627a2885119dcc8184fae7eef09438cb",
+      "span_id": "6c71fc6b09b8b716",
+      "sampled": true,
+      "attributes": {
+        "sentry.link.type": {
+          "type": "string",
+          "value": "previous_trace"
+        }
+      }
+    }
+  ],
   "attributes": {
     "custom.error_rate": {
       "type": "double",
@@ -348,6 +390,16 @@ mod tests {
             "server.address" => "DHWKN7KX6N.local", String,
             "http.response.status_code" => 200i64, Integer,
         );
+
+        let links = vec![Annotated::new(SpanV2Link {
+            trace_id: Annotated::new("627a2885119dcc8184fae7eef09438cb".parse().unwrap()),
+            span_id: Annotated::new(SpanId("6c71fc6b09b8b716".into())),
+            sampled: Annotated::new(true),
+            attributes: Annotated::new(attrs!(
+                "sentry.link.type" => "previous_trace", String
+            )),
+            ..Default::default()
+        })];
         let span = Annotated::new(SpanV2 {
             start_timestamp: Annotated::new(
                 Utc.timestamp_opt(1742921669, 250000000).unwrap().into(),
@@ -360,6 +412,7 @@ mod tests {
             status: Annotated::new(SpanV2Status::Ok),
             kind: Annotated::new(SpanV2Kind::Server),
             is_remote: Annotated::new(true),
+            links: Annotated::new(links),
             attributes: Annotated::new(attributes),
             ..Default::default()
         });
