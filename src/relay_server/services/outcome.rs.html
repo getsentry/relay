@@ -1154,7 +1154,7 @@
 <a href=#1154 id=1154 data-nosnippet>1154</a>        <span class="kw">let </span>result =
 <a href=#1155 id=1155 data-nosnippet>1155</a>            producer
 <a href=#1156 id=1156 data-nosnippet>1156</a>                .client
-<a href=#1157 id=1157 data-nosnippet>1157</a>                .send(topic, key.as_bytes(), <span class="prelude-val">None</span>, <span class="string">"outcome"</span>, payload.as_bytes());
+<a href=#1157 id=1157 data-nosnippet>1157</a>                .send(topic, key.into_bytes(), <span class="prelude-val">None</span>, <span class="string">"outcome"</span>, payload.as_bytes());
 <a href=#1158 id=1158 data-nosnippet>1158</a>
 <a href=#1159 id=1159 data-nosnippet>1159</a>        <span class="kw">match </span>result {
 <a href=#1160 id=1160 data-nosnippet>1160</a>            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),

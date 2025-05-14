@@ -21,105 +21,113 @@
 <a href=#21 id=21 data-nosnippet>21</a>    /// - `topic`: The Kafka topic being produced to.
 <a href=#22 id=22 data-nosnippet>22</a>    /// - `variant`: The Kafka message variant.
 <a href=#23 id=23 data-nosnippet>23</a>    </span>ProducerEnqueueError,
-<a href=#24 id=24 data-nosnippet>24</a>}
-<a href=#25 id=25 data-nosnippet>25</a>
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">impl </span>CounterMetric <span class="kw">for </span>KafkaCounters {
-<a href=#27 id=27 data-nosnippet>27</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#28 id=28 data-nosnippet>28</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#29 id=29 data-nosnippet>29</a>            <span class="self">Self</span>::ProcessingProduceError =&gt; <span class="string">"processing.produce.error"</span>,
-<a href=#30 id=30 data-nosnippet>30</a>            <span class="self">Self</span>::ProducerEnqueueError =&gt; <span class="string">"producer.enqueue.error"</span>,
-<a href=#31 id=31 data-nosnippet>31</a>        }
-<a href=#32 id=32 data-nosnippet>32</a>    }
-<a href=#33 id=33 data-nosnippet>33</a>}
-<a href=#34 id=34 data-nosnippet>34</a>
-<a href=#35 id=35 data-nosnippet>35</a><span class="kw">pub enum </span>KafkaHistograms {
-<a href=#36 id=36 data-nosnippet>36</a>    <span class="doccomment">/// Size of emitted kafka message in bytes, tagged by message type.
-<a href=#37 id=37 data-nosnippet>37</a>    </span>KafkaMessageSize,
-<a href=#38 id=38 data-nosnippet>38</a>}
-<a href=#39 id=39 data-nosnippet>39</a>
-<a href=#40 id=40 data-nosnippet>40</a><span class="kw">impl </span>HistogramMetric <span class="kw">for </span>KafkaHistograms {
-<a href=#41 id=41 data-nosnippet>41</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#42 id=42 data-nosnippet>42</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#43 id=43 data-nosnippet>43</a>            <span class="self">Self</span>::KafkaMessageSize =&gt; <span class="string">"kafka.message_size"</span>,
-<a href=#44 id=44 data-nosnippet>44</a>        }
-<a href=#45 id=45 data-nosnippet>45</a>    }
+<a href=#24 id=24 data-nosnippet>24</a>
+<a href=#25 id=25 data-nosnippet>25</a>    <span class="doccomment">/// Number of messages that were written to the wrong partition because of configured rate limits.
+<a href=#26 id=26 data-nosnippet>26</a>    ///
+<a href=#27 id=27 data-nosnippet>27</a>    /// Each topic in Relay can optionally be configured with a per-partition-key rate limit. This
+<a href=#28 id=28 data-nosnippet>28</a>    /// rate limit does not drop messages, but instead disables semantic partitioning. Everytime
+<a href=#29 id=29 data-nosnippet>29</a>    /// this happens for a message, this counter is incremented.
+<a href=#30 id=30 data-nosnippet>30</a>    </span>ProducerPartitionKeyRateLimit,
+<a href=#31 id=31 data-nosnippet>31</a>}
+<a href=#32 id=32 data-nosnippet>32</a>
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">impl </span>CounterMetric <span class="kw">for </span>KafkaCounters {
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#35 id=35 data-nosnippet>35</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#36 id=36 data-nosnippet>36</a>            <span class="self">Self</span>::ProcessingProduceError =&gt; <span class="string">"processing.produce.error"</span>,
+<a href=#37 id=37 data-nosnippet>37</a>            <span class="self">Self</span>::ProducerEnqueueError =&gt; <span class="string">"producer.enqueue.error"</span>,
+<a href=#38 id=38 data-nosnippet>38</a>            <span class="self">Self</span>::ProducerPartitionKeyRateLimit =&gt; <span class="string">"producer.partition_key.rate_limit"</span>,
+<a href=#39 id=39 data-nosnippet>39</a>        }
+<a href=#40 id=40 data-nosnippet>40</a>    }
+<a href=#41 id=41 data-nosnippet>41</a>}
+<a href=#42 id=42 data-nosnippet>42</a>
+<a href=#43 id=43 data-nosnippet>43</a><span class="kw">pub enum </span>KafkaHistograms {
+<a href=#44 id=44 data-nosnippet>44</a>    <span class="doccomment">/// Size of emitted kafka message in bytes, tagged by message type.
+<a href=#45 id=45 data-nosnippet>45</a>    </span>KafkaMessageSize,
 <a href=#46 id=46 data-nosnippet>46</a>}
-<a href=#47 id=47 data-nosnippet>47</a><span class="doccomment">/// Gauge metrics for the Kafka producer.
-<a href=#48 id=48 data-nosnippet>48</a>///
-<a href=#49 id=49 data-nosnippet>49</a>/// Most of these metrics are taken from the [`rdkafka::statistics`] module.
-<a href=#50 id=50 data-nosnippet>50</a></span><span class="kw">pub enum </span>KafkaGauges {
-<a href=#51 id=51 data-nosnippet>51</a>    <span class="doccomment">/// The number of messages waiting to be sent to, or acknowledged by, the broker.
-<a href=#52 id=52 data-nosnippet>52</a>    ///
-<a href=#53 id=53 data-nosnippet>53</a>    /// See &lt;https://docs.confluent.io/platform/7.5/clients/librdkafka/html/rdkafka_8h.html#ad4b3b7659cf9a79d3353810d6b625bb7&gt;.
-<a href=#54 id=54 data-nosnippet>54</a>    ///
-<a href=#55 id=55 data-nosnippet>55</a>    /// This metric is tagged with:
-<a href=#56 id=56 data-nosnippet>56</a>    /// - `topic`: The Kafka topic being produced to.
-<a href=#57 id=57 data-nosnippet>57</a>    /// - `variant`: The Kafka message variant.
-<a href=#58 id=58 data-nosnippet>58</a>    </span>InFlightCount,
-<a href=#59 id=59 data-nosnippet>59</a>
-<a href=#60 id=60 data-nosnippet>60</a>    <span class="doccomment">/// The current number of messages in producer queues.
-<a href=#61 id=61 data-nosnippet>61</a>    </span>MessageCount,
-<a href=#62 id=62 data-nosnippet>62</a>
-<a href=#63 id=63 data-nosnippet>63</a>    <span class="doccomment">/// The maximum number of messages allowed in the producer queues.
-<a href=#64 id=64 data-nosnippet>64</a>    </span>MessageCountMax,
-<a href=#65 id=65 data-nosnippet>65</a>
-<a href=#66 id=66 data-nosnippet>66</a>    <span class="doccomment">/// The current total size of messages in producer queues.
-<a href=#67 id=67 data-nosnippet>67</a>    </span>MessageSize,
-<a href=#68 id=68 data-nosnippet>68</a>
-<a href=#69 id=69 data-nosnippet>69</a>    <span class="doccomment">/// The maximum total size of messages allowed in the producer queues.
-<a href=#70 id=70 data-nosnippet>70</a>    </span>MessageSizeMax,
-<a href=#71 id=71 data-nosnippet>71</a>
-<a href=#72 id=72 data-nosnippet>72</a>    <span class="doccomment">/// The number of requests awaiting transmission to the broker.
-<a href=#73 id=73 data-nosnippet>73</a>    ///
-<a href=#74 id=74 data-nosnippet>74</a>    /// This metric is tagged with:
-<a href=#75 id=75 data-nosnippet>75</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-<a href=#76 id=76 data-nosnippet>76</a>    </span>OutboundBufferRequests,
-<a href=#77 id=77 data-nosnippet>77</a>
-<a href=#78 id=78 data-nosnippet>78</a>    <span class="doccomment">/// The number of messages awaiting transmission to the broker.
-<a href=#79 id=79 data-nosnippet>79</a>    ///
-<a href=#80 id=80 data-nosnippet>80</a>    /// This metric is tagged with:
-<a href=#81 id=81 data-nosnippet>81</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-<a href=#82 id=82 data-nosnippet>82</a>    </span>OutboundBufferMessages,
-<a href=#83 id=83 data-nosnippet>83</a>
-<a href=#84 id=84 data-nosnippet>84</a>    <span class="doccomment">/// The number of connection attempts, including successful and failed attempts, and name resolution failures.
-<a href=#85 id=85 data-nosnippet>85</a>    ///
-<a href=#86 id=86 data-nosnippet>86</a>    /// This metric is tagged with:
-<a href=#87 id=87 data-nosnippet>87</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-<a href=#88 id=88 data-nosnippet>88</a>    </span>Connects,
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>    <span class="doccomment">/// The number of disconnections, whether triggered by the broker, the network, the load balancer, or something else.
-<a href=#91 id=91 data-nosnippet>91</a>    ///
-<a href=#92 id=92 data-nosnippet>92</a>    /// This metric is tagged with:
-<a href=#93 id=93 data-nosnippet>93</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-<a href=#94 id=94 data-nosnippet>94</a>    </span>Disconnects,
-<a href=#95 id=95 data-nosnippet>95</a>
-<a href=#96 id=96 data-nosnippet>96</a>    <span class="doccomment">/// Maximum internal producer queue latency, in microseconds.
-<a href=#97 id=97 data-nosnippet>97</a>    ///
-<a href=#98 id=98 data-nosnippet>98</a>    /// This metric is tagged with:
-<a href=#99 id=99 data-nosnippet>99</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-<a href=#100 id=100 data-nosnippet>100</a>    </span>ProducerQueueLatency,
-<a href=#101 id=101 data-nosnippet>101</a>
-<a href=#102 id=102 data-nosnippet>102</a>    <span class="doccomment">/// Maximum internal request queue latency, in microseconds.
-<a href=#103 id=103 data-nosnippet>103</a>    ///
-<a href=#104 id=104 data-nosnippet>104</a>    /// This metric is tagged with:
-<a href=#105 id=105 data-nosnippet>105</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-<a href=#106 id=106 data-nosnippet>106</a>    </span>RequestQueueLatency,
-<a href=#107 id=107 data-nosnippet>107</a>}
-<a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a><span class="kw">impl </span>GaugeMetric <span class="kw">for </span>KafkaGauges {
-<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#112 id=112 data-nosnippet>112</a>            KafkaGauges::InFlightCount =&gt; <span class="string">"kafka.in_flight_count"</span>,
-<a href=#113 id=113 data-nosnippet>113</a>            KafkaGauges::MessageCount =&gt; <span class="string">"kafka.stats.message_count"</span>,
-<a href=#114 id=114 data-nosnippet>114</a>            KafkaGauges::MessageCountMax =&gt; <span class="string">"kafka.stats.message_count_max"</span>,
-<a href=#115 id=115 data-nosnippet>115</a>            KafkaGauges::MessageSize =&gt; <span class="string">"kafka.stats.message_size"</span>,
-<a href=#116 id=116 data-nosnippet>116</a>            KafkaGauges::MessageSizeMax =&gt; <span class="string">"kafka.stats.message_size_max"</span>,
-<a href=#117 id=117 data-nosnippet>117</a>            KafkaGauges::OutboundBufferRequests =&gt; <span class="string">"kafka.stats.broker.outbuf.requests"</span>,
-<a href=#118 id=118 data-nosnippet>118</a>            KafkaGauges::OutboundBufferMessages =&gt; <span class="string">"kafka.stats.broker.outbuf.messages"</span>,
-<a href=#119 id=119 data-nosnippet>119</a>            KafkaGauges::Connects =&gt; <span class="string">"kafka.stats.broker.connects"</span>,
-<a href=#120 id=120 data-nosnippet>120</a>            KafkaGauges::Disconnects =&gt; <span class="string">"kafka.stats.broker.disconnects"</span>,
-<a href=#121 id=121 data-nosnippet>121</a>            KafkaGauges::ProducerQueueLatency =&gt; <span class="string">"kafka.stats.broker.int_latency"</span>,
-<a href=#122 id=122 data-nosnippet>122</a>            KafkaGauges::RequestQueueLatency =&gt; <span class="string">"kafka.stats.broker.outbuf_latency"</span>,
-<a href=#123 id=123 data-nosnippet>123</a>        }
-<a href=#124 id=124 data-nosnippet>124</a>    }
-<a href=#125 id=125 data-nosnippet>125</a>}</code></pre></div></section></main></body></html>
+<a href=#47 id=47 data-nosnippet>47</a>
+<a href=#48 id=48 data-nosnippet>48</a><span class="kw">impl </span>HistogramMetric <span class="kw">for </span>KafkaHistograms {
+<a href=#49 id=49 data-nosnippet>49</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#50 id=50 data-nosnippet>50</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#51 id=51 data-nosnippet>51</a>            <span class="self">Self</span>::KafkaMessageSize =&gt; <span class="string">"kafka.message_size"</span>,
+<a href=#52 id=52 data-nosnippet>52</a>        }
+<a href=#53 id=53 data-nosnippet>53</a>    }
+<a href=#54 id=54 data-nosnippet>54</a>}
+<a href=#55 id=55 data-nosnippet>55</a><span class="doccomment">/// Gauge metrics for the Kafka producer.
+<a href=#56 id=56 data-nosnippet>56</a>///
+<a href=#57 id=57 data-nosnippet>57</a>/// Most of these metrics are taken from the [`rdkafka::statistics`] module.
+<a href=#58 id=58 data-nosnippet>58</a></span><span class="kw">pub enum </span>KafkaGauges {
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// The number of messages waiting to be sent to, or acknowledged by, the broker.
+<a href=#60 id=60 data-nosnippet>60</a>    ///
+<a href=#61 id=61 data-nosnippet>61</a>    /// See &lt;https://docs.confluent.io/platform/7.5/clients/librdkafka/html/rdkafka_8h.html#ad4b3b7659cf9a79d3353810d6b625bb7&gt;.
+<a href=#62 id=62 data-nosnippet>62</a>    ///
+<a href=#63 id=63 data-nosnippet>63</a>    /// This metric is tagged with:
+<a href=#64 id=64 data-nosnippet>64</a>    /// - `topic`: The Kafka topic being produced to.
+<a href=#65 id=65 data-nosnippet>65</a>    /// - `variant`: The Kafka message variant.
+<a href=#66 id=66 data-nosnippet>66</a>    </span>InFlightCount,
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="doccomment">/// The current number of messages in producer queues.
+<a href=#69 id=69 data-nosnippet>69</a>    </span>MessageCount,
+<a href=#70 id=70 data-nosnippet>70</a>
+<a href=#71 id=71 data-nosnippet>71</a>    <span class="doccomment">/// The maximum number of messages allowed in the producer queues.
+<a href=#72 id=72 data-nosnippet>72</a>    </span>MessageCountMax,
+<a href=#73 id=73 data-nosnippet>73</a>
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="doccomment">/// The current total size of messages in producer queues.
+<a href=#75 id=75 data-nosnippet>75</a>    </span>MessageSize,
+<a href=#76 id=76 data-nosnippet>76</a>
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="doccomment">/// The maximum total size of messages allowed in the producer queues.
+<a href=#78 id=78 data-nosnippet>78</a>    </span>MessageSizeMax,
+<a href=#79 id=79 data-nosnippet>79</a>
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="doccomment">/// The number of requests awaiting transmission to the broker.
+<a href=#81 id=81 data-nosnippet>81</a>    ///
+<a href=#82 id=82 data-nosnippet>82</a>    /// This metric is tagged with:
+<a href=#83 id=83 data-nosnippet>83</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+<a href=#84 id=84 data-nosnippet>84</a>    </span>OutboundBufferRequests,
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// The number of messages awaiting transmission to the broker.
+<a href=#87 id=87 data-nosnippet>87</a>    ///
+<a href=#88 id=88 data-nosnippet>88</a>    /// This metric is tagged with:
+<a href=#89 id=89 data-nosnippet>89</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+<a href=#90 id=90 data-nosnippet>90</a>    </span>OutboundBufferMessages,
+<a href=#91 id=91 data-nosnippet>91</a>
+<a href=#92 id=92 data-nosnippet>92</a>    <span class="doccomment">/// The number of connection attempts, including successful and failed attempts, and name resolution failures.
+<a href=#93 id=93 data-nosnippet>93</a>    ///
+<a href=#94 id=94 data-nosnippet>94</a>    /// This metric is tagged with:
+<a href=#95 id=95 data-nosnippet>95</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+<a href=#96 id=96 data-nosnippet>96</a>    </span>Connects,
+<a href=#97 id=97 data-nosnippet>97</a>
+<a href=#98 id=98 data-nosnippet>98</a>    <span class="doccomment">/// The number of disconnections, whether triggered by the broker, the network, the load balancer, or something else.
+<a href=#99 id=99 data-nosnippet>99</a>    ///
+<a href=#100 id=100 data-nosnippet>100</a>    /// This metric is tagged with:
+<a href=#101 id=101 data-nosnippet>101</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+<a href=#102 id=102 data-nosnippet>102</a>    </span>Disconnects,
+<a href=#103 id=103 data-nosnippet>103</a>
+<a href=#104 id=104 data-nosnippet>104</a>    <span class="doccomment">/// Maximum internal producer queue latency, in microseconds.
+<a href=#105 id=105 data-nosnippet>105</a>    ///
+<a href=#106 id=106 data-nosnippet>106</a>    /// This metric is tagged with:
+<a href=#107 id=107 data-nosnippet>107</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+<a href=#108 id=108 data-nosnippet>108</a>    </span>ProducerQueueLatency,
+<a href=#109 id=109 data-nosnippet>109</a>
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="doccomment">/// Maximum internal request queue latency, in microseconds.
+<a href=#111 id=111 data-nosnippet>111</a>    ///
+<a href=#112 id=112 data-nosnippet>112</a>    /// This metric is tagged with:
+<a href=#113 id=113 data-nosnippet>113</a>    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+<a href=#114 id=114 data-nosnippet>114</a>    </span>RequestQueueLatency,
+<a href=#115 id=115 data-nosnippet>115</a>}
+<a href=#116 id=116 data-nosnippet>116</a>
+<a href=#117 id=117 data-nosnippet>117</a><span class="kw">impl </span>GaugeMetric <span class="kw">for </span>KafkaGauges {
+<a href=#118 id=118 data-nosnippet>118</a>    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#119 id=119 data-nosnippet>119</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#120 id=120 data-nosnippet>120</a>            KafkaGauges::InFlightCount =&gt; <span class="string">"kafka.in_flight_count"</span>,
+<a href=#121 id=121 data-nosnippet>121</a>            KafkaGauges::MessageCount =&gt; <span class="string">"kafka.stats.message_count"</span>,
+<a href=#122 id=122 data-nosnippet>122</a>            KafkaGauges::MessageCountMax =&gt; <span class="string">"kafka.stats.message_count_max"</span>,
+<a href=#123 id=123 data-nosnippet>123</a>            KafkaGauges::MessageSize =&gt; <span class="string">"kafka.stats.message_size"</span>,
+<a href=#124 id=124 data-nosnippet>124</a>            KafkaGauges::MessageSizeMax =&gt; <span class="string">"kafka.stats.message_size_max"</span>,
+<a href=#125 id=125 data-nosnippet>125</a>            KafkaGauges::OutboundBufferRequests =&gt; <span class="string">"kafka.stats.broker.outbuf.requests"</span>,
+<a href=#126 id=126 data-nosnippet>126</a>            KafkaGauges::OutboundBufferMessages =&gt; <span class="string">"kafka.stats.broker.outbuf.messages"</span>,
+<a href=#127 id=127 data-nosnippet>127</a>            KafkaGauges::Connects =&gt; <span class="string">"kafka.stats.broker.connects"</span>,
+<a href=#128 id=128 data-nosnippet>128</a>            KafkaGauges::Disconnects =&gt; <span class="string">"kafka.stats.broker.disconnects"</span>,
+<a href=#129 id=129 data-nosnippet>129</a>            KafkaGauges::ProducerQueueLatency =&gt; <span class="string">"kafka.stats.broker.int_latency"</span>,
+<a href=#130 id=130 data-nosnippet>130</a>            KafkaGauges::RequestQueueLatency =&gt; <span class="string">"kafka.stats.broker.outbuf_latency"</span>,
+<a href=#131 id=131 data-nosnippet>131</a>        }
+<a href=#132 id=132 data-nosnippet>132</a>    }
+<a href=#133 id=133 data-nosnippet>133</a>}</code></pre></div></section></main></body></html>
