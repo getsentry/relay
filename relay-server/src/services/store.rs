@@ -1668,7 +1668,7 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     is_remote: bool,
 
-    #[serde(default, skip_serializing_if = "none_or_empty_object")]
+    #[serde(default, skip_serializing_if = "none_or_empty_map")]
     data: Option<BTreeMap<&'a str, JsonValue>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
@@ -1762,6 +1762,13 @@ struct LogKafkaMessage<'a> {
     timestamp: f64,
     #[serde(borrow, default)]
     attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
+}
+
+fn none_or_empty_map<K, V>(value: &Option<BTreeMap<K, V>>) -> bool {
+    match value {
+        Some(map) => map.is_empty(),
+        None => true,
+    }
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
