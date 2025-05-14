@@ -1473,9 +1473,6 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     _performance_issues_spans: Option<bool>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    _span_buffer_rate_limited: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1605,13 +1602,7 @@ impl Message for KafkaMessage<'_> {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
-            Self::Span { message, .. } => {
-                if message._span_buffer_rate_limited.unwrap_or_default() {
-                    Uuid::nil()
-                } else {
-                    message.trace_id.0
-                }
-            }
+            Self::Span { message, .. } => message.trace_id.0,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //

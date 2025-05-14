@@ -11,6 +11,7 @@ use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::{BaseRecord, Producer as _};
 use relay_statsd::metric;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::config::{KafkaParams, KafkaTopic};
 use crate::debounced::Debounced;
@@ -99,14 +100,21 @@ struct Producer {
     producer: Arc<ThreadedProducer>,
     /// Debouncer for metrics.
     metrics: Debounced,
+    /// Optional rate limits to apply.
+    rate_limiter: Option<KafkaRateLimits>,
 }
 
 impl Producer {
-    fn new(topic_name: String, producer: Arc<ThreadedProducer>) -> Self {
+    fn new(
+        topic_name: String,
+        producer: Arc<ThreadedProducer>,
+        rate_limiter: Option<KafkaRateLimits>,
+    ) -> Self {
         Self {
             topic_name,
             producer,
             metrics: Debounced::new(REPORT_FREQUENCY_SECS),
+            rate_limiter,
         }
     }
 
@@ -140,9 +148,6 @@ impl fmt::Debug for Producer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
-    // rate limits are stored separately from producers because producers may be reused across
-    // topics if they have the same broker config. we shouldn't do that for rate limit state!
-    rate_limiters: HashMap<KafkaTopic, KafkaRateLimits>,
     #[cfg(feature = "schemas")]
     schema_validator: schemas::Validator,
 }
@@ -187,8 +192,6 @@ impl KafkaClient {
         variant: &str,
         payload: &[u8],
     ) -> Result<&str, ClientError> {
-        let now = Instant::now();
-
         let producer = self.producers.get(&topic).ok_or_else(|| {
             relay_log::error!(
                 "attempted to send message to {topic:?} using an unconfigured kafka producer",
@@ -196,19 +199,7 @@ impl KafkaClient {
             ClientError::InvalidTopicName
         })?;
 
-        if let Some(limiter) = self.rate_limiters.get(&topic) {
-            if limiter.try_increment(now, key, 1) < 1 {
-                metric!(
-                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
-                    variant = variant,
-                    topic = &producer.topic_name
-                );
-                return Ok(&producer.topic_name);
-            }
-        }
-
-        producer.send(now, key, headers, variant, payload)?;
-        Ok(&producer.topic_name)
+        producer.send(key, headers, variant, payload)
     }
 }
 
@@ -216,7 +207,6 @@ impl KafkaClient {
 #[derive(Default)]
 pub struct KafkaClientBuilder {
     reused_producers: BTreeMap<Option<String>, Arc<ThreadedProducer>>,
-    rate_limiters: HashMap<KafkaTopic, KafkaRateLimits>,
     producers: HashMap<KafkaTopic, Producer>,
 }
 
@@ -247,20 +237,21 @@ impl KafkaClientBuilder {
             key_rate_limit,
         } = params;
 
-        if let Some(limit) = key_rate_limit {
-            self.rate_limiters.insert(
-                topic,
-                KafkaRateLimits::new(
-                    limit.limit_per_window,
-                    Duration::from_secs(limit.window_secs),
-                ),
-            );
-        }
+        let rate_limiter = key_rate_limit.map(|limit| {
+            KafkaRateLimits::new(
+                limit.limit_per_window,
+                Duration::from_secs(limit.window_secs),
+            )
+        });
 
         let config_name = config_name.map(str::to_string);
 
         if let Some(producer) = self.reused_producers.get(&config_name) {
-            let producer = Producer::new((*topic_name).to_string(), Arc::clone(producer));
+            let producer = Producer::new(
+                (*topic_name).to_string(),
+                Arc::clone(producer),
+                rate_limiter,
+            );
             if validate_topic {
                 producer.validate_topic()?;
             }
@@ -281,7 +272,7 @@ impl KafkaClientBuilder {
         self.reused_producers
             .insert(config_name, Arc::clone(&producer));
 
-        let producer = Producer::new((*topic_name).to_string(), producer);
+        let producer = Producer::new((*topic_name).to_string(), producer, rate_limiter);
         if validate_topic {
             producer.validate_topic()?;
         }
@@ -294,7 +285,6 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
-            rate_limiters: self.rate_limiters,
             #[cfg(feature = "schemas")]
             schema_validator: schemas::Validator::default(),
         }
@@ -314,16 +304,37 @@ impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        now: Instant,
         key: &[u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
-    ) -> Result<(), ClientError> {
+    ) -> Result<&str, ClientError> {
+        let now = Instant::now();
+
         metric!(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
             variant = variant
         );
+
+        let mut is_rate_limited = false;
+
+        let uuid;
+        let mut key = key;
+
+        if let Some(ref limiter) = self.rate_limiter {
+            if limiter.try_increment(now, key, 1) < 1 {
+                metric!(
+                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
+                    variant = variant,
+                    topic = &self.topic_name
+                );
+
+                // keep uuid alive so that borrow of key is not invalid...
+                uuid = Uuid::new_v4();
+                key = uuid.as_bytes();
+                is_rate_limited = true;
+            }
+        }
 
         let topic_name = self.topic_name.as_str();
         let mut record = BaseRecord::to(topic_name).key(key).payload(payload);
@@ -335,6 +346,13 @@ impl Producer {
                 kafka_headers = kafka_headers.insert(Header {
                     key,
                     value: Some(value),
+                });
+            }
+
+            if is_rate_limited {
+                kafka_headers = kafka_headers.insert(Header {
+                    key: "sentry-reshuffled",
+                    value: Some("1"),
                 });
             }
             record = record.headers(kafka_headers);
@@ -363,6 +381,6 @@ impl Producer {
             ClientError::SendFailed(error)
         })?;
 
-        Ok(())
+        Ok(topic_name)
     }
 }
