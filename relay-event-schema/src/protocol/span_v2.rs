@@ -280,7 +280,7 @@ pub struct SpanV2Link {
     pub attributes: Annotated<Object<Attribute>>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = true, pii = "maybe", trim = false)]
+    #[metastructure(additional_properties, pii = "maybe", trim = false)]
     pub other: Object<Value>,
 }
 
