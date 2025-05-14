@@ -2,6 +2,7 @@
 //! The service uses Kafka topics to forward data to Sentry
 
 use relay_base_schema::organization::OrganizationId;
+use serde::ser::SerializeMap;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -1433,6 +1434,25 @@ where
         .serialize(serializer)
 }
 
+fn serialize_btreemap_skip_nulls<S>(
+    map: &Option<BTreeMap<&str, Option<String>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let Some(map) = map else {
+        return serializer.serialize_none();
+    };
+    let mut m = serializer.serialize_map(Some(map.len()))?;
+    for (key, value) in map.iter() {
+        if let Some(value) = value {
+            m.serialize_entry(key, value)?;
+        }
+    }
+    m.end()
+}
+
 /// Container payload for event messages.
 #[derive(Debug, Serialize)]
 struct EventKafkaMessage {
@@ -1616,30 +1636,30 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct SpanLink<'a> {
     pub trace_id: &'a str,
     pub span_id: &'a str,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sampled: Option<bool>,
     #[serde(borrow)]
     pub attributes: Option<&'a RawValue>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct SpanMeasurement {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     value: Option<f64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
     #[serde(rename(deserialize = "exclusive_time"))]
     exclusive_time_ms: f64,
@@ -1648,24 +1668,37 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     is_remote: bool,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "none_or_empty_object")]
     data: Option<BTreeMap<&'a str, JsonValue>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "none_or_empty_vec")]
     links: Option<Vec<SpanLink<'a>>>,
-    #[serde(borrow, default)]
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
-    #[serde(borrow, default)]
+    #[serde(default)]
+    organization_id: u64,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     origin: Option<Cow<'a, str>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     profile_id: Option<&'a str>,
     /// The numeric ID of the project.
     #[serde(default)]
-    segment_id: Option<&'a str>,
+    project_id: u64,
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    received: f64,
+    /// Number of days until these data should be deleted.
     #[serde(default)]
+    retention_days: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    segment_id: Option<&'a str>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_btreemap_skip_nulls"
+    )]
     sentry_tags: Option<BTreeMap<&'a str, Option<String>>>,
     span_id: &'a str,
     #[serde(default)]
@@ -1679,13 +1712,17 @@ struct SpanKafkaMessage<'a> {
     #[serde(rename(deserialize = "timestamp"))]
     end_timestamp_precise: f64,
 
-    #[serde(borrow, default)]
+    #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
 
-    #[serde(default, rename = "_meta")]
+    #[serde(
+        default,
+        rename = "_meta",
+        skip_serializing_if = "none_or_empty_object"
+    )]
     meta: Option<&'a RawValue>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     _performance_issues_spans: Option<bool>,
 }
 
@@ -1725,6 +1762,20 @@ struct LogKafkaMessage<'a> {
     timestamp: f64,
     #[serde(borrow, default)]
     attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
+}
+
+fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
+    match value {
+        None => true,
+        Some(raw) => raw.get() == "{}",
+    }
+}
+
+fn none_or_empty_vec<T>(value: &Option<Vec<T>>) -> bool {
+    match &value {
+        Some(vec) => vec.is_empty(),
+        None => true,
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
