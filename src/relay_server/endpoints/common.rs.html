@@ -410,7 +410,7 @@
 <a href=#410 id=410 data-nosnippet>410</a>            item_type = item.ty().name()
 <a href=#411 id=411 data-nosnippet>411</a>        );
 <a href=#412 id=412 data-nosnippet>412</a>        <span class="macro">metric!</span>(
-<a href=#413 id=413 data-nosnippet>413</a>            counter(RelayCounters::EnvelopeItems) += <span class="number">1</span>,
+<a href=#413 id=413 data-nosnippet>413</a>            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(<span class="number">1</span>),
 <a href=#414 id=414 data-nosnippet>414</a>            item_type = item.ty().name(),
 <a href=#415 id=415 data-nosnippet>415</a>            sdk = client_name.name(),
 <a href=#416 id=416 data-nosnippet>416</a>        );
