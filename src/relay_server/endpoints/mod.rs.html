@@ -15,7 +15,7 @@
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">mod </span>minidump;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">mod </span>monitor;
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">mod </span>nel;
-<a href=#18 id=18 data-nosnippet>18</a><span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
+<a href=#18 id=18 data-nosnippet>18</a><span class="attr">#[cfg(sentry)]
 <a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">mod </span>playstation;
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">mod </span>project_configs;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">mod </span>public_keys;
@@ -87,7 +87,7 @@
 <a href=#87 id=87 data-nosnippet>87</a>        <span class="comment">// NOTE: If you add a new (non-experimental) route here, please also list it in
 <a href=#88 id=88 data-nosnippet>88</a>        // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
 <a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a>    </span><span class="attr">#[cfg(all(sentry, feature = <span class="string">"processing"</span>))]
+<a href=#90 id=90 data-nosnippet>90</a>    </span><span class="attr">#[cfg(sentry)]
 <a href=#91 id=91 data-nosnippet>91</a>    </span><span class="kw">let </span>store_routes = store_routes.route(<span class="string">"/api/{project_id}/playstation/"</span>, playstation::route(config));
 <a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">let </span>store_routes = store_routes.route_layer(middlewares::cors());
 <a href=#93 id=93 data-nosnippet>93</a>
