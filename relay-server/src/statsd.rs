@@ -678,7 +678,10 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number of items we processed per envelope.
+    /// Number of total envelope items we received.
+    ///
+    /// Note: This does not count raw items, it counts the logical amount of items,
+    /// e.g. a single item container counts all its contained items.
     EnvelopeItems,
     /// Number of bytes we processed per envelope item.
     EnvelopeItemBytes,
