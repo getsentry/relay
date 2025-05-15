@@ -11,7 +11,6 @@ use rdkafka::message::Header;
 use rdkafka::producer::{BaseRecord, Producer as _};
 use relay_statsd::metric;
 use thiserror::Error;
-use uuid::Uuid;
 
 use crate::config::{KafkaParams, KafkaTopic};
 use crate::debounced::Debounced;
@@ -77,7 +76,7 @@ pub enum ClientError {
 /// Describes the type which can be sent using kafka producer provided by this crate.
 pub trait Message {
     /// Returns the partitioning key for this kafka message determining.
-    fn key(&self) -> [u8; 16];
+    fn key(&self) -> Option<[u8; 16]>;
 
     /// Returns the type of the message.
     fn variant(&self) -> &'static str;
@@ -188,7 +187,7 @@ impl KafkaClient {
     pub fn send(
         &self,
         topic: KafkaTopic,
-        key: [u8; 16],
+        key: Option<[u8; 16]>,
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
@@ -305,7 +304,7 @@ impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        key: [u8; 16],
+        key: Option<[u8; 16]>,
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
@@ -328,27 +327,36 @@ impl Producer {
             })
             .collect::<KafkaHeaders>();
 
-        let mut key = key;
-        if let Some(ref limiter) = self.rate_limiter {
-            if limiter.try_increment(now, key, 1) < 1 {
-                metric!(
-                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
-                    variant = variant,
-                    topic = topic_name,
-                );
+        let key = match (key, self.rate_limiter.as_ref()) {
+            (Some(key), Some(limiter)) => {
+                let is_limited = limiter.try_increment(now, key, 1) < 1;
 
-                key = Uuid::new_v4().into_bytes();
-                headers.insert(Header {
-                    key: "sentry-reshuffled",
-                    value: Some("1"),
-                });
+                if is_limited {
+                    metric!(
+                        counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
+                        variant = variant,
+                        topic = topic_name,
+                    );
+
+                    headers.insert(Header {
+                        key: "sentry-reshuffled",
+                        value: Some("1"),
+                    });
+
+                    None
+                } else {
+                    Some(key)
+                }
             }
-        }
+            (key, _) => key,
+        };
 
-        let mut record = BaseRecord::to(topic_name).key(&key).payload(payload);
-
+        let mut record = BaseRecord::to(topic_name).payload(payload);
         if let Some(headers) = headers.into_inner() {
             record = record.headers(headers);
+        }
+        if let Some(key) = key.as_ref() {
+            record = record.key(key);
         }
 
         self.metrics.debounce(now, || {
