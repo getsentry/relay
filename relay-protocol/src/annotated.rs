@@ -213,6 +213,15 @@ impl<T> Annotated<T> {
             _ => {}
         }
     }
+
+    /// Returns `self` if it contains a value, otherwise computes and returns `other`.
+    pub fn or_else<F: FnOnce() -> Annotated<T>>(self, other: F) -> Annotated<T> {
+        if self.value().is_some() {
+            return self;
+        }
+
+        other()
+    }
 }
 
 impl<T> Annotated<T>
