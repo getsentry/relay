@@ -63,11 +63,11 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
-    #[cfg(all(sentry, feature = "processing"))]
+    #[cfg(sentry)]
     #[error("invalid prosperodump")]
     InvalidProsperodump,
 
-    #[cfg(all(sentry, feature = "processing"))]
+    #[cfg(sentry)]
     #[error("missing prosperodump")]
     MissingProsperodump,
 
