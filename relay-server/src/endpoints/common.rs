@@ -410,7 +410,7 @@ fn emit_envelope_metrics(envelope: &Envelope) {
             item_type = item.ty().name()
         );
         metric!(
-            counter(RelayCounters::EnvelopeItems) += 1,
+            counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(1),
             item_type = item.ty().name(),
             sdk = client_name.name(),
         );
