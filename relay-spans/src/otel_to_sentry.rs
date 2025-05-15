@@ -261,7 +261,7 @@ fn otel_to_sentry_value(value: OtelValue) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::get_path;
+    use relay_protocol::{SerializableAnnotated, get_path};
 
     #[test]
     fn parse_span() {
@@ -335,6 +335,28 @@ mod tests {
             get_path!(annotated_span.data.environment),
             Some(&Annotated::new("test".into()))
         );
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 1697620454.980079,
+          "start_timestamp": 1697620454.98,
+          "exclusive_time": 1000.0,
+          "op": "middleware - fastify -> @fastify/multipart",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "ok",
+          "data": {
+            "sentry.environment": "test",
+            "fastify.type": "middleware",
+            "hook.name": "onResponse",
+            "plugin.name": "fastify -> @fastify/multipart",
+            "sentry.parentSampled": true,
+            "sentry.sample_rate": 1
+          },
+          "links": [],
+          "kind": "internal"
+        }
+        "###);
     }
 
     #[test]
@@ -359,6 +381,22 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.exclusive_time, Annotated::new(3200.0));
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 1697620454.980079,
+          "start_timestamp": 1697620454.98,
+          "exclusive_time": 3200.0,
+          "op": "middleware - fastify -> @fastify/multipart",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "data": {},
+          "links": [],
+          "kind": "internal"
+        }
+        "###);
     }
 
     #[test]
@@ -375,6 +413,22 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 1697620454.980079,
+          "start_timestamp": 1697620454.98,
+          "exclusive_time": 0.0788,
+          "op": "middleware - fastify -> @fastify/multipart",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "data": {},
+          "links": [],
+          "kind": "internal"
+        }
+        "###);
     }
 
     #[test]
@@ -417,6 +471,23 @@ mod tests {
                 "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into()
             )
         );
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 1697620454.980079,
+          "start_timestamp": 1697620454.98,
+          "exclusive_time": 0.0788,
+          "op": "database query",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+          "data": {},
+          "links": [],
+          "kind": "client"
+        }
+        "###);
     }
 
     #[test]
@@ -463,6 +534,23 @@ mod tests {
             event_span.description,
             Annotated::new("index view query".into())
         );
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 1697620454.980079,
+          "start_timestamp": 1697620454.98,
+          "exclusive_time": 0.0788,
+          "op": "database query",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "index view query",
+          "data": {},
+          "links": [],
+          "kind": "client"
+        }
+        "###);
     }
 
     #[test]
@@ -497,6 +585,23 @@ mod tests {
             event_span.description,
             Annotated::new("GET /api/search?q=foobar".into())
         );
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 1697620454.980079,
+          "start_timestamp": 1697620454.98,
+          "exclusive_time": 0.0788,
+          "op": "http client request",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "GET /api/search?q=foobar",
+          "data": {},
+          "links": [],
+          "kind": "client"
+        }
+        "###);
     }
 
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
@@ -629,126 +734,35 @@ mod tests {
         }"#;
 
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let span_from_otel = otel_to_sentry_span(otel_span).unwrap();
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
 
-        insta::assert_debug_snapshot!(span_from_otel, @r#"
-        Span {
-            timestamp: Timestamp(
-                1970-01-01T00:02:03.500Z,
-            ),
-            start_timestamp: Timestamp(
-                1970-01-01T00:02:03Z,
-            ),
-            exclusive_time: 500.0,
-            op: "myname",
-            span_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            parent_span_id: SpanId(
-                "fa90fdead5f74051",
-            ),
-            trace_id: TraceId("4c79f60c11214eb38604f4ae0781bfb2"),
-            segment_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            is_segment: ~,
-            is_remote: ~,
-            status: Ok,
-            description: "mydescription",
-            tags: ~,
-            origin: ~,
-            profile_id: EventId(
-                a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
-            ),
-            data: SpanData {
-                app_start_type: ~,
-                ai_total_tokens_used: ~,
-                ai_prompt_tokens_used: ~,
-                ai_completion_tokens_used: ~,
-                browser_name: "Chrome",
-                code_filepath: ~,
-                code_lineno: ~,
-                code_function: ~,
-                code_namespace: ~,
-                db_operation: ~,
-                db_system: ~,
-                db_collection_name: ~,
-                environment: "prod",
-                release: LenientString(
-                    "myapp@1.0.0",
-                ),
-                http_decoded_response_content_length: ~,
-                http_request_method: ~,
-                http_response_content_length: ~,
-                http_response_transfer_size: ~,
-                resource_render_blocking_status: ~,
-                server_address: ~,
-                cache_hit: ~,
-                cache_key: ~,
-                cache_item_size: ~,
-                http_response_status_code: ~,
-                ai_pipeline_name: ~,
-                ai_model_id: ~,
-                ai_input_messages: ~,
-                ai_responses: ~,
-                thread_name: ~,
-                thread_id: ~,
-                segment_name: "my 1st transaction",
-                ui_component_name: ~,
-                url_scheme: ~,
-                user: ~,
-                user_email: ~,
-                user_full_name: ~,
-                user_geo_country_code: ~,
-                user_geo_city: ~,
-                user_geo_subdivision: ~,
-                user_geo_region: ~,
-                user_hash: ~,
-                user_id: ~,
-                user_name: ~,
-                user_roles: ~,
-                exclusive_time: ~,
-                profile_id: ~,
-                replay_id: ~,
-                sdk_name: "sentry.php",
-                sdk_version: ~,
-                frames_slow: ~,
-                frames_frozen: ~,
-                frames_total: ~,
-                frames_delay: ~,
-                messaging_destination_name: ~,
-                messaging_message_retry_count: ~,
-                messaging_message_receive_latency: ~,
-                messaging_message_body_size: ~,
-                messaging_message_id: ~,
-                messaging_operation_name: ~,
-                messaging_operation_type: ~,
-                user_agent_original: ~,
-                url_full: ~,
-                client_address: ~,
-                route: ~,
-                previous_route: ~,
-                lcp_element: ~,
-                lcp_size: ~,
-                lcp_id: ~,
-                lcp_url: ~,
-                other: {
-                    "sentry.op": String(
-                        "myop",
-                    ),
-                },
-            },
-            links: [],
-            sentry_tags: ~,
-            received: ~,
-            measurements: ~,
-            platform: "php",
-            was_transaction: ~,
-            kind: Unspecified,
-            _performance_issues_spans: ~,
-            other: {},
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "myname",
+          "span_id": "fa90fdead5f74052",
+          "parent_span_id": "fa90fdead5f74051",
+          "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+          "segment_id": "fa90fdead5f74052",
+          "status": "ok",
+          "description": "mydescription",
+          "profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+          "data": {
+            "browser.name": "Chrome",
+            "sentry.environment": "prod",
+            "sentry.release": "myapp@1.0.0",
+            "sentry.segment.name": "my 1st transaction",
+            "sentry.sdk.name": "sentry.php",
+            "sentry.op": "myop"
+          },
+          "links": [],
+          "platform": "php",
+          "kind": "unspecified"
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -764,6 +778,22 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.is_remote, Annotated::new(true));
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "is_remote": true,
+          "status": "unknown",
+          "data": {},
+          "links": [],
+          "kind": "unspecified"
+        }
+        "###);
     }
 
     #[test]
@@ -779,6 +809,22 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.is_remote, Annotated::new(false));
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "is_remote": false,
+          "status": "unknown",
+          "data": {},
+          "links": [],
+          "kind": "unspecified"
+        }
+        "###);
     }
 
     #[test]
@@ -795,6 +841,21 @@ mod tests {
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         let kind = event_span.kind.value().expect("kind should be set");
         assert_eq!(kind, &SpanKind::Client);
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "data": {},
+          "links": [],
+          "kind": "client"
+        }
+        "###);
     }
 
     #[test]
@@ -884,5 +945,30 @@ mod tests {
             get_path!(annotated_span.links[0].sampled),
             Some(&Annotated::new(true))
         );
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 0.0,
+          "start_timestamp": 0.0,
+          "exclusive_time": 0.0,
+          "span_id": "",
+          "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+          "status": "unknown",
+          "data": {},
+          "links": [
+            {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74052",
+              "sampled": true,
+              "attributes": {
+                "bool_key": true,
+                "double_key": 1.23,
+                "int_key": 123,
+                "str_key": "str_value"
+              }
+            }
+          ],
+          "kind": "unspecified"
+        }
+        "###);
     }
 }
