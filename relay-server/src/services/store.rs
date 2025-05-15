@@ -1724,7 +1724,7 @@ struct SpanKafkaMessage<'a> {
     )]
     sentry_tags: Option<BTreeMap<&'a str, Option<String>>>,
     span_id: &'a str,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "none_or_empty_map")]
     tags: Option<BTreeMap<&'a str, Option<String>>>,
     trace_id: EventId,
 
