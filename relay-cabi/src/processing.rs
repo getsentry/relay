@@ -520,4 +520,31 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn pii_config_validation_unicode_regex() {
+        let config = r#"
+    {
+      "rules": {
+        "korean-id": {
+          "type": "pattern",
+          "pattern": "/[가-힣]/",
+          "redaction": {
+            "method": "replace",
+            "text": "[Korean ID]"
+          }
+        }
+      },
+      "applications": {
+        "*.everything": ["korean-id"]
+      }
+    }
+"#;
+        unsafe {
+            assert_eq!(
+                relay_validate_pii_config(&RelayStr::from(config)).as_str(),
+                "regex parse error:\n    /[가-힣]/\n      ^\nerror: Unicode not allowed here"
+            );
+        }
+    }
 }
