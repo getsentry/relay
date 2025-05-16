@@ -2,6 +2,7 @@ use std::fmt::{self, Display};
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
+use relay_protocol::Getter;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -269,6 +270,27 @@ impl SessionLike for SessionUpdate {
     }
 }
 
+impl Getter for SessionUpdate {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        let path = path.strip_prefix("session.")?;
+
+        match path {
+            "session_id" => Some(self.session_id.into()),
+            "distinct_id" => Some(self.distinct_id.as_deref()?.into()),
+            "sequence" => Some(self.sequence.into()),
+            "init" => Some(self.init.into()),
+            "duration" => Some(self.duration?.into()),
+            "errors" => Some(self.errors.into()),
+            "release" => Some(self.attributes.release.as_str().into()),
+            "environment" => Some(self.attributes.environment.as_deref()?.into()),
+            "ip_address" => Some(self.attributes.ip_address.as_ref()?.as_str().into()),
+            "user_agent" => Some(self.attributes.user_agent.as_deref()?.into()),
+            // TODO: status, abnormal mechanism?
+            _ => None,
+        }
+    }
+}
+
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn is_zero(val: &u32) -> bool {
     *val == 0
@@ -351,6 +373,22 @@ impl SessionAggregates {
     pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(self)
     }
+}
+
+impl Getter for SessionAggregates {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        let path = path.strip_prefix("sessions.")?;
+
+        match path {
+            "release" => Some(self.attributes.release.as_str().into()),
+            "environment" => Some(self.attributes.environment.as_deref()?.into()),
+            "ip_address" => Some(self.attributes.ip_address.as_ref()?.as_str().into()),
+            "user_agent" => Some(self.attributes.user_agent.as_deref()?.into()),
+            _ => None,
+        }
+    }
+
+    // TODO: Implement get_iter?
 }
 
 #[cfg(test)]
