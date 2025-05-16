@@ -203,10 +203,8 @@ fn get_zstd_dictionary(id: usize) -> Option<&'static zstd::dict::DecoderDictiona
 }
 
 fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u8>> {
-    let dictionary = get_zstd_dictionary(dictionary_id as usize).ok_or(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        "Unknown compression dictionary",
-    ))?;
+    let dictionary = get_zstd_dictionary(dictionary_id as usize)
+        .ok_or(std::io::Error::other("Unknown compression dictionary"))?;
 
     let mut decompressor = ZstdDecompressor::with_prepared_dictionary(dictionary)?;
     decompressor.decompress(data.as_ref(), MAX_DECOMPRESSED_SIZE)

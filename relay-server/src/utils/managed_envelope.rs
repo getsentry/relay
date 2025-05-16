@@ -68,7 +68,7 @@ struct EnvelopeContext {
 }
 
 #[derive(Debug)]
-pub struct InvalidProcessingGroupType(pub ManagedEnvelope);
+pub struct InvalidProcessingGroupType(pub Box<ManagedEnvelope>);
 
 impl Display for InvalidProcessingGroupType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -115,7 +115,7 @@ impl<G: TryFrom<ProcessingGroup>> TryFrom<ManagedEnvelope> for TypedEnvelope<G> 
     fn try_from(value: ManagedEnvelope) -> Result<Self, Self::Error> {
         match value.group().try_into() {
             Ok(group) => Ok(TypedEnvelope::new(value, group)),
-            Err(_) => Err(InvalidProcessingGroupType(value)),
+            Err(_) => Err(InvalidProcessingGroupType(Box::new(value))),
         }
     }
 }

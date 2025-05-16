@@ -34,9 +34,7 @@ impl NumbersGenerator {
 
     fn next(&self) -> usize {
         let dist = Uniform::new(self.min, self.max + 1);
-        let value = self.generator.borrow_mut().sample(dist);
-
-        value
+        self.generator.borrow_mut().sample(dist)
     }
 }
 

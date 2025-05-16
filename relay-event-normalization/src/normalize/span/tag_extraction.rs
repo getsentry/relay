@@ -1322,7 +1322,7 @@ fn sql_tables_from_query(
             let mut visitor = SqlTableNameVisitor {
                 table_names: Default::default(),
             };
-            ast.visit(&mut visitor);
+            let _ = ast.visit(&mut visitor);
             let comma_size: usize = 1;
             let mut s = String::with_capacity(
                 visitor
