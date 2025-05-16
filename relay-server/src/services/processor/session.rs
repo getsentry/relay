@@ -153,9 +153,9 @@ fn process_session(
     extracted_metrics: &mut Vec<Bucket>,
 ) -> bool {
     let SessionProcessingConfig {
-        global_config: _global_config,
+        global_config,
         config,
-        filters_config: _filters_config,
+        filters_config,
         metrics_config,
         client,
         client_addr,
@@ -226,6 +226,17 @@ fn process_session(
         return false;
     }
 
+    if relay_filter::should_filter(
+        &session,
+        client_addr,
+        filters_config,
+        global_config.filters(),
+    )
+    .is_err()
+    {
+        return false;
+    };
+
     // Extract metrics if they haven't been extracted by a prior Relay
     if metrics_config.is_enabled()
         && !item.metrics_extracted()
@@ -275,9 +286,9 @@ fn process_session_aggregates(
     extracted_metrics: &mut Vec<Bucket>,
 ) -> bool {
     let SessionProcessingConfig {
-        global_config: _global_config,
+        global_config,
         config,
-        filters_config: _filters_config,
+        filters_config,
         metrics_config,
         client,
         client_addr,
@@ -331,6 +342,17 @@ fn process_session_aggregates(
             changed |= changed_attributes;
         }
     }
+
+    if relay_filter::should_filter(
+        &session,
+        client_addr,
+        filters_config,
+        global_config.filters(),
+    )
+    .is_err()
+    {
+        return false;
+    };
 
     // Extract metrics if they haven't been extracted by a prior Relay
     if metrics_config.is_enabled() && !item.metrics_extracted() {
