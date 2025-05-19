@@ -28,19 +28,3 @@ def test_invalid_topics_raise_error(mini_sentry, relay_with_processing):
 
     error = str(mini_sentry.test_failures.get_nowait())
     assert "failed to validate the topic with name" in error
-
-
-def test_missing_env_var_in_config(mini_sentry, relay, relay_credentials):
-    credentials = relay_credentials()
-    relay = relay(
-        mini_sentry,
-        credentials=credentials,
-        wait_health_check=False,
-        options={
-            "http": {
-                "encoding": "${THIS_DOES_NOT_EXIST_OTHER_WISE_THE_TEST_WILL_PASS}",
-            }
-        },
-    )
-
-    assert relay.wait_for_exit() != 0
