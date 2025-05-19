@@ -9,13 +9,6 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, FromValue, Object, Value};
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "this will be used as an intermediate step in OTEL -> span conversion"
-    )
-)]
 /// Transforms a Sentry Span V2 to a Sentry Span.
 pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut exclusive_time_ms = 0f64;
