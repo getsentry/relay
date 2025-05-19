@@ -526,7 +526,7 @@ pub enum ProcessingError {
     PiiConfigError(PiiConfigError),
 
     #[error("invalid processing group type")]
-    InvalidProcessingGroup(#[from] InvalidProcessingGroupType),
+    InvalidProcessingGroup(Box<InvalidProcessingGroupType>),
 
     #[error("invalid replay")]
     InvalidReplay(DiscardReason),
@@ -617,6 +617,12 @@ impl From<ExtractMetricsError> for ProcessingError {
                 Self::InvalidTimestamp
             }
         }
+    }
+}
+
+impl From<InvalidProcessingGroupType> for ProcessingError {
+    fn from(value: InvalidProcessingGroupType) -> Self {
+        Self::InvalidProcessingGroup(Box::new(value))
     }
 }
 
