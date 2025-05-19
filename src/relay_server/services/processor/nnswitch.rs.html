@@ -203,179 +203,177 @@
 <a href=#203 id=203 data-nosnippet>203</a>}
 <a href=#204 id=204 data-nosnippet>204</a>
 <a href=#205 id=205 data-nosnippet>205</a><span class="kw">fn </span>decompress_data_zstd(data: Bytes, dictionary_id: u8) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">let </span>dictionary = get_zstd_dictionary(dictionary_id <span class="kw">as </span>usize).ok_or(std::io::Error::new(
-<a href=#207 id=207 data-nosnippet>207</a>        std::io::ErrorKind::Other,
-<a href=#208 id=208 data-nosnippet>208</a>        <span class="string">"Unknown compression dictionary"</span>,
-<a href=#209 id=209 data-nosnippet>209</a>    ))<span class="question-mark">?</span>;
-<a href=#210 id=210 data-nosnippet>210</a>
-<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">let </span><span class="kw-2">mut </span>decompressor = ZstdDecompressor::with_prepared_dictionary(dictionary)<span class="question-mark">?</span>;
-<a href=#212 id=212 data-nosnippet>212</a>    decompressor.decompress(data.as_ref(), MAX_DECOMPRESSED_SIZE)
-<a href=#213 id=213 data-nosnippet>213</a>}
-<a href=#214 id=214 data-nosnippet>214</a>
-<a href=#215 id=215 data-nosnippet>215</a><span class="attr">#[cfg(test)]
-<a href=#216 id=216 data-nosnippet>216</a></span><span class="kw">mod </span>tests {
-<a href=#217 id=217 data-nosnippet>217</a>    <span class="kw">use </span>relay_system::Addr;
-<a href=#218 id=218 data-nosnippet>218</a>    <span class="kw">use </span>std::io::Write;
-<a href=#219 id=219 data-nosnippet>219</a>
-<a href=#220 id=220 data-nosnippet>220</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::Item;
-<a href=#222 id=222 data-nosnippet>222</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
-<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">use </span>zstd::bulk::Compressor <span class="kw">as </span>ZstdCompressor;
-<a href=#225 id=225 data-nosnippet>225</a>
-<a href=#226 id=226 data-nosnippet>226</a>    <span class="attr">#[test]
-<a href=#227 id=227 data-nosnippet>227</a>    </span><span class="kw">fn </span>test_is_dying_message() {
-<a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
-<a href=#229 id=229 data-nosnippet>229</a>        item.set_filename(<span class="string">"any"</span>);
-<a href=#230 id=230 data-nosnippet>230</a>        item.set_payload(ContentType::OctetStream, Bytes::from(<span class="string">"sntrASDF"</span>));
-<a href=#231 id=231 data-nosnippet>231</a>        <span class="macro">assert!</span>(!is_dying_message(<span class="kw-2">&amp;</span>item));
-<a href=#232 id=232 data-nosnippet>232</a>        item.set_filename(DYING_MESSAGE_FILENAME);
-<a href=#233 id=233 data-nosnippet>233</a>        <span class="macro">assert!</span>(is_dying_message(<span class="kw-2">&amp;</span>item));
-<a href=#234 id=234 data-nosnippet>234</a>        item.set_payload(ContentType::OctetStream, Bytes::from(<span class="string">"FOO"</span>));
-<a href=#235 id=235 data-nosnippet>235</a>        <span class="macro">assert!</span>(!is_dying_message(<span class="kw-2">&amp;</span>item));
-<a href=#236 id=236 data-nosnippet>236</a>    }
-<a href=#237 id=237 data-nosnippet>237</a>
-<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">fn </span>create_envelope(dying_message: Bytes) -&gt; TypedEnvelope&lt;ErrorGroup&gt; {
-<a href=#239 id=239 data-nosnippet>239</a>        <span class="comment">// Note: the attachment length specified in the "outer" envelope attachment is very important.
-<a href=#240 id=240 data-nosnippet>240</a>        //       Otherwise parsing would fail because the inner one can contain line-breaks.
-<a href=#241 id=241 data-nosnippet>241</a>        </span><span class="kw">let </span>envelope =
-<a href=#242 id=242 data-nosnippet>242</a>        <span class="string">r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
-<a href=#243 id=243 data-nosnippet>243</a>{"type":"event"}
-<a href=#244 id=244 data-nosnippet>244</a>{"message":"hello world","level":"error","map":{"a":"val"}}
-<a href=#245 id=245 data-nosnippet>245</a>{"type":"attachment","filename":"dying_message.dat","length":&lt;len&gt;}
-<a href=#246 id=246 data-nosnippet>246</a>"#</span>.replace(<span class="string">"&lt;len&gt;"</span>, <span class="kw-2">&amp;</span>dying_message.len().to_string());
-<a href=#247 id=247 data-nosnippet>247</a>        ManagedEnvelope::new(
-<a href=#248 id=248 data-nosnippet>248</a>            Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap(),
-<a href=#249 id=249 data-nosnippet>249</a>            Addr::dummy(),
-<a href=#250 id=250 data-nosnippet>250</a>            Addr::dummy(),
-<a href=#251 id=251 data-nosnippet>251</a>            ProcessingGroup::Error,
-<a href=#252 id=252 data-nosnippet>252</a>        )
-<a href=#253 id=253 data-nosnippet>253</a>        .try_into()
-<a href=#254 id=254 data-nosnippet>254</a>        .unwrap()
-<a href=#255 id=255 data-nosnippet>255</a>    }
-<a href=#256 id=256 data-nosnippet>256</a>
-<a href=#257 id=257 data-nosnippet>257</a>    <span class="attr">#[test]
-<a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">fn </span>test_expand_uncompressed_envelope_items() {
-<a href=#259 id=259 data-nosnippet>259</a>        <span class="comment">// The attachment content is as follows:
-<a href=#260 id=260 data-nosnippet>260</a>        // - 4 bytes magic = sntr
-<a href=#261 id=261 data-nosnippet>261</a>        // - 1 byte version = 0
-<a href=#262 id=262 data-nosnippet>262</a>        // - 1 byte encoding = 0b0000_0000 - i.e. envelope items, uncompressed
-<a href=#263 id=263 data-nosnippet>263</a>        // - 2 bytes data length = 98 bytes - 0x0062 in big endian representation
-<a href=#264 id=264 data-nosnippet>264</a>        // - 98 bytes of content
-<a href=#265 id=265 data-nosnippet>265</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(Bytes::from(
-<a href=#266 id=266 data-nosnippet>266</a>            <span class="string">"sntr\0\0\0\x62\
-<a href=#267 id=267 data-nosnippet>267</a>            {\"type\":\"event\"}\n\
-<a href=#268 id=268 data-nosnippet>268</a>            {\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"b\":\"c\"}}\n\
-<a href=#269 id=269 data-nosnippet>269</a>            {\"type\":\"attachment\",\"length\":2}\n\
-<a href=#270 id=270 data-nosnippet>270</a>            Hi\n"</span>,
-<a href=#271 id=271 data-nosnippet>271</a>        ));
-<a href=#272 id=272 data-nosnippet>272</a>
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.envelope().items().collect();
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
-<a href=#275 id=275 data-nosnippet>275</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="macro">assert_eq!</span>(
-<a href=#277 id=277 data-nosnippet>277</a>            items[<span class="number">0</span>].payload(),
-<a href=#278 id=278 data-nosnippet>278</a>            <span class="string">"{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
-<a href=#279 id=279 data-nosnippet>279</a>        </span>);
-<a href=#280 id=280 data-nosnippet>280</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#281 id=281 data-nosnippet>281</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">Some</span>(DYING_MESSAGE_FILENAME));
-<a href=#282 id=282 data-nosnippet>282</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].payload().len(), <span class="number">106</span>);
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">let </span>dictionary = get_zstd_dictionary(dictionary_id <span class="kw">as </span>usize)
+<a href=#207 id=207 data-nosnippet>207</a>        .ok_or(std::io::Error::other(<span class="string">"Unknown compression dictionary"</span>))<span class="question-mark">?</span>;
+<a href=#208 id=208 data-nosnippet>208</a>
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">let </span><span class="kw-2">mut </span>decompressor = ZstdDecompressor::with_prepared_dictionary(dictionary)<span class="question-mark">?</span>;
+<a href=#210 id=210 data-nosnippet>210</a>    decompressor.decompress(data.as_ref(), MAX_DECOMPRESSED_SIZE)
+<a href=#211 id=211 data-nosnippet>211</a>}
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a><span class="attr">#[cfg(test)]
+<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">mod </span>tests {
+<a href=#215 id=215 data-nosnippet>215</a>    <span class="kw">use </span>relay_system::Addr;
+<a href=#216 id=216 data-nosnippet>216</a>    <span class="kw">use </span>std::io::Write;
+<a href=#217 id=217 data-nosnippet>217</a>
+<a href=#218 id=218 data-nosnippet>218</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#219 id=219 data-nosnippet>219</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::Item;
+<a href=#220 id=220 data-nosnippet>220</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
+<a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
+<a href=#222 id=222 data-nosnippet>222</a>    <span class="kw">use </span>zstd::bulk::Compressor <span class="kw">as </span>ZstdCompressor;
+<a href=#223 id=223 data-nosnippet>223</a>
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="attr">#[test]
+<a href=#225 id=225 data-nosnippet>225</a>    </span><span class="kw">fn </span>test_is_dying_message() {
+<a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
+<a href=#227 id=227 data-nosnippet>227</a>        item.set_filename(<span class="string">"any"</span>);
+<a href=#228 id=228 data-nosnippet>228</a>        item.set_payload(ContentType::OctetStream, Bytes::from(<span class="string">"sntrASDF"</span>));
+<a href=#229 id=229 data-nosnippet>229</a>        <span class="macro">assert!</span>(!is_dying_message(<span class="kw-2">&amp;</span>item));
+<a href=#230 id=230 data-nosnippet>230</a>        item.set_filename(DYING_MESSAGE_FILENAME);
+<a href=#231 id=231 data-nosnippet>231</a>        <span class="macro">assert!</span>(is_dying_message(<span class="kw-2">&amp;</span>item));
+<a href=#232 id=232 data-nosnippet>232</a>        item.set_payload(ContentType::OctetStream, Bytes::from(<span class="string">"FOO"</span>));
+<a href=#233 id=233 data-nosnippet>233</a>        <span class="macro">assert!</span>(!is_dying_message(<span class="kw-2">&amp;</span>item));
+<a href=#234 id=234 data-nosnippet>234</a>    }
+<a href=#235 id=235 data-nosnippet>235</a>
+<a href=#236 id=236 data-nosnippet>236</a>    <span class="kw">fn </span>create_envelope(dying_message: Bytes) -&gt; TypedEnvelope&lt;ErrorGroup&gt; {
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="comment">// Note: the attachment length specified in the "outer" envelope attachment is very important.
+<a href=#238 id=238 data-nosnippet>238</a>        //       Otherwise parsing would fail because the inner one can contain line-breaks.
+<a href=#239 id=239 data-nosnippet>239</a>        </span><span class="kw">let </span>envelope =
+<a href=#240 id=240 data-nosnippet>240</a>        <span class="string">r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
+<a href=#241 id=241 data-nosnippet>241</a>{"type":"event"}
+<a href=#242 id=242 data-nosnippet>242</a>{"message":"hello world","level":"error","map":{"a":"val"}}
+<a href=#243 id=243 data-nosnippet>243</a>{"type":"attachment","filename":"dying_message.dat","length":&lt;len&gt;}
+<a href=#244 id=244 data-nosnippet>244</a>"#</span>.replace(<span class="string">"&lt;len&gt;"</span>, <span class="kw-2">&amp;</span>dying_message.len().to_string());
+<a href=#245 id=245 data-nosnippet>245</a>        ManagedEnvelope::new(
+<a href=#246 id=246 data-nosnippet>246</a>            Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap(),
+<a href=#247 id=247 data-nosnippet>247</a>            Addr::dummy(),
+<a href=#248 id=248 data-nosnippet>248</a>            Addr::dummy(),
+<a href=#249 id=249 data-nosnippet>249</a>            ProcessingGroup::Error,
+<a href=#250 id=250 data-nosnippet>250</a>        )
+<a href=#251 id=251 data-nosnippet>251</a>        .try_into()
+<a href=#252 id=252 data-nosnippet>252</a>        .unwrap()
+<a href=#253 id=253 data-nosnippet>253</a>    }
+<a href=#254 id=254 data-nosnippet>254</a>
+<a href=#255 id=255 data-nosnippet>255</a>    <span class="attr">#[test]
+<a href=#256 id=256 data-nosnippet>256</a>    </span><span class="kw">fn </span>test_expand_uncompressed_envelope_items() {
+<a href=#257 id=257 data-nosnippet>257</a>        <span class="comment">// The attachment content is as follows:
+<a href=#258 id=258 data-nosnippet>258</a>        // - 4 bytes magic = sntr
+<a href=#259 id=259 data-nosnippet>259</a>        // - 1 byte version = 0
+<a href=#260 id=260 data-nosnippet>260</a>        // - 1 byte encoding = 0b0000_0000 - i.e. envelope items, uncompressed
+<a href=#261 id=261 data-nosnippet>261</a>        // - 2 bytes data length = 98 bytes - 0x0062 in big endian representation
+<a href=#262 id=262 data-nosnippet>262</a>        // - 98 bytes of content
+<a href=#263 id=263 data-nosnippet>263</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(Bytes::from(
+<a href=#264 id=264 data-nosnippet>264</a>            <span class="string">"sntr\0\0\0\x62\
+<a href=#265 id=265 data-nosnippet>265</a>            {\"type\":\"event\"}\n\
+<a href=#266 id=266 data-nosnippet>266</a>            {\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"b\":\"c\"}}\n\
+<a href=#267 id=267 data-nosnippet>267</a>            {\"type\":\"attachment\",\"length\":2}\n\
+<a href=#268 id=268 data-nosnippet>268</a>            Hi\n"</span>,
+<a href=#269 id=269 data-nosnippet>269</a>        ));
+<a href=#270 id=270 data-nosnippet>270</a>
+<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.envelope().items().collect();
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
+<a href=#274 id=274 data-nosnippet>274</a>        <span class="macro">assert_eq!</span>(
+<a href=#275 id=275 data-nosnippet>275</a>            items[<span class="number">0</span>].payload(),
+<a href=#276 id=276 data-nosnippet>276</a>            <span class="string">"{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
+<a href=#277 id=277 data-nosnippet>277</a>        </span>);
+<a href=#278 id=278 data-nosnippet>278</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#279 id=279 data-nosnippet>279</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">Some</span>(DYING_MESSAGE_FILENAME));
+<a href=#280 id=280 data-nosnippet>280</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].payload().len(), <span class="number">106</span>);
+<a href=#281 id=281 data-nosnippet>281</a>
+<a href=#282 id=282 data-nosnippet>282</a>        expand(<span class="kw-2">&amp;mut </span>envelope).unwrap();
 <a href=#283 id=283 data-nosnippet>283</a>
-<a href=#284 id=284 data-nosnippet>284</a>        expand(<span class="kw-2">&amp;mut </span>envelope).unwrap();
-<a href=#285 id=285 data-nosnippet>285</a>
-<a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.envelope().items().collect();
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="macro">assert_eq!</span>(
-<a href=#290 id=290 data-nosnippet>290</a>            items[<span class="number">0</span>].payload(),
-<a href=#291 id=291 data-nosnippet>291</a>            <span class="string">"{\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"a\":\"val\",\"b\":\"c\"},\"message\":\"hello world\"}"
-<a href=#292 id=292 data-nosnippet>292</a>        </span>);
-<a href=#293 id=293 data-nosnippet>293</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#294 id=294 data-nosnippet>294</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">None</span>);
-<a href=#295 id=295 data-nosnippet>295</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].payload(), <span class="string">"Hi"</span>.as_bytes());
-<a href=#296 id=296 data-nosnippet>296</a>    }
-<a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a>    <span class="attr">#[test]
-<a href=#299 id=299 data-nosnippet>299</a>    </span><span class="kw">fn </span>test_expand_compressed_envelope_items() {
-<a href=#300 id=300 data-nosnippet>300</a>        <span class="comment">// encoding 0x10 - i.e. envelope items, Zstandard compressed, no dictionary
-<a href=#301 id=301 data-nosnippet>301</a>        </span><span class="kw">let </span>dying_message = create_compressed_dying_message(<span class="number">0x10</span>);
-<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(dying_message.into());
-<a href=#303 id=303 data-nosnippet>303</a>
-<a href=#304 id=304 data-nosnippet>304</a>        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.envelope().items().collect();
-<a href=#305 id=305 data-nosnippet>305</a>        <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
-<a href=#306 id=306 data-nosnippet>306</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
-<a href=#307 id=307 data-nosnippet>307</a>        <span class="macro">assert_eq!</span>(
-<a href=#308 id=308 data-nosnippet>308</a>            items[<span class="number">0</span>].payload(),
-<a href=#309 id=309 data-nosnippet>309</a>            <span class="string">"{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
-<a href=#310 id=310 data-nosnippet>310</a>        </span>);
-<a href=#311 id=311 data-nosnippet>311</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#312 id=312 data-nosnippet>312</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">Some</span>(DYING_MESSAGE_FILENAME));
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].payload().len(), <span class="number">98</span>);
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.envelope().items().collect();
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
+<a href=#287 id=287 data-nosnippet>287</a>        <span class="macro">assert_eq!</span>(
+<a href=#288 id=288 data-nosnippet>288</a>            items[<span class="number">0</span>].payload(),
+<a href=#289 id=289 data-nosnippet>289</a>            <span class="string">"{\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"a\":\"val\",\"b\":\"c\"},\"message\":\"hello world\"}"
+<a href=#290 id=290 data-nosnippet>290</a>        </span>);
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">None</span>);
+<a href=#293 id=293 data-nosnippet>293</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].payload(), <span class="string">"Hi"</span>.as_bytes());
+<a href=#294 id=294 data-nosnippet>294</a>    }
+<a href=#295 id=295 data-nosnippet>295</a>
+<a href=#296 id=296 data-nosnippet>296</a>    <span class="attr">#[test]
+<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="kw">fn </span>test_expand_compressed_envelope_items() {
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="comment">// encoding 0x10 - i.e. envelope items, Zstandard compressed, no dictionary
+<a href=#299 id=299 data-nosnippet>299</a>        </span><span class="kw">let </span>dying_message = create_compressed_dying_message(<span class="number">0x10</span>);
+<a href=#300 id=300 data-nosnippet>300</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(dying_message.into());
+<a href=#301 id=301 data-nosnippet>301</a>
+<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.envelope().items().collect();
+<a href=#303 id=303 data-nosnippet>303</a>        <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
+<a href=#304 id=304 data-nosnippet>304</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
+<a href=#305 id=305 data-nosnippet>305</a>        <span class="macro">assert_eq!</span>(
+<a href=#306 id=306 data-nosnippet>306</a>            items[<span class="number">0</span>].payload(),
+<a href=#307 id=307 data-nosnippet>307</a>            <span class="string">"{\"message\":\"hello world\",\"level\":\"error\",\"map\":{\"a\":\"val\"}}"
+<a href=#308 id=308 data-nosnippet>308</a>        </span>);
+<a href=#309 id=309 data-nosnippet>309</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">Some</span>(DYING_MESSAGE_FILENAME));
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].payload().len(), <span class="number">98</span>);
+<a href=#312 id=312 data-nosnippet>312</a>
+<a href=#313 id=313 data-nosnippet>313</a>        expand(<span class="kw-2">&amp;mut </span>envelope).unwrap();
 <a href=#314 id=314 data-nosnippet>314</a>
-<a href=#315 id=315 data-nosnippet>315</a>        expand(<span class="kw-2">&amp;mut </span>envelope).unwrap();
-<a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a>        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.envelope().items().collect();
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="macro">assert_eq!</span>(
-<a href=#321 id=321 data-nosnippet>321</a>            items[<span class="number">0</span>].payload(),
-<a href=#322 id=322 data-nosnippet>322</a>            <span class="string">"{\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"a\":\"val\",\"b\":\"c\"},\"message\":\"hello world\"}"
-<a href=#323 id=323 data-nosnippet>323</a>        </span>);
-<a href=#324 id=324 data-nosnippet>324</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
-<a href=#325 id=325 data-nosnippet>325</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">None</span>);
-<a href=#326 id=326 data-nosnippet>326</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].payload(), <span class="string">"Hi"</span>.as_bytes());
-<a href=#327 id=327 data-nosnippet>327</a>    }
-<a href=#328 id=328 data-nosnippet>328</a>
-<a href=#329 id=329 data-nosnippet>329</a>    <span class="kw">fn </span>create_compressed_dying_message(encoding: u8) -&gt; Vec&lt;u8&gt; {
-<a href=#330 id=330 data-nosnippet>330</a>        <span class="comment">// The attachment content is as follows:
-<a href=#331 id=331 data-nosnippet>331</a>        // - 4 bytes magic = sntr
-<a href=#332 id=332 data-nosnippet>332</a>        // - 1 byte version = 0
-<a href=#333 id=333 data-nosnippet>333</a>        // - 1 byte encoding
-<a href=#334 id=334 data-nosnippet>334</a>        // - 2 bytes data length = N bytes - in big endian representation
-<a href=#335 id=335 data-nosnippet>335</a>        // - N bytes of compressed content (Zstandard)
-<a href=#336 id=336 data-nosnippet>336</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>compressor = ZstdCompressor::new(<span class="number">3</span>).unwrap();
-<a href=#337 id=337 data-nosnippet>337</a>        <span class="kw">let </span>compressed_data = compressor
-<a href=#338 id=338 data-nosnippet>338</a>            .compress(
-<a href=#339 id=339 data-nosnippet>339</a>                <span class="string">b"\
-<a href=#340 id=340 data-nosnippet>340</a>                {\"type\":\"event\"}\n\
-<a href=#341 id=341 data-nosnippet>341</a>                {\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"b\":\"c\"}}\n\
-<a href=#342 id=342 data-nosnippet>342</a>                {\"type\":\"attachment\",\"length\":2}\n\
-<a href=#343 id=343 data-nosnippet>343</a>                Hi\n\
-<a href=#344 id=344 data-nosnippet>344</a>                "</span>,
-<a href=#345 id=345 data-nosnippet>345</a>            )
-<a href=#346 id=346 data-nosnippet>346</a>            .unwrap();
-<a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">let </span><span class="kw-2">mut </span>dying_message: Vec&lt;u8&gt; = Vec::new();
-<a href=#348 id=348 data-nosnippet>348</a>        dying_message.write_all(<span class="string">b"sntr\0"</span>).unwrap();
-<a href=#349 id=349 data-nosnippet>349</a>        dying_message.write_all(<span class="kw-2">&amp;</span>[encoding]).unwrap();
-<a href=#350 id=350 data-nosnippet>350</a>        dying_message
-<a href=#351 id=351 data-nosnippet>351</a>            .write_all(<span class="kw-2">&amp;</span>(compressed_data.len() <span class="kw">as </span>u16).to_be_bytes())
-<a href=#352 id=352 data-nosnippet>352</a>            .unwrap();
-<a href=#353 id=353 data-nosnippet>353</a>        dying_message.write_all(<span class="kw-2">&amp;</span>compressed_data).unwrap();
-<a href=#354 id=354 data-nosnippet>354</a>        dying_message
-<a href=#355 id=355 data-nosnippet>355</a>    }
-<a href=#356 id=356 data-nosnippet>356</a>
-<a href=#357 id=357 data-nosnippet>357</a>    <span class="attr">#[test]
-<a href=#358 id=358 data-nosnippet>358</a>    </span><span class="kw">fn </span>test_expand_fails_with_unknown_dictioary() {
-<a href=#359 id=359 data-nosnippet>359</a>        <span class="comment">// encoding 0x10 - i.e. envelope items, Zstandard compressed, dictionary ID 1
-<a href=#360 id=360 data-nosnippet>360</a>        </span><span class="kw">let </span>dying_message = create_compressed_dying_message(<span class="number">0b0001_0001</span>);
-<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(dying_message.into());
-<a href=#362 id=362 data-nosnippet>362</a>
-<a href=#363 id=363 data-nosnippet>363</a>        <span class="macro">assert!</span>(expand(<span class="kw-2">&amp;mut </span>envelope).is_err());
-<a href=#364 id=364 data-nosnippet>364</a>    }
-<a href=#365 id=365 data-nosnippet>365</a>
-<a href=#366 id=366 data-nosnippet>366</a>    <span class="attr">#[test]
-<a href=#367 id=367 data-nosnippet>367</a>    </span><span class="kw">fn </span>test_expand_fails_on_invalid_data() {
-<a href=#368 id=368 data-nosnippet>368</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(Bytes::from(
-<a href=#369 id=369 data-nosnippet>369</a>            <span class="string">"sntr\0\0\0\x62\
-<a href=#370 id=370 data-nosnippet>370</a>            {\"type\":\"event\"}\n\
-<a href=#371 id=371 data-nosnippet>371</a>            "</span>,
-<a href=#372 id=372 data-nosnippet>372</a>        ));
-<a href=#373 id=373 data-nosnippet>373</a>        <span class="macro">assert!</span>(expand(<span class="kw-2">&amp;mut </span>envelope).is_err());
-<a href=#374 id=374 data-nosnippet>374</a>    }
-<a href=#375 id=375 data-nosnippet>375</a>
-<a href=#376 id=376 data-nosnippet>376</a>    <span class="attr">#[test]
-<a href=#377 id=377 data-nosnippet>377</a>    </span><span class="kw">fn </span>test_expand_works_with_empty_data() {
-<a href=#378 id=378 data-nosnippet>378</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(Bytes::from(<span class="string">"sntr\0\0\0\0"</span>));
-<a href=#379 id=379 data-nosnippet>379</a>        <span class="macro">assert!</span>(expand(<span class="kw-2">&amp;mut </span>envelope).is_ok());
-<a href=#380 id=380 data-nosnippet>380</a>    }
-<a href=#381 id=381 data-nosnippet>381</a>}</code></pre></div></section></main></body></html>
+<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = envelope.envelope().items().collect();
+<a href=#316 id=316 data-nosnippet>316</a>        <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
+<a href=#317 id=317 data-nosnippet>317</a>        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Event);
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="macro">assert_eq!</span>(
+<a href=#319 id=319 data-nosnippet>319</a>            items[<span class="number">0</span>].payload(),
+<a href=#320 id=320 data-nosnippet>320</a>            <span class="string">"{\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"a\":\"val\",\"b\":\"c\"},\"message\":\"hello world\"}"
+<a href=#321 id=321 data-nosnippet>321</a>        </span>);
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].ty(), <span class="kw-2">&amp;</span>ItemType::Attachment);
+<a href=#323 id=323 data-nosnippet>323</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].filename(), <span class="prelude-val">None</span>);
+<a href=#324 id=324 data-nosnippet>324</a>        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].payload(), <span class="string">"Hi"</span>.as_bytes());
+<a href=#325 id=325 data-nosnippet>325</a>    }
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a>    <span class="kw">fn </span>create_compressed_dying_message(encoding: u8) -&gt; Vec&lt;u8&gt; {
+<a href=#328 id=328 data-nosnippet>328</a>        <span class="comment">// The attachment content is as follows:
+<a href=#329 id=329 data-nosnippet>329</a>        // - 4 bytes magic = sntr
+<a href=#330 id=330 data-nosnippet>330</a>        // - 1 byte version = 0
+<a href=#331 id=331 data-nosnippet>331</a>        // - 1 byte encoding
+<a href=#332 id=332 data-nosnippet>332</a>        // - 2 bytes data length = N bytes - in big endian representation
+<a href=#333 id=333 data-nosnippet>333</a>        // - N bytes of compressed content (Zstandard)
+<a href=#334 id=334 data-nosnippet>334</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>compressor = ZstdCompressor::new(<span class="number">3</span>).unwrap();
+<a href=#335 id=335 data-nosnippet>335</a>        <span class="kw">let </span>compressed_data = compressor
+<a href=#336 id=336 data-nosnippet>336</a>            .compress(
+<a href=#337 id=337 data-nosnippet>337</a>                <span class="string">b"\
+<a href=#338 id=338 data-nosnippet>338</a>                {\"type\":\"event\"}\n\
+<a href=#339 id=339 data-nosnippet>339</a>                {\"foo\":\"bar\",\"level\":\"info\",\"map\":{\"b\":\"c\"}}\n\
+<a href=#340 id=340 data-nosnippet>340</a>                {\"type\":\"attachment\",\"length\":2}\n\
+<a href=#341 id=341 data-nosnippet>341</a>                Hi\n\
+<a href=#342 id=342 data-nosnippet>342</a>                "</span>,
+<a href=#343 id=343 data-nosnippet>343</a>            )
+<a href=#344 id=344 data-nosnippet>344</a>            .unwrap();
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">let </span><span class="kw-2">mut </span>dying_message: Vec&lt;u8&gt; = Vec::new();
+<a href=#346 id=346 data-nosnippet>346</a>        dying_message.write_all(<span class="string">b"sntr\0"</span>).unwrap();
+<a href=#347 id=347 data-nosnippet>347</a>        dying_message.write_all(<span class="kw-2">&amp;</span>[encoding]).unwrap();
+<a href=#348 id=348 data-nosnippet>348</a>        dying_message
+<a href=#349 id=349 data-nosnippet>349</a>            .write_all(<span class="kw-2">&amp;</span>(compressed_data.len() <span class="kw">as </span>u16).to_be_bytes())
+<a href=#350 id=350 data-nosnippet>350</a>            .unwrap();
+<a href=#351 id=351 data-nosnippet>351</a>        dying_message.write_all(<span class="kw-2">&amp;</span>compressed_data).unwrap();
+<a href=#352 id=352 data-nosnippet>352</a>        dying_message
+<a href=#353 id=353 data-nosnippet>353</a>    }
+<a href=#354 id=354 data-nosnippet>354</a>
+<a href=#355 id=355 data-nosnippet>355</a>    <span class="attr">#[test]
+<a href=#356 id=356 data-nosnippet>356</a>    </span><span class="kw">fn </span>test_expand_fails_with_unknown_dictioary() {
+<a href=#357 id=357 data-nosnippet>357</a>        <span class="comment">// encoding 0x10 - i.e. envelope items, Zstandard compressed, dictionary ID 1
+<a href=#358 id=358 data-nosnippet>358</a>        </span><span class="kw">let </span>dying_message = create_compressed_dying_message(<span class="number">0b0001_0001</span>);
+<a href=#359 id=359 data-nosnippet>359</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(dying_message.into());
+<a href=#360 id=360 data-nosnippet>360</a>
+<a href=#361 id=361 data-nosnippet>361</a>        <span class="macro">assert!</span>(expand(<span class="kw-2">&amp;mut </span>envelope).is_err());
+<a href=#362 id=362 data-nosnippet>362</a>    }
+<a href=#363 id=363 data-nosnippet>363</a>
+<a href=#364 id=364 data-nosnippet>364</a>    <span class="attr">#[test]
+<a href=#365 id=365 data-nosnippet>365</a>    </span><span class="kw">fn </span>test_expand_fails_on_invalid_data() {
+<a href=#366 id=366 data-nosnippet>366</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(Bytes::from(
+<a href=#367 id=367 data-nosnippet>367</a>            <span class="string">"sntr\0\0\0\x62\
+<a href=#368 id=368 data-nosnippet>368</a>            {\"type\":\"event\"}\n\
+<a href=#369 id=369 data-nosnippet>369</a>            "</span>,
+<a href=#370 id=370 data-nosnippet>370</a>        ));
+<a href=#371 id=371 data-nosnippet>371</a>        <span class="macro">assert!</span>(expand(<span class="kw-2">&amp;mut </span>envelope).is_err());
+<a href=#372 id=372 data-nosnippet>372</a>    }
+<a href=#373 id=373 data-nosnippet>373</a>
+<a href=#374 id=374 data-nosnippet>374</a>    <span class="attr">#[test]
+<a href=#375 id=375 data-nosnippet>375</a>    </span><span class="kw">fn </span>test_expand_works_with_empty_data() {
+<a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = create_envelope(Bytes::from(<span class="string">"sntr\0\0\0\0"</span>));
+<a href=#377 id=377 data-nosnippet>377</a>        <span class="macro">assert!</span>(expand(<span class="kw-2">&amp;mut </span>envelope).is_ok());
+<a href=#378 id=378 data-nosnippet>378</a>    }
+<a href=#379 id=379 data-nosnippet>379</a>}</code></pre></div></section></main></body></html>

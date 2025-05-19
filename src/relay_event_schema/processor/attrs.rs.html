@@ -463,120 +463,124 @@
 <a href=#463 id=463 data-nosnippet>463</a>    ///
 <a href=#464 id=464 data-nosnippet>464</a>    /// - Returns `Ok(None)` if the current state is the root.
 <a href=#465 id=465 data-nosnippet>465</a>    /// - Returns `Err(self)` if the current state does not own the parent state.
-<a href=#466 id=466 data-nosnippet>466</a>    </span><span class="kw">pub fn </span>try_into_parent(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;, <span class="self">Self</span>&gt; {
-<a href=#467 id=467 data-nosnippet>467</a>        <span class="kw">match </span><span class="self">self</span>.parent {
-<a href=#468 id=468 data-nosnippet>468</a>            <span class="prelude-val">Some</span>(BoxCow::Borrowed(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>),
-<a href=#469 id=469 data-nosnippet>469</a>            <span class="prelude-val">Some</span>(BoxCow::Owned(parent)) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="kw-2">*</span>parent)),
-<a href=#470 id=470 data-nosnippet>470</a>            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
-<a href=#471 id=471 data-nosnippet>471</a>        }
-<a href=#472 id=472 data-nosnippet>472</a>    }
-<a href=#473 id=473 data-nosnippet>473</a>
-<a href=#474 id=474 data-nosnippet>474</a>    <span class="doccomment">/// Return the depth (~ indentation level) of the currently processed value.
-<a href=#475 id=475 data-nosnippet>475</a>    </span><span class="kw">pub fn </span>depth(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>) -&gt; usize {
-<a href=#476 id=476 data-nosnippet>476</a>        <span class="self">self</span>.depth
-<a href=#477 id=477 data-nosnippet>477</a>    }
-<a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a>    <span class="doccomment">/// Return whether the depth changed between parent and self.
-<a href=#480 id=480 data-nosnippet>480</a>    ///
-<a href=#481 id=481 data-nosnippet>481</a>    /// This is `false` when we entered a newtype struct.
-<a href=#482 id=482 data-nosnippet>482</a>    </span><span class="kw">pub fn </span>entered_anything(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>) -&gt; bool {
-<a href=#483 id=483 data-nosnippet>483</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = <span class="kw-2">&amp;</span><span class="self">self</span>.parent {
-<a href=#484 id=484 data-nosnippet>484</a>            parent.depth() != <span class="self">self</span>.depth()
-<a href=#485 id=485 data-nosnippet>485</a>        } <span class="kw">else </span>{
-<a href=#486 id=486 data-nosnippet>486</a>            <span class="bool-val">true
-<a href=#487 id=487 data-nosnippet>487</a>        </span>}
-<a href=#488 id=488 data-nosnippet>488</a>    }
-<a href=#489 id=489 data-nosnippet>489</a>
-<a href=#490 id=490 data-nosnippet>490</a>    <span class="doccomment">/// Returns the last path item if there is one. Skips over "dummy" path segments that exist
-<a href=#491 id=491 data-nosnippet>491</a>    /// because of newtypes.
-<a href=#492 id=492 data-nosnippet>492</a>    </span><span class="attr">#[inline]
-<a href=#493 id=493 data-nosnippet>493</a>    </span><span class="kw">fn </span>path_item(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>PathItem&lt;<span class="lifetime">'_</span>&gt;&gt; {
-<a href=#494 id=494 data-nosnippet>494</a>        <span class="kw">for </span>state <span class="kw">in </span><span class="self">self</span>.iter() {
-<a href=#495 id=495 data-nosnippet>495</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>path_item) = state.path_item {
-<a href=#496 id=496 data-nosnippet>496</a>                <span class="kw">return </span><span class="prelude-val">Some</span>(path_item);
-<a href=#497 id=497 data-nosnippet>497</a>            }
-<a href=#498 id=498 data-nosnippet>498</a>        }
-<a href=#499 id=499 data-nosnippet>499</a>        <span class="prelude-val">None
-<a href=#500 id=500 data-nosnippet>500</a>    </span>}
-<a href=#501 id=501 data-nosnippet>501</a>}
-<a href=#502 id=502 data-nosnippet>502</a>
-<a href=#503 id=503 data-nosnippet>503</a><span class="kw">pub struct </span>ProcessingStateIter&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#504 id=504 data-nosnippet>504</a>    state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProcessingState&lt;<span class="lifetime">'a</span>&gt;&gt;,
-<a href=#505 id=505 data-nosnippet>505</a>    size: usize,
-<a href=#506 id=506 data-nosnippet>506</a>}
-<a href=#507 id=507 data-nosnippet>507</a>
-<a href=#508 id=508 data-nosnippet>508</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>ProcessingStateIter&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#509 id=509 data-nosnippet>509</a>    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProcessingState&lt;<span class="lifetime">'a</span>&gt;;
-<a href=#510 id=510 data-nosnippet>510</a>
-<a href=#511 id=511 data-nosnippet>511</a>    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
-<a href=#512 id=512 data-nosnippet>512</a>        <span class="kw">let </span>current = <span class="self">self</span>.state<span class="question-mark">?</span>;
-<a href=#513 id=513 data-nosnippet>513</a>        <span class="self">self</span>.state = current.parent.as_deref();
-<a href=#514 id=514 data-nosnippet>514</a>        <span class="prelude-val">Some</span>(current)
-<a href=#515 id=515 data-nosnippet>515</a>    }
-<a href=#516 id=516 data-nosnippet>516</a>
-<a href=#517 id=517 data-nosnippet>517</a>    <span class="kw">fn </span>size_hint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (usize, <span class="prelude-ty">Option</span>&lt;usize&gt;) {
-<a href=#518 id=518 data-nosnippet>518</a>        (<span class="self">self</span>.size, <span class="prelude-val">Some</span>(<span class="self">self</span>.size))
+<a href=#466 id=466 data-nosnippet>466</a>    </span><span class="attr">#[expect(
+<a href=#467 id=467 data-nosnippet>467</a>        clippy::result_large_err,
+<a href=#468 id=468 data-nosnippet>468</a>        reason = <span class="string">"this method returns `self` in the error case"
+<a href=#469 id=469 data-nosnippet>469</a>    </span>)]
+<a href=#470 id=470 data-nosnippet>470</a>    </span><span class="kw">pub fn </span>try_into_parent(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;, <span class="self">Self</span>&gt; {
+<a href=#471 id=471 data-nosnippet>471</a>        <span class="kw">match </span><span class="self">self</span>.parent {
+<a href=#472 id=472 data-nosnippet>472</a>            <span class="prelude-val">Some</span>(BoxCow::Borrowed(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>),
+<a href=#473 id=473 data-nosnippet>473</a>            <span class="prelude-val">Some</span>(BoxCow::Owned(parent)) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="kw-2">*</span>parent)),
+<a href=#474 id=474 data-nosnippet>474</a>            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+<a href=#475 id=475 data-nosnippet>475</a>        }
+<a href=#476 id=476 data-nosnippet>476</a>    }
+<a href=#477 id=477 data-nosnippet>477</a>
+<a href=#478 id=478 data-nosnippet>478</a>    <span class="doccomment">/// Return the depth (~ indentation level) of the currently processed value.
+<a href=#479 id=479 data-nosnippet>479</a>    </span><span class="kw">pub fn </span>depth(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>) -&gt; usize {
+<a href=#480 id=480 data-nosnippet>480</a>        <span class="self">self</span>.depth
+<a href=#481 id=481 data-nosnippet>481</a>    }
+<a href=#482 id=482 data-nosnippet>482</a>
+<a href=#483 id=483 data-nosnippet>483</a>    <span class="doccomment">/// Return whether the depth changed between parent and self.
+<a href=#484 id=484 data-nosnippet>484</a>    ///
+<a href=#485 id=485 data-nosnippet>485</a>    /// This is `false` when we entered a newtype struct.
+<a href=#486 id=486 data-nosnippet>486</a>    </span><span class="kw">pub fn </span>entered_anything(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>) -&gt; bool {
+<a href=#487 id=487 data-nosnippet>487</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = <span class="kw-2">&amp;</span><span class="self">self</span>.parent {
+<a href=#488 id=488 data-nosnippet>488</a>            parent.depth() != <span class="self">self</span>.depth()
+<a href=#489 id=489 data-nosnippet>489</a>        } <span class="kw">else </span>{
+<a href=#490 id=490 data-nosnippet>490</a>            <span class="bool-val">true
+<a href=#491 id=491 data-nosnippet>491</a>        </span>}
+<a href=#492 id=492 data-nosnippet>492</a>    }
+<a href=#493 id=493 data-nosnippet>493</a>
+<a href=#494 id=494 data-nosnippet>494</a>    <span class="doccomment">/// Returns the last path item if there is one. Skips over "dummy" path segments that exist
+<a href=#495 id=495 data-nosnippet>495</a>    /// because of newtypes.
+<a href=#496 id=496 data-nosnippet>496</a>    </span><span class="attr">#[inline]
+<a href=#497 id=497 data-nosnippet>497</a>    </span><span class="kw">fn </span>path_item(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>PathItem&lt;<span class="lifetime">'_</span>&gt;&gt; {
+<a href=#498 id=498 data-nosnippet>498</a>        <span class="kw">for </span>state <span class="kw">in </span><span class="self">self</span>.iter() {
+<a href=#499 id=499 data-nosnippet>499</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>path_item) = state.path_item {
+<a href=#500 id=500 data-nosnippet>500</a>                <span class="kw">return </span><span class="prelude-val">Some</span>(path_item);
+<a href=#501 id=501 data-nosnippet>501</a>            }
+<a href=#502 id=502 data-nosnippet>502</a>        }
+<a href=#503 id=503 data-nosnippet>503</a>        <span class="prelude-val">None
+<a href=#504 id=504 data-nosnippet>504</a>    </span>}
+<a href=#505 id=505 data-nosnippet>505</a>}
+<a href=#506 id=506 data-nosnippet>506</a>
+<a href=#507 id=507 data-nosnippet>507</a><span class="kw">pub struct </span>ProcessingStateIter&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#508 id=508 data-nosnippet>508</a>    state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProcessingState&lt;<span class="lifetime">'a</span>&gt;&gt;,
+<a href=#509 id=509 data-nosnippet>509</a>    size: usize,
+<a href=#510 id=510 data-nosnippet>510</a>}
+<a href=#511 id=511 data-nosnippet>511</a>
+<a href=#512 id=512 data-nosnippet>512</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>ProcessingStateIter&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#513 id=513 data-nosnippet>513</a>    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProcessingState&lt;<span class="lifetime">'a</span>&gt;;
+<a href=#514 id=514 data-nosnippet>514</a>
+<a href=#515 id=515 data-nosnippet>515</a>    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
+<a href=#516 id=516 data-nosnippet>516</a>        <span class="kw">let </span>current = <span class="self">self</span>.state<span class="question-mark">?</span>;
+<a href=#517 id=517 data-nosnippet>517</a>        <span class="self">self</span>.state = current.parent.as_deref();
+<a href=#518 id=518 data-nosnippet>518</a>        <span class="prelude-val">Some</span>(current)
 <a href=#519 id=519 data-nosnippet>519</a>    }
-<a href=#520 id=520 data-nosnippet>520</a>}
-<a href=#521 id=521 data-nosnippet>521</a>
-<a href=#522 id=522 data-nosnippet>522</a><span class="kw">impl </span>ExactSizeIterator <span class="kw">for </span>ProcessingStateIter&lt;<span class="lifetime">'_</span>&gt; {}
-<a href=#523 id=523 data-nosnippet>523</a>
-<a href=#524 id=524 data-nosnippet>524</a><span class="kw">impl </span>Default <span class="kw">for </span>ProcessingState&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#525 id=525 data-nosnippet>525</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-<a href=#526 id=526 data-nosnippet>526</a>        ProcessingState::root().clone()
-<a href=#527 id=527 data-nosnippet>527</a>    }
-<a href=#528 id=528 data-nosnippet>528</a>}
-<a href=#529 id=529 data-nosnippet>529</a>
-<a href=#530 id=530 data-nosnippet>530</a><span class="doccomment">/// Represents the [`ProcessingState`] as a path.
-<a href=#531 id=531 data-nosnippet>531</a>///
-<a href=#532 id=532 data-nosnippet>532</a>/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.
-<a href=#533 id=533 data-nosnippet>533</a></span><span class="attr">#[derive(Debug)]
-<a href=#534 id=534 data-nosnippet>534</a></span><span class="kw">pub struct </span>Path&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProcessingState&lt;<span class="lifetime">'a</span>&gt;);
-<a href=#535 id=535 data-nosnippet>535</a>
-<a href=#536 id=536 data-nosnippet>536</a><span class="kw">impl </span>Path&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#537 id=537 data-nosnippet>537</a>    <span class="doccomment">/// Returns the current key if there is one
-<a href=#538 id=538 data-nosnippet>538</a>    </span><span class="attr">#[inline]
-<a href=#539 id=539 data-nosnippet>539</a>    </span><span class="kw">pub fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-<a href=#540 id=540 data-nosnippet>540</a>        PathItem::key(<span class="self">self</span>.<span class="number">0</span>.path_item()<span class="question-mark">?</span>)
-<a href=#541 id=541 data-nosnippet>541</a>    }
-<a href=#542 id=542 data-nosnippet>542</a>
-<a href=#543 id=543 data-nosnippet>543</a>    <span class="doccomment">/// Returns the current index if there is one
-<a href=#544 id=544 data-nosnippet>544</a>    </span><span class="attr">#[inline]
-<a href=#545 id=545 data-nosnippet>545</a>    </span><span class="kw">pub fn </span>index(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
-<a href=#546 id=546 data-nosnippet>546</a>        PathItem::index(<span class="self">self</span>.<span class="number">0</span>.path_item()<span class="question-mark">?</span>)
-<a href=#547 id=547 data-nosnippet>547</a>    }
-<a href=#548 id=548 data-nosnippet>548</a>
-<a href=#549 id=549 data-nosnippet>549</a>    <span class="doccomment">/// Return the depth (~ indentation level) of the currently processed value.
-<a href=#550 id=550 data-nosnippet>550</a>    </span><span class="kw">pub fn </span>depth(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-<a href=#551 id=551 data-nosnippet>551</a>        <span class="self">self</span>.<span class="number">0</span>.depth()
-<a href=#552 id=552 data-nosnippet>552</a>    }
-<a href=#553 id=553 data-nosnippet>553</a>
-<a href=#554 id=554 data-nosnippet>554</a>    <span class="doccomment">/// Returns the field attributes of the current path item.
-<a href=#555 id=555 data-nosnippet>555</a>    </span><span class="kw">pub fn </span>attrs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>FieldAttrs {
-<a href=#556 id=556 data-nosnippet>556</a>        <span class="self">self</span>.<span class="number">0</span>.attrs()
-<a href=#557 id=557 data-nosnippet>557</a>    }
-<a href=#558 id=558 data-nosnippet>558</a>
-<a href=#559 id=559 data-nosnippet>559</a>    <span class="doccomment">/// Iterates through the states in this path.
-<a href=#560 id=560 data-nosnippet>560</a>    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProcessingStateIter&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#561 id=561 data-nosnippet>561</a>        <span class="self">self</span>.<span class="number">0</span>.iter()
-<a href=#562 id=562 data-nosnippet>562</a>    }
-<a href=#563 id=563 data-nosnippet>563</a>}
-<a href=#564 id=564 data-nosnippet>564</a>
-<a href=#565 id=565 data-nosnippet>565</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>Path&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#566 id=566 data-nosnippet>566</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#567 id=567 data-nosnippet>567</a>        <span class="kw">let </span><span class="kw-2">mut </span>items = Vec::with_capacity(<span class="self">self</span>.<span class="number">0</span>.depth);
-<a href=#568 id=568 data-nosnippet>568</a>        <span class="kw">for </span>state <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter() {
-<a href=#569 id=569 data-nosnippet>569</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>path_item) = state.path_item {
-<a href=#570 id=570 data-nosnippet>570</a>                items.push(path_item)
-<a href=#571 id=571 data-nosnippet>571</a>            }
-<a href=#572 id=572 data-nosnippet>572</a>        }
-<a href=#573 id=573 data-nosnippet>573</a>
-<a href=#574 id=574 data-nosnippet>574</a>        <span class="kw">for </span>(idx, item) <span class="kw">in </span>items.into_iter().rev().enumerate() {
-<a href=#575 id=575 data-nosnippet>575</a>            <span class="kw">if </span>idx &gt; <span class="number">0 </span>{
-<a href=#576 id=576 data-nosnippet>576</a>                <span class="macro">write!</span>(f, <span class="string">"."</span>)<span class="question-mark">?</span>;
-<a href=#577 id=577 data-nosnippet>577</a>            }
-<a href=#578 id=578 data-nosnippet>578</a>            <span class="macro">write!</span>(f, <span class="string">"{item}"</span>)<span class="question-mark">?</span>;
-<a href=#579 id=579 data-nosnippet>579</a>        }
-<a href=#580 id=580 data-nosnippet>580</a>        <span class="prelude-val">Ok</span>(())
-<a href=#581 id=581 data-nosnippet>581</a>    }
-<a href=#582 id=582 data-nosnippet>582</a>}</code></pre></div></section></main></body></html>
+<a href=#520 id=520 data-nosnippet>520</a>
+<a href=#521 id=521 data-nosnippet>521</a>    <span class="kw">fn </span>size_hint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (usize, <span class="prelude-ty">Option</span>&lt;usize&gt;) {
+<a href=#522 id=522 data-nosnippet>522</a>        (<span class="self">self</span>.size, <span class="prelude-val">Some</span>(<span class="self">self</span>.size))
+<a href=#523 id=523 data-nosnippet>523</a>    }
+<a href=#524 id=524 data-nosnippet>524</a>}
+<a href=#525 id=525 data-nosnippet>525</a>
+<a href=#526 id=526 data-nosnippet>526</a><span class="kw">impl </span>ExactSizeIterator <span class="kw">for </span>ProcessingStateIter&lt;<span class="lifetime">'_</span>&gt; {}
+<a href=#527 id=527 data-nosnippet>527</a>
+<a href=#528 id=528 data-nosnippet>528</a><span class="kw">impl </span>Default <span class="kw">for </span>ProcessingState&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#529 id=529 data-nosnippet>529</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+<a href=#530 id=530 data-nosnippet>530</a>        ProcessingState::root().clone()
+<a href=#531 id=531 data-nosnippet>531</a>    }
+<a href=#532 id=532 data-nosnippet>532</a>}
+<a href=#533 id=533 data-nosnippet>533</a>
+<a href=#534 id=534 data-nosnippet>534</a><span class="doccomment">/// Represents the [`ProcessingState`] as a path.
+<a href=#535 id=535 data-nosnippet>535</a>///
+<a href=#536 id=536 data-nosnippet>536</a>/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.
+<a href=#537 id=537 data-nosnippet>537</a></span><span class="attr">#[derive(Debug)]
+<a href=#538 id=538 data-nosnippet>538</a></span><span class="kw">pub struct </span>Path&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProcessingState&lt;<span class="lifetime">'a</span>&gt;);
+<a href=#539 id=539 data-nosnippet>539</a>
+<a href=#540 id=540 data-nosnippet>540</a><span class="kw">impl </span>Path&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#541 id=541 data-nosnippet>541</a>    <span class="doccomment">/// Returns the current key if there is one
+<a href=#542 id=542 data-nosnippet>542</a>    </span><span class="attr">#[inline]
+<a href=#543 id=543 data-nosnippet>543</a>    </span><span class="kw">pub fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+<a href=#544 id=544 data-nosnippet>544</a>        PathItem::key(<span class="self">self</span>.<span class="number">0</span>.path_item()<span class="question-mark">?</span>)
+<a href=#545 id=545 data-nosnippet>545</a>    }
+<a href=#546 id=546 data-nosnippet>546</a>
+<a href=#547 id=547 data-nosnippet>547</a>    <span class="doccomment">/// Returns the current index if there is one
+<a href=#548 id=548 data-nosnippet>548</a>    </span><span class="attr">#[inline]
+<a href=#549 id=549 data-nosnippet>549</a>    </span><span class="kw">pub fn </span>index(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+<a href=#550 id=550 data-nosnippet>550</a>        PathItem::index(<span class="self">self</span>.<span class="number">0</span>.path_item()<span class="question-mark">?</span>)
+<a href=#551 id=551 data-nosnippet>551</a>    }
+<a href=#552 id=552 data-nosnippet>552</a>
+<a href=#553 id=553 data-nosnippet>553</a>    <span class="doccomment">/// Return the depth (~ indentation level) of the currently processed value.
+<a href=#554 id=554 data-nosnippet>554</a>    </span><span class="kw">pub fn </span>depth(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+<a href=#555 id=555 data-nosnippet>555</a>        <span class="self">self</span>.<span class="number">0</span>.depth()
+<a href=#556 id=556 data-nosnippet>556</a>    }
+<a href=#557 id=557 data-nosnippet>557</a>
+<a href=#558 id=558 data-nosnippet>558</a>    <span class="doccomment">/// Returns the field attributes of the current path item.
+<a href=#559 id=559 data-nosnippet>559</a>    </span><span class="kw">pub fn </span>attrs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>FieldAttrs {
+<a href=#560 id=560 data-nosnippet>560</a>        <span class="self">self</span>.<span class="number">0</span>.attrs()
+<a href=#561 id=561 data-nosnippet>561</a>    }
+<a href=#562 id=562 data-nosnippet>562</a>
+<a href=#563 id=563 data-nosnippet>563</a>    <span class="doccomment">/// Iterates through the states in this path.
+<a href=#564 id=564 data-nosnippet>564</a>    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProcessingStateIter&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#565 id=565 data-nosnippet>565</a>        <span class="self">self</span>.<span class="number">0</span>.iter()
+<a href=#566 id=566 data-nosnippet>566</a>    }
+<a href=#567 id=567 data-nosnippet>567</a>}
+<a href=#568 id=568 data-nosnippet>568</a>
+<a href=#569 id=569 data-nosnippet>569</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>Path&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#570 id=570 data-nosnippet>570</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#571 id=571 data-nosnippet>571</a>        <span class="kw">let </span><span class="kw-2">mut </span>items = Vec::with_capacity(<span class="self">self</span>.<span class="number">0</span>.depth);
+<a href=#572 id=572 data-nosnippet>572</a>        <span class="kw">for </span>state <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter() {
+<a href=#573 id=573 data-nosnippet>573</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>path_item) = state.path_item {
+<a href=#574 id=574 data-nosnippet>574</a>                items.push(path_item)
+<a href=#575 id=575 data-nosnippet>575</a>            }
+<a href=#576 id=576 data-nosnippet>576</a>        }
+<a href=#577 id=577 data-nosnippet>577</a>
+<a href=#578 id=578 data-nosnippet>578</a>        <span class="kw">for </span>(idx, item) <span class="kw">in </span>items.into_iter().rev().enumerate() {
+<a href=#579 id=579 data-nosnippet>579</a>            <span class="kw">if </span>idx &gt; <span class="number">0 </span>{
+<a href=#580 id=580 data-nosnippet>580</a>                <span class="macro">write!</span>(f, <span class="string">"."</span>)<span class="question-mark">?</span>;
+<a href=#581 id=581 data-nosnippet>581</a>            }
+<a href=#582 id=582 data-nosnippet>582</a>            <span class="macro">write!</span>(f, <span class="string">"{item}"</span>)<span class="question-mark">?</span>;
+<a href=#583 id=583 data-nosnippet>583</a>        }
+<a href=#584 id=584 data-nosnippet>584</a>        <span class="prelude-val">Ok</span>(())
+<a href=#585 id=585 data-nosnippet>585</a>    }
+<a href=#586 id=586 data-nosnippet>586</a>}</code></pre></div></section></main></body></html>

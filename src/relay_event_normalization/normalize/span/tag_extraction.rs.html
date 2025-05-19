@@ -1322,7 +1322,7 @@
 <a href=#1322 id=1322 data-nosnippet>1322</a>            <span class="kw">let </span><span class="kw-2">mut </span>visitor = SqlTableNameVisitor {
 <a href=#1323 id=1323 data-nosnippet>1323</a>                table_names: Default::default(),
 <a href=#1324 id=1324 data-nosnippet>1324</a>            };
-<a href=#1325 id=1325 data-nosnippet>1325</a>            ast.visit(<span class="kw-2">&amp;mut </span>visitor);
+<a href=#1325 id=1325 data-nosnippet>1325</a>            <span class="kw">let _ </span>= ast.visit(<span class="kw-2">&amp;mut </span>visitor);
 <a href=#1326 id=1326 data-nosnippet>1326</a>            <span class="kw">let </span>comma_size: usize = <span class="number">1</span>;
 <a href=#1327 id=1327 data-nosnippet>1327</a>            <span class="kw">let </span><span class="kw-2">mut </span>s = String::with_capacity(
 <a href=#1328 id=1328 data-nosnippet>1328</a>                visitor
