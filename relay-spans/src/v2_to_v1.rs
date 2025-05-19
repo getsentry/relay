@@ -9,7 +9,19 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, FromValue, Object, Value};
 
-/// Transforms a Sentry Span V2 to a Sentry Span.
+/// Transforms a Sentry span V2 to a Sentry span V1.
+///
+/// This uses attributes in the V2 span to populate various fields in the V1 span.
+/// * The V1 span's `description` field is set based on the V2 span's `sentry.description` attribute.
+/// * The V1 span's `status` field is set based on the V2 span's `status` field and
+///   `http.status_code` and `rpc.grpc.status_code` attributes.
+/// * The V1 span's `exclusive_time` field is set based on the V2 span's `exclusive_time_nano`
+///   attribute, or the difference between the start and end timestamp if that attribute is not set.
+/// * The V1 span's `platform` field is set based on the V2 span's `sentry.platform` attribute.
+/// * The V1 span's `profile_id` field is set based on the V2 span's `sentry.profile.id` attribute.
+/// * The V1 span's `segment_id` field is set based on the V2 span's `sentry.segment.id` attribute.
+///
+/// All other attributes are carried over from the V2 span to the V1 span's `data`.
 pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut exclusive_time_ms = 0f64;
     let mut data = Object::new();
@@ -28,10 +40,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         other: _other,
     } = span_v2;
 
-    let mut op = name;
     let mut description = Annotated::empty();
-    let mut http_method = Annotated::empty();
-    let mut http_route = Annotated::empty();
     let mut http_status_code = Annotated::empty();
     let mut grpc_status_code = Annotated::empty();
     let mut platform = Annotated::empty();
@@ -47,24 +56,6 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         match key.as_str() {
             "sentry.description" => {
                 description = String::from_value(value);
-            }
-            key if key.starts_with("db") => {
-                op = op.or_else(|| Annotated::new(String::from("db")));
-                if key == "db.statement" {
-                    description = description.or_else(|| String::from_value(value));
-                }
-            }
-            "http.method" | "http.request.method" => {
-                let http_op = match kind.value() {
-                    Some(SpanV2Kind::Server) => "http.server",
-                    Some(SpanV2Kind::Client) => "http.client",
-                    _ => "http",
-                };
-                op = op.or_else(|| Annotated::new(http_op.to_owned()));
-                http_method = String::from_value(value);
-            }
-            "http.route" | "url.path" => {
-                http_route = String::from_value(value);
             }
             key if key.contains("exclusive_time_nano") => {
                 let value = match value.value() {
@@ -105,10 +96,6 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         }
     }
 
-    if let (Some(http_method), Some(http_route)) = (http_method.value(), http_route.value()) {
-        description = description.or_else(|| Annotated::new(format!("{http_method} {http_route}")));
-    }
-
     let links = links.map_value(|links| {
         links
             .into_iter()
@@ -119,7 +106,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let status = span_v2_status_to_span_v1_status(status, http_status_code, grpc_status_code);
 
     SpanV1 {
-        op,
+        op: name,
         description,
         data: SpanData::from_value(Annotated::new(data.into())),
         exclusive_time: exclusive_time_ms.into(),
@@ -345,147 +332,6 @@ mod tests {
           "data": {},
           "links": [],
           "kind": "internal"
-        }
-        "###);
-    }
-
-    #[test]
-    fn parse_span_with_db_attributes() {
-        let json = r#"{
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-            "span_id": "e342abb1214ca181",
-            "parent_span_id": "0c7a7dea069bf5a6",
-            "name": "database query",
-            "kind": "client",
-            "start_timestamp": "2023-10-18T09:14:14.980Z",
-            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
-            "links": [],
-            "attributes": {
-                "db.name": {
-                    "value": "database",
-                    "type": "string"
-                },
-                "db.type": {
-                    "value": "sql",
-                    "type": "string"
-                },
-                "db.statement": {
-                    "value": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-                    "type": "string"
-                }
-            }
-        }"#;
-        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
-        {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 0.0788,
-          "op": "database query",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
-          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-          "data": {},
-          "links": [],
-          "kind": "client"
-        }
-        "###);
-    }
-
-    #[test]
-    fn parse_span_with_db_attributes_and_description() {
-        let json = r#"{
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-            "span_id": "e342abb1214ca181",
-            "parent_span_id": "0c7a7dea069bf5a6",
-            "name": "database query",
-            "kind": "client",
-            "start_timestamp": "2023-10-18T09:14:14.980Z",
-            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
-            "links": [],
-            "attributes": {
-                "db.name": {
-                    "value": "database",
-                    "type": "string"
-                },
-                "db.type": {
-                    "value": "sql",
-                    "type": "string"
-                },
-                "db.statement": {
-                    "value": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-                    "type": "string"
-                },
-                "sentry.description": {
-                    "value": "index view query",
-                    "type": "string"
-                }
-            }
-        }"#;
-        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
-        {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 0.0788,
-          "op": "database query",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
-          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "description": "index view query",
-          "data": {},
-          "links": [],
-          "kind": "client"
-        }
-        "###);
-    }
-
-    #[test]
-    fn parse_span_with_http_attributes() {
-        let json = r#"{
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-            "span_id": "e342abb1214ca181",
-            "parent_span_id": "0c7a7dea069bf5a6",
-            "name": "http client request",
-            "kind": "client",
-            "start_timestamp": "2023-10-18T09:14:14.980Z",
-            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
-            "links": [],
-            "attributes": {
-                "http.request.method": {
-                    "value": "GET",
-                    "type": "string"
-                },
-                "url.path": {
-                    "value": "/api/search?q=foobar",
-                    "type": "string"
-                }
-            }
-        }"#;
-        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
-        {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 0.0788,
-          "op": "http client request",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
-          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "description": "GET /api/search?q=foobar",
-          "data": {},
-          "links": [],
-          "kind": "client"
         }
         "###);
     }

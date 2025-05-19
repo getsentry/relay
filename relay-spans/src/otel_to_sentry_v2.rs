@@ -4,18 +4,26 @@ use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_event_schema::protocol::{Attribute, AttributeType, AttributeValue, SpanV2Kind};
+use relay_event_schema::protocol::{Attribute, AttributeType, SpanV2Kind};
 
 use crate::otel_trace::{
     Span as OtelSpan, SpanFlags as OtelSpanFlags, status::StatusCode as OtelStatusCode,
 };
 use relay_event_schema::protocol::{
-    SpanId, SpanV2 as EventSpanV2, SpanV2Link, SpanV2Status, Timestamp, TraceId,
+    SpanId, SpanV2 as SentrySpanV2, SpanV2Link, SpanV2Status, Timestamp, TraceId,
 };
 use relay_protocol::{Annotated, Error, Object, Value};
 
-/// Transform an OtelSpan to a Sentry span.
-pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpanV2, Error> {
+/// Transform an OTEL span to a Sentry span V2.
+///
+/// This uses attributes in the OTEL span to populate various fields in the Sentry span.
+/// * The Sentry span's `name` field may be set based on `db` or `http` attributes
+///   if the OTEL span's `name` is empty.
+/// * The Sentry span's `sentry.description` attribute may be set based on `db` or `http` attributes
+///   if the OTEL span's `sentry.description` attribute is empty.
+///
+/// All other attributes are carried over from the OTEL span to the Sentry span.
+pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64);
     let OtelSpan {
@@ -39,13 +47,21 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpanV2, Error> {
     };
 
     let mut sentry_attributes = Object::default();
-
     let mut name = if name.is_empty() { None } else { Some(name) };
+    let mut description = None;
+    let mut http_method = None;
+    let mut http_route = None;
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
             match attribute.key.as_str() {
+                "sentry.description" => {
+                    description = otel_value_to_string(value);
+                }
                 key if key.starts_with("db") => {
                     name = name.or(Some("db".to_string()));
+                    if key == "db.statement" {
+                        description = description.or_else(|| otel_value_to_string(value.clone()));
+                    }
                 }
                 "http.method" | "http.request.method" => {
                     let http_op = match kind {
@@ -53,14 +69,34 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpanV2, Error> {
                         3 => "http.client",
                         _ => "http",
                     };
+                    http_method = otel_value_to_string(value);
                     name = name.or(Some(http_op.to_string()));
                 }
-                _ => {}
-            }
-            if let Some(v) = otel_value_to_attr(value) {
-                sentry_attributes.insert(attribute.key, Annotated::new(v));
+                "http.route" | "url.path" => {
+                    http_route = otel_value_to_string(value);
+                }
+                _ => {
+                    if let Some(v) = otel_value_to_attr(value) {
+                        sentry_attributes.insert(attribute.key, Annotated::new(v));
+                    }
+                }
             }
         }
+    }
+
+    if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
+        description = description.or_else(|| Some(format!("{http_method} {http_route}")));
+    }
+
+    // Put the fixed up description back into the attributes
+    if let Some(description) = description {
+        sentry_attributes.insert(
+            "sentry.description".into(),
+            Annotated::new(Attribute::new(
+                AttributeType::String,
+                Value::String(description),
+            )),
+        );
     }
 
     let sentry_links: Vec<Annotated<SpanV2Link>> = links
@@ -68,7 +104,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpanV2, Error> {
         .map(|link| otel_to_sentry_link(link).map(Into::into))
         .collect::<Result<_, _>>()?;
 
-    let event_span = EventSpanV2 {
+    let event_span = SentrySpanV2 {
         name: name.into(),
         parent_span_id: parent_span_id.into(),
         span_id: span_id.into(),
@@ -86,6 +122,17 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpanV2, Error> {
     };
 
     Ok(event_span)
+}
+
+fn otel_value_to_string(value: OtelValue) -> Option<String> {
+    match value {
+        OtelValue::StringValue(v) => Some(v),
+        OtelValue::BoolValue(v) => Some(v.to_string()),
+        OtelValue::IntValue(v) => Some(v.to_string()),
+        OtelValue::DoubleValue(v) => Some(v.to_string()),
+        OtelValue::BytesValue(v) => String::from_utf8(v).ok(),
+        _ => None,
+    }
 }
 
 fn otel_flags_is_remote(value: u32) -> Option<bool> {
@@ -131,13 +178,7 @@ fn otel_value_to_attr(otel_value: OtelValue) -> Option<Attribute> {
         OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => return None,
     };
 
-    Some(Attribute {
-        value: AttributeValue {
-            ty: Annotated::new(ty),
-            value: Annotated::new(value),
-        },
-        other: Default::default(),
-    })
+    Some(Attribute::new(ty, value))
 }
 
 fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
@@ -162,11 +203,10 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
     Ok(span_link)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{SerializableAnnotated, get_path};
+    use relay_protocol::SerializableAnnotated;
 
     #[test]
     fn parse_span() {
@@ -233,33 +273,49 @@ mod tests {
             "droppedLinksCount": 0
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.exclusive_time, Annotated::new(1000.0));
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        assert_eq!(
-            get_path!(annotated_span.data.environment),
-            Some(&Annotated::new("test".into()))
-        );
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 1000.0,
-          "op": "middleware - fastify -> @fastify/multipart",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "span_id": "e342abb1214ca181",
+          "name": "middleware - fastify -> @fastify/multipart",
           "status": "ok",
-          "data": {
-            "sentry.environment": "test",
-            "fastify.type": "middleware",
-            "hook.name": "onResponse",
-            "plugin.name": "fastify -> @fastify/multipart",
-            "sentry.parentSampled": true,
-            "sentry.sample_rate": 1
-          },
+          "kind": "internal",
+          "start_timestamp": 1697620454.98,
+          "end_timestamp": 1697620454.980079,
           "links": [],
-          "kind": "internal"
+          "attributes": {
+            "fastify.type": {
+              "type": "string",
+              "value": "middleware"
+            },
+            "hook.name": {
+              "type": "string",
+              "value": "onResponse"
+            },
+            "plugin.name": {
+              "type": "string",
+              "value": "fastify -> @fastify/multipart"
+            },
+            "sentry.environment": {
+              "type": "string",
+              "value": "test"
+            },
+            "sentry.exclusive_time_nano": {
+              "type": "integer",
+              "value": 1000000000
+            },
+            "sentry.parentSampled": {
+              "type": "boolean",
+              "value": true
+            },
+            "sentry.sample_rate": {
+              "type": "integer",
+              "value": 1
+            }
+          }
         }
         "###);
     }
@@ -267,71 +323,41 @@ mod tests {
     #[test]
     fn parse_span_with_exclusive_time_nano_attribute() {
         let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "name": "middleware - fastify -> @fastify/multipart",
-            "kind": 1,
-            "startTimeUnixNano": "1697620454980000000",
-            "endTimeUnixNano": "1697620454980078800",
-            "attributes": [
-                {
-                    "key": "sentry.exclusive_time_nano",
-                    "value": {
-                        "intValue": "3200000000"
-                    }
-                }
-            ]
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "name": "middleware - fastify -> @fastify/multipart",
+          "kind": 1,
+          "startTimeUnixNano": "1697620454980000000",
+          "endTimeUnixNano": "1697620454980078800",
+          "attributes": [
+            {
+              "key": "sentry.exclusive_time_nano",
+              "value": {
+                "intValue": "3200000000"
+              }
+            }
+          ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.exclusive_time, Annotated::new(3200.0));
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 3200.0,
-          "op": "middleware - fastify -> @fastify/multipart",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "data": {},
-          "links": [],
-          "kind": "internal"
-        }
-        "###);
-    }
-
-    #[test]
-    fn parse_span_no_exclusive_time_nano_attribute() {
-        let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "name": "middleware - fastify -> @fastify/multipart",
-            "kind": 1,
-            "startTimeUnixNano": "1697620454980000000",
-            "endTimeUnixNano": "1697620454980078800"
-        }"#;
-        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
-        {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 0.0788,
-          "op": "middleware - fastify -> @fastify/multipart",
-          "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
-          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "data": {},
+          "span_id": "e342abb1214ca181",
+          "name": "middleware - fastify -> @fastify/multipart",
+          "kind": "internal",
+          "start_timestamp": 1697620454.98,
+          "end_timestamp": 1697620454.980079,
           "links": [],
-          "kind": "internal"
+          "attributes": {
+            "sentry.exclusive_time_nano": {
+              "type": "integer",
+              "value": 3200000000
+            }
+          }
         }
         "###);
     }
@@ -339,58 +365,53 @@ mod tests {
     #[test]
     fn parse_span_with_db_attributes() {
         let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "name": "database query",
-            "kind": 3,
-            "startTimeUnixNano": "1697620454980000000",
-            "endTimeUnixNano": "1697620454980078800",
-            "attributes": [
-                {
-                    "key" : "db.name",
-                    "value": {
-                        "stringValue": "database"
-                    }
-                },
-                {
-                    "key" : "db.type",
-                    "value": {
-                        "stringValue": "sql"
-                    }
-                },
-                {
-                    "key" : "db.statement",
-                    "value": {
-                        "stringValue": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
-                    }
-                }
-            ]
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "name": "database query",
+          "kind": 3,
+          "startTimeUnixNano": "1697620454980000000",
+          "endTimeUnixNano": "1697620454980078800",
+          "attributes": [
+            {
+              "key": "db.name",
+              "value": {
+                "stringValue": "database"
+              }
+            },
+            {
+              "key": "db.type",
+              "value": {
+                "stringValue": "sql"
+              }
+            },
+            {
+              "key": "db.statement",
+              "value": {
+                "stringValue": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+              }
+            }
+          ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.op, Annotated::new("database query".into()));
-        assert_eq!(
-            event_span.description,
-            Annotated::new(
-                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into()
-            )
-        );
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 0.0788,
-          "op": "database query",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-          "data": {},
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "span_id": "e342abb1214ca181",
+          "name": "database query",
+          "kind": "client",
+          "start_timestamp": 1697620454.98,
+          "end_timestamp": 1697620454.980079,
           "links": [],
-          "kind": "client"
+          "attributes": {
+            "sentry.description": {
+              "type": "string",
+              "value": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+            }
+          }
         }
         "###);
     }
@@ -398,62 +419,59 @@ mod tests {
     #[test]
     fn parse_span_with_db_attributes_and_description() {
         let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "name": "database query",
-            "kind": 3,
-            "startTimeUnixNano": "1697620454980000000",
-            "endTimeUnixNano": "1697620454980078800",
-            "attributes": [
-                {
-                    "key" : "db.name",
-                    "value": {
-                        "stringValue": "database"
-                    }
-                },
-                {
-                    "key" : "db.type",
-                    "value": {
-                        "stringValue": "sql"
-                    }
-                },
-                {
-                    "key" : "db.statement",
-                    "value": {
-                        "stringValue": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
-                    }
-                },
-                {
-                    "key": "sentry.description",
-                    "value": {
-                        "stringValue": "index view query"
-                    }
-                }
-            ]
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "name": "database query",
+          "kind": 3,
+          "startTimeUnixNano": "1697620454980000000",
+          "endTimeUnixNano": "1697620454980078800",
+          "attributes": [
+            {
+              "key": "db.name",
+              "value": {
+                "stringValue": "database"
+              }
+            },
+            {
+              "key": "db.type",
+              "value": {
+                "stringValue": "sql"
+              }
+            },
+            {
+              "key": "db.statement",
+              "value": {
+                "stringValue": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+              }
+            },
+            {
+              "key": "sentry.description",
+              "value": {
+                "stringValue": "index view query"
+              }
+            }
+          ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.op, Annotated::new("database query".into()));
-        assert_eq!(
-            event_span.description,
-            Annotated::new("index view query".into())
-        );
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 0.0788,
-          "op": "database query",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "description": "index view query",
-          "data": {},
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "span_id": "e342abb1214ca181",
+          "name": "database query",
+          "kind": "client",
+          "start_timestamp": 1697620454.98,
+          "end_timestamp": 1697620454.980079,
           "links": [],
-          "kind": "client"
+          "attributes": {
+            "sentry.description": {
+              "type": "string",
+              "value": "index view query"
+            }
+          }
         }
         "###);
     }
@@ -461,211 +479,240 @@ mod tests {
     #[test]
     fn parse_span_with_http_attributes() {
         let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "name": "http client request",
-            "kind": 3,
-            "startTimeUnixNano": "1697620454980000000",
-            "endTimeUnixNano": "1697620454980078800",
-            "attributes": [
-                {
-                    "key" : "http.request.method",
-                    "value": {
-                        "stringValue": "GET"
-                    }
-                },
-                {
-                    "key" : "url.path",
-                    "value": {
-                        "stringValue": "/api/search?q=foobar"
-                    }
-                }
-            ]
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "name": "http client request",
+          "kind": 3,
+          "startTimeUnixNano": "1697620454980000000",
+          "endTimeUnixNano": "1697620454980078800",
+          "attributes": [
+            {
+              "key": "http.request.method",
+              "value": {
+                "stringValue": "GET"
+              }
+            },
+            {
+              "key": "url.path",
+              "value": {
+                "stringValue": "/api/search?q=foobar"
+              }
+            }
+          ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.op, Annotated::new("http client request".into()));
-        assert_eq!(
-            event_span.description,
-            Annotated::new("GET /api/search?q=foobar".into())
-        );
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 1697620454.980079,
-          "start_timestamp": 1697620454.98,
-          "exclusive_time": 0.0788,
-          "op": "http client request",
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "description": "GET /api/search?q=foobar",
-          "data": {},
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "span_id": "e342abb1214ca181",
+          "name": "http client request",
+          "kind": "client",
+          "start_timestamp": 1697620454.98,
+          "end_timestamp": 1697620454.980079,
           "links": [],
-          "kind": "client"
+          "attributes": {
+            "sentry.description": {
+              "type": "string",
+              "value": "GET /api/search?q=foobar"
+            }
+          }
         }
-        "###);
+"###);
     }
 
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
     #[test]
     fn parse_sentry_attributes() {
         let json = r#"{
-            "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
-            "spanId": "fa90fdead5f74052",
-            "parentSpanId": "fa90fdead5f74051",
-            "startTimeUnixNano": "123000000000",
-            "endTimeUnixNano": "123500000000",
-            "name": "myname",
-            "status": {"code": 0, "message": "foo"},
-            "attributes": [
-                {
-                    "key" : "browser.name",
-                    "value": {
-                        "stringValue": "Chrome"
-                    }
-                },
-                {
-                    "key" : "sentry.description",
-                    "value": {
-                        "stringValue": "mydescription"
-                    }
-                },
-                {
-                    "key" : "sentry.environment",
-                    "value": {
-                        "stringValue": "prod"
-                    }
-                },
-                {
-                    "key" : "sentry.op",
-                    "value": {
-                        "stringValue": "myop"
-                    }
-                },
-                {
-                    "key" : "sentry.platform",
-                    "value": {
-                        "stringValue": "php"
-                    }
-                },
-                {
-                    "key" : "sentry.profile.id",
-                    "value": {
-                        "stringValue": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
-                    }
-                },
-                {
-                    "key" : "sentry.release",
-                    "value": {
-                        "stringValue": "myapp@1.0.0"
-                    }
-                },
-                {
-                    "key" : "sentry.sdk.name",
-                    "value": {
-                        "stringValue": "sentry.php"
-                    }
-                },
-                {
-                    "key" : "sentry.segment.id",
-                    "value": {
-                        "stringValue": "FA90FDEAD5F74052"
-                    }
-                },
-                {
-                    "key" : "sentry.segment.name",
-                    "value": {
-                        "stringValue": "my 1st transaction"
-                    }
-                },
-                {
-                    "key": "sentry.metrics_summary.some_metric",
-                    "value": {
-                        "arrayValue": {
-                            "values": [
-                                {
-                                    "kvlistValue": {
-                                        "values": [
-                                            {
-                                                "key": "min",
-                                                "value": {
-                                                    "doubleValue": 1.0
-                                                }
-                                            },
-                                            {
-                                                "key": "max",
-                                                "value": {
-                                                    "doubleValue": 2.0
-                                                }
-                                            },
-                                            {
-                                                "key": "sum",
-                                                "value": {
-                                                    "doubleValue": 3.0
-                                                }
-                                            },
-                                            {
-                                                "key": "count",
-                                                "value": {
-                                                    "intValue": "2"
-                                                }
-                                            },
-                                            {
-                                                "key": "tags",
-                                                "value": {
-                                                    "kvlistValue": {
-                                                        "values": [
-                                                            {
-                                                                "key": "environment",
-                                                                "value": {
-                                                                    "stringValue": "test"
-                                                                }
-                                                            }
-                                                        ]
-                                                    }
-                                                }
-                                            }
-                                        ]
+          "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
+          "spanId": "fa90fdead5f74052",
+          "parentSpanId": "fa90fdead5f74051",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000",
+          "name": "myname",
+          "status": {
+            "code": 0,
+            "message": "foo"
+          },
+          "attributes": [
+            {
+              "key": "browser.name",
+              "value": {
+                "stringValue": "Chrome"
+              }
+            },
+            {
+              "key": "sentry.description",
+              "value": {
+                "stringValue": "mydescription"
+              }
+            },
+            {
+              "key": "sentry.environment",
+              "value": {
+                "stringValue": "prod"
+              }
+            },
+            {
+              "key": "sentry.op",
+              "value": {
+                "stringValue": "myop"
+              }
+            },
+            {
+              "key": "sentry.platform",
+              "value": {
+                "stringValue": "php"
+              }
+            },
+            {
+              "key": "sentry.profile.id",
+              "value": {
+                "stringValue": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
+              }
+            },
+            {
+              "key": "sentry.release",
+              "value": {
+                "stringValue": "myapp@1.0.0"
+              }
+            },
+            {
+              "key": "sentry.sdk.name",
+              "value": {
+                "stringValue": "sentry.php"
+              }
+            },
+            {
+              "key": "sentry.segment.id",
+              "value": {
+                "stringValue": "FA90FDEAD5F74052"
+              }
+            },
+            {
+              "key": "sentry.segment.name",
+              "value": {
+                "stringValue": "my 1st transaction"
+              }
+            },
+            {
+              "key": "sentry.metrics_summary.some_metric",
+              "value": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "kvlistValue": {
+                        "values": [
+                          {
+                            "key": "min",
+                            "value": {
+                              "doubleValue": 1
+                            }
+                          },
+                          {
+                            "key": "max",
+                            "value": {
+                              "doubleValue": 2
+                            }
+                          },
+                          {
+                            "key": "sum",
+                            "value": {
+                              "doubleValue": 3
+                            }
+                          },
+                          {
+                            "key": "count",
+                            "value": {
+                              "intValue": "2"
+                            }
+                          },
+                          {
+                            "key": "tags",
+                            "value": {
+                              "kvlistValue": {
+                                "values": [
+                                  {
+                                    "key": "environment",
+                                    "value": {
+                                      "stringValue": "test"
                                     }
-                                }
-                            ]
-                        }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
                     }
+                  ]
                 }
-            ]
+              }
+            }
+          ]
         }"#;
 
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span = otel_to_sentry_span(otel_span).unwrap();
 
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 123.5,
-          "start_timestamp": 123.0,
-          "exclusive_time": 500.0,
-          "op": "myname",
-          "span_id": "fa90fdead5f74052",
-          "parent_span_id": "fa90fdead5f74051",
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-          "segment_id": "fa90fdead5f74052",
+          "parent_span_id": "fa90fdead5f74051",
+          "span_id": "fa90fdead5f74052",
+          "name": "myname",
           "status": "ok",
-          "description": "mydescription",
-          "profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
-          "data": {
-            "browser.name": "Chrome",
-            "sentry.environment": "prod",
-            "sentry.release": "myapp@1.0.0",
-            "sentry.segment.name": "my 1st transaction",
-            "sentry.sdk.name": "sentry.php",
-            "sentry.op": "myop"
-          },
+          "kind": "unspecified",
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
           "links": [],
-          "platform": "php",
-          "kind": "unspecified"
+          "attributes": {
+            "browser.name": {
+              "type": "string",
+              "value": "Chrome"
+            },
+            "sentry.description": {
+              "type": "string",
+              "value": "mydescription"
+            },
+            "sentry.environment": {
+              "type": "string",
+              "value": "prod"
+            },
+            "sentry.op": {
+              "type": "string",
+              "value": "myop"
+            },
+            "sentry.platform": {
+              "type": "string",
+              "value": "php"
+            },
+            "sentry.profile.id": {
+              "type": "string",
+              "value": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
+            },
+            "sentry.release": {
+              "type": "string",
+              "value": "myapp@1.0.0"
+            },
+            "sentry.sdk.name": {
+              "type": "string",
+              "value": "sentry.php"
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "FA90FDEAD5F74052"
+            },
+            "sentry.segment.name": {
+              "type": "string",
+              "value": "my 1st transaction"
+            }
+          }
         }
         "###);
     }
@@ -673,208 +720,162 @@ mod tests {
     #[test]
     fn parse_span_is_remote() {
         let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "startTimeUnixNano": "123000000000",
-            "endTimeUnixNano": "123500000000",
-            "flags": 768
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000",
+          "flags": 768
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.is_remote, Annotated::new(true));
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 123.5,
-          "start_timestamp": 123.0,
-          "exclusive_time": 500.0,
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "span_id": "e342abb1214ca181",
           "is_remote": true,
-          "status": "unknown",
-          "data": {},
+          "kind": "unspecified",
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
           "links": [],
-          "kind": "unspecified"
+          "attributes": {}
         }
-        "###);
+"###);
     }
 
     #[test]
     fn parse_span_is_not_remote() {
         let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "startTimeUnixNano": "123000000000",
-            "endTimeUnixNano": "123500000000",
-            "flags": 256
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000",
+          "flags": 256
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.is_remote, Annotated::new(false));
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 123.5,
-          "start_timestamp": 123.0,
-          "exclusive_time": 500.0,
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "span_id": "e342abb1214ca181",
           "is_remote": false,
-          "status": "unknown",
-          "data": {},
+          "kind": "unspecified",
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
           "links": [],
-          "kind": "unspecified"
+          "attributes": {}
         }
-        "###);
+"###);
     }
 
     #[test]
     fn extract_span_kind() {
         let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "startTimeUnixNano": "123000000000",
-            "endTimeUnixNano": "123500000000",
-            "kind": 3
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "parentSpanId": "0c7a7dea069bf5a6",
+          "startTimeUnixNano": "123000000000",
+          "endTimeUnixNano": "123500000000",
+          "kind": 3
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        let kind = event_span.kind.value().expect("kind should be set");
-        assert_eq!(kind, &SpanKind::Client);
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 123.5,
-          "start_timestamp": 123.0,
-          "exclusive_time": 500.0,
-          "span_id": "e342abb1214ca181",
-          "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "unknown",
-          "data": {},
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "span_id": "e342abb1214ca181",
+          "kind": "client",
+          "start_timestamp": 123.0,
+          "end_timestamp": 123.5,
           "links": [],
-          "kind": "client"
+          "attributes": {}
         }
-        "###);
-    }
-
-    #[test]
-    fn uppercase_span_id() {
-        let input = OtelValue::StringValue("FA90FDEAD5F74052".to_owned());
-        assert_eq!(
-            otel_value_to_span_id(input).as_deref(),
-            Some("fa90fdead5f74052")
-        );
+"###);
     }
 
     #[test]
     fn parse_link() {
         let json = r#"{
-            "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
-            "links": [
+          "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
+          "links": [
+            {
+              "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
+              "spanId": "fa90fdead5f74052",
+              "attributes": [
                 {
-                    "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "spanId": "fa90fdead5f74052",
-                    "attributes": [
-                        {
-                            "key": "str_key",
-                            "value": {
-                                "stringValue": "str_value"
-                            }
-                        },
-                        {
-                            "key": "bool_key",
-                            "value": {
-                                "boolValue": true
-                            }
-                        },
-                        {
-                            "key": "int_key",
-                            "value": {
-                                "intValue": "123"
-                            }
-                        },
-                        {
-                            "key": "double_key",
-                            "value": {
-                                "doubleValue": 1.23
-                            }
-                        }
-                    ],
-                    "flags": 1
+                  "key": "str_key",
+                  "value": {
+                    "stringValue": "str_value"
+                  }
+                },
+                {
+                  "key": "bool_key",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "int_key",
+                  "value": {
+                    "intValue": "123"
+                  }
+                },
+                {
+                  "key": "double_key",
+                  "value": {
+                    "doubleValue": 1.23
+                  }
                 }
-            ]
+              ],
+              "flags": 1
+            }
+          ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<SentrySpanV2> = Annotated::new(event_span);
 
-        assert_eq!(
-            get_path!(annotated_span.trace_id),
-            Some(&Annotated::new(
-                "3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
-            ))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].trace_id),
-            Some(&Annotated::new(
-                "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
-            ))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].span_id),
-            Some(&Annotated::new(SpanId("fa90fdead5f74052".into())))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["str_key"]),
-            Some(&Annotated::new(Value::String("str_value".into())))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["bool_key"]),
-            Some(&Annotated::new(Value::Bool(true)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["int_key"]),
-            Some(&Annotated::new(Value::I64(123)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["double_key"]),
-            Some(&Annotated::new(Value::F64(1.23)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].sampled),
-            Some(&Annotated::new(true))
-        );
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
-          "timestamp": 0.0,
-          "start_timestamp": 0.0,
-          "exclusive_time": 0.0,
-          "span_id": "",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
-          "status": "unknown",
-          "data": {},
+          "span_id": "",
+          "kind": "unspecified",
+          "start_timestamp": 0.0,
+          "end_timestamp": 0.0,
           "links": [
             {
               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
               "span_id": "fa90fdead5f74052",
               "sampled": true,
               "attributes": {
-                "bool_key": true,
-                "double_key": 1.23,
-                "int_key": 123,
-                "str_key": "str_value"
+                "bool_key": {
+                  "type": "boolean",
+                  "value": true
+                },
+                "double_key": {
+                  "type": "double",
+                  "value": 1.23
+                },
+                "int_key": {
+                  "type": "integer",
+                  "value": 123
+                },
+                "str_key": {
+                  "type": "string",
+                  "value": "str_value"
+                }
               }
             }
           ],
-          "kind": "unspecified"
+          "attributes": {}
         }
         "###);
     }
 }
-*/

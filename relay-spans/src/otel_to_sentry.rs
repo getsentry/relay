@@ -4,7 +4,22 @@ use crate::v2_to_v1;
 use relay_event_schema::protocol::Span as EventSpan;
 use relay_protocol::Error;
 
-/// Transform an OtelSpan to a Sentry span.
+/// Transforms an OTEL span to a Sentry span.
+///
+/// This uses attributes in the OTEL span to populate various fields in the Sentry span.
+/// * The Sentry span's `name` field may be set based on `db` or `http` attributes
+///   if the OTEL span's `name` is empty.
+/// * The Sentry span's `description` field may be set based on `db` or `http` attributes
+///   if the OTEL span's `sentry.description` attribute is empty.
+/// * The Sentry span's `status` field is set based on the OTEL span's `status` field and
+///   `http.status_code` and `rpc.grpc.status_code` attributes.
+/// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
+///   attribute, or the difference between the start and end timestamp if that attribute is not set.
+/// * The Sentry span's `platform` field is set based on the OTEL span's `sentry.platform` attribute.
+/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile.id` attribute.
+/// * The Sentry span's `segment_id` field is set based on the OTEL span's `sentry.segment.id` attribute.
+///
+/// All other attributes are carried over from the OTEL span to the Sentry span's `data`.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpan, Error> {
     let span_v2 = otel_to_sentry_v2::otel_to_sentry_span(otel_span)?;
     Ok(v2_to_v1::span_v2_to_span_v1(span_v2))
