@@ -84,11 +84,32 @@ impl EqCondition {
                 .iter()
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
-            (Some(Val::Uuid(f)), Value::String(val)) => Some(f) == val.parse().ok(),
+            (Some(Val::Bytes(f)), Value::String(val)) => match_bytes_string(f, val),
+            (Some(Val::Uuid(f)), Value::String(val)) => Ok(f) == val.parse(),
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
             _ => false,
         }
     }
+}
+
+/// Checks whether the given slice of bytes is equal to
+/// the hex decoding of the given string.
+fn match_bytes_string(bytes: &[u8], string: &str) -> bool {
+    if string.len() != 2 * bytes.len() {
+        return false;
+    }
+
+    for (i, &b) in bytes.iter().enumerate() {
+        if string
+            .get(2 * i..2 * i + 1)
+            .and_then(|slice| u8::from_str_radix(slice, 16).ok())
+            != Some(b)
+        {
+            return false;
+        }
+    }
+
+    true
 }
 
 /// Returns `true` if this value is equal to `Default::default()`.
