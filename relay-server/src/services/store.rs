@@ -776,7 +776,7 @@ impl StoreService {
 
         // If the recording payload can not fit in to the message do not produce and quit early.
         if payload_size >= max_payload_size {
-            relay_log::warn!("replay_recording over maximum size.");
+            relay_log::debug!("replay_recording over maximum size.");
             self.outcome_aggregator.send(TrackOutcome {
                 category: DataCategory::Replay,
                 event_id,

@@ -6,6 +6,10 @@
 
 - Allow environment references in Relay configuration. ([#4750](https://github.com/getsentry/relay/pull/4750))
 
+**Internal**:
+
+- Reduce warning logs, emit warnings to the configured Sentry instance. ([#4753](https://github.com/getsentry/relay/pull/4753))
+
 ## 25.5.0
 
 **Features**:

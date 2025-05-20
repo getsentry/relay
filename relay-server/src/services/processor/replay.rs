@@ -168,7 +168,7 @@ fn handle_replay_event_item(
             }
         }
         Err(error) => {
-            relay_log::warn!(
+            relay_log::debug!(
                 error = &error as &dyn Error,
                 event_id = ?config.event_id,
                 project_id = config.project_id.map(|v| v.value()),
