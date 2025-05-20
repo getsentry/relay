@@ -82,10 +82,29 @@ const MAX_PROFILE_CHUNK_DURATION: Duration = Duration::from_secs(66);
 /// Same format as event IDs.
 pub type ProfileId = EventId;
 
-#[derive(Debug, Clone, Copy)]
+/// Determines the type/use of a [`ProfileChunk`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProfileType {
+    /// A backend profile.
     Backend,
+    /// A UI profile.
     Ui,
+}
+
+impl ProfileType {
+    /// Converts a platform to a [`ProfileType`].
+    ///
+    /// The profile type is currently determined based on the contained profile
+    /// platform. It determines the data category this profile chunk belongs to.
+    ///
+    /// This needs to be synchronized with the implementation in Sentry:
+    /// <https://github.com/getsentry/sentry/blob/ed2e1c8bcd0d633e6f828fcfbeefbbdd98ef3dba/src/sentry/profiles/task.py#L995>
+    pub fn from_platform(platform: &str) -> Self {
+        match platform {
+            "cocoa" | "android" | "javascript" => Self::Ui,
+            _ => Self::Backend,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -307,16 +326,9 @@ impl ProfileChunk {
 
     /// Returns the [`ProfileType`] this chunk belongs to.
     ///
-    /// The profile type is currently determined based on the contained profile
-    /// platform. It determines the data category this profile chunk belongs to.
-    ///
-    /// This needs to be synchronized with the implementation in Sentry:
-    /// <https://github.com/getsentry/sentry/blob/ed2e1c8bcd0d633e6f828fcfbeefbbdd98ef3dba/src/sentry/profiles/task.py#L995>
+    /// This is currently determined from the platform via [`ProfileType::from_platform`].
     pub fn profile_type(&self) -> ProfileType {
-        match self.profile.platform.as_str() {
-            "cocoa" | "android" | "javascript" => ProfileType::Ui,
-            _ => ProfileType::Backend,
-        }
+        ProfileType::from_platform(&self.profile.platform)
     }
 
     /// Applies inbound filters to the profile chunk.
@@ -375,39 +387,45 @@ mod tests {
     #[test]
     fn test_expand_profile_with_version() {
         let payload = include_bytes!("../tests/fixtures/sample/v1/valid.json");
-        assert!(expand_profile(
-            payload,
-            &Event::default(),
-            None,
-            &ProjectFiltersConfig::default(),
-            &GlobalConfig::default()
-        )
-        .is_ok());
+        assert!(
+            expand_profile(
+                payload,
+                &Event::default(),
+                None,
+                &ProjectFiltersConfig::default(),
+                &GlobalConfig::default()
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn test_expand_profile_with_version_and_segment_id() {
         let payload = include_bytes!("../tests/fixtures/sample/v1/segment_id.json");
-        assert!(expand_profile(
-            payload,
-            &Event::default(),
-            None,
-            &ProjectFiltersConfig::default(),
-            &GlobalConfig::default()
-        )
-        .is_ok());
+        assert!(
+            expand_profile(
+                payload,
+                &Event::default(),
+                None,
+                &ProjectFiltersConfig::default(),
+                &GlobalConfig::default()
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn test_expand_profile_without_version() {
         let payload = include_bytes!("../tests/fixtures/android/legacy/roundtrip.json");
-        assert!(expand_profile(
-            payload,
-            &Event::default(),
-            None,
-            &ProjectFiltersConfig::default(),
-            &GlobalConfig::default()
-        )
-        .is_ok());
+        assert!(
+            expand_profile(
+                payload,
+                &Event::default(),
+                None,
+                &ProjectFiltersConfig::default(),
+                &GlobalConfig::default()
+            )
+            .is_ok()
+        );
     }
 }

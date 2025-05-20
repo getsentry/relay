@@ -23,6 +23,7 @@ from .fixtures.processing import (  # noqa
     get_topic_name,
     processing_config,
     relay_with_processing,
+    relay_with_playstation,
     consumer_fixture,
     events_consumer,
     outcomes_consumer,

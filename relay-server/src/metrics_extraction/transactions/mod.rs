@@ -13,12 +13,12 @@ use relay_event_schema::protocol::{
 use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 use relay_sampling::evaluation::SamplingDecision;
 
+use crate::metrics_extraction::IntoMetric;
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
     TransactionMeasurementTags, TransactionMetric,
 };
-use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
 use crate::utils;
 
@@ -494,9 +494,10 @@ mod tests {
         AcceptTransactionNames, CombinedMetricExtractionConfig, MetricExtractionConfig, TagMapping,
     };
     use relay_event_normalization::{
-        normalize_event, set_default_transaction_source, validate_event, BreakdownsConfig,
-        CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
-        PerformanceScoreConfig, PerformanceScoreProfile, PerformanceScoreWeightedComponent,
+        BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig,
+        NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
+        PerformanceScoreWeightedComponent, normalize_event, set_default_transaction_source,
+        validate_event,
     };
     use relay_metrics::BucketValue;
     use relay_protocol::{Annotated, RuleCondition};
@@ -552,8 +553,8 @@ mod tests {
                 {
                     "description": "<OrganizationContext>",
                     "op": "react.mount",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bd429c44b67a3eb4",
+                    "parent_span_id": "bd429c44b67a3eb4",
+                    "span_id": "8f5a2b8768cafb4e",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
@@ -616,7 +617,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r###"
+        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r#"
         [
             Span {
                 timestamp: Timestamp(
@@ -628,14 +629,12 @@ mod tests {
                 exclusive_time: 2000.0,
                 op: "react.mount",
                 span_id: SpanId(
-                    "bd429c44b67a3eb4",
-                ),
-                parent_span_id: SpanId(
                     "8f5a2b8768cafb4e",
                 ),
-                trace_id: TraceId(
-                    "ff62a8b040f340bda5d830223def1d81",
+                parent_span_id: SpanId(
+                    "bd429c44b67a3eb4",
                 ),
+                trace_id: TraceId("ff62a8b040f340bda5d830223def1d81"),
                 segment_id: ~,
                 is_segment: ~,
                 is_remote: ~,
@@ -652,10 +651,11 @@ mod tests {
                 platform: ~,
                 was_transaction: ~,
                 kind: ~,
+                _performance_issues_spans: ~,
                 other: {},
             },
         ]
-        "###);
+        "#);
 
         insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [

@@ -1,9 +1,9 @@
 use std::fs;
 
 use relay_event_normalization::{
-    normalize_event, validate_event, EventValidationConfig, NormalizationConfig,
+    EventValidationConfig, NormalizationConfig, normalize_event, validate_event,
 };
-use relay_event_schema::processor::{process_value, ProcessingState};
+use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::Event;
 use relay_pii::{PiiConfig, PiiProcessor};
 use relay_protocol::{Annotated, SerializableAnnotated};

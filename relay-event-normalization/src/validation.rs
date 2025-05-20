@@ -58,7 +58,7 @@ pub fn validate_event(
         return Ok(());
     }
 
-    let Annotated(Some(ref mut event), ref mut meta) = event else {
+    let Annotated(Some(event), meta) = event else {
         return Ok(());
     };
 
@@ -315,8 +315,8 @@ fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
 mod tests {
     use chrono::TimeZone;
     use relay_base_schema::spans::SpanStatus;
-    use relay_event_schema::protocol::{Contexts, SpanId, TraceId};
-    use relay_protocol::{get_value, Object};
+    use relay_event_schema::protocol::{Contexts, SpanId};
+    use relay_protocol::{Object, get_value};
 
     use super::*;
 
@@ -331,7 +331,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -341,7 +341,7 @@ mod tests {
             spans: Annotated::new(vec![Annotated::new(Span {
                 start_timestamp: Annotated::new(start.into()),
                 timestamp: Annotated::new(end.into()),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                 op: Annotated::new("db.statement".to_owned()),
                 ..Default::default()
@@ -505,7 +505,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -532,7 +532,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -562,7 +562,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -597,7 +597,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -635,7 +635,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -649,7 +649,7 @@ mod tests {
                 start_timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
                 ),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 ..Default::default()
             })]),
             ..Default::default()
@@ -826,14 +826,16 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         assert!(validate_event(&mut event, &EventValidationConfig::default()).is_err());
-        assert!(validate_event(
-            &mut event,
-            &EventValidationConfig {
-                is_validated: true,
-                ..Default::default()
-            }
-        )
-        .is_ok());
+        assert!(
+            validate_event(
+                &mut event,
+                &EventValidationConfig {
+                    is_validated: true,
+                    ..Default::default()
+                }
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -847,13 +849,15 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         assert!(validate_event(&mut event, &EventValidationConfig::default()).is_err());
-        assert!(validate_event(
-            &mut event,
-            &EventValidationConfig {
-                is_validated: true,
-                ..Default::default()
-            }
-        )
-        .is_ok());
+        assert!(
+            validate_event(
+                &mut event,
+                &EventValidationConfig {
+                    is_validated: true,
+                    ..Default::default()
+                }
+            )
+            .is_ok()
+        );
     }
 }

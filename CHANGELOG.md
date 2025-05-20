@@ -1,6 +1,31 @@
 # Changelog
 
-## Unreleased
+## 25.5.0
+
+**Features**:
+
+- Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
+- Add the type of the attachment that made the envelope too large to invalid outcomes. ([#4695](https://github.com/getsentry/relay/pull/4695))
+- Add OTA Updates Event Context for Expo and other applications. ([#4690](https://github.com/getsentry/relay/pull/4690))
+- Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))
+- Allow pii scrubbing of all span `sentry_tags` fields. ([#4698](https://github.com/getsentry/relay/pull/4698))
+- Add experimental playstation processing logic. ([#4680](https://github.com/getsentry/relay/pull/4680))
+- Add OTA Updates Event Context for Replay Events. ([#4711](https://github.com/getsentry/relay/pull/4711))
+- Add partition key rate limiter. ([#4730](https://github.com/getsentry/relay/pull/4730))
+
+**Bug Fixes**:
+
+- Add `fenced-frame-src` to `CspDirective`. ([#4691](https://github.com/getsentry/relay/pull/4691))
+
+**Internal**:
+
+- Remove threads with 1 non-idle sample in profiling chunks. ([#4694](https://github.com/getsentry/relay/pull/4694))
+- Migrate all Rust workspace crates to edition 2024. ([#4705](https://github.com/getsentry/relay/pull/4705))
+- Produce logs to the items topic. ([#4707](https://github.com/getsentry/relay/pull/4707))
+
+## 25.4.0
+
+- Extract searchable context fields into sentry tags for segment spans. ([#4651](https://github.com/getsentry/relay/pull/4651))
 
 **Features**:
 
@@ -8,11 +33,19 @@
 - Add naver.me / Yeti spider on the crawler filter list. ([#4602](https://github.com/getsentry/relay/pull/4602))
 - Add the item type that made the envelope too large to invalid outcomes. ([#4558](https://github.com/getsentry/relay/pull/4558))
 - Filter out certain AI crawlers. ([#4608](https://github.com/getsentry/relay/pull/4608))
+- Update iOS chrome translation error regex. ([#4634](https://github.com/getsentry/relay/pull/4634))
+- Infer the attachment type of view hierarchy items in multipart messages. ([#4624](https://github.com/getsentry/relay/pull/4624))
+- Make default Apple device class high. ([#4609](https://github.com/getsentry/relay/pull/4609))
 
 **Bug Fixes**:
 
 - Separates profiles into backend and ui profiles. ([#4595](https://github.com/getsentry/relay/pull/4595))
 - Normalize trace context information before writing it into transaction and span data. This ensures the correct sampling rates are stored for extrapolation in Sentry. ([#4625](https://github.com/getsentry/relay/pull/4625))
+- Adds u16 validation to the replay protocol's segment_id field. ([#4635](https://github.com/getsentry/relay/pull/4635))
+- Exposes all service utilization with instance labels instead of the last. ([#4654](https://github.com/getsentry/relay/pull/4654))
+- Ensure that every span's parent exists. ([#4661](https://github.com/getsentry/relay/pull/4661))
+- Serialize trace ids consistently in events. ([#4673](https://github.com/getsentry/relay/pull/4673))
+- Add profile_chunk_ui as item type alias. ([#4697](https://github.com/getsentry/relay/pull/4697))
 
 **Internal**:
 
@@ -26,6 +59,15 @@
 - Bump the revision of `sysinfo` to the revision at `15b3be3273ba286740122fed7bb7dccd2a79dc8f`. ([#4613](https://github.com/getsentry/relay/pull/4613))
 - Switch the processor and store to `async`. ([#4552](https://github.com/getsentry/relay/pull/4552))
 - Validate the spooling memory configuration on startup. ([#4617](https://github.com/getsentry/relay/pull/4617))
+- Rework currently unused 'log' protocol / envelope item type schema. ([#4592](https://github.com/getsentry/relay/pull/4592))
+- Improve descriptiveness of autoscaling metric name. ([#4629](https://github.com/getsentry/relay/pull/4629))
+- Serialize span's `_meta` information when producing to Kafka. ([#4646](https://github.com/getsentry/relay/pull/4646))
+- Enable connection pooling for asynchronous Redis connections. ([#4622](https://github.com/getsentry/relay/pull/4622))
+- Add the internal `_performance_issues_spans` field to control perf issue detection. ([#4652](https://github.com/getsentry/relay/pull/4652))
+- Add `/v1/traces` (without a trailing slash) as a spec-compliant alternative for our OTLP traces endpoint. ([#4655](https://github.com/getsentry/relay/pull/4655))
+- Improve handling of failed Redis connections. ([#4657](https://github.com/getsentry/relay/pull/4657))
+- Expose new metrics from the async pool. ([#4658](https://github.com/getsentry/relay/pull/4658))
+- Serialize span's `links` information when producing to Kafka. ([#4601](https://github.com/getsentry/relay/pull/4601))
 
 ## 25.3.0
 
@@ -40,6 +82,7 @@
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 - Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
 - Improve localhost detection by checking contained request headers in the error. ([#4580](https://github.com/getsentry/relay/pull/4580))
+- Introduce SDK settings structure with `infer_ip` setting to explicitly control IP inference behaviour. ([#4623](https://github.com/getsentry/relay/pull/4623))
 
 **Bug Fixes**:
 
@@ -470,6 +513,7 @@
 - Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
 - Add support for `CF-Connecting-IP` header. ([#3496](https://github.com/getsentry/relay/pull/3496))
 - Add `received_at` timestamp to `BucketMetadata` to measure the oldest received timestamp of the `Bucket`. ([#3488](https://github.com/getsentry/relay/pull/3488))
+- Properly identify meta web crawlers when filtering out web crawlers. ([#4699](https://github.com/getsentry/relay/pull/4699))
 
 **Internal**:
 

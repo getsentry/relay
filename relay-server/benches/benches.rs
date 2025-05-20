@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use chrono::Utc;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use relay_config::Config;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
@@ -62,8 +62,7 @@ fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<E
          {{\"type\":\"attachment\"}}\n\
          {}\n\
          ",
-        project_key,
-        payload
+        project_key, payload
     ));
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();

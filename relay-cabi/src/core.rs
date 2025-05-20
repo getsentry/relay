@@ -48,7 +48,7 @@ impl RelayStr {
     /// Frees the string buffer if it is owned.
     pub(crate) unsafe fn free(&mut self) {
         if self.owned {
-            String::from_raw_parts(self.data as *mut _, self.len, self.len);
+            drop(unsafe { String::from_raw_parts(self.data as *mut _, self.len, self.len) });
             self.data = ptr::null_mut();
             self.len = 0;
             self.owned = false;
@@ -57,7 +57,7 @@ impl RelayStr {
 
     /// Returns a borrowed string.
     pub(crate) unsafe fn as_str(&self) -> &str {
-        str::from_utf8_unchecked(slice::from_raw_parts(self.data as *const _, self.len))
+        unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.data as *const _, self.len)) }
     }
 }
 
@@ -88,10 +88,10 @@ impl From<&str> for RelayStr {
 }
 
 /// Creates a Relay string from a c string.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_str_from_cstr(s: *const c_char) -> RelayStr {
-    let s = CStr::from_ptr(s).to_str()?;
+    let s = unsafe { CStr::from_ptr(s) }.to_str()?;
     RelayStr {
         data: s.as_ptr() as *mut _,
         len: s.len(),
@@ -103,11 +103,11 @@ pub unsafe extern "C" fn relay_str_from_cstr(s: *const c_char) -> RelayStr {
 ///
 /// If the string is marked as not owned then this function does not
 /// do anything.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_str_free(s: *mut RelayStr) {
     if !s.is_null() {
-        (*s).free()
+        unsafe { (*s).free() }
     }
 }
 
@@ -132,10 +132,10 @@ impl From<Uuid> for RelayUuid {
 }
 
 /// Returns true if the uuid is nil.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_uuid_is_nil(uuid: *const RelayUuid) -> bool {
-    if let Ok(uuid) = Uuid::from_slice(&(*uuid).data[..]) {
+    if let Ok(uuid) = Uuid::from_slice(unsafe { &(*uuid).data[..] }) {
         uuid == Uuid::nil()
     } else {
         false
@@ -146,10 +146,10 @@ pub unsafe extern "C" fn relay_uuid_is_nil(uuid: *const RelayUuid) -> bool {
 ///
 /// The string is newly allocated and needs to be released with
 /// `relay_cstr_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_uuid_to_str(uuid: *const RelayUuid) -> RelayStr {
-    let uuid = Uuid::from_slice(&(*uuid).data[..]).unwrap_or_else(|_| Uuid::nil());
+    let uuid = Uuid::from_slice(unsafe { &(*uuid).data[..] }).unwrap_or_else(|_| Uuid::nil());
     RelayStr::from_string(uuid.as_hyphenated().to_string())
 }
 
@@ -173,7 +173,7 @@ pub struct RelayBuf {
 impl RelayBuf {
     pub(crate) unsafe fn free(&mut self) {
         if self.owned {
-            Vec::from_raw_parts(self.data, self.len, self.len);
+            drop(unsafe { Vec::from_raw_parts(self.data, self.len, self.len) });
             self.data = ptr::null_mut();
             self.len = 0;
             self.owned = false;
@@ -181,7 +181,7 @@ impl RelayBuf {
     }
 
     pub(crate) unsafe fn as_bytes(&self) -> &[u8] {
-        slice::from_raw_parts(self.data as *const u8, self.len)
+        unsafe { slice::from_raw_parts(self.data as *const u8, self.len) }
     }
 }
 
@@ -199,10 +199,10 @@ impl Default for RelayBuf {
 ///
 /// If the buffer is marked as not owned then this function does not
 /// do anything.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_buf_free(b: *mut RelayBuf) {
     if !b.is_null() {
-        (*b).free()
+        unsafe { (*b).free() }
     }
 }

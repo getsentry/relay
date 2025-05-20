@@ -8,11 +8,11 @@ use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    dynamic_sampling, event_type, EventMetricsExtracted, ProcessingError,
-    ProcessingExtractedMetrics, SpanGroup, SpansExtracted, TransactionGroup,
+    EventMetricsExtracted, ProcessingError, ProcessingExtractedMetrics, SpanGroup, SpansExtracted,
+    TransactionGroup, dynamic_sampling, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
+use crate::utils::{ItemAction, ManagedEnvelope, TypedEnvelope, sample};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -22,13 +22,13 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use relay_event_normalization::{
-    normalize_measurements, normalize_performance_score, normalize_transaction_name,
-    span::tag_extraction, validate_span, BorrowedSpanOpDefaults, ClientHints,
-    CombinedMeasurementsConfig, FromUserAgentInfo, GeoIpLookup, MeasurementsConfig, ModelCosts,
-    PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor, TimestampProcessor,
-    TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
+    BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
+    GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
+    SchemaProcessor, TimestampProcessor, TransactionNameRule, TransactionsProcessor,
+    TrimmingProcessor, normalize_measurements, normalize_performance_score,
+    normalize_transaction_name, span::tag_extraction, validate_span,
 };
-use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::{ProcessingAction, ProcessingState, process_value};
 use relay_event_schema::protocol::{
     BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
@@ -97,7 +97,13 @@ pub async fn process(
     managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
+                Ok(otel_span) => match relay_spans::otel_to_sentry_span(otel_span) {
+                    Ok(span) => Annotated::new(span),
+                    Err(err) => {
+                        relay_log::debug!("failed to convert OTel span to Sentry span: {:?}", err);
+                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
+                    }
+                },
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
@@ -232,16 +238,6 @@ pub async fn process(
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
-        new_item.set_ingest_span_in_eap(
-            project_info
-                .config
-                .features
-                .has(Feature::IngestSpansInEapForOrganization)
-                || project_info
-                    .config
-                    .features
-                    .has(Feature::IngestSpansInEapForProject),
-        );
 
         *item = new_item;
 
@@ -283,7 +279,6 @@ pub fn extract_from_event(
     event: &Annotated<Event>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
     server_sample_rate: Option<f64>,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -307,14 +302,6 @@ pub fn extract_from_event(
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
-    let ingest_in_eap = project_info
-        .config
-        .features
-        .has(Feature::IngestSpansInEapForOrganization)
-        || project_info
-            .config
-            .features
-            .has(Feature::IngestSpansInEapForProject);
 
     let mut add_span = |mut span: Span| {
         add_sample_rate(
@@ -366,7 +353,6 @@ pub fn extract_from_event(
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(event_metrics_extracted.0);
-        item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
         managed_envelope.envelope_mut().add_item(item);
@@ -754,13 +740,13 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
         .as_mut()
         .ok_or(anyhow::anyhow!("empty span"))?;
     let Span {
-        ref exclusive_time,
-        ref mut tags,
-        ref mut sentry_tags,
-        ref mut start_timestamp,
-        ref mut timestamp,
-        ref mut span_id,
-        ref mut trace_id,
+        exclusive_time,
+        tags,
+        sentry_tags,
+        start_timestamp,
+        timestamp,
+        span_id,
+        trace_id,
         ..
     } = inner;
 
@@ -827,7 +813,7 @@ mod tests {
     use bytes::Bytes;
     use once_cell::sync::Lazy;
     use relay_event_schema::protocol::{
-        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
+        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext,
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
@@ -869,7 +855,7 @@ mod tests {
             contexts: Contexts(BTreeMap::from([(
                 "trace".into(),
                 ContextInner(Context::Trace(Box::new(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     exclusive_time: 1000.0.into(),
                     ..Default::default()
@@ -899,13 +885,12 @@ mod tests {
         let global_config = GlobalConfig::default();
         let config = Arc::new(Config::default());
         assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -925,13 +910,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -951,13 +935,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params();
+        let (mut managed_envelope, event, _) = params();
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -977,13 +960,12 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
         let config = Arc::new(Config::default());
-        let (mut managed_envelope, event, project_info) = params(); // client sample rate is 0.2
+        let (mut managed_envelope, event, _) = params(); // client sample rate is 0.2
         extract_from_event(
             &mut managed_envelope,
             &event,
             &global_config,
             config,
-            project_info,
             Some(0.1),
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -1193,7 +1175,9 @@ mod tests {
             .unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
-            Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
+            Some(
+                "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)",
+            ),
             ClientHints::default(),
         );
         assert_eq!(
@@ -1208,7 +1192,9 @@ mod tests {
         let mut span: Annotated<Span> = Annotated::from_json(r#"{}"#).unwrap();
         populate_ua_fields(
             span.value_mut().as_mut().unwrap(),
-            Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
+            Some(
+                "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)",
+            ),
             ClientHints::default(),
         );
         assert_eq!(

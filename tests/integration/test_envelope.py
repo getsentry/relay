@@ -478,3 +478,41 @@ def test_buffer_envelopes_without_global_config(
         envelopes.append(events_consumer.get_event(timeout=2))
     events_consumer.assert_empty()
     assert len(envelopes) == envelope_qty
+
+
+def test_sample_rate_propagates_across_orgs(
+    mini_sentry,
+    relay,
+):
+    relay = relay(mini_sentry)
+
+    upstream_project_config = mini_sentry.add_full_project_config(
+        43, extra={"organizationId": 2}
+    )
+    upstream_public_key = upstream_project_config["publicKeys"][0]["publicKey"]
+
+    downstream_project_id = 42
+    downstream_project_config = mini_sentry.add_full_project_config(
+        downstream_project_id
+    )
+    downstream_public_key = downstream_project_config["publicKeys"][0]["publicKey"]
+
+    transaction_item = generate_transaction_item()
+    dsc = {
+        "trace_id": transaction_item["contexts"]["trace"]["trace_id"],
+        "public_key": upstream_public_key,
+        "sample_rate": 0.1,
+        "transaction": "upstream_transaction_name",
+        "environment": "production",
+    }
+    envelope = Envelope(headers={"trace": dsc})
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(downstream_project_id, envelope)
+
+    dsc = mini_sentry.captured_events.get(timeout=2).headers["trace"]
+
+    # Because the organization IDs mismatch, the DSC should be regenerated
+    assert dsc["public_key"] == downstream_public_key
+    assert dsc["transaction"] == transaction_item["transaction"]
+    # But, the given sample rate should be respected
+    assert dsc["sample_rate"] == "0.1"

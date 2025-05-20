@@ -4,8 +4,8 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Threading code that is used by Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.3.0"
-edition = "2021"
+version = "25.5.0"
+edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
 
@@ -15,7 +15,7 @@ futures = { workspace = true }
 tokio = { workspace = true }
 pin-project-lite = { workspace = true }
 
-relay-statsd = { workspace = true }
+relay-system = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }

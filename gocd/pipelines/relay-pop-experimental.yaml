@@ -41,8 +41,12 @@ pipelines:
                     ${GO_REVISION_RELAY_REPO} \
                     "Integration Tests" \
                     "Test All Features (ubuntu-latest)" \
-                    "Publish Relay to GCR (relay)" \
-                    "Publish Relay to GCR (relay-pop)"
+                    "Publish Relay to Internal AR (relay)" \
+                    "Publish Relay to Internal AR (relay-pop)" \
+                    "Upload build artifacts to gocd (relay, linux/amd64)" \
+                    "Upload build artifacts to gocd (relay, linux/arm64)" \
+                    "Upload build artifacts to gocd (relay-pop, linux/amd64)" \
+                    "Upload build artifacts to gocd (relay-pop, linux/arm64)" \
 
       - deploy-experimental:
           approval:
@@ -73,5 +77,5 @@ pipelines:
                     /devinfra/scripts/k8s/k8stunnel \
                     && /devinfra/scripts/k8s/k8s-deploy.py \
                     --label-selector="service=relay-pop,env=canary" \
-                    --image="us-central1-docker.pkg.dev/sentryio/relay/relay-pop:${GO_REVISION_RELAY_REPO}" \
+                    --image="us-central1-docker.pkg.dev/internal-sentry/relay/relay-pop:${GO_REVISION_RELAY_REPO}" \
                     --container-name="relay"

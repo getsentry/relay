@@ -4,8 +4,8 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "High-level StatsD metric client for internal measurements"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.3.0"
-edition = "2021"
+version = "25.5.0"
+edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
 

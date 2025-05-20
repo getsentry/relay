@@ -8,13 +8,13 @@ use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_event_schema::protocol::SpanKind;
 
 use crate::otel_trace::{
-    status::StatusCode as OtelStatusCode, Span as OtelSpan, SpanFlags as OtelSpanFlags,
+    Span as OtelSpan, SpanFlags as OtelSpanFlags, status::StatusCode as OtelStatusCode,
 };
 use crate::status_codes;
 use relay_event_schema::protocol::{
     EventId, Span as EventSpan, SpanData, SpanId, SpanLink, SpanStatus, Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, FromValue, Object, Value};
+use relay_protocol::{Annotated, Error, FromValue, Object, Value};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
@@ -60,10 +60,7 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
         OtelValue::BoolValue(v) => Some(v.to_string()),
         OtelValue::IntValue(v) => Some(v.to_string()),
         OtelValue::DoubleValue(v) => Some(v.to_string()),
-        OtelValue::BytesValue(v) => match String::from_utf8(v) {
-            Ok(v) => Some(v),
-            Err(_) => None,
-        },
+        OtelValue::BytesValue(v) => String::from_utf8(v).ok(),
         _ => None,
     }
 }
@@ -86,7 +83,7 @@ fn otel_flags_is_remote(value: u32) -> Option<bool> {
 }
 
 /// Transform an OtelSpan to a Sentry span.
-pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
+pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpan, Error> {
     let mut exclusive_time_ms = 0f64;
     let mut data = Object::new();
     let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
@@ -105,7 +102,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     } = otel_span;
 
     let span_id = hex::encode(span_id);
-    let trace_id = hex::encode(trace_id);
+    let trace_id: TraceId = hex::encode(trace_id).parse()?;
     let parent_span_id = match parent_span_id.as_slice() {
         &[] => None,
         _ => Some(hex::encode(parent_span_id)),
@@ -188,10 +185,10 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
 
     let sentry_links: Vec<Annotated<SpanLink>> = links
         .into_iter()
-        .map(|link| otel_to_sentry_link(link).into())
-        .collect();
+        .map(|link| otel_to_sentry_link(link).map(Into::into))
+        .collect::<Result<_, _>>()?;
 
-    EventSpan {
+    let event_span = EventSpan {
         op: op.into(),
         description: description.into(),
         data: SpanData::from_value(Annotated::new(data.into())),
@@ -211,17 +208,19 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
             grpc_status_code,
         )),
         timestamp: Timestamp(end_timestamp).into(),
-        trace_id: TraceId(trace_id).into(),
+        trace_id: Annotated::new(trace_id),
         platform: platform.into(),
         kind: OtelSpanKind::try_from(kind)
             .map_or(SpanKind::Unspecified, SpanKind::from)
             .into(),
         links: sentry_links.into(),
         ..Default::default()
-    }
+    };
+
+    Ok(event_span)
 }
 
-fn otel_to_sentry_link(otel_link: OtelLink) -> SpanLink {
+fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanLink, Error> {
     // See the W3C trace context specification:
     // <https://www.w3.org/TR/trace-context-2/#sampled-flag>
     const W3C_TRACE_CONTEXT_SAMPLED: u32 = 1 << 0;
@@ -234,13 +233,15 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> SpanLink {
     }))
     .into();
 
-    SpanLink {
-        trace_id: TraceId(hex::encode(otel_link.trace_id)).into(),
+    let span_link = SpanLink {
+        trace_id: Annotated::new(hex::encode(otel_link.trace_id).parse()?),
         span_id: SpanId(hex::encode(otel_link.span_id)).into(),
         sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
         attributes,
         other: Default::default(),
-    }
+    };
+
+    Ok(span_link)
 }
 
 fn otel_to_sentry_value(value: OtelValue) -> Option<Value> {
@@ -327,7 +328,7 @@ mod tests {
             "droppedLinksCount": 0
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.exclusive_time, Annotated::new(1000.0));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         assert_eq!(
@@ -356,7 +357,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.exclusive_time, Annotated::new(3200.0));
     }
 
@@ -372,7 +373,7 @@ mod tests {
             "endTimeUnixNano": "1697620454980078800"
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
     }
 
@@ -408,7 +409,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.op, Annotated::new("database query".into()));
         assert_eq!(
             event_span.description,
@@ -456,7 +457,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.op, Annotated::new("database query".into()));
         assert_eq!(
             event_span.description,
@@ -490,7 +491,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.op, Annotated::new("http client request".into()));
         assert_eq!(
             event_span.description,
@@ -628,9 +629,9 @@ mod tests {
         }"#;
 
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let span_from_otel = otel_to_sentry_span(otel_span);
+        let span_from_otel = otel_to_sentry_span(otel_span).unwrap();
 
-        insta::assert_debug_snapshot!(span_from_otel, @r###"
+        insta::assert_debug_snapshot!(span_from_otel, @r#"
         Span {
             timestamp: Timestamp(
                 1970-01-01T00:02:03.500Z,
@@ -646,9 +647,7 @@ mod tests {
             parent_span_id: SpanId(
                 "fa90fdead5f74051",
             ),
-            trace_id: TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2",
-            ),
+            trace_id: TraceId("4c79f60c11214eb38604f4ae0781bfb2"),
             segment_id: SpanId(
                 "fa90fdead5f74052",
             ),
@@ -746,9 +745,10 @@ mod tests {
             platform: "php",
             was_transaction: ~,
             kind: Unspecified,
+            _performance_issues_spans: ~,
             other: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -762,7 +762,7 @@ mod tests {
             "flags": 768
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.is_remote, Annotated::new(true));
     }
 
@@ -777,7 +777,7 @@ mod tests {
             "flags": 256
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         assert_eq!(event_span.is_remote, Annotated::new(false));
     }
 
@@ -792,7 +792,7 @@ mod tests {
             "kind": 3
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         let kind = event_span.kind.value().expect("kind should be set");
         assert_eq!(kind, &SpanKind::Client);
     }
@@ -809,6 +809,7 @@ mod tests {
     #[test]
     fn parse_link() {
         let json = r#"{
+            "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
             "links": [
                 {
                     "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -844,13 +845,20 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+
+        assert_eq!(
+            get_path!(annotated_span.trace_id),
+            Some(&Annotated::new(
+                "3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
+            ))
+        );
         assert_eq!(
             get_path!(annotated_span.links[0].trace_id),
-            Some(&Annotated::new(TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2".into()
-            )))
+            Some(&Annotated::new(
+                "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
+            ))
         );
         assert_eq!(
             get_path!(annotated_span.links[0].span_id),

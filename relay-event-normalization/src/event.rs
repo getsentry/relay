@@ -11,14 +11,14 @@ use std::sync::OnceLock;
 use itertools::Itertools;
 use regex::Regex;
 use relay_base_schema::metrics::{
-    can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
+    DurationUnit, FractionUnit, MetricUnit, can_be_valid_metric_name,
 };
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event,
-    EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    NelContext, PerformanceScoreContext, ReplayContext, Request, Span, SpanStatus, Tags, Timestamp,
-    TraceContext, User, VALID_PLATFORMS,
+    AsPair, AutoInferSetting, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage,
+    DeviceClass, Event, EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry,
+    Measurement, Measurements, NelContext, PerformanceScoreContext, ReplayContext, Request, Span,
+    SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Getter, Meta, Object, Remark, RemarkType, Value,
@@ -29,12 +29,12 @@ use uuid::Uuid;
 use crate::normalize::request;
 use crate::span::ai::normalize_ai_measurements;
 use crate::span::tag_extraction::extract_span_tags_from_event;
-use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
+use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
-    breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
-    transactions, trimming, user_agent, BorrowedSpanOpDefaults, BreakdownsConfig,
-    CombinedMeasurementsConfig, GeoIpLookup, MaxChars, ModelCosts, PerformanceScoreConfig,
-    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
+    BorrowedSpanOpDefaults, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup, MaxChars,
+    ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    TransactionNameConfig, breakdowns, event_error, legacy, mechanism, remove_other, schema, span,
+    stacktrace, transactions, trimming, user_agent,
 };
 
 /// Configuration for [`normalize_event`].
@@ -162,6 +162,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Rules to infer `span.op` from other span fields.
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
+
+    /// Set a flag to enable performance issue detection on spans.
+    pub performance_issues_spans: bool,
 }
 
 impl Default for NormalizationConfig<'_> {
@@ -196,6 +199,7 @@ impl Default for NormalizationConfig<'_> {
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
             span_op_defaults: Default::default(),
+            performance_issues_spans: Default::default(),
         }
     }
 }
@@ -205,7 +209,7 @@ impl Default for NormalizationConfig<'_> {
 /// Normalization consists of applying a series of transformations on the event
 /// payload based on the given configuration.
 pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfig) {
-    let Annotated(Some(ref mut event), ref mut meta) = event else {
+    let Annotated(Some(event), meta) = event else {
         return;
     };
 
@@ -266,6 +270,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         &mut event.user,
         event.platform.as_str(),
         client_ip,
+        event.client_sdk.value(),
     );
 
     if let Some(geoip_lookup) = config.geoip_lookup {
@@ -331,8 +336,13 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_contexts(&mut event.contexts);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        span::reparent_broken_spans::reparent_broken_spans(event);
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
+    }
+
+    if config.performance_issues_spans && event.ty.value() == Some(&EventType::Transaction) {
+        event._performance_issues_spans = Annotated::new(true);
     }
 
     if config.enrich_spans {
@@ -350,7 +360,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
-    if let Some(ref mut contexts) = event.contexts.value_mut() {
+    if let Some(contexts) = event.contexts.value_mut() {
         if let Some(replay_id) = replay_id {
             contexts.add(ReplayContext {
                 replay_id: Annotated::new(EventId(replay_id)),
@@ -416,64 +426,80 @@ pub fn normalize_ip_addresses(
     user: &mut Annotated<User>,
     platform: Option<&str>,
     client_ip: Option<&IpAddr>,
+    client_sdk_settings: Option<&ClientSdkInfo>,
 ) {
-    // NOTE: This is highly order dependent, in the sense that both the statements within this
-    // function need to be executed in a certain order, and that other normalization code
-    // (geoip lookup) needs to run after this.
-    //
-    // After a series of regressions over the old Python spaghetti code we decided to put it
-    // back into one function. If a desire to split this code up overcomes you, put this in a
-    // new processor and make sure all of it runs before the rest of normalization.
+    let infer_ip = client_sdk_settings
+        .and_then(|c| c.settings.0.as_ref())
+        .map(|s| s.infer_ip())
+        .unwrap_or_default();
 
-    // Resolve {{auto}}
-    if let Some(client_ip) = client_ip {
-        if let Some(ref mut request) = request.value_mut() {
-            if let Some(ref mut env) = request.env.value_mut() {
-                if let Some(&mut Value::String(ref mut http_ip)) = env
-                    .get_mut("REMOTE_ADDR")
-                    .and_then(|annotated| annotated.value_mut().as_mut())
-                {
-                    if http_ip == "{{auto}}" {
-                        *http_ip = client_ip.to_string();
-                    }
-                }
-            }
-        }
-
-        if let Some(ref mut user) = user.value_mut() {
-            if let Some(ref mut user_ip) = user.ip_address.value_mut() {
-                if user_ip.is_auto() {
-                    client_ip.clone_into(user_ip)
-                }
-            }
+    // If infer_ip is set to Never then we just remove auto and don't continue
+    if let AutoInferSetting::Never = infer_ip {
+        // No user means there is also no IP so we can stop here
+        let Some(user) = user.value_mut() else {
+            return;
+        };
+        // If there is no IP we can also stop
+        let Some(ip) = user.ip_address.value() else {
+            return;
+        };
+        if ip.is_auto() {
+            user.ip_address.0 = None;
+            return;
         }
     }
 
-    // Copy IPs from request interface to user, and resolve platform-specific backfilling
-    let http_ip = request
+    let remote_addr_ip = request
         .value()
-        .and_then(|request| request.env.value())
+        .and_then(|r| r.env.value())
         .and_then(|env| env.get("REMOTE_ADDR"))
         .and_then(Annotated::<Value>::as_str)
         .and_then(|ip| IpAddr::parse(ip).ok());
 
-    if let Some(http_ip) = http_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        user.ip_address.value_mut().get_or_insert(http_ip);
-    } else if let Some(client_ip) = client_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        // auto is already handled above
-        if user.ip_address.value().is_none() {
-            // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
-            let scrubbed_before = user
-                .ip_address
-                .meta()
-                .iter_remarks()
-                .any(|r| r.ty == RemarkType::Removed);
-            if !scrubbed_before {
-                // In an ideal world all SDKs would set {{auto}} explicitly.
-                if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                    user.ip_address = Annotated::new(client_ip.to_owned());
+    // IP address in REMOTE_ADDR will have precedence over client_ip because it's explicitly
+    // sent while client_ip is taken from X-Forwarded-For headers or the connection IP.
+    let inferred_ip = remote_addr_ip.as_ref().or(client_ip);
+
+    // We will infer IP addresses if:
+    // * The IP address is {{auto}}
+    // * the infer_ip setting is set to "auto"
+    let should_be_inferred = match user.value() {
+        Some(user) => match user.ip_address.value() {
+            Some(ip) => ip.is_auto(),
+            None => matches!(infer_ip, AutoInferSetting::Auto),
+        },
+        None => matches!(infer_ip, AutoInferSetting::Auto),
+    };
+
+    if should_be_inferred {
+        if let Some(ip) = inferred_ip {
+            let user = user.get_or_insert_with(User::default);
+            user.ip_address.set_value(Some(ip.to_owned()));
+        }
+    }
+
+    // Legacy behaviour:
+    // * Backfill if there is a REMOTE_ADDR and the user.ip_address was not backfilled until now
+    // * Empty means {{auto}} for some SDKs
+    if infer_ip == AutoInferSetting::Legacy {
+        if let Some(http_ip) = remote_addr_ip {
+            let user = user.get_or_insert_with(User::default);
+            user.ip_address.value_mut().get_or_insert(http_ip);
+        } else if let Some(client_ip) = inferred_ip {
+            let user = user.get_or_insert_with(User::default);
+            // auto is already handled above
+            if user.ip_address.value().is_none() {
+                // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
+                let scrubbed_before = user
+                    .ip_address
+                    .meta()
+                    .iter_remarks()
+                    .any(|r| r.ty == RemarkType::Removed);
+                if !scrubbed_before {
+                    // In an ideal world all SDKs would set {{auto}} explicitly.
+                    if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
+                        user.ip_address = Annotated::new(client_ip.to_owned());
+                    }
                 }
             }
         }
@@ -1477,7 +1503,7 @@ mod tests {
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
-    use relay_protocol::{get_value, SerializableAnnotated};
+    use relay_protocol::{SerializableAnnotated, get_value};
     use serde_json::json;
 
     use super::*;
@@ -1804,13 +1830,17 @@ mod tests {
         let client_ip = Some(&ipaddr);
 
         let user_agent = RawUserAgentInfo {
-            user_agent: Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0"),
+            user_agent: Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0",
+            ),
             client_hints: ClientHints {
                 sec_ch_ua_platform: Some("macOS"),
                 sec_ch_ua_platform_version: Some("13.2.0"),
-                sec_ch_ua: Some(r#""Chromium";v="110", "Not A(Brand";v="24", "Google Chrome";v="110""#),
+                sec_ch_ua: Some(
+                    r#""Chromium";v="110", "Not A(Brand";v="24", "Google Chrome";v="110""#,
+                ),
                 sec_ch_ua_model: Some("some model"),
-            }
+            },
         };
 
         // This call should fill the event headers with info from the user_agent which is
@@ -2077,7 +2107,7 @@ mod tests {
         );
 
         // Checks whether the measurement is dropped.
-        measurements.len() == 0
+        measurements.is_empty()
     }
 
     #[test]

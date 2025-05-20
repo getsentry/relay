@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use tokio::time::{Duration, Instant};
 
@@ -9,30 +9,32 @@ use tokio::time::{Duration, Instant};
 const UTILIZATION_UPDATE_THRESHOLD: Duration = Duration::from_secs(5);
 
 pin_project_lite::pin_project! {
-    /// A service monitor tracks service metrics.
-    pub struct ServiceMonitor<F> {
+    /// A future that tracks metrics.
+    pub struct MonitoredFuture<F> {
         #[pin]
         inner: F,
-
         metrics: Arc<RawMetrics>,
-
         last_utilization_update: Instant,
-        last_utilization_duration_ns: u64,
+        poll_duration_accumulated_ns: u64
     }
 }
 
-impl<F> ServiceMonitor<F> {
-    /// Wraps a service future with a monitor.
+impl<F> MonitoredFuture<F> {
+    /// Wraps a future with the [`MonitoredFuture`].
     pub fn wrap(inner: F) -> Self {
+        Self::wrap_with_metrics(inner, Arc::new(RawMetrics::default()))
+    }
+
+    /// Wraps a future with the [`MonitoredFuture`].
+    pub fn wrap_with_metrics(inner: F, metrics: Arc<RawMetrics>) -> Self {
         Self {
             inner,
-            metrics: Arc::new(RawMetrics {
-                poll_count: AtomicU64::new(0),
-                total_duration_ns: AtomicU64::new(0),
-                utilization: AtomicU8::new(0),
-            }),
+            metrics,
+            // The last time the utilization was updated.
             last_utilization_update: Instant::now(),
-            last_utilization_duration_ns: 0,
+            // The poll duration that was accumulated across zero or more polls since the last
+            // refresh.
+            poll_duration_accumulated_ns: 0,
         }
     }
 
@@ -42,7 +44,7 @@ impl<F> ServiceMonitor<F> {
     }
 }
 
-impl<F> Future for ServiceMonitor<F>
+impl<F> Future for MonitoredFuture<F>
 where
     F: Future,
 {
@@ -60,25 +62,22 @@ where
         let poll_duration = poll_end - poll_start;
         let poll_duration_ns = poll_duration.as_nanos().try_into().unwrap_or(u64::MAX);
 
-        let previous_total_duration = this
-            .metrics
+        this.metrics
             .total_duration_ns
             .fetch_add(poll_duration_ns, Ordering::Relaxed);
-        let total_duration_ns = previous_total_duration + poll_duration_ns;
+        *this.poll_duration_accumulated_ns += poll_duration_ns;
 
         let utilization_duration = poll_end - *this.last_utilization_update;
         if utilization_duration >= UTILIZATION_UPDATE_THRESHOLD {
-            // Time spent the service was busy since the last utilization calculation.
-            let busy = total_duration_ns - *this.last_utilization_duration_ns;
-
             // The maximum possible time spent busy is the total time between the last measurement
             // and the current measurement. We can extract a percentage from this.
-            let percentage = (busy * 100).div_ceil(utilization_duration.as_nanos().max(1) as u64);
+            let percentage = (*this.poll_duration_accumulated_ns * 100)
+                .div_ceil(utilization_duration.as_nanos().max(1) as u64);
             this.metrics
                 .utilization
                 .store(percentage.min(100) as u8, Ordering::Relaxed);
 
-            *this.last_utilization_duration_ns = total_duration_ns;
+            *this.poll_duration_accumulated_ns = 0;
             *this.last_utilization_update = poll_end;
         }
 
@@ -86,10 +85,10 @@ where
     }
 }
 
-/// The raw metrics extracted from a [`ServiceMonitor`].
+/// The raw metrics extracted from a [`MonitoredFuture`].
 ///
-/// All access outside the [`ServiceMonitor`] must be *read* only.
-#[derive(Debug)]
+/// All access outside the [`MonitoredFuture`] must be *read* only.
+#[derive(Debug, Default)]
 pub struct RawMetrics {
     /// Amount of times the service was polled.
     pub poll_count: AtomicU64,
@@ -105,7 +104,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_monitor() {
-        let mut monitor = ServiceMonitor::wrap(Box::pin(async {
+        let mut monitor = MonitoredFuture::wrap(Box::pin(async {
             loop {
                 tokio::time::advance(Duration::from_millis(500)).await;
             }

@@ -24,10 +24,10 @@ mod transactions;
 mod trimming;
 mod validation;
 
-pub use validation::{validate_event, validate_span, EventValidationConfig};
+pub use validation::{EventValidationConfig, validate_event, validate_span};
 pub mod replay;
 pub use event::{
-    normalize_event, normalize_measurements, normalize_performance_score, NormalizationConfig,
+    NormalizationConfig, normalize_event, normalize_measurements, normalize_performance_score,
 };
 pub use normalize::breakdowns::*;
 pub use normalize::*;

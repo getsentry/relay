@@ -60,8 +60,8 @@ pub fn normalize_parsed_queries(
     string: &str,
 ) -> Result<(String, Vec<Statement>), ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
-    parsed.visit(&mut NormalizeVisitor);
-    parsed.visit(&mut MaxDepthVisitor::new());
+    let _ = parsed.visit(&mut NormalizeVisitor);
+    let _ = parsed.visit(&mut MaxDepthVisitor::new());
 
     let concatenated = parsed
         .iter()
@@ -317,9 +317,9 @@ impl VisitorMut for NormalizeVisitor {
                 *expr = take_expr(inner);
             }
             Expr::BinaryOp {
-                ref mut left,
+                left,
                 op: op @ (BinaryOperator::Or | BinaryOperator::And),
-                ref mut right,
+                right,
             } => {
                 remove_redundant_parentheses(op, left);
                 remove_redundant_parentheses(op, right);
@@ -855,7 +855,10 @@ mod tests {
     #[test]
     fn parse_deep_expression() {
         let query = "SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1";
-        assert_eq!(normalize_parsed_queries(None, query).unwrap().0, "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s");
+        assert_eq!(
+            normalize_parsed_queries(None, query).unwrap().0,
+            "SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"
+        );
     }
 
     #[test]

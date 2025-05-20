@@ -1,8 +1,8 @@
-use relay_event_normalization::{normalize_event, NormalizationConfig};
+use relay_event_normalization::{NormalizationConfig, normalize_event};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Event;
 use relay_pii::{DataScrubbingConfig, PiiProcessor};
-use relay_protocol::{assert_annotated_snapshot, FromValue};
+use relay_protocol::{FromValue, assert_annotated_snapshot};
 
 #[test]
 fn test_reponse_context_pii() {

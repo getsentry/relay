@@ -2,7 +2,7 @@ use crate::constants::DEFAULT_CHECK_IN_CLIENT;
 use axum::extract::{DefaultBodyLimit, Path, Query, Request};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::{on, MethodFilter, MethodRouter};
+use axum::routing::{MethodFilter, MethodRouter, on};
 use axum::{Json, RequestExt};
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
@@ -42,7 +42,7 @@ async fn handle(
     } else {
         let Query(query): Query<MonitorQuery> = request.extract().await?;
         CheckIn {
-            check_in_id: query.check_in_id.unwrap_or_default(),
+            check_in_id: query.check_in_id.unwrap_or_default().into(),
             monitor_slug: path.monitor_slug,
             status: query.status,
             environment: query.environment,

@@ -15,6 +15,7 @@ mod health_check;
 mod minidump;
 mod monitor;
 mod nel;
+#[cfg(sentry)]
 mod playstation;
 mod project_configs;
 mod public_keys;
@@ -25,7 +26,7 @@ mod traces;
 mod unreal;
 
 use axum::extract::DefaultBodyLimit;
-use axum::routing::{any, get, post, Router};
+use axum::routing::{Router, any, get, post};
 use relay_config::Config;
 
 use crate::middlewares;
@@ -75,13 +76,20 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/{project_id}/minidump", minidump::route(config))
         .route("/api/{project_id}/minidump/", minidump::route(config))
-        .route("/api/{project_id}/playstation/", playstation::route(config))
         .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
         .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
-        .route("/api/{project_id}/otlp/v1/traces/", traces::route(config))
+        // The OTLP/HTTP transport defaults to a request suffix of /v1/traces (no trailing slash):
+        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-request
+        // Because we initially released this endpoint with a trailing slash, keeping it for
+        // backwards compatibility.
+        .route("/api/{project_id}/otlp/v1/traces", traces::route(config))
+        .route("/api/{project_id}/otlp/v1/traces/", traces::route(config));
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
-        .route_layer(middlewares::cors());
+
+    #[cfg(sentry)]
+    let store_routes = store_routes.route("/api/{project_id}/playstation/", playstation::route(config));
+    let store_routes = store_routes.route_layer(middlewares::cors());
 
     Router::new().merge(internal_routes)
         .merge(web_routes)

@@ -63,8 +63,8 @@ pub enum Feature {
     OtelEndpoint,
     /// Enable playstation crash dump ingestion via the `/playstation/` endpoint.
     ///
-    /// Serialized as `project:relay-playstation-ingestion`.
-    #[serde(rename = "projects:relay-playstation-ingestion")]
+    /// Serialized as `organizations:relay-playstation-ingestion`.
+    #[serde(rename = "organizations:relay-playstation-ingestion")]
     PlaystationIngestion,
     /// Discard transactions in a spans-only world.
     ///
@@ -91,7 +91,6 @@ pub enum Feature {
     /// Serialized as `projects:span-metrics-extraction`.
     #[serde(rename = "projects:span-metrics-extraction")]
     ExtractCommonSpanMetricsFromEvent,
-
     /// Enables metric extraction from spans for addon modules.
     ///
     /// Serialized as `projects:span-metrics-extraction-addons`.
@@ -102,16 +101,6 @@ pub enum Feature {
     /// Serialized as `organizations:indexed-spans-extraction`.
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
-    /// Indicate if the EAP consumers should ingest a span for a given organization.
-    ///
-    /// Serialized as `organizations:ingest-spans-in-eap`
-    #[serde(rename = "organizations:ingest-spans-in-eap")]
-    IngestSpansInEapForOrganization,
-    /// Indicate if the EAP consumers should ingest a span for a given project.
-    ///
-    /// Serialized as `projects:ingest-spans-in-eap`
-    #[serde(rename = "projects:ingest-spans-in-eap")]
-    IngestSpansInEapForProject,
     /// Enable log ingestion for our log product (this is not internal logging).
     ///
     /// Serialized as `organizations:ourlogs-ingestion`.
@@ -132,6 +121,9 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:view-hierarchy-scrubbing")]
     ViewHierarchyScrubbing,
+    /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
+    #[serde(rename = "organizations:performance-issues-spans")]
+    PerformanceIssuesSpans,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

@@ -1,7 +1,11 @@
-use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
-
 use crate::processor::ProcessValue;
 use crate::protocol::IpAddr;
+use relay_protocol::{
+    Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
+};
+use serde::{Serialize, Serializer};
+use std::str::FromStr;
+use thiserror::Error;
 
 /// An installed and loaded package as part of the Sentry SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -10,6 +14,136 @@ pub struct ClientSdkPackage {
     pub name: Annotated<String>,
     /// Version of the package.
     pub version: Annotated<String>,
+}
+
+/// An error returned when parsing setting values fail.
+#[derive(Debug, Clone, Error)]
+pub enum ParseSettingError {
+    #[error("Invalid value for 'infer_ip'.")]
+    InferIp,
+}
+
+/// A collection of settings that are used to control behaviour in relay through flags.
+///
+/// The settings aim to replace magic values in fields which need special treatment,
+/// for example `{{auto}}` in the user.ip_address. The SDK would instead send `infer_ip`
+/// to toggle the behaviour.
+#[derive(Debug, Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct ClientSdkSettings {
+    infer_ip: Annotated<AutoInferSetting>,
+}
+
+impl ClientSdkSettings {
+    /// Returns the current [`AutoInferSetting`] setting.
+    ///
+    /// **NOTE**: For forwards compatibility, this method has two defaults:
+    /// * If `settings.infer_ip` is missing entirely, it will default
+    ///   to [`AutoInferSetting::Legacy`].
+    /// * If `settings.infer_ip` contains an invalid value, it will default
+    ///   to [`AutoInferSetting::Never`].
+    ///
+    /// The reason behind this is that we don't want to fall back to the legacy behaviour
+    /// if we add a new value to [`AutoInferSetting`] and a relay is running an old version
+    /// which does not have the new value yet.
+    pub fn infer_ip(&self) -> AutoInferSetting {
+        if self.infer_ip.meta().has_errors() {
+            AutoInferSetting::Never
+        } else {
+            self.infer_ip.value().copied().unwrap_or_default()
+        }
+    }
+}
+
+/// Used to control the IP inference setting in relay. This is used as an alternative to magic
+/// values like {{auto}} in the user.ip_address field.
+#[derive(Debug, Copy, Clone, PartialEq, Default, ProcessValue)]
+pub enum AutoInferSetting {
+    /// Derive the IP address from the connection information.
+    Auto,
+
+    /// Do not derive the IP address, keep what was being sent by the client.
+    Never,
+
+    /// Enables the legacy IP inference behaviour.
+    ///
+    /// The legacy behavior works mainly by inspecting the content of `user.ip_address` and
+    /// decides based on the value.
+    /// Unfortunately, not all platforms are treated equals so there are exceptions for
+    /// `javascript`, `cocoa` and `objc`.
+    ///
+    /// If the value in `ip_address` is `{{auto}}`, it will work the
+    /// same as [`AutoInferSetting::Auto`]. This is true for all platforms.
+    ///
+    /// If the value in `ip_address` is [`None`], it will only infer the IP address if a
+    /// `REMOTE_ADDR` header is sent in the request payload of the event.
+    ///
+    /// **NOTE**: Setting `ip_address` to [`None`] will behave the same as setting it to `{{auto}}`
+    ///           for `javascript`, `cocoa` and `objc`.
+    #[default]
+    Legacy,
+}
+
+impl Empty for AutoInferSetting {
+    fn is_empty(&self) -> bool {
+        matches!(self, AutoInferSetting::Legacy)
+    }
+}
+
+impl AutoInferSetting {
+    /// Returns a string representation for [`AutoInferSetting`].
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AutoInferSetting::Auto => "auto",
+            AutoInferSetting::Never => "never",
+            AutoInferSetting::Legacy => "legacy",
+        }
+    }
+}
+
+impl FromStr for AutoInferSetting {
+    type Err = ParseSettingError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "auto" => Ok(AutoInferSetting::Auto),
+            "never" => Ok(AutoInferSetting::Never),
+            "legacy" => Ok(AutoInferSetting::Legacy),
+            _ => Err(ParseSettingError::InferIp),
+        }
+    }
+}
+
+impl FromValue for AutoInferSetting {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        match String::from_value(value) {
+            Annotated(Some(value), mut meta) => match value.parse() {
+                Ok(infer_ip) => Annotated(Some(infer_ip), meta),
+                Err(_) => {
+                    meta.add_error(ErrorKind::InvalidData);
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl IntoValue for AutoInferSetting {
+    fn into_value(self) -> Value {
+        Value::String(self.as_str().to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        Serialize::serialize(self.as_str(), s)
+    }
 }
 
 /// The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.
@@ -67,6 +201,10 @@ pub struct ClientSdkInfo {
     /// the value appears nowhere in the UI.
     #[metastructure(pii = "true", skip_serialization = "empty", omit_from_schema)]
     pub client_ip: Annotated<IpAddr>,
+
+    /// Settings that are used to control behaviour of relay.
+    #[metastructure(skip_serialization = "empty")]
+    pub settings: Annotated<ClientSdkSettings>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -133,6 +271,7 @@ mod tests {
                 }),
             ]),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            settings: Annotated::empty(),
             other: {
                 let mut map = Map::new();
                 map.insert(
@@ -161,10 +300,76 @@ mod tests {
             features: Annotated::empty(),
             packages: Annotated::empty(),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            settings: Annotated::empty(),
             other: Default::default(),
         });
 
         assert_eq!(sdk, Annotated::from_json(json).unwrap());
         assert_eq!(json, sdk.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_sdk_settings_auto() {
+        let json = r#"{
+  "settings": {
+    "infer_ip": "auto"
+  }
+}"#;
+        let sdk = Annotated::new(ClientSdkInfo {
+            settings: Annotated::new(ClientSdkSettings {
+                infer_ip: Annotated::new(AutoInferSetting::Auto),
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(sdk, Annotated::from_json(json).unwrap());
+        assert_eq!(json, sdk.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_sdk_settings_never() {
+        let json = r#"{
+  "settings": {
+    "infer_ip": "never"
+  }
+}"#;
+        let sdk = Annotated::new(ClientSdkInfo {
+            settings: Annotated::new(ClientSdkSettings {
+                infer_ip: Annotated::new(AutoInferSetting::Never),
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(sdk, Annotated::from_json(json).unwrap());
+        assert_eq!(json, sdk.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_sdk_settings_default() {
+        let sdk = Annotated::new(ClientSdkInfo {
+            settings: Annotated::new(ClientSdkSettings {
+                infer_ip: Annotated::empty(),
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            sdk.value().unwrap().settings.value().unwrap().infer_ip(),
+            AutoInferSetting::Legacy
+        )
+    }
+
+    #[test]
+    fn test_infer_ip_invalid() {
+        let json = r#"{
+            "settings": {
+                "infer_ip": "invalid"
+            }
+        }"#;
+        let sdk: Annotated<ClientSdkInfo> = Annotated::from_json(json).unwrap();
+        assert_eq!(
+            sdk.value().unwrap().settings.value().unwrap().infer_ip(),
+            AutoInferSetting::Never
+        );
     }
 }

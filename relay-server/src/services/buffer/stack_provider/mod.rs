@@ -1,5 +1,5 @@
-use crate::services::buffer::common::ProjectKeyPair;
 use crate::EnvelopeStack;
+use crate::services::buffer::common::ProjectKeyPair;
 use hashbrown::HashSet;
 use std::future::Future;
 
@@ -65,7 +65,7 @@ pub trait StackProvider: std::fmt::Debug {
     /// Returns the string representation of the stack type offered by this [`StackProvider`].
     fn stack_type<'a>(&self) -> &'a str;
 
-    /// Flushes the supplied [`EnvelopeStack`]s and consumes the [`StackProvider`].
+    /// Flushes the supplied [`EnvelopeStack`]s.
     fn flush(
         &mut self,
         envelope_stacks: impl IntoIterator<Item = Self::Stack>,

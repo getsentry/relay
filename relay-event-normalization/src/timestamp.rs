@@ -94,9 +94,9 @@ impl Processor for TimestampProcessor {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::processor::{process_value, ProcessingState};
+    use relay_event_schema::processor::{ProcessingState, process_value};
     use relay_event_schema::protocol::{Breadcrumb, Event, Span};
-    use relay_protocol::{assert_annotated_snapshot, get_value, Annotated};
+    use relay_protocol::{Annotated, assert_annotated_snapshot, get_value};
 
     use crate::timestamp::TimestampProcessor;
 
@@ -136,12 +136,14 @@ mod tests {
   "timestamp": 2
 }"#;
         let mut transaction = Annotated::<Event>::from_json(json).unwrap();
-        assert!(process_value(
-            &mut transaction,
-            &mut TimestampProcessor,
-            ProcessingState::root()
-        )
-        .is_ok());
+        assert!(
+            process_value(
+                &mut transaction,
+                &mut TimestampProcessor,
+                ProcessingState::root()
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -260,12 +262,14 @@ mod tests {
       "timestamp": 1
     }"#;
         let mut breadcrumb = Annotated::<Breadcrumb>::from_json(json).unwrap();
-        assert!(process_value(
-            &mut breadcrumb,
-            &mut TimestampProcessor,
-            ProcessingState::root()
-        )
-        .is_ok());
+        assert!(
+            process_value(
+                &mut breadcrumb,
+                &mut TimestampProcessor,
+                ProcessingState::root()
+            )
+            .is_ok()
+        );
         assert_eq!(
             get_value!(breadcrumb.timestamp!).into_inner().timestamp(),
             1
@@ -278,12 +282,14 @@ mod tests {
       "timestamp": -1
     }"#;
         let mut breadcrumb = Annotated::<Breadcrumb>::from_json(json).unwrap();
-        assert!(process_value(
-            &mut breadcrumb,
-            &mut TimestampProcessor,
-            ProcessingState::root()
-        )
-        .is_ok());
+        assert!(
+            process_value(
+                &mut breadcrumb,
+                &mut TimestampProcessor,
+                ProcessingState::root()
+            )
+            .is_ok()
+        );
         assert_annotated_snapshot!(&breadcrumb, @r###"
         {
           "_meta": {

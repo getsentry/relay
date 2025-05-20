@@ -85,7 +85,7 @@ pub async fn is_trace_fully_sampled(
 
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
-    let evaluation = evaluator.match_rules(dsc.trace_id, dsc, rules).await;
+    let evaluation = evaluator.match_rules(*dsc.trace_id, dsc, rules).await;
     Some(SamplingResult::from(evaluation).decision().is_keep())
 }
 
@@ -103,7 +103,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     }
 
     let trace = event.context::<TraceContext>()?;
-    let trace_id = trace.trace_id.value()?.0.parse().ok()?;
+    let trace_id = *trace.trace_id.value()?;
     let user = event.user.value();
 
     Some(DynamicSamplingContext {
@@ -156,7 +156,7 @@ mod tests {
         sampled: Option<bool>,
     ) -> DynamicSamplingContext {
         DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: "12345678901234567890123456789012".parse().unwrap(),
             release: release.map(|value| value.to_string()),
             environment: environment.map(|value| value.to_string()),
@@ -185,10 +185,9 @@ mod tests {
     async fn test_match_rules_return_keep_with_match_and_100_sample_rate() {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
         let rules = [mocked_sampling_rule(1, RuleType::Transaction, 1.0)];
-        let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
-            .match_rules(seed, &event, rules.iter())
+            .match_rules(Uuid::default(), &event, rules.iter())
             .await
             .into();
 
@@ -200,10 +199,9 @@ mod tests {
     async fn test_match_rules_return_drop_with_match_and_0_sample_rate() {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
         let rules = [mocked_sampling_rule(1, RuleType::Transaction, 0.0)];
-        let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
-            .match_rules(seed, &event, rules.iter())
+            .match_rules(Uuid::default(), &event, rules.iter())
             .await
             .into();
 
@@ -224,10 +222,9 @@ mod tests {
         }];
 
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
-        let seed = Uuid::default();
 
         let result: SamplingResult = SamplingEvaluator::new(Utc::now())
-            .match_rules(seed, &event, rules.iter())
+            .match_rules(Uuid::default(), &event, rules.iter())
             .await
             .into();
 

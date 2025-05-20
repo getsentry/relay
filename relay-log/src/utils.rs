@@ -8,7 +8,7 @@ use tracing::Level;
 /// # Example
 ///
 /// ```
-/// std::env::set_var("RUST_BACKTRACE", "full");
+/// unsafe { std::env::set_var("RUST_BACKTRACE", "full") };
 /// assert!(relay_log::backtrace_enabled());
 /// ```
 pub fn backtrace_enabled() -> bool {

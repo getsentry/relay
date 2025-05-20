@@ -15,7 +15,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use crate::envelope::{CountFor, ItemType};
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    event_category, EventProcessing, Sampling, SpansExtracted, TransactionGroup,
+    EventProcessing, Sampling, SpansExtracted, TransactionGroup, event_category,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{self, SamplingResult, TypedEnvelope};
@@ -99,7 +99,7 @@ where
 
     let root_state = sampling_project_info.as_ref();
     let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
-        Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
+        Some(ErrorBoundary::Ok(config)) if !config.unsupported() => Some(config),
         _ => None,
     };
 
@@ -214,7 +214,10 @@ async fn compute_sampling_decision(
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
-        return evaluator.match_rules(dsc.trace_id, dsc, rules).await.into();
+        return evaluator
+            .match_rules(*dsc.trace_id, dsc, rules)
+            .await
+            .into();
     }
 
     SamplingResult::NoMatch
@@ -237,7 +240,7 @@ pub async fn tag_error_with_sampling_decision<Group: EventProcessing>(
 
     let root_state = sampling_project_info.as_ref();
     let sampling_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
-        Some(ErrorBoundary::Ok(ref config)) => config,
+        Some(ErrorBoundary::Ok(config)) => config,
         _ => return,
     };
 
@@ -285,7 +288,6 @@ mod tests {
     };
     use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
     use relay_system::Addr;
-    use uuid::Uuid;
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
@@ -557,7 +559,7 @@ mod tests {
         let request_meta = RequestMeta::new(dsn);
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),
@@ -717,7 +719,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_sample_rate() {
         let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Default::default(),

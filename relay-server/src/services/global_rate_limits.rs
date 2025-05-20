@@ -67,7 +67,7 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
                 quantity,
             })
             .await
-            .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)?;
+            .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)??;
 
         // Perform a reverse lookup to match each owned quota with its original reference.
         // If multiple identical quotas exist, the first match will be reused. Equality is determined
@@ -80,18 +80,15 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
         //
         // The operation has a time complexity of O(n^2), but the number of quotas is assumed
         // to be small, as they are currently used only for metric bucket limiting.
-        let rate_limited_global_quotas =
-            rate_limited_owned_global_quotas.map(|owned_global_quotas| {
-                owned_global_quotas
-                    .iter()
-                    .filter_map(|owned_global_quota| {
-                        let global_quota = owned_global_quota.build_ref();
-                        global_quotas.iter().find(|x| **x == global_quota)
-                    })
-                    .collect::<Vec<_>>()
-            });
 
-        rate_limited_global_quotas
+        let res = rate_limited_owned_global_quotas
+            .iter()
+            .filter_map(|owned_global_quota| {
+                let global_quota = owned_global_quota.build_ref();
+                global_quotas.iter().find(|x| **x == global_quota)
+            })
+            .collect::<Vec<_>>();
+        Ok(res)
     }
 }
 
@@ -188,13 +185,11 @@ mod tests {
 
     use crate::services::global_rate_limits::{CheckRateLimited, GlobalRateLimitsService};
 
-    async fn build_redis_client() -> AsyncRedisClient {
+    fn build_redis_client() -> AsyncRedisClient {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        AsyncRedisClient::single(&url, &RedisConfigOptions::default())
-            .await
-            .unwrap()
+        AsyncRedisClient::single(&url, &RedisConfigOptions::default()).unwrap()
     }
 
     fn build_quota(window: u64, limit: impl Into<Option<u64>>) -> Quota {
@@ -217,7 +212,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_global_rate_limits_service() {
-        let client = build_redis_client().await;
+        let client = build_redis_client();
         let service = GlobalRateLimitsService::new(client);
         let tx = service.start_detached();
 

@@ -13,7 +13,7 @@ import pytest
 def parse_prometheus(input_string):
     result = {}
     for line in input_string.splitlines():
-        parts = line.split(" ")
+        parts = line.rsplit(" ", 1)
         result[parts[0]] = parts[1]
     return result
 
@@ -79,8 +79,7 @@ def test_memory_spooling_metrics(mini_sentry, relay):
 @pytest.mark.parametrize(
     "metric_name",
     (
-        'relay_utilization{relay_service="AggregatorService"}',
-        'relay_service_utilization{relay_service="AggregatorService"}',
+        'relay_service_utilization{relay_service="AggregatorService", instance_id="0"}',
         "relay_worker_pool_utilization",
         "relay_runtime_utilization",
     ),

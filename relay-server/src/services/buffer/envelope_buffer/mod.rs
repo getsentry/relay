@@ -9,13 +9,13 @@ use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use tokio::time::{timeout, Instant};
+use tokio::time::{Instant, timeout};
 
 use crate::envelope::Envelope;
 use crate::envelope::Item;
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
+use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
@@ -719,13 +719,13 @@ mod tests {
     use std::sync::Arc;
     use uuid::Uuid;
 
+    use crate::SqliteEnvelopeStore;
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
-    use crate::SqliteEnvelopeStore;
 
     use super::*;
 
@@ -747,7 +747,7 @@ mod tests {
         if let Some(sampling_key) = sampling_key {
             envelope.set_dsc(DynamicSamplingContext {
                 public_key: sampling_key,
-                trace_id: Uuid::new_v4(),
+                trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
                 release: None,
                 user: Default::default(),
                 replay_id: None,
@@ -1080,17 +1080,19 @@ mod tests {
         // We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
         // belong to the same project keys, so they belong to the same envelope stack.
         let envelopes = mock_envelopes(10);
-        assert!(store
-            .insert_batch(
-                envelopes
-                    .into_iter()
-                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap()
-            )
-            .await
-            .is_ok());
+        assert!(
+            store
+                .insert_batch(
+                    envelopes
+                        .into_iter()
+                        .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap()
+                )
+                .await
+                .is_ok()
+        );
 
         // We assume that the buffer is empty.
         assert!(buffer.priority_queue.is_empty());

@@ -1,10 +1,10 @@
+use crate::EnvelopeStack;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 use crate::services::buffer::stack_provider::{
     InitializationState, StackCreationType, StackProvider,
 };
 use crate::utils::MemoryChecker;
-use crate::EnvelopeStack;
 
 #[derive(Debug)]
 pub struct MemoryStackProvider {

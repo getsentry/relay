@@ -4,7 +4,7 @@ use std::str::FromStr;
 pub use human_size::ParsingError as ByteSizeParseError;
 use human_size::{Any, Size, SpecificSize};
 use serde::ser::Serializer;
-use serde::{de, Serialize};
+use serde::{Serialize, de};
 
 /// Represents a size in bytes.
 ///

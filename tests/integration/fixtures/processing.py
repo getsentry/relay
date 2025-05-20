@@ -8,6 +8,7 @@ import confluent_kafka as kafka
 from copy import deepcopy
 
 from sentry_relay.consts import DataCategory
+from sentry_protos.snuba.v1.trace_item_pb2 import TraceItem
 
 
 @pytest.fixture
@@ -60,11 +61,11 @@ def processing_config(get_topic_name):
                 "metrics_generic": metrics_topic,
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
-                "ourlogs": get_topic_name("ourlogs"),
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),
                 "profiles": get_topic_name("profiles"),
                 "feedback": get_topic_name("feedback"),
+                "items": get_topic_name("items"),
             }
 
         if processing.get("redis") is None:
@@ -92,6 +93,22 @@ def relay_with_processing(relay, mini_sentry, processing_config):
         return relay(mini_sentry, options=options, **kwargs)
 
     return inner
+
+
+@pytest.fixture
+def relay_with_playstation(relay_with_processing):
+    """
+    Skips the test if Relay is not compiled with Playstation support else behaves like
+    `relay_with_processing`
+    """
+    relay = relay_with_processing()
+    try:
+        response = relay.post("/api/42/playstation/")
+        if response.status_code == 404:
+            pytest.skip("Test requires Relay compiled with PlayStation support")
+    except Exception:
+        pytest.skip("Test requires Relay compiled with PlayStation support")
+    return relay_with_processing
 
 
 def kafka_producer(options):
@@ -351,7 +368,7 @@ def spans_consumer(consumer_fixture):
 
 @pytest.fixture
 def ourlogs_consumer(consumer_fixture):
-    yield from consumer_fixture(OurLogsConsumer, "ourlogs")
+    yield from consumer_fixture(OurLogsConsumer, "items")
 
 
 @pytest.fixture
@@ -520,14 +537,23 @@ class OurLogsConsumer(ConsumerBase):
         assert message is not None
         assert message.error() is None
 
-        return json.loads(message.value())
+        trace_item = TraceItem()
+        trace_item.ParseFromString(message.value())
+
+        return trace_item
 
     def get_ourlogs(self):
         ourlogs = []
+
         for message in self.poll_many():
             assert message is not None
             assert message.error() is None
-            ourlogs.append(json.loads(message.value()))
+
+            trace_item = TraceItem()
+            trace_item.ParseFromString(message.value())
+
+            ourlogs.append(trace_item)
+
         return ourlogs
 
 

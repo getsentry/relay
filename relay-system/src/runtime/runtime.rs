@@ -2,8 +2,8 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::runtime::metrics::TokioCallbackMetrics;
 use crate::Handle;
+use crate::runtime::metrics::TokioCallbackMetrics;
 
 /// A Relay async runtime.
 ///

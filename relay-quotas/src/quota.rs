@@ -146,7 +146,7 @@ impl ItemScoping {
         // skip `Unknown` categories silently. If the list of categories only contains `Unknown`s,
         // we do **not** match, since apparently the quota is meant for some data this Relay does
         // not support yet.
-        categories.is_empty() || categories.iter().any(|cat| *cat == self.category)
+        categories.is_empty() || categories.contains(&self.category)
     }
 
     /// Returns `true` if the rate limit namespace matches the namespace of the item.
@@ -211,6 +211,8 @@ impl CategoryUnit {
             | DataCategory::Uptime
             | DataCategory::MetricSecond
             | DataCategory::AttachmentItem
+            | DataCategory::SeerAutofix
+            | DataCategory::SeerScanner
             | DataCategory::Session => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {

@@ -1,8 +1,8 @@
 use relay_metrics::{
     BucketMetadata, CounterType, MetricName, MetricNamespace, MetricResourceIdentifier, MetricType,
 };
-use serde::de::IgnoredAny;
 use serde::Deserialize;
+use serde::de::IgnoredAny;
 
 use crate::metrics::{BucketSummary, TrackableBucket};
 

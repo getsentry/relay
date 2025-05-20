@@ -19,7 +19,7 @@
 //!     ..SentryConfig::default()
 //! };
 //!
-//! relay_log::init(&log_config, &sentry_config);
+//! unsafe { relay_log::init(&log_config, &sentry_config); }
 //! ```
 //!
 //! # Logging
@@ -125,8 +125,8 @@ pub use test::*;
 mod utils;
 // Expose the minimal log facade.
 #[doc(inline)]
-pub use tracing::{debug, error, info, trace, warn, Level};
+pub use tracing::{Level, debug, error, info, trace, warn};
 // Expose the minimal error reporting API.
 #[doc(inline)]
-pub use sentry_core::{self as sentry, capture_error, configure_scope, protocol, with_scope, Hub};
+pub use sentry_core::{self as sentry, Hub, capture_error, configure_scope, protocol, with_scope};
 pub use utils::*;

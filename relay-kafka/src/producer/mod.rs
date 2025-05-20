@@ -1,19 +1,22 @@
-//! This module contains the kafka producer related code.
+//! This module contains the Kafka producer related code.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rdkafka::message::{Header, OwnedHeaders};
-use rdkafka::producer::{BaseRecord, Producer as _};
 use rdkafka::ClientConfig;
+use rdkafka::message::Header;
+use rdkafka::producer::{BaseRecord, Producer as _};
 use relay_statsd::metric;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::config::{KafkaParams, KafkaTopic};
+use crate::debounced::Debounced;
+use crate::limits::KafkaRateLimits;
+use crate::producer::utils::KafkaHeaders;
 use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 
 mod utils;
@@ -64,6 +67,11 @@ pub enum ClientError {
     /// Failed to validate the topic.
     #[error("failed to validate the topic with name {0}: {1:?}")]
     TopicError(String, rdkafka_sys::rd_kafka_resp_err_t),
+
+    /// Failed to encode the protobuf into the buffer
+    /// because the buffer is too small.
+    #[error("failed to encode protobuf because the buffer is too small")]
+    ProtobufEncodingFailed,
 }
 
 /// Describes the type which can be sent using kafka producer provided by this crate.
@@ -93,14 +101,21 @@ struct Producer {
     producer: Arc<ThreadedProducer>,
     /// Debouncer for metrics.
     metrics: Debounced,
+    /// Optional rate limits to apply.
+    rate_limiter: Option<KafkaRateLimits>,
 }
 
 impl Producer {
-    fn new(topic_name: String, producer: Arc<ThreadedProducer>) -> Self {
+    fn new(
+        topic_name: String,
+        producer: Arc<ThreadedProducer>,
+        rate_limiter: Option<KafkaRateLimits>,
+    ) -> Self {
         Self {
             topic_name,
             producer,
             metrics: Debounced::new(REPORT_FREQUENCY_SECS),
+            rate_limiter,
         }
     }
 
@@ -157,10 +172,10 @@ impl KafkaClient {
         self.schema_validator
             .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
-        let key = message.key();
+
         self.send(
             topic,
-            &key,
+            message.key(),
             message.headers(),
             message.variant(),
             &serialized,
@@ -173,7 +188,7 @@ impl KafkaClient {
     pub fn send(
         &self,
         topic: KafkaTopic,
-        key: &[u8; 16],
+        key: [u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
@@ -184,6 +199,7 @@ impl KafkaClient {
             );
             ClientError::InvalidTopicName
         })?;
+
         producer.send(key, headers, variant, payload)
     }
 }
@@ -219,12 +235,24 @@ impl KafkaClientBuilder {
             topic_name,
             config_name,
             params,
+            key_rate_limit,
         } = params;
+
+        let rate_limiter = key_rate_limit.map(|limit| {
+            KafkaRateLimits::new(
+                limit.limit_per_window,
+                Duration::from_secs(limit.window_secs),
+            )
+        });
 
         let config_name = config_name.map(str::to_string);
 
         if let Some(producer) = self.reused_producers.get(&config_name) {
-            let producer = Producer::new((*topic_name).to_string(), Arc::clone(producer));
+            let producer = Producer::new(
+                (*topic_name).to_string(),
+                Arc::clone(producer),
+                rate_limiter,
+            );
             if validate_topic {
                 producer.validate_topic()?;
             }
@@ -245,7 +273,7 @@ impl KafkaClientBuilder {
         self.reused_producers
             .insert(config_name, Arc::clone(&producer));
 
-        let producer = Producer::new((*topic_name).to_string(), producer);
+        let producer = Producer::new((*topic_name).to_string(), producer, rate_limiter);
         if validate_topic {
             producer.validate_topic()?;
         }
@@ -277,32 +305,53 @@ impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        key: &[u8; 16],
+        key: [u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
     ) -> Result<&str, ClientError> {
+        let now = Instant::now();
+        let topic_name = self.topic_name.as_str();
+
         metric!(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
-            variant = variant
+            variant = variant,
+            topic = topic_name,
         );
 
-        let topic_name = self.topic_name.as_str();
-        let mut record = BaseRecord::to(topic_name).key(key).payload(payload);
+        let mut headers = headers
+            .unwrap_or(&BTreeMap::new())
+            .iter()
+            .map(|(key, value)| Header {
+                key,
+                value: Some(value),
+            })
+            .collect::<KafkaHeaders>();
 
-        // Make sure to set the headers if provided.
-        if let Some(headers) = headers {
-            let mut kafka_headers = OwnedHeaders::new();
-            for (key, value) in headers {
-                kafka_headers = kafka_headers.insert(Header {
-                    key,
-                    value: Some(value),
+        let mut key = key;
+        if let Some(ref limiter) = self.rate_limiter {
+            if limiter.try_increment(now, key, 1) < 1 {
+                metric!(
+                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
+                    variant = variant,
+                    topic = topic_name,
+                );
+
+                key = Uuid::new_v4().into_bytes();
+                headers.insert(Header {
+                    key: "sentry-reshuffled",
+                    value: Some("1"),
                 });
             }
-            record = record.headers(kafka_headers);
         }
 
-        self.metrics.debounce(|| {
+        let mut record = BaseRecord::to(topic_name).key(&key).payload(payload);
+
+        if let Some(headers) = headers.into_inner() {
+            record = record.headers(headers);
+        }
+
+        self.metrics.debounce(now, || {
             metric!(
                 gauge(KafkaGauges::InFlightCount) = self.producer.in_flight_count() as u64,
                 variant = variant,
@@ -310,86 +359,21 @@ impl Producer {
             );
         });
 
-        self.producer
-            .send(record)
-            .map(|_| topic_name)
-            .map_err(|(error, _message)| {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    tags.variant = variant,
-                    tags.topic = topic_name,
-                    "error sending kafka message",
-                );
-                metric!(
-                    counter(KafkaCounters::ProducerEnqueueError) += 1,
-                    variant = variant,
-                    topic = topic_name
-                );
-                ClientError::SendFailed(error)
-            })
-    }
-}
+        self.producer.send(record).map_err(|(error, _message)| {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                tags.variant = variant,
+                tags.topic = topic_name,
+                "error sending kafka message",
+            );
+            metric!(
+                counter(KafkaCounters::ProducerEnqueueError) += 1,
+                variant = variant,
+                topic = topic_name
+            );
+            ClientError::SendFailed(error)
+        })?;
 
-struct Debounced {
-    /// Time of last activation in seconds.
-    last_activation: AtomicU64,
-    /// Debounce interval in seconds.
-    interval: u64,
-    /// Relative instant used for measurements.
-    instant: Instant,
-}
-
-impl Debounced {
-    pub fn new(interval: u64) -> Self {
-        Self {
-            last_activation: AtomicU64::new(0),
-            interval,
-            instant: Instant::now(),
-        }
-    }
-
-    fn debounce(&self, f: impl FnOnce()) -> bool {
-        // Add interval to make sure it always triggers immediately.
-        let now = self.instant.elapsed().as_secs() + self.interval;
-
-        let prev = self.last_activation.load(Ordering::Relaxed);
-        if now.saturating_sub(prev) < self.interval {
-            return false;
-        }
-
-        if self
-            .last_activation
-            .compare_exchange(prev, now, Ordering::SeqCst, Ordering::Acquire)
-            .is_ok()
-        {
-            f();
-            return true;
-        }
-
-        false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::thread;
-
-    use super::*;
-
-    #[test]
-    fn test_debounce() {
-        let d = Debounced::new(1);
-
-        assert!(d.debounce(|| {}));
-        for _ in 0..10 {
-            assert!(!d.debounce(|| {}));
-        }
-
-        thread::sleep(Duration::from_secs(1));
-
-        assert!(d.debounce(|| {}));
-        for _ in 0..10 {
-            assert!(!d.debounce(|| {}));
-        }
+        Ok(topic_name)
     }
 }

@@ -136,7 +136,7 @@ enum Mut<'a, T> {
 impl<T> Mut<'_, T> {
     fn as_mut(&mut self) -> &mut T {
         match self {
-            Self::Owned(ref mut t) => t,
+            Self::Owned(t) => t,
             Self::Borrowed(t) => t,
         }
     }
@@ -729,11 +729,10 @@ where
             return self.inner.visit_borrowed_str(v);
         };
 
-        let res = match self.transformer.transform_str(v) {
+        match self.transformer.transform_str(v) {
             Cow::Borrowed(v) => self.inner.visit_borrowed_str(v),
             Cow::Owned(v) => self.inner.visit_string(v),
-        };
-        res
+        }
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>

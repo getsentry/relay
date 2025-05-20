@@ -1,7 +1,7 @@
+use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter};
-use axum::RequestExt;
+use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
@@ -27,6 +27,11 @@ use crate::utils;
 ///
 /// Sentry requires
 const MINIDUMP_FIELD_NAME: &str = "upload_file_minidump";
+
+/// The field name of a view hierarchy file in the multipart form-data upload.
+/// It matches the expected file name of the view hierarchy, as outlined in RFC#33
+/// <https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md>
+const VIEW_HIERARCHY_FIELD_NAME: &str = "view-hierarchy.json";
 
 /// File name for a standalone minidump upload.
 ///
@@ -125,6 +130,7 @@ fn infer_attachment_type(field_name: Option<&str>, _file_name: &str) -> Attachme
         ITEM_NAME_BREADCRUMBS1 => AttachmentType::Breadcrumbs,
         ITEM_NAME_BREADCRUMBS2 => AttachmentType::Breadcrumbs,
         ITEM_NAME_EVENT => AttachmentType::EventPayload,
+        VIEW_HIERARCHY_FIELD_NAME => AttachmentType::ViewHierarchy,
         _ => AttachmentType::Attachment,
     }
 }
@@ -245,12 +251,12 @@ pub fn route(config: &Config) -> MethodRouter<ServiceState> {
 #[cfg(test)]
 mod tests {
     use crate::envelope::ContentType;
-    use crate::utils::{multipart_items, FormDataIter};
+    use crate::utils::{FormDataIter, multipart_items};
     use axum::body::Body;
-    use bzip2::write::BzEncoder;
     use bzip2::Compression as BzCompression;
-    use flate2::write::GzEncoder;
+    use bzip2::write::BzEncoder;
     use flate2::Compression as GzCompression;
+    use flate2::write::GzEncoder;
     use liblzma::write::XzEncoder;
     use relay_config::Config;
     use std::io::Write;
@@ -373,6 +379,10 @@ mod tests {
             Content-Disposition: form-data; name=\"__sentry-event\"; filename=\"__sentry-event\"\x0d\x0a\
             Content-Type: application/octet-stream\x0d\x0a\x0d\x0a\
             \x82\xa5level\xa5fatal\xa8platform\xa6native\x0d\x0a\
+            -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---\x0d\x0a\
+            Content-Disposition: form-data; name=\"view-hierarchy.json\"; filename=\"view-hierarchy.json\"\x0d\x0a\
+            Content-Type: application/json\x0d\x0a\x0d\x0a\
+            {\"rendering_system\":\"android_view_system\",\"windows\":[{\"type\":\"com.android.internal.policy.DecorView\",\"width\":768.0,\"height\":1280.0,\"x\":0.0,\"y\":0.0,\"visibility\":\"visible\",\"alpha\":1.0}]}\x0d\x0a\
             -----MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw-----\x0d\x0a";
 
         let request = Request::builder()
@@ -392,7 +402,8 @@ mod tests {
         // * two breadcrumb files
         // * one event file
         // * one form-data item
-        assert_eq!(5, items.len());
+        // * one view-hierarchy file
+        assert_eq!(6, items.len());
 
         // `config.json` has no content-type. MIME-detection in later processing will assign this.
         let item = &items[0];
@@ -435,8 +446,19 @@ mod tests {
         );
         assert_eq!(item.payload().len(), 29);
 
-        // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
+        // the next item is the view-hierarchy file
         let item = &items[4];
+        assert_eq!(item.filename().unwrap(), "view-hierarchy.json");
+        assert_eq!(item.content_type().unwrap(), &ContentType::Json);
+        assert_eq!(item.ty(), &ItemType::Attachment);
+        assert_eq!(
+            item.attachment_type().unwrap(),
+            &AttachmentType::ViewHierarchy
+        );
+        assert_eq!(item.payload().len(), 184);
+
+        // the last item is the form-data if any and contains a `guid` from the `crashpad_handler`
+        let item = &items[5];
         assert!(item.filename().is_none());
         assert_eq!(item.content_type().unwrap(), &ContentType::Text);
         assert_eq!(item.ty(), &ItemType::FormData);

@@ -15,7 +15,7 @@ use relay_metrics::Bucket;
 use relay_statsd::metric;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::services::processor::{ProcessingExtractedMetrics, SessionGroup, MINIMUM_CLOCK_DRIFT};
+use crate::services::processor::{MINIMUM_CLOCK_DRIFT, ProcessingExtractedMetrics, SessionGroup};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayTimers;
 use crate::utils::{ItemAction, TypedEnvelope};

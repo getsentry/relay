@@ -10,8 +10,8 @@ use relay_event_schema::protocol::{Event, Span, SpanStatus, TraceContext, Transa
 use relay_protocol::{Annotated, Meta, Remark, RemarkType, RuleCondition};
 use serde::{Deserialize, Serialize};
 
-use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::TransactionNameRule;
+use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 
 /// Configuration for sanitizing unparameterized transaction names.
 #[derive(Clone, Copy, Debug, Default)]
@@ -404,7 +404,7 @@ mod tests {
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::processor::process_value;
-    use relay_event_schema::protocol::{ClientSdkInfo, Contexts, SpanId, TraceId};
+    use relay_event_schema::protocol::{ClientSdkInfo, Contexts, SpanId};
     use relay_protocol::{assert_annotated_snapshot, get_value};
     use serde_json::json;
 
@@ -483,7 +483,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -493,7 +493,7 @@ mod tests {
             spans: Annotated::new(vec![Annotated::new(Span {
                 start_timestamp: Annotated::new(start.into()),
                 timestamp: Annotated::new(end.into()),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                 op: Annotated::new("db.statement".to_owned()),
                 ..Default::default()
@@ -515,7 +515,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     ..Default::default()
                 });
@@ -550,7 +550,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -580,7 +580,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -633,7 +633,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
@@ -647,7 +647,7 @@ mod tests {
                 start_timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
                 ),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
 
                 ..Default::default()
@@ -740,12 +740,14 @@ mod tests {
     fn test_allows_valid_transaction_event_with_spans() {
         let mut event = new_test_event();
 
-        assert!(process_value(
-            &mut event,
-            &mut TransactionsProcessor::default(),
-            ProcessingState::root(),
-        )
-        .is_ok());
+        assert!(
+            process_value(
+                &mut event,
+                &mut TransactionsProcessor::default(),
+                ProcessingState::root(),
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -1248,12 +1250,14 @@ mod tests {
             get_value!(event.transaction!),
             "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
         );
-        assert!(get_value!(event!)
-            .transaction
-            .meta()
-            .iter_remarks()
-            .next()
-            .is_none());
+        assert!(
+            get_value!(event!)
+                .transaction
+                .meta()
+                .iter_remarks()
+                .next()
+                .is_none()
+        );
         assert_eq!(
             get_value!(event.transaction_info.source!).as_str(),
             "foobar"

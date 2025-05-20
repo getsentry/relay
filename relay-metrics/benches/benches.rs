@@ -1,13 +1,13 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-use rand::distributions::Uniform;
-use rand::rngs::SmallRng;
+use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use rand::Rng;
 use rand::SeedableRng;
+use rand::distributions::Uniform;
+use rand::rngs::SmallRng;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    aggregator::{Aggregator, AggregatorConfig},
     Bucket, BucketValue, DistributionValue, FiniteF64,
+    aggregator::{Aggregator, AggregatorConfig},
 };
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -34,9 +34,7 @@ impl NumbersGenerator {
 
     fn next(&self) -> usize {
         let dist = Uniform::new(self.min, self.max + 1);
-        let value = self.generator.borrow_mut().sample(dist);
-
-        value
+        self.generator.borrow_mut().sample(dist)
     }
 }
 

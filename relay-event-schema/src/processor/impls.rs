@@ -5,7 +5,7 @@ use relay_protocol::{Annotated, Array, Meta, Object, Value};
 use uuid::Uuid;
 
 use crate::processor::{
-    process_value, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
+    ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType, process_value,
 };
 
 impl ProcessValue for String {

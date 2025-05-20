@@ -20,7 +20,7 @@ def test_event_with_span_link_in_transaction(relay, mini_sentry):
                 "op": "navigation",
                 "links": [
                     {
-                        "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
                         "span_id": "ea90fdead5f74052",
                         "sampled": True,
                         "attributes": {"sentry.link.type": "previous_trace"},
@@ -40,7 +40,7 @@ def test_event_with_span_link_in_transaction(relay, mini_sentry):
                 "timestamp": 1624366927.0,
                 "links": [
                     {
-                        "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
                         "span_id": "ea90fdead5f74052",
                         "sampled": False,
                         "attributes": {
@@ -75,7 +75,7 @@ def test_event_with_span_link_in_transaction(relay, mini_sentry):
             "op": "navigation",
             "links": [
                 {
-                    "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
                     "span_id": "ea90fdead5f74052",
                     "sampled": True,
                     "attributes": {"sentry.link.type": "previous_trace"},
@@ -99,7 +99,7 @@ def test_event_with_span_link_in_transaction(relay, mini_sentry):
             "timestamp": 1624366927.0,
             "links": [
                 {
-                    "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
                     "span_id": "ea90fdead5f74052",
                     "sampled": False,
                     "attributes": {

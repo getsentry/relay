@@ -7,6 +7,7 @@ mod gpu;
 mod monitor;
 mod nel;
 mod os;
+mod ota_updates;
 mod otel;
 mod performance_score;
 mod profile;
@@ -25,6 +26,7 @@ pub use gpu::*;
 pub use monitor::*;
 pub use nel::*;
 pub use os::*;
+pub use ota_updates::*;
 pub use otel::*;
 pub use performance_score::*;
 pub use profile::*;
@@ -94,6 +96,8 @@ pub enum Context {
     PerformanceScore(Box<PerformanceScoreContext>),
     /// Spring / Spring Boot information.
     Spring(Box<SpringContext>),
+    /// OTA Updates information.
+    OTAUpdates(Box<OTAUpdatesContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
@@ -264,7 +268,7 @@ impl FromValue for Contexts {
     fn from_value(mut annotated: Annotated<Value>) -> Annotated<Self> {
         if let Annotated(Some(Value::Object(ref mut items)), _) = annotated {
             for (key, value) in items.iter_mut() {
-                if let Annotated(Some(Value::Object(ref mut items)), _) = value {
+                if let Annotated(Some(Value::Object(items)), _) = value {
                     if !items.contains_key("type") {
                         items.insert(
                             "type".to_string(),

@@ -12,19 +12,19 @@ use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use futures::future::BoxFuture;
+use flate2::write::{GzEncoder, ZlibEncoder};
 use futures::FutureExt;
+use futures::future::BoxFuture;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
-    normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
-    EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
-    TransactionNameConfig,
+    ClockDriftProcessor, CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup,
+    MeasurementsConfig, NormalizationConfig, RawUserAgentInfo, TransactionNameConfig,
+    normalize_event, validate_event,
 };
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
@@ -39,7 +39,7 @@ use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, Sampling
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
@@ -52,7 +52,7 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
-use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
@@ -70,6 +70,7 @@ use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
     crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
+    crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{Enforcement, ItemAction},
     itertools::Itertools,
@@ -98,11 +99,14 @@ mod span;
 mod transaction;
 pub use span::extract_transaction_span;
 
-#[cfg(feature = "processing")]
+#[cfg(all(sentry, feature = "processing"))]
 mod playstation;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
+
+#[cfg(feature = "processing")]
+mod nnswitch;
 
 /// Creates the block only if used with `processing` feature.
 ///
@@ -476,7 +480,7 @@ pub enum ProcessingError {
     InvalidUnrealReport(#[source] Unreal4Error),
 
     #[error("event payload too large")]
-    PayloadTooLarge(ItemType),
+    PayloadTooLarge(DiscardItemType),
 
     #[error("invalid transaction event")]
     InvalidTransaction,
@@ -522,21 +526,29 @@ pub enum ProcessingError {
     PiiConfigError(PiiConfigError),
 
     #[error("invalid processing group type")]
-    InvalidProcessingGroup(#[from] InvalidProcessingGroupType),
+    InvalidProcessingGroup(Box<InvalidProcessingGroupType>),
 
     #[error("invalid replay")]
     InvalidReplay(DiscardReason),
 
     #[error("replay filtered with reason: {0:?}")]
     ReplayFiltered(FilterStatKey),
+
+    #[cfg(feature = "processing")]
+    #[error("nintendo switch dying message processing failed {0:?}")]
+    InvalidNintendoDyingMessage(#[source] SwitchProcessingError),
+
+    #[cfg(all(sentry, feature = "processing"))]
+    #[error("playstation dump processing failed: {0}")]
+    InvalidPlaystationDump(String),
 }
 
 impl ProcessingError {
     fn to_outcome(&self) -> Option<Outcome> {
         match self {
             // General outcomes for invalid events
-            Self::PayloadTooLarge(item_type) => {
-                Some(Outcome::Invalid(DiscardReason::TooLarge(item_type.into())))
+            Self::PayloadTooLarge(payload_type) => {
+                Some(Outcome::Invalid(DiscardReason::TooLarge(*payload_type)))
             }
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
@@ -551,11 +563,14 @@ impl ProcessingError {
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
 
+            #[cfg(feature = "processing")]
+            Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
+            #[cfg(all(sentry, feature = "processing"))]
+            Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
+
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
-            Self::InvalidUnrealReport(ref err)
-                if err.kind() == Unreal4ErrorKind::BadCompression =>
-            {
+            Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
                 Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
             #[cfg(feature = "processing")]
@@ -589,7 +604,7 @@ impl ProcessingError {
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
-            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport),
+            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge(ItemType::UnrealReport.into()),
             _ => ProcessingError::InvalidUnrealReport(err),
         }
     }
@@ -602,6 +617,12 @@ impl From<ExtractMetricsError> for ProcessingError {
                 Self::InvalidTimestamp
             }
         }
+    }
+}
+
+impl From<InvalidProcessingGroupType> for ProcessingError {
+    fn from(value: InvalidProcessingGroupType) -> Self {
+        Self::InvalidProcessingGroup(Box::new(value))
     }
 }
 
@@ -1325,7 +1346,7 @@ impl EnvelopeProcessorService {
         let global = self.inner.global_config.current();
         let combined_config = {
             let config = match &project_info.config.metric_extraction {
-                ErrorBoundary::Ok(ref config) if config.is_supported() => config,
+                ErrorBoundary::Ok(config) if config.is_supported() => config,
                 _ => return Ok(event_metrics_extracted),
             };
             let global_config = match &global.metric_extraction {
@@ -1536,6 +1557,7 @@ impl EnvelopeProcessorService {
                     .and_then(|ctx| ctx.replay_id),
                 span_allowed_hosts: http_span_allowed_hosts,
                 span_op_defaults: global_config.span_op_defaults.borrow(),
+                performance_issues_spans: project_info.has_feature(Feature::PerformanceIssuesSpans),
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {
@@ -1572,7 +1594,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
-            playstation::expand(managed_envelope, &project_info)?;
+            nnswitch::expand(managed_envelope)?;
         });
 
         let extraction_result = event::extract(
@@ -1589,9 +1611,13 @@ impl EnvelopeProcessorService {
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }
-            if let Some(inner_event_fully_normalized) =
-                playstation::process(managed_envelope, &mut event)?
-            {
+            #[cfg(all(sentry, feature = "processing"))]
+            if let Some(inner_event_fully_normalized) = playstation::process(
+                managed_envelope,
+                &mut event,
+                &self.inner.config,
+                &project_info,
+            )? {
                 event_fully_normalized = inner_event_fully_normalized;
             }
             if let Some(inner_event_fully_normalized) =
@@ -1883,7 +1909,6 @@ impl EnvelopeProcessorService {
                     &event,
                     &global_config,
                     config,
-                    project_info.clone(),
                     server_sample_rate,
                     event_metrics_extracted,
                     spans_extracted,
@@ -2130,7 +2155,7 @@ impl EnvelopeProcessorService {
         .await?;
 
         if_processing!(self.inner.config, {
-            ourlog::process(managed_envelope, project_info.clone());
+            ourlog::process(managed_envelope, project_info.clone())?;
         });
 
         Ok(Some(extracted_metrics))
@@ -2238,6 +2263,7 @@ impl EnvelopeProcessorService {
                             extracted_metrics: extracted_metrics.map_or(ProcessingExtractedMetrics::new(), |e| e)
                         }),
                         Err(error) => {
+                            relay_log::trace!("Executing {fn} failed: {error}", fn = stringify!($fn_name), error = error);
                             if let Some(outcome) = error.to_outcome() {
                                 managed_envelope.reject(outcome);
                             }
@@ -3722,10 +3748,10 @@ mod tests {
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
 
+    use crate::metrics_extraction::IntoMetric;
     use crate::metrics_extraction::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
-    use crate::metrics_extraction::IntoMetric;
     use crate::testutils::{self, create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
@@ -3970,7 +3996,12 @@ mod tests {
             .unwrap();
 
         // IP-like data must be masked
-        assert_eq!(Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"), headers.get_header("User-Agent"));
+        assert_eq!(
+            Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"
+            ),
+            headers.get_header("User-Agent")
+        );
         // But we still get correct browser and version number
         let contexts = event.contexts.into_value().unwrap();
         let browser = contexts.0.get("browser").unwrap();
@@ -4044,7 +4075,7 @@ mod tests {
             .unwrap();
 
         let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
-        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
+        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r#"
         Object(
             {
                 "environment": ~,
@@ -4057,12 +4088,12 @@ mod tests {
                     "0.2",
                 ),
                 "trace_id": String(
-                    "00000000-0000-0000-0000-000000000000",
+                    "00000000000000000000000000000000",
                 ),
                 "transaction": ~,
             },
         )
-        "###);
+        "#);
     }
 
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {

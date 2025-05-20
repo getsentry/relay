@@ -1,6 +1,6 @@
 use axum::extract::{DefaultBodyLimit, FromRequest, Query};
 use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter};
+use axum::routing::{MethodRouter, post};
 use bytes::Bytes;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;

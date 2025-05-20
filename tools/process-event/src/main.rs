@@ -7,12 +7,12 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 
-use anyhow::{format_err, Context, Result};
+use anyhow::{Context, Result, format_err};
 use clap::Parser;
 use relay_event_normalization::{
-    normalize_event, validate_event, EventValidationConfig, NormalizationConfig,
+    EventValidationConfig, NormalizationConfig, normalize_event, validate_event,
 };
-use relay_event_schema::processor::{process_value, ProcessingState};
+use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::Event;
 use relay_pii::{PiiConfig, PiiProcessor};
 use relay_protocol::Annotated;

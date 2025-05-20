@@ -3,13 +3,13 @@ use std::fmt;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 
+use axum::RequestPartsExt;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{ConnectInfo, FromRequestParts, Path};
+use axum::http::StatusCode;
 use axum::http::header::{self, AsHeaderName};
 use axum::http::request::Parts;
-use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::RequestPartsExt;
 use chrono::{DateTime, Utc};
 use data_encoding::BASE64;
 use relay_auth::RelayId;

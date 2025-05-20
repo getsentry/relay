@@ -30,8 +30,8 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Val}
 use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, BrowserContext, ClientSdkInfo, Contexts, DefaultContext, DeviceContext, EventId,
-    LenientString, OsContext, ProfileContext, Request, ResponseContext, Tags, Timestamp,
-    TraceContext, User,
+    LenientString, OTAUpdatesContext, OsContext, ProfileContext, Request, ResponseContext, Tags,
+    Timestamp, TraceContext, User,
 };
 use uuid::Uuid;
 
@@ -233,7 +233,7 @@ impl Replay {
         let headers = self.request.value()?.headers.value()?;
 
         for item in headers.iter() {
-            if let Some((ref o_k, ref v)) = item.value() {
+            if let Some((o_k, v)) = item.value() {
                 if let Some(k) = o_k.as_str() {
                     if k.eq_ignore_ascii_case("user-agent") {
                         return v.as_str();
@@ -356,6 +356,21 @@ impl Getter for Replay {
                 super::Context::Other(context) => context.get("crash_type")?.value()?.into(),
                 _ => return None,
             },
+            "contexts.ota_updates.channel" => self
+                .context::<OTAUpdatesContext>()?
+                .channel
+                .as_str()?
+                .into(),
+            "contexts.ota_updates.runtime_version" => self
+                .context::<OTAUpdatesContext>()?
+                .runtime_version
+                .as_str()?
+                .into(),
+            "contexts.ota_updates.update_id" => self
+                .context::<OTAUpdatesContext>()?
+                .update_id
+                .as_str()?
+                .into(),
 
             // Dynamic access to certain data bags
             path => {
@@ -462,5 +477,34 @@ mod tests {
 
         assert_eq!(event, Annotated::from_json(input).unwrap());
         assert_eq!(output, event.to_json().unwrap());
+    }
+
+    #[test]
+    fn test_ota_updates_context_getter() {
+        let mut contexts = Contexts::new();
+        contexts.add(OTAUpdatesContext {
+            channel: Annotated::new("production".to_string()),
+            runtime_version: Annotated::new("1.0.0".to_string()),
+            update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_string()),
+            ..OTAUpdatesContext::default()
+        });
+
+        let replay = Replay {
+            contexts: Annotated::new(contexts),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            Some(Val::String("production")),
+            replay.get_value("event.contexts.ota_updates.channel")
+        );
+        assert_eq!(
+            Some(Val::String("1.0.0")),
+            replay.get_value("event.contexts.ota_updates.runtime_version")
+        );
+        assert_eq!(
+            Some(Val::String("12345678-1234-1234-1234-1234567890ab")),
+            replay.get_value("event.contexts.ota_updates.update_id")
+        );
     }
 }

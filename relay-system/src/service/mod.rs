@@ -2,20 +2,19 @@ use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use futures::future::{BoxFuture, Shared};
 use futures::FutureExt;
+use futures::future::{BoxFuture, Shared};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
 use crate::statsd::SystemGauges;
-use crate::{spawn, TaskId};
+use crate::{TaskId, spawn};
 
-mod monitor;
 mod registry;
 mod status;
 

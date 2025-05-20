@@ -5,7 +5,7 @@ description = "Scrubs PII from a Minidump file"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "20.8.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [dependencies]

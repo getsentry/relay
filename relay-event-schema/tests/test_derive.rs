@@ -1,5 +1,5 @@
 use relay_event_schema::processor::{
-    process_value, ProcessValue, ProcessingResult, ProcessingState, Processor,
+    ProcessValue, ProcessingResult, ProcessingState, Processor, process_value,
 };
 use relay_event_schema::protocol::HeaderName;
 use relay_protocol::{Annotated, Meta, Value};

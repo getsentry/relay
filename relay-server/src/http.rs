@@ -12,8 +12,8 @@ use std::io;
 
 use bytes::Bytes;
 use relay_config::HttpEncoding;
-use reqwest::header::{HeaderMap, HeaderValue};
 pub use reqwest::StatusCode;
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::de::DeserializeOwned;
 
 #[derive(Debug, thiserror::Error)]

@@ -55,7 +55,7 @@ pub fn state_with_rule_and_condition(
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
-        trace_id: uuid::Uuid::new_v4(),
+        trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
         public_key: "12345678901234567890123456789012".parse().unwrap(),
         release: None,
         environment: None,
@@ -114,15 +114,14 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
-    let redis_pools = match config.redis() {
-        Some(pool) => Some(create_redis_clients(pool).await),
-        None => None,
-    }
-    .transpose()
-    .unwrap();
+    let redis_clients = config
+        .redis()
+        .map(|c| create_redis_clients(c))
+        .transpose()
+        .unwrap();
 
     #[cfg(feature = "processing")]
-    let global_rate_limits = redis_pools
+    let global_rate_limits = redis_clients
         .as_ref()
         .map(|p| GlobalRateLimitsService::new(p.quotas.clone()).start_detached());
 
@@ -136,7 +135,7 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         ProjectCacheHandle::for_test(),
         Cogs::noop(),
         #[cfg(feature = "processing")]
-        redis_pools,
+        redis_clients,
         processor::Addrs {
             outcome_aggregator,
             upstream_relay,
@@ -156,12 +155,11 @@ pub async fn create_test_processor_with_addrs(
     addrs: processor::Addrs,
 ) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
-    let redis_pools = match config.redis() {
-        Some(pools) => Some(create_redis_clients(pools).await),
-        None => None,
-    }
-    .transpose()
-    .unwrap();
+    let redis_clients = config
+        .redis()
+        .map(|c| create_redis_clients(c))
+        .transpose()
+        .unwrap();
     let metric_outcomes =
         MetricOutcomes::new(MetricStats::test().0, addrs.outcome_aggregator.clone());
 
@@ -173,7 +171,7 @@ pub async fn create_test_processor_with_addrs(
         ProjectCacheHandle::for_test(),
         Cogs::noop(),
         #[cfg(feature = "processing")]
-        redis_pools,
+        redis_clients,
         addrs,
         metric_outcomes,
     )

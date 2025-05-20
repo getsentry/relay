@@ -10,6 +10,12 @@ pub enum ProfileError {
     InvalidBase64Value,
     #[error("invalid sampled profile")]
     InvalidSampledProfile,
+    /// Error associated with an invalid [`ProfileType`](crate::ProfileType).
+    ///
+    /// Error is currently emitted when the inferred profile type from the payload
+    /// does not match the profile type inferred from the envelope item headers.
+    #[error("profile type invalid or mismatched")]
+    InvalidProfileType,
     #[error("cannot serialize payload")]
     CannotSerializePayload,
     #[error("not enough samples")]

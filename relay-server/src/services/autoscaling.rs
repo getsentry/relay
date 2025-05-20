@@ -1,6 +1,6 @@
+use crate::MemoryStat;
 use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::processor::EnvelopeProcessorServicePool;
-use crate::MemoryStat;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Handle, Interface, RuntimeMetrics, Sender, Service,
 };
@@ -61,9 +61,14 @@ impl Service for AutoscalingMetricService {
                             let metrics = self.handle
                                 .current_services_metrics()
                                 .iter()
-                                .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
+                                .map(|(id, metric)| ServiceUtilization {
+                                    name: id.name(),
+                                    instance_id: id.instance_id(),
+                                    utilization: metric.utilization
+                                }
+                            )
                                 .collect();
-                            let worker_pool_utilization = self.async_pool.metrics().utilization() as u8;
+                            let worker_pool_utilization = self.async_pool.metrics().total_utilization();
                             let runtime_utilization = self.runtime_utilization();
 
                             sender.send(AutoscalingData {
@@ -127,14 +132,43 @@ impl FromMessage<AutoscalingMessageKind> for AutoscalingMetrics {
     }
 }
 
+/// Contains data that is used for autoscaling.
 pub struct AutoscalingData {
+    /// Memory usage of relay.
     pub memory_usage: f32,
+    /// Is `1` if relay is running, `0` if it's shutting down.
     pub up: u8,
+    /// The total number of bytes used by the spooler.
     pub total_size: u64,
+    /// The total number of envelopes in the spooler.
     pub item_count: u64,
+    /// Worker pool utilization in percent.
     pub worker_pool_utilization: u8,
+    /// List of service utilization.
     pub services_metrics: Vec<ServiceUtilization>,
+    /// Utilization of the async runtime.
     pub runtime_utilization: u8,
 }
 
-pub struct ServiceUtilization(pub &'static str, pub u8);
+/// Contains the minimal required information for service utilization.
+///
+/// A service can have multiple instances which will all have the same name.
+/// Those instances are distinguished by the `instance_id`.
+pub struct ServiceUtilization {
+    /// The service name.
+    pub name: &'static str,
+    /// The id of the specific service instance.
+    pub instance_id: u32,
+    /// Utilization as percentage.
+    pub utilization: u8,
+}
+
+impl ServiceUtilization {
+    pub fn new(name: &'static str, instance_id: u32, utilization: u8) -> Self {
+        Self {
+            name,
+            instance_id,
+            utilization,
+        }
+    }
+}

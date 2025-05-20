@@ -7,7 +7,7 @@ use psl;
 use relay_filter::matches_any_origin;
 use serde_json::Value;
 #[cfg(test)]
-pub use sql::{scrub_queries, Mode};
+pub use sql::{Mode, scrub_queries};
 
 use relay_event_schema::protocol::Span;
 use std::borrow::Cow;
@@ -19,10 +19,10 @@ use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, FUNCTION_NORMALIZER_REGEX,
     RESOURCE_NORMALIZER_REGEX,
 };
+use crate::span::TABLE_NAME_REGEX;
 use crate::span::description::redis::matching_redis_command;
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
-use crate::span::TABLE_NAME_REGEX;
 
 /// Dummy URL used to parse relative URLs.
 static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
@@ -451,7 +451,7 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
 
             let last_segment = url
                 .path_segments()
-                .and_then(|s| s.last())
+                .and_then(|mut s| s.next_back())
                 .unwrap_or_default();
             let last_segment = scrub_resource_filename(resource_type, last_segment);
 

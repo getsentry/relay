@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{format_err, Context, Result};
+use anyhow::{Context, Result, format_err};
 use clap::Parser;
 use relay_pii::{PiiAttachmentsProcessor, PiiConfig};
 

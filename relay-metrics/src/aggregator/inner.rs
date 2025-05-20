@@ -4,8 +4,8 @@ use std::mem;
 use std::time::Duration;
 
 use ahash::RandomState;
-use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
+use hashbrown::hash_map::Entry;
 use relay_base_schema::metrics::MetricName;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;

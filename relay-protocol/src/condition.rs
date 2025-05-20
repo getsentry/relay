@@ -79,12 +79,12 @@ impl EqCondition {
     {
         match (instance.get_value(self.name.as_str()), &self.value) {
             (None, Value::Null) => true,
-            (Some(Val::String(f)), Value::String(ref val)) => self.cmp(f, val),
-            (Some(Val::String(f)), Value::Array(ref arr)) => arr
+            (Some(Val::String(f)), Value::String(val)) => self.cmp(f, val),
+            (Some(Val::String(f)), Value::Array(arr)) => arr
                 .iter()
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
-            (Some(Val::Uuid(f)), Value::String(ref val)) => Some(f) == val.parse().ok(),
+            (Some(Val::Uuid(f)), Value::String(val)) => Some(f) == val.parse().ok(),
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
             _ => false,
         }

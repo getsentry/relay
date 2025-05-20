@@ -1,6 +1,7 @@
 mod convert;
 
 use std::fmt;
+use std::ops::Deref;
 use std::str::FromStr;
 
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
@@ -121,6 +122,15 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty", trim = false)]
     pub kind: Annotated<SpanKind>,
 
+    /// Temporary flag that controls where performance issues are detected.
+    ///
+    /// When the flag is set to true, performance issues will be detected on this span provided it
+    /// is a root (segment) instead of the transaction event.
+    ///
+    /// Only set on root spans extracted from transactions.
+    #[metastructure(skip_serialization = "empty", trim = false)]
+    pub _performance_issues_spans: Annotated<bool>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
@@ -150,7 +160,7 @@ impl Getter for Span {
                 "op" => self.op.as_str()?.into(),
                 "span_id" => self.span_id.as_str()?.into(),
                 "parent_span_id" => self.parent_span_id.as_str()?.into(),
-                "trace_id" => self.trace_id.as_str()?.into(),
+                "trace_id" => self.trace_id.value()?.deref().into(),
                 "status" => self.status.as_str()?.into(),
                 "origin" => self.origin.as_str()?.into(),
                 "duration" => {
@@ -199,7 +209,7 @@ impl Getter for Span {
 
 /// Indexable fields added by sentry (server-side).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[metastructure(trim = false)]
+#[metastructure(trim = false, pii = "maybe")]
 pub struct SentryTags {
     pub release: Annotated<String>,
     #[metastructure(pii = "true")]
@@ -229,6 +239,61 @@ pub struct SentryTags {
     pub mobile: Annotated<String>,
     #[metastructure(field = "device.class")]
     pub device_class: Annotated<String>,
+    #[metastructure(field = "device.family")]
+    pub device_family: Annotated<String>,
+    #[metastructure(field = "device.arch")]
+    pub device_arch: Annotated<String>,
+    #[metastructure(field = "device.battery_level")]
+    pub device_battery_level: Annotated<String>,
+    #[metastructure(field = "device.brand")]
+    pub device_brand: Annotated<String>,
+    #[metastructure(field = "device.charging")]
+    pub device_charging: Annotated<String>,
+    #[metastructure(field = "device.locale")]
+    pub device_locale: Annotated<String>,
+    #[metastructure(field = "device.model_id")]
+    pub device_model_id: Annotated<String>,
+    #[metastructure(field = "device.name")]
+    pub device_name: Annotated<String>,
+    #[metastructure(field = "device.online")]
+    pub device_online: Annotated<String>,
+    #[metastructure(field = "device.orientation")]
+    pub device_orientation: Annotated<String>,
+    #[metastructure(field = "device.screen_density")]
+    pub device_screen_density: Annotated<String>,
+    #[metastructure(field = "device.screen_dpi")]
+    pub device_screen_dpi: Annotated<String>,
+    #[metastructure(field = "device.screen_height_pixels")]
+    pub device_screen_height_pixels: Annotated<String>,
+    #[metastructure(field = "device.screen_width_pixels")]
+    pub device_screen_width_pixels: Annotated<String>,
+    #[metastructure(field = "device.simulator")]
+    pub device_simulator: Annotated<String>,
+    #[metastructure(field = "device.uuid")]
+    pub device_uuid: Annotated<String>,
+    #[metastructure(field = "app.device")]
+    pub app_device: Annotated<String>,
+    #[metastructure(field = "device.model")]
+    pub device_model: Annotated<String>,
+    pub runtime: Annotated<String>,
+    #[metastructure(field = "runtime.name")]
+    pub runtime_name: Annotated<String>,
+    pub browser: Annotated<String>,
+    pub os: Annotated<String>,
+    #[metastructure(field = "os.rooted")]
+    pub os_rooted: Annotated<String>,
+    #[metastructure(field = "gpu.name")]
+    pub gpu_name: Annotated<String>,
+    #[metastructure(field = "gpu.vendor")]
+    pub gpu_vendor: Annotated<String>,
+    #[metastructure(field = "monitor.id")]
+    pub monitor_id: Annotated<String>,
+    #[metastructure(field = "monitor.slug")]
+    pub monitor_slug: Annotated<String>,
+    #[metastructure(field = "request.url")]
+    pub request_url: Annotated<String>,
+    #[metastructure(field = "request.method")]
+    pub request_method: Annotated<String>,
     // Mobile OS the transaction originated from(String).
     #[metastructure(field = "os.name")]
     pub os_name: Annotated<String>,
@@ -302,6 +367,35 @@ impl Getter for SentryTags {
             "category" => &self.category,
             "description" => &self.description,
             "device.class" => &self.device_class,
+            "device.family" => &self.device_family,
+            "device.arch" => &self.device_arch,
+            "device.battery_level" => &self.device_battery_level,
+            "device.brand" => &self.device_brand,
+            "device.charging" => &self.device_charging,
+            "device.locale" => &self.device_locale,
+            "device.model_id" => &self.device_model_id,
+            "device.name" => &self.device_name,
+            "device.online" => &self.device_online,
+            "device.orientation" => &self.device_orientation,
+            "device.screen_density" => &self.device_screen_density,
+            "device.screen_dpi" => &self.device_screen_dpi,
+            "device.screen_height_pixels" => &self.device_screen_height_pixels,
+            "device.screen_width_pixels" => &self.device_screen_width_pixels,
+            "device.simulator" => &self.device_simulator,
+            "device.uuid" => &self.device_uuid,
+            "app.device" => &self.app_device,
+            "device.model" => &self.device_model,
+            "runtime" => &self.runtime,
+            "runtime.name" => &self.runtime_name,
+            "browser" => &self.browser,
+            "os" => &self.os,
+            "os.rooted" => &self.os_rooted,
+            "gpu.name" => &self.gpu_name,
+            "gpu.vendor" => &self.gpu_vendor,
+            "monitor.id" => &self.monitor_id,
+            "monitor.slug" => &self.monitor_slug,
+            "request.url" => &self.request_url,
+            "request.method" => &self.request_method,
             "domain" => &self.domain,
             "environment" => &self.environment,
             "file_extension" => &self.file_extension,
@@ -1000,7 +1094,7 @@ mod tests {
         );
 
         let links = Annotated::new(vec![Annotated::new(SpanLink {
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             sampled: Annotated::new(true),
             attributes: Annotated::new({
@@ -1024,7 +1118,7 @@ mod tests {
             exclusive_time: Annotated::new(1.23),
             description: Annotated::new("desc".to_owned()),
             op: Annotated::new("operation".to_owned()),
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new("auto.http".to_owned()),

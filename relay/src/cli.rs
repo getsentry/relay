@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::{env, io};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use clap::ArgMatches;
 use clap_complete::Shell;
 use dialoguer::{Confirm, Select};
@@ -52,7 +52,11 @@ pub fn execute() -> Result<()> {
     let env_config = extract_config_env_vars();
     config.apply_override(env_config)?;
 
-    relay_log::init(config.logging(), config.sentry());
+    // SAFETY: The function cannot be called from a multi threaded environment,
+    // this is the main entry point where no other threads have been spawned yet.
+    unsafe {
+        relay_log::init(config.logging(), config.sentry());
+    }
 
     if let Some(matches) = matches.subcommand_matches("config") {
         manage_config(&config, matches)

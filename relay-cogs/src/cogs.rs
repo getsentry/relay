@@ -324,10 +324,10 @@ impl FeatureWeightsBuilder {
             return self;
         };
 
-        if let Some(previous) = self.0 .0.get_mut(&feature) {
+        if let Some(previous) = self.0.0.get_mut(&feature) {
             *previous = previous.saturating_add(weight.get());
         } else {
-            self.0 .0.insert(feature, weight);
+            self.0.0.insert(feature, weight);
         }
 
         self
@@ -336,9 +336,9 @@ impl FeatureWeightsBuilder {
     /// Sets the specified `weight` for an [`AppFeature`].
     pub fn weight(&mut self, feature: AppFeature, weight: usize) -> &mut Self {
         if let Some(weight) = NonZeroUsize::new(weight) {
-            self.0 .0.insert(feature, weight);
+            self.0.0.insert(feature, weight);
         } else {
-            self.0 .0.remove(&feature);
+            self.0.0.remove(&feature);
         }
         self
     }

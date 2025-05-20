@@ -13,12 +13,20 @@ pub enum RelayGauges {
     AsyncPoolQueueSize,
     /// Tracks the utilization of the async pool.
     ///
-    /// The utilization is a value between 0.0 and 100.0 which determines how busy is the pool
-    /// w.r.t. to its provisioned capacity.
+    /// The utilization is a value between 0.0 and 100.0 which determines how busy the pool is doing
+    /// CPU-bound work.
     ///
     /// This metric is tagged with:
     /// - `pool`: the name of the pool.
     AsyncPoolUtilization,
+    /// Tracks the activity of the async pool.
+    ///
+    /// The activity is a value between 0.0 and 100.0 which determines how busy is the pool
+    /// w.r.t. to its provisioned capacity.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
+    AsyncPoolActivity,
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
@@ -42,6 +50,12 @@ pub enum RelayGauges {
     /// The number of idle connections in the Redis Pool.
     #[cfg(feature = "processing")]
     RedisPoolIdleConnections,
+    /// The maximum number of connections in the Redis pool.
+    #[cfg(feature = "processing")]
+    RedisPoolMaxConnections,
+    /// The number of futures waiting to grab a connection.
+    #[cfg(feature = "processing")]
+    RedisPoolWaitingForConnection,
     /// The number of notifications in the broadcast channel of the project cache.
     ProjectCacheNotificationChannel,
     /// The number of scheduled and in progress fetches in the project cache.
@@ -70,6 +84,7 @@ impl GaugeMetric for RelayGauges {
         match self {
             RelayGauges::AsyncPoolQueueSize => "async_pool.queue_size",
             RelayGauges::AsyncPoolUtilization => "async_pool.utilization",
+            RelayGauges::AsyncPoolActivity => "async_pool.activity",
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",
@@ -79,6 +94,10 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::RedisPoolConnections => "redis.pool.connections",
             #[cfg(feature = "processing")]
             RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolMaxConnections => "redis.pool.max_connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolWaitingForConnection => "redis.pool.waiting_for_connection",
             RelayGauges::ProjectCacheNotificationChannel => {
                 "project_cache.notification_channel.size"
             }
@@ -391,6 +410,18 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
+    /// Latency of project config updates until they reach Relay.
+    ///
+    /// The metric is calculated by using the creation timestamp of the project config
+    /// and when Relay updates its local cache with the new project config.
+    ///
+    /// No metric is emitted when Relay fetches a project config for the first time.
+    ///
+    /// This metric is tagged with:
+    ///  - `delay`: Bucketed amount of seconds passed between fetches.
+    ProjectCacheUpdateLatency,
+    /// Total time spent from starting to fetch a project config update to completing the fetch.
+    ProjectCacheFetchDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
     /// resolve.
     ///
@@ -428,8 +459,8 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
-    ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
-    ///       but no scurbbing rules applied.
+    ///   was an error during scrubbing and finally "n/a" means scrubbing was successful
+    ///   but no scurbbing rules applied.
     MinidumpScrubbing,
     /// Time spent on view hierarchy scrubbing.
     ///
@@ -438,7 +469,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
-    ///             scrubbing
+    ///   scrubbing
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
@@ -578,6 +609,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
+            RelayTimers::ProjectCacheUpdateLatency => "project_cache.latency",
+            RelayTimers::ProjectCacheFetchDuration => "project_cache.fetch.duration",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::ViewHierarchyScrubbing => "scrubbing.view_hierarchy_scrubbing.duration",
@@ -645,7 +678,10 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number of items we processed per envelope.
+    /// Number of total envelope items we received.
+    ///
+    /// Note: This does not count raw items, it counts the logical amount of items,
+    /// e.g. a single item container counts all its contained items.
     EnvelopeItems,
     /// Number of bytes we processed per envelope item.
     EnvelopeItemBytes,
@@ -693,7 +729,7 @@ pub enum RelayCounters {
     ///     - `revision`: the cached version was validated to be up to date using its revision.
     ///     - `project_config`: the request was handled by the cache.
     ///     - `project_config_revision`: the request was handled by the cache and the revision did
-    ///        not change.
+    ///       not change.
     ///     - `false`: the request will be sent to the sentry endpoint.
     #[cfg(feature = "processing")]
     ProjectStateRedis,
@@ -852,7 +888,7 @@ pub enum RelayCounters {
     #[cfg(feature = "processing")]
     MetricDelayCount,
     /// The amount of times PlayStation processing was attempted.
-    #[cfg(feature = "processing")]
+    #[cfg(all(sentry, feature = "processing"))]
     PlaystationProcessing,
 }
 
@@ -901,7 +937,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricDelaySum => "metrics.delay.sum",
             #[cfg(feature = "processing")]
             RelayCounters::MetricDelayCount => "metrics.delay.count",
-            #[cfg(feature = "processing")]
+            #[cfg(all(sentry, feature = "processing"))]
             RelayCounters::PlaystationProcessing => "processing.playstation",
         }
     }
