@@ -46,11 +46,11 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     let start_timestamp = Utc.timestamp_nanos(start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(end_time_unix_nano as i64);
 
-    let span_id: SpanId = hex::encode(span_id).parse()?;
+    let span_id = SpanId::try_from_bytes(&span_id)?;
     let trace_id = TraceId::try_from(trace_id.as_slice())?;
     let parent_span_id = match parent_span_id.as_slice() {
         &[] => None,
-        _ => Some(hex::encode(parent_span_id).parse()?),
+        bytes => Some(SpanId::try_from_bytes(bytes)?),
     };
 
     let mut sentry_attributes = Object::default();
@@ -203,7 +203,7 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
 
     let span_link = SpanV2Link {
         trace_id: Annotated::new(hex::encode(otel_link.trace_id).parse()?),
-        span_id: Annotated::new(hex::encode(otel_link.span_id).parse()?),
+        span_id: SpanId::try_from_bytes(&otel_link.span_id)?.into(),
         sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
         attributes: Annotated::new(attributes),
         other: Default::default(),
@@ -813,6 +813,7 @@ mod tests {
     fn parse_link() {
         let json = r#"{
           "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
+          "spanId": "e342abb1214ca181",
           "links": [
             {
               "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -854,7 +855,7 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
-          "span_id": "",
+          "span_id": "e342abb1214ca181",
           "kind": "unspecified",
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,

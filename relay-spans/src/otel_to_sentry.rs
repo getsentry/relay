@@ -601,6 +601,7 @@ mod tests {
     fn parse_link() {
         let json = r#"{
             "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
+            "spanId": "e342abb1214ca181",
             "links": [
                 {
                     "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -644,7 +645,7 @@ mod tests {
           "timestamp": 0.0,
           "start_timestamp": 0.0,
           "exclusive_time": 0.0,
-          "span_id": "",
+          "span_id": "e342abb1214ca181",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "status": "unknown",
           "data": {},
