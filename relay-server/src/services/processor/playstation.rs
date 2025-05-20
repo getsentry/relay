@@ -30,11 +30,7 @@ pub fn expand(
     if !project_info.has_feature(Feature::PlaystationIngestion) {
         return Ok(());
     }
-
     let envelope = managed_envelope.envelope_mut();
-    let has_event = envelope
-        .get_item_by(|item| item.ty() == &ItemType::Event)
-        .is_some();
 
     // Don't take the item as it should remain as an attachment on the event.
     if let Some(item) = envelope.get_item_by(|item| {
@@ -51,7 +47,10 @@ pub fn expand(
             ProcessingError::InvalidPlaystationDump(format!("Failed to create minidump: {err}"))
         })?;
 
-        if !has_event {
+        if envelope
+            .get_item_by(|item| item.ty() == &ItemType::Event)
+            .is_none()
+        {
             if let Some(json) = prospero_dump.userdata.get(SENTRY_PAYLOAD_KEY) {
                 let json = json.clone().into_owned();
                 let mut item = Item::new(ItemType::Event);
@@ -60,31 +59,7 @@ pub fn expand(
             }
         }
 
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_filename("DO_NOT_USE");
-        item.set_payload(ContentType::Minidump, minidump_buffer);
-        item.set_attachment_type(AttachmentType::Minidump);
-        envelope.add_item(item);
-
-        for file in prospero_dump.files {
-            let mut item = Item::new(ItemType::Attachment);
-            item.set_filename(file.name);
-            item.set_attachment_type(AttachmentType::Attachment);
-            item.set_payload(infer_content_type(file.name), file.contents.to_owned());
-            envelope.add_item(item);
-        }
-
-        let mut console_log = prospero_dump.system_log.into_owned();
-        for log_line in prospero_dump.log_lines {
-            console_log.push_str(log_line);
-        }
-        if !console_log.is_empty() {
-            let mut item = Item::new(ItemType::Attachment);
-            item.set_filename("console.log");
-            item.set_payload(ContentType::Text, console_log.into_bytes());
-            item.set_attachment_type(AttachmentType::Attachment);
-            envelope.add_item(item);
-        }
+        add_attachments(envelope, prospero_dump, minidump_buffer);
 
         if let Err(offender) = utils::check_envelope_size_limits(config, envelope) {
             return Err(ProcessingError::PayloadTooLarge(offender));
@@ -108,8 +83,8 @@ pub fn process(
             && item.attachment_type() == Some(&AttachmentType::Prosperodump)
     }) {
         metric!(counter(RelayCounters::PlaystationProcessing) += 1);
-
         let event = event.get_or_insert_with(Event::default);
+
         // Currently we parse the dump here again, in order to set the contexts on the event
         // this can not be done in the expand function since we don't have an event at that point.
         // This is inline with how unreal reports are handled.
@@ -132,7 +107,39 @@ pub fn process(
     Ok(None)
 }
 
-pub fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
+fn add_attachments(
+    envelope: &mut crate::Envelope,
+    prospero_dump: ProsperoDump<'_>,
+    minidump_buffer: Vec<u8>,
+) {
+    let mut item = Item::new(ItemType::Attachment);
+    item.set_filename("DO_NOT_USE");
+    item.set_payload(ContentType::Minidump, minidump_buffer);
+    item.set_attachment_type(AttachmentType::Minidump);
+    envelope.add_item(item);
+
+    for file in prospero_dump.files {
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_filename(file.name);
+        item.set_attachment_type(AttachmentType::Attachment);
+        item.set_payload(infer_content_type(file.name), file.contents.to_owned());
+        envelope.add_item(item);
+    }
+
+    let mut console_log = prospero_dump.system_log.into_owned();
+    for log_line in prospero_dump.log_lines {
+        console_log.push_str(log_line);
+    }
+    if !console_log.is_empty() {
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_filename("console.log");
+        item.set_payload(ContentType::Text, console_log.into_bytes());
+        item.set_attachment_type(AttachmentType::Attachment);
+        envelope.add_item(item);
+    }
+}
+
+fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
     let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
     macro_rules! add_tag {
@@ -202,7 +209,7 @@ pub fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
     }
 }
 
-pub fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
+fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
     let platform = "PS5";
 
