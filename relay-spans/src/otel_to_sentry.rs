@@ -1,267 +1,34 @@
-use std::collections::BTreeMap;
-use std::str::FromStr;
+use crate::otel_to_sentry_v2;
+use crate::otel_trace::Span as OtelSpan;
+use crate::v2_to_v1;
+use relay_event_schema::protocol::Span as EventSpan;
+use relay_protocol::Error;
 
-use chrono::{TimeZone, Utc};
-use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
-use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
-use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_event_schema::protocol::SpanKind;
-
-use crate::otel_trace::{
-    Span as OtelSpan, SpanFlags as OtelSpanFlags, status::StatusCode as OtelStatusCode,
-};
-use crate::status_codes;
-use relay_event_schema::protocol::{
-    EventId, Span as EventSpan, SpanData, SpanId, SpanLink, SpanStatus, Timestamp, TraceId,
-};
-use relay_protocol::{Annotated, Error, FromValue, Object, Value};
-
-/// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
-fn convert_from_otel_to_sentry_status(
-    status_code: Option<i32>,
-    http_status_code: Option<i64>,
-    grpc_status_code: Option<i64>,
-) -> SpanStatus {
-    if let Some(status_code) = status_code {
-        if status_code == OtelStatusCode::Unset as i32 || status_code == OtelStatusCode::Ok as i32 {
-            return SpanStatus::Ok;
-        }
-    }
-
-    if let Some(code) = http_status_code {
-        if let Some(sentry_status) = status_codes::HTTP.get(&code) {
-            if let Ok(span_status) = SpanStatus::from_str(sentry_status) {
-                return span_status;
-            }
-        }
-    }
-
-    if let Some(code) = grpc_status_code {
-        if let Some(sentry_status) = status_codes::GRPC.get(&code) {
-            if let Ok(span_status) = SpanStatus::from_str(sentry_status) {
-                return span_status;
-            }
-        }
-    }
-
-    SpanStatus::Unknown
-}
-
-fn otel_value_to_i64(value: OtelValue) -> Option<i64> {
-    match value {
-        OtelValue::IntValue(v) => Some(v),
-        _ => None,
-    }
-}
-
-fn otel_value_to_string(value: OtelValue) -> Option<String> {
-    match value {
-        OtelValue::StringValue(v) => Some(v),
-        OtelValue::BoolValue(v) => Some(v.to_string()),
-        OtelValue::IntValue(v) => Some(v.to_string()),
-        OtelValue::DoubleValue(v) => Some(v.to_string()),
-        OtelValue::BytesValue(v) => String::from_utf8(v).ok(),
-        _ => None,
-    }
-}
-
-fn otel_value_to_span_id(value: OtelValue) -> Option<String> {
-    let decoded = match value {
-        OtelValue::StringValue(s) => hex::decode(s).ok()?,
-        OtelValue::BytesValue(b) => b,
-        _ => None?,
-    };
-    Some(hex::encode(decoded))
-}
-
-fn otel_flags_is_remote(value: u32) -> Option<bool> {
-    if value & OtelSpanFlags::ContextHasIsRemoteMask as u32 == 0 {
-        None
-    } else {
-        Some(value & OtelSpanFlags::ContextIsRemoteMask as u32 != 0)
-    }
-}
-
-/// Transform an OtelSpan to a Sentry span.
+/// Transforms an OTEL span to a Sentry span.
+///
+/// This uses attributes in the OTEL span to populate various fields in the Sentry span.
+/// * The Sentry span's `name` field may be set based on `db` or `http` attributes
+///   if the OTEL span's `name` is empty.
+/// * The Sentry span's `description` field may be set based on `db` or `http` attributes
+///   if the OTEL span's `sentry.description` attribute is empty.
+/// * The Sentry span's `status` field is set based on the OTEL span's `status` field and
+///   `http.status_code` and `rpc.grpc.status_code` attributes.
+/// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
+///   attribute, or the difference between the start and end timestamp if that attribute is not set.
+/// * The Sentry span's `platform` field is set based on the OTEL span's `sentry.platform` attribute.
+/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile.id` attribute.
+/// * The Sentry span's `segment_id` field is set based on the OTEL span's `sentry.segment.id` attribute.
+///
+/// All other attributes are carried over from the OTEL span to the Sentry span's `data`.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<EventSpan, Error> {
-    let mut exclusive_time_ms = 0f64;
-    let mut data = Object::new();
-    let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
-    let end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64);
-    let OtelSpan {
-        trace_id,
-        span_id,
-        parent_span_id,
-        flags,
-        name,
-        kind,
-        attributes,
-        status,
-        links,
-        ..
-    } = otel_span;
-
-    let span_id = hex::encode(span_id);
-    let trace_id: TraceId = hex::encode(trace_id).parse()?;
-    let parent_span_id = match parent_span_id.as_slice() {
-        &[] => None,
-        _ => Some(hex::encode(parent_span_id)),
-    };
-
-    let mut op = if name.is_empty() { None } else { Some(name) };
-    let mut description = None;
-    let mut http_method = None;
-    let mut http_route = None;
-    let mut http_status_code = None;
-    let mut grpc_status_code = None;
-    let mut platform = None;
-    let mut segment_id = None;
-    let mut profile_id = None;
-    for attribute in attributes.into_iter() {
-        if let Some(value) = attribute.value.and_then(|v| v.value) {
-            match attribute.key.as_str() {
-                "sentry.description" => {
-                    description = otel_value_to_string(value);
-                }
-                key if key.starts_with("db") => {
-                    op = op.or(Some("db".to_string()));
-                    if key == "db.statement" {
-                        description = description.or_else(|| otel_value_to_string(value));
-                    }
-                }
-                "http.method" | "http.request.method" => {
-                    let http_op = match kind {
-                        2 => "http.server",
-                        3 => "http.client",
-                        _ => "http",
-                    };
-                    op = op.or(Some(http_op.to_string()));
-                    http_method = otel_value_to_string(value);
-                }
-                "http.route" | "url.path" => {
-                    http_route = otel_value_to_string(value);
-                }
-                key if key.contains("exclusive_time_nano") => {
-                    let value = match value {
-                        OtelValue::IntValue(v) => v as f64,
-                        OtelValue::DoubleValue(v) => v,
-                        OtelValue::StringValue(v) => v.parse::<f64>().unwrap_or_default(),
-                        _ => 0f64,
-                    };
-                    exclusive_time_ms = value / 1e6f64;
-                }
-                "http.status_code" => {
-                    http_status_code = otel_value_to_i64(value);
-                }
-                "rpc.grpc.status_code" => {
-                    grpc_status_code = otel_value_to_i64(value);
-                }
-                "sentry.platform" => {
-                    platform = otel_value_to_string(value);
-                }
-                "sentry.segment.id" => {
-                    segment_id = otel_value_to_span_id(value);
-                }
-                "sentry.profile.id" => {
-                    profile_id = otel_value_to_string(value);
-                }
-                _ => {
-                    let key = attribute.key;
-                    if let Some(v) = otel_to_sentry_value(value) {
-                        data.insert(key, Annotated::new(v));
-                    }
-                }
-            }
-        }
-    }
-    if exclusive_time_ms == 0f64 {
-        exclusive_time_ms =
-            (otel_span.end_time_unix_nano - otel_span.start_time_unix_nano) as f64 / 1e6f64;
-    }
-
-    if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
-        description = description.or(Some(format!("{http_method} {http_route}")));
-    }
-
-    let sentry_links: Vec<Annotated<SpanLink>> = links
-        .into_iter()
-        .map(|link| otel_to_sentry_link(link).map(Into::into))
-        .collect::<Result<_, _>>()?;
-
-    let event_span = EventSpan {
-        op: op.into(),
-        description: description.into(),
-        data: SpanData::from_value(Annotated::new(data.into())),
-        exclusive_time: exclusive_time_ms.into(),
-        parent_span_id: parent_span_id.map(SpanId).into(),
-        segment_id: segment_id.map(SpanId).into(),
-        span_id: Annotated::new(SpanId(span_id)),
-        is_remote: Annotated::from(otel_flags_is_remote(flags)),
-        profile_id: profile_id
-            .as_deref()
-            .and_then(|s| EventId::from_str(s).ok())
-            .into(),
-        start_timestamp: Timestamp(start_timestamp).into(),
-        status: Annotated::new(convert_from_otel_to_sentry_status(
-            status.map(|s| s.code),
-            http_status_code,
-            grpc_status_code,
-        )),
-        timestamp: Timestamp(end_timestamp).into(),
-        trace_id: Annotated::new(trace_id),
-        platform: platform.into(),
-        kind: OtelSpanKind::try_from(kind)
-            .map_or(SpanKind::Unspecified, SpanKind::from)
-            .into(),
-        links: sentry_links.into(),
-        ..Default::default()
-    };
-
-    Ok(event_span)
-}
-
-fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanLink, Error> {
-    // See the W3C trace context specification:
-    // <https://www.w3.org/TR/trace-context-2/#sampled-flag>
-    const W3C_TRACE_CONTEXT_SAMPLED: u32 = 1 << 0;
-
-    let attributes = BTreeMap::from_iter(otel_link.attributes.into_iter().flat_map(|kv| {
-        kv.value
-            .and_then(|v| v.value)
-            .and_then(otel_to_sentry_value)
-            .map(|v| (kv.key, v.into()))
-    }))
-    .into();
-
-    let span_link = SpanLink {
-        trace_id: Annotated::new(hex::encode(otel_link.trace_id).parse()?),
-        span_id: SpanId(hex::encode(otel_link.span_id)).into(),
-        sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
-        attributes,
-        other: Default::default(),
-    };
-
-    Ok(span_link)
-}
-
-fn otel_to_sentry_value(value: OtelValue) -> Option<Value> {
-    match value {
-        OtelValue::BoolValue(v) => Some(Value::Bool(v)),
-        OtelValue::DoubleValue(v) => Some(Value::F64(v)),
-        OtelValue::IntValue(v) => Some(Value::I64(v)),
-        OtelValue::StringValue(v) => Some(Value::String(v)),
-        OtelValue::BytesValue(v) => {
-            String::from_utf8(v).map_or(None, |str| Some(Value::String(str)))
-        }
-        OtelValue::ArrayValue(_) => None,
-        OtelValue::KvlistValue(_) => None,
-    }
+    let span_v2 = otel_to_sentry_v2::otel_to_sentry_span(otel_span)?;
+    Ok(v2_to_v1::span_v2_to_span_v1(span_v2))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::SerializableAnnotated;
+    use relay_protocol::{Annotated, SerializableAnnotated};
 
     #[test]
     fn parse_span() {
@@ -828,15 +595,6 @@ mod tests {
           "kind": "client"
         }
         "###);
-    }
-
-    #[test]
-    fn uppercase_span_id() {
-        let input = OtelValue::StringValue("FA90FDEAD5F74052".to_owned());
-        assert_eq!(
-            otel_value_to_span_id(input).as_deref(),
-            Some("fa90fdead5f74052")
-        );
     }
 
     #[test]
