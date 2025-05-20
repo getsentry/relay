@@ -174,12 +174,18 @@ trait ConfigObject: DeserializeOwned + Serialize {
 
         let f = fs::File::open(&path)
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
+        let f = io::BufReader::new(f);
 
+        let mut source = serde_vars::EnvSource::default();
         match Self::format() {
-            ConfigFormat::Yaml => serde_yaml::from_reader(io::BufReader::new(f))
-                .with_context(|| ConfigError::file(ConfigErrorKind::BadYaml, &path)),
-            ConfigFormat::Json => serde_json::from_reader(io::BufReader::new(f))
-                .with_context(|| ConfigError::file(ConfigErrorKind::BadJson, &path)),
+            ConfigFormat::Yaml => {
+                serde_vars::deserialize(serde_yaml::Deserializer::from_reader(f), &mut source)
+                    .with_context(|| ConfigError::file(ConfigErrorKind::BadYaml, &path))
+            }
+            ConfigFormat::Json => {
+                serde_vars::deserialize(&mut serde_json::Deserializer::from_reader(f), &mut source)
+                    .with_context(|| ConfigError::file(ConfigErrorKind::BadJson, &path))
+            }
         }
     }
 

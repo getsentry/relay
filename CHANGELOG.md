@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Allow environment references in Relay configuration. ([#4750](https://github.com/getsentry/relay/pull/4750))
+
 ## 25.5.0
 
 **Features**:
