@@ -1588,6 +1588,8 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
+            #[cfg(sentry)]
+            playstation::expand(managed_envelope, &self.inner.config, &project_info)?;
             nnswitch::expand(managed_envelope)?;
         });
 
@@ -1606,12 +1608,9 @@ impl EnvelopeProcessorService {
                 event_fully_normalized = inner_event_fully_normalized;
             }
             #[cfg(all(sentry, feature = "processing"))]
-            if let Some(inner_event_fully_normalized) = playstation::process(
-                managed_envelope,
-                &mut event,
-                &self.inner.config,
-                &project_info,
-            )? {
+            if let Some(inner_event_fully_normalized) =
+                playstation::process(managed_envelope, &mut event, &project_info)?
+            {
                 event_fully_normalized = inner_event_fully_normalized;
             }
             if let Some(inner_event_fully_normalized) =
