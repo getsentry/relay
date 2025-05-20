@@ -2021,6 +2021,7 @@ impl EnvelopeProcessorService {
     async fn process_sessions(
         &self,
         managed_envelope: &mut TypedEnvelope<SessionGroup>,
+        config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
@@ -2028,9 +2029,10 @@ impl EnvelopeProcessorService {
 
         session::process(
             managed_envelope,
+            &self.inner.global_config.current(),
+            &config,
             &mut extracted_metrics,
             project_info.clone(),
-            &self.inner.config,
         );
 
         self.enforce_quotas(
@@ -2297,7 +2299,12 @@ impl EnvelopeProcessorService {
                     reservoir_counters
                 )
             }
-            ProcessingGroup::Session => run!(process_sessions, project_info, rate_limits),
+            ProcessingGroup::Session => run!(
+                process_sessions,
+                self.inner.config.clone(),
+                project_info,
+                rate_limits
+            ),
             ProcessingGroup::Standalone => run!(
                 process_standalone,
                 self.inner.config.clone(),
