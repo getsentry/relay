@@ -74,7 +74,7 @@ impl Getter for DynamicSamplingContext {
             "user.id" => or_none(&self.user.user_id)?.into(),
             "user.segment" => or_none(&self.user.user_segment)?.into(),
             "transaction" => self.transaction.as_deref()?.into(),
-            "replay_id" => self.replay_id?.into(),
+            "replay_id" => self.replay_id.as_ref()?.into(),
             _ => return None,
         })
     }
@@ -587,7 +587,10 @@ mod tests {
             Some(Val::String("transaction1")),
             dsc.get_value("trace.transaction")
         );
-        assert_eq!(Some(Val::Uuid(replay_id)), dsc.get_value("trace.replay_id"));
+        assert_eq!(
+            Some(Val::Bytes(replay_id.as_bytes())),
+            dsc.get_value("trace.replay_id")
+        );
     }
 
     #[test]

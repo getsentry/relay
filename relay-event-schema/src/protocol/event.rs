@@ -741,12 +741,9 @@ impl Getter for Event {
             "contexts.browser.version" => {
                 self.context::<BrowserContext>()?.version.as_str()?.into()
             }
-            "contexts.profile.profile_id" => self
-                .context::<ProfileContext>()?
-                .profile_id
-                .value()?
-                .0
-                .into(),
+            "contexts.profile.profile_id" => {
+                (&self.context::<ProfileContext>()?.profile_id.value()?.0).into()
+            }
             "contexts.device.uuid" => self.context::<DeviceContext>()?.uuid.value()?.into(),
             "contexts.trace.status" => self
                 .context::<TraceContext>()?
@@ -1271,7 +1268,9 @@ mod tests {
             event.get_value("event.contexts.device.locale")
         );
         assert_eq!(
-            Some(Val::Uuid(uuid!("abadcade-feed-dead-beef-baddadfeeded"))),
+            Some(Val::Bytes(
+                uuid!("abadcade-feed-dead-beef-baddadfeeded").as_bytes()
+            )),
             event.get_value("event.contexts.device.uuid")
         );
         assert_eq!(
@@ -1279,7 +1278,9 @@ mod tests {
             event.get_value("event.request.url")
         );
         assert_eq!(
-            Some(Val::Uuid(uuid!("abadcade-feed-dead-beef-8addadfeedaa"))),
+            Some(Val::Bytes(
+                uuid!("abadcade-feed-dead-beef-8addadfeedaa").as_bytes()
+            )),
             event.get_value("event.contexts.profile.profile_id")
         );
         assert_eq!(

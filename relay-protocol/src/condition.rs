@@ -85,7 +85,6 @@ impl EqCondition {
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
             (Some(Val::Bytes(f)), Value::String(val)) => match_bytes_string(f, val),
-            (Some(Val::Uuid(f)), Value::String(val)) => Ok(f) == val.parse(),
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
             _ => false,
         }

@@ -360,8 +360,6 @@ pub enum Val<'a> {
     String(&'a str),
     /// A slice of bytes.
     Bytes(&'a [u8]),
-    /// A UUID.
-    Uuid(Uuid),
     /// An array of annotated values.
     Array(Arr<'a>),
     /// A mapping of strings to annotated values.
@@ -422,14 +420,6 @@ impl<'a> Val<'a> {
             _ => None,
         }
     }
-
-    /// Returns the UUID if this value is a UUID, otherwise `None`.
-    pub fn as_uuid(&self) -> Option<Uuid> {
-        match self {
-            Self::Uuid(value) => Some(*value),
-            _ => None,
-        }
-    }
 }
 
 impl From<bool> for Val<'_> {
@@ -468,9 +458,9 @@ impl<'a> From<&'a [u8]> for Val<'a> {
     }
 }
 
-impl From<Uuid> for Val<'_> {
-    fn from(value: Uuid) -> Self {
-        Self::Uuid(value)
+impl<'a> From<&'a Uuid> for Val<'a> {
+    fn from(value: &'a Uuid) -> Self {
+        Self::Bytes(value.as_bytes())
     }
 }
 
@@ -513,7 +503,6 @@ impl PartialEq for Val<'_> {
             (Self::F64(l0), Self::F64(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::Bytes(l0), Self::Bytes(r0)) => l0 == r0,
-            (Self::Uuid(l0), Self::Uuid(r0)) => l0 == r0,
             (Self::Array(_), Self::Array(_)) => false,
             (Self::Object(_), Self::Object(_)) => false,
             _ => false,
