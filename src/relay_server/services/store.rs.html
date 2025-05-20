@@ -1595,133 +1595,129 @@
 <a href=#1595 id=1595 data-nosnippet>1595</a>    }
 <a href=#1596 id=1596 data-nosnippet>1596</a>
 <a href=#1597 id=1597 data-nosnippet>1597</a>    <span class="doccomment">/// Returns the partitioning key for this kafka message determining.
-<a href=#1598 id=1598 data-nosnippet>1598</a>    </span><span class="kw">fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [u8; <span class="number">16</span>] {
-<a href=#1599 id=1599 data-nosnippet>1599</a>        <span class="kw">let </span><span class="kw-2">mut </span>uuid = <span class="kw">match </span><span class="self">self </span>{
-<a href=#1600 id=1600 data-nosnippet>1600</a>            <span class="self">Self</span>::Event(message) =&gt; message.event_id.<span class="number">0</span>,
-<a href=#1601 id=1601 data-nosnippet>1601</a>            <span class="self">Self</span>::Attachment(message) =&gt; message.event_id.<span class="number">0</span>,
-<a href=#1602 id=1602 data-nosnippet>1602</a>            <span class="self">Self</span>::AttachmentChunk(message) =&gt; message.event_id.<span class="number">0</span>,
-<a href=#1603 id=1603 data-nosnippet>1603</a>            <span class="self">Self</span>::UserReport(message) =&gt; message.event_id.<span class="number">0</span>,
-<a href=#1604 id=1604 data-nosnippet>1604</a>            <span class="self">Self</span>::ReplayEvent(message) =&gt; message.replay_id.<span class="number">0</span>,
-<a href=#1605 id=1605 data-nosnippet>1605</a>            <span class="self">Self</span>::Span { message, .. } =&gt; message.trace_id.<span class="number">0</span>,
+<a href=#1598 id=1598 data-nosnippet>1598</a>    </span><span class="kw">fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;[u8; <span class="number">16</span>]&gt; {
+<a href=#1599 id=1599 data-nosnippet>1599</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1600 id=1600 data-nosnippet>1600</a>            <span class="self">Self</span>::Event(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
+<a href=#1601 id=1601 data-nosnippet>1601</a>            <span class="self">Self</span>::Attachment(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
+<a href=#1602 id=1602 data-nosnippet>1602</a>            <span class="self">Self</span>::AttachmentChunk(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
+<a href=#1603 id=1603 data-nosnippet>1603</a>            <span class="self">Self</span>::UserReport(message) =&gt; <span class="prelude-val">Some</span>(message.event_id.<span class="number">0</span>),
+<a href=#1604 id=1604 data-nosnippet>1604</a>            <span class="self">Self</span>::ReplayEvent(message) =&gt; <span class="prelude-val">Some</span>(message.replay_id.<span class="number">0</span>),
+<a href=#1605 id=1605 data-nosnippet>1605</a>            <span class="self">Self</span>::Span { message, .. } =&gt; <span class="prelude-val">Some</span>(message.trace_id.<span class="number">0</span>),
 <a href=#1606 id=1606 data-nosnippet>1606</a>
 <a href=#1607 id=1607 data-nosnippet>1607</a>            <span class="comment">// Monitor check-ins use the hinted UUID passed through from the Envelope.
 <a href=#1608 id=1608 data-nosnippet>1608</a>            //
 <a href=#1609 id=1609 data-nosnippet>1609</a>            // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
 <a href=#1610 id=1610 data-nosnippet>1610</a>            // recieve the routing_key_hint form their envelopes.
-<a href=#1611 id=1611 data-nosnippet>1611</a>            </span><span class="self">Self</span>::CheckIn(message) =&gt; message.routing_key_hint.unwrap_or_else(Uuid::nil),
+<a href=#1611 id=1611 data-nosnippet>1611</a>            </span><span class="self">Self</span>::CheckIn(message) =&gt; message.routing_key_hint,
 <a href=#1612 id=1612 data-nosnippet>1612</a>
 <a href=#1613 id=1613 data-nosnippet>1613</a>            <span class="comment">// Random partitioning
 <a href=#1614 id=1614 data-nosnippet>1614</a>            </span><span class="self">Self</span>::Profile(<span class="kw">_</span>)
 <a href=#1615 id=1615 data-nosnippet>1615</a>            | <span class="self">Self</span>::Log { .. }
 <a href=#1616 id=1616 data-nosnippet>1616</a>            | <span class="self">Self</span>::ReplayRecordingNotChunked(<span class="kw">_</span>)
 <a href=#1617 id=1617 data-nosnippet>1617</a>            | <span class="self">Self</span>::ProfileChunk(<span class="kw">_</span>)
-<a href=#1618 id=1618 data-nosnippet>1618</a>            | <span class="self">Self</span>::Metric { .. } =&gt; Uuid::nil(),
-<a href=#1619 id=1619 data-nosnippet>1619</a>        };
-<a href=#1620 id=1620 data-nosnippet>1620</a>
-<a href=#1621 id=1621 data-nosnippet>1621</a>        <span class="kw">if </span>uuid.is_nil() {
-<a href=#1622 id=1622 data-nosnippet>1622</a>            uuid = Uuid::new_v4();
-<a href=#1623 id=1623 data-nosnippet>1623</a>        }
-<a href=#1624 id=1624 data-nosnippet>1624</a>
-<a href=#1625 id=1625 data-nosnippet>1625</a>        <span class="kw-2">*</span>uuid.as_bytes()
-<a href=#1626 id=1626 data-nosnippet>1626</a>    }
-<a href=#1627 id=1627 data-nosnippet>1627</a>
-<a href=#1628 id=1628 data-nosnippet>1628</a>    <span class="kw">fn </span>headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt; {
-<a href=#1629 id=1629 data-nosnippet>1629</a>        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
-<a href=#1630 id=1630 data-nosnippet>1630</a>            KafkaMessage::Metric { headers, .. } =&gt; {
-<a href=#1631 id=1631 data-nosnippet>1631</a>                <span class="kw">if </span>!headers.is_empty() {
-<a href=#1632 id=1632 data-nosnippet>1632</a>                    <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
-<a href=#1633 id=1633 data-nosnippet>1633</a>                }
-<a href=#1634 id=1634 data-nosnippet>1634</a>                <span class="prelude-val">None
-<a href=#1635 id=1635 data-nosnippet>1635</a>            </span>}
-<a href=#1636 id=1636 data-nosnippet>1636</a>            KafkaMessage::Profile(profile) =&gt; {
-<a href=#1637 id=1637 data-nosnippet>1637</a>                <span class="kw">if </span>!profile.headers.is_empty() {
-<a href=#1638 id=1638 data-nosnippet>1638</a>                    <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>profile.headers);
-<a href=#1639 id=1639 data-nosnippet>1639</a>                }
-<a href=#1640 id=1640 data-nosnippet>1640</a>                <span class="prelude-val">None
-<a href=#1641 id=1641 data-nosnippet>1641</a>            </span>}
-<a href=#1642 id=1642 data-nosnippet>1642</a>            KafkaMessage::Log { headers, .. } =&gt; {
-<a href=#1643 id=1643 data-nosnippet>1643</a>                <span class="kw">if </span>!headers.is_empty() {
-<a href=#1644 id=1644 data-nosnippet>1644</a>                    <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
-<a href=#1645 id=1645 data-nosnippet>1645</a>                }
-<a href=#1646 id=1646 data-nosnippet>1646</a>                <span class="prelude-val">None
-<a href=#1647 id=1647 data-nosnippet>1647</a>            </span>}
-<a href=#1648 id=1648 data-nosnippet>1648</a>            KafkaMessage::Span { headers, .. } =&gt; {
-<a href=#1649 id=1649 data-nosnippet>1649</a>                <span class="kw">if </span>!headers.is_empty() {
-<a href=#1650 id=1650 data-nosnippet>1650</a>                    <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
-<a href=#1651 id=1651 data-nosnippet>1651</a>                }
-<a href=#1652 id=1652 data-nosnippet>1652</a>                <span class="prelude-val">None
-<a href=#1653 id=1653 data-nosnippet>1653</a>            </span>}
-<a href=#1654 id=1654 data-nosnippet>1654</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#1655 id=1655 data-nosnippet>1655</a>        }
-<a href=#1656 id=1656 data-nosnippet>1656</a>    }
-<a href=#1657 id=1657 data-nosnippet>1657</a>
-<a href=#1658 id=1658 data-nosnippet>1658</a>    <span class="doccomment">/// Serializes the message into its binary format.
-<a href=#1659 id=1659 data-nosnippet>1659</a>    </span><span class="kw">fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Cow&lt;<span class="lifetime">'_</span>, [u8]&gt;, ClientError&gt; {
-<a href=#1660 id=1660 data-nosnippet>1660</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#1661 id=1661 data-nosnippet>1661</a>            KafkaMessage::Metric { message, .. } =&gt; serde_json::to_vec(message)
-<a href=#1662 id=1662 data-nosnippet>1662</a>                .map(Cow::Owned)
-<a href=#1663 id=1663 data-nosnippet>1663</a>                .map_err(ClientError::InvalidJson),
-<a href=#1664 id=1664 data-nosnippet>1664</a>            KafkaMessage::ReplayEvent(message) =&gt; serde_json::to_vec(message)
-<a href=#1665 id=1665 data-nosnippet>1665</a>                .map(Cow::Owned)
-<a href=#1666 id=1666 data-nosnippet>1666</a>                .map_err(ClientError::InvalidJson),
-<a href=#1667 id=1667 data-nosnippet>1667</a>            KafkaMessage::Span { message, .. } =&gt; serde_json::to_vec(message)
-<a href=#1668 id=1668 data-nosnippet>1668</a>                .map(Cow::Owned)
-<a href=#1669 id=1669 data-nosnippet>1669</a>                .map_err(ClientError::InvalidJson),
-<a href=#1670 id=1670 data-nosnippet>1670</a>            KafkaMessage::Log { message, .. } =&gt; {
-<a href=#1671 id=1671 data-nosnippet>1671</a>                <span class="kw">let </span><span class="kw-2">mut </span>payload = Vec::new();
+<a href=#1618 id=1618 data-nosnippet>1618</a>            | <span class="self">Self</span>::Metric { .. } =&gt; <span class="prelude-val">None</span>,
+<a href=#1619 id=1619 data-nosnippet>1619</a>        }
+<a href=#1620 id=1620 data-nosnippet>1620</a>        .filter(|uuid| !uuid.is_nil())
+<a href=#1621 id=1621 data-nosnippet>1621</a>        .map(|uuid| uuid.into_bytes())
+<a href=#1622 id=1622 data-nosnippet>1622</a>    }
+<a href=#1623 id=1623 data-nosnippet>1623</a>
+<a href=#1624 id=1624 data-nosnippet>1624</a>    <span class="kw">fn </span>headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt; {
+<a href=#1625 id=1625 data-nosnippet>1625</a>        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
+<a href=#1626 id=1626 data-nosnippet>1626</a>            KafkaMessage::Metric { headers, .. } =&gt; {
+<a href=#1627 id=1627 data-nosnippet>1627</a>                <span class="kw">if </span>!headers.is_empty() {
+<a href=#1628 id=1628 data-nosnippet>1628</a>                    <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
+<a href=#1629 id=1629 data-nosnippet>1629</a>                }
+<a href=#1630 id=1630 data-nosnippet>1630</a>                <span class="prelude-val">None
+<a href=#1631 id=1631 data-nosnippet>1631</a>            </span>}
+<a href=#1632 id=1632 data-nosnippet>1632</a>            KafkaMessage::Profile(profile) =&gt; {
+<a href=#1633 id=1633 data-nosnippet>1633</a>                <span class="kw">if </span>!profile.headers.is_empty() {
+<a href=#1634 id=1634 data-nosnippet>1634</a>                    <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>profile.headers);
+<a href=#1635 id=1635 data-nosnippet>1635</a>                }
+<a href=#1636 id=1636 data-nosnippet>1636</a>                <span class="prelude-val">None
+<a href=#1637 id=1637 data-nosnippet>1637</a>            </span>}
+<a href=#1638 id=1638 data-nosnippet>1638</a>            KafkaMessage::Log { headers, .. } =&gt; {
+<a href=#1639 id=1639 data-nosnippet>1639</a>                <span class="kw">if </span>!headers.is_empty() {
+<a href=#1640 id=1640 data-nosnippet>1640</a>                    <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
+<a href=#1641 id=1641 data-nosnippet>1641</a>                }
+<a href=#1642 id=1642 data-nosnippet>1642</a>                <span class="prelude-val">None
+<a href=#1643 id=1643 data-nosnippet>1643</a>            </span>}
+<a href=#1644 id=1644 data-nosnippet>1644</a>            KafkaMessage::Span { headers, .. } =&gt; {
+<a href=#1645 id=1645 data-nosnippet>1645</a>                <span class="kw">if </span>!headers.is_empty() {
+<a href=#1646 id=1646 data-nosnippet>1646</a>                    <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
+<a href=#1647 id=1647 data-nosnippet>1647</a>                }
+<a href=#1648 id=1648 data-nosnippet>1648</a>                <span class="prelude-val">None
+<a href=#1649 id=1649 data-nosnippet>1649</a>            </span>}
+<a href=#1650 id=1650 data-nosnippet>1650</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#1651 id=1651 data-nosnippet>1651</a>        }
+<a href=#1652 id=1652 data-nosnippet>1652</a>    }
+<a href=#1653 id=1653 data-nosnippet>1653</a>
+<a href=#1654 id=1654 data-nosnippet>1654</a>    <span class="doccomment">/// Serializes the message into its binary format.
+<a href=#1655 id=1655 data-nosnippet>1655</a>    </span><span class="kw">fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Cow&lt;<span class="lifetime">'_</span>, [u8]&gt;, ClientError&gt; {
+<a href=#1656 id=1656 data-nosnippet>1656</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#1657 id=1657 data-nosnippet>1657</a>            KafkaMessage::Metric { message, .. } =&gt; serde_json::to_vec(message)
+<a href=#1658 id=1658 data-nosnippet>1658</a>                .map(Cow::Owned)
+<a href=#1659 id=1659 data-nosnippet>1659</a>                .map_err(ClientError::InvalidJson),
+<a href=#1660 id=1660 data-nosnippet>1660</a>            KafkaMessage::ReplayEvent(message) =&gt; serde_json::to_vec(message)
+<a href=#1661 id=1661 data-nosnippet>1661</a>                .map(Cow::Owned)
+<a href=#1662 id=1662 data-nosnippet>1662</a>                .map_err(ClientError::InvalidJson),
+<a href=#1663 id=1663 data-nosnippet>1663</a>            KafkaMessage::Span { message, .. } =&gt; serde_json::to_vec(message)
+<a href=#1664 id=1664 data-nosnippet>1664</a>                .map(Cow::Owned)
+<a href=#1665 id=1665 data-nosnippet>1665</a>                .map_err(ClientError::InvalidJson),
+<a href=#1666 id=1666 data-nosnippet>1666</a>            KafkaMessage::Log { message, .. } =&gt; {
+<a href=#1667 id=1667 data-nosnippet>1667</a>                <span class="kw">let </span><span class="kw-2">mut </span>payload = Vec::new();
+<a href=#1668 id=1668 data-nosnippet>1668</a>
+<a href=#1669 id=1669 data-nosnippet>1669</a>                <span class="kw">if </span>message.encode(<span class="kw-2">&amp;mut </span>payload).is_err() {
+<a href=#1670 id=1670 data-nosnippet>1670</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(ClientError::ProtobufEncodingFailed);
+<a href=#1671 id=1671 data-nosnippet>1671</a>                }
 <a href=#1672 id=1672 data-nosnippet>1672</a>
-<a href=#1673 id=1673 data-nosnippet>1673</a>                <span class="kw">if </span>message.encode(<span class="kw-2">&amp;mut </span>payload).is_err() {
-<a href=#1674 id=1674 data-nosnippet>1674</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(ClientError::ProtobufEncodingFailed);
-<a href=#1675 id=1675 data-nosnippet>1675</a>                }
-<a href=#1676 id=1676 data-nosnippet>1676</a>
-<a href=#1677 id=1677 data-nosnippet>1677</a>                <span class="prelude-val">Ok</span>(Cow::Owned(payload))
-<a href=#1678 id=1678 data-nosnippet>1678</a>            }
-<a href=#1679 id=1679 data-nosnippet>1679</a>            <span class="kw">_ </span>=&gt; rmp_serde::to_vec_named(<span class="kw-2">&amp;</span><span class="self">self</span>)
-<a href=#1680 id=1680 data-nosnippet>1680</a>                .map(Cow::Owned)
-<a href=#1681 id=1681 data-nosnippet>1681</a>                .map_err(ClientError::InvalidMsgPack),
-<a href=#1682 id=1682 data-nosnippet>1682</a>        }
-<a href=#1683 id=1683 data-nosnippet>1683</a>    }
-<a href=#1684 id=1684 data-nosnippet>1684</a>}
-<a href=#1685 id=1685 data-nosnippet>1685</a>
-<a href=#1686 id=1686 data-nosnippet>1686</a><span class="doccomment">/// Determines if the given item is considered slow.
-<a href=#1687 id=1687 data-nosnippet>1687</a>///
-<a href=#1688 id=1688 data-nosnippet>1688</a>/// Slow items must be routed to the `Attachments` topic.
-<a href=#1689 id=1689 data-nosnippet>1689</a></span><span class="kw">fn </span>is_slow_item(item: <span class="kw-2">&amp;</span>Item) -&gt; bool {
-<a href=#1690 id=1690 data-nosnippet>1690</a>    item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment || item.ty() == <span class="kw-2">&amp;</span>ItemType::UserReport
+<a href=#1673 id=1673 data-nosnippet>1673</a>                <span class="prelude-val">Ok</span>(Cow::Owned(payload))
+<a href=#1674 id=1674 data-nosnippet>1674</a>            }
+<a href=#1675 id=1675 data-nosnippet>1675</a>            <span class="kw">_ </span>=&gt; rmp_serde::to_vec_named(<span class="kw-2">&amp;</span><span class="self">self</span>)
+<a href=#1676 id=1676 data-nosnippet>1676</a>                .map(Cow::Owned)
+<a href=#1677 id=1677 data-nosnippet>1677</a>                .map_err(ClientError::InvalidMsgPack),
+<a href=#1678 id=1678 data-nosnippet>1678</a>        }
+<a href=#1679 id=1679 data-nosnippet>1679</a>    }
+<a href=#1680 id=1680 data-nosnippet>1680</a>}
+<a href=#1681 id=1681 data-nosnippet>1681</a>
+<a href=#1682 id=1682 data-nosnippet>1682</a><span class="doccomment">/// Determines if the given item is considered slow.
+<a href=#1683 id=1683 data-nosnippet>1683</a>///
+<a href=#1684 id=1684 data-nosnippet>1684</a>/// Slow items must be routed to the `Attachments` topic.
+<a href=#1685 id=1685 data-nosnippet>1685</a></span><span class="kw">fn </span>is_slow_item(item: <span class="kw-2">&amp;</span>Item) -&gt; bool {
+<a href=#1686 id=1686 data-nosnippet>1686</a>    item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment || item.ty() == <span class="kw-2">&amp;</span>ItemType::UserReport
+<a href=#1687 id=1687 data-nosnippet>1687</a>}
+<a href=#1688 id=1688 data-nosnippet>1688</a>
+<a href=#1689 id=1689 data-nosnippet>1689</a><span class="kw">fn </span>bool_to_str(value: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#1690 id=1690 data-nosnippet>1690</a>    <span class="kw">if </span>value { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>}
 <a href=#1691 id=1691 data-nosnippet>1691</a>}
 <a href=#1692 id=1692 data-nosnippet>1692</a>
-<a href=#1693 id=1693 data-nosnippet>1693</a><span class="kw">fn </span>bool_to_str(value: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#1694 id=1694 data-nosnippet>1694</a>    <span class="kw">if </span>value { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>}
-<a href=#1695 id=1695 data-nosnippet>1695</a>}
-<a href=#1696 id=1696 data-nosnippet>1696</a>
-<a href=#1697 id=1697 data-nosnippet>1697</a><span class="doccomment">/// Returns a safe timestamp for Kafka.
-<a href=#1698 id=1698 data-nosnippet>1698</a>///
-<a href=#1699 id=1699 data-nosnippet>1699</a>/// Kafka expects timestamps to be in UTC and in seconds since epoch.
-<a href=#1700 id=1700 data-nosnippet>1700</a></span><span class="kw">fn </span>safe_timestamp(timestamp: DateTime&lt;Utc&gt;) -&gt; u64 {
-<a href=#1701 id=1701 data-nosnippet>1701</a>    <span class="kw">let </span>ts = timestamp.timestamp();
-<a href=#1702 id=1702 data-nosnippet>1702</a>    <span class="kw">if </span>ts &gt;= <span class="number">0 </span>{
-<a href=#1703 id=1703 data-nosnippet>1703</a>        <span class="kw">return </span>ts <span class="kw">as </span>u64;
-<a href=#1704 id=1704 data-nosnippet>1704</a>    }
+<a href=#1693 id=1693 data-nosnippet>1693</a><span class="doccomment">/// Returns a safe timestamp for Kafka.
+<a href=#1694 id=1694 data-nosnippet>1694</a>///
+<a href=#1695 id=1695 data-nosnippet>1695</a>/// Kafka expects timestamps to be in UTC and in seconds since epoch.
+<a href=#1696 id=1696 data-nosnippet>1696</a></span><span class="kw">fn </span>safe_timestamp(timestamp: DateTime&lt;Utc&gt;) -&gt; u64 {
+<a href=#1697 id=1697 data-nosnippet>1697</a>    <span class="kw">let </span>ts = timestamp.timestamp();
+<a href=#1698 id=1698 data-nosnippet>1698</a>    <span class="kw">if </span>ts &gt;= <span class="number">0 </span>{
+<a href=#1699 id=1699 data-nosnippet>1699</a>        <span class="kw">return </span>ts <span class="kw">as </span>u64;
+<a href=#1700 id=1700 data-nosnippet>1700</a>    }
+<a href=#1701 id=1701 data-nosnippet>1701</a>
+<a href=#1702 id=1702 data-nosnippet>1702</a>    <span class="comment">// We assume this call can't return &lt; 0.
+<a href=#1703 id=1703 data-nosnippet>1703</a>    </span>Utc::now().timestamp() <span class="kw">as </span>u64
+<a href=#1704 id=1704 data-nosnippet>1704</a>}
 <a href=#1705 id=1705 data-nosnippet>1705</a>
-<a href=#1706 id=1706 data-nosnippet>1706</a>    <span class="comment">// We assume this call can't return &lt; 0.
-<a href=#1707 id=1707 data-nosnippet>1707</a>    </span>Utc::now().timestamp() <span class="kw">as </span>u64
-<a href=#1708 id=1708 data-nosnippet>1708</a>}
+<a href=#1706 id=1706 data-nosnippet>1706</a><span class="attr">#[cfg(test)]
+<a href=#1707 id=1707 data-nosnippet>1707</a></span><span class="kw">mod </span>tests {
+<a href=#1708 id=1708 data-nosnippet>1708</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#1709 id=1709 data-nosnippet>1709</a>
-<a href=#1710 id=1710 data-nosnippet>1710</a><span class="attr">#[cfg(test)]
-<a href=#1711 id=1711 data-nosnippet>1711</a></span><span class="kw">mod </span>tests {
-<a href=#1712 id=1712 data-nosnippet>1712</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#1713 id=1713 data-nosnippet>1713</a>
-<a href=#1714 id=1714 data-nosnippet>1714</a>    <span class="attr">#[test]
-<a href=#1715 id=1715 data-nosnippet>1715</a>    </span><span class="kw">fn </span>disallow_outcomes() {
-<a href=#1716 id=1716 data-nosnippet>1716</a>        <span class="kw">let </span>config = Config::default();
-<a href=#1717 id=1717 data-nosnippet>1717</a>        <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config).unwrap();
-<a href=#1718 id=1718 data-nosnippet>1718</a>
-<a href=#1719 id=1719 data-nosnippet>1719</a>        <span class="kw">for </span>topic <span class="kw">in </span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-<a href=#1720 id=1720 data-nosnippet>1720</a>            <span class="kw">let </span>res = producer
-<a href=#1721 id=1721 data-nosnippet>1721</a>                .client
-<a href=#1722 id=1722 data-nosnippet>1722</a>                .send(topic, <span class="kw-2">*</span><span class="string">b"0123456789abcdef"</span>, <span class="prelude-val">None</span>, <span class="string">"foo"</span>, <span class="string">b""</span>);
-<a href=#1723 id=1723 data-nosnippet>1723</a>
-<a href=#1724 id=1724 data-nosnippet>1724</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, <span class="prelude-val">Err</span>(ClientError::InvalidTopicName)));
-<a href=#1725 id=1725 data-nosnippet>1725</a>        }
-<a href=#1726 id=1726 data-nosnippet>1726</a>    }
-<a href=#1727 id=1727 data-nosnippet>1727</a>}</code></pre></div></section></main></body></html>
+<a href=#1710 id=1710 data-nosnippet>1710</a>    <span class="attr">#[test]
+<a href=#1711 id=1711 data-nosnippet>1711</a>    </span><span class="kw">fn </span>disallow_outcomes() {
+<a href=#1712 id=1712 data-nosnippet>1712</a>        <span class="kw">let </span>config = Config::default();
+<a href=#1713 id=1713 data-nosnippet>1713</a>        <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config).unwrap();
+<a href=#1714 id=1714 data-nosnippet>1714</a>
+<a href=#1715 id=1715 data-nosnippet>1715</a>        <span class="kw">for </span>topic <span class="kw">in </span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
+<a href=#1716 id=1716 data-nosnippet>1716</a>            <span class="kw">let </span>res = producer
+<a href=#1717 id=1717 data-nosnippet>1717</a>                .client
+<a href=#1718 id=1718 data-nosnippet>1718</a>                .send(topic, <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="string">b"0123456789abcdef"</span>), <span class="prelude-val">None</span>, <span class="string">"foo"</span>, <span class="string">b""</span>);
+<a href=#1719 id=1719 data-nosnippet>1719</a>
+<a href=#1720 id=1720 data-nosnippet>1720</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, <span class="prelude-val">Err</span>(ClientError::InvalidTopicName)));
+<a href=#1721 id=1721 data-nosnippet>1721</a>        }
+<a href=#1722 id=1722 data-nosnippet>1722</a>    }
+<a href=#1723 id=1723 data-nosnippet>1723</a>}</code></pre></div></section></main></body></html>
