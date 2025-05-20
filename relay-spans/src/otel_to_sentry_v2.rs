@@ -68,7 +68,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
                 description = otel_value_to_string(value);
             }
             key if key.starts_with("db") => {
-                name = name.or(Some("db".to_string()));
+                name = name.or(Some("db".to_owned()));
                 if key == "db.statement" {
                     description = description.or_else(|| otel_value_to_string(value.clone()));
                 }
@@ -80,7 +80,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
                     _ => "http",
                 };
                 http_method = otel_value_to_string(value);
-                name = name.or(Some(http_op.to_string()));
+                name = name.or(Some(http_op.to_owned()));
             }
             "http.route" | "url.path" => {
                 http_route = otel_value_to_string(value);
