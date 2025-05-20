@@ -58,34 +58,36 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     let mut description = None;
     let mut http_method = None;
     let mut http_route = None;
-    for attribute in attributes.into_iter() {
-        if let Some(value) = attribute.value.and_then(|v| v.value) {
-            match attribute.key.as_str() {
-                "sentry.description" => {
-                    description = otel_value_to_string(value);
+
+    for (key, value) in attributes.into_iter().flat_map(|attribute| {
+        let value = attribute.value?.value?;
+        Some((attribute.key, value))
+    }) {
+        match key.as_str() {
+            "sentry.description" => {
+                description = otel_value_to_string(value);
+            }
+            key if key.starts_with("db") => {
+                name = name.or(Some("db".to_string()));
+                if key == "db.statement" {
+                    description = description.or_else(|| otel_value_to_string(value.clone()));
                 }
-                key if key.starts_with("db") => {
-                    name = name.or(Some("db".to_string()));
-                    if key == "db.statement" {
-                        description = description.or_else(|| otel_value_to_string(value.clone()));
-                    }
-                }
-                "http.method" | "http.request.method" => {
-                    let http_op = match kind {
-                        2 => "http.server",
-                        3 => "http.client",
-                        _ => "http",
-                    };
-                    http_method = otel_value_to_string(value);
-                    name = name.or(Some(http_op.to_string()));
-                }
-                "http.route" | "url.path" => {
-                    http_route = otel_value_to_string(value);
-                }
-                _ => {
-                    if let Some(v) = otel_value_to_attr(value) {
-                        sentry_attributes.insert(attribute.key, Annotated::new(v));
-                    }
+            }
+            "http.method" | "http.request.method" => {
+                let http_op = match kind {
+                    2 => "http.server",
+                    3 => "http.client",
+                    _ => "http",
+                };
+                http_method = otel_value_to_string(value);
+                name = name.or(Some(http_op.to_string()));
+            }
+            "http.route" | "url.path" => {
+                http_route = otel_value_to_string(value);
+            }
+            _ => {
+                if let Some(v) = otel_value_to_attr(value) {
+                    sentry_attributes.insert(key, Annotated::new(v));
                 }
             }
         }
