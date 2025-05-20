@@ -776,7 +776,7 @@
 <a href=#776 id=776 data-nosnippet>776</a>
 <a href=#777 id=777 data-nosnippet>777</a>        <span class="comment">// If the recording payload can not fit in to the message do not produce and quit early.
 <a href=#778 id=778 data-nosnippet>778</a>        </span><span class="kw">if </span>payload_size &gt;= max_payload_size {
-<a href=#779 id=779 data-nosnippet>779</a>            <span class="macro">relay_log::warn!</span>(<span class="string">"replay_recording over maximum size."</span>);
+<a href=#779 id=779 data-nosnippet>779</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"replay_recording over maximum size."</span>);
 <a href=#780 id=780 data-nosnippet>780</a>            <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
 <a href=#781 id=781 data-nosnippet>781</a>                category: DataCategory::Replay,
 <a href=#782 id=782 data-nosnippet>782</a>                event_id,

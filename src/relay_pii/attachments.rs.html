@@ -177,7 +177,7 @@
 <a href=#177 id=177 data-nosnippet>177</a>            Redaction::Replace(replace) =&gt; {
 <a href=#178 id=178 data-nosnippet>178</a>                <span class="self">self</span>.swap_content(replace.text.as_str(), PADDING);
 <a href=#179 id=179 data-nosnippet>179</a>            }
-<a href=#180 id=180 data-nosnippet>180</a>            Redaction::Other =&gt; <span class="macro">relay_log::warn!</span>(<span class="string">"Incoming redaction is not supported"</span>),
+<a href=#180 id=180 data-nosnippet>180</a>            Redaction::Other =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">"Incoming redaction is not supported"</span>),
 <a href=#181 id=181 data-nosnippet>181</a>        }
 <a href=#182 id=182 data-nosnippet>182</a>    }
 <a href=#183 id=183 data-nosnippet>183</a>}

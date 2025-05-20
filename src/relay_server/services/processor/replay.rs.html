@@ -168,7 +168,7 @@
 <a href=#168 id=168 data-nosnippet>168</a>            }
 <a href=#169 id=169 data-nosnippet>169</a>        }
 <a href=#170 id=170 data-nosnippet>170</a>        <span class="prelude-val">Err</span>(error) =&gt; {
-<a href=#171 id=171 data-nosnippet>171</a>            <span class="macro">relay_log::warn!</span>(
+<a href=#171 id=171 data-nosnippet>171</a>            <span class="macro">relay_log::debug!</span>(
 <a href=#172 id=172 data-nosnippet>172</a>                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
 <a href=#173 id=173 data-nosnippet>173</a>                event_id = <span class="question-mark">?</span>config.event_id,
 <a href=#174 id=174 data-nosnippet>174</a>                project_id = config.project_id.map(|v| v.value()),
