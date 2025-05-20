@@ -24,8 +24,6 @@ use relay_protocol::{Annotated, Error, Object, Value};
 ///
 /// All other attributes are carried over from the OTEL span to the Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
-    let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
-    let end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64);
     let OtelSpan {
         trace_id,
         span_id,
@@ -36,8 +34,17 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         attributes,
         status,
         links,
-        ..
+        start_time_unix_nano,
+        end_time_unix_nano,
+        trace_state: _,
+        dropped_attributes_count: _,
+        events: _,
+        dropped_events_count: _,
+        dropped_links_count: _,
     } = otel_span;
+
+    let start_timestamp = Utc.timestamp_nanos(start_time_unix_nano as i64);
+    let end_timestamp = Utc.timestamp_nanos(end_time_unix_nano as i64);
 
     let span_id: SpanId = hex::encode(span_id).parse()?;
     let trace_id: TraceId = hex::encode(trace_id).parse()?;
