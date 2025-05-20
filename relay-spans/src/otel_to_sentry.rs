@@ -261,7 +261,7 @@ fn otel_to_sentry_value(value: OtelValue) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{SerializableAnnotated, get_path};
+    use relay_protocol::SerializableAnnotated;
 
     #[test]
     fn parse_span() {
@@ -329,12 +329,7 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.exclusive_time, Annotated::new(1000.0));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        assert_eq!(
-            get_path!(annotated_span.data.environment),
-            Some(&Annotated::new("test".into()))
-        );
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 1697620454.980079,
@@ -380,7 +375,6 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.exclusive_time, Annotated::new(3200.0));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -412,7 +406,6 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -464,13 +457,6 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.op, Annotated::new("database query".into()));
-        assert_eq!(
-            event_span.description,
-            Annotated::new(
-                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into()
-            )
-        );
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -529,11 +515,6 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.op, Annotated::new("database query".into()));
-        assert_eq!(
-            event_span.description,
-            Annotated::new("index view query".into())
-        );
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -580,11 +561,6 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.op, Annotated::new("http client request".into()));
-        assert_eq!(
-            event_span.description,
-            Annotated::new("GET /api/search?q=foobar".into())
-        );
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -777,7 +753,6 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.is_remote, Annotated::new(true));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -808,7 +783,6 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        assert_eq!(event_span.is_remote, Annotated::new(false));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -839,8 +813,6 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-        let kind = event_span.kind.value().expect("kind should be set");
-        assert_eq!(kind, &SpanKind::Client);
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -909,42 +881,6 @@ mod tests {
         let event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
 
-        assert_eq!(
-            get_path!(annotated_span.trace_id),
-            Some(&Annotated::new(
-                "3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
-            ))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].trace_id),
-            Some(&Annotated::new(
-                "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
-            ))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].span_id),
-            Some(&Annotated::new(SpanId("fa90fdead5f74052".into())))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["str_key"]),
-            Some(&Annotated::new(Value::String("str_value".into())))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["bool_key"]),
-            Some(&Annotated::new(Value::Bool(true)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["int_key"]),
-            Some(&Annotated::new(Value::I64(123)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["double_key"]),
-            Some(&Annotated::new(Value::F64(1.23)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].sampled),
-            Some(&Annotated::new(true))
-        );
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 0.0,
