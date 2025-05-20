@@ -9,7 +9,13 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, FromValue, Object, Value};
 
-#[allow(dead_code)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "this will be used as an intermediate step in OTEL -> span conversion"
+    )
+)]
 /// Transforms a Sentry Span V2 to a Sentry Span.
 pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut exclusive_time_ms = 0f64;
@@ -26,7 +32,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         attributes,
         status,
         is_remote,
-        ..
+        other: _other,
     } = span_v2;
 
     let mut op = name;
@@ -39,63 +45,65 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut segment_id = Annotated::empty();
     let mut profile_id = Annotated::empty();
 
-    if let Some(attributes) = attributes.into_value() {
-        for (key, attribute) in attributes.into_iter() {
-            if let Some(value) = attribute.into_value().map(|v| v.value.value) {
-                match key.as_str() {
-                    "sentry.description" => {
-                        description = String::from_value(value);
-                    }
-                    key if key.starts_with("db") => {
-                        op = op.or_else(|| Annotated::new(String::from("db")));
-                        if key == "db.statement" {
-                            description = description.or_else(|| String::from_value(value));
-                        }
-                    }
-                    "http.method" | "http.request.method" => {
-                        let http_op = match kind.value() {
-                            Some(SpanV2Kind::Server) => "http.server",
-                            Some(SpanV2Kind::Client) => "http.client",
-                            _ => "http",
-                        };
-                        op = op.or_else(|| Annotated::new(http_op.to_owned()));
-                        http_method = String::from_value(value);
-                    }
-                    "http.route" | "url.path" => {
-                        http_route = String::from_value(value);
-                    }
-                    key if key.contains("exclusive_time_nano") => {
-                        let value = match value.value() {
-                            Some(Value::I64(v)) => *v as f64,
-                            Some(Value::U64(v)) => *v as f64,
-                            Some(Value::F64(v)) => *v,
-                            Some(Value::String(v)) => v.parse::<f64>().unwrap_or_default(),
-                            _ => 0f64,
-                        };
-                        exclusive_time_ms = value / 1e6f64;
-                    }
-                    "http.status_code" => {
-                        http_status_code = i64::from_value(value);
-                    }
-                    "rpc.grpc.status_code" => {
-                        grpc_status_code = i64::from_value(value);
-                    }
-                    "sentry.platform" => {
-                        platform = String::from_value(value);
-                    }
-                    "sentry.segment.id" => {
-                        segment_id = SpanId::from_value(value);
-                    }
-                    "sentry.profile.id" => {
-                        profile_id = EventId::from_value(value);
-                    }
-                    _ => {
-                        data.insert(key.to_owned(), value);
-                    }
+    for (key, value) in attributes.into_value().into_iter().flat_map(|attributes| {
+        attributes.into_iter().flat_map(|(key, attribute)| {
+            let attribute = attribute.into_value()?;
+            Some((key, attribute.value.value))
+        })
+    }) {
+        match key.as_str() {
+            "sentry.description" => {
+                description = String::from_value(value);
+            }
+            key if key.starts_with("db") => {
+                op = op.or_else(|| Annotated::new(String::from("db")));
+                if key == "db.statement" {
+                    description = description.or_else(|| String::from_value(value));
                 }
+            }
+            "http.method" | "http.request.method" => {
+                let http_op = match kind.value() {
+                    Some(SpanV2Kind::Server) => "http.server",
+                    Some(SpanV2Kind::Client) => "http.client",
+                    _ => "http",
+                };
+                op = op.or_else(|| Annotated::new(http_op.to_owned()));
+                http_method = String::from_value(value);
+            }
+            "http.route" | "url.path" => {
+                http_route = String::from_value(value);
+            }
+            key if key.contains("exclusive_time_nano") => {
+                let value = match value.value() {
+                    Some(Value::I64(v)) => *v as f64,
+                    Some(Value::U64(v)) => *v as f64,
+                    Some(Value::F64(v)) => *v,
+                    Some(Value::String(v)) => v.parse::<f64>().unwrap_or_default(),
+                    _ => 0f64,
+                };
+                exclusive_time_ms = value / 1e6f64;
+            }
+            "http.status_code" => {
+                http_status_code = i64::from_value(value);
+            }
+            "rpc.grpc.status_code" => {
+                grpc_status_code = i64::from_value(value);
+            }
+            "sentry.platform" => {
+                platform = String::from_value(value);
+            }
+            "sentry.segment.id" => {
+                segment_id = SpanId::from_value(value);
+            }
+            "sentry.profile.id" => {
+                profile_id = EventId::from_value(value);
+            }
+            _ => {
+                data.insert(key.to_owned(), value);
             }
         }
     }
+
     if exclusive_time_ms == 0f64 {
         if let (Some(start), Some(end)) = (start_timestamp.value(), end_timestamp.value()) {
             if let Some(nanos) = (end.0 - start.0).num_nanoseconds() {
@@ -205,7 +213,7 @@ fn span_v2_link_to_span_v1_link(link: SpanV2Link) -> SpanLink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{SerializableAnnotated, get_path};
+    use relay_protocol::SerializableAnnotated;
 
     #[test]
     fn parse_span() {
@@ -253,12 +261,7 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        assert_eq!(span_v1.exclusive_time, Annotated::new(1000.0));
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
-        assert_eq!(
-            get_path!(annotated_span.data.environment),
-            Some(&Annotated::new("test".into()))
-        );
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "timestamp": 1697620454.980079,
@@ -303,7 +306,6 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        assert_eq!(span_v1.exclusive_time, Annotated::new(3200.0));
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -336,7 +338,6 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        assert_eq!(span_v1.exclusive_time, Annotated::new(0.0788));
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -383,13 +384,6 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        assert_eq!(span_v1.op, Annotated::new("database query".into()));
-        assert_eq!(
-            span_v1.description,
-            Annotated::new(
-                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into()
-            )
-        );
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -441,11 +435,6 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        assert_eq!(span_v1.op, Annotated::new("database query".into()));
-        assert_eq!(
-            span_v1.description,
-            Annotated::new("index view query".into())
-        );
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -489,11 +478,6 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        assert_eq!(span_v1.op, Annotated::new("http client request".into()));
-        assert_eq!(
-            span_v1.description,
-            Annotated::new("GET /api/search?q=foobar".into())
-        );
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -615,7 +599,6 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        assert_eq!(span_v1.is_remote, Annotated::new(true));
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -648,7 +631,6 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        assert_eq!(span_v1.is_remote, Annotated::new(false));
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -680,8 +662,6 @@ mod tests {
         }"#;
         let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-        let kind = span_v1.kind.value().expect("kind should be set");
-        assert_eq!(kind, &SpanKind::Client);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
@@ -733,42 +713,6 @@ mod tests {
         let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
         let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
 
-        assert_eq!(
-            get_path!(annotated_span.trace_id),
-            Some(&Annotated::new(
-                "3c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
-            ))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].trace_id),
-            Some(&Annotated::new(
-                "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()
-            ))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].span_id),
-            Some(&Annotated::new(SpanId("fa90fdead5f74052".into())))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["str_key"]),
-            Some(&Annotated::new(Value::String("str_value".into())))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["bool_key"]),
-            Some(&Annotated::new(Value::Bool(true)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["int_key"]),
-            Some(&Annotated::new(Value::I64(123)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].attributes["double_key"]),
-            Some(&Annotated::new(Value::F64(1.23)))
-        );
-        assert_eq!(
-            get_path!(annotated_span.links[0].sampled),
-            Some(&Annotated::new(true))
-        );
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "exclusive_time": 0.0,
