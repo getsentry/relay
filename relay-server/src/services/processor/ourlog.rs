@@ -4,12 +4,14 @@ use std::sync::Arc;
 use crate::services::processor::LogGroup;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_event_normalization::{FromUserAgentInfo, RawUserAgentInfo};
+use relay_event_schema::protocol::{Attribute, BrowserContext};
 
 use crate::envelope::ItemType;
 use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::sample;
 use crate::utils::{ItemAction, TypedEnvelope};
+use crate::utils::{ManagedEnvelope, sample};
 
 #[cfg(feature = "processing")]
 use {
@@ -17,7 +19,7 @@ use {
     crate::services::outcome::{DiscardReason, Outcome},
     crate::services::processor::ProcessingError,
     relay_dynamic_config::ProjectConfig,
-    relay_event_normalization::SchemaProcessor,
+    relay_event_normalization::{ClientHints, SchemaProcessor},
     relay_event_schema::processor::{ProcessingState, process_value},
     relay_event_schema::protocol::{AttributeType, OurLog},
     relay_ourlogs::OtelLog,
@@ -74,6 +76,8 @@ pub fn process(
         return Err(ProcessingError::DuplicateItem(ItemType::Log));
     }
 
+    let normalize_config = NormalizeOurLogConfig::new(managed_envelope);
+
     managed_envelope.retain_items(|item| {
         let mut logs = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
@@ -113,7 +117,7 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             }
 
-            if let Err(e) = normalize(log) {
+            if let Err(e) = normalize(log, normalize_config.clone()) {
                 relay_log::debug!("failed to normalize log: {}", e);
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
@@ -135,8 +139,33 @@ pub fn process(
     Ok(())
 }
 
+/// Config needed to normalize a standalone log.
+#[derive(Clone, Debug)]
+struct NormalizeOurLogConfig {
+    /// The user agent parsed from the request.
+    user_agent: Option<String>,
+    /// Client hints parsed from the request.
+    client_hints: ClientHints<String>,
+}
+
+impl NormalizeOurLogConfig {
+    fn new(managed_envelope: &ManagedEnvelope) -> Self {
+        Self {
+            user_agent: managed_envelope
+                .envelope()
+                .meta()
+                .user_agent()
+                .map(String::from),
+            client_hints: managed_envelope.meta().client_hints().clone(),
+        }
+    }
+}
+
 #[cfg(feature = "processing")]
-fn normalize(annotated_log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
+fn normalize(
+    annotated_log: &mut Annotated<OurLog>,
+    config: NormalizeOurLogConfig,
+) -> Result<(), ProcessingError> {
     process_value(annotated_log, &mut SchemaProcessor, ProcessingState::root())?;
 
     let Some(log) = annotated_log.value_mut() else {
@@ -144,8 +173,45 @@ fn normalize(annotated_log: &mut Annotated<OurLog>) -> Result<(), ProcessingErro
     };
 
     process_attribute_types(log);
+    populate_ua_fields(
+        log,
+        config.user_agent.as_deref(),
+        config.client_hints.as_deref(),
+    );
 
     Ok(())
+}
+
+fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: ClientHints<&str>) {
+    let attributes = log.attributes.get_or_insert_with(Default::default);
+    if let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+        user_agent,
+        client_hints,
+    }) {
+        if !attributes.contains_key("browser.name") {
+            if let Some(name) = context.name.value() {
+                attributes.insert(
+                    "browser.name".to_string(),
+                    Annotated::new(Attribute::new(
+                        AttributeType::String,
+                        Value::String(name.to_string()),
+                    )),
+                );
+            }
+        }
+
+        if !attributes.contains_key("browser.version") {
+            if let Some(version) = context.version.value() {
+                attributes.insert(
+                    "browser.version".to_string(),
+                    Annotated::new(Attribute::new(
+                        AttributeType::String,
+                        Value::String(version.to_string()),
+                    )),
+                );
+            }
+        }
+    }
 }
 
 #[cfg(feature = "processing")]
@@ -553,5 +619,39 @@ mod tests {
             },
         }
         "###);
+    }
+
+    #[test]
+    fn test_populate_ua_fields() {
+        let mut log = OurLog::default();
+        populate_ua_fields(
+            &mut log,
+            Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            ),
+            ClientHints::default(),
+        );
+
+        let attributes = log.attributes.value().unwrap();
+        assert_eq!(
+            attributes
+                .get("browser.name")
+                .unwrap()
+                .value()
+                .unwrap()
+                .value
+                .value,
+            Value::String("Chrome".to_string()).into(),
+        );
+        assert_eq!(
+            attributes
+                .get("browser.version")
+                .unwrap()
+                .value()
+                .unwrap()
+                .value
+                .value,
+            Value::String("131.0.0".to_string()).into(),
+        );
     }
 }

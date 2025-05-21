@@ -109,6 +109,8 @@ def test_ourlog_extraction_with_otel_logs(
                 item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
                 attributes={
                     "boolean.attribute": AnyValue(bool_value=True),
+                    "browser.name": AnyValue(string_value="Python Requests"),
+                    "browser.version": AnyValue(string_value="2.32"),
                     "double.attribute": AnyValue(double_value=637.704),
                     "int.attribute": AnyValue(int_value=10),
                     "sentry.body": AnyValue(string_value="Example log record"),
@@ -282,6 +284,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 ),
                 item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
                 attributes={
+                    "browser.name": AnyValue(string_value="Python Requests"),
+                    "browser.version": AnyValue(string_value="2.32"),
                     "sentry.body": AnyValue(string_value="This is really bad"),
                     "sentry.severity_number": AnyValue(int_value=17),
                     "sentry.severity_text": AnyValue(string_value="error"),
@@ -312,6 +316,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
                 attributes={
                     "boolean.attribute": AnyValue(bool_value=True),
+                    "browser.name": AnyValue(string_value="Python Requests"),
+                    "browser.version": AnyValue(string_value="2.32"),
                     "double.attribute": AnyValue(double_value=1.23),
                     "integer.attribute": AnyValue(int_value=42),
                     "pii": AnyValue(string_value="[creditcard]"),
@@ -394,6 +400,8 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
                 ),
                 item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
                 attributes={
+                    "browser.name": AnyValue(string_value="Python Requests"),
+                    "browser.version": AnyValue(string_value="2.32"),
                     "sentry.body": AnyValue(string_value="Example log record 2"),
                     "sentry.observed_timestamp_nanos": AnyValue(
                         string_value=str(timestamp_nanos)
