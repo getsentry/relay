@@ -31,7 +31,8 @@ pub fn process(
         return Ok(None);
     }
 
-    if let Some(item) = envelope.take_item_by(|item| {
+    // Get instead of take as we want to keep the dump as an attachment
+    if let Some(item) = envelope.get_item_by(|item| {
         item.ty() == &ItemType::Attachment
             && item.attachment_type() == Some(&AttachmentType::Prosperodump)
     }) {
