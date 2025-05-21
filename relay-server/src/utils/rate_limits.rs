@@ -955,7 +955,6 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::services::processor::ProcessingGroup;
     use crate::{
         envelope::{AttachmentType, ContentType, SourceQuantities},
         extractors::RequestMeta,
@@ -1167,7 +1166,6 @@ mod tests {
                 envelope,
                 outcome_aggregator,
                 test_store,
-                ProcessingGroup::Ungrouped,
             )
         }}
     }
