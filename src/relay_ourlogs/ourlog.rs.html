@@ -36,7 +36,7 @@
 <a href=#36 id=36 data-nosnippet>36</a>        ..
 <a href=#37 id=37 data-nosnippet>37</a>    } = otel_log;
 <a href=#38 id=38 data-nosnippet>38</a>    <span class="kw">let </span>span_id = SpanId(hex::encode(span_id));
-<a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">let </span>trace_id: TraceId = hex::encode(trace_id).parse()<span class="question-mark">?</span>;
+<a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">let </span>trace_id = TraceId::try_from(trace_id.as_slice())<span class="question-mark">?</span>;
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">let </span>timestamp = Utc.timestamp_nanos(time_unix_nano <span class="kw">as </span>i64);
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="kw">let </span>body = body
 <a href=#42 id=42 data-nosnippet>42</a>        .and_then(|v| v.value)
