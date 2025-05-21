@@ -58,17 +58,7 @@ impl fmt::Display for TraceId {
 
 impl fmt::Debug for TraceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct DebugUuidSimple(Uuid);
-
-        impl fmt::Debug for DebugUuidSimple {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, r#""{}""#, self.0.as_simple())
-            }
-        }
-
-        f.debug_tuple("TraceId")
-            .field(&DebugUuidSimple(self.0))
-            .finish()
+        write!(f, "TraceId(\"{}\")", self.0.as_simple())
     }
 }
 

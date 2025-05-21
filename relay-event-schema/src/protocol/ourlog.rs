@@ -173,9 +173,7 @@ mod tests {
             timestamp: Timestamp(
                 2018-12-13T16:51:00Z,
             ),
-            trace_id: TraceId(
-                "5b8efff798038103d269b633813fc60c",
-            ),
+            trace_id: TraceId("5b8efff798038103d269b633813fc60c"),
             span_id: SpanId(
                 "eee19b7ec3c1b174",
             ),
