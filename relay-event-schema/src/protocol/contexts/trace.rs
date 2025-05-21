@@ -1,5 +1,6 @@
 use relay_protocol::{
-    Annotated, Array, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
+    Annotated, Array, Empty, Error, FromValue, HexId, IntoValue, Object, SkipSerialization, Val,
+    Value,
 };
 use serde::Serializer;
 use std::fmt;
@@ -223,6 +224,12 @@ impl std::ops::Deref for SpanId {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<'a> From<&'a SpanId> for Val<'a> {
+    fn from(value: &'a SpanId) -> Self {
+        Val::HexId(HexId(&value.0))
     }
 }
 

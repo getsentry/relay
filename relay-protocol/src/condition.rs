@@ -84,26 +84,11 @@ impl EqCondition {
                 .iter()
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
-            (Some(Val::Bytes(f)), Value::String(val)) => match_bytes_string(f, val),
+            (Some(Val::HexId(f)), Value::String(val)) => f == &val[..],
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
             _ => false,
         }
     }
-}
-
-/// Checks whether the given slice of bytes is equal to
-/// the hex decoding of the given string.
-fn match_bytes_string(bytes: &[u8], string: &str) -> bool {
-    if string.len() != 2 * bytes.len() {
-        return false;
-    }
-
-    let sx = (0..)
-        .step_by(2)
-        .map_while(|r| string.get(r..r + 2))
-        .map(|x| u8::from_str_radix(x, 16).ok());
-
-    bytes.iter().copied().map(Some).eq(sx)
 }
 
 /// Returns `true` if this value is equal to `Default::default()`.
@@ -855,7 +840,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::GetterIter;
+    use crate::{GetterIter, HexId};
 
     #[derive(Debug)]
     struct Exception {
@@ -885,7 +870,7 @@ mod tests {
         fn get_value(&self, path: &str) -> Option<Val<'_>> {
             Some(match path.strip_prefix("trace.")? {
                 "trace_id" => (&self.trace_id).into(),
-                "span_id" => (&self.span_id[..]).into(),
+                "span_id" => Val::HexId(HexId(&self.span_id[..])),
                 "transaction" => self.transaction.as_str().into(),
                 "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
@@ -1370,20 +1355,5 @@ mod tests {
         let trace = mock_trace();
 
         assert!(!condition.matches(&trace));
-    }
-
-    #[test]
-    fn test_match_bytes_string() {
-        assert!(match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deadbeef"));
-        // Matching is case insensitive
-        assert!(match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "DEADBEEF"));
-        // Values don't match
-        assert!(!match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deedbeef"));
-        // Too short
-        assert!(!match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deadbee"));
-        // Too long
-        assert!(!match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deadbeeff"));
-        // Not a valid hex string at all
-        assert!(!match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deadbeer"));
     }
 }

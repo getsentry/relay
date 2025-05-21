@@ -345,6 +345,30 @@ pub struct Obj<'a> {
     _phantom: std::marker::PhantomData<&'a ()>,
 }
 
+/// Borrowed version of a "hex ID", like a span ID, UUID,
+/// &c, represented by a byte slice.
+///
+/// This type supports comparisons against string slices, in which case
+/// we check whether the string slice is a valid hex encoding of the
+/// contained bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HexId<'a>(pub &'a [u8]);
+
+impl PartialEq<&str> for HexId<'_> {
+    fn eq(&self, other: &&str) -> bool {
+        if other.len() != 2 * self.0.len() {
+            return false;
+        }
+
+        let sx = (0..)
+            .step_by(2)
+            .map_while(|r| other.get(r..r + 2))
+            .map(|x| u8::from_str_radix(x, 16).ok());
+
+        self.0.iter().copied().map(Some).eq(sx)
+    }
+}
+
 /// Borrowed version of [`Value`].
 #[derive(Debug, Clone, Copy)]
 pub enum Val<'a> {
@@ -358,8 +382,8 @@ pub enum Val<'a> {
     F64(f64),
     /// A string value.
     String(&'a str),
-    /// A slice of bytes.
-    Bytes(&'a [u8]),
+    /// A hexadecimal ID (UUID, span ID, &c).
+    HexId(HexId<'a>),
     /// An array of annotated values.
     Array(Arr<'a>),
     /// A mapping of strings to annotated values.
@@ -412,10 +436,10 @@ impl<'a> Val<'a> {
         }
     }
 
-    /// Returns the bytes if this value is a byte slice, otherwise `None`.
-    pub fn as_bytes(&self) -> Option<&'a [u8]> {
+    /// Returns the ID if this value is a hex ID, otherwise `None`.
+    pub fn as_hex_id(&self) -> Option<HexId> {
         match self {
-            Self::Bytes(value) => Some(value),
+            Self::HexId(value) => Some(*value),
 
             _ => None,
         }
@@ -452,15 +476,9 @@ impl<'a> From<&'a str> for Val<'a> {
     }
 }
 
-impl<'a> From<&'a [u8]> for Val<'a> {
-    fn from(value: &'a [u8]) -> Self {
-        Self::Bytes(value)
-    }
-}
-
 impl<'a> From<&'a Uuid> for Val<'a> {
     fn from(value: &'a Uuid) -> Self {
-        Self::Bytes(value.as_bytes())
+        Self::HexId(HexId(value.as_bytes()))
     }
 }
 
@@ -502,7 +520,7 @@ impl PartialEq for Val<'_> {
             (Self::U64(l0), Self::I64(r0)) => Ok(*l0) == (*r0).try_into(),
             (Self::F64(l0), Self::F64(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
-            (Self::Bytes(l0), Self::Bytes(r0)) => l0 == r0,
+            (Self::HexId(l0), Self::HexId(r0)) => l0 == r0,
             (Self::Array(_), Self::Array(_)) => false,
             (Self::Object(_), Self::Object(_)) => false,
             _ => false,
@@ -521,5 +539,21 @@ mod tests {
 
         let v: Value = serde_json::from_str("123").unwrap();
         assert_eq!(v, Value::I64(123));
+    }
+
+    #[test]
+    fn test_hex_id_comparison() {
+        let id = HexId(&[0xde, 0xad, 0xbe, 0xef]);
+        assert_eq!(id, "deadbeef");
+        // Matching is case insensitive
+        assert_eq!(id, "DEADBEEF");
+        // Values don't match
+        assert_ne!(id, "deedbeef");
+        // Too short
+        assert_ne!(id, "deadbee");
+        // Too long
+        assert_ne!(id, "deadbeeff");
+        // Not a valid hex string at all
+        assert_ne!(id, "deadbeer");
     }
 }

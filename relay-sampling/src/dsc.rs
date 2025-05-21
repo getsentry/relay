@@ -233,6 +233,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use relay_protocol::HexId;
+
     use super::*;
 
     #[test]
@@ -588,7 +590,7 @@ mod tests {
             dsc.get_value("trace.transaction")
         );
         assert_eq!(
-            Some(Val::Bytes(replay_id.as_bytes())),
+            Some(Val::HexId(HexId(replay_id.as_bytes()))),
             dsc.get_value("trace.replay_id")
         );
     }

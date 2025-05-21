@@ -822,7 +822,7 @@ impl Getter for Event {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use relay_protocol::{ErrorKind, Map, Meta};
+    use relay_protocol::{ErrorKind, HexId, Map, Meta};
     use similar_asserts::assert_eq;
     use std::collections::BTreeMap;
     use uuid::uuid;
@@ -1268,9 +1268,9 @@ mod tests {
             event.get_value("event.contexts.device.locale")
         );
         assert_eq!(
-            Some(Val::Bytes(
+            Some(Val::HexId(HexId(
                 uuid!("abadcade-feed-dead-beef-baddadfeeded").as_bytes()
-            )),
+            ))),
             event.get_value("event.contexts.device.uuid")
         );
         assert_eq!(
@@ -1278,9 +1278,9 @@ mod tests {
             event.get_value("event.request.url")
         );
         assert_eq!(
-            Some(Val::Bytes(
+            Some(Val::HexId(HexId(
                 uuid!("abadcade-feed-dead-beef-8addadfeedaa").as_bytes()
-            )),
+            ))),
             event.get_value("event.contexts.profile.profile_id")
         );
         assert_eq!(
