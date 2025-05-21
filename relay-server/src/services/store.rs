@@ -1053,7 +1053,7 @@ impl StoreService {
                     ("project_id".to_owned(), scoping.project_id.to_string()),
                     (
                         "item_type".to_owned(),
-                        TraceItemType::Log.as_str_name().to_owned(),
+                        (TraceItemType::Log as i32).to_string(),
                     ),
                 ]),
                 message: trace_item,
