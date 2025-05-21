@@ -225,6 +225,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 /// attachments. For more information on quota parameters, see [`Quota`].
 ///
 /// Requires the `redis` feature.
+#[derive(Clone)]
 pub struct RedisRateLimiter<T> {
     client: AsyncRedisClient,
     script: &'static Script,

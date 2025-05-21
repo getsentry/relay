@@ -163,6 +163,13 @@ impl EnvelopeHeaders<PartialMeta> {
     }
 }
 
+impl<M> EnvelopeHeaders<M> {
+    /// Returns a reference to the contained meta.
+    pub fn meta(&self) -> &M {
+        &self.meta
+    }
+}
+
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct Envelope {

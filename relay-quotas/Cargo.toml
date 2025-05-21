@@ -17,7 +17,9 @@ redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]
 workspace = true
 
 [dependencies]
+async-trait = { workspace = true }
 hashbrown = { workspace = true }
+itertools = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
 relay-log = { workspace = true, optional = true }
@@ -25,7 +27,6 @@ relay-redis = { workspace = true, optional = true }
 serde = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true, optional = true }
-itertools = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]

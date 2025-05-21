@@ -1,11 +1,3 @@
-#![cfg_attr(
-    not(any(test, feature = "processing")),
-    expect(
-        dead_code,
-        reason = "A number of functions and data in this module are only used in processing or tests."
-    )
-)]
-
 use std::marker::PhantomData;
 
 use bytes::BufMut;
