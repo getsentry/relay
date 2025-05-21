@@ -47,7 +47,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     let end_timestamp = Utc.timestamp_nanos(end_time_unix_nano as i64);
 
     let span_id: SpanId = hex::encode(span_id).parse()?;
-    let trace_id: TraceId = hex::encode(trace_id).parse()?;
+    let trace_id = TraceId::try_from(trace_id.as_slice())?;
     let parent_span_id = match parent_span_id.as_slice() {
         &[] => None,
         _ => Some(hex::encode(parent_span_id).parse()?),
