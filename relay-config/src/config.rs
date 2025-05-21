@@ -860,6 +860,11 @@ pub struct Http {
     ///
     /// This option does not have any effect on processing mode.
     pub global_metrics: bool,
+    /// Additional HTTP headers to send with every request to the upstream.
+    ///
+    /// These headers are added to every request made to the upstream. They can be used to
+    /// configure custom authentication, routing, or other HTTP headers required by the upstream.
+    additional_headers: HashMap<String, String>,
 }
 
 impl Default for Http {
@@ -875,6 +880,7 @@ impl Default for Http {
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Zstd,
             global_metrics: false,
+            additional_headers: HashMap::new(),
         }
     }
 }
@@ -1902,6 +1908,11 @@ impl Config {
     /// Returns the custom HTTP "Host" header.
     pub fn http_host_header(&self) -> Option<&str> {
         self.values.http.host_header.as_deref()
+    }
+
+    /// Returns additional HTTP headers to send with every request to the upstream.
+    pub fn http_additional_headers(&self) -> &HashMap<String, String> {
+        &self.values.http.additional_headers
     }
 
     /// Returns the listen address.
