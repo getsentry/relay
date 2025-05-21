@@ -98,17 +98,12 @@ fn match_bytes_string(bytes: &[u8], string: &str) -> bool {
         return false;
     }
 
-    for (i, &b) in bytes.iter().enumerate() {
-        if string
-            .get(2 * i..2 * i + 1)
-            .and_then(|slice| u8::from_str_radix(slice, 16).ok())
-            != Some(b)
-        {
-            return false;
-        }
-    }
+    let sx = (0..)
+        .step_by(2)
+        .map_while(|r| string.get(r..r + 2))
+        .map(|x| u8::from_str_radix(x, 16).ok());
 
-    true
+    bytes.iter().copied().map(Some).eq(sx)
 }
 
 /// Returns `true` if this value is equal to `Default::default()`.
@@ -1361,5 +1356,18 @@ mod tests {
         let trace = mock_trace();
 
         assert!(!condition.matches(&trace));
+    }
+
+    #[test]
+    fn test_match_bytes_string() {
+        assert!(match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deadbeef"));
+        // Values don't match
+        assert!(!match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deedbeef"));
+        // Too short
+        assert!(!match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deadbee"));
+        // Too long
+        assert!(!match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deadbeeff"));
+        // Not a valid hex string at all
+        assert!(!match_bytes_string(&[0xde, 0xad, 0xbe, 0xef], "deadbeer"));
     }
 }
