@@ -1,6 +1,5 @@
 use relay_protocol::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization,
-    Value,
+    Annotated, Array, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
 use serde::{Serialize, Serializer};
 use std::fmt;
@@ -29,23 +28,25 @@ use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus}
 #[derive(Clone, Copy, Default, PartialEq, Empty, ProcessValue)]
 pub struct TraceId(Uuid);
 
-impl TraceId {
-    pub fn parse_str(input: &str) -> Result<TraceId, Error> {
-        Self::from_str(input)
-    }
-}
-
 relay_common::impl_str_serde!(TraceId, "a trace identifier");
 
 impl FromStr for TraceId {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(s).map(Into::into).map_err(|_| {
-            Error::with(ErrorKind::InvalidData, |e| {
-                e.insert("reason", "the trace id is not valid");
-            })
-        })
+        Uuid::parse_str(s)
+            .map(Into::into)
+            .map_err(|_| Error::invalid("the trace id is not valid"))
+    }
+}
+
+impl TryFrom<&[u8]> for TraceId {
+    type Error = Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let uuid =
+            Uuid::from_slice(value).map_err(|_| Error::invalid("the trace id is not valid"))?;
+        Ok(Self(uuid))
     }
 }
 
@@ -57,7 +58,17 @@ impl fmt::Display for TraceId {
 
 impl fmt::Debug for TraceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TraceId(\"{}\")", self.0.as_simple())
+        struct DebugUuidSimple(Uuid);
+
+        impl fmt::Debug for DebugUuidSimple {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, r#""{}""#, self.0.as_simple())
+            }
+        }
+
+        f.debug_tuple("TraceId")
+            .field(&DebugUuidSimple(self.0))
+            .finish()
     }
 }
 

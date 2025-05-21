@@ -36,7 +36,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
         ..
     } = otel_log;
     let span_id = SpanId(hex::encode(span_id));
-    let trace_id: TraceId = hex::encode(trace_id).parse()?;
+    let trace_id = TraceId::try_from(trace_id.as_slice())?;
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
     let body = body
         .and_then(|v| v.value)
