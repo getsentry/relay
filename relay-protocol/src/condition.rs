@@ -84,7 +84,7 @@ impl EqCondition {
                 .iter()
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
-            (Some(Val::HexId(f)), Value::String(val)) => f == &val[..],
+            (Some(Val::HexId(f)), Value::String(val)) => f.match_str(val),
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
             _ => false,
         }

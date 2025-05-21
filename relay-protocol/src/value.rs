@@ -347,15 +347,13 @@ pub struct Obj<'a> {
 
 /// Borrowed version of a "hex ID", like a span ID, UUID,
 /// &c, represented by a byte slice.
-///
-/// This type supports comparisons against string slices, in which case
-/// we check whether the string slice is a valid hex encoding of the
-/// contained bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HexId<'a>(pub &'a [u8]);
 
-impl PartialEq<&str> for HexId<'_> {
-    fn eq(&self, other: &&str) -> bool {
+impl HexId<'_> {
+    /// Checks whether the given string is a valid hex encoding
+    /// of `self`.
+    pub fn match_str(&self, other: &str) -> bool {
         if other.len() != 2 * self.0.len() {
             return false;
         }
@@ -544,16 +542,16 @@ mod tests {
     #[test]
     fn test_hex_id_comparison() {
         let id = HexId(&[0xde, 0xad, 0xbe, 0xef]);
-        assert_eq!(id, "deadbeef");
+        assert!(id.match_str("deadbeef"));
         // Matching is case insensitive
-        assert_eq!(id, "DEADBEEF");
+        assert!(id.match_str("DEADBEEF"));
         // Values don't match
-        assert_ne!(id, "deedbeef");
+        assert!(!id.match_str("deedbeef"));
         // Too short
-        assert_ne!(id, "deadbee");
+        assert!(!id.match_str("deadbee"));
         // Too long
-        assert_ne!(id, "deadbeeff");
+        assert!(!id.match_str("deadbeeff"));
         // Not a valid hex string at all
-        assert_ne!(id, "deadbeer");
+        assert!(!id.match_str("deadbeer"));
     }
 }
