@@ -46,11 +46,11 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     let start_timestamp = Utc.timestamp_nanos(start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(end_time_unix_nano as i64);
 
-    let span_id = SpanId::try_from_bytes(&span_id)?;
+    let span_id = SpanId::try_from(span_id.as_slice())?;
     let trace_id = TraceId::try_from(trace_id.as_slice())?;
     let parent_span_id = match parent_span_id.as_slice() {
         &[] => None,
-        bytes => Some(SpanId::try_from_bytes(bytes)?),
+        bytes => Some(SpanId::try_from(bytes)?),
     };
 
     let mut sentry_attributes = Object::default();
@@ -203,7 +203,7 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
 
     let span_link = SpanV2Link {
         trace_id: Annotated::new(hex::encode(otel_link.trace_id).parse()?),
-        span_id: SpanId::try_from_bytes(&otel_link.span_id)?.into(),
+        span_id: SpanId::try_from(otel_link.span_id.as_slice())?.into(),
         sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
         attributes: Annotated::new(attributes),
         other: Default::default(),

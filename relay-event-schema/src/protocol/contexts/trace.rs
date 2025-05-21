@@ -1,7 +1,7 @@
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
-use serde::{Serialize, Serializer};
+use serde::Serializer;
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -113,7 +113,7 @@ impl IntoValue for TraceId {
         Self: Sized,
         S: Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        s.collect_str(self)
     }
 }
 
@@ -122,29 +122,26 @@ impl IntoValue for TraceId {
 #[derive(Clone, Copy, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub struct SpanId([u8; 8]);
 
-impl SpanId {
-    /// Tries to construct a `SpanId` from the given byte slice.
-    ///
-    /// The slice must be 8 bytes long and must not contain only `0` bytes.
-    pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        match <[u8; 8]>::try_from(bytes) {
-            Ok(bytes) if !bytes.iter().all(|&x| x == 0) => Ok(Self(bytes)),
-            _ => Err(Error::invalid("not a valid span id")),
-        }
-    }
-}
-
 relay_common::impl_str_serde!(SpanId, "a span identifier");
 
 impl FromStr for SpanId {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !is_hex_string(s, 16) || s.bytes().all(|x| x == b'0') {
-            Err(Error::invalid("not a valid span id"))
-        } else {
-            let id = u64::from_str_radix(s, 16).expect("s is a valid hex string");
-            Ok(Self(id.to_be_bytes()))
+        match u64::from_str_radix(s, 16) {
+            Ok(id) if s.len() == 16 && id > 0 => Ok(Self(id.to_be_bytes())),
+            _ => Err(Error::invalid("not a valid span id")),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for SpanId {
+    type Error = Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match <[u8; 8]>::try_from(value) {
+            Ok(bytes) if !bytes.iter().all(|&x| x == 0) => Ok(Self(bytes)),
+            _ => Err(Error::invalid("not a valid span id")),
         }
     }
 }
@@ -162,9 +159,7 @@ impl fmt::Debug for SpanId {
                 write!(f, "\"")
             }
         }
-        f.debug_tuple("SpanId")
-            .field(&DebugBytes(self.0) as &dyn fmt::Debug)
-            .finish()
+        f.debug_tuple("SpanId").field(&DebugBytes(self.0)).finish()
     }
 }
 
@@ -217,7 +212,7 @@ impl IntoValue for SpanId {
         Self: Sized,
         S: serde::Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        s.collect_str(self)
     }
 }
 
@@ -229,10 +224,6 @@ impl std::ops::Deref for SpanId {
     fn deref(&self) -> &Self::Target {
         &self.0
     }
-}
-
-fn is_hex_string(string: &str, len: usize) -> bool {
-    string.len() == len && string.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// Trace context
