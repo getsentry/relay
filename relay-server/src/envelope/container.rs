@@ -163,6 +163,10 @@ impl ContainerItem for relay_event_schema::protocol::OurLog {
     const CONTENT_TYPE: ContentType = ContentType::LogContainer;
 }
 
+impl ContainerItem for relay_event_schema::protocol::SpanV2 {
+    const CONTENT_TYPE: ContentType = ContentType::SpanV2Container;
+}
+
 /// (De-)Serializes a list of Annotated items with metadata.
 #[derive(Debug)]
 struct AnnotatedItems<T>(ContainerItems<T>);

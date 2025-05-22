@@ -23,10 +23,12 @@ pub enum ContentType {
     Xml,
     /// application/x-sentry-envelope
     Envelope,
-    /// "application/x-protobuf"
+    /// application/x-protobuf
     Protobuf,
-    /// `application/vnd.sentry.items.log+json`
+    /// application/vnd.sentry.items.log+json
     LogContainer,
+    /// application/vnd.sentry.items.span.v2+json
+    SpanV2Container,
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
@@ -44,6 +46,7 @@ impl ContentType {
             Self::Envelope => CONTENT_TYPE,
             Self::Protobuf => "application/x-protobuf",
             Self::LogContainer => "application/vnd.sentry.items.log+json",
+            Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::Other(ref other) => other,
         }
     }
@@ -69,6 +72,8 @@ impl ContentType {
             Some(Self::Protobuf)
         } else if ct.eq_ignore_ascii_case(Self::LogContainer.as_str()) {
             Some(Self::LogContainer)
+        } else if ct.eq_ignore_ascii_case(Self::SpanV2Container.as_str()) {
+            Some(Self::SpanV2Container)
         } else {
             None
         }
