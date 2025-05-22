@@ -252,20 +252,38 @@ impl ManagedEnvelope {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                for (category, quantity) in item.quantities(CountFor::Outcomes) {
-                    if let Some(indexed) = category.index_category() {
-                        outcomes.push((outcome.clone(), indexed, quantity));
-                    };
-                    outcomes.push((outcome.clone(), category, quantity));
-                }
-
+                outcomes.extend(
+                    std::iter::repeat(outcome).zip(Self::outcome_categories_quantities(item)),
+                );
                 false
             }
         });
-        for (outcome, category, quantity) in outcomes {
+        for (outcome, (category, quantity)) in outcomes {
             self.track_outcome(outcome, category, quantity);
         }
         // TODO: once `update` is private, it should be called here.
+    }
+
+    // TODO: naming, docs
+    pub fn outcome_categories_quantities(
+        item: &Item,
+    ) -> impl Iterator<Item = (DataCategory, usize)> {
+        item.quantities(CountFor::Outcomes)
+            .into_iter()
+            .flat_map(move |(category, quantity)| {
+                category
+                    .index_category()
+                    .into_iter()
+                    .map(move |indexed| (indexed, quantity))
+                    .chain(std::iter::once((category, quantity)))
+            })
+    }
+
+    // TODO: Naming, docs
+    pub fn track_outcome_for_all_categories(&mut self, item: &Item, outcome: Outcome) {
+        for (category, quantity) in Self::outcome_categories_quantities(item) {
+            self.track_outcome(outcome.clone(), category, quantity);
+        }
     }
 
     /// Drops every item in the envelope.
