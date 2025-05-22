@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
 use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
@@ -39,6 +39,7 @@ use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
 use relay_spans::otel_trace::Span as OtelSpan;
+use smallvec::SmallVec;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -57,8 +58,23 @@ pub async fn process(
     sampling_project_info: Option<Arc<ProjectInfo>>,
     geo_lookup: Option<&GeoIpLookup>,
     reservoir_counters: &ReservoirEvaluator<'_>,
-) {
+) -> Result<(), ProcessingError> {
     use relay_event_normalization::RemoveOtherProcessor;
+    let span_v2_items = managed_envelope
+        .envelope_mut()
+        .take_items_by(is_span_v2_item);
+
+    // V2 spans must always be sent as an `ItemContainer`, currently it is not allowed to
+    // send multiple containers for V2 spans.
+    //
+    // This restriction may be lifted in the future, this is why this validation only happens
+    // when processing is enabled, allowing it to be changed easily in the future.
+    //
+    // This limit mostly exists to incentivise SDKs to batch multiple spans into a single container,
+    // technically it can be removed without issues.
+    if span_v2_items.len() > 1 {
+        return Err(ProcessingError::DuplicateItem(ItemType::Span));
+    }
 
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
@@ -92,6 +108,8 @@ pub async fn process(
     let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
+
+    convert_v2_spans(managed_envelope, span_v2_items);
 
     let mut span_count = 0;
     managed_envelope.retain_items(|item| {
@@ -255,6 +273,55 @@ pub async fn process(
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
         managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
+
+    Ok(())
+}
+
+/// Converts V2 to spans contained in this envelope to V1 spans.
+///
+/// This expands one item (contanining multiple V2 spans) into several
+/// (containing one V1 span each).
+fn convert_v2_spans(
+    managed_envelope: &mut TypedEnvelope<SpanGroup>,
+    span_v2_items: SmallVec<[Item; 3]>,
+) {
+    for span_v2_item in span_v2_items {
+        let spans_v2 = match ItemContainer::parse(&span_v2_item) {
+            Ok(spans_v2) => spans_v2,
+            Err(err) => {
+                relay_log::debug!("failed to parse V2 spans: {err}");
+                managed_envelope.track_outcome_for_all_categories(
+                    &span_v2_item,
+                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                );
+                continue;
+            }
+        };
+
+        for span_v2 in spans_v2.into_items() {
+            let span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
+            let mut new_item = Item::new(ItemType::Span);
+            match span_v1.to_json() {
+                Ok(payload) => {
+                    new_item.set_payload(ContentType::Json, payload);
+                    new_item.set_metrics_extracted(new_item.metrics_extracted());
+                    managed_envelope.envelope_mut().add_item(new_item);
+                }
+                Err(err) => {
+                    relay_log::debug!("failed to serialize span: {}", err);
+                    managed_envelope.track_outcome_for_all_categories(
+                        &new_item,
+                        Outcome::Invalid(DiscardReason::Internal),
+                    );
+                }
+            }
+        }
+    }
+    managed_envelope.update();
+}
+
+fn is_span_v2_item(item: &Item) -> bool {
+    item.ty() == &ItemType::Span && item.content_type() == Some(&ContentType::SpanV2Container)
 }
 
 fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {

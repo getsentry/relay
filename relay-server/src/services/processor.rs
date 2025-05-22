@@ -2189,7 +2189,7 @@ impl EnvelopeProcessorService {
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
             )
-            .await;
+            .await?;
         });
 
         self.enforce_quotas(
