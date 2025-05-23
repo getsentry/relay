@@ -479,15 +479,13 @@ mod tests {
         let mut merged_log = Annotated::<OurLog>::from_json(json).unwrap();
         ourlog_merge_otel(&mut merged_log);
 
-        insta::assert_debug_snapshot!(merged_log, @r#"
+        insta::assert_debug_snapshot!(merged_log, @r###"
         OurLog {
             timestamp: Timestamp(
                 2000-01-01T00:00:00Z,
             ),
             trace_id: TraceId("5b8efff798038103d269b633813fc60c"),
-            span_id: SpanId(
-                "eee19b7ec3c1b174",
-            ),
+            span_id: SpanId("eee19b7ec3c1b174"),
             level: Info,
             body: "Example log record",
             attributes: {
@@ -557,7 +555,7 @@ mod tests {
             },
             other: {},
         }
-        "#);
+        "###);
     }
 
     #[test]
