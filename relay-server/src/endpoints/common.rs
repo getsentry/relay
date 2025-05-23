@@ -288,12 +288,8 @@ fn queue_envelope(
         }
     }
 
-    let project_key_pair = ProjectKeyPair::from_envelope(&*envelope);
-    if let Err(mut envelope) = state
-        .envelope_buffer(project_key_pair)
-        .push(managed_envelope)
-    {
-        envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+    let pkp = ProjectKeyPair::from_envelope(&*envelope);
+    if !state.envelope_buffer(pkp).try_push(managed_envelope) {
         return Err(BadStoreRequest::QueueFailed);
     }
 

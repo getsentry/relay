@@ -194,18 +194,14 @@ impl ObservableEnvelopeBuffer {
 
     /// Attempts to push an envelope into the envelope buffer.
     ///
-    /// Returns the original envelope, when the buffer is out of capacity.
-    #[expect(
-        clippy::result_large_err,
-        reason = "this method returns the argument back to the caller in the error case"
-    )]
-    pub fn push(&self, envelope: ManagedEnvelope) -> Result<(), ManagedEnvelope> {
-        match self.has_capacity() {
-            true => {
-                self.addr.send(EnvelopeBuffer::Push(envelope));
-                Ok(())
-            }
-            false => Err(envelope),
+    /// Returns `false`, if the envelope buffer does not have enough capacity.
+    pub fn try_push(&self, mut envelope: ManagedEnvelope) -> bool {
+        if self.has_capacity() {
+            self.addr.send(EnvelopeBuffer::Push(envelope));
+            true
+        } else {
+            envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            false
         }
     }
 
