@@ -1272,8 +1272,8 @@ impl EnvelopeProcessorService {
         managed_envelope: &mut TypedEnvelope<Group>,
         event: Annotated<Event>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        project_info: &ProjectInfo,
+        rate_limits: &RateLimits,
     ) -> Result<Annotated<Event>, ProcessingError> {
         let global_config = self.inner.global_config.current();
         // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
@@ -1284,8 +1284,8 @@ impl EnvelopeProcessorService {
                 event,
                 extracted_metrics,
                 &global_config,
-                project_info.clone(),
-                rate_limits.clone(),
+                project_info,
+                rate_limits,
             )
             .await?;
 
@@ -1668,8 +1668,8 @@ impl EnvelopeProcessorService {
                 managed_envelope,
                 event,
                 &mut extracted_metrics,
-                project_info.clone(),
-                rate_limits,
+                &project_info,
+                &rate_limits,
             )
             .await?;
 
@@ -1749,7 +1749,7 @@ impl EnvelopeProcessorService {
                 &event,
                 config.clone(),
                 project_id,
-                project_info.clone(),
+                &project_info,
             );
             profile::transfer_id(&mut event, profile_id);
         });
@@ -1862,8 +1862,8 @@ impl EnvelopeProcessorService {
                     managed_envelope,
                     Annotated::empty(),
                     &mut extracted_metrics,
-                    project_info.clone(),
-                    rate_limits,
+                    &project_info,
+                    &rate_limits,
                 )
                 .await?;
 
@@ -1921,8 +1921,8 @@ impl EnvelopeProcessorService {
                 managed_envelope,
                 event,
                 &mut extracted_metrics,
-                project_info.clone(),
-                rate_limits,
+                &project_info,
+                &rate_limits,
             )
             .await?;
 
@@ -1956,14 +1956,14 @@ impl EnvelopeProcessorService {
         &self,
         managed_envelope: &mut TypedEnvelope<ProfileChunkGroup>,
         project_info: Arc<ProjectInfo>,
-        _rate_limits: Arc<RateLimits>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         profile_chunk::filter(managed_envelope, project_info.clone());
 
         if_processing!(self.inner.config, {
             profile_chunk::process(
                 managed_envelope,
-                project_info.clone(),
+                &project_info,
                 &self.inner.global_config.current(),
                 &self.inner.config,
             );
@@ -1973,8 +1973,8 @@ impl EnvelopeProcessorService {
             managed_envelope,
             Annotated::empty(),
             &mut ProcessingExtractedMetrics::new(),
-            project_info,
-            _rate_limits,
+            &project_info,
+            &rate_limits,
         )
         .await?;
 
@@ -1988,7 +1988,7 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        _rate_limits: Arc<RateLimits>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
@@ -1999,15 +1999,15 @@ impl EnvelopeProcessorService {
             &Annotated::empty(),
             config,
             project_id,
-            project_info.clone(),
+            &project_info,
         );
 
         self.enforce_quotas(
             managed_envelope,
             Annotated::empty(),
             &mut extracted_metrics,
-            project_info.clone(),
-            _rate_limits,
+            &project_info,
+            &rate_limits,
         )
         .await?;
 
@@ -2029,7 +2029,7 @@ impl EnvelopeProcessorService {
         session::process(
             managed_envelope,
             &mut extracted_metrics,
-            project_info.clone(),
+            &project_info,
             &self.inner.config,
         );
 
@@ -2037,8 +2037,8 @@ impl EnvelopeProcessorService {
             managed_envelope,
             Annotated::empty(),
             &mut extracted_metrics,
-            project_info,
-            rate_limits,
+            &project_info,
+            &rate_limits,
         )
         .await?;
 
@@ -2059,15 +2059,15 @@ impl EnvelopeProcessorService {
             managed_envelope,
             Annotated::empty(),
             &mut extracted_metrics,
-            project_info.clone(),
-            rate_limits,
+            &project_info,
+            &rate_limits,
         )
         .await?;
 
         report::process_client_reports(
             managed_envelope,
-            config,
-            project_info,
+            &config,
+            &project_info,
             self.inner.addrs.outcome_aggregator.clone(),
         );
 
@@ -2087,8 +2087,8 @@ impl EnvelopeProcessorService {
         replay::process(
             managed_envelope,
             &self.inner.global_config.current(),
-            config,
-            project_info.clone(),
+            &config,
+            &project_info,
             self.inner.geoip_lookup.as_ref(),
         )?;
 
@@ -2096,8 +2096,8 @@ impl EnvelopeProcessorService {
             managed_envelope,
             Annotated::empty(),
             &mut extracted_metrics,
-            project_info,
-            rate_limits,
+            &project_info,
+            &rate_limits,
         )
         .await?;
 
@@ -2116,8 +2116,8 @@ impl EnvelopeProcessorService {
             managed_envelope,
             Annotated::empty(),
             &mut ProcessingExtractedMetrics::new(),
-            project_info,
-            rate_limits,
+            &project_info,
+            &rate_limits,
         )
         .await?;
 
@@ -2140,8 +2140,8 @@ impl EnvelopeProcessorService {
 
         ourlog::filter(
             managed_envelope,
-            self.inner.config.clone(),
-            project_info.clone(),
+            &self.inner.config,
+            &project_info,
             &self.inner.global_config.current(),
         );
 
@@ -2149,13 +2149,13 @@ impl EnvelopeProcessorService {
             managed_envelope,
             Annotated::empty(),
             &mut extracted_metrics,
-            project_info.clone(),
-            rate_limits,
+            &project_info,
+            &rate_limits,
         )
         .await?;
 
         if_processing!(self.inner.config, {
-            ourlog::process(managed_envelope, project_info.clone())?;
+            ourlog::process(managed_envelope, &project_info)?;
         });
 
         Ok(Some(extracted_metrics))
@@ -2206,8 +2206,8 @@ impl EnvelopeProcessorService {
             managed_envelope,
             Annotated::empty(),
             &mut extracted_metrics,
-            project_info,
-            rate_limits,
+            &project_info,
+            &rate_limits,
         )
         .await?;
 
@@ -3323,8 +3323,8 @@ impl RateLimiter {
         event: Annotated<Event>,
         _extracted_metrics: &mut ProcessingExtractedMetrics,
         global_config: &GlobalConfig,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        project_info: &ProjectInfo,
+        rate_limits: &RateLimits,
     ) -> Result<EnforcementResult, ProcessingError> {
         if managed_envelope.envelope().is_empty() && event.value().is_none() {
             return Ok(EnforcementResult::new(event, RateLimits::default()));

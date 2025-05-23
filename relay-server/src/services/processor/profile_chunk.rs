@@ -35,7 +35,7 @@ pub fn filter<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: 
 #[cfg(feature = "processing")]
 pub fn process(
     managed_envelope: &mut TypedEnvelope<ProfileChunkGroup>,
-    project_info: Arc<ProjectInfo>,
+    project_info: &ProjectInfo,
     global_config: &GlobalConfig,
     config: &Config,
 ) {
