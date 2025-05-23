@@ -149,18 +149,11 @@ impl TryFrom<&[u8]> for SpanId {
 
 impl fmt::Debug for SpanId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct DebugBytes([u8; 8]);
-
-        impl fmt::Debug for DebugBytes {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "\"")?;
-                for b in self.0 {
-                    write!(f, "{b:02x}")?;
-                }
-                write!(f, "\"")
-            }
+        write!(f, "SpanId(\"")?;
+        for b in self.0 {
+            write!(f, "{b:02x}")?;
         }
-        f.debug_tuple("SpanId").field(&DebugBytes(self.0)).finish()
+        write!(f, "\")")
     }
 }
 
