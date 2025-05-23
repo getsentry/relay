@@ -191,7 +191,7 @@ mod tests {
 
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
@@ -202,6 +202,7 @@ mod tests {
     #[tokio::test]
     async fn test_profile_id_transfered() {
         // Setup
+
         let config = Config::from_json_value(serde_json::json!({
             "processing": {
                 "enabled": true,
@@ -294,9 +295,10 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), group);
+        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
 
-        let message = ProcessEnvelope {
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(project_state),
             rate_limits: Default::default(),
@@ -304,12 +306,12 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let new_envelope = processor
             .process(&mut Token::noop(), message)
             .await
+            .unwrap()
             .unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
+        let new_envelope = new_envelope.envelope();
 
         // Get the re-serialized context.
         let item = new_envelope
@@ -428,9 +430,10 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), group);
+        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
 
-        let message = ProcessEnvelope {
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(project_info),
             rate_limits: Default::default(),
@@ -438,12 +441,12 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let new_envelope = processor
             .process(&mut Token::noop(), message)
             .await
+            .unwrap()
             .unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
+        let new_envelope = new_envelope.envelope();
 
         // Get the re-serialized context.
         let item = new_envelope
@@ -501,9 +504,10 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy(), Addr::dummy(), group);
+        let envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy(), Addr::dummy());
 
-        let message = ProcessEnvelope {
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(project_state),
             rate_limits: Default::default(),
@@ -511,11 +515,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let envelope = processor
             .process(&mut Token::noop(), message)
             .await
             .unwrap();
-        assert!(envelope_response.envelope.is_none());
+        assert!(envelope.is_none());
     }
 
     #[cfg(feature = "processing")]
@@ -576,9 +580,10 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), group);
+        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
 
-        let message = ProcessEnvelope {
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(project_state),
             rate_limits: Default::default(),
@@ -586,12 +591,12 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let new_envelope = processor
             .process(&mut Token::noop(), message)
             .await
+            .unwrap()
             .unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
+        let new_envelope = new_envelope.envelope();
 
         // Get the re-serialized context.
         let item = new_envelope
