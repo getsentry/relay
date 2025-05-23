@@ -134,6 +134,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
+        // TODO:(tobias) Can I make this a json so that we don't need to touch it every time?
         insta::assert_debug_snapshot!(span_from_event, @r#"
         Span {
             timestamp: ~,
@@ -164,6 +165,7 @@ mod tests {
                 ai_total_tokens_used: ~,
                 ai_prompt_tokens_used: ~,
                 ai_completion_tokens_used: ~,
+                gen_ai_usage_total_cost: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,

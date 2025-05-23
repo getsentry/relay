@@ -834,7 +834,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "c:spans/ai.total_tokens.used@none".into(),
-                    field: Some("span.measurements.ai_total_tokens_used.value".into()),
+                    field: Some("span.data.gen_ai\\.usage\\.total_tokens".into()),
                     condition: Some(is_ai.clone()),
                     tags: vec![
                         Tag::with_key("span.op")
@@ -869,7 +869,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "c:spans/ai.total_cost@usd".into(),
-                    field: Some("span.measurements.ai_total_cost.value".into()),
+                    field: Some("span.data.gen_ai\\.usage\\.total_cost".into()),
                     condition: Some(is_ai.clone()),
                     tags: vec![
                         Tag::with_key("span.op")

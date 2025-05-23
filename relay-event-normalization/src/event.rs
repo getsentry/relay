@@ -2190,7 +2190,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ai_measurements() {
+    fn test_ai_legacy_measurements() {
         let json = r#"
             {
                 "spans": [
@@ -2271,26 +2271,18 @@ mod tests {
         assert_eq!(
             spans
                 .first()
-                .unwrap()
-                .value()
-                .unwrap()
-                .measurements
-                .value()
-                .unwrap()
-                .get_value("ai_total_cost"),
-            Some(1.23)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(1.23))
         );
         assert_eq!(
             spans
                 .get(1)
-                .unwrap()
-                .value()
-                .unwrap()
-                .measurements
-                .value()
-                .unwrap()
-                .get_value("ai_total_cost"),
-            Some(20.0 * 2.0 + 2.0)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(20.0 * 2.0 + 2.0))
         );
     }
 

@@ -1264,6 +1264,7 @@ mod tests {
             ]
         }
         "#;
+        // TODO:(tobias) Apparently 'ai_total_cost' is never send so we might want to remove it here
 
         let mut event = Annotated::from_json(json).unwrap();
 
