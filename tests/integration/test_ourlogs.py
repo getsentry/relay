@@ -12,6 +12,8 @@ from google.protobuf.json_format import MessageToDict
 
 from .asserts.time import time_within_delta
 
+import pytest
+
 
 TEST_CONFIG = {
     "aggregator": {
@@ -454,4 +456,141 @@ def test_ourlog_extraction_is_disabled_without_feature(
     ourlogs = ourlogs_consumer.get_ourlogs()
 
     assert len(ourlogs) == 0
+    ourlogs_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "user_agent,expected_browser_name,expected_browser_version",
+    [
+        # Chrome desktop
+        (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Chrome",
+            "131.0.0",
+        ),
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Chrome",
+            "120.0.0",
+        ),
+        # Firefox desktop
+        (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
+            "Firefox",
+            "121.0",
+        ),
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+            "Firefox",
+            "120.0",
+        ),
+        # Safari desktop
+        (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+            "Safari",
+            "17.1",
+        ),
+        # Edge desktop
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+            "Edge",
+            "120.0.0",
+        ),
+        # Chrome mobile
+        (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/119.0.6045.169 Mobile/15E148 Safari/604.1",
+            "Chrome Mobile iOS",
+            "119.0.6045",
+        ),
+        (
+            "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36",
+            "Chrome Mobile",
+            "119.0.0",
+        ),
+        # Safari mobile
+        (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1",
+            "Mobile Safari",
+            "17.1",
+        ),
+    ],
+)
+def test_browser_name_version_extraction(
+    mini_sentry,
+    relay_with_processing,
+    ourlogs_consumer,
+    user_agent,
+    expected_browser_name,
+    expected_browser_version,
+):
+    ourlogs_consumer = ourlogs_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    relay = relay_with_processing(options=TEST_CONFIG)
+    start = datetime.now(timezone.utc)
+    timestamp = start.timestamp()
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": timestamp,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "This is really bad",
+        },
+    )
+
+    relay.send_envelope(project_id, envelope, headers={"User-Agent": user_agent})
+
+    timestamp_nanos = int(timestamp * 1e6) * 1000
+    timestamp_proto = Timestamp()
+
+    timestamp_proto.FromSeconds(int(timestamp))
+
+    expected_log = MessageToDict(
+        TraceItem(
+            organization_id=1,
+            project_id=project_id,
+            timestamp=timestamp_proto,
+            trace_id="5b8efff798038103d269b633813fc60c",
+            item_id=timestamp_nanos.to_bytes(
+                length=16,
+                byteorder="little",
+                signed=False,
+            ),
+            item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
+            attributes={
+                "browser.name": AnyValue(string_value=expected_browser_name),
+                "browser.version": AnyValue(string_value=expected_browser_version),
+                "sentry.body": AnyValue(string_value="This is really bad"),
+                "sentry.severity_number": AnyValue(int_value=17),
+                "sentry.severity_text": AnyValue(string_value="error"),
+                "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b175"),
+                "sentry.trace_flags": AnyValue(int_value=0),
+                "sentry.observed_timestamp_nanos": AnyValue(
+                    string_value=str(timestamp_nanos)
+                ),
+                "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
+                "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
+            },
+            retention_days=90,
+            client_sample_rate=1.0,
+            server_sample_rate=1.0,
+        ),
+    )
+
+    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
+
+    assert len(logs) == 1
+    log = logs[0]
+
+    # we can't generate uuid7 with a specific timestamp
+    # in Python just yet so we're overriding it
+    expected_log["itemId"] = log["itemId"]
+    expected_log["received"] = time_within_delta()
+
+    assert log == expected_log
+
     ourlogs_consumer.assert_empty()
