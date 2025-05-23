@@ -291,7 +291,7 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelopeGroup, ProcessingGroup, SpanGroup};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -335,7 +335,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
 
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store),
             project_info: Arc::new(ProjectInfo::default()),

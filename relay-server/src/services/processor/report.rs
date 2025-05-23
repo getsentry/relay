@@ -278,7 +278,7 @@ mod tests {
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::outcome::RuleCategory;
-    use crate::services::processor::{ProcessEnvelopeGroup, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
@@ -327,7 +327,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
 
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
@@ -386,7 +386,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
 
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
@@ -453,7 +453,7 @@ mod tests {
 
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
@@ -498,7 +498,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
 
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
@@ -551,7 +551,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
 
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),

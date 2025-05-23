@@ -880,7 +880,7 @@ pub struct ProcessEnvelope {
 
 /// Like a [`ProcessEnvelope`], but with an envelope which has been grouped.
 #[derive(Debug)]
-struct ProcessEnvelopeGroup {
+struct ProcessEnvelopeGrouped {
     /// The group the envelope belongs to.
     pub group: ProcessingGroup,
     /// Envelope to process.
@@ -2208,9 +2208,9 @@ impl EnvelopeProcessorService {
         &self,
         cogs: &mut Token,
         project_id: ProjectId,
-        message: ProcessEnvelopeGroup,
+        message: ProcessEnvelopeGrouped,
     ) -> Result<ProcessingResult, ProcessingError> {
-        let ProcessEnvelopeGroup {
+        let ProcessEnvelopeGrouped {
             group,
             envelope: mut managed_envelope,
             project_info,
@@ -2370,31 +2370,30 @@ impl EnvelopeProcessorService {
     async fn process(
         &self,
         cogs: &mut Token,
-        mut message: ProcessEnvelopeGroup,
+        mut message: ProcessEnvelopeGrouped,
     ) -> Result<Option<TypedEnvelope<Processed>>, ProcessingError> {
+        let ProcessEnvelopeGrouped {
+            ref mut envelope,
+            ref project_info,
+            ..
+        } = message;
+
         // Prefer the project's project ID, and fall back to the stated project id from the
         // envelope. The project ID is available in all modes, other than in proxy mode, where
         // envelopes for unknown projects are forwarded blindly.
         //
         // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
         // since we cannot process an envelope without project ID, so drop it.
-        let project_id = match message
-            .project_info
+        let Some(project_id) = project_info
             .project_id
-            .or_else(|| message.envelope.envelope().meta().project_id())
-        {
-            Some(project_id) => project_id,
-            None => {
-                message
-                    .envelope
-                    .reject(Outcome::Invalid(DiscardReason::Internal));
-                return Err(ProcessingError::MissingProjectId);
-            }
+            .or_else(|| envelope.envelope().meta().project_id())
+        else {
+            envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            return Err(ProcessingError::MissingProjectId);
         };
 
-        let envelope = message.envelope.envelope();
-        let client = envelope.meta().client().map(str::to_owned);
-        let user_agent = envelope.meta().user_agent().map(str::to_owned);
+        let client = envelope.envelope().meta().client().map(str::to_owned);
+        let user_agent = envelope.envelope().meta().user_agent().map(str::to_owned);
 
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
@@ -2476,7 +2475,7 @@ impl EnvelopeProcessorService {
             );
             envelope.scope(scoping);
 
-            let message = ProcessEnvelopeGroup {
+            let message = ProcessEnvelopeGrouped {
                 group,
                 envelope,
                 project_info: Arc::clone(&message.project_info),
@@ -3953,7 +3952,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
 
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(project_info),
@@ -4029,7 +4028,7 @@ mod tests {
         });
         let project_info = Arc::new(project_info);
 
-        let process_message = ProcessEnvelopeGroup {
+        let process_message = ProcessEnvelopeGrouped {
             group: ProcessingGroup::Transaction,
             envelope: managed_envelope,
             project_info: project_info.clone(),

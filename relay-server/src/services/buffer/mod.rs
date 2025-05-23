@@ -195,6 +195,10 @@ impl ObservableEnvelopeBuffer {
     /// Attempts to push an envelope into the envelope buffer.
     ///
     /// Returns the original envelope, when the buffer is out of capacity.
+    #[expect(
+        clippy::result_large_err,
+        reason = "this method returns the argument back to the caller in the error case"
+    )]
     pub fn push(&self, envelope: ManagedEnvelope) -> Result<(), ManagedEnvelope> {
         match self.has_capacity() {
             true => {

@@ -191,7 +191,7 @@ mod tests {
 
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelopeGroup, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
@@ -297,7 +297,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
 
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(project_state),
@@ -432,7 +432,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
 
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(project_info),
@@ -506,7 +506,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy(), Addr::dummy());
 
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(project_state),
@@ -582,7 +582,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
 
-        let message = ProcessEnvelopeGroup {
+        let message = ProcessEnvelopeGrouped {
             group,
             envelope,
             project_info: Arc::new(project_state),
