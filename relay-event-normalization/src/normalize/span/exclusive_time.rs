@@ -110,9 +110,8 @@ pub fn compute_span_exclusive_time(event: &mut Event) {
             Some(span) => span,
         };
 
-        let parent_span_id = match span.parent_span_id.value() {
-            None => continue,
-            Some(parent_span_id) => parent_span_id.clone(),
+        let Some(&parent_span_id) = span.parent_span_id.value() else {
+            continue;
         };
 
         let interval = match (span.start_timestamp.value(), span.timestamp.value()) {
@@ -160,7 +159,7 @@ mod tests {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
                     trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                    span_id: Annotated::new(SpanId(span_id.into())),
+                    span_id: Annotated::new(span_id.parse().unwrap()),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -184,8 +183,8 @@ mod tests {
             start_timestamp: Annotated::new(start),
             timestamp: Annotated::new(end),
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-            span_id: Annotated::new(SpanId(span_id.into())),
-            parent_span_id: Annotated::new(SpanId(parent_span_id.into())),
+            span_id: Annotated::new(span_id.parse().unwrap()),
+            parent_span_id: Annotated::new(parent_span_id.parse().unwrap()),
             ..Default::default()
         })
     }
@@ -252,10 +251,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 1123.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 3000.0),
-                (&SpanId("cccccccccccccccc".to_string()), 2500.0),
-                (&SpanId("dddddddddddddddd".to_string()), 1877.0)
+                (&"aaaaaaaaaaaaaaaa".parse().unwrap(), 1123.0),
+                (&"bbbbbbbbbbbbbbbb".parse().unwrap(), 3000.0),
+                (&"cccccccccccccccc".parse().unwrap(), 2500.0),
+                (&"dddddddddddddddd".parse().unwrap(), 1877.0)
             ]),
         );
     }
@@ -299,10 +298,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
-                (&SpanId("cccccccccccccccc".to_string()), 400.0),
-                (&SpanId("dddddddddddddddd".to_string()), 200.0),
+                (&"aaaaaaaaaaaaaaaa".parse().unwrap(), 4000.0),
+                (&"bbbbbbbbbbbbbbbb".parse().unwrap(), 400.0),
+                (&"cccccccccccccccc".parse().unwrap(), 400.0),
+                (&"dddddddddddddddd".parse().unwrap(), 200.0),
             ])
         );
     }
@@ -346,10 +345,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
-                (&SpanId("cccccccccccccccc".to_string()), 400.0),
-                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+                (&"aaaaaaaaaaaaaaaa".parse().unwrap(), 4000.0),
+                (&"bbbbbbbbbbbbbbbb".parse().unwrap(), 400.0),
+                (&"cccccccccccccccc".parse().unwrap(), 400.0),
+                (&"dddddddddddddddd".parse().unwrap(), 400.0),
             ])
         );
     }
@@ -393,10 +392,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 1000.0),
-                (&SpanId("cccccccccccccccc".to_string()), 400.0),
-                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+                (&"aaaaaaaaaaaaaaaa".parse().unwrap(), 4000.0),
+                (&"bbbbbbbbbbbbbbbb".parse().unwrap(), 1000.0),
+                (&"cccccccccccccccc".parse().unwrap(), 400.0),
+                (&"dddddddddddddddd".parse().unwrap(), 400.0),
             ])
         );
     }
@@ -440,10 +439,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 200.0),
-                (&SpanId("cccccccccccccccc".to_string()), 600.0),
-                (&SpanId("dddddddddddddddd".to_string()), 600.0),
+                (&"aaaaaaaaaaaaaaaa".parse().unwrap(), 4000.0),
+                (&"bbbbbbbbbbbbbbbb".parse().unwrap(), 200.0),
+                (&"cccccccccccccccc".parse().unwrap(), 600.0),
+                (&"dddddddddddddddd".parse().unwrap(), 600.0),
             ])
         );
     }
@@ -487,10 +486,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 0.0),
-                (&SpanId("cccccccccccccccc".to_string()), 800.0),
-                (&SpanId("dddddddddddddddd".to_string()), 800.0),
+                (&"aaaaaaaaaaaaaaaa".parse().unwrap(), 4000.0),
+                (&"bbbbbbbbbbbbbbbb".parse().unwrap(), 0.0),
+                (&"cccccccccccccccc".parse().unwrap(), 800.0),
+                (&"dddddddddddddddd".parse().unwrap(), 800.0),
             ])
         );
     }
@@ -536,10 +535,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 600.0),
-                (&SpanId("cccccccccccccccc".to_string()), 400.0),
-                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+                (&"aaaaaaaaaaaaaaaa".parse().unwrap(), 4000.0),
+                (&"bbbbbbbbbbbbbbbb".parse().unwrap(), 600.0),
+                (&"cccccccccccccccc".parse().unwrap(), 400.0),
+                (&"dddddddddddddddd".parse().unwrap(), 400.0),
             ])
         );
     }

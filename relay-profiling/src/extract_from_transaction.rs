@@ -30,7 +30,7 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
         }
 
         if let Some(segment_id) = trace_context.span_id.value() {
-            tags.insert("segment_id".to_owned(), segment_id.to_owned().0);
+            tags.insert("segment_id".to_owned(), segment_id.to_string());
         }
     }
 

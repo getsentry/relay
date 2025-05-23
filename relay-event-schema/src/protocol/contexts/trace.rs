@@ -1,7 +1,8 @@
 use relay_protocol::{
-    Annotated, Array, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
+    Annotated, Array, Empty, Error, FromValue, HexId, IntoValue, Object, SkipSerialization, Val,
+    Value,
 };
-use serde::{Serialize, Serializer};
+use serde::Serializer;
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -113,15 +114,14 @@ impl IntoValue for TraceId {
         Self: Sized,
         S: Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        s.collect_str(self)
     }
 }
 
-/// A 16-character hex string as described in the W3C trace context spec.
-#[derive(
-    Clone, Debug, Default, Eq, Hash, PartialEq, Ord, PartialOrd, Empty, IntoValue, ProcessValue,
-)]
-pub struct SpanId(pub String);
+/// A 16-character hex string as described in the W3C trace context spec, stored
+/// internally as an array of 8 bytes.
+#[derive(Clone, Copy, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
+pub struct SpanId([u8; 8]);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");
 
@@ -129,29 +129,54 @@ impl FromStr for SpanId {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(SpanId(s.to_string()))
+        match u64::from_str_radix(s, 16) {
+            Ok(id) if s.len() == 16 && id > 0 => Ok(Self(id.to_be_bytes())),
+            _ => Err(Error::invalid("not a valid span id")),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for SpanId {
+    type Error = Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match <[u8; 8]>::try_from(value) {
+            Ok(bytes) if !bytes.iter().all(|&x| x == 0) => Ok(Self(bytes)),
+            _ => Err(Error::invalid("not a valid span id")),
+        }
+    }
+}
+
+impl fmt::Debug for SpanId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SpanId(\"")?;
+        for b in self.0 {
+            write!(f, "{b:02x}")?;
+        }
+        write!(f, "\")")
     }
 }
 
 impl fmt::Display for SpanId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        for b in self.0 {
+            write!(f, "{b:02x}")?;
+        }
+        Ok(())
     }
 }
 
 impl FromValue for SpanId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(mut value)), mut meta) => {
-                if !is_hex_string(&value, 16) || value.bytes().all(|x| x == b'0') {
-                    meta.add_error(Error::invalid("not a valid span id"));
+            Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
+                Ok(span_id) => Annotated::new(span_id),
+                Err(e) => {
+                    meta.add_error(e);
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
-                } else {
-                    value.make_ascii_lowercase();
-                    Annotated(Some(SpanId(value)), meta)
                 }
-            }
+            },
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("span id"));
@@ -162,14 +187,43 @@ impl FromValue for SpanId {
     }
 }
 
-impl AsRef<str> for SpanId {
-    fn as_ref(&self) -> &str {
+impl Empty for SpanId {
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl IntoValue for SpanId {
+    fn into_value(self) -> Value
+    where
+        Self: Sized,
+    {
+        Value::String(self.to_string())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: serde::Serializer,
+    {
+        s.collect_str(self)
+    }
+}
+
+impl ProcessValue for SpanId {}
+
+impl std::ops::Deref for SpanId {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-fn is_hex_string(string: &str, len: usize) -> bool {
-    string.len() == len && string.bytes().all(|b| b.is_ascii_hexdigit())
+impl<'a> From<&'a SpanId> for Val<'a> {
+    fn from(value: &'a SpanId) -> Self {
+        Val::HexId(HexId(&value.0))
+    }
 }
 
 /// Trace context
@@ -321,8 +375,8 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
-            parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+            span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
+            parent_span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
             op: Annotated::new("http".into()),
             status: Annotated::new(SpanStatus::Ok),
             exclusive_time: Annotated::new(0.0),
@@ -352,7 +406,7 @@ mod tests {
             }),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
                 trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                span_id: Annotated::new(SpanId("ea90fdead5f74052".into())),
+                span_id: Annotated::new("ea90fdead5f74052".parse().unwrap()),
                 sampled: Annotated::new(true),
                 attributes: Annotated::new({
                     let mut map: std::collections::BTreeMap<String, Annotated<Value>> =
@@ -389,7 +443,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
             ..Default::default()
         })));
 
@@ -463,7 +517,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
             data: Annotated::new(SpanData {
                 route: Annotated::new(Route {
                     name: Annotated::new("HomeRoute".into()),

@@ -63,7 +63,7 @@ mod tests {
             relative_end_ns: 133,
             relative_start_ns: 1,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
-            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
+            segment_id: Some("bd2eb23da2beb459".parse().unwrap()),
         };
         assert!(metadata.valid());
     }
@@ -79,7 +79,7 @@ mod tests {
             relative_end_ns: 133,
             relative_start_ns: 1,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
-            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
+            segment_id: Some("bd2eb23da2beb459".parse().unwrap()),
         };
         assert!(!metadata.valid());
     }
@@ -95,7 +95,7 @@ mod tests {
             relative_end_ns: 0,
             relative_start_ns: 0,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
-            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
+            segment_id: Some("bd2eb23da2beb459".parse().unwrap()),
         };
         assert!(metadata.valid());
     }
