@@ -393,7 +393,7 @@
 <a href=#393 id=393 data-nosnippet>393</a>
 <a href=#394 id=394 data-nosnippet>394</a>        <span class="kw">let </span>links = <span class="macro">vec!</span>[Annotated::new(SpanV2Link {
 <a href=#395 id=395 data-nosnippet>395</a>            trace_id: Annotated::new(<span class="string">"627a2885119dcc8184fae7eef09438cb"</span>.parse().unwrap()),
-<a href=#396 id=396 data-nosnippet>396</a>            span_id: Annotated::new(SpanId(<span class="string">"6c71fc6b09b8b716"</span>.into())),
+<a href=#396 id=396 data-nosnippet>396</a>            span_id: Annotated::new(<span class="string">"6c71fc6b09b8b716"</span>.parse().unwrap()),
 <a href=#397 id=397 data-nosnippet>397</a>            sampled: Annotated::new(<span class="bool-val">true</span>),
 <a href=#398 id=398 data-nosnippet>398</a>            attributes: Annotated::new(<span class="macro">attrs!</span>(
 <a href=#399 id=399 data-nosnippet>399</a>                <span class="string">"sentry.link.type" </span>=&gt; <span class="string">"previous_trace"</span>, String
@@ -407,7 +407,7 @@
 <a href=#407 id=407 data-nosnippet>407</a>            end_timestamp: Annotated::new(Utc.timestamp_opt(<span class="number">1742921669</span>, <span class="number">750000000</span>).unwrap().into()),
 <a href=#408 id=408 data-nosnippet>408</a>            name: Annotated::new(<span class="string">"GET http://app.test/"</span>.to_owned()),
 <a href=#409 id=409 data-nosnippet>409</a>            trace_id: Annotated::new(<span class="string">"6cf173d587eb48568a9b2e12dcfbea52"</span>.parse().unwrap()),
-<a href=#410 id=410 data-nosnippet>410</a>            span_id: Annotated::new(SpanId(<span class="string">"438f40bd3b4a41ee"</span>.into())),
+<a href=#410 id=410 data-nosnippet>410</a>            span_id: Annotated::new(<span class="string">"438f40bd3b4a41ee"</span>.parse().unwrap()),
 <a href=#411 id=411 data-nosnippet>411</a>            parent_span_id: Annotated::empty(),
 <a href=#412 id=412 data-nosnippet>412</a>            status: Annotated::new(SpanV2Status::Ok),
 <a href=#413 id=413 data-nosnippet>413</a>            kind: Annotated::new(SpanV2Kind::Server),

@@ -1065,9 +1065,9 @@
 <a href=#1065 id=1065 data-nosnippet>1065</a>    <span class="attr">#[test]
 <a href=#1066 id=1066 data-nosnippet>1066</a>    </span><span class="kw">fn </span>test_untrimmable_fields_drop() {
 <a href=#1067 id=1067 data-nosnippet>1067</a>        <span class="kw">let </span>original_description = <span class="string">"a"</span>.repeat(<span class="number">819164</span>);
-<a href=#1068 id=1068 data-nosnippet>1068</a>        <span class="kw">let </span>original_span_id = SpanId(<span class="string">"b"</span>.repeat(<span class="number">48</span>));
+<a href=#1068 id=1068 data-nosnippet>1068</a>        <span class="kw">let </span>original_span_id: SpanId = <span class="string">"b"</span>.repeat(<span class="number">16</span>).parse().unwrap();
 <a href=#1069 id=1069 data-nosnippet>1069</a>        <span class="kw">let </span>original_trace_id: TraceId = <span class="string">"c"</span>.repeat(<span class="number">32</span>).parse().unwrap();
-<a href=#1070 id=1070 data-nosnippet>1070</a>        <span class="kw">let </span>original_segment_id = SpanId(<span class="string">"d"</span>.repeat(<span class="number">48</span>));
+<a href=#1070 id=1070 data-nosnippet>1070</a>        <span class="kw">let </span>original_segment_id: SpanId = <span class="string">"d"</span>.repeat(<span class="number">16</span>).parse().unwrap();
 <a href=#1071 id=1071 data-nosnippet>1071</a>        <span class="kw">let </span>original_op = <span class="string">"e"</span>.repeat(<span class="number">129</span>);
 <a href=#1072 id=1072 data-nosnippet>1072</a>
 <a href=#1073 id=1073 data-nosnippet>1073</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
@@ -1078,9 +1078,9 @@
 <a href=#1078 id=1078 data-nosnippet>1078</a>                }
 <a href=#1079 id=1079 data-nosnippet>1079</a>                .into(),
 <a href=#1080 id=1080 data-nosnippet>1080</a>                Span {
-<a href=#1081 id=1081 data-nosnippet>1081</a>                    span_id: original_span_id.clone().into(),
+<a href=#1081 id=1081 data-nosnippet>1081</a>                    span_id: original_span_id.into(),
 <a href=#1082 id=1082 data-nosnippet>1082</a>                    trace_id: original_trace_id.into(),
-<a href=#1083 id=1083 data-nosnippet>1083</a>                    segment_id: original_segment_id.clone().into(),
+<a href=#1083 id=1083 data-nosnippet>1083</a>                    segment_id: original_segment_id.into(),
 <a href=#1084 id=1084 data-nosnippet>1084</a>                    is_segment: <span class="bool-val">false</span>.into(),
 <a href=#1085 id=1085 data-nosnippet>1085</a>                    op: original_op.clone().into(),
 <a href=#1086 id=1086 data-nosnippet>1086</a>                    start_timestamp: Timestamp(

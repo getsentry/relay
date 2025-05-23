@@ -150,7 +150,7 @@
 <a href=#150 id=150 data-nosnippet>150</a></span><span class="kw">mod </span>tests {
 <a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">use </span>chrono::offset::TimeZone;
 <a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">use </span>relay_event_schema::processor::process_value;
-<a href=#153 id=153 data-nosnippet>153</a>    <span class="kw">use </span>relay_event_schema::protocol::{Contexts, EventType, SpanId, TraceContext};
+<a href=#153 id=153 data-nosnippet>153</a>    <span class="kw">use </span>relay_event_schema::protocol::{Contexts, EventType, TraceContext};
 <a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">use </span>relay_protocol::Annotated;
 <a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">use </span>similar_asserts::assert_eq;
 <a href=#156 id=156 data-nosnippet>156</a>
@@ -165,7 +165,7 @@
 <a href=#165 id=165 data-nosnippet>165</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#166 id=166 data-nosnippet>166</a>                contexts.add(TraceContext {
 <a href=#167 id=167 data-nosnippet>167</a>                    trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
-<a href=#168 id=168 data-nosnippet>168</a>                    span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74053"</span>.into())),
+<a href=#168 id=168 data-nosnippet>168</a>                    span_id: Annotated::new(<span class="string">"fa90fdead5f74053"</span>.parse().unwrap()),
 <a href=#169 id=169 data-nosnippet>169</a>                    op: Annotated::new(<span class="string">"http.server"</span>.to_owned()),
 <a href=#170 id=170 data-nosnippet>170</a>                    ..Default::default()
 <a href=#171 id=171 data-nosnippet>171</a>                });

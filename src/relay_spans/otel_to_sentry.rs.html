@@ -601,68 +601,69 @@
 <a href=#601 id=601 data-nosnippet>601</a>    </span><span class="kw">fn </span>parse_link() {
 <a href=#602 id=602 data-nosnippet>602</a>        <span class="kw">let </span>json = <span class="string">r#"{
 <a href=#603 id=603 data-nosnippet>603</a>            "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
-<a href=#604 id=604 data-nosnippet>604</a>            "links": [
-<a href=#605 id=605 data-nosnippet>605</a>                {
-<a href=#606 id=606 data-nosnippet>606</a>                    "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#607 id=607 data-nosnippet>607</a>                    "spanId": "fa90fdead5f74052",
-<a href=#608 id=608 data-nosnippet>608</a>                    "attributes": [
-<a href=#609 id=609 data-nosnippet>609</a>                        {
-<a href=#610 id=610 data-nosnippet>610</a>                            "key": "str_key",
-<a href=#611 id=611 data-nosnippet>611</a>                            "value": {
-<a href=#612 id=612 data-nosnippet>612</a>                                "stringValue": "str_value"
-<a href=#613 id=613 data-nosnippet>613</a>                            }
-<a href=#614 id=614 data-nosnippet>614</a>                        },
-<a href=#615 id=615 data-nosnippet>615</a>                        {
-<a href=#616 id=616 data-nosnippet>616</a>                            "key": "bool_key",
-<a href=#617 id=617 data-nosnippet>617</a>                            "value": {
-<a href=#618 id=618 data-nosnippet>618</a>                                "boolValue": true
-<a href=#619 id=619 data-nosnippet>619</a>                            }
-<a href=#620 id=620 data-nosnippet>620</a>                        },
-<a href=#621 id=621 data-nosnippet>621</a>                        {
-<a href=#622 id=622 data-nosnippet>622</a>                            "key": "int_key",
-<a href=#623 id=623 data-nosnippet>623</a>                            "value": {
-<a href=#624 id=624 data-nosnippet>624</a>                                "intValue": "123"
-<a href=#625 id=625 data-nosnippet>625</a>                            }
-<a href=#626 id=626 data-nosnippet>626</a>                        },
-<a href=#627 id=627 data-nosnippet>627</a>                        {
-<a href=#628 id=628 data-nosnippet>628</a>                            "key": "double_key",
-<a href=#629 id=629 data-nosnippet>629</a>                            "value": {
-<a href=#630 id=630 data-nosnippet>630</a>                                "doubleValue": 1.23
-<a href=#631 id=631 data-nosnippet>631</a>                            }
-<a href=#632 id=632 data-nosnippet>632</a>                        }
-<a href=#633 id=633 data-nosnippet>633</a>                    ],
-<a href=#634 id=634 data-nosnippet>634</a>                    "flags": 1
-<a href=#635 id=635 data-nosnippet>635</a>                }
-<a href=#636 id=636 data-nosnippet>636</a>            ]
-<a href=#637 id=637 data-nosnippet>637</a>        }"#</span>;
-<a href=#638 id=638 data-nosnippet>638</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-<a href=#639 id=639 data-nosnippet>639</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
-<a href=#640 id=640 data-nosnippet>640</a>        <span class="kw">let </span>annotated_span: Annotated&lt;EventSpan&gt; = Annotated::new(event_span);
-<a href=#641 id=641 data-nosnippet>641</a>
-<a href=#642 id=642 data-nosnippet>642</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#643 id=643 data-nosnippet>643</a>        {
-<a href=#644 id=644 data-nosnippet>644</a>          "timestamp": 0.0,
-<a href=#645 id=645 data-nosnippet>645</a>          "start_timestamp": 0.0,
-<a href=#646 id=646 data-nosnippet>646</a>          "exclusive_time": 0.0,
-<a href=#647 id=647 data-nosnippet>647</a>          "span_id": "",
-<a href=#648 id=648 data-nosnippet>648</a>          "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
-<a href=#649 id=649 data-nosnippet>649</a>          "status": "unknown",
-<a href=#650 id=650 data-nosnippet>650</a>          "data": {},
-<a href=#651 id=651 data-nosnippet>651</a>          "links": [
-<a href=#652 id=652 data-nosnippet>652</a>            {
-<a href=#653 id=653 data-nosnippet>653</a>              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#654 id=654 data-nosnippet>654</a>              "span_id": "fa90fdead5f74052",
-<a href=#655 id=655 data-nosnippet>655</a>              "sampled": true,
-<a href=#656 id=656 data-nosnippet>656</a>              "attributes": {
-<a href=#657 id=657 data-nosnippet>657</a>                "bool_key": true,
-<a href=#658 id=658 data-nosnippet>658</a>                "double_key": 1.23,
-<a href=#659 id=659 data-nosnippet>659</a>                "int_key": 123,
-<a href=#660 id=660 data-nosnippet>660</a>                "str_key": "str_value"
-<a href=#661 id=661 data-nosnippet>661</a>              }
-<a href=#662 id=662 data-nosnippet>662</a>            }
-<a href=#663 id=663 data-nosnippet>663</a>          ],
-<a href=#664 id=664 data-nosnippet>664</a>          "kind": "unspecified"
-<a href=#665 id=665 data-nosnippet>665</a>        }
-<a href=#666 id=666 data-nosnippet>666</a>        "###</span>);
-<a href=#667 id=667 data-nosnippet>667</a>    }
-<a href=#668 id=668 data-nosnippet>668</a>}</code></pre></div></section></main></body></html>
+<a href=#604 id=604 data-nosnippet>604</a>            "spanId": "e342abb1214ca181",
+<a href=#605 id=605 data-nosnippet>605</a>            "links": [
+<a href=#606 id=606 data-nosnippet>606</a>                {
+<a href=#607 id=607 data-nosnippet>607</a>                    "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#608 id=608 data-nosnippet>608</a>                    "spanId": "fa90fdead5f74052",
+<a href=#609 id=609 data-nosnippet>609</a>                    "attributes": [
+<a href=#610 id=610 data-nosnippet>610</a>                        {
+<a href=#611 id=611 data-nosnippet>611</a>                            "key": "str_key",
+<a href=#612 id=612 data-nosnippet>612</a>                            "value": {
+<a href=#613 id=613 data-nosnippet>613</a>                                "stringValue": "str_value"
+<a href=#614 id=614 data-nosnippet>614</a>                            }
+<a href=#615 id=615 data-nosnippet>615</a>                        },
+<a href=#616 id=616 data-nosnippet>616</a>                        {
+<a href=#617 id=617 data-nosnippet>617</a>                            "key": "bool_key",
+<a href=#618 id=618 data-nosnippet>618</a>                            "value": {
+<a href=#619 id=619 data-nosnippet>619</a>                                "boolValue": true
+<a href=#620 id=620 data-nosnippet>620</a>                            }
+<a href=#621 id=621 data-nosnippet>621</a>                        },
+<a href=#622 id=622 data-nosnippet>622</a>                        {
+<a href=#623 id=623 data-nosnippet>623</a>                            "key": "int_key",
+<a href=#624 id=624 data-nosnippet>624</a>                            "value": {
+<a href=#625 id=625 data-nosnippet>625</a>                                "intValue": "123"
+<a href=#626 id=626 data-nosnippet>626</a>                            }
+<a href=#627 id=627 data-nosnippet>627</a>                        },
+<a href=#628 id=628 data-nosnippet>628</a>                        {
+<a href=#629 id=629 data-nosnippet>629</a>                            "key": "double_key",
+<a href=#630 id=630 data-nosnippet>630</a>                            "value": {
+<a href=#631 id=631 data-nosnippet>631</a>                                "doubleValue": 1.23
+<a href=#632 id=632 data-nosnippet>632</a>                            }
+<a href=#633 id=633 data-nosnippet>633</a>                        }
+<a href=#634 id=634 data-nosnippet>634</a>                    ],
+<a href=#635 id=635 data-nosnippet>635</a>                    "flags": 1
+<a href=#636 id=636 data-nosnippet>636</a>                }
+<a href=#637 id=637 data-nosnippet>637</a>            ]
+<a href=#638 id=638 data-nosnippet>638</a>        }"#</span>;
+<a href=#639 id=639 data-nosnippet>639</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+<a href=#640 id=640 data-nosnippet>640</a>        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span).unwrap();
+<a href=#641 id=641 data-nosnippet>641</a>        <span class="kw">let </span>annotated_span: Annotated&lt;EventSpan&gt; = Annotated::new(event_span);
+<a href=#642 id=642 data-nosnippet>642</a>
+<a href=#643 id=643 data-nosnippet>643</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#644 id=644 data-nosnippet>644</a>        {
+<a href=#645 id=645 data-nosnippet>645</a>          "timestamp": 0.0,
+<a href=#646 id=646 data-nosnippet>646</a>          "start_timestamp": 0.0,
+<a href=#647 id=647 data-nosnippet>647</a>          "exclusive_time": 0.0,
+<a href=#648 id=648 data-nosnippet>648</a>          "span_id": "e342abb1214ca181",
+<a href=#649 id=649 data-nosnippet>649</a>          "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+<a href=#650 id=650 data-nosnippet>650</a>          "status": "unknown",
+<a href=#651 id=651 data-nosnippet>651</a>          "data": {},
+<a href=#652 id=652 data-nosnippet>652</a>          "links": [
+<a href=#653 id=653 data-nosnippet>653</a>            {
+<a href=#654 id=654 data-nosnippet>654</a>              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#655 id=655 data-nosnippet>655</a>              "span_id": "fa90fdead5f74052",
+<a href=#656 id=656 data-nosnippet>656</a>              "sampled": true,
+<a href=#657 id=657 data-nosnippet>657</a>              "attributes": {
+<a href=#658 id=658 data-nosnippet>658</a>                "bool_key": true,
+<a href=#659 id=659 data-nosnippet>659</a>                "double_key": 1.23,
+<a href=#660 id=660 data-nosnippet>660</a>                "int_key": 123,
+<a href=#661 id=661 data-nosnippet>661</a>                "str_key": "str_value"
+<a href=#662 id=662 data-nosnippet>662</a>              }
+<a href=#663 id=663 data-nosnippet>663</a>            }
+<a href=#664 id=664 data-nosnippet>664</a>          ],
+<a href=#665 id=665 data-nosnippet>665</a>          "kind": "unspecified"
+<a href=#666 id=666 data-nosnippet>666</a>        }
+<a href=#667 id=667 data-nosnippet>667</a>        "###</span>);
+<a href=#668 id=668 data-nosnippet>668</a>    }
+<a href=#669 id=669 data-nosnippet>669</a>}</code></pre></div></section></main></body></html>

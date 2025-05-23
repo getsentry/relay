@@ -49,7 +49,7 @@
 <a href=#49 id=49 data-nosnippet>49</a>            <span class="kw">continue</span>;
 <a href=#50 id=50 data-nosnippet>50</a>        };
 <a href=#51 id=51 data-nosnippet>51</a>
-<a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">let </span>invalid_parent = mem::replace(parent_span_id, root_span_id.clone());
+<a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">let </span>invalid_parent = mem::replace(parent_span_id, <span class="kw-2">*</span>root_span_id);
 <a href=#53 id=53 data-nosnippet>53</a>        <span class="kw">let </span>meta = span.parent_span_id.meta_mut();
 <a href=#54 id=54 data-nosnippet>54</a>        meta.add_error(Error::invalid(<span class="string">"span ID does not exist"</span>));
 <a href=#55 id=55 data-nosnippet>55</a>        meta.set_original_value(<span class="prelude-val">Some</span>(invalid_parent));

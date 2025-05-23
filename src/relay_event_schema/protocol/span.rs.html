@@ -158,8 +158,8 @@
 <a href=#158 id=158 data-nosnippet>158</a>                <span class="string">"exclusive_time" </span>=&gt; <span class="self">self</span>.exclusive_time.value()<span class="question-mark">?</span>.into(),
 <a href=#159 id=159 data-nosnippet>159</a>                <span class="string">"description" </span>=&gt; <span class="self">self</span>.description.as_str()<span class="question-mark">?</span>.into(),
 <a href=#160 id=160 data-nosnippet>160</a>                <span class="string">"op" </span>=&gt; <span class="self">self</span>.op.as_str()<span class="question-mark">?</span>.into(),
-<a href=#161 id=161 data-nosnippet>161</a>                <span class="string">"span_id" </span>=&gt; <span class="self">self</span>.span_id.as_str()<span class="question-mark">?</span>.into(),
-<a href=#162 id=162 data-nosnippet>162</a>                <span class="string">"parent_span_id" </span>=&gt; <span class="self">self</span>.parent_span_id.as_str()<span class="question-mark">?</span>.into(),
+<a href=#161 id=161 data-nosnippet>161</a>                <span class="string">"span_id" </span>=&gt; <span class="self">self</span>.span_id.value()<span class="question-mark">?</span>.into(),
+<a href=#162 id=162 data-nosnippet>162</a>                <span class="string">"parent_span_id" </span>=&gt; <span class="self">self</span>.parent_span_id.value()<span class="question-mark">?</span>.into(),
 <a href=#163 id=163 data-nosnippet>163</a>                <span class="string">"trace_id" </span>=&gt; <span class="self">self</span>.trace_id.value()<span class="question-mark">?</span>.deref().into(),
 <a href=#164 id=164 data-nosnippet>164</a>                <span class="string">"status" </span>=&gt; <span class="self">self</span>.status.as_str()<span class="question-mark">?</span>.into(),
 <a href=#165 id=165 data-nosnippet>165</a>                <span class="string">"origin" </span>=&gt; <span class="self">self</span>.origin.as_str()<span class="question-mark">?</span>.into(),
@@ -1095,7 +1095,7 @@
 <a href=#1095 id=1095 data-nosnippet>1095</a>
 <a href=#1096 id=1096 data-nosnippet>1096</a>        <span class="kw">let </span>links = Annotated::new(<span class="macro">vec!</span>[Annotated::new(SpanLink {
 <a href=#1097 id=1097 data-nosnippet>1097</a>            trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
-<a href=#1098 id=1098 data-nosnippet>1098</a>            span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())),
+<a href=#1098 id=1098 data-nosnippet>1098</a>            span_id: Annotated::new(<span class="string">"fa90fdead5f74052"</span>.parse().unwrap()),
 <a href=#1099 id=1099 data-nosnippet>1099</a>            sampled: Annotated::new(<span class="bool-val">true</span>),
 <a href=#1100 id=1100 data-nosnippet>1100</a>            attributes: Annotated::new({
 <a href=#1101 id=1101 data-nosnippet>1101</a>                <span class="kw">let </span><span class="kw-2">mut </span>map: std::collections::BTreeMap&lt;String, Annotated&lt;Value&gt;&gt; = Object::new();
@@ -1119,7 +1119,7 @@
 <a href=#1119 id=1119 data-nosnippet>1119</a>            description: Annotated::new(<span class="string">"desc"</span>.to_owned()),
 <a href=#1120 id=1120 data-nosnippet>1120</a>            op: Annotated::new(<span class="string">"operation"</span>.to_owned()),
 <a href=#1121 id=1121 data-nosnippet>1121</a>            trace_id: Annotated::new(<span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap()),
-<a href=#1122 id=1122 data-nosnippet>1122</a>            span_id: Annotated::new(SpanId(<span class="string">"fa90fdead5f74052"</span>.into())),
+<a href=#1122 id=1122 data-nosnippet>1122</a>            span_id: Annotated::new(<span class="string">"fa90fdead5f74052"</span>.parse().unwrap()),
 <a href=#1123 id=1123 data-nosnippet>1123</a>            status: Annotated::new(SpanStatus::Ok),
 <a href=#1124 id=1124 data-nosnippet>1124</a>            origin: Annotated::new(<span class="string">"auto.http"</span>.to_owned()),
 <a href=#1125 id=1125 data-nosnippet>1125</a>            kind: Annotated::new(SpanKind::Server),
