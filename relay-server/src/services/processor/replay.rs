@@ -1,7 +1,6 @@
 //! Replay related processor code.
 use std::error::Error;
 use std::net::IpAddr;
-use std::sync::Arc;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
@@ -28,12 +27,12 @@ use serde::{Deserialize, Serialize};
 pub fn process(
     managed_envelope: &mut TypedEnvelope<ReplayGroup>,
     global_config: &GlobalConfig,
-    config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
+    config: &Config,
+    project_info: &ProjectInfo,
     geoip_lookup: Option<&GeoIpLookup>,
 ) -> Result<(), ProcessingError> {
     // If the replay feature is not enabled drop the items silently.
-    if should_filter(&config, &project_info, Feature::SessionReplay) {
+    if should_filter(config, project_info, Feature::SessionReplay) {
         managed_envelope.drop_items_silently();
         return Ok(());
     }
