@@ -25,9 +25,9 @@
 <a href=#25 id=25 data-nosnippet>25</a>    event: <span class="kw-2">&amp;</span>Annotated&lt;Event&gt;,
 <a href=#26 id=26 data-nosnippet>26</a>    config: Arc&lt;Config&gt;,
 <a href=#27 id=27 data-nosnippet>27</a>    project_id: ProjectId,
-<a href=#28 id=28 data-nosnippet>28</a>    project_info: Arc&lt;ProjectInfo&gt;,
+<a href=#28 id=28 data-nosnippet>28</a>    project_info: <span class="kw-2">&amp;</span>ProjectInfo,
 <a href=#29 id=29 data-nosnippet>29</a>) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
-<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">let </span>profiling_disabled = should_filter(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>project_info, Feature::Profiling);
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">let </span>profiling_disabled = should_filter(<span class="kw-2">&amp;</span>config, project_info, Feature::Profiling);
 <a href=#31 id=31 data-nosnippet>31</a>    <span class="kw">let </span>has_transaction = event_type(event) == <span class="prelude-val">Some</span>(EventType::Transaction);
 <a href=#32 id=32 data-nosnippet>32</a>    <span class="kw">let </span>keep_unsampled_profiles = <span class="bool-val">true</span>;
 <a href=#33 id=33 data-nosnippet>33</a>

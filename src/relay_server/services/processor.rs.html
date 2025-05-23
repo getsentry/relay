@@ -1272,8 +1272,8 @@
 <a href=#1272 id=1272 data-nosnippet>1272</a>        managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
 <a href=#1273 id=1273 data-nosnippet>1273</a>        event: Annotated&lt;Event&gt;,
 <a href=#1274 id=1274 data-nosnippet>1274</a>        extracted_metrics: <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics,
-<a href=#1275 id=1275 data-nosnippet>1275</a>        project_info: Arc&lt;ProjectInfo&gt;,
-<a href=#1276 id=1276 data-nosnippet>1276</a>        rate_limits: Arc&lt;RateLimits&gt;,
+<a href=#1275 id=1275 data-nosnippet>1275</a>        project_info: <span class="kw-2">&amp;</span>ProjectInfo,
+<a href=#1276 id=1276 data-nosnippet>1276</a>        rate_limits: <span class="kw-2">&amp;</span>RateLimits,
 <a href=#1277 id=1277 data-nosnippet>1277</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Annotated&lt;Event&gt;, ProcessingError&gt; {
 <a href=#1278 id=1278 data-nosnippet>1278</a>        <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 <a href=#1279 id=1279 data-nosnippet>1279</a>        <span class="comment">// Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
@@ -1284,8 +1284,8 @@
 <a href=#1284 id=1284 data-nosnippet>1284</a>                event,
 <a href=#1285 id=1285 data-nosnippet>1285</a>                extracted_metrics,
 <a href=#1286 id=1286 data-nosnippet>1286</a>                <span class="kw-2">&amp;</span>global_config,
-<a href=#1287 id=1287 data-nosnippet>1287</a>                project_info.clone(),
-<a href=#1288 id=1288 data-nosnippet>1288</a>                rate_limits.clone(),
+<a href=#1287 id=1287 data-nosnippet>1287</a>                project_info,
+<a href=#1288 id=1288 data-nosnippet>1288</a>                rate_limits,
 <a href=#1289 id=1289 data-nosnippet>1289</a>            )
 <a href=#1290 id=1290 data-nosnippet>1290</a>            .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#1291 id=1291 data-nosnippet>1291</a>
@@ -1668,8 +1668,8 @@
 <a href=#1668 id=1668 data-nosnippet>1668</a>                managed_envelope,
 <a href=#1669 id=1669 data-nosnippet>1669</a>                event,
 <a href=#1670 id=1670 data-nosnippet>1670</a>                <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#1671 id=1671 data-nosnippet>1671</a>                project_info.clone(),
-<a href=#1672 id=1672 data-nosnippet>1672</a>                rate_limits,
+<a href=#1671 id=1671 data-nosnippet>1671</a>                <span class="kw-2">&amp;</span>project_info,
+<a href=#1672 id=1672 data-nosnippet>1672</a>                <span class="kw-2">&amp;</span>rate_limits,
 <a href=#1673 id=1673 data-nosnippet>1673</a>            )
 <a href=#1674 id=1674 data-nosnippet>1674</a>            .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#1675 id=1675 data-nosnippet>1675</a>
@@ -1749,7 +1749,7 @@
 <a href=#1749 id=1749 data-nosnippet>1749</a>                <span class="kw-2">&amp;</span>event,
 <a href=#1750 id=1750 data-nosnippet>1750</a>                config.clone(),
 <a href=#1751 id=1751 data-nosnippet>1751</a>                project_id,
-<a href=#1752 id=1752 data-nosnippet>1752</a>                project_info.clone(),
+<a href=#1752 id=1752 data-nosnippet>1752</a>                <span class="kw-2">&amp;</span>project_info,
 <a href=#1753 id=1753 data-nosnippet>1753</a>            );
 <a href=#1754 id=1754 data-nosnippet>1754</a>            profile::transfer_id(<span class="kw-2">&amp;mut </span>event, profile_id);
 <a href=#1755 id=1755 data-nosnippet>1755</a>        });
@@ -1862,8 +1862,8 @@
 <a href=#1862 id=1862 data-nosnippet>1862</a>                    managed_envelope,
 <a href=#1863 id=1863 data-nosnippet>1863</a>                    Annotated::empty(),
 <a href=#1864 id=1864 data-nosnippet>1864</a>                    <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#1865 id=1865 data-nosnippet>1865</a>                    project_info.clone(),
-<a href=#1866 id=1866 data-nosnippet>1866</a>                    rate_limits,
+<a href=#1865 id=1865 data-nosnippet>1865</a>                    <span class="kw-2">&amp;</span>project_info,
+<a href=#1866 id=1866 data-nosnippet>1866</a>                    <span class="kw-2">&amp;</span>rate_limits,
 <a href=#1867 id=1867 data-nosnippet>1867</a>                )
 <a href=#1868 id=1868 data-nosnippet>1868</a>                .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#1869 id=1869 data-nosnippet>1869</a>
@@ -1921,8 +1921,8 @@
 <a href=#1921 id=1921 data-nosnippet>1921</a>                managed_envelope,
 <a href=#1922 id=1922 data-nosnippet>1922</a>                event,
 <a href=#1923 id=1923 data-nosnippet>1923</a>                <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#1924 id=1924 data-nosnippet>1924</a>                project_info.clone(),
-<a href=#1925 id=1925 data-nosnippet>1925</a>                rate_limits,
+<a href=#1924 id=1924 data-nosnippet>1924</a>                <span class="kw-2">&amp;</span>project_info,
+<a href=#1925 id=1925 data-nosnippet>1925</a>                <span class="kw-2">&amp;</span>rate_limits,
 <a href=#1926 id=1926 data-nosnippet>1926</a>            )
 <a href=#1927 id=1927 data-nosnippet>1927</a>            .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#1928 id=1928 data-nosnippet>1928</a>
@@ -1956,14 +1956,14 @@
 <a href=#1956 id=1956 data-nosnippet>1956</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#1957 id=1957 data-nosnippet>1957</a>        managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ProfileChunkGroup&gt;,
 <a href=#1958 id=1958 data-nosnippet>1958</a>        project_info: Arc&lt;ProjectInfo&gt;,
-<a href=#1959 id=1959 data-nosnippet>1959</a>        _rate_limits: Arc&lt;RateLimits&gt;,
+<a href=#1959 id=1959 data-nosnippet>1959</a>        rate_limits: Arc&lt;RateLimits&gt;,
 <a href=#1960 id=1960 data-nosnippet>1960</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
 <a href=#1961 id=1961 data-nosnippet>1961</a>        profile_chunk::filter(managed_envelope, project_info.clone());
 <a href=#1962 id=1962 data-nosnippet>1962</a>
 <a href=#1963 id=1963 data-nosnippet>1963</a>        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
 <a href=#1964 id=1964 data-nosnippet>1964</a>            profile_chunk::process(
 <a href=#1965 id=1965 data-nosnippet>1965</a>                managed_envelope,
-<a href=#1966 id=1966 data-nosnippet>1966</a>                project_info.clone(),
+<a href=#1966 id=1966 data-nosnippet>1966</a>                <span class="kw-2">&amp;</span>project_info,
 <a href=#1967 id=1967 data-nosnippet>1967</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
 <a href=#1968 id=1968 data-nosnippet>1968</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
 <a href=#1969 id=1969 data-nosnippet>1969</a>            );
@@ -1973,8 +1973,8 @@
 <a href=#1973 id=1973 data-nosnippet>1973</a>            managed_envelope,
 <a href=#1974 id=1974 data-nosnippet>1974</a>            Annotated::empty(),
 <a href=#1975 id=1975 data-nosnippet>1975</a>            <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics::new(),
-<a href=#1976 id=1976 data-nosnippet>1976</a>            project_info,
-<a href=#1977 id=1977 data-nosnippet>1977</a>            _rate_limits,
+<a href=#1976 id=1976 data-nosnippet>1976</a>            <span class="kw-2">&amp;</span>project_info,
+<a href=#1977 id=1977 data-nosnippet>1977</a>            <span class="kw-2">&amp;</span>rate_limits,
 <a href=#1978 id=1978 data-nosnippet>1978</a>        )
 <a href=#1979 id=1979 data-nosnippet>1979</a>        .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#1980 id=1980 data-nosnippet>1980</a>
@@ -1988,7 +1988,7 @@
 <a href=#1988 id=1988 data-nosnippet>1988</a>        config: Arc&lt;Config&gt;,
 <a href=#1989 id=1989 data-nosnippet>1989</a>        project_id: ProjectId,
 <a href=#1990 id=1990 data-nosnippet>1990</a>        project_info: Arc&lt;ProjectInfo&gt;,
-<a href=#1991 id=1991 data-nosnippet>1991</a>        _rate_limits: Arc&lt;RateLimits&gt;,
+<a href=#1991 id=1991 data-nosnippet>1991</a>        rate_limits: Arc&lt;RateLimits&gt;,
 <a href=#1992 id=1992 data-nosnippet>1992</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProcessingExtractedMetrics&gt;, ProcessingError&gt; {
 <a href=#1993 id=1993 data-nosnippet>1993</a>        <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new();
 <a href=#1994 id=1994 data-nosnippet>1994</a>
@@ -1999,15 +1999,15 @@
 <a href=#1999 id=1999 data-nosnippet>1999</a>            <span class="kw-2">&amp;</span>Annotated::empty(),
 <a href=#2000 id=2000 data-nosnippet>2000</a>            config,
 <a href=#2001 id=2001 data-nosnippet>2001</a>            project_id,
-<a href=#2002 id=2002 data-nosnippet>2002</a>            project_info.clone(),
+<a href=#2002 id=2002 data-nosnippet>2002</a>            <span class="kw-2">&amp;</span>project_info,
 <a href=#2003 id=2003 data-nosnippet>2003</a>        );
 <a href=#2004 id=2004 data-nosnippet>2004</a>
 <a href=#2005 id=2005 data-nosnippet>2005</a>        <span class="self">self</span>.enforce_quotas(
 <a href=#2006 id=2006 data-nosnippet>2006</a>            managed_envelope,
 <a href=#2007 id=2007 data-nosnippet>2007</a>            Annotated::empty(),
 <a href=#2008 id=2008 data-nosnippet>2008</a>            <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#2009 id=2009 data-nosnippet>2009</a>            project_info.clone(),
-<a href=#2010 id=2010 data-nosnippet>2010</a>            _rate_limits,
+<a href=#2009 id=2009 data-nosnippet>2009</a>            <span class="kw-2">&amp;</span>project_info,
+<a href=#2010 id=2010 data-nosnippet>2010</a>            <span class="kw-2">&amp;</span>rate_limits,
 <a href=#2011 id=2011 data-nosnippet>2011</a>        )
 <a href=#2012 id=2012 data-nosnippet>2012</a>        .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#2013 id=2013 data-nosnippet>2013</a>
@@ -2029,7 +2029,7 @@
 <a href=#2029 id=2029 data-nosnippet>2029</a>        session::process(
 <a href=#2030 id=2030 data-nosnippet>2030</a>            managed_envelope,
 <a href=#2031 id=2031 data-nosnippet>2031</a>            <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#2032 id=2032 data-nosnippet>2032</a>            project_info.clone(),
+<a href=#2032 id=2032 data-nosnippet>2032</a>            <span class="kw-2">&amp;</span>project_info,
 <a href=#2033 id=2033 data-nosnippet>2033</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
 <a href=#2034 id=2034 data-nosnippet>2034</a>        );
 <a href=#2035 id=2035 data-nosnippet>2035</a>
@@ -2037,8 +2037,8 @@
 <a href=#2037 id=2037 data-nosnippet>2037</a>            managed_envelope,
 <a href=#2038 id=2038 data-nosnippet>2038</a>            Annotated::empty(),
 <a href=#2039 id=2039 data-nosnippet>2039</a>            <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#2040 id=2040 data-nosnippet>2040</a>            project_info,
-<a href=#2041 id=2041 data-nosnippet>2041</a>            rate_limits,
+<a href=#2040 id=2040 data-nosnippet>2040</a>            <span class="kw-2">&amp;</span>project_info,
+<a href=#2041 id=2041 data-nosnippet>2041</a>            <span class="kw-2">&amp;</span>rate_limits,
 <a href=#2042 id=2042 data-nosnippet>2042</a>        )
 <a href=#2043 id=2043 data-nosnippet>2043</a>        .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#2044 id=2044 data-nosnippet>2044</a>
@@ -2059,15 +2059,15 @@
 <a href=#2059 id=2059 data-nosnippet>2059</a>            managed_envelope,
 <a href=#2060 id=2060 data-nosnippet>2060</a>            Annotated::empty(),
 <a href=#2061 id=2061 data-nosnippet>2061</a>            <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#2062 id=2062 data-nosnippet>2062</a>            project_info.clone(),
-<a href=#2063 id=2063 data-nosnippet>2063</a>            rate_limits,
+<a href=#2062 id=2062 data-nosnippet>2062</a>            <span class="kw-2">&amp;</span>project_info,
+<a href=#2063 id=2063 data-nosnippet>2063</a>            <span class="kw-2">&amp;</span>rate_limits,
 <a href=#2064 id=2064 data-nosnippet>2064</a>        )
 <a href=#2065 id=2065 data-nosnippet>2065</a>        .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#2066 id=2066 data-nosnippet>2066</a>
 <a href=#2067 id=2067 data-nosnippet>2067</a>        report::process_client_reports(
 <a href=#2068 id=2068 data-nosnippet>2068</a>            managed_envelope,
-<a href=#2069 id=2069 data-nosnippet>2069</a>            config,
-<a href=#2070 id=2070 data-nosnippet>2070</a>            project_info,
+<a href=#2069 id=2069 data-nosnippet>2069</a>            <span class="kw-2">&amp;</span>config,
+<a href=#2070 id=2070 data-nosnippet>2070</a>            <span class="kw-2">&amp;</span>project_info,
 <a href=#2071 id=2071 data-nosnippet>2071</a>            <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
 <a href=#2072 id=2072 data-nosnippet>2072</a>        );
 <a href=#2073 id=2073 data-nosnippet>2073</a>
@@ -2087,8 +2087,8 @@
 <a href=#2087 id=2087 data-nosnippet>2087</a>        replay::process(
 <a href=#2088 id=2088 data-nosnippet>2088</a>            managed_envelope,
 <a href=#2089 id=2089 data-nosnippet>2089</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-<a href=#2090 id=2090 data-nosnippet>2090</a>            config,
-<a href=#2091 id=2091 data-nosnippet>2091</a>            project_info.clone(),
+<a href=#2090 id=2090 data-nosnippet>2090</a>            <span class="kw-2">&amp;</span>config,
+<a href=#2091 id=2091 data-nosnippet>2091</a>            <span class="kw-2">&amp;</span>project_info,
 <a href=#2092 id=2092 data-nosnippet>2092</a>            <span class="self">self</span>.inner.geoip_lookup.as_ref(),
 <a href=#2093 id=2093 data-nosnippet>2093</a>        )<span class="question-mark">?</span>;
 <a href=#2094 id=2094 data-nosnippet>2094</a>
@@ -2096,8 +2096,8 @@
 <a href=#2096 id=2096 data-nosnippet>2096</a>            managed_envelope,
 <a href=#2097 id=2097 data-nosnippet>2097</a>            Annotated::empty(),
 <a href=#2098 id=2098 data-nosnippet>2098</a>            <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#2099 id=2099 data-nosnippet>2099</a>            project_info,
-<a href=#2100 id=2100 data-nosnippet>2100</a>            rate_limits,
+<a href=#2099 id=2099 data-nosnippet>2099</a>            <span class="kw-2">&amp;</span>project_info,
+<a href=#2100 id=2100 data-nosnippet>2100</a>            <span class="kw-2">&amp;</span>rate_limits,
 <a href=#2101 id=2101 data-nosnippet>2101</a>        )
 <a href=#2102 id=2102 data-nosnippet>2102</a>        .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#2103 id=2103 data-nosnippet>2103</a>
@@ -2116,8 +2116,8 @@
 <a href=#2116 id=2116 data-nosnippet>2116</a>            managed_envelope,
 <a href=#2117 id=2117 data-nosnippet>2117</a>            Annotated::empty(),
 <a href=#2118 id=2118 data-nosnippet>2118</a>            <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics::new(),
-<a href=#2119 id=2119 data-nosnippet>2119</a>            project_info,
-<a href=#2120 id=2120 data-nosnippet>2120</a>            rate_limits,
+<a href=#2119 id=2119 data-nosnippet>2119</a>            <span class="kw-2">&amp;</span>project_info,
+<a href=#2120 id=2120 data-nosnippet>2120</a>            <span class="kw-2">&amp;</span>rate_limits,
 <a href=#2121 id=2121 data-nosnippet>2121</a>        )
 <a href=#2122 id=2122 data-nosnippet>2122</a>        .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#2123 id=2123 data-nosnippet>2123</a>
@@ -2140,8 +2140,8 @@
 <a href=#2140 id=2140 data-nosnippet>2140</a>
 <a href=#2141 id=2141 data-nosnippet>2141</a>        ourlog::filter(
 <a href=#2142 id=2142 data-nosnippet>2142</a>            managed_envelope,
-<a href=#2143 id=2143 data-nosnippet>2143</a>            <span class="self">self</span>.inner.config.clone(),
-<a href=#2144 id=2144 data-nosnippet>2144</a>            project_info.clone(),
+<a href=#2143 id=2143 data-nosnippet>2143</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+<a href=#2144 id=2144 data-nosnippet>2144</a>            <span class="kw-2">&amp;</span>project_info,
 <a href=#2145 id=2145 data-nosnippet>2145</a>            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
 <a href=#2146 id=2146 data-nosnippet>2146</a>        );
 <a href=#2147 id=2147 data-nosnippet>2147</a>
@@ -2149,13 +2149,13 @@
 <a href=#2149 id=2149 data-nosnippet>2149</a>            managed_envelope,
 <a href=#2150 id=2150 data-nosnippet>2150</a>            Annotated::empty(),
 <a href=#2151 id=2151 data-nosnippet>2151</a>            <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#2152 id=2152 data-nosnippet>2152</a>            project_info.clone(),
-<a href=#2153 id=2153 data-nosnippet>2153</a>            rate_limits,
+<a href=#2152 id=2152 data-nosnippet>2152</a>            <span class="kw-2">&amp;</span>project_info,
+<a href=#2153 id=2153 data-nosnippet>2153</a>            <span class="kw-2">&amp;</span>rate_limits,
 <a href=#2154 id=2154 data-nosnippet>2154</a>        )
 <a href=#2155 id=2155 data-nosnippet>2155</a>        .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#2156 id=2156 data-nosnippet>2156</a>
 <a href=#2157 id=2157 data-nosnippet>2157</a>        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-<a href=#2158 id=2158 data-nosnippet>2158</a>            ourlog::process(managed_envelope, project_info.clone())<span class="question-mark">?</span>;
+<a href=#2158 id=2158 data-nosnippet>2158</a>            ourlog::process(managed_envelope, <span class="kw-2">&amp;</span>project_info)<span class="question-mark">?</span>;
 <a href=#2159 id=2159 data-nosnippet>2159</a>        });
 <a href=#2160 id=2160 data-nosnippet>2160</a>
 <a href=#2161 id=2161 data-nosnippet>2161</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
@@ -2206,8 +2206,8 @@
 <a href=#2206 id=2206 data-nosnippet>2206</a>            managed_envelope,
 <a href=#2207 id=2207 data-nosnippet>2207</a>            Annotated::empty(),
 <a href=#2208 id=2208 data-nosnippet>2208</a>            <span class="kw-2">&amp;mut </span>extracted_metrics,
-<a href=#2209 id=2209 data-nosnippet>2209</a>            project_info,
-<a href=#2210 id=2210 data-nosnippet>2210</a>            rate_limits,
+<a href=#2209 id=2209 data-nosnippet>2209</a>            <span class="kw-2">&amp;</span>project_info,
+<a href=#2210 id=2210 data-nosnippet>2210</a>            <span class="kw-2">&amp;</span>rate_limits,
 <a href=#2211 id=2211 data-nosnippet>2211</a>        )
 <a href=#2212 id=2212 data-nosnippet>2212</a>        .<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#2213 id=2213 data-nosnippet>2213</a>
@@ -3323,8 +3323,8 @@
 <a href=#3323 id=3323 data-nosnippet>3323</a>        event: Annotated&lt;Event&gt;,
 <a href=#3324 id=3324 data-nosnippet>3324</a>        _extracted_metrics: <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics,
 <a href=#3325 id=3325 data-nosnippet>3325</a>        global_config: <span class="kw-2">&amp;</span>GlobalConfig,
-<a href=#3326 id=3326 data-nosnippet>3326</a>        project_info: Arc&lt;ProjectInfo&gt;,
-<a href=#3327 id=3327 data-nosnippet>3327</a>        rate_limits: Arc&lt;RateLimits&gt;,
+<a href=#3326 id=3326 data-nosnippet>3326</a>        project_info: <span class="kw-2">&amp;</span>ProjectInfo,
+<a href=#3327 id=3327 data-nosnippet>3327</a>        rate_limits: <span class="kw-2">&amp;</span>RateLimits,
 <a href=#3328 id=3328 data-nosnippet>3328</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;EnforcementResult, ProcessingError&gt; {
 <a href=#3329 id=3329 data-nosnippet>3329</a>        <span class="kw">if </span>managed_envelope.envelope().is_empty() &amp;&amp; event.value().is_none() {
 <a href=#3330 id=3330 data-nosnippet>3330</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(EnforcementResult::new(event, RateLimits::default()));
