@@ -117,7 +117,7 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             }
 
-            if let Err(e) = normalize(log, normalize_config.clone()) {
+            if let Err(e) = normalize(log, &normalize_config) {
                 relay_log::debug!("failed to normalize log: {}", e);
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
@@ -164,7 +164,7 @@ impl NormalizeOurLogConfig {
 #[cfg(feature = "processing")]
 fn normalize(
     annotated_log: &mut Annotated<OurLog>,
-    config: NormalizeOurLogConfig,
+    config: &NormalizeOurLogConfig,
 ) -> Result<(), ProcessingError> {
     process_value(annotated_log, &mut SchemaProcessor, ProcessingState::root())?;
 
@@ -191,10 +191,10 @@ fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: 
         if !attributes.contains_key("browser.name") {
             if let Some(name) = context.name.value() {
                 attributes.insert(
-                    "browser.name".to_string(),
+                    "browser.name".to_owned(),
                     Annotated::new(Attribute::new(
                         AttributeType::String,
-                        Value::String(name.to_string()),
+                        Value::String(name.to_owned()),
                     )),
                 );
             }
@@ -203,10 +203,10 @@ fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: 
         if !attributes.contains_key("browser.version") {
             if let Some(version) = context.version.value() {
                 attributes.insert(
-                    "browser.version".to_string(),
+                    "browser.version".to_owned(),
                     Annotated::new(Attribute::new(
                         AttributeType::String,
-                        Value::String(version.to_string()),
+                        Value::String(version.to_owned()),
                     )),
                 );
             }
@@ -641,7 +641,7 @@ mod tests {
                 .unwrap()
                 .value
                 .value,
-            Value::String("Chrome".to_string()).into(),
+            Value::String("Chrome".to_owned()).into(),
         );
         assert_eq!(
             attributes
@@ -651,7 +651,7 @@ mod tests {
                 .unwrap()
                 .value
                 .value,
-            Value::String("131.0.0".to_string()).into(),
+            Value::String("131.0.0".to_owned()).into(),
         );
     }
 }

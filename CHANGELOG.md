@@ -5,6 +5,7 @@
 **Features**:
 
 - Allow environment references in Relay configuration. ([#4750](https://github.com/getsentry/relay/pull/4750))
+- Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 
 **Internal**:
 
