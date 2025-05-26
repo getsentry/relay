@@ -305,15 +305,11 @@ fn convert_v2_spans(
             Ok(spans_v2) => spans_v2,
             Err(err) => {
                 relay_log::debug!("failed to parse V2 spans: {err}");
-                for (category, quantity) in
+                let outcome = Outcome::Invalid(DiscardReason::InvalidSpan);
+                outcomes.extend(
                     ManagedEnvelope::outcome_categories_quantities(&span_v2_item)
-                {
-                    outcomes.push((
-                        Outcome::Invalid(DiscardReason::InvalidSpan),
-                        category,
-                        quantity,
-                    ));
-                }
+                        .map(|(category, quantity)| (outcome.clone(), category, quantity)),
+                );
                 continue;
             }
         };
@@ -329,15 +325,11 @@ fn convert_v2_spans(
                 }
                 Err(err) => {
                     relay_log::debug!("failed to serialize span: {}", err);
-                    for (category, quantity) in
+                    let outcome = Outcome::Invalid(DiscardReason::Internal);
+                    outcomes.extend(
                         ManagedEnvelope::outcome_categories_quantities(&span_v2_item)
-                    {
-                        outcomes.push((
-                            Outcome::Invalid(DiscardReason::Internal),
-                            category,
-                            quantity,
-                        ));
-                    }
+                            .map(|(category, quantity)| (outcome.clone(), category, quantity)),
+                    );
                 }
             }
         }

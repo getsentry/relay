@@ -279,13 +279,6 @@ impl ManagedEnvelope {
             })
     }
 
-    // TODO: Naming, docs
-    pub fn track_outcome_for_all_categories(&mut self, item: &Item, outcome: Outcome) {
-        for (category, quantity) in Self::outcome_categories_quantities(item) {
-            self.track_outcome(outcome.clone(), category, quantity);
-        }
-    }
-
     /// Drops every item in the envelope.
     pub fn drop_items_silently(&mut self) {
         self.envelope.drop_items_silently();
