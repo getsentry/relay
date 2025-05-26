@@ -3471,7 +3471,6 @@ impl UpstreamRequest for SendEnvelope {
         // already in our internal infrastructure.
         // We do not verify the signature internally so it does not make sense to send them.
         if !self.envelope.meta().is_from_internal_relay() {
-            // TODO: use NOW because it might be in the buffer very long
             builder
                 .header(
                     SIGNATURE_DATA_HEADER,
@@ -3538,14 +3537,13 @@ impl UpstreamRequest for SendEnvelope {
     }
 }
 
-/// Represents data that should be signed but is allowed to fail in some cases.
-///
-/// Bytes stored in [`TrySign::Mandatory`] will fail if there is no credential pair.
-/// [`TrySign::OptionalHeaders`] will contain a list of key/values which represent the payload
-/// that will be signed.
+/// Represents data that needs to be signed but allows for variants where the signature is
+/// optional.
 #[derive(Debug)]
 pub enum TrySign {
+    /// Bytes need to be signed and should produce an error if it's not possible.
     Mandatory(Bytes),
+    /// Signature creation is optional and should not fail in case it's not possible.
     OptionalHeaders(Vec<(&'static str, String)>),
 }
 

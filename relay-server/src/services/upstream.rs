@@ -305,8 +305,8 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// should return the payload to sign. For requests with content encoding, this must be the
     /// **uncompressed** payload.
     ///
-    /// This requires configuration of the Relay's credentials. If the credentials are not
-    /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
+    /// If the variant of [`TrySign`] forces a signature and no Relay credentials are configured,
+    /// the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
     /// Defaults to `None`.
     fn sign(&mut self) -> Option<TrySign> {
