@@ -829,6 +829,8 @@ pub enum RelayCounters {
     ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
     ///    requests wait for an update.
     EvictingStaleProjectCaches,
+    /// Number of refreshes for stale projects in the cache.
+    RefreshStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
@@ -922,6 +924,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
+            RelayCounters::RefreshStaleProjectCaches => "project_cache.refresh",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
