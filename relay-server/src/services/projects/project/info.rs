@@ -2,6 +2,10 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
+use crate::envelope::Envelope;
+use crate::extractors::RequestMeta;
+use crate::services::outcome::DiscardReason;
+use relay_auth::PublicKey;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
@@ -15,10 +19,6 @@ use relay_quotas::{Quota, Scoping};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use url::Url;
-
-use crate::envelope::Envelope;
-use crate::extractors::RequestMeta;
-use crate::services::outcome::DiscardReason;
 
 /// Information about an enabled project.
 ///
@@ -101,6 +101,7 @@ impl ProjectInfo {
     ///  - Disabled or unknown projects
     ///  - Disabled project keys (DSN)
     ///  - Feature flags
+    ///  - Trusted Relay signature invalid
     pub fn check_envelope(
         &self,
         envelope: &Envelope,
@@ -133,7 +134,32 @@ impl ProjectInfo {
             return Err(DiscardReason::FeatureDisabled(*disabled_feature));
         }
 
+        if !envelope.meta().is_from_internal_relay() {
+            if let Some(conf) = &self.config().trusted_relay_settings {
+                if conf.verify_signature {
+                    if !Self::check_trusted_relay_signature(&envelope, &self.config.trusted_relays)
+                    {
+                        return Err(DiscardReason::InvalidSignature);
+                    }
+                }
+            }
+        }
+
         Ok(())
+    }
+
+    /// Returns `true` if the signature could be verified with any public key of a trusted relay.
+    ///
+    /// If the signature is missing, then it will return `false`.
+    fn check_trusted_relay_signature(envelope: &Envelope, trusted_relays: &Vec<PublicKey>) -> bool {
+        let Some(signature) = envelope.meta().signature() else {
+            // Drop envelope if trusted relay check is enabled but there is no signature.
+            return false;
+        };
+
+        trusted_relays
+            .iter()
+            .any(|public_key| public_key.verify(&signature.signature_data, &signature.signature))
     }
 
     /// Returns `true` if the given project ID matches this project.

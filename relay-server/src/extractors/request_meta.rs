@@ -22,6 +22,7 @@ use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::extractors::trusted_relay_signature::TrustedRelaySignature;
 use crate::extractors::{ForwardedFor, ReceivedAt};
 use crate::service::ServiceState;
 use crate::statsd::{ClientName, RelayCounters};
@@ -231,6 +232,12 @@ pub struct RequestMeta<D = PartialDsn> {
     #[serde(skip, default = "Utc::now")]
     received_at: DateTime<Utc>,
 
+    /// Contains necessary data to verify if the request comes from a trusted relay.
+    ///
+    /// NOTE: This is internal only.
+    #[serde(skip)]
+    signature: Option<TrustedRelaySignature>,
+
     /// Whether the request is coming from an statically configured internal Relay.
     ///
     /// NOTE: This is internal-only and not exposed to Envelope headers.
@@ -328,6 +335,11 @@ impl<D> RequestMeta<D> {
     pub fn set_client(&mut self, client: String) {
         self.client = Some(client);
     }
+
+    /// Returns the trusted relay signature.
+    pub fn signature(&self) -> &Option<TrustedRelaySignature> {
+        &self.signature
+    }
 }
 
 impl RequestMeta {
@@ -344,6 +356,7 @@ impl RequestMeta {
             no_cache: false,
             received_at: Utc::now(),
             client_hints: ClientHints::default(),
+            signature: None,
             from_internal_relay: false,
         }
     }
@@ -490,6 +503,14 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
+        let signature = match TrustedRelaySignature::from_request_parts(parts, state).await {
+            Ok(sig) => Some(sig),
+            Err(_) => {
+                relay_log::debug!("Signature extraction failed");
+                None
+            }
+        };
+
         Ok(RequestMeta {
             dsn: None,
             version: default_version(),
@@ -507,6 +528,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
             no_cache: false,
             received_at,
             client_hints: ua.client_hints,
+            signature,
             from_internal_relay,
         })
     }
@@ -669,6 +691,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             no_cache: key_flags.contains(&"no-cache"),
             received_at: partial_meta.received_at,
             client_hints: partial_meta.client_hints,
+            signature: partial_meta.signature,
             from_internal_relay: partial_meta.from_internal_relay,
         })
     }
@@ -693,6 +716,7 @@ mod tests {
                 received_at: Utc::now(),
                 client_hints: ClientHints::default(),
                 from_internal_relay: false,
+                signature: None,
             }
         }
     }
@@ -738,6 +762,7 @@ mod tests {
                 sec_ch_ua_model: None,
             },
             from_internal_relay: false,
+            signature: None,
         };
         deserialized.received_at = reqmeta.received_at;
         assert_eq!(deserialized, reqmeta);

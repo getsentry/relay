@@ -134,6 +134,7 @@ class Sentry(SentryLike):
             "config": {
                 "allowedDomains": ["*"],
                 "trustedRelays": list(self.iter_public_keys()),
+                "trustedRelaySettings": {},
                 "piiConfig": {
                     "rules": {},
                     "applications": {

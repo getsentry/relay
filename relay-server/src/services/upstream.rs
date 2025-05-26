@@ -31,6 +31,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
+use crate::services::processor::TrySign;
 use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
@@ -308,7 +309,7 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
     /// Defaults to `None`.
-    fn sign(&mut self) -> Option<Bytes> {
+    fn sign(&mut self) -> Option<TrySign> {
         None
     }
 
@@ -457,11 +458,11 @@ where
         true
     }
 
-    fn sign(&mut self) -> Option<Bytes> {
+    fn sign(&mut self) -> Option<TrySign> {
         // Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
-        self.body().ok()
+        self.body().ok().map(|b| TrySign::Mandatory(b))
     }
 
     fn method(&self) -> Method {
@@ -784,13 +785,29 @@ impl SharedClient {
             request.build(&mut builder)?;
 
             if let Some(payload) = request.sign() {
-                let credentials = self
-                    .config
-                    .credentials()
-                    .ok_or(UpstreamRequestError::NoCredentials)?;
+                match payload {
+                    TrySign::Mandatory(payload) => {
+                        let credentials = self
+                            .config
+                            .credentials()
+                            .ok_or(UpstreamRequestError::NoCredentials)?;
 
-                let signature = credentials.secret_key.sign(&payload);
-                builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
+                        let signature = credentials.secret_key.sign(&payload);
+                        builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
+                    }
+                    TrySign::OptionalHeaders(headers) => {
+                        if let Some(credentials) = self.config.credentials() {
+                            let mut data = Vec::new();
+                            for (name, value) in headers {
+                                builder.header(name, &value);
+                                data.extend_from_slice(value.as_bytes());
+                            }
+                            let signature = credentials.secret_key.sign(&data);
+
+                            builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
+                        }
+                    }
+                }
             }
 
             match builder.finish() {

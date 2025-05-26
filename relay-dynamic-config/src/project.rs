@@ -16,6 +16,7 @@ use crate::metrics::{
     self, MetricExtractionConfig, Metrics, SessionMetricsConfig, TaggingRule,
     TransactionMetricsConfig,
 };
+use crate::trusted_relay::TrustedRelayConfig;
 use crate::{GRADUATED_FEATURE_FLAGS, defaults};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
@@ -26,6 +27,8 @@ pub struct ProjectConfig {
     pub allowed_domains: Vec<String>,
     /// List of relay public keys that are permitted to access this project.
     pub trusted_relays: Vec<PublicKey>,
+    /// Configuration for trusted relay behaviour.
+    pub trusted_relay_settings: Option<TrustedRelayConfig>,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
     /// The grouping configuration.
@@ -128,6 +131,7 @@ impl Default for ProjectConfig {
         ProjectConfig {
             allowed_domains: vec!["*".to_string()],
             trusted_relays: vec![],
+            trusted_relay_settings: None,
             pii_config: None,
             grouping_config: None,
             filter_settings: ProjectFiltersConfig::default(),

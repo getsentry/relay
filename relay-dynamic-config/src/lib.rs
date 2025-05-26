@@ -67,6 +67,7 @@ mod feature;
 mod global;
 mod metrics;
 mod project;
+mod trusted_relay;
 mod utils;
 
 pub use error_boundary::*;

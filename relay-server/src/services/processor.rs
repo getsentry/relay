@@ -44,7 +44,10 @@ use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
-use crate::extractors::{PartialDsn, RequestMeta};
+use crate::extractors::{
+    PartialDsn, RequestMeta, SIGNATURE_DATA_HEADER, SIGNATURE_VERSION_HEADER,
+    TrustedRelaySignatureVersion,
+};
 use crate::http;
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -3464,7 +3467,36 @@ impl UpstreamRequest for SendEnvelope {
             .header_opt("X-Sentry-Relay-Shard", shard)
             .body(envelope_body);
 
+        // Add the headers necessary for the trusted relay signature only if it's not
+        // already in our internal infrastructure.
+        // We do not verify the signature internally so it does not make sense to send them.
+        if !self.envelope.meta().is_from_internal_relay() {
+            // TODO: use NOW because it might be in the buffer very long
+            builder
+                .header(
+                    SIGNATURE_DATA_HEADER,
+                    TrustedRelaySignatureVersion::V1.signature_data_headers(),
+                )
+                .header(
+                    SIGNATURE_VERSION_HEADER,
+                    TrustedRelaySignatureVersion::V1.as_str(),
+                );
+        }
+
         Ok(())
+    }
+
+    fn sign(&mut self) -> Option<TrySign> {
+        match self.envelope.meta().is_from_internal_relay() {
+            true => None,
+            false => {
+                let now = Utc::now().to_string();
+                Some(TrySign::OptionalHeaders(vec![(
+                    "X-Signature-Datetime",
+                    now,
+                )]))
+            }
+        }
     }
 
     fn respond(
@@ -3504,6 +3536,17 @@ impl UpstreamRequest for SendEnvelope {
             }
         })
     }
+}
+
+/// Represents data that should be signed but is allowed to fail in some cases.
+///
+/// Bytes stored in [`TrySign::Mandatory`] will fail if there is no credential pair.
+/// [`TrySign::OptionalHeaders`] will contain a list of key/values which represent the payload
+/// that will be signed.
+#[derive(Debug)]
+pub enum TrySign {
+    Mandatory(Bytes),
+    OptionalHeaders(Vec<(&'static str, String)>),
 }
 
 /// A container for metric buckets from multiple projects.
@@ -3645,8 +3688,8 @@ impl UpstreamRequest for SendMetricsRequest {
         true
     }
 
-    fn sign(&mut self) -> Option<Bytes> {
-        Some(self.unencoded.clone())
+    fn sign(&mut self) -> Option<TrySign> {
+        Some(TrySign::Mandatory(self.unencoded.clone()))
     }
 
     fn method(&self) -> reqwest::Method {
