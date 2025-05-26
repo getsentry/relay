@@ -152,6 +152,10 @@ impl ProjectStore {
             _removed.is_some(),
             "an expired project must exist in the shared state"
         );
+
+        // Cancel next refresh, while not necessary (trying to refresh a project which does not
+        // exist, will do nothing), but we can also spare us the extra work.
+        self.refreshes.remove(&project_key);
     }
 
     /// Internal handler to begin a new fetch for the passed `project_key`, which can also handle
@@ -1233,5 +1237,83 @@ mod tests {
             panic!();
         };
         assert_eq!(eviction.project_key(), project_key);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_refresh_overtaken_by_eviction() {
+        let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 5,
+                    "project_refresh_interval": 7,
+                }
+            }))
+            .unwrap(),
+        );
+
+        let fetch = store.try_begin_fetch(project_key).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch).is_none());
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        // Move way past the expiration time.
+        tokio::time::advance(Duration::from_secs(20)).await;
+
+        // The eviction should be prioritized, there is no reason to refresh an already evicted
+        // project.
+        let Some(Action::Eviction(eviction)) = store.poll().await else {
+            panic!();
+        };
+        assert_eq!(eviction.project_key(), project_key);
+        store.evict(eviction);
+
+        // Make sure there is not another refresh queued.
+        // This would not technically be necessary because refresh code must be able to handle
+        // refreshes for non-fetched projects, but the current implementation should enforce this.
+        assert!(
+            tokio::time::timeout(Duration::from_secs(60), store.poll())
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_refresh_during_eviction() {
+        let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 5,
+                    "project_refresh_interval": 7,
+                }
+            }))
+            .unwrap(),
+        );
+
+        let fetch = store.try_begin_fetch(project_key).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch).is_none());
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        // Move way past the expiration time.
+        tokio::time::advance(Duration::from_secs(20)).await;
+
+        // Poll both the eviction and refresh token, while a proper implementation should prevent
+        // this, it's a good way to test that a refresh for an evicted project does not fetch the
+        // project.
+        let Some(Action::Eviction(eviction)) = store.poll().await else {
+            panic!();
+        };
+        let Some(Action::Refresh(refresh)) = store.poll().await else {
+            panic!();
+        };
+        assert_eq!(eviction.project_key(), project_key);
+        assert_eq!(refresh.project_key(), project_key);
+        store.evict(eviction);
+
+        assert!(store.refresh(refresh).is_none());
     }
 }
