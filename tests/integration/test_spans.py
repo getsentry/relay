@@ -470,64 +470,77 @@ def envelope_with_spans(
             headers={"metrics_extracted": metrics_extracted, "item_count": 2},
             content_type="application/vnd.sentry.items.span.v2+json",
             payload=PayloadRef(
-                json ={"items": [
-                    {
-                        "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-                        "span_id": "a342abb1214ca182",
-                        "name": "my 1st V2 span",
-                        "kind": "unspecified",
-                        "start_timestamp": start.timestamp(),
-                        "end_timestamp": end.timestamp(),
-                        "attributes": {
-                            "sentry.category": {
-                                "type": "string",
-                                "value": "db",
+                json={
+                    "items": [
+                        {
+                            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+                            "span_id": "a342abb1214ca182",
+                            "name": "my 1st V2 span",
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": end.timestamp(),
+                            "attributes": {
+                                "sentry.category": {
+                                    "type": "string",
+                                    "value": "db",
+                                },
+                                "sentry.exclusive_time_nano": {
+                                    "type": "integer",
+                                    "value": int((end - start).total_seconds() * 1e9),
+                                },
                             },
-                            "sentry.exclusive_time_nano": {
-                                "type": "integer",
-                                "value": int((end - start).total_seconds() * 1e9),
-                            },
-                        },
-                        "links": [
-                            {
-                                "trace_id": "89143b0763095bd9c9955e8175d1fb24",
-                                "span_id": "e342abb1214ca183",
-                                "sampled": False,
-                                "attributes": {
-                                    "link_double_key": {
-                                        "type": "double",
-                                        "value": 1.23,
+                            "links": [
+                                {
+                                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+                                    "span_id": "e342abb1214ca183",
+                                    "sampled": False,
+                                    "attributes": {
+                                        "link_double_key": {
+                                            "type": "double",
+                                            "value": 1.23,
+                                        },
                                     },
                                 },
-                            },
-                        ],
-                    },
-                    {
-                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                        "span_id": "b0429c44b67a3eb2",
-                        "name": "resource.script",
-                        "status": "ok",
-                        "start_timestamp": start.timestamp(),
-                        "end_timestamp": end.timestamp() + 1,
-                        "links": [
-                            {
-                                "trace_id": "99143b0763095bd9c9955e8175d1fb25",
-                                "span_id": "e342abb1214ca183",
-                                "sampled": True,
-                                "attributes": {
-                                    "link_bool_key": {"type": "boolean", "value": True},
+                            ],
+                        },
+                        {
+                            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                            "span_id": "b0429c44b67a3eb2",
+                            "name": "resource.script",
+                            "status": "ok",
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": end.timestamp() + 1,
+                            "links": [
+                                {
+                                    "trace_id": "99143b0763095bd9c9955e8175d1fb25",
+                                    "span_id": "e342abb1214ca183",
+                                    "sampled": True,
+                                    "attributes": {
+                                        "link_bool_key": {
+                                            "type": "boolean",
+                                            "value": True,
+                                        },
+                                    },
+                                },
+                            ],
+                            "attributes": {
+                                "browser.name": {"type": "string", "value": "Chrome"},
+                                "sentry.description": {
+                                    "type": "string",
+                                    "value": "https://example.com/p/blah.js",
+                                },
+                                "sentry.exclusive_time_nano": {
+                                    "type": "integer",
+                                    "value": 161 * 1e6,
+                                },
+                                # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
+                                "sentry.segment.id": {
+                                    "type": "string",
+                                    "value": "b0429c44b67a3eb2",
                                 },
                             },
-                        ],
-                        "attributes": {
-                            "browser.name": {"type": "string", "value": "Chrome"},
-                            "sentry.description": {"type": "string", "value": "https://example.com/p/blah.js"},
-                            "sentry.exclusive_time_nano":  {"type": "integer", "value": 345 * 1e6 },
-                            # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
-                            "sentry.segment_id": {"type": "string", "value": "b0429c44b67a3eb2"}
                         },
-                    }
-                ]}
+                    ]
+                }
             ),
         )
     )
@@ -775,7 +788,6 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
-            "kind": "unspecified",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -853,7 +865,7 @@ def test_span_ingestion(
             },
             "description": "https://example.com/p/blah.js",
             "duration_ms": 1500,
-            "exclusive_time_ms": 345.0,
+            "exclusive_time_ms": 161.0,
             "is_segment": True,
             "is_remote": False,
             "links": [
@@ -1046,7 +1058,7 @@ def test_span_ingestion(
             "tags": {"decision": "keep", "target_project_id": "42"},
             "timestamp": expected_timestamp + 1,
             "type": "c",
-            "value": 3.0,
+            "value": 4.0,
         },
         {
             "name": "c:spans/usage@none",
@@ -1067,7 +1079,7 @@ def test_span_ingestion(
             "tags": {},
             "timestamp": expected_timestamp + 1,
             "type": "c",
-            "value": 3.0,
+            "value": 4.0,
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1085,7 +1097,7 @@ def test_span_ingestion(
             },
             "timestamp": expected_timestamp + 1,
             "type": "d",
-            "value": [1500.0],
+            "value": [1500.0, 1500.0],
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1169,7 +1181,7 @@ def test_span_ingestion(
             },
             "timestamp": expected_timestamp + 1,
             "type": "d",
-            "value": [1500.0],
+            "value": [1500.0, 1500.0],
         },
         {
             "name": "d:spans/duration_light@millisecond",
@@ -1198,7 +1210,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
             "type": "d",
-            "value": [345.0],
+            "value": [161.0, 345.0],
             "timestamp": expected_timestamp + 1,
             "tags": {
                 "file_extension": "js",
@@ -1271,7 +1283,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time_light@millisecond",
             "type": "d",
-            "value": [345.0],
+            "value": [161.0, 345.0],
             "timestamp": expected_timestamp + 1,
             "tags": {
                 "file_extension": "js",
@@ -1318,7 +1330,13 @@ def test_span_ingestion(
             "received_at": time_after(now_timestamp),
         },
     ]
-    assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
+
+    span_metrics = [m for m in metrics if ":spans/" in m["name"]]
+
+    assert len(span_metrics) == len(expected_span_metrics)
+    for actual, expected in zip(span_metrics, expected_span_metrics):
+        assert actual == expected
+    # assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
 
     # Regardless of whether transactions are extracted, score.total is only converted to a transaction metric once:
     score_total_metrics = [
@@ -1703,7 +1721,7 @@ def test_rate_limit_indexed_consistent(
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
-            "limit": 4,
+            "limit": 6,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
@@ -1726,13 +1744,13 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(n=4, timeout=10)
-    assert len(spans) == 4
-    assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
+    spans = spans_consumer.get_spans(n=6, timeout=10)
+    assert len(spans) == 6
+    assert summarize_outcomes() == {(16, 0): 6}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    assert summarize_outcomes() == {(16, 2): 4}  # SpanIndexed, RateLimited
+    assert summarize_outcomes() == {(16, 2): 6}  # SpanIndexed, RateLimited
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
@@ -1877,7 +1895,7 @@ def test_rate_limit_spans_in_envelope(
 
     relay.send_envelope(project_id, envelope)
 
-    assert summarize_outcomes() == {(12, 2): 4, (16, 2): 4}
+    assert summarize_outcomes() == {(12, 2): 6, (16, 2): 6}
 
     # We emit transaction metrics from spans for legacy reasons. These are not rate limited.
     # (could be a bug)
@@ -2212,13 +2230,13 @@ def test_dynamic_sampling(
         return counter
 
     if sample_rate == 1.0:
-        spans = spans_consumer.get_spans(timeout=10, n=4)
-        assert len(spans) == 4
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
-        assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
+        spans = spans_consumer.get_spans(timeout=10, n=6)
+        assert len(spans) == 6
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
+        assert summarize_outcomes(outcomes) == {(16, 0): 6}  # SpanIndexed, Accepted
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
-        assert summarize_outcomes(outcomes) == {(16, 1): 4}  # Span, Filtered
+        assert summarize_outcomes(outcomes) == {(16, 1): 6}  # Span, Filtered
         assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 
     spans_consumer.assert_empty()
@@ -2476,6 +2494,7 @@ def test_scrubs_ip_addresses(
     assert child_span == expected
 
     spans_consumer.assert_empty()
+
 
 def test_spans_v2_multiple_containers_not_allowed(
     mini_sentry,
