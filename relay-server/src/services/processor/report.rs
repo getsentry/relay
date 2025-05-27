@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::sync::Arc;
 
 use chrono::{Duration as SignedDuration, Utc};
 use relay_common::time::UnixTimestamp;
@@ -44,8 +43,8 @@ pub enum ClientReportField {
 /// system.
 pub fn process_client_reports(
     managed_envelope: &mut TypedEnvelope<ClientReportGroup>,
-    config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
+    config: &Config,
+    project_info: &ProjectInfo,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
     // if client outcomes are disabled we leave the client reports unprocessed

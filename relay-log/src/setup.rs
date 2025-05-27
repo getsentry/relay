@@ -268,6 +268,7 @@ fn get_default_filters() -> EnvFilter {
         sqlx=WARN,\
         tower_http=TRACE,\
         trust_dns_proto=WARN,\
+        minidump=ERROR,\
         ",
     );
 

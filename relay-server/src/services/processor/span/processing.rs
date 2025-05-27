@@ -814,9 +814,7 @@ mod tests {
 
     use bytes::Bytes;
     use once_cell::sync::Lazy;
-    use relay_event_schema::protocol::{
-        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext,
-    };
+    use relay_event_schema::protocol::{Context, ContextInner, EventId, Timestamp, TraceContext};
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
     use relay_system::Addr;
@@ -858,7 +856,7 @@ mod tests {
                 "trace".into(),
                 ContextInner(Context::Trace(Box::new(TraceContext {
                     trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
                     exclusive_time: 1000.0.into(),
                     ..Default::default()
                 })))
@@ -1016,7 +1014,7 @@ mod tests {
         .unwrap();
         set_segment_attributes(&mut span);
         assert_eq!(get_value!(span.is_segment!), &true);
-        assert_eq!(get_value!(span.segment_id!).0.as_str(), "fa90fdead5f74052");
+        assert_eq!(get_value!(span.segment_id!).to_string(), "fa90fdead5f74052");
     }
 
     #[test]
@@ -1045,7 +1043,7 @@ mod tests {
         .unwrap();
         set_segment_attributes(&mut span);
         assert_eq!(get_value!(span.is_segment!), &true);
-        assert_eq!(get_value!(span.segment_id!).0.as_str(), "fa90fdead5f74052");
+        assert_eq!(get_value!(span.segment_id!).to_string(), "fa90fdead5f74052");
     }
 
     #[test]
@@ -1059,7 +1057,7 @@ mod tests {
         .unwrap();
         set_segment_attributes(&mut span);
         assert_eq!(get_value!(span.is_segment!), &false);
-        assert_eq!(get_value!(span.segment_id!).0.as_str(), "ea90fdead5f74051");
+        assert_eq!(get_value!(span.segment_id!).to_string(), "ea90fdead5f74051");
     }
 
     #[test]

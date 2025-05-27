@@ -1065,9 +1065,9 @@ mod tests {
     #[test]
     fn test_untrimmable_fields_drop() {
         let original_description = "a".repeat(819164);
-        let original_span_id = SpanId("b".repeat(48));
+        let original_span_id: SpanId = "b".repeat(16).parse().unwrap();
         let original_trace_id: TraceId = "c".repeat(32).parse().unwrap();
-        let original_segment_id = SpanId("d".repeat(48));
+        let original_segment_id: SpanId = "d".repeat(16).parse().unwrap();
         let original_op = "e".repeat(129);
 
         let mut event = Annotated::new(Event {
@@ -1078,9 +1078,9 @@ mod tests {
                 }
                 .into(),
                 Span {
-                    span_id: original_span_id.clone().into(),
+                    span_id: original_span_id.into(),
                     trace_id: original_trace_id.into(),
-                    segment_id: original_segment_id.clone().into(),
+                    segment_id: original_segment_id.into(),
                     is_segment: false.into(),
                     op: original_op.clone().into(),
                     start_timestamp: Timestamp(
