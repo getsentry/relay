@@ -17,7 +17,7 @@ mod tests {
 
     #[test]
     fn test_serialize() {
-        let json = r#"{"verify_signature":true}"#;
+        let json = r#"{"verifySignature":true}"#;
         let result: TrustedRelayConfig = serde_json::from_str(json).unwrap();
         let serialized = serde_json::to_string(&result).unwrap();
         assert_eq!(json, serialized);
