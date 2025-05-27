@@ -46,7 +46,7 @@ pub struct SpanV2 {
     /// spans, e.g. a `server` and `client` span with the same name.
     ///
     /// See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
-    #[metastructure(required = true, skip_serialization = "empty", trim = false)]
+    #[metastructure(skip_serialization = "empty", trim = false)]
     pub kind: Annotated<SpanV2Kind>,
 
     /// Timestamp when the span started.
