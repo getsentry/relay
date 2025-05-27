@@ -670,7 +670,6 @@ def test_span_ingestion(
             "exclusive_time_ms": 500.0,
             "is_segment": True,
             "is_remote": False,
-            "kind": "unspecified",
             "links": [
                 {
                     "trace_id": "89143b0763095bd9c9955e8175d1fb24",
