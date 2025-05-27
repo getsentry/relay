@@ -1,5 +1,9 @@
 import json
 import os
+from time import sleep
+
+import pytest
+from requests import HTTPError
 
 
 def test_trusted_relay_chain(mini_sentry, relay, relay_credentials):
@@ -20,11 +24,12 @@ def test_trusted_relay_chain(mini_sentry, relay, relay_credentials):
     config["config"]["trustedRelaySettings"]["verifySignature"] = True
     config["config"]["trustedRelays"] = [credentials["public_key"]]
 
-    # managed_relay = relay(mini_sentry, static_relays=static_relays)
     managed_relay = relay(mini_sentry, static_relays=static_relays)
 
     relay = relay(managed_relay, credentials=credentials)
 
+    relay.send_event(project_id, {"message": "trusted event"})
+    sleep(1)
     relay.send_event(project_id, {"message": "trusted event"})
 
     envelope = mini_sentry.captured_events.get(timeout=1)
@@ -53,16 +58,26 @@ def test_internal_relays(mini_sentry, relay, relay_credentials):
     # managed_relay = relay(mini_sentry, static_relays=static_relays)
     managed_relay = relay(mini_sentry, static_relays=static_relays)
 
+    headers = {
+        "x-sentry-relay-signature": "this-is-a-cool-signature",
+        "x-sentry-relay-signature-version": "v1",
+        "x-sentry-relay-id": credentials["id"],
+        "x-sentry-signature-headers": "x-signature-datetime",
+        "x-sentry-relay-signature-date": "202505211045",
+    }
+
     managed_relay.send_event(
         project_id,
         {"message": "trusted event"},
-        headers={
-            "x-sentry-relay-signature": "this-is-a-cool-signature",
-            "x-signature-version": "v1",
-            "x-sentry-relay-id": credentials["id"],
-            "x-signature-headers": "x-signature-datetime",
-            "x-signature-datetime": "202505211045",
-        },
+        headers=headers,
+    )
+
+    sleep(1)
+
+    managed_relay.send_event(
+        project_id,
+        {"message": "trusted event"},
+        headers=headers,
     )
 
     envelope = mini_sentry.captured_events.get(timeout=1)
@@ -70,65 +85,119 @@ def test_internal_relays(mini_sentry, relay, relay_credentials):
     assert event["logentry"]["formatted"] == "trusted event"
 
 
-def test_invalid_signature(mini_sentry, relay, relay_credentials):
+def test_invalid_signature(
+    mini_sentry,
+    relay_with_processing,
+    relay_credentials,
+    events_consumer,
+    outcomes_consumer,
+):
     """
     Tests that a signature is rejected if the signature is invalid and the relay is not configured
     as an internal relay.
     """
     project_id = 42
     credentials = relay_credentials()
-    managed_relay = relay(mini_sentry, credentials=credentials)
+    relay = relay_with_processing(credentials=credentials)
+    outcomes_consumer = outcomes_consumer(timeout=1)
+    events_consumer = events_consumer(timeout=1)
 
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["trustedRelaySettings"]["verifySignature"] = True
     config["config"]["trustedRelays"] = [credentials["public_key"]]
 
-    managed_relay.send_event(
+    headers = {
+        "x-sentry-relay-signature": "this-is-a-cool-signature",
+        "x-sentry-relay-signature-version": "v1",
+        "x-sentry-relay-id": credentials["id"],
+        "x-sentry-signature-headers": "x-signature-datetime",
+        "x-sentry-relay-signature-date": "202505211045",
+    }
+
+    relay.send_event(
         project_id,
-        headers={
-            "x-sentry-relay-signature": "this-is-a-cool-signature",
-            "x-signature-version": "v1",
-            "x-sentry-relay-id": credentials["id"],
-            "x-signature-headers": "x-signature-datetime",
-            "x-signature-datetime": "202505211045",
-        },
+        {"message": "trusted event"},
+        headers=headers,
     )
 
-    assert mini_sentry.captured_events.empty()
+    # Wait a bit for the project config fetch
+    sleep(1)
+
+    with pytest.raises(HTTPError) as error:
+        relay.send_event(
+            project_id,
+            {"message": "trusted event"},
+            headers=headers,
+        )
+
+    assert error.value.response.status_code == 403
+
+    events_consumer.assert_empty()
+    outcomes = outcomes_consumer.get_outcomes(timeout=1)
+    for outcome in outcomes:
+        assert outcome["reason"] == "invalid_signature"
 
 
-def test_not_trusted_relay(mini_sentry, relay, relay_credentials):
+def test_not_trusted_relay(
+    mini_sentry,
+    relay_with_processing,
+    relay_credentials,
+    events_consumer,
+    outcomes_consumer,
+):
     """
     Tests that events are rejected if we directly send an event to relay
     without any signature.
     """
     project_id = 42
     credentials = relay_credentials()
-    managed_relay = relay(mini_sentry, credentials=credentials)
+    relay = relay_with_processing(credentials=credentials)
 
-    config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = True
+    events_consumer = events_consumer(timeout=1)
+    outcomes_consumer = outcomes_consumer(timeout=1)
 
-    managed_relay.send_event(project_id)
-
-    assert mini_sentry.captured_events.empty()
-
-
-def test_reject_without_signature(mini_sentry, relay):
-    """
-    Simple case where a client sends an event without a signature.
-    """
-    project_id = 42
-    relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["trustedRelaySettings"]["verifySignature"] = True
 
     relay.send_event(project_id)
+    sleep(1)
+    with pytest.raises(HTTPError) as error:
+        relay.send_event(project_id)
+    assert error.value.response.status_code == 403
 
-    assert mini_sentry.captured_events.empty()
+    events_consumer.assert_empty()
+    outcomes = outcomes_consumer.get_outcomes(timeout=1)
+    for outcome in outcomes:
+        assert outcome["reason"] == "invalid_signature"
 
 
-def test_static_relay(mini_sentry, relay):
+def test_reject_without_signature(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+):
+    """
+    Simple case where a client sends an event without a signature.
+    """
+    project_id = 42
+    relay = relay_with_processing()
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["trustedRelaySettings"]["verifySignature"] = True
+
+    outcomes_consumer = outcomes_consumer(timeout=1)
+    events_consumer = events_consumer(timeout=1)
+
+    relay.send_event(project_id)
+    sleep(1)
+    with pytest.raises(HTTPError) as error:
+        relay.send_event(project_id)
+    assert error.value.response.status_code == 403
+
+    events_consumer.assert_empty()
+    outcomes = outcomes_consumer.get_outcomes(timeout=1)
+    for outcome in outcomes:
+        assert outcome["reason"] == "invalid_signature"
+
+
+def test_static_relay(mini_sentry, relay, relay_with_processing, outcomes_consumer):
     """
     A static relay without credentials will automatically fail the signature check.
     """
@@ -136,14 +205,58 @@ def test_static_relay(mini_sentry, relay):
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["trustedRelaySettings"]["verifySignature"] = True
 
+    processing_relay = relay_with_processing()
+
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
         dir.join("projects").join(f"{project_id}.json").write(json.dumps(config))
 
     relay_options = {"relay": {"mode": "static"}}
-    relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
+    relay = relay(
+        processing_relay, options=relay_options, prepare=configure_static_project
+    )
+
+    # Fetches project config
+    relay.send_event(project_id)
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_event(project_id)
+
+    # rejected with 403 because project config was fetched
+    assert excinfo.value.response.status_code == 403
+
+
+def test_drop_envelope(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+):
+    """
+    Tests that an envelope is buffered because there is no project config and drops it once it fetches the config
+    """
+    outcomes_consumer = outcomes_consumer(timeout=1)
+    events_consumer = events_consumer(timeout=1)
+
+    project_id = 42
+    relay = relay_with_processing()
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["trustedRelaySettings"]["verifySignature"] = True
 
     relay.send_event(project_id)
 
-    assert mini_sentry.captured_events.empty()
+    # at this point we have no project config so it's buffered
+    outcomes_consumer.assert_empty()
+
+    # after sending another event there is a projectconfig so it will get
+    # rejected in the fast path
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_event(project_id)
+
+    assert excinfo.value.response.status_code == 403
+
+    # both events are rejected
+    outcomes = outcomes_consumer.get_outcomes(timeout=1)
+    assert len(outcomes) == 2
+    for outcome in outcomes:
+        assert outcome["reason"] == "invalid_signature"
+
+    # make sure that no event got through
+    events_consumer.assert_empty()
