@@ -62,17 +62,17 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
     let data = span.data.get_or_insert_with(SpanData::default);
 
     if let Some(ai_total_tokens_used) = measurements.get_value("ai_total_tokens_used") {
-        data.ai_total_tokens_used
+        data.gen_ai_usage_total_tokens
             .set_value(Value::F64(ai_total_tokens_used).into());
     }
 
     if let Some(ai_prompt_tokens_used) = measurements.get_value("ai_prompt_tokens_used") {
-        data.ai_prompt_tokens_used
+        data.gen_ai_usage_input_tokens
             .set_value(Value::F64(ai_prompt_tokens_used).into());
     }
 
     if let Some(ai_completion_tokens_used) = measurements.get_value("ai_completion_tokens_used") {
-        data.ai_completion_tokens_used
+        data.gen_ai_usage_output_tokens
             .set_value(Value::F64(ai_completion_tokens_used).into());
     }
 }
@@ -91,10 +91,16 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
         return;
     };
 
-    let total_tokens_used = data.ai_total_tokens_used.value().and_then(value_to_f64);
-    let prompt_tokens_used = data.ai_prompt_tokens_used.value().and_then(value_to_f64);
+    let total_tokens_used = data
+        .gen_ai_usage_total_tokens
+        .value()
+        .and_then(value_to_f64);
+    let prompt_tokens_used = data
+        .gen_ai_usage_input_tokens
+        .value()
+        .and_then(value_to_f64);
     let completion_tokens_used = data
-        .ai_completion_tokens_used
+        .gen_ai_usage_output_tokens
         .value()
         .and_then(value_to_f64);
 

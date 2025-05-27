@@ -456,27 +456,26 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
-    // TODO:(tobias) Rename these, will break some snapshots but should make the code much nicer
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
         legacy_alias = "ai.total_tokens.used"
     )]
-    pub ai_total_tokens_used: Annotated<Value>,
+    pub gen_ai_usage_total_tokens: Annotated<Value>,
 
     /// The input tokens used by an LLM call (usually cheaper than output tokens)
     #[metastructure(
         field = "gen_ai.usage.input_tokens",
         legacy_alias = "ai.prompt_tokens.used"
     )]
-    pub ai_prompt_tokens_used: Annotated<Value>,
+    pub gen_ai_usage_input_tokens: Annotated<Value>,
 
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
     #[metastructure(
         field = "gen_ai.usage.output_tokens",
         legacy_alias = "ai.completion_tokens.used"
     )]
-    pub ai_completion_tokens_used: Annotated<Value>,
+    pub gen_ai_usage_output_tokens: Annotated<Value>,
 
     /// The total cost for the tokens used
     #[metastructure(field = "gen_ai.usage.total_cost", field = "ai.total_cost")]
@@ -811,7 +810,7 @@ impl Getter for SpanData {
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
-            "gen_ai\\.usage\\.total_tokens" => self.ai_total_tokens_used.value()?.into(),
+            "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
