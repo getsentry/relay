@@ -104,6 +104,14 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
         .value()
         .and_then(value_to_f64);
 
+    // It might be that 'total_tokens' is not set in which case we need to calculate it
+    if total_tokens_used.is_none() {
+        data.gen_ai_usage_total_tokens.set_value(
+            Value::F64(prompt_tokens_used.unwrap_or(0.0) + completion_tokens_used.unwrap_or(0.0))
+                .into(),
+        );
+    }
+
     if let Some(model_id) = data.ai_model_id.value().and_then(|val| val.as_str()) {
         if let Some(total_cost) = calculate_ai_model_cost(
             model_id,

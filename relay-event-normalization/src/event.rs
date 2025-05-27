@@ -2371,6 +2371,14 @@ mod tests {
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(20.0 * 2.0 + 2.0))
         );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_tokens.value()),
+            Some(&Value::F64(3000.0))
+        );
     }
 
     #[test]
