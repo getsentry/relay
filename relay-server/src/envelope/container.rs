@@ -1,18 +1,20 @@
+#![cfg_attr(
+    not(any(test, feature = "processing")),
+    expect(
+        dead_code,
+        reason = "A number of functions and data in this module are only used in processing or tests."
+    )
+)]
+
 use std::marker::PhantomData;
 
-use relay_protocol::{Annotated, DeserializableAnnotated, FromValue, IntoValue};
-use serde::{Deserialize, de};
-use smallvec::SmallVec;
-
-#[cfg(feature = "processing")]
-use {
-    bytes::BufMut,
-    relay_protocol::SerializableAnnotated,
-    serde::{
-        Serialize,
-        ser::{self, SerializeSeq},
-    },
+use bytes::BufMut;
+use relay_protocol::{
+    Annotated, DeserializableAnnotated, FromValue, IntoValue, SerializableAnnotated,
 };
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Serialize, de, ser};
+use smallvec::SmallVec;
 
 use crate::envelope::{ContentType, Item};
 
@@ -41,7 +43,6 @@ pub enum ContainerParseError {
 #[derive(thiserror::Error, Debug)]
 pub enum ContainerWriteError {
     /// The item container is too large to serialize.
-    #[cfg(feature = "processing")]
     #[error("failed to serialize item container, item count overflow")]
     Overflow,
     /// The contained items cannot be serialized.
@@ -116,7 +117,6 @@ impl<T: ContainerItem> ItemContainer<T> {
     ///
     /// This will serialize the contained items into the [`Item::payload`] as well as
     /// update the [Item::content_type] and [`Item::item_count`].
-    #[cfg(feature = "processing")]
     pub fn write_to(&self, item: &mut Item) -> Result<(), ContainerWriteError> {
         let mut payload = bytes::BytesMut::with_capacity(256).writer();
         let mut ser = serde_json::Serializer::new(&mut payload);
@@ -146,7 +146,6 @@ impl<T: ContainerItem> ItemContainer<T> {
         Ok(Self { items })
     }
 
-    #[cfg(feature = "processing")]
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         #[derive(Serialize)]
         struct Layout<'a, T> {
@@ -221,10 +220,8 @@ where
     }
 }
 
-#[cfg(feature = "processing")]
 struct AnnotatedItemsRef<'a, T>(&'a ContainerItems<T>);
 
-#[cfg(feature = "processing")]
 impl<T> Serialize for AnnotatedItemsRef<'_, T>
 where
     T: IntoValue,
@@ -247,7 +244,6 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_protocol::Empty;
 
-    #[cfg(feature = "processing")]
     use crate::envelope::ItemType;
 
     use super::*;
@@ -261,7 +257,6 @@ mod tests {
         const CONTENT_TYPE: ContentType = ContentType::LogContainer;
     }
 
-    #[cfg(feature = "processing")]
     fn logs<'a>(logs: impl IntoIterator<Item = (&'a str, &'a str)>) -> ItemContainer<TestLog> {
         let items: ContainerItems<_> = logs
             .into_iter()
@@ -275,7 +270,6 @@ mod tests {
         ItemContainer::from(items)
     }
 
-    #[cfg(feature = "processing")]
     #[test]
     fn test_container_serialize() {
         let container = logs([("info", "foobar"), ("error", "ohno")]);
@@ -408,7 +402,6 @@ mod tests {
         "###);
     }
 
-    #[cfg(feature = "processing")]
     #[test]
     fn test_container_roundtrip() {
         let (item, _) = Item::parse(Bytes::from_static(
