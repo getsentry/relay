@@ -1336,7 +1336,6 @@ def test_span_ingestion(
     assert len(span_metrics) == len(expected_span_metrics)
     for actual, expected in zip(span_metrics, expected_span_metrics):
         assert actual == expected
-    # assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
 
     # Regardless of whether transactions are extracted, score.total is only converted to a transaction metric once:
     score_total_metrics = [
