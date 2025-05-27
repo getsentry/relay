@@ -7,7 +7,7 @@ use relay_event_schema::protocol::{
     EventId, Span as SpanV1, SpanData, SpanId, SpanLink, SpanStatus, SpanV2, SpanV2Kind,
     SpanV2Status,
 };
-use relay_protocol::{Annotated, ErrorKind, FromValue, Object, Value};
+use relay_protocol::{Annotated, FromValue, Object, Value};
 
 /// Transforms a Sentry span V2 to a Sentry span V1.
 ///
@@ -120,7 +120,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         timestamp: end_timestamp,
         trace_id,
         platform,
-        kind: kind.and_then(span_v2_kind_to_span_v1_kind),
+        kind: kind.map_value(span_v2_kind_to_span_v1_kind),
         links,
         ..Default::default()
     }
@@ -150,16 +150,13 @@ fn span_v2_status_to_span_v1_status(
         .or_else(|| Annotated::new(SpanStatus::Unknown))
 }
 
-fn span_v2_kind_to_span_v1_kind(kind: SpanV2Kind) -> Annotated<SpanKind> {
+fn span_v2_kind_to_span_v1_kind(kind: SpanV2Kind) -> SpanKind {
     match kind {
-        SpanV2Kind::Internal => Annotated::new(SpanKind::Internal),
-        SpanV2Kind::Server => Annotated::new(SpanKind::Server),
-        SpanV2Kind::Client => Annotated::new(SpanKind::Client),
-        SpanV2Kind::Producer => Annotated::new(SpanKind::Producer),
-        SpanV2Kind::Consumer => Annotated::new(SpanKind::Consumer),
-        SpanV2Kind::Other(s) => {
-            Annotated::from_error(ErrorKind::InvalidData, Some(Value::String(s)))
-        }
+        SpanV2Kind::Internal => SpanKind::Internal,
+        SpanV2Kind::Server => SpanKind::Server,
+        SpanV2Kind::Client => SpanKind::Client,
+        SpanV2Kind::Producer => SpanKind::Producer,
+        SpanV2Kind::Consumer => SpanKind::Consumer,
     }
 }
 
