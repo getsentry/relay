@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::{CountFor, Envelope, Item};
+use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
@@ -252,9 +252,7 @@ impl ManagedEnvelope {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                outcomes.extend(
-                    std::iter::repeat(outcome).zip(Self::outcome_categories_quantities(item)),
-                );
+                outcomes.extend(std::iter::repeat(outcome).zip(item.categories_for_outcomes()));
                 false
             }
         });
@@ -262,21 +260,6 @@ impl ManagedEnvelope {
             self.track_outcome(outcome, category, quantity);
         }
         // TODO: once `update` is private, it should be called here.
-    }
-
-    // TODO: naming, docs
-    pub fn outcome_categories_quantities(
-        item: &Item,
-    ) -> impl Iterator<Item = (DataCategory, usize)> {
-        item.quantities(CountFor::Outcomes)
-            .into_iter()
-            .flat_map(move |(category, quantity)| {
-                category
-                    .index_category()
-                    .into_iter()
-                    .map(move |indexed| (indexed, quantity))
-                    .chain(std::iter::once((category, quantity)))
-            })
     }
 
     /// Drops every item in the envelope.
@@ -319,6 +302,13 @@ impl ManagedEnvelope {
             // machines, but the protocol and data store can only do 32-bit.
             quantity: quantity as u32,
         });
+    }
+
+    // TODO: naming, docs
+    pub fn track_outcome_for_item(&self, item: &Item, outcome: Outcome) {
+        for (category, quantity) in item.categories_for_outcomes() {
+            self.track_outcome(outcome.clone(), category, quantity);
+        }
     }
 
     /// Accepts the envelope and drops the context.

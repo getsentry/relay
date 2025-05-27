@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
+use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
@@ -39,7 +39,6 @@ use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
 use relay_spans::otel_trace::Span as OtelSpan;
-use smallvec::SmallVec;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -58,23 +57,8 @@ pub async fn process(
     sampling_project_info: Option<Arc<ProjectInfo>>,
     geo_lookup: Option<&GeoIpLookup>,
     reservoir_counters: &ReservoirEvaluator<'_>,
-) -> Result<(), ProcessingError> {
+) {
     use relay_event_normalization::RemoveOtherProcessor;
-    let span_v2_items = managed_envelope
-        .envelope_mut()
-        .take_items_by(is_span_v2_item);
-
-    // V2 spans must always be sent as an `ItemContainer`, currently it is not allowed to
-    // send multiple containers for V2 spans.
-    //
-    // This restriction may be lifted in the future, this is why this validation only happens
-    // when processing is enabled, allowing it to be changed easily in the future.
-    //
-    // This limit mostly exists to incentivise SDKs to batch multiple spans into a single container,
-    // technically it can be removed without issues.
-    if span_v2_items.len() > 1 {
-        return Err(ProcessingError::DuplicateItem(ItemType::Span));
-    }
 
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
@@ -108,19 +92,6 @@ pub async fn process(
     let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
-
-    // Convert V2 spans to V1 spans
-    let (span_items, outcomes) = convert_v2_spans(span_v2_items);
-
-    for span in span_items {
-        managed_envelope.envelope_mut().add_item(span);
-    }
-
-    for (outcome, category, quantity) in outcomes {
-        managed_envelope.track_outcome(outcome, category, quantity);
-    }
-
-    managed_envelope.update();
 
     let mut span_count = 0;
     managed_envelope.retain_items(|item| {
@@ -284,61 +255,6 @@ pub async fn process(
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
         managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
-
-    Ok(())
-}
-
-/// Converts V2 spans to V1 spans.
-///
-/// This expands one item (contanining multiple V2 spans) into several
-/// (containing one V1 span each).
-///
-/// The returned `Vec`s contain successfully converted spans and outcomes to be
-/// emitted for unsuccessful conversions, respectively.
-fn convert_v2_spans(
-    span_v2_items: SmallVec<[Item; 3]>,
-) -> (Vec<Item>, Vec<(Outcome, DataCategory, usize)>) {
-    let mut spans = Vec::new();
-    let mut outcomes = Vec::new();
-    for span_v2_item in span_v2_items {
-        let spans_v2 = match ItemContainer::parse(&span_v2_item) {
-            Ok(spans_v2) => spans_v2,
-            Err(err) => {
-                relay_log::debug!("failed to parse V2 spans: {err}");
-                let outcome = Outcome::Invalid(DiscardReason::InvalidSpan);
-                outcomes.extend(
-                    ManagedEnvelope::outcome_categories_quantities(&span_v2_item)
-                        .map(|(category, quantity)| (outcome.clone(), category, quantity)),
-                );
-                continue;
-            }
-        };
-
-        for span_v2 in spans_v2.into_items() {
-            let span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
-            let mut new_item = Item::new(ItemType::Span);
-            match span_v1.to_json() {
-                Ok(payload) => {
-                    new_item.set_payload(ContentType::Json, payload);
-                    new_item.set_metrics_extracted(new_item.metrics_extracted());
-                    spans.push(new_item);
-                }
-                Err(err) => {
-                    relay_log::debug!("failed to serialize span: {}", err);
-                    let outcome = Outcome::Invalid(DiscardReason::Internal);
-                    outcomes.extend(
-                        ManagedEnvelope::outcome_categories_quantities(&span_v2_item)
-                            .map(|(category, quantity)| (outcome.clone(), category, quantity)),
-                    );
-                }
-            }
-        }
-    }
-    (spans, outcomes)
-}
-
-fn is_span_v2_item(item: &Item) -> bool {
-    item.ty() == &ItemType::Span && item.content_type() == Some(&ContentType::SpanV2Container)
 }
 
 fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
@@ -895,11 +811,10 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
-    use insta::assert_json_snapshot;
     use once_cell::sync::Lazy;
     use relay_event_schema::protocol::{Context, ContextInner, EventId, Timestamp, TraceContext};
     use relay_event_schema::protocol::{Contexts, Event, Span};
-    use relay_protocol::{SerializableAnnotated, get_value};
+    use relay_protocol::get_value;
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
@@ -1511,62 +1426,5 @@ mod tests {
             get_value!(span.profile_id!),
             &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
         );
-    }
-
-    #[test]
-    fn successfully_convert_v2_spans() {
-        let (item, _) = Item::parse(Bytes::from_static(
-            br#"{"type":"span","content_type":"application/vnd.sentry.items.span.v2+json","item_count":2}
-            {"items":[{"trace_id":"6cf173d587eb48568a9b2e12dcfbea52","span_id":"438f40bd3b4a41ee","name":"GET http://app.test/","status":"ok","is_remote":true,"kind":"server","start_timestamp":1742921669.25,"end_timestamp":1742921669.75},{"trace_id":"3c79f60c11214eb38604f4ae0781bfb2","status":"unknown","data":{},"links":[{"trace_id":"89143b0763095bd9c9955e8175d1fb23","parent_span_id":"0c7a7dea069bf5a6","span_id":"e342abb1214ca181","kind":"client","start_timestamp":123,"end_timestamp":123.5,"links":[],"attributes":{}}]}]}
-        "#,
-        ))
-        .unwrap();
-
-        assert!(is_span_v2_item(&item));
-
-        let (converted_spans, outcomes) = super::convert_v2_spans(smallvec::smallvec![item]);
-
-        assert!(outcomes.is_empty());
-        assert_eq!(converted_spans.len(), 2);
-
-        let annotated_span =
-            Annotated::<Span>::from_json_bytes(&converted_spans[0].payload()).unwrap();
-        assert_json_snapshot!(&SerializableAnnotated(&annotated_span), @r###"
-        {
-          "timestamp": 1742921669.75,
-          "start_timestamp": 1742921669.25,
-          "exclusive_time": 500.0,
-          "op": "GET http://app.test/",
-          "span_id": "438f40bd3b4a41ee",
-          "trace_id": "6cf173d587eb48568a9b2e12dcfbea52",
-          "is_remote": true,
-          "status": "ok",
-          "data": {},
-          "kind": "server"
-        }
-        "###);
-
-        let annotated_span =
-            Annotated::<Span>::from_json_bytes(&converted_spans[1].payload()).unwrap();
-        assert_json_snapshot!(&SerializableAnnotated(&annotated_span), @r###"
-        {
-          "exclusive_time": 0.0,
-          "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
-          "status": "unknown",
-          "data": {},
-          "links": [
-            {
-              "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-              "span_id": "e342abb1214ca181",
-              "attributes": {},
-              "end_timestamp": 123.5,
-              "kind": "client",
-              "links": [],
-              "parent_span_id": "0c7a7dea069bf5a6",
-              "start_timestamp": 123
-            }
-          ]
-        }
-        "###);
     }
 }

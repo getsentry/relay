@@ -12,7 +12,7 @@ use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
 use crate::utils::ItemAction;
@@ -24,6 +24,8 @@ use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 pub use processing::*;
 use relay_config::Config;
+
+use super::ProcessingError;
 
 pub fn filter(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
@@ -44,6 +46,68 @@ pub fn filter(
             ItemAction::Keep
         }
     });
+}
+
+/// Expands V2 spans to V1 spans.
+///
+/// This expands one item (contanining multiple V2 spans) into several
+/// (containing one V1 span each).
+pub fn expand_v2_spans(
+    managed_envelope: &mut TypedEnvelope<SpanGroup>,
+) -> Result<(), ProcessingError> {
+    let span_v2_items = managed_envelope
+        .envelope_mut()
+        .take_items_by(is_span_v2_item);
+
+    // V2 spans must always be sent as an `ItemContainer`, currently it is not allowed to
+    // send multiple containers for V2 spans.
+    //
+    // This restriction may be lifted in the future, this is why this validation only happens
+    // when processing is enabled, allowing it to be changed easily in the future.
+    //
+    // This limit mostly exists to incentivise SDKs to batch multiple spans into a single container,
+    // technically it can be removed without issues.
+    if span_v2_items.len() > 1 {
+        return Err(ProcessingError::DuplicateItem(ItemType::Span));
+    }
+    for span_v2_item in span_v2_items {
+        let spans_v2 = match ItemContainer::parse(&span_v2_item) {
+            Ok(spans_v2) => spans_v2,
+            Err(err) => {
+                relay_log::debug!("failed to parse V2 spans: {err}");
+                managed_envelope.track_outcome_for_item(
+                    &span_v2_item,
+                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                );
+                continue;
+            }
+        };
+
+        for span_v2 in spans_v2.into_items() {
+            let span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
+            let mut new_item = Item::new(ItemType::Span);
+            match span_v1.to_json() {
+                Ok(payload) => {
+                    new_item.set_payload(ContentType::Json, payload);
+                    new_item.set_metrics_extracted(new_item.metrics_extracted());
+                    managed_envelope.envelope_mut().add_item(new_item);
+                }
+                Err(err) => {
+                    relay_log::debug!("failed to serialize span: {}", err);
+                    managed_envelope.track_outcome_for_item(
+                        &span_v2_item,
+                        Outcome::Invalid(DiscardReason::Internal),
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn is_span_v2_item(item: &Item) -> bool {
+    item.ty() == &ItemType::Span && item.content_type() == Some(&ContentType::SpanV2Container)
 }
 
 pub fn convert_otel_traces_data(managed_envelope: &mut TypedEnvelope<SpanGroup>) {

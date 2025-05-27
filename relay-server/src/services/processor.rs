@@ -2167,6 +2167,8 @@ impl EnvelopeProcessorService {
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
+        span::expand_v2_spans(managed_envelope)?;
+
         span::filter(managed_envelope, config.clone(), project_info.clone());
         span::convert_otel_traces_data(managed_envelope);
 
@@ -2189,7 +2191,7 @@ impl EnvelopeProcessorService {
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
             )
-            .await?;
+            .await;
         });
 
         self.enforce_quotas(
