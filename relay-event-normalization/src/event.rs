@@ -27,7 +27,7 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::normalize::request;
-use crate::span::ai::normalize_ai_measurements;
+use crate::span::ai::enrich_ai_span_data;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
@@ -322,7 +322,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             .get_or_default::<PerformanceScoreContext>()
             .score_profile_version = Annotated::new(version);
     }
-    normalize_ai_measurements(event, config.ai_model_costs);
+    enrich_ai_span_data(event, config.ai_model_costs);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);

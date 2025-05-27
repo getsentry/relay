@@ -77,7 +77,8 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
     }
 }
 
-/// Extract the gen_ai_usage_total_cost data into the span.
+/// Extract the gen_ai_usage_total_cost data into the span and calculate the
+/// gen_ai_usage_total_tokens if need be.
 pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
     let Some(span_op) = span.op.value() else {
         return;
@@ -126,8 +127,8 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
     }
 }
 
-/// Extract the ai_total_cost measurements from all of an event's spans
-pub fn normalize_ai_measurements(event: &mut Event, model_costs: Option<&ModelCosts>) {
+/// Extract the ai data from all of an event's spans
+pub fn enrich_ai_span_data(event: &mut Event, model_costs: Option<&ModelCosts>) {
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(mut_span) = span.value_mut() {
