@@ -4,7 +4,6 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
@@ -936,20 +935,17 @@ impl FromValue for Route {
 }
 
 #[derive(Clone, Debug, PartialEq, ProcessValue)]
-#[repr(i32)]
 pub enum SpanKind {
-    Unspecified = OtelSpanKind::Unspecified as i32,
-    Internal = OtelSpanKind::Internal as i32,
-    Server = OtelSpanKind::Server as i32,
-    Client = OtelSpanKind::Client as i32,
-    Producer = OtelSpanKind::Producer as i32,
-    Consumer = OtelSpanKind::Consumer as i32,
+    Internal,
+    Server,
+    Client,
+    Producer,
+    Consumer,
 }
 
 impl SpanKind {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unspecified => "unspecified",
             Self::Internal => "internal",
             Self::Server => "server",
             Self::Client => "client",
@@ -973,7 +969,6 @@ impl std::str::FromStr for SpanKind {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "unspecified" => SpanKind::Unspecified,
             "internal" => SpanKind::Internal,
             "server" => SpanKind::Server,
             "client" => SpanKind::Client,
@@ -987,19 +982,6 @@ impl std::str::FromStr for SpanKind {
 impl Default for SpanKind {
     fn default() -> Self {
         Self::Internal
-    }
-}
-
-impl From<OtelSpanKind> for SpanKind {
-    fn from(otel_kind: OtelSpanKind) -> Self {
-        match otel_kind {
-            OtelSpanKind::Unspecified => Self::Unspecified,
-            OtelSpanKind::Internal => Self::Internal,
-            OtelSpanKind::Server => Self::Server,
-            OtelSpanKind::Client => Self::Client,
-            OtelSpanKind::Producer => Self::Producer,
-            OtelSpanKind::Consumer => Self::Consumer,
-        }
     }
 }
 

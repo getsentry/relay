@@ -502,8 +502,7 @@ mod tests {
             "sentry.op": "myop"
           },
           "links": [],
-          "platform": "php",
-          "kind": "unspecified"
+          "platform": "php"
         }
         "###);
     }
@@ -532,8 +531,7 @@ mod tests {
           "is_remote": true,
           "status": "unknown",
           "data": {},
-          "links": [],
-          "kind": "unspecified"
+          "links": []
         }
         "###);
     }
@@ -562,8 +560,7 @@ mod tests {
           "is_remote": false,
           "status": "unknown",
           "data": {},
-          "links": [],
-          "kind": "unspecified"
+          "links": []
         }
         "###);
     }
@@ -661,8 +658,7 @@ mod tests {
                 "str_key": "str_value"
               }
             }
-          ],
-          "kind": "unspecified"
+          ]
         }
         "###);
     }
