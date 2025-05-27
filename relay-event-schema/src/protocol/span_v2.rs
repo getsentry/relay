@@ -393,7 +393,7 @@ mod tests {
 
         let links = vec![Annotated::new(SpanV2Link {
             trace_id: Annotated::new("627a2885119dcc8184fae7eef09438cb".parse().unwrap()),
-            span_id: Annotated::new(SpanId("6c71fc6b09b8b716".into())),
+            span_id: Annotated::new("6c71fc6b09b8b716".parse().unwrap()),
             sampled: Annotated::new(true),
             attributes: Annotated::new(attrs!(
                 "sentry.link.type" => "previous_trace", String
@@ -407,7 +407,7 @@ mod tests {
             end_timestamp: Annotated::new(Utc.timestamp_opt(1742921669, 750000000).unwrap().into()),
             name: Annotated::new("GET http://app.test/".to_owned()),
             trace_id: Annotated::new("6cf173d587eb48568a9b2e12dcfbea52".parse().unwrap()),
-            span_id: Annotated::new(SpanId("438f40bd3b4a41ee".into())),
+            span_id: Annotated::new("438f40bd3b4a41ee".parse().unwrap()),
             parent_span_id: Annotated::empty(),
             status: Annotated::new(SpanV2Status::Ok),
             kind: Annotated::new(SpanV2Kind::Server),

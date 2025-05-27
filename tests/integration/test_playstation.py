@@ -139,6 +139,10 @@ def test_playstation_with_feature_flag(
     assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
     assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
 
+    assert len(event["attachments"]) == 3
+    attachment = event["attachments"][0]
+    assert attachment["attachment_type"] == "playstation.prosperodump"
+
 
 def test_playstation_attachment(
     mini_sentry,
@@ -218,6 +222,10 @@ def test_playstation_attachment(
     assert "_metrics" in event_data
     assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
     assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
+
+    assert len(event["attachments"]) == 3
+    attachment = event["attachments"][0]
+    assert attachment["attachment_type"] == "playstation.prosperodump"
 
 
 def test_playstation_attachment_no_feature_flag(

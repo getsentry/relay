@@ -226,13 +226,10 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         let (test_store, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
-        let managed_envelope = ManagedEnvelope::new(
-            envelope,
-            outcome_aggregator,
-            test_store,
-            ProcessingGroup::Span,
-        );
-        let mut typed_envelope: TypedEnvelope<_> = managed_envelope.try_into().unwrap();
+        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let mut typed_envelope: TypedEnvelope<_> = (managed_envelope, ProcessingGroup::Span)
+            .try_into()
+            .unwrap();
         let mut item = Item::new(ItemType::OtelTracesData);
         item.set_payload(ContentType::Json, traces_data);
         typed_envelope.envelope_mut().add_item(item.clone());

@@ -35,8 +35,8 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> Result<OurLog, Error> {
         time_unix_nano,
         ..
     } = otel_log;
-    let span_id = SpanId(hex::encode(span_id));
-    let trace_id: TraceId = hex::encode(trace_id).parse()?;
+    let span_id = SpanId::try_from(span_id.as_slice())?;
+    let trace_id = TraceId::try_from(trace_id.as_slice())?;
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
     let body = body
         .and_then(|v| v.value)
@@ -479,15 +479,13 @@ mod tests {
         let mut merged_log = Annotated::<OurLog>::from_json(json).unwrap();
         ourlog_merge_otel(&mut merged_log);
 
-        insta::assert_debug_snapshot!(merged_log, @r#"
+        insta::assert_debug_snapshot!(merged_log, @r###"
         OurLog {
             timestamp: Timestamp(
                 2000-01-01T00:00:00Z,
             ),
             trace_id: TraceId("5b8efff798038103d269b633813fc60c"),
-            span_id: SpanId(
-                "eee19b7ec3c1b174",
-            ),
+            span_id: SpanId("eee19b7ec3c1b174"),
             level: Info,
             body: "Example log record",
             attributes: {
@@ -557,7 +555,7 @@ mod tests {
             },
             other: {},
         }
-        "#);
+        "###);
     }
 
     #[test]
