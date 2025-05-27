@@ -464,6 +464,74 @@ def envelope_with_spans(
         )
     )
 
+    envelope.add_item(
+        Item(
+            type="span",
+            headers={"metrics_extracted": metrics_extracted, "item_count": 2},
+            content_type="application/vnd.sentry.items.span.v2+json",
+            payload=PayloadRef(
+                json ={"items": [
+                    {
+                        "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+                        "span_id": "a342abb1214ca182",
+                        "name": "my 1st V2 span",
+                        "kind": "unspecified",
+                        "start_timestamp": start.timestamp(),
+                        "end_timestamp": end.timestamp(),
+                        "attributes": {
+                            "sentry.category": {
+                                "type": "string",
+                                "value": "db",
+                            },
+                            "sentry.exclusive_time_nano": {
+                                "type": "integer",
+                                "value": int((end - start).total_seconds() * 1e9),
+                            },
+                        },
+                        "links": [
+                            {
+                                "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+                                "span_id": "e342abb1214ca183",
+                                "sampled": False,
+                                "attributes": {
+                                    "link_double_key": {
+                                        "type": "double",
+                                        "value": 1.23,
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                    {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "b0429c44b67a3eb2",
+                        "name": "resource.script",
+                        "status": "ok",
+                        "start_timestamp": start.timestamp(),
+                        "end_timestamp": end.timestamp() + 1,
+                        "links": [
+                            {
+                                "trace_id": "99143b0763095bd9c9955e8175d1fb25",
+                                "span_id": "e342abb1214ca183",
+                                "sampled": True,
+                                "attributes": {
+                                    "link_bool_key": {"type": "boolean", "value": True},
+                                },
+                            },
+                        ],
+                        "attributes": {
+                            "browser.name": {"type": "string", "value": "Chrome"},
+                            "sentry.description": {"type": "string", "value": "https://example.com/p/blah.js"},
+                            "sentry.exclusive_time_nano":  {"type": "integer", "value": 345 * 1e6 },
+                            # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
+                            "sentry.segment_id": {"type": "string", "value": "b0429c44b67a3eb2"}
+                        },
+                    }
+                ]}
+            ),
+        )
+    )
+
     return envelope
 
 
@@ -648,7 +716,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = spans_consumer.get_spans(timeout=10.0, n=6)
+    spans = spans_consumer.get_spans(timeout=10.0, n=8)
 
     for span in spans:
         span.pop("received", None)
@@ -698,6 +766,44 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
+                "sentry.category": "db",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36",
+            },
+            "duration_ms": 500,
+            "exclusive_time_ms": 500.0,
+            "is_segment": True,
+            "is_remote": False,
+            "kind": "unspecified",
+            "links": [
+                {
+                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+                    "span_id": "e342abb1214ca183",
+                    "sampled": False,
+                    "attributes": {"link_double_key": 1.23},
+                }
+            ],
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "a342abb1214ca182",
+            "sentry_tags": {
+                "browser.name": "Chrome",
+                "category": "db",
+                "op": "my 1st v2 span",
+                "status": "unknown",
+            },
+            "span_id": "a342abb1214ca182",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+        },
+        {
+            "data": {
+                "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -732,6 +838,49 @@ def test_span_ingestion(
                 "op": "resource.script",
             },
             "span_id": "b0429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+        {
+            "data": {
+                "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36",
+            },
+            "description": "https://example.com/p/blah.js",
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
+            "is_remote": False,
+            "links": [
+                {
+                    "trace_id": "99143b0763095bd9c9955e8175d1fb25",
+                    "span_id": "e342abb1214ca183",
+                    "sampled": True,
+                    "attributes": {
+                        "link_bool_key": True,
+                    },
+                },
+            ],
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "b0429c44b67a3eb2",
+            "sentry_tags": {
+                "browser.name": "Chrome",
+                "category": "resource",
+                "description": "https://example.com/*/blah.js",
+                "domain": "example.com",
+                "file_extension": "js",
+                "group": "8a97a9e43588e2bd",
+                "op": "resource.script",
+                "status": "ok",
+            },
+            "span_id": "b0429c44b67a3eb2",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "start_timestamp_precise": start.timestamp(),
             "end_timestamp_precise": end.timestamp() + 1,
@@ -866,6 +1015,7 @@ def test_span_ingestion(
     spans_consumer.assert_empty()
 
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+    metrics_consumer.assert_empty()
     metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
         try:
@@ -885,7 +1035,7 @@ def test_span_ingestion(
             "tags": {"decision": "keep", "target_project_id": "42"},
             "timestamp": expected_timestamp,
             "type": "c",
-            "value": 3.0,
+            "value": 4.0,
         },
         {
             "name": "c:spans/count_per_root_project@none",
@@ -906,7 +1056,7 @@ def test_span_ingestion(
             "tags": {},
             "timestamp": expected_timestamp,
             "type": "c",
-            "value": 3.0,
+            "value": 4.0,
             "received_at": time_after(now_timestamp),
         },
         {
@@ -946,6 +1096,20 @@ def test_span_ingestion(
             "tags": {
                 "span.category": "db",
                 "span.op": "my 1st otel span",
+            },
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "d:spans/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {
+                "span.category": "db",
+                "span.op": "my 1st v2 span",
             },
             "timestamp": expected_timestamp,
             "type": "d",
@@ -1019,6 +1183,17 @@ def test_span_ingestion(
             "value": [500.0],
         },
         {
+            "name": "d:spans/duration_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "my 1st v2 span"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+        {
             "org_id": 1,
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
@@ -1042,6 +1217,17 @@ def test_span_ingestion(
             "name": "d:spans/exclusive_time@millisecond",
             "retention_days": 90,
             "tags": {"span.category": "db", "span.op": "my 1st otel span"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time@millisecond",
+            "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "my 1st v2 span"},
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
@@ -1104,6 +1290,17 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "tags": {"span.category": "db", "span.op": "my 1st otel span"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "my 1st v2 span"},
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
