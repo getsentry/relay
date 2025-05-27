@@ -478,7 +478,7 @@ pub struct SpanData {
     pub gen_ai_usage_output_tokens: Annotated<Value>,
 
     /// The total cost for the tokens used
-    #[metastructure(field = "gen_ai.usage.total_cost", field = "ai.total_cost")]
+    #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
 
     /// The client's browser name.

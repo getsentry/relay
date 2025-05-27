@@ -2287,6 +2287,93 @@ mod tests {
     }
 
     #[test]
+    fn test_ai_data() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.total_tokens": 1230,
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "claude-2.1"
+                        }
+                    },
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "ac01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "gpt4-21-04"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 1,
+                    costs: vec![
+                        ModelCost {
+                            model_id: LazyGlob::new("claude-2*"),
+                            for_completion: false,
+                            cost_per_1k_tokens: 1.0,
+                        },
+                        ModelCost {
+                            model_id: LazyGlob::new("gpt4-21*"),
+                            for_completion: false,
+                            cost_per_1k_tokens: 2.0,
+                        },
+                        ModelCost {
+                            model_id: LazyGlob::new("gpt4-21*"),
+                            for_completion: true,
+                            cost_per_1k_tokens: 20.0,
+                        },
+                    ],
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let spans = event.value().unwrap().spans.value().unwrap();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(1.23))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(20.0 * 2.0 + 2.0))
+        );
+    }
+
+    #[test]
     fn test_apple_high_device_class() {
         let mut event = Event {
             contexts: {
