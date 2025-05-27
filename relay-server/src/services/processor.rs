@@ -45,8 +45,8 @@ use zstd::stream::Encoder as ZstdEncoder;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{
-    PartialDsn, RequestMeta, SIGNATURE_DATA_HEADER, SIGNATURE_VERSION_HEADER,
-    TrustedRelaySignatureVersion,
+    PartialDsn, RequestMeta, SIGNATURE_DATA_HEADER, SIGNATURE_DATETIME_HEADER,
+    SIGNATURE_VERSION_HEADER, TrustedRelaySignatureVersion,
 };
 use crate::http;
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
@@ -3475,7 +3475,7 @@ impl UpstreamRequest for SendEnvelope {
             false => {
                 let now = Utc::now().to_string();
                 Some(TrySign::OptionalHeaders(vec![(
-                    "X-Signature-Datetime",
+                    SIGNATURE_DATETIME_HEADER,
                     now,
                 )]))
             }

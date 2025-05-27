@@ -503,7 +503,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
-        let signature = match TrustedRelaySignature::from_request_parts(parts, state).await {
+        let signature = match TrustedRelaySignature::from_headers(&parts.headers) {
             Ok(sig) => Some(sig),
             Err(_) => {
                 relay_log::debug!("Signature extraction failed");
