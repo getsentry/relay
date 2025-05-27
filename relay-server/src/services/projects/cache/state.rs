@@ -269,12 +269,12 @@ impl Config {
         let grace_period = config.project_grace_period();
 
         // Make sure the refresh time is:
-        // - at least the grace period, refreshing a non-stale project makes no sense.
-        // - at most the expiry, refreshing an expired project also makes non sense.
+        // - at least the expiration, refreshing a non-stale project makes no sense.
+        // - at most the end of the grace period, refreshing an expired project also makes non sense.
         let refresh_interval = config
             .project_refresh_interval()
             .filter(|rt| *rt < (expiry + grace_period))
-            .filter(|rt| *rt > grace_period);
+            .filter(|rt| *rt > expiry);
 
         Self {
             expiry: config.project_cache_expiry(),

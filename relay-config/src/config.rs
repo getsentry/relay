@@ -1045,7 +1045,7 @@ pub struct Cache {
     pub project_grace_period: u32,
     /// Refresh a project after the specified seconds.
     ///
-    /// The time must be between the grace period and expiry time.
+    /// The time must be between expiry time and the grace period.
     ///
     /// By default there are no refreshes enabled.
     pub project_refresh_interval: Option<u32>,
