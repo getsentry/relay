@@ -1,7 +1,5 @@
 //! Contains the processing-only functionality for logs.
 
-use std::sync::Arc;
-
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{LogGroup, ProcessingError};
@@ -22,7 +20,7 @@ use crate::envelope::ItemType;
 /// Processes logs.
 pub fn process(
     managed_envelope: &mut TypedEnvelope<LogGroup>,
-    project_info: Arc<ProjectInfo>,
+    project_info: &ProjectInfo,
 ) -> Result<(), ProcessingError> {
     let log_items = managed_envelope
         .envelope()

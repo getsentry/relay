@@ -39,6 +39,10 @@ pub struct GpuContext {
     #[metastructure(pii = "maybe")]
     pub vendor_name: Annotated<String>,
 
+    /// The driver version as reported by the graphics device.
+    #[metastructure(pii = "maybe")]
+    pub driver_version: Annotated<String>,
+
     /// The total GPU memory available in Megabytes.
     #[metastructure(pii = "maybe")]
     pub memory_size: Annotated<u64>,

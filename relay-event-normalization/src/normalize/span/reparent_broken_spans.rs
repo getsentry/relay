@@ -49,7 +49,7 @@ pub fn reparent_broken_spans(event: &mut Event) {
             continue;
         };
 
-        let invalid_parent = mem::replace(parent_span_id, root_span_id.clone());
+        let invalid_parent = mem::replace(parent_span_id, *root_span_id);
         let meta = span.parent_span_id.meta_mut();
         meta.add_error(Error::invalid("span ID does not exist"));
         meta.set_original_value(Some(invalid_parent));

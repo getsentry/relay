@@ -502,8 +502,7 @@ mod tests {
             "sentry.op": "myop"
           },
           "links": [],
-          "platform": "php",
-          "kind": "unspecified"
+          "platform": "php"
         }
         "###);
     }
@@ -532,8 +531,7 @@ mod tests {
           "is_remote": true,
           "status": "unknown",
           "data": {},
-          "links": [],
-          "kind": "unspecified"
+          "links": []
         }
         "###);
     }
@@ -562,8 +560,7 @@ mod tests {
           "is_remote": false,
           "status": "unknown",
           "data": {},
-          "links": [],
-          "kind": "unspecified"
+          "links": []
         }
         "###);
     }
@@ -601,6 +598,7 @@ mod tests {
     fn parse_link() {
         let json = r#"{
             "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
+            "spanId": "e342abb1214ca181",
             "links": [
                 {
                     "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -644,7 +642,7 @@ mod tests {
           "timestamp": 0.0,
           "start_timestamp": 0.0,
           "exclusive_time": 0.0,
-          "span_id": "",
+          "span_id": "e342abb1214ca181",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "status": "unknown",
           "data": {},
@@ -660,8 +658,7 @@ mod tests {
                 "str_key": "str_value"
               }
             }
-          ],
-          "kind": "unspecified"
+          ]
         }
         "###);
     }

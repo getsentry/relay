@@ -4,7 +4,6 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
@@ -158,8 +157,8 @@ impl Getter for Span {
                 "exclusive_time" => self.exclusive_time.value()?.into(),
                 "description" => self.description.as_str()?.into(),
                 "op" => self.op.as_str()?.into(),
-                "span_id" => self.span_id.as_str()?.into(),
-                "parent_span_id" => self.parent_span_id.as_str()?.into(),
+                "span_id" => self.span_id.value()?.into(),
+                "parent_span_id" => self.parent_span_id.value()?.into(),
                 "trace_id" => self.trace_id.value()?.deref().into(),
                 "status" => self.status.as_str()?.into(),
                 "origin" => self.origin.as_str()?.into(),
@@ -936,20 +935,17 @@ impl FromValue for Route {
 }
 
 #[derive(Clone, Debug, PartialEq, ProcessValue)]
-#[repr(i32)]
 pub enum SpanKind {
-    Unspecified = OtelSpanKind::Unspecified as i32,
-    Internal = OtelSpanKind::Internal as i32,
-    Server = OtelSpanKind::Server as i32,
-    Client = OtelSpanKind::Client as i32,
-    Producer = OtelSpanKind::Producer as i32,
-    Consumer = OtelSpanKind::Consumer as i32,
+    Internal,
+    Server,
+    Client,
+    Producer,
+    Consumer,
 }
 
 impl SpanKind {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unspecified => "unspecified",
             Self::Internal => "internal",
             Self::Server => "server",
             Self::Client => "client",
@@ -973,7 +969,6 @@ impl std::str::FromStr for SpanKind {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "unspecified" => SpanKind::Unspecified,
             "internal" => SpanKind::Internal,
             "server" => SpanKind::Server,
             "client" => SpanKind::Client,
@@ -987,19 +982,6 @@ impl std::str::FromStr for SpanKind {
 impl Default for SpanKind {
     fn default() -> Self {
         Self::Internal
-    }
-}
-
-impl From<OtelSpanKind> for SpanKind {
-    fn from(otel_kind: OtelSpanKind) -> Self {
-        match otel_kind {
-            OtelSpanKind::Unspecified => Self::Unspecified,
-            OtelSpanKind::Internal => Self::Internal,
-            OtelSpanKind::Server => Self::Server,
-            OtelSpanKind::Client => Self::Client,
-            OtelSpanKind::Producer => Self::Producer,
-            OtelSpanKind::Consumer => Self::Consumer,
-        }
     }
 }
 
@@ -1095,7 +1077,7 @@ mod tests {
 
         let links = Annotated::new(vec![Annotated::new(SpanLink {
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
             sampled: Annotated::new(true),
             attributes: Annotated::new({
                 let mut map: std::collections::BTreeMap<String, Annotated<Value>> = Object::new();
@@ -1119,7 +1101,7 @@ mod tests {
             description: Annotated::new("desc".to_owned()),
             op: Annotated::new("operation".to_owned()),
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new("auto.http".to_owned()),
             kind: Annotated::new(SpanKind::Server),

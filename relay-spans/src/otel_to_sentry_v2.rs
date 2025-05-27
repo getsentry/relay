@@ -5,6 +5,7 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_event_schema::protocol::{Attribute, AttributeType, SpanV2Kind};
+use relay_protocol::ErrorKind;
 
 use crate::otel_trace::{
     Span as OtelSpan, SpanFlags as OtelSpanFlags, status::StatusCode as OtelStatusCode,
@@ -46,11 +47,11 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     let start_timestamp = Utc.timestamp_nanos(start_time_unix_nano as i64);
     let end_timestamp = Utc.timestamp_nanos(end_time_unix_nano as i64);
 
-    let span_id: SpanId = hex::encode(span_id).parse()?;
+    let span_id = SpanId::try_from(span_id.as_slice())?;
     let trace_id = TraceId::try_from(trace_id.as_slice())?;
     let parent_span_id = match parent_span_id.as_slice() {
         &[] => None,
-        _ => Some(hex::encode(parent_span_id).parse()?),
+        bytes => Some(SpanId::try_from(bytes)?),
     };
 
     let mut sentry_attributes = Object::default();
@@ -124,7 +125,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
             .map(|status| otel_to_sentry_status(status.code))
             .into(),
         trace_id: Annotated::new(trace_id),
-        kind: otel_to_sentry_kind(kind).into(),
+        kind: otel_to_sentry_kind(kind),
         links: sentry_links.into(),
         attributes: Annotated::new(sentry_attributes),
         ..Default::default()
@@ -152,17 +153,15 @@ fn otel_flags_is_remote(value: u32) -> Option<bool> {
     }
 }
 
-fn otel_to_sentry_kind(kind: i32) -> SpanV2Kind {
+fn otel_to_sentry_kind(kind: i32) -> Annotated<SpanV2Kind> {
     match kind {
-        kind if kind == OtelSpanKind::Unspecified as i32 => {
-            SpanV2Kind::Other("unspecified".to_owned())
-        }
-        kind if kind == OtelSpanKind::Internal as i32 => SpanV2Kind::Internal,
-        kind if kind == OtelSpanKind::Server as i32 => SpanV2Kind::Server,
-        kind if kind == OtelSpanKind::Client as i32 => SpanV2Kind::Client,
-        kind if kind == OtelSpanKind::Producer as i32 => SpanV2Kind::Producer,
-        kind if kind == OtelSpanKind::Consumer as i32 => SpanV2Kind::Consumer,
-        _ => SpanV2Kind::Other("unknown".to_owned()),
+        kind if kind == OtelSpanKind::Unspecified as i32 => Annotated::empty(),
+        kind if kind == OtelSpanKind::Internal as i32 => Annotated::new(SpanV2Kind::Internal),
+        kind if kind == OtelSpanKind::Server as i32 => Annotated::new(SpanV2Kind::Server),
+        kind if kind == OtelSpanKind::Client as i32 => Annotated::new(SpanV2Kind::Client),
+        kind if kind == OtelSpanKind::Producer as i32 => Annotated::new(SpanV2Kind::Producer),
+        kind if kind == OtelSpanKind::Consumer as i32 => Annotated::new(SpanV2Kind::Consumer),
+        _ => Annotated::from_error(ErrorKind::InvalidData, Some(Value::I64(kind as i64))),
     }
 }
 
@@ -203,7 +202,7 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
 
     let span_link = SpanV2Link {
         trace_id: Annotated::new(hex::encode(otel_link.trace_id).parse()?),
-        span_id: Annotated::new(hex::encode(otel_link.span_id).parse()?),
+        span_id: SpanId::try_from(otel_link.span_id.as_slice())?.into(),
         sampled: (otel_link.flags & W3C_TRACE_CONTEXT_SAMPLED != 0).into(),
         attributes: Annotated::new(attributes),
         other: Default::default(),
@@ -676,7 +675,6 @@ mod tests {
           "span_id": "fa90fdead5f74052",
           "name": "myname",
           "status": "ok",
-          "kind": "unspecified",
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -745,7 +743,6 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "is_remote": true,
-          "kind": "unspecified",
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -773,7 +770,6 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "span_id": "e342abb1214ca181",
           "is_remote": false,
-          "kind": "unspecified",
           "start_timestamp": 123.0,
           "end_timestamp": 123.5,
           "links": [],
@@ -813,6 +809,7 @@ mod tests {
     fn parse_link() {
         let json = r#"{
           "traceId": "3c79f60c11214eb38604f4ae0781bfb2",
+          "spanId": "e342abb1214ca181",
           "links": [
             {
               "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -854,8 +851,7 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
-          "span_id": "",
-          "kind": "unspecified",
+          "span_id": "e342abb1214ca181",
           "start_timestamp": 0.0,
           "end_timestamp": 0.0,
           "links": [

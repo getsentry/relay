@@ -157,7 +157,6 @@ fn span_v2_kind_to_span_v1_kind(kind: SpanV2Kind) -> SpanKind {
         SpanV2Kind::Client => SpanKind::Client,
         SpanV2Kind::Producer => SpanKind::Producer,
         SpanV2Kind::Consumer => SpanKind::Consumer,
-        SpanV2Kind::Other(_) => SpanKind::Unspecified,
     }
 }
 
@@ -345,7 +344,6 @@ mod tests {
             "start_timestamp": 123,
             "end_timestamp": 123.5,
             "name": "myname",
-            "kind": "unspecified",
             "status": "ok",
             "links": [],
             "attributes": {
@@ -418,8 +416,7 @@ mod tests {
             "sentry.op": "myop"
           },
           "links": [],
-          "platform": "php",
-          "kind": "unspecified"
+          "platform": "php"
         }
         "###);
     }
@@ -432,7 +429,6 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "unspecified",
             "is_remote": true,
             "links": []
         }"#;
@@ -450,8 +446,7 @@ mod tests {
           "is_remote": true,
           "status": "unknown",
           "data": {},
-          "links": [],
-          "kind": "unspecified"
+          "links": []
         }
         "###);
     }
@@ -464,7 +459,6 @@ mod tests {
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
             "end_timestamp": 123.5,
-            "kind": "unspecified",
             "is_remote": false,
             "links": []
         }"#;
@@ -482,8 +476,7 @@ mod tests {
           "is_remote": false,
           "status": "unknown",
           "data": {},
-          "links": [],
-          "kind": "unspecified"
+          "links": []
         }
         "###);
     }
