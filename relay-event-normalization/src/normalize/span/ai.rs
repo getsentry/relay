@@ -75,12 +75,6 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
         data.ai_completion_tokens_used
             .set_value(Value::F64(ai_completion_tokens_used).into());
     }
-
-    // TODO:(tobias) We have this value in the tests but Anton says that it is never set so I think
-    // we might not need to do this here?
-    if let Some(ai_total_cost) = measurements.get_value("ai_total_cost").map(Value::F64) {
-        data.gen_ai_usage_total_cost.set_value(ai_total_cost.into());
-    }
 }
 
 /// Extract the gen_ai_usage_total_cost data into the span.

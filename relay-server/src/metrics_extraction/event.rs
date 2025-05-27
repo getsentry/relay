@@ -1237,9 +1237,6 @@ mod tests {
                     "measurements": {
                         "ai_total_tokens_used": {
                             "value": 20
-                        },
-                        "ai_total_cost": {
-                            "value": 0.0002
                         }
                     },
                     "data": {
@@ -1264,7 +1261,6 @@ mod tests {
             ]
         }
         "#;
-        // TODO:(tobias) Apparently 'ai_total_cost' is never send so we might want to remove it here
 
         let mut event = Annotated::from_json(json).unwrap();
 
