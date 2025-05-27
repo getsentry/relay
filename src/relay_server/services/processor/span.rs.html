@@ -226,68 +226,65 @@
 <a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
 <a href=#227 id=227 data-nosnippet>227</a>        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = Addr::custom();
 <a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
-<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(
-<a href=#230 id=230 data-nosnippet>230</a>            envelope,
-<a href=#231 id=231 data-nosnippet>231</a>            outcome_aggregator,
-<a href=#232 id=232 data-nosnippet>232</a>            test_store,
-<a href=#233 id=233 data-nosnippet>233</a>            ProcessingGroup::Span,
-<a href=#234 id=234 data-nosnippet>234</a>        );
-<a href=#235 id=235 data-nosnippet>235</a>        <span class="kw">let </span><span class="kw-2">mut </span>typed_envelope: TypedEnvelope&lt;<span class="kw">_</span>&gt; = managed_envelope.try_into().unwrap();
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::OtelTracesData);
-<a href=#237 id=237 data-nosnippet>237</a>        item.set_payload(ContentType::Json, traces_data);
-<a href=#238 id=238 data-nosnippet>238</a>        typed_envelope.envelope_mut().add_item(item.clone());
+<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+<a href=#230 id=230 data-nosnippet>230</a>        <span class="kw">let </span><span class="kw-2">mut </span>typed_envelope: TypedEnvelope&lt;<span class="kw">_</span>&gt; = (managed_envelope, ProcessingGroup::Span)
+<a href=#231 id=231 data-nosnippet>231</a>            .try_into()
+<a href=#232 id=232 data-nosnippet>232</a>            .unwrap();
+<a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::OtelTracesData);
+<a href=#234 id=234 data-nosnippet>234</a>        item.set_payload(ContentType::Json, traces_data);
+<a href=#235 id=235 data-nosnippet>235</a>        typed_envelope.envelope_mut().add_item(item.clone());
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="comment">// Convert the OTLP trace data into `OtelSpan` item(s).
+<a href=#238 id=238 data-nosnippet>238</a>        </span>convert_traces_data(item, <span class="kw-2">&amp;mut </span>typed_envelope);
 <a href=#239 id=239 data-nosnippet>239</a>
-<a href=#240 id=240 data-nosnippet>240</a>        <span class="comment">// Convert the OTLP trace data into `OtelSpan` item(s).
-<a href=#241 id=241 data-nosnippet>241</a>        </span>convert_traces_data(item, <span class="kw-2">&amp;mut </span>typed_envelope);
-<a href=#242 id=242 data-nosnippet>242</a>
-<a href=#243 id=243 data-nosnippet>243</a>        <span class="comment">// Assert that the attributes from the resource and instrumentation
-<a href=#244 id=244 data-nosnippet>244</a>        // scope were copied.
-<a href=#245 id=245 data-nosnippet>245</a>        </span><span class="kw">let </span>item = typed_envelope
-<a href=#246 id=246 data-nosnippet>246</a>            .envelope()
-<a href=#247 id=247 data-nosnippet>247</a>            .items()
-<a href=#248 id=248 data-nosnippet>248</a>            .find(|i| <span class="kw-2">*</span>i.ty() == ItemType::OtelSpan)
-<a href=#249 id=249 data-nosnippet>249</a>            .expect(<span class="string">"converted span missing from envelope"</span>);
-<a href=#250 id=250 data-nosnippet>250</a>        <span class="kw">let </span>attributes = serde_json::from_slice::&lt;OtelSpan&gt;(<span class="kw-2">&amp;</span>item.payload())
-<a href=#251 id=251 data-nosnippet>251</a>            .expect(<span class="string">"unable to deserialize otel span"</span>)
-<a href=#252 id=252 data-nosnippet>252</a>            .attributes
-<a href=#253 id=253 data-nosnippet>253</a>            .into_iter()
-<a href=#254 id=254 data-nosnippet>254</a>            .map(|kv| (kv.key, kv.value.unwrap()))
-<a href=#255 id=255 data-nosnippet>255</a>            .collect::&lt;BTreeMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;();
-<a href=#256 id=256 data-nosnippet>256</a>        <span class="kw">let </span>attribute_value = |key: <span class="kw-2">&amp;</span>str| -&gt; String {
-<a href=#257 id=257 data-nosnippet>257</a>            <span class="kw">match </span>attributes
-<a href=#258 id=258 data-nosnippet>258</a>                .get(key)
-<a href=#259 id=259 data-nosnippet>259</a>                .unwrap_or_else(|| <span class="macro">panic!</span>(<span class="string">"attribute {} missing"</span>, key))
-<a href=#260 id=260 data-nosnippet>260</a>                .to_owned()
-<a href=#261 id=261 data-nosnippet>261</a>                .value
-<a href=#262 id=262 data-nosnippet>262</a>            {
-<a href=#263 id=263 data-nosnippet>263</a>                <span class="prelude-val">Some</span>(Value::StringValue(str)) =&gt; str,
-<a href=#264 id=264 data-nosnippet>264</a>                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"attribute {} not a string"</span>, key),
-<a href=#265 id=265 data-nosnippet>265</a>            }
-<a href=#266 id=266 data-nosnippet>266</a>        };
-<a href=#267 id=267 data-nosnippet>267</a>        <span class="macro">assert_eq!</span>(
-<a href=#268 id=268 data-nosnippet>268</a>            attribute_value(<span class="string">"span_key"</span>),
-<a href=#269 id=269 data-nosnippet>269</a>            <span class="string">"span_value"</span>.to_owned(),
-<a href=#270 id=270 data-nosnippet>270</a>            <span class="string">"original span attribute should be present"
-<a href=#271 id=271 data-nosnippet>271</a>        </span>);
-<a href=#272 id=272 data-nosnippet>272</a>        <span class="macro">assert_eq!</span>(
-<a href=#273 id=273 data-nosnippet>273</a>            attribute_value(<span class="string">"instrumentation.name"</span>),
-<a href=#274 id=274 data-nosnippet>274</a>            <span class="string">"test_instrumentation"</span>.to_owned(),
-<a href=#275 id=275 data-nosnippet>275</a>            <span class="string">"instrumentation name should be in attributes"
-<a href=#276 id=276 data-nosnippet>276</a>        </span>);
-<a href=#277 id=277 data-nosnippet>277</a>        <span class="macro">assert_eq!</span>(
-<a href=#278 id=278 data-nosnippet>278</a>            attribute_value(<span class="string">"instrumentation.version"</span>),
-<a href=#279 id=279 data-nosnippet>279</a>            <span class="string">"0.0.1"</span>.to_owned(),
-<a href=#280 id=280 data-nosnippet>280</a>            <span class="string">"instrumentation version should be in attributes"
-<a href=#281 id=281 data-nosnippet>281</a>        </span>);
-<a href=#282 id=282 data-nosnippet>282</a>        <span class="macro">assert_eq!</span>(
-<a href=#283 id=283 data-nosnippet>283</a>            attribute_value(<span class="string">"resource.resource_key"</span>),
-<a href=#284 id=284 data-nosnippet>284</a>            <span class="string">"resource_value"</span>.to_owned(),
-<a href=#285 id=285 data-nosnippet>285</a>            <span class="string">"resource attribute should be copied with prefix"
-<a href=#286 id=286 data-nosnippet>286</a>        </span>);
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="macro">assert_eq!</span>(
-<a href=#288 id=288 data-nosnippet>288</a>            attribute_value(<span class="string">"instrumentation.scope_key"</span>),
-<a href=#289 id=289 data-nosnippet>289</a>            <span class="string">"scope_value"</span>.to_owned(),
-<a href=#290 id=290 data-nosnippet>290</a>            <span class="string">"instruementation scope attribute should be copied with prefix"
-<a href=#291 id=291 data-nosnippet>291</a>        </span>);
-<a href=#292 id=292 data-nosnippet>292</a>    }
-<a href=#293 id=293 data-nosnippet>293</a>}</code></pre></div></section></main></body></html>
+<a href=#240 id=240 data-nosnippet>240</a>        <span class="comment">// Assert that the attributes from the resource and instrumentation
+<a href=#241 id=241 data-nosnippet>241</a>        // scope were copied.
+<a href=#242 id=242 data-nosnippet>242</a>        </span><span class="kw">let </span>item = typed_envelope
+<a href=#243 id=243 data-nosnippet>243</a>            .envelope()
+<a href=#244 id=244 data-nosnippet>244</a>            .items()
+<a href=#245 id=245 data-nosnippet>245</a>            .find(|i| <span class="kw-2">*</span>i.ty() == ItemType::OtelSpan)
+<a href=#246 id=246 data-nosnippet>246</a>            .expect(<span class="string">"converted span missing from envelope"</span>);
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span>attributes = serde_json::from_slice::&lt;OtelSpan&gt;(<span class="kw-2">&amp;</span>item.payload())
+<a href=#248 id=248 data-nosnippet>248</a>            .expect(<span class="string">"unable to deserialize otel span"</span>)
+<a href=#249 id=249 data-nosnippet>249</a>            .attributes
+<a href=#250 id=250 data-nosnippet>250</a>            .into_iter()
+<a href=#251 id=251 data-nosnippet>251</a>            .map(|kv| (kv.key, kv.value.unwrap()))
+<a href=#252 id=252 data-nosnippet>252</a>            .collect::&lt;BTreeMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;();
+<a href=#253 id=253 data-nosnippet>253</a>        <span class="kw">let </span>attribute_value = |key: <span class="kw-2">&amp;</span>str| -&gt; String {
+<a href=#254 id=254 data-nosnippet>254</a>            <span class="kw">match </span>attributes
+<a href=#255 id=255 data-nosnippet>255</a>                .get(key)
+<a href=#256 id=256 data-nosnippet>256</a>                .unwrap_or_else(|| <span class="macro">panic!</span>(<span class="string">"attribute {} missing"</span>, key))
+<a href=#257 id=257 data-nosnippet>257</a>                .to_owned()
+<a href=#258 id=258 data-nosnippet>258</a>                .value
+<a href=#259 id=259 data-nosnippet>259</a>            {
+<a href=#260 id=260 data-nosnippet>260</a>                <span class="prelude-val">Some</span>(Value::StringValue(str)) =&gt; str,
+<a href=#261 id=261 data-nosnippet>261</a>                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"attribute {} not a string"</span>, key),
+<a href=#262 id=262 data-nosnippet>262</a>            }
+<a href=#263 id=263 data-nosnippet>263</a>        };
+<a href=#264 id=264 data-nosnippet>264</a>        <span class="macro">assert_eq!</span>(
+<a href=#265 id=265 data-nosnippet>265</a>            attribute_value(<span class="string">"span_key"</span>),
+<a href=#266 id=266 data-nosnippet>266</a>            <span class="string">"span_value"</span>.to_owned(),
+<a href=#267 id=267 data-nosnippet>267</a>            <span class="string">"original span attribute should be present"
+<a href=#268 id=268 data-nosnippet>268</a>        </span>);
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="macro">assert_eq!</span>(
+<a href=#270 id=270 data-nosnippet>270</a>            attribute_value(<span class="string">"instrumentation.name"</span>),
+<a href=#271 id=271 data-nosnippet>271</a>            <span class="string">"test_instrumentation"</span>.to_owned(),
+<a href=#272 id=272 data-nosnippet>272</a>            <span class="string">"instrumentation name should be in attributes"
+<a href=#273 id=273 data-nosnippet>273</a>        </span>);
+<a href=#274 id=274 data-nosnippet>274</a>        <span class="macro">assert_eq!</span>(
+<a href=#275 id=275 data-nosnippet>275</a>            attribute_value(<span class="string">"instrumentation.version"</span>),
+<a href=#276 id=276 data-nosnippet>276</a>            <span class="string">"0.0.1"</span>.to_owned(),
+<a href=#277 id=277 data-nosnippet>277</a>            <span class="string">"instrumentation version should be in attributes"
+<a href=#278 id=278 data-nosnippet>278</a>        </span>);
+<a href=#279 id=279 data-nosnippet>279</a>        <span class="macro">assert_eq!</span>(
+<a href=#280 id=280 data-nosnippet>280</a>            attribute_value(<span class="string">"resource.resource_key"</span>),
+<a href=#281 id=281 data-nosnippet>281</a>            <span class="string">"resource_value"</span>.to_owned(),
+<a href=#282 id=282 data-nosnippet>282</a>            <span class="string">"resource attribute should be copied with prefix"
+<a href=#283 id=283 data-nosnippet>283</a>        </span>);
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="macro">assert_eq!</span>(
+<a href=#285 id=285 data-nosnippet>285</a>            attribute_value(<span class="string">"instrumentation.scope_key"</span>),
+<a href=#286 id=286 data-nosnippet>286</a>            <span class="string">"scope_value"</span>.to_owned(),
+<a href=#287 id=287 data-nosnippet>287</a>            <span class="string">"instruementation scope attribute should be copied with prefix"
+<a href=#288 id=288 data-nosnippet>288</a>        </span>);
+<a href=#289 id=289 data-nosnippet>289</a>    }
+<a href=#290 id=290 data-nosnippet>290</a>}</code></pre></div></section></main></body></html>
