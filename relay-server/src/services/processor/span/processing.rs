@@ -864,14 +864,10 @@ mod tests {
             ..Default::default()
         };
 
-        let managed_envelope = ManagedEnvelope::new(
-            dummy_envelope,
-            Addr::dummy(),
-            Addr::dummy(),
-            ProcessingGroup::Transaction,
-        );
-
-        let managed_envelope = managed_envelope.try_into().unwrap();
+        let managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy(), Addr::dummy());
+        let managed_envelope = (managed_envelope, ProcessingGroup::Transaction)
+            .try_into()
+            .unwrap();
 
         let event = Annotated::from(event);
 

@@ -26,7 +26,7 @@ use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcess
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::test_store::TestStore;
-use crate::utils::ThreadPoolBuilder;
+use crate::utils::{ManagedEnvelope, ThreadPoolBuilder};
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
@@ -105,6 +105,17 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
     envelope.add_item(item3);
 
     envelope
+}
+
+pub fn new_managed_envelope<T: Into<String>>(
+    with_dsc: bool,
+    transaction_name: T,
+) -> ManagedEnvelope {
+    ManagedEnvelope::new(
+        new_envelope(with_dsc, transaction_name),
+        Addr::dummy(),
+        Addr::dummy(),
+    )
 }
 
 pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {

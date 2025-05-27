@@ -242,14 +242,13 @@ mod tests {
 {"message":"hello world","level":"error","map":{"a":"val"}}
 {"type":"attachment","filename":"dying_message.dat","length":<len>}
 "#.replace("<len>", &dying_message.len().to_string());
-        ManagedEnvelope::new(
+
+        let envelope = ManagedEnvelope::new(
             Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap(),
             Addr::dummy(),
             Addr::dummy(),
-            ProcessingGroup::Error,
-        )
-        .try_into()
-        .unwrap()
+        );
+        (envelope, ProcessingGroup::Error).try_into().unwrap()
     }
 
     #[test]
