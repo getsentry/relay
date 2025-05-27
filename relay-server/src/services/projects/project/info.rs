@@ -136,11 +136,10 @@ impl ProjectInfo {
 
         if !envelope.meta().is_from_internal_relay() {
             if let Some(conf) = &self.config().trusted_relay_settings {
-                if conf.verify_signature {
-                    if !Self::check_trusted_relay_signature(&envelope, &self.config.trusted_relays)
-                    {
-                        return Err(DiscardReason::InvalidSignature);
-                    }
+                if conf.verify_signature
+                    && !Self::check_trusted_relay_signature(envelope, &self.config.trusted_relays)
+                {
+                    return Err(DiscardReason::InvalidSignature);
                 }
             }
         }
@@ -151,7 +150,7 @@ impl ProjectInfo {
     /// Returns `true` if the signature could be verified with any public key of a trusted relay.
     ///
     /// If the signature is missing, then it will return `false`.
-    fn check_trusted_relay_signature(envelope: &Envelope, trusted_relays: &Vec<PublicKey>) -> bool {
+    fn check_trusted_relay_signature(envelope: &Envelope, trusted_relays: &[PublicKey]) -> bool {
         let Some(signature) = envelope.meta().signature() else {
             // Drop envelope if trusted relay check is enabled but there is no signature.
             return false;

@@ -4,9 +4,9 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use std::str::FromStr;
 
-pub const SIGNATURE_DATA_HEADER: &'static str = "x-sentry-signature-headers";
-pub const SIGNATURE_VERSION_HEADER: &'static str = "x-sentry-relay-signature-version";
-pub const SIGNATURE_HEADER: &'static str = "x-sentry-relay-signature";
+pub const SIGNATURE_DATA_HEADER: &str = "x-sentry-signature-headers";
+pub const SIGNATURE_VERSION_HEADER: &str = "x-sentry-relay-signature-version";
+pub const SIGNATURE_HEADER: &str = "x-sentry-relay-signature";
 
 #[derive(Debug, Clone)]
 pub enum TrustedRelaySignatureErrors {
@@ -104,7 +104,7 @@ fn get_header<'a>(parts: &'a Parts, name: &str) -> Result<&'a str, TrustedRelayS
         .headers
         .get(name)
         .ok_or(TrustedRelaySignatureErrors::MissingHeader)?;
-    Ok(header
+    header
         .to_str()
-        .map_err(|_| TrustedRelaySignatureErrors::MalformedHeader)?)
+        .map_err(|_| TrustedRelaySignatureErrors::MalformedHeader)
 }

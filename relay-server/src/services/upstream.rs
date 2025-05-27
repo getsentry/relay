@@ -462,7 +462,7 @@ where
         // Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
-        self.body().ok().map(|b| TrySign::Mandatory(b))
+        self.body().ok().map(TrySign::Mandatory)
     }
 
     fn method(&self) -> Method {
