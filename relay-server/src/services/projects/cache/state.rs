@@ -270,7 +270,7 @@ impl Config {
 
         // Make sure the refresh time is:
         // - at least the expiration, refreshing a non-stale project makes no sense.
-        // - at most the end of the grace period, refreshing an expired project also makes non sense.
+        // - at most the end of the grace period, refreshing an expired project also makes no sense.
         let refresh_interval = config
             .project_refresh_interval()
             .filter(|rt| *rt < (expiry + grace_period))
