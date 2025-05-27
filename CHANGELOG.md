@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
+
 **Internal**:
 
 - Remove the "unspecified" variant of `SpanKind`. ([#4774](https://github.com/getsentry/relay/pull/4774))
