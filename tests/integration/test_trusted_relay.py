@@ -115,6 +115,9 @@ def test_not_trusted_relay(mini_sentry, relay, relay_credentials):
 
 
 def test_reject_without_signature(mini_sentry, relay):
+    """
+    Simple case where a client sends an event without a signature.
+    """
     project_id = 42
     relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
@@ -127,9 +130,8 @@ def test_reject_without_signature(mini_sentry, relay):
 
 def test_static_relay(mini_sentry, relay):
     """
-    A static relay does (or might?) not have credentials, so it cannot sign any outgoing requests.
+    A static relay without credentials will automatically fail the signature check.
     """
-
     project_id = 42
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["trustedRelaySettings"]["verifySignature"] = True
