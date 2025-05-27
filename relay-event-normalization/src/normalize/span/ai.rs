@@ -57,8 +57,6 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
         return;
     };
 
-    // It might be that there is no data in such a case we want to add it here to have something
-    // to put the measurements inside it.
     let data = span.data.get_or_insert_with(SpanData::default);
 
     if let Some(ai_total_tokens_used) = measurements.get_value("ai_total_tokens_used") {
