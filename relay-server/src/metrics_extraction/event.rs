@@ -1234,12 +1234,8 @@ mod tests {
                     "span_id": "9c01bd820a083e63",
                     "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "measurements": {
-                        "ai_total_tokens_used": {
-                            "value": 20
-                        }
-                    },
                     "data": {
+                        "gen_ai.usage.total_tokens": 20,
                         "ai.pipeline.name": "Autofix Pipeline"
                     }
                 },
@@ -1252,10 +1248,8 @@ mod tests {
                     "span_id": "9c01bd820a083e63",
                     "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "measurements": {
-                        "ai_total_tokens_used": {
-                            "value": 30
-                        }
+                    "data": {
+                        "gen_ai.usage.total_tokens": 30
                     }
                 }
             ]
