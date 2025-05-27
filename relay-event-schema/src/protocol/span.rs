@@ -4,7 +4,6 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
@@ -936,13 +935,12 @@ impl FromValue for Route {
 }
 
 #[derive(Clone, Debug, PartialEq, ProcessValue)]
-#[repr(i32)]
 pub enum SpanKind {
-    Internal = OtelSpanKind::Internal as i32,
-    Server = OtelSpanKind::Server as i32,
-    Client = OtelSpanKind::Client as i32,
-    Producer = OtelSpanKind::Producer as i32,
-    Consumer = OtelSpanKind::Consumer as i32,
+    Internal,
+    Server,
+    Client,
+    Producer,
+    Consumer,
 }
 
 impl SpanKind {
