@@ -261,7 +261,7 @@ jobs:
             echo 'platforms=["linux/amd64"]' >> $GITHUB_OUTPUT
           fi
 
-          if [[ "${{ github.event.pull_request.head.repo.fork }}" != "true" ]] || [[ "${{ needs.build-setup.outputs.full_ci }}" == "true" ]]; then
+          if [[ ("${{ github.event.pull_request.head.repo.fork }}" != "true" && "${{ github.actor }}" != "dependabot[bot]") || "${{ needs.build-setup.outputs.full_ci }}" == "true" ]]; then
             echo "rustflags=--cfg sentry --cfg tokio_unstable" >> "$GITHUB_OUTPUT"
           else
             echo "rustflags=--cfg tokio_unstable" >> "$GITHUB_OUTPUT"
