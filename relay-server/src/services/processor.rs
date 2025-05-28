@@ -2312,7 +2312,23 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log => run!(process_logs, project_info, rate_limits),
+            ProcessingGroup::Log => {
+                use crate::processing::{self, Processor as _};
+
+                let ctx = processing::Context {
+                    project_info: &project_info,
+                    rate_limits: &rate_limits,
+                };
+                let processor = processing::logs::LogsProcessor::new();
+                let work = processor.prepare_envelope(&mut managed_envelope).expect(
+                    "there must be work for the logs processor in the logs processing group",
+                );
+                assert!(
+                    managed_envelope.envelope_mut().is_empty(),
+                    "processing group should map 1:1 to processor"
+                );
+                processor.process(work, ctx).map_err(Into::into)
+            }
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
