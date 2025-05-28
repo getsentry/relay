@@ -1155,10 +1155,13 @@ impl OutcomeBroker {
             KafkaTopic::Outcomes
         };
 
-        let result =
-            producer
-                .client
-                .send(topic, key.into_bytes(), None, "outcome", payload.as_bytes());
+        let result = producer.client.send(
+            topic,
+            Some(key.into_bytes()),
+            None,
+            "outcome",
+            payload.as_bytes(),
+        );
 
         match result {
             Ok(_) => Ok(()),
