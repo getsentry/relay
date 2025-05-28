@@ -275,7 +275,7 @@ impl Getter for SessionUpdate {
         let path = path.strip_prefix("session.")?;
 
         match path {
-            "session_id" => Some(self.session_id.into()),
+            "session_id" => Some((&self.session_id).into()),
             "distinct_id" => Some(self.distinct_id.as_deref()?.into()),
             "sequence" => Some(self.sequence.into()),
             "init" => Some(self.init.into()),
