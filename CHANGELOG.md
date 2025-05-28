@@ -5,6 +5,7 @@
 **Features**:
 
 - Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
+- Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 
 **Internal**:
 
@@ -17,7 +18,6 @@
 
 - Cached projects can now be refreshed regularly, instead of only on demand. ([#4773](https://github.com/getsentry/relay/pull/4773))
 - Allow environment references in Relay configuration. ([#4750](https://github.com/getsentry/relay/pull/4750))
-- Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 
 **Internal**:
 
