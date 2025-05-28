@@ -193,7 +193,7 @@ syn = { version = "2.0.90" }
 synstructure = { version = "0.13.1" }
 # This dependency should be bumped to the next version once it's out. The next version must contain the commit with hash
 # `e2e5d530600f96bdd79652c856918da23e5dd938`
-sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "15b3be3273ba286740122fed7bb7dccd2a79dc8f" }
+sysinfo = "0.35.1"
 tempfile = "3.14.0"
 thiserror = "1.0.69"
 tikv-jemallocator = "0.6.0"
