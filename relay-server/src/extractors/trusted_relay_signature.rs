@@ -4,7 +4,7 @@ use std::str::FromStr;
 pub const SIGNATURE_DATA_HEADER: &str = "x-sentry-signature-headers";
 pub const SIGNATURE_VERSION_HEADER: &str = "x-sentry-relay-signature-version";
 pub const SIGNATURE_HEADER: &str = "x-sentry-relay-signature";
-pub const SIGNATURE_DATETIME_HEADER: &str = "x-sentry-relay-signature-date";
+pub const SIGNATURE_DATETIME_HEADER: &str = "x-sentry-relay-signature-datetime";
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum TrustedRelaySignatureErrors {

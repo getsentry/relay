@@ -37,6 +37,35 @@ def test_trusted_relay_chain(mini_sentry, relay, relay_credentials):
     assert event["logentry"]["formatted"] == "trusted event"
 
 
+def test_missing_version(mini_sentry, relay, relay_credentials):
+    """
+    Tests a request with the correct signature but no version is provided.
+    """
+    project_id = 42
+    credentials = relay_credentials()
+
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["trustedRelaySettings"]["verifySignature"] = True
+    config["config"]["trustedRelays"] = ["Br9f5pRIXDJ6J8_RDyxy-T-JKCpbil2w7FKfc2kigH4"]
+
+    relay = relay(mini_sentry)
+
+    headers = {
+        "x-sentry-relay-signature": "uqFY5JuNcRvi1vUDv2A2xRjKH-U-jchmW61owNBA8QaZ5Cf9A2HQclN6bSDXq-8Cj72GEysHA44reOgWjix2AA.eyJ0IjoiMjAyNS0wNS0yOFQwODo0Nzo0Ny45MzcwNjBaIn0",
+        "x-sentry-relay-id": credentials["id"],
+        "x-sentry-signature-headers": "x-sentry-relay-signature-datetime",
+        "x-sentry-relay-signature-datetime": "2025-05-28 08:47:47.937053 UTC",
+    }
+
+    relay.send_event(project_id, {"message": "trusted event"}, headers=headers)
+    sleep(1)
+    relay.send_event(project_id, {"message": "trusted event"}, headers=headers)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event["logentry"]["formatted"] == "trusted event"
+
+
 def test_internal_relays(mini_sentry, relay, relay_credentials):
     """
     Tests that even though the received signature is invalid, it will not check
@@ -62,8 +91,8 @@ def test_internal_relays(mini_sentry, relay, relay_credentials):
         "x-sentry-relay-signature": "this-is-a-cool-signature",
         "x-sentry-relay-signature-version": "v1",
         "x-sentry-relay-id": credentials["id"],
-        "x-sentry-signature-headers": "x-signature-datetime",
-        "x-sentry-relay-signature-date": "202505211045",
+        "x-sentry-signature-headers": "x-sentry-relay-signature-datetime",
+        "x-sentry-relay-signature-datetime": "202505211045",
     }
 
     managed_relay.send_event(
@@ -110,8 +139,8 @@ def test_invalid_signature(
         "x-sentry-relay-signature": "this-is-a-cool-signature",
         "x-sentry-relay-signature-version": "v1",
         "x-sentry-relay-id": credentials["id"],
-        "x-sentry-signature-headers": "x-signature-datetime",
-        "x-sentry-relay-signature-date": "202505211045",
+        "x-sentry-signature-headers": "x-sentry-relay-signature-datetime",
+        "x-sentry-relay-signature-datetime": "202505211045",
     }
 
     relay.send_event(
