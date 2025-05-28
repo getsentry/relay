@@ -142,6 +142,73 @@ def test_playstation_with_feature_flag(
     assert len(event["attachments"]) == 3
 
 
+def test_playstation_user_data_extraction(
+    mini_sentry,
+    relay,
+    relay_with_playstation,
+    outcomes_consumer,
+    attachments_consumer,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("user_data.prosperodmp")
+    mini_sentry.add_full_project_config(
+        PROJECT_ID,
+        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+    )
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+    relay = relay_with_playstation()
+    response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    assert response.ok
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 0
+
+    while True:
+        _, message = attachments_consumer.get_message()
+        if message is None or message["type"] != "attachment_chunk":
+            event = message
+            break
+
+    assert event
+
+    print(event)
+    assert event["type"] == "event"
+
+    event_data = json.loads(event["payload"])
+
+    assert event_data["platform"] == "native"
+    assert event_data["environment"] == "production"
+    assert event_data["level"] == "error"
+
+    assert event_data["sdk"]["name"] == "sentry.native.playstation"
+    assert event_data["sdk"]["version"] == "0.8.5"
+    assert len(event_data["sdk"]["packages"]) == 1
+    assert event_data["sdk"]["packages"][0]["name"] == "github:getsentry/sentry-native"
+    assert event_data["sdk"]["packages"][0]["version"] == "0.8.5"
+
+    assert ["tag-name", "tag value"] in event_data["tags"]
+
+    assert event_data["extra"]["extra-name"] == "extra value"
+
+    assert event_data["contexts"]["os"]["name"] == "Prospero"
+    assert (
+        event_data["contexts"]["trace"]["trace_id"]
+        == "a4c6cc5ab0d949d23f6d42e518ba49b4"
+    )
+    assert event_data["contexts"]["trace"]["span_id"] == "75470378528743c2"
+
+    assert len(event_data["breadcrumbs"]) == 1
+    assert event_data["breadcrumbs"]["values"][0]["message"] == "crumb"
+
+    assert "_metrics" in event_data
+    assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
+    assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
+
+    print(event["attachments"])
+    assert len(event["attachments"]) == 3
+
+
 def test_playstation_attachment(
     mini_sentry,
     relay_with_playstation,
