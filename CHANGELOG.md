@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Remove the "unspecified" variant of `SpanKind`. ([#4774](https://github.com/getsentry/relay/pull/4774))
+
+## 25.5.1
+
+**Features**:
+
+- Cached projects can now be refreshed regularly, instead of only on demand. ([#4773](https://github.com/getsentry/relay/pull/4773))
+- Allow environment references in Relay configuration. ([#4750](https://github.com/getsentry/relay/pull/4750))
+
+**Internal**:
+
+- Reduce warning logs, emit warnings to the configured Sentry instance. ([#4753](https://github.com/getsentry/relay/pull/4753))
+
 ## 25.5.0
 
 **Features**:

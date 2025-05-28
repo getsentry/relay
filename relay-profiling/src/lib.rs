@@ -176,7 +176,7 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
-            relay_log::warn!(
+            relay_log::debug!(
                 error = &err as &dyn Error,
                 from = "minimal",
                 project_id = project_id.value(),
@@ -190,7 +190,7 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
             let _: sample::v1::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                 Ok(profile) => profile,
                 Err(err) => {
-                    relay_log::warn!(
+                    relay_log::debug!(
                         error = &err as &dyn Error,
                         from = "metadata",
                         platform = profile.platform,
@@ -235,7 +235,7 @@ pub fn expand_profile(
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
-            relay_log::warn!(
+            relay_log::debug!(
                 error = &err as &dyn Error,
                 from = "minimal",
                 platform = event.platform.as_str(),
@@ -273,7 +273,7 @@ pub fn expand_profile(
         Ok(payload) => Ok((profile.event_id, payload)),
         Err(err) => match err {
             ProfileError::InvalidJson(err) => {
-                relay_log::warn!(
+                relay_log::debug!(
                     error = &err as &dyn Error,
                     from = "parsing",
                     platform = profile.platform,

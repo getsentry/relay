@@ -174,12 +174,18 @@ trait ConfigObject: DeserializeOwned + Serialize {
 
         let f = fs::File::open(&path)
             .with_context(|| ConfigError::file(ConfigErrorKind::CouldNotOpenFile, &path))?;
+        let f = io::BufReader::new(f);
 
+        let mut source = serde_vars::EnvSource::default();
         match Self::format() {
-            ConfigFormat::Yaml => serde_yaml::from_reader(io::BufReader::new(f))
-                .with_context(|| ConfigError::file(ConfigErrorKind::BadYaml, &path)),
-            ConfigFormat::Json => serde_json::from_reader(io::BufReader::new(f))
-                .with_context(|| ConfigError::file(ConfigErrorKind::BadJson, &path)),
+            ConfigFormat::Yaml => {
+                serde_vars::deserialize(serde_yaml::Deserializer::from_reader(f), &mut source)
+                    .with_context(|| ConfigError::file(ConfigErrorKind::BadYaml, &path))
+            }
+            ConfigFormat::Json => {
+                serde_vars::deserialize(&mut serde_json::Deserializer::from_reader(f), &mut source)
+                    .with_context(|| ConfigError::file(ConfigErrorKind::BadJson, &path))
+            }
         }
     }
 
@@ -1037,6 +1043,12 @@ pub struct Cache {
     ///
     /// Default is 2 minutes.
     pub project_grace_period: u32,
+    /// Refresh a project after the specified seconds.
+    ///
+    /// The time must be between expiry time and the grace period.
+    ///
+    /// By default there are no refreshes enabled.
+    pub project_refresh_interval: Option<u32>,
     /// The cache timeout for downstream relay info (public keys) in seconds.
     pub relay_expiry: u32,
     /// Unused cache timeout for envelopes.
@@ -1071,8 +1083,9 @@ impl Default for Cache {
             project_request_full_config: false,
             project_expiry: 300,       // 5 minutes
             project_grace_period: 120, // 2 minutes
-            relay_expiry: 3600,        // 1 hour
-            envelope_expiry: 600,      // 10 minutes
+            project_refresh_interval: None,
+            relay_expiry: 3600,   // 1 hour
+            envelope_expiry: 600, // 10 minutes
             envelope_buffer_size: 1000,
             miss_expiry: 60,                       // 1 minute
             batch_interval: 100,                   // 100ms
@@ -2135,6 +2148,17 @@ impl Config {
     /// Returns the grace period for project caches.
     pub fn project_grace_period(&self) -> Duration {
         Duration::from_secs(self.values.cache.project_grace_period.into())
+    }
+
+    /// Returns the refresh interval for a project.
+    ///
+    /// Validates the refresh time to be between the grace period and expiry.
+    pub fn project_refresh_interval(&self) -> Option<Duration> {
+        self.values
+            .cache
+            .project_refresh_interval
+            .map(Into::into)
+            .map(Duration::from_secs)
     }
 
     /// Returns the duration in which batchable project config queries are

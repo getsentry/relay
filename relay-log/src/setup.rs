@@ -7,6 +7,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use relay_common::impl_str_serde;
+use sentry::integrations::tracing::EventFilter;
 use sentry::types::Dsn;
 use sentry::{TracesSampler, TransactionContext};
 use serde::{Deserialize, Serialize};
@@ -267,6 +268,7 @@ fn get_default_filters() -> EnvFilter {
         sqlx=WARN,\
         tower_http=TRACE,\
         trust_dns_proto=WARN,\
+        minidump=ERROR,\
         ",
     );
 
@@ -327,7 +329,15 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
 
     tracing_subscriber::registry()
         .with(format.with_filter(config.level_filter()))
-        .with(sentry::integrations::tracing::layer())
+        .with(
+            // Same as the default filter, except it converts warnings into events instead of breadcrumbs.
+            sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
+                tracing::Level::ERROR => EventFilter::Exception,
+                tracing::Level::WARN => EventFilter::Event,
+                tracing::Level::INFO => EventFilter::Breadcrumb,
+                tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
+            }),
+        )
         .with(match env::var(EnvFilter::DEFAULT_ENV) {
             Ok(value) => EnvFilter::new(value),
             Err(_) => get_default_filters(),

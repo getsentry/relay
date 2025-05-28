@@ -2,7 +2,6 @@
 
 use std::error::Error;
 use std::net;
-use std::sync::Arc;
 
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use relay_config::Config;
@@ -27,7 +26,7 @@ use crate::utils::{ItemAction, TypedEnvelope};
 pub fn process(
     managed_envelope: &mut TypedEnvelope<SessionGroup>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
-    project_info: Arc<ProjectInfo>,
+    project_info: &ProjectInfo,
     config: &Config,
 ) {
     let received = managed_envelope.received_at();

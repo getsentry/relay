@@ -1,5 +1,4 @@
 //! Log processing code.
-use std::sync::Arc;
 
 use crate::services::processor::LogGroup;
 use relay_config::Config;
@@ -28,11 +27,11 @@ use {
 /// Removes logs from the envelope if the feature is not enabled.
 pub fn filter(
     managed_envelope: &mut TypedEnvelope<LogGroup>,
-    config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
+    config: &Config,
+    project_info: &ProjectInfo,
     global_config: &GlobalConfig,
 ) {
-    let logging_disabled = should_filter(&config, &project_info, Feature::OurLogsIngestion);
+    let logging_disabled = should_filter(config, project_info, Feature::OurLogsIngestion);
     let logs_sampled = global_config
         .options
         .ourlogs_ingestion_sample_rate
@@ -54,7 +53,7 @@ pub fn filter(
 #[cfg(feature = "processing")]
 pub fn process(
     managed_envelope: &mut TypedEnvelope<LogGroup>,
-    project_info: Arc<ProjectInfo>,
+    project_info: &ProjectInfo,
 ) -> Result<(), ProcessingError> {
     let log_items = managed_envelope
         .envelope()
@@ -228,7 +227,7 @@ mod tests {
 
     use relay_system::Addr;
 
-    fn params() -> (TypedEnvelope<LogGroup>, Arc<ProjectInfo>) {
+    fn params() -> (TypedEnvelope<LogGroup>, ProjectInfo) {
         let bytes = Bytes::from(
             r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
 {"type":"otel_log"}
@@ -243,16 +242,9 @@ mod tests {
             .features
             .0
             .insert(Feature::OurLogsIngestion);
-        let project_info = Arc::new(project_info);
 
-        let managed_envelope = ManagedEnvelope::new(
-            dummy_envelope,
-            Addr::dummy(),
-            Addr::dummy(),
-            ProcessingGroup::Log,
-        );
-
-        let managed_envelope = managed_envelope.try_into().unwrap();
+        let managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy(), Addr::dummy());
+        let managed_envelope = (managed_envelope, ProcessingGroup::Log).try_into().unwrap();
 
         (managed_envelope, project_info)
     }
@@ -260,7 +252,7 @@ mod tests {
     #[test]
     fn test_logs_sampled_default() {
         let global_config = GlobalConfig::default();
-        let config = Arc::new(Config::default());
+        let config = Config::default();
         assert!(
             global_config
                 .options
@@ -268,7 +260,12 @@ mod tests {
                 .is_none()
         );
         let (mut managed_envelope, project_info) = params();
-        filter(&mut managed_envelope, config, project_info, &global_config);
+        filter(
+            &mut managed_envelope,
+            &config,
+            &project_info,
+            &global_config,
+        );
         assert!(
             managed_envelope
                 .envelope()
@@ -283,9 +280,14 @@ mod tests {
     fn test_logs_sampled_explicit() {
         let mut global_config = GlobalConfig::default();
         global_config.options.ourlogs_ingestion_sample_rate = Some(1.0);
-        let config = Arc::new(Config::default());
+        let config = Config::default();
         let (mut managed_envelope, project_info) = params();
-        filter(&mut managed_envelope, config, project_info, &global_config);
+        filter(
+            &mut managed_envelope,
+            &config,
+            &project_info,
+            &global_config,
+        );
         assert!(
             managed_envelope
                 .envelope()
@@ -300,9 +302,14 @@ mod tests {
     fn test_logs_sampled_dropped() {
         let mut global_config = GlobalConfig::default();
         global_config.options.ourlogs_ingestion_sample_rate = Some(0.0);
-        let config = Arc::new(Config::default());
+        let config = Config::default();
         let (mut managed_envelope, project_info) = params();
-        filter(&mut managed_envelope, config, project_info, &global_config);
+        filter(
+            &mut managed_envelope,
+            &config,
+            &project_info,
+            &global_config,
+        );
         assert!(
             !managed_envelope
                 .envelope()

@@ -345,6 +345,28 @@ pub struct Obj<'a> {
     _phantom: std::marker::PhantomData<&'a ()>,
 }
 
+/// Borrowed version of a "hex ID", like a span ID, UUID,
+/// &c, represented by a byte slice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HexId<'a>(pub &'a [u8]);
+
+impl HexId<'_> {
+    /// Checks whether the given string is a valid hex encoding
+    /// of `self`.
+    pub fn match_str(&self, other: &str) -> bool {
+        if other.len() != 2 * self.0.len() {
+            return false;
+        }
+
+        let sx = (0..)
+            .step_by(2)
+            .map_while(|r| other.get(r..r + 2))
+            .map(|x| u8::from_str_radix(x, 16).ok());
+
+        self.0.iter().copied().map(Some).eq(sx)
+    }
+}
+
 /// Borrowed version of [`Value`].
 #[derive(Debug, Clone, Copy)]
 pub enum Val<'a> {
@@ -358,8 +380,8 @@ pub enum Val<'a> {
     F64(f64),
     /// A string value.
     String(&'a str),
-    /// A UUID.
-    Uuid(Uuid),
+    /// A hexadecimal ID (UUID, span ID, &c).
+    HexId(HexId<'a>),
     /// An array of annotated values.
     Array(Arr<'a>),
     /// A mapping of strings to annotated values.
@@ -412,10 +434,11 @@ impl<'a> Val<'a> {
         }
     }
 
-    /// Returns the UUID if this value is a UUID, otherwise `None`.
-    pub fn as_uuid(&self) -> Option<Uuid> {
+    /// Returns the ID if this value is a hex ID, otherwise `None`.
+    pub fn as_hex_id(&self) -> Option<HexId> {
         match self {
-            Self::Uuid(value) => Some(*value),
+            Self::HexId(value) => Some(*value),
+
             _ => None,
         }
     }
@@ -451,9 +474,9 @@ impl<'a> From<&'a str> for Val<'a> {
     }
 }
 
-impl From<Uuid> for Val<'_> {
-    fn from(value: Uuid) -> Self {
-        Self::Uuid(value)
+impl<'a> From<&'a Uuid> for Val<'a> {
+    fn from(value: &'a Uuid) -> Self {
+        Self::HexId(HexId(value.as_bytes()))
     }
 }
 
@@ -495,7 +518,7 @@ impl PartialEq for Val<'_> {
             (Self::U64(l0), Self::I64(r0)) => Ok(*l0) == (*r0).try_into(),
             (Self::F64(l0), Self::F64(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
-            (Self::Uuid(l0), Self::Uuid(r0)) => l0 == r0,
+            (Self::HexId(l0), Self::HexId(r0)) => l0 == r0,
             (Self::Array(_), Self::Array(_)) => false,
             (Self::Object(_), Self::Object(_)) => false,
             _ => false,
@@ -514,5 +537,21 @@ mod tests {
 
         let v: Value = serde_json::from_str("123").unwrap();
         assert_eq!(v, Value::I64(123));
+    }
+
+    #[test]
+    fn test_hex_id_comparison() {
+        let id = HexId(&[0xde, 0xad, 0xbe, 0xef]);
+        assert!(id.match_str("deadbeef"));
+        // Matching is case insensitive
+        assert!(id.match_str("DEADBEEF"));
+        // Values don't match
+        assert!(!id.match_str("deedbeef"));
+        // Too short
+        assert!(!id.match_str("deadbee"));
+        // Too long
+        assert!(!id.match_str("deadbeeff"));
+        // Not a valid hex string at all
+        assert!(!id.match_str("deadbeer"));
     }
 }

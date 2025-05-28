@@ -60,8 +60,8 @@ pub fn normalize_parsed_queries(
     string: &str,
 ) -> Result<(String, Vec<Statement>), ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
-    parsed.visit(&mut NormalizeVisitor);
-    parsed.visit(&mut MaxDepthVisitor::new());
+    let _ = parsed.visit(&mut NormalizeVisitor);
+    let _ = parsed.visit(&mut MaxDepthVisitor::new());
 
     let concatenated = parsed
         .iter()

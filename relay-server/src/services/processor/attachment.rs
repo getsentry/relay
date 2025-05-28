@@ -106,7 +106,7 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
                 status = "error"
             );
-            relay_log::warn!(
+            relay_log::debug!(
                 error = &scrub_error as &dyn Error,
                 "failed to scrub minidump",
             );
@@ -143,7 +143,7 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
             item.set_payload(content_type, output);
         }
         Err(e) => {
-            relay_log::warn!(error = &e as &dyn Error, "failed to scrub view hierarchy",);
+            relay_log::debug!(error = &e as &dyn Error, "failed to scrub view hierarchy",);
             metric!(
                 timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
                 status = "error"

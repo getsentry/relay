@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Configuration for the Relay CLI and server"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.5.0"
+version = "25.5.1"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -27,6 +27,7 @@ relay-log = { workspace = true, features = ["init"] }
 relay-metrics = { workspace = true }
 relay-redis = { workspace = true }
 serde = { workspace = true }
+serde-vars = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 thiserror = { workspace = true }

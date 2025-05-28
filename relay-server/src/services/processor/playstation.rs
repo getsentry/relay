@@ -32,7 +32,7 @@ pub fn expand(
     }
     let envelope = managed_envelope.envelope_mut();
 
-    // Don't take the item as it should remain as an attachment on the event.
+    // Get instead of take as we want to keep the dump as an attachment
     if let Some(item) = envelope.get_item_by(|item| {
         item.ty() == &ItemType::Attachment
             && item.attachment_type() == Some(&AttachmentType::Prosperodump)

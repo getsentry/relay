@@ -463,6 +463,10 @@ impl<'a> ProcessingState<'a> {
     ///
     /// - Returns `Ok(None)` if the current state is the root.
     /// - Returns `Err(self)` if the current state does not own the parent state.
+    #[expect(
+        clippy::result_large_err,
+        reason = "this method returns `self` in the error case"
+    )]
     pub fn try_into_parent(self) -> Result<Option<Self>, Self> {
         match self.parent {
             Some(BoxCow::Borrowed(_)) => Err(self),

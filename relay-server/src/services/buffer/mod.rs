@@ -25,7 +25,7 @@ use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
-use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope, ProcessingGroup};
+use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
 use crate::services::test_store::TestStore;
 use crate::statsd::RelayCounters;
@@ -59,7 +59,7 @@ mod testutils;
 #[derive(Debug)]
 pub enum EnvelopeBuffer {
     /// A fresh envelope that gets pushed into the buffer by the request handler.
-    Push(Box<Envelope>),
+    Push(ManagedEnvelope),
 }
 
 impl Interface for EnvelopeBuffer {}
@@ -190,6 +190,19 @@ impl ObservableEnvelopeBuffer {
     /// Returns the address of the buffer service.
     pub fn addr(&self) -> Addr<EnvelopeBuffer> {
         self.addr.clone()
+    }
+
+    /// Attempts to push an envelope into the envelope buffer.
+    ///
+    /// Returns `false`, if the envelope buffer does not have enough capacity.
+    pub fn try_push(&self, mut envelope: ManagedEnvelope) -> bool {
+        if self.has_capacity() {
+            self.addr.send(EnvelopeBuffer::Push(envelope));
+            true
+        } else {
+            envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            false
+        }
     }
 
     /// Returns `true` if the buffer has the capacity to accept more elements.
@@ -409,7 +422,6 @@ impl EnvelopeBufferService {
             envelope,
             services.outcome_aggregator.clone(),
             services.test_store.clone(),
-            ProcessingGroup::Ungrouped,
         );
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
@@ -422,7 +434,7 @@ impl EnvelopeBufferService {
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
                 relay_log::trace!("EnvelopeBufferService: received push message");
-                Self::push(buffer, envelope).await;
+                Self::push(buffer, envelope.into_envelope()).await;
             }
         };
     }
@@ -518,7 +530,6 @@ impl EnvelopeBufferService {
                 envelope,
                 services.outcome_aggregator.clone(),
                 services.test_store.clone(),
-                ProcessingGroup::Ungrouped,
             );
             managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
 
@@ -529,31 +540,29 @@ impl EnvelopeBufferService {
         let sampling_project_info = sampling_project_info
             .filter(|info| info.organization_id == own_project_info.organization_id);
 
-        for (group, envelope) in ProcessingGroup::split_envelope(*envelope) {
-            let managed_envelope = ManagedEnvelope::new(
-                envelope,
-                services.outcome_aggregator.clone(),
-                services.test_store.clone(),
-                group,
-            );
+        let managed_envelope = ManagedEnvelope::new(
+            envelope,
+            services.outcome_aggregator.clone(),
+            services.test_store.clone(),
+        );
 
-            let Ok(CheckedEnvelope {
-                envelope: Some(managed_envelope),
-                ..
-            }) = own_project.check_envelope(managed_envelope).await
-            else {
-                continue; // Outcomes are emitted by `check_envelope`.
-            };
+        let Ok(CheckedEnvelope {
+            envelope: Some(managed_envelope),
+            ..
+        }) = own_project.check_envelope(managed_envelope).await
+        else {
+            // Outcomes are emitted by `check_envelope`.
+            return Ok(());
+        };
 
-            let reservoir_counters = own_project.reservoir_counters().clone();
-            services.envelope_processor.send(ProcessEnvelope {
-                envelope: managed_envelope,
-                project_info: own_project_info.clone(),
-                rate_limits: own_project.rate_limits().current_limits(),
-                sampling_project_info: sampling_project_info.clone(),
-                reservoir_counters,
-            });
-        }
+        let reservoir_counters = own_project.reservoir_counters().clone();
+        services.envelope_processor.send(ProcessEnvelope {
+            envelope: managed_envelope,
+            project_info: own_project_info.clone(),
+            rate_limits: own_project.rate_limits().current_limits(),
+            sampling_project_info: sampling_project_info.clone(),
+            reservoir_counters,
+        });
 
         Ok(())
     }
@@ -695,7 +704,7 @@ mod tests {
     use super::*;
     use crate::MemoryStat;
     use crate::services::projects::project::{ProjectInfo, ProjectState};
-    use crate::testutils::new_envelope;
+    use crate::testutils::new_managed_envelope;
     use chrono::Utc;
     use relay_base_schema::project::ProjectKey;
     use relay_dynamic_config::GlobalConfig;
@@ -789,12 +798,12 @@ mod tests {
 
         let addr = service.start_detached();
 
-        let envelope = new_envelope(false, "foo");
+        let envelope = new_managed_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
         let project_info = Arc::new(ProjectInfo::default());
         project_cache_handle
             .test_set_project_state(project_key, ProjectState::Enabled(project_info));
-        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        addr.send(EnvelopeBuffer::Push(envelope));
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
@@ -825,10 +834,10 @@ mod tests {
 
         let addr = service.start_detached();
 
-        let envelope = new_envelope(false, "foo");
+        let envelope = new_managed_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
         project_cache_handle.test_set_project_state(project_key, ProjectState::Pending);
-        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        addr.send(EnvelopeBuffer::Push(envelope));
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
@@ -843,10 +852,10 @@ mod tests {
         assert_eq!(envelope_processor_rx.len(), 1);
         assert!(envelope_processor_rx.recv().await.is_some());
 
-        let envelope = new_envelope(false, "foo");
+        let envelope = new_managed_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
         project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
-        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        addr.send(EnvelopeBuffer::Push(envelope));
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
@@ -880,9 +889,9 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
         tokio::time::pause();
 
-        let envelope = new_envelope(false, "foo");
+        let envelope = new_managed_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
-        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        addr.send(EnvelopeBuffer::Push(envelope));
         project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -915,8 +924,8 @@ mod tests {
         assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 0);
 
         for _ in 0..10 {
-            let envelope = new_envelope(false, "foo");
-            addr.addr().send(EnvelopeBuffer::Push(envelope.clone()));
+            let envelope = new_managed_envelope(false, "foo");
+            addr.addr().send(EnvelopeBuffer::Push(envelope));
         }
 
         tokio::time::sleep(Duration::from_millis(1100)).await;
@@ -948,8 +957,8 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let mut envelope = new_envelope(false, "foo");
-        envelope.meta_mut().set_received_at(
+        let mut envelope = new_managed_envelope(false, "foo");
+        envelope.envelope_mut().meta_mut().set_received_at(
             Utc::now()
                 - chrono::Duration::seconds(2 * config.spool_envelopes_max_age().as_secs() as i64),
         );
@@ -1010,13 +1019,13 @@ mod tests {
         };
 
         // Create two envelopes with different project keys
-        let envelope1 = new_envelope(false, "foo");
+        let envelope1 = new_managed_envelope(false, "foo");
         let project_key = envelope1.meta().public_key();
         let project_info = Arc::new(ProjectInfo::default());
         project_cache_handle
             .test_set_project_state(project_key, ProjectState::Enabled(project_info));
 
-        let envelope2 = new_envelope(false, "bar");
+        let envelope2 = new_managed_envelope(false, "bar");
         let project_key = envelope2.meta().public_key();
         let project_info = Arc::new(ProjectInfo::default());
         project_cache_handle
