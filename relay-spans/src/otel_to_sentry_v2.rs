@@ -82,9 +82,19 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
                 };
                 http_method = otel_value_to_string(value);
                 name = name.or(Some(http_op.to_owned()));
+
+                if let Some(ref v) = http_method {
+                    let attribute = Attribute::new(AttributeType::String, Value::String(v.clone()));
+                    sentry_attributes.insert(key, Annotated::new(attribute));
+                }
             }
             "http.route" | "url.path" => {
                 http_route = otel_value_to_string(value);
+
+                if let Some(ref v) = http_route {
+                    let attribute = Attribute::new(AttributeType::String, Value::String(v.clone()));
+                    sentry_attributes.insert(key, Annotated::new(attribute));
+                }
             }
             _ => {
                 if let Some(v) = otel_value_to_attr(value) {
@@ -523,9 +533,17 @@ mod tests {
           "end_timestamp": 1697620454.980079,
           "links": [],
           "attributes": {
+            "http.request.method": {
+              "type": "string",
+              "value": "GET"
+            },
             "sentry.description": {
               "type": "string",
               "value": "GET /api/search?q=foobar"
+            },
+            "url.path": {
+              "type": "string",
+              "value": "/api/search?q=foobar"
             }
           }
         }

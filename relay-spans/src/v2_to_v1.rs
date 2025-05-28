@@ -68,19 +68,24 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
                 exclusive_time_ms = value / 1e6f64;
             }
             "http.status_code" => {
-                http_status_code = i64::from_value(value);
+                http_status_code = i64::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             "rpc.grpc.status_code" => {
-                grpc_status_code = i64::from_value(value);
+                grpc_status_code = i64::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             "sentry.platform" => {
-                platform = String::from_value(value);
+                platform = String::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             "sentry.segment.id" => {
-                segment_id = SpanId::from_value(value);
+                segment_id = SpanId::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             "sentry.profile.id" => {
-                profile_id = EventId::from_value(value);
+                profile_id = EventId::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             _ => {
                 data.insert(key.to_owned(), value);
@@ -218,7 +223,7 @@ mod tests {
                     "value": "fastify -> @fastify/multipart",
                     "type": "string"
                 },
-                "hook.name": { 
+                "hook.name": {
                     "value": "onResponse",
                     "type": "string"
                 },
@@ -413,7 +418,10 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
-            "sentry.op": "myop"
+            "sentry.op": "myop",
+            "sentry.platform": "php",
+            "sentry.profile.id": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
+            "sentry.segment.id": "FA90FDEAD5F74052"
           },
           "links": [],
           "platform": "php"

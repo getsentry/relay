@@ -42,6 +42,17 @@ mod tests {
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
+                    "key": "http.route", "value": {
+                        "stringValue": "/home"
+                    }
+                },
+                {
+                    "key": "http.request.method",
+                    "value": {
+                        "stringValue": "GET"
+                        }
+                    },
+                {
                     "key": "sentry.environment",
                     "value": {
                         "stringValue": "test"
@@ -107,10 +118,13 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "ok",
+          "description": "GET /home",
           "data": {
             "sentry.environment": "test",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
+            "http.request.method": "GET",
+            "http.route": "/home",
             "plugin.name": "fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
@@ -340,7 +354,10 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "GET /api/search?q=foobar",
-          "data": {},
+          "data": {
+            "http.request.method": "GET",
+            "url.path": "/api/search?q=foobar"
+          },
           "links": [],
           "kind": "client"
         }
@@ -499,7 +516,10 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
-            "sentry.op": "myop"
+            "sentry.op": "myop",
+            "sentry.platform": "php",
+            "sentry.profile.id": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
+            "sentry.segment.id": "FA90FDEAD5F74052"
           },
           "links": [],
           "platform": "php"
