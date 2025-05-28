@@ -4,6 +4,7 @@ import json
 import requests
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from .asserts import time_within_delta
 
 
 def load_dump_file(base_file_name: str):
@@ -173,41 +174,86 @@ def test_playstation_user_data_extraction(
             break
 
     assert event
+    event_json = {
+        "event_id": response.text.replace("-", ""),
+        "timestamp": 1748373553.0,
+        "received": time_within_delta(),
+        "level": "error",
+        "version": "7",
+        "type": "error",
+        "logger": "",
+        "platform": "native",
+        "environment": "production",
+        "contexts": {
+            "app": {"app_version": "", "type": "app"},
+            "device": {
+                "name": "",
+                "model": "PS5",
+                "model_id": "5be3652dd663dbdcd044da0f2144b17f",
+                "arch": "x86_64",
+                "manufacturer": "Sony",
+                "type": "device",
+            },
+            "os": {"name": "Prospero", "type": "os"},
+            "runtime": {
+                "runtime": "PS5 11.20.00.05-00.00.00.0.1",
+                "name": "PS5",
+                "version": "11.20.00.05-00.00.00.0.1",
+                "type": "runtime",
+            },
+            "trace": {
+                "trace_id": "a4c6cc5ab0d949d23f6d42e518ba49b4",
+                "span_id": "75470378528743c2",
+                "status": "unknown",
+                "type": "trace",
+            },
+        },
+        "breadcrumbs": {
+            "values": [
+                {
+                    "timestamp": 1748373552.703305,
+                    "type": "default",
+                    "level": "info",
+                    "message": "crumb",
+                }
+            ]
+        },
+        "exception": {
+            "values": [
+                {
+                    "type": "Minidump",
+                    "value": "Invalid Minidump",
+                    "mechanism": {
+                        "type": "minidump",
+                        "synthetic": True,
+                        "handled": False,
+                    },
+                }
+            ]
+        },
+        "tags": [
+            ["tag-name", "tag value"],
+            ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
+        ],
+        "extra": {"extra-name": "extra value"},
+        "sdk": {
+            "name": "sentry.native.playstation",
+            "version": "0.8.5",
+            "packages": [
+                {"name": "github:getsentry/sentry-native", "version": "0.8.5"}
+            ],
+        },
+        "key_id": "123",
+        "project": 42,
+    }
 
-    print(event)
     assert event["type"] == "event"
-
     event_data = json.loads(event["payload"])
 
-    assert event_data["platform"] == "native"
-    assert event_data["environment"] == "production"
-    assert event_data["level"] == "error"
+    for key in ["_metrics", "grouping_config"]:
+        del event_data[key]
 
-    assert event_data["sdk"]["name"] == "sentry.native.playstation"
-    assert event_data["sdk"]["version"] == "0.8.5"
-    assert len(event_data["sdk"]["packages"]) == 1
-    assert event_data["sdk"]["packages"][0]["name"] == "github:getsentry/sentry-native"
-    assert event_data["sdk"]["packages"][0]["version"] == "0.8.5"
-
-    assert ["tag-name", "tag value"] in event_data["tags"]
-
-    assert event_data["extra"]["extra-name"] == "extra value"
-
-    assert event_data["contexts"]["os"]["name"] == "Prospero"
-    assert (
-        event_data["contexts"]["trace"]["trace_id"]
-        == "a4c6cc5ab0d949d23f6d42e518ba49b4"
-    )
-    assert event_data["contexts"]["trace"]["span_id"] == "75470378528743c2"
-
-    assert len(event_data["breadcrumbs"]) == 1
-    assert event_data["breadcrumbs"]["values"][0]["message"] == "crumb"
-
-    assert "_metrics" in event_data
-    assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
-    assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
-
-    print(event["attachments"])
+    assert event_data == event_json
     assert len(event["attachments"]) == 3
 
 
