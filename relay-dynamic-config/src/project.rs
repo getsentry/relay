@@ -27,9 +27,9 @@ pub struct ProjectConfig {
     pub allowed_domains: Vec<String>,
     /// List of relay public keys that are permitted to access this project.
     pub trusted_relays: Vec<PublicKey>,
-    /// Configuration for trusted relay behaviour.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub trusted_relay_settings: Option<TrustedRelayConfig>,
+    /// Configuration for trusted Relay behaviour.
+    #[serde(skip_serializing_if = "TrustedRelayConfig::is_empty")]
+    pub trusted_relay_settings: TrustedRelayConfig,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
     /// The grouping configuration.
@@ -132,7 +132,7 @@ impl Default for ProjectConfig {
         ProjectConfig {
             allowed_domains: vec!["*".to_string()],
             trusted_relays: vec![],
-            trusted_relay_settings: None,
+            trusted_relay_settings: TrustedRelayConfig::default(),
             pii_config: None,
             grouping_config: None,
             filter_settings: ProjectFiltersConfig::default(),

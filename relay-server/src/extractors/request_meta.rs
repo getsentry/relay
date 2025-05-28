@@ -337,8 +337,8 @@ impl<D> RequestMeta<D> {
     }
 
     /// Returns the trusted relay signature.
-    pub fn signature(&self) -> &Option<TrustedRelaySignature> {
-        &self.signature
+    pub fn signature(&self) -> Option<&TrustedRelaySignature> {
+        self.signature.as_ref()
     }
 }
 
