@@ -103,20 +103,18 @@ pub fn expand_v2_spans(
                 }
                 Err(err) => {
                     relay_log::debug!("failed to serialize span: {}", err);
-                    for (category, _quantity) in span_v2_item.quantities(CountFor::Outcomes) {
+                    for (category, quantity) in new_item.quantities(CountFor::Outcomes) {
                         if let Some(indexed) = category.index_category() {
                             managed_envelope.track_outcome(
                                 Outcome::Invalid(DiscardReason::Internal),
                                 indexed,
-                                // We use 1 here, not the quantity returned by `quantities`,
-                                // because only 1 contained span was invalid.
-                                1,
+                                quantity,
                             );
                         };
                         managed_envelope.track_outcome(
                             Outcome::Invalid(DiscardReason::Internal),
                             category,
-                            1,
+                            quantity,
                         );
                     }
                 }
