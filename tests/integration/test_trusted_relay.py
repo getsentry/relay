@@ -42,7 +42,6 @@ def test_missing_version(mini_sentry, relay, relay_credentials):
     Tests a request with the correct signature but no version is provided.
     """
     project_id = 42
-    credentials = relay_credentials()
 
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["trustedRelaySettings"]["verifySignature"] = True
@@ -52,7 +51,7 @@ def test_missing_version(mini_sentry, relay, relay_credentials):
 
     headers = {
         "x-sentry-relay-signature": "uqFY5JuNcRvi1vUDv2A2xRjKH-U-jchmW61owNBA8QaZ5Cf9A2HQclN6bSDXq-8Cj72GEysHA44reOgWjix2AA.eyJ0IjoiMjAyNS0wNS0yOFQwODo0Nzo0Ny45MzcwNjBaIn0",
-        "x-sentry-relay-id": credentials["id"],
+        "x-sentry-relay-id": "relay-1",
         "x-sentry-signature-headers": "x-sentry-relay-signature-datetime",
         "x-sentry-relay-signature-datetime": "2025-05-28 08:47:47.937053 UTC",
     }
