@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::{Envelope, Item};
+use crate::envelope::{CountFor, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
@@ -252,11 +252,17 @@ impl ManagedEnvelope {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                outcomes.extend(std::iter::repeat(outcome).zip(item.categories_for_outcomes()));
+                for (category, quantity) in item.quantities(CountFor::Outcomes) {
+                    if let Some(indexed) = category.index_category() {
+                        outcomes.push((outcome.clone(), indexed, quantity));
+                    };
+                    outcomes.push((outcome.clone(), category, quantity));
+                }
+
                 false
             }
         });
-        for (outcome, (category, quantity)) in outcomes {
+        for (outcome, category, quantity) in outcomes {
             self.track_outcome(outcome, category, quantity);
         }
         // TODO: once `update` is private, it should be called here.
@@ -302,13 +308,6 @@ impl ManagedEnvelope {
             // machines, but the protocol and data store can only do 32-bit.
             quantity: quantity as u32,
         });
-    }
-
-    // TODO: naming, docs
-    pub fn track_outcome_for_item(&self, item: &Item, outcome: Outcome) {
-        for (category, quantity) in item.categories_for_outcomes() {
-            self.track_outcome(outcome.clone(), category, quantity);
-        }
     }
 
     /// Accepts the envelope and drops the context.

@@ -12,7 +12,7 @@ use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
 
-use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
+use crate::envelope::{ContentType, CountFor, Item, ItemContainer, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
 use crate::utils::ItemAction;
@@ -75,10 +75,20 @@ pub fn expand_v2_spans(
             Ok(spans_v2) => spans_v2,
             Err(err) => {
                 relay_log::debug!("failed to parse V2 spans: {err}");
-                managed_envelope.track_outcome_for_item(
-                    &span_v2_item,
-                    Outcome::Invalid(DiscardReason::InvalidSpan),
-                );
+                for (category, quantity) in span_v2_item.quantities(CountFor::Outcomes) {
+                    if let Some(indexed) = category.index_category() {
+                        managed_envelope.track_outcome(
+                            Outcome::Invalid(DiscardReason::InvalidSpan),
+                            indexed,
+                            quantity,
+                        );
+                    };
+                    managed_envelope.track_outcome(
+                        Outcome::Invalid(DiscardReason::InvalidSpan),
+                        category,
+                        quantity,
+                    );
+                }
                 continue;
             }
         };
@@ -93,10 +103,22 @@ pub fn expand_v2_spans(
                 }
                 Err(err) => {
                     relay_log::debug!("failed to serialize span: {}", err);
-                    managed_envelope.track_outcome_for_item(
-                        &span_v2_item,
-                        Outcome::Invalid(DiscardReason::Internal),
-                    );
+                    for (category, _quantity) in span_v2_item.quantities(CountFor::Outcomes) {
+                        if let Some(indexed) = category.index_category() {
+                            managed_envelope.track_outcome(
+                                Outcome::Invalid(DiscardReason::Internal),
+                                indexed,
+                                // We use 1 here, not the quantity returned by `quantities`,
+                                // because only 1 contained span was invalid.
+                                1,
+                            );
+                        };
+                        managed_envelope.track_outcome(
+                            Outcome::Invalid(DiscardReason::Internal),
+                            category,
+                            1,
+                        );
+                    }
                 }
             }
         }

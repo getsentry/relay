@@ -155,19 +155,6 @@ impl Item {
         }
     }
 
-    // TODO: naming, docs
-    pub fn categories_for_outcomes(&self) -> impl Iterator<Item = (DataCategory, usize)> {
-        self.quantities(CountFor::Outcomes)
-            .into_iter()
-            .flat_map(move |(category, quantity)| {
-                category
-                    .index_category()
-                    .into_iter()
-                    .map(move |indexed| (indexed, quantity))
-                    .chain(std::iter::once((category, quantity)))
-            })
-    }
-
     /// True if the item represents any kind of span.
     pub fn is_span(&self) -> bool {
         matches!(
