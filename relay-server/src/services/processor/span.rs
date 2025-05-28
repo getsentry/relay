@@ -89,7 +89,6 @@ pub fn expand_v2_spans(
             match span_v1.to_json() {
                 Ok(payload) => {
                     new_item.set_payload(ContentType::Json, payload);
-                    new_item.set_metrics_extracted(new_item.metrics_extracted());
                     managed_envelope.envelope_mut().add_item(new_item);
                 }
                 Err(err) => {
