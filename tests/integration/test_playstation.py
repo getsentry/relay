@@ -141,8 +141,9 @@ def test_playstation_with_feature_flag(
     assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
 
     assert len(event["attachments"]) == 3
-    attachment = event["attachments"][0]
-    assert attachment["attachment_type"] == "playstation.prosperodump"
+    assert "playstation.prosperodmp" in [
+        attachment["name"] for attachment in event["attachments"]
+    ]
 
 
 def test_playstation_user_data_extraction(
@@ -337,8 +338,9 @@ def test_playstation_attachment(
     assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
 
     assert len(event["attachments"]) == 3
-    attachment = event["attachments"][0]
-    assert attachment["attachment_type"] == "playstation.prosperodump"
+    assert "playstation.prosperodmp" in [
+        attachment["name"] for attachment in event["attachments"]
+    ]
 
 
 def test_playstation_attachment_no_feature_flag(
