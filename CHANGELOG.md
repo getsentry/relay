@@ -5,6 +5,7 @@
 **Internal**:
 
 - Remove the "unspecified" variant of `SpanKind`. ([#4774](https://github.com/getsentry/relay/pull/4774))
+- Switch `sysinfo` dependency back to upstream and update to 0.35.1. ([#4776](https://github.com/getsentry/relay/pull/4776))
 
 ## 25.5.1
 
