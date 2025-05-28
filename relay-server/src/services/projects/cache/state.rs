@@ -6,7 +6,6 @@ use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
 use relay_quotas::CachedRateLimits;
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
@@ -26,17 +25,29 @@ use crate::utils::{RetryBackoff, UniqueScheduledQueue};
 /// a fetch to create the private state and keep it updated.
 /// This guarantees that eventually the project state is populated, but for a undetermined,
 /// time it is possible that shared state exists without the respective private state.
-#[derive(Default)]
 pub struct ProjectStore {
+    config: Config,
     /// The shared state, which can be accessed concurrently.
     shared: Arc<Shared>,
     /// The private, mutably exclusive state, used to maintain the project state.
     private: hashbrown::HashMap<ProjectKey, PrivateProjectState>,
     /// Scheduled queue tracking all evictions.
     evictions: UniqueScheduledQueue<ProjectKey>,
+    /// Scheduled queue tracking all refreshes.
+    refreshes: UniqueScheduledQueue<ProjectKey>,
 }
 
 impl ProjectStore {
+    pub fn new(config: &relay_config::Config) -> Self {
+        Self {
+            config: Config::new(config),
+            shared: Default::default(),
+            private: Default::default(),
+            evictions: Default::default(),
+            refreshes: Default::default(),
+        }
+    }
+
     /// Retrieves a [`Shared`] handle which can be freely shared with multiple consumers.
     pub fn shared(&self) -> Arc<Shared> {
         Arc::clone(&self.shared)
@@ -47,18 +58,8 @@ impl ProjectStore {
     /// Returns `None` if no fetch is necessary or there is already a fetch ongoing.
     /// A returned [`Fetch`] must be scheduled and completed with [`Fetch::complete`] and
     /// [`Self::complete_fetch`].
-    pub fn try_begin_fetch(&mut self, project_key: ProjectKey, config: &Config) -> Option<Fetch> {
-        let fetch = self
-            .get_or_create(project_key, config)
-            .try_begin_fetch(config);
-
-        // If there is a new fetch, remove the pending eviction, it will be re-scheduled once the
-        // fetch is completed.
-        if fetch.is_some() {
-            self.evictions.remove(&project_key);
-        }
-
-        fetch
+    pub fn try_begin_fetch(&mut self, project_key: ProjectKey) -> Option<Fetch> {
+        self.do_try_begin_fetch(project_key, false)
     }
 
     /// Completes a [`CompletedFetch`] started with [`Self::try_begin_fetch`].
@@ -66,7 +67,7 @@ impl ProjectStore {
     /// Returns a new [`Fetch`] if another fetch must be scheduled. This happens when the fetched
     /// [`ProjectState`] is still pending or already deemed expired.
     #[must_use = "an incomplete fetch must be retried"]
-    pub fn complete_fetch(&mut self, fetch: CompletedFetch, config: &Config) -> Option<Fetch> {
+    pub fn complete_fetch(&mut self, fetch: CompletedFetch) -> Option<Fetch> {
         let project_key = fetch.project_key();
 
         // Eviction is not possible for projects which are currently being fetched.
@@ -74,20 +75,19 @@ impl ProjectStore {
         debug_assert!(self.shared.projects.pin().get(&project_key).is_some());
         debug_assert!(self.private.get(&project_key).is_some());
 
-        let mut project = self.get_or_create(project_key, config);
-        let expiry = project.complete_fetch(fetch, config);
+        let mut project = self.get_or_create(project_key);
         // Schedule another fetch if necessary, usually should only happen if
         // the completed fetch is pending.
-        let new_fetch = project.try_begin_fetch(config);
-
-        if let Some(ExpiryTime(when)) = expiry {
-            debug_assert!(
-                new_fetch.is_none(),
-                "there cannot be a new fetch and a scheduled expiry"
-            );
-
-            self.evictions.schedule(when, project_key);
-        }
+        let new_fetch = match project.complete_fetch(fetch) {
+            FetchResult::ReSchedule { refresh } => project.try_begin_fetch(refresh),
+            FetchResult::Done { expiry, refresh } => {
+                self.evictions.schedule(expiry.0, project_key);
+                if let Some(RefreshTime(refresh)) = refresh {
+                    self.refreshes.schedule(refresh, project_key);
+                }
+                None
+            }
+        };
 
         metric!(
             histogram(RelayHistograms::ProjectStateCacheSize) = self.shared.projects.len() as u64,
@@ -101,19 +101,37 @@ impl ProjectStore {
         new_fetch
     }
 
-    /// Waits for the next scheduled eviction and returns an [`Eviction`] token.
+    /// Waits for the next scheduled action.
     ///
-    /// The returned [`Eviction`] token must be immediately turned in using [`Self::evict`].
+    /// The returned [`Action`] must be immediately turned in using the corresponding handlers,
+    /// [`Self::evict`] or [`Self::refresh`].
     ///
     /// The returned future is cancellation safe.
-    pub async fn next_eviction(&mut self) -> Option<Eviction> {
-        if self.evictions.is_empty() {
-            return None;
+    pub async fn poll(&mut self) -> Option<Action> {
+        let eviction = self.evictions.next();
+        let refresh = self.refreshes.next();
+
+        tokio::select! {
+            biased;
+
+            Some(e) = eviction => Some(Action::Eviction(Eviction(e))),
+            Some(r) = refresh => Some(Action::Refresh(Refresh(r))),
+            else => None,
         }
-        self.evictions.next().await.map(Eviction)
     }
 
-    /// Evicts a project using an [`Eviction`] token returned from [`Self::next_eviction`].
+    /// Refreshes a project using an [`Refresh`] token returned from [`Self::poll`].
+    ///
+    /// Like [`Self::try_begin_fetch`], this returns a [`Fetch`], if there was no fetch
+    /// already started in the meantime.
+    ///
+    /// A returned [`Fetch`] must be scheduled and completed with [`Fetch::complete`] and
+    /// [`Self::complete_fetch`].
+    pub fn refresh(&mut self, Refresh(project_key): Refresh) -> Option<Fetch> {
+        self.do_try_begin_fetch(project_key, true)
+    }
+
+    /// Evicts a project using an [`Eviction`] token returned from [`Self::poll`].
     pub fn evict(&mut self, Eviction(project_key): Eviction) {
         // Remove the private part.
         let Some(private) = self.private.remove(&project_key) else {
@@ -134,12 +152,65 @@ impl ProjectStore {
             _removed.is_some(),
             "an expired project must exist in the shared state"
         );
+
+        // Cancel next refresh, while not necessary (trying to refresh a project which does not
+        // exist, will do nothing), but we can also spare us the extra work.
+        self.refreshes.remove(&project_key);
+    }
+
+    /// Internal handler to begin a new fetch for the passed `project_key`, which can also handle
+    /// refreshes.
+    fn do_try_begin_fetch(&mut self, project_key: ProjectKey, is_refresh: bool) -> Option<Fetch> {
+        let fetch = match is_refresh {
+            // A rogue refresh does not need to trigger an actual fetch.
+            // In practice this should never happen, as the refresh time is validated against
+            // the eviction time.
+            // But it may happen due to a race of the eviction and refresh (e.g. when setting them
+            // to close to the same value), in which case we don't want to re-populate the cache.
+            true => self.get(project_key)?,
+            false => self.get_or_create(project_key),
+        }
+        .try_begin_fetch(is_refresh);
+
+        // If there is a new fetch, remove the pending eviction, it will be re-scheduled once the
+        // fetch is completed.
+        if fetch.is_some() {
+            self.evictions.remove(&project_key);
+            // There is no need to clear the refresh here, if it triggers while a fetch is ongoing,
+            // it is simply discarded.
+        }
+
+        fetch
     }
 
     /// Get a reference to the current project or create a new project.
     ///
     /// For internal use only, a created project must always be fetched immediately.
-    fn get_or_create(&mut self, project_key: ProjectKey, config: &Config) -> ProjectRef<'_> {
+    fn get(&mut self, project_key: ProjectKey) -> Option<ProjectRef<'_>> {
+        let private = self.private.get_mut(&project_key)?;
+
+        // Same invariant as in `get_or_create`, we have exclusive access to the private
+        // project here, there must be a shared project if there is a private project.
+        debug_assert!(self.shared.projects.pin().contains_key(&project_key));
+
+        let shared = self
+            .shared
+            .projects
+            .pin()
+            .get_or_insert_with(project_key, Default::default)
+            .clone();
+
+        Some(ProjectRef {
+            private,
+            shared,
+            config: &self.config,
+        })
+    }
+
+    /// Get a reference to the current project or create a new project.
+    ///
+    /// For internal use only, a created project must always be fetched immediately.
+    fn get_or_create(&mut self, project_key: ProjectKey) -> ProjectRef<'_> {
         #[cfg(debug_assertions)]
         if self.private.contains_key(&project_key) {
             // We have exclusive access to the private part, there are no concurrent deletions
@@ -153,7 +224,7 @@ impl ProjectStore {
         let private = self
             .private
             .entry(project_key)
-            .or_insert_with(|| PrivateProjectState::new(project_key, config));
+            .or_insert_with(|| PrivateProjectState::new(project_key, &self.config));
 
         let shared = self
             .shared
@@ -162,7 +233,55 @@ impl ProjectStore {
             .get_or_insert_with(project_key, Default::default)
             .clone();
 
-        ProjectRef { private, shared }
+        ProjectRef {
+            private,
+            shared,
+            config: &self.config,
+        }
+    }
+}
+
+/// Configuration for a [`ProjectStore`].
+struct Config {
+    /// Expiry timeout for individual project configs.
+    ///
+    /// Note: the total expiry is the sum of the expiry and grace period.
+    expiry: Duration,
+    /// Grace period for a project config.
+    ///
+    /// A project config is considered stale and will be updated asynchronously,
+    /// after reaching the grace period.
+    grace_period: Duration,
+    /// Refresh interval for a single project.
+    ///
+    /// A project will be asynchronously refreshed repeatedly using this interval.
+    ///
+    /// The refresh interval is validated to be between expiration and grace period. An invalid refresh
+    /// time is ignored.
+    refresh_interval: Option<Duration>,
+    /// Maximum backoff for continuously failing project updates.
+    max_retry_backoff: Duration,
+}
+
+impl Config {
+    fn new(config: &relay_config::Config) -> Self {
+        let expiry = config.project_cache_expiry();
+        let grace_period = config.project_grace_period();
+
+        // Make sure the refresh time is:
+        // - at least the expiration, refreshing a non-stale project makes no sense.
+        // - at most the end of the grace period, refreshing an expired project also makes no sense.
+        let refresh_interval = config
+            .project_refresh_interval()
+            .filter(|rt| *rt < (expiry + grace_period))
+            .filter(|rt| *rt > expiry);
+
+        Self {
+            expiry: config.project_cache_expiry(),
+            grace_period: config.project_grace_period(),
+            refresh_interval,
+            max_retry_backoff: config.http_max_retry_interval(),
+        }
     }
 }
 
@@ -260,17 +379,18 @@ impl SharedProject {
 struct ProjectRef<'a> {
     shared: SharedProjectState,
     private: &'a mut PrivateProjectState,
+    config: &'a Config,
 }
 
 impl ProjectRef<'_> {
-    fn try_begin_fetch(&mut self, config: &Config) -> Option<Fetch> {
+    fn try_begin_fetch(&mut self, is_refresh: bool) -> Option<Fetch> {
         let now = Instant::now();
         self.private
-            .try_begin_fetch(now, config)
+            .try_begin_fetch(now, is_refresh, self.config)
             .map(|fetch| fetch.with_revision(self.shared.revision()))
     }
 
-    fn complete_fetch(&mut self, fetch: CompletedFetch, config: &Config) -> Option<ExpiryTime> {
+    fn complete_fetch(&mut self, fetch: CompletedFetch) -> FetchResult {
         let now = Instant::now();
 
         if let Some(latency) = fetch.latency() {
@@ -305,7 +425,7 @@ impl ProjectRef<'_> {
         }
 
         // Update private and shared state with the new data.
-        let expiry = self.private.complete_fetch(&fetch, now, config);
+        let result = self.private.complete_fetch(&fetch, now, self.config);
         match fetch.state {
             // Keep the old state around if the current fetch is pending.
             // It may still be useful to callers.
@@ -315,13 +435,33 @@ impl ProjectRef<'_> {
             _ => {}
         }
 
-        expiry
+        result
+    }
+}
+
+pub enum Action {
+    Eviction(Eviction),
+    Refresh(Refresh),
+}
+
+/// A [`Refresh`] token.
+///
+/// The token must be turned in using [`ProjectStore::refresh`].
+#[derive(Debug)]
+#[must_use = "a refresh must be used"]
+pub struct Refresh(ProjectKey);
+
+impl Refresh {
+    /// Returns the [`ProjectKey`] of the project that needs to be refreshed.
+    pub fn project_key(&self) -> ProjectKey {
+        self.0
     }
 }
 
 /// A [`Eviction`] token.
 ///
 /// The token must be turned in using [`ProjectStore::evict`].
+#[derive(Debug)]
 #[must_use = "an eviction must be used"]
 pub struct Eviction(ProjectKey);
 
@@ -517,7 +657,13 @@ struct SharedProjectStateInner {
 #[derive(Debug)]
 enum FetchState {
     /// There is a fetch currently in progress.
-    InProgress,
+    InProgress {
+        /// Whether the current check in progress was triggered from a refresh.
+        ///
+        /// Triggering a non-refresh fetch while a refresh fetch is currently in progress,
+        /// will overwrite this property.
+        is_refresh: bool,
+    },
     /// A successful fetch is pending.
     ///
     /// Projects which have not yet been fetched are in the pending state,
@@ -566,6 +712,11 @@ struct PrivateProjectState {
     /// This is purely informational, all necessary information to make
     /// state transitions is contained in [`FetchState`].
     last_fetch: Option<Instant>,
+
+    /// The expiry time of this project.
+    ///
+    /// A refresh of the project, will not push the expiration time.
+    expiry: Option<Instant>,
 }
 
 impl PrivateProjectState {
@@ -576,18 +727,28 @@ impl PrivateProjectState {
                 initiated: None,
                 next_fetch_attempt: None,
             },
-            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            backoff: RetryBackoff::new(config.max_retry_backoff),
             last_fetch: None,
+            expiry: None,
         }
     }
 
-    fn try_begin_fetch(&mut self, now: Instant, config: &Config) -> Option<Fetch> {
-        let (initiated, when) = match &self.state {
-            FetchState::InProgress => {
+    fn try_begin_fetch(
+        &mut self,
+        now: Instant,
+        is_refresh: bool,
+        config: &Config,
+    ) -> Option<Fetch> {
+        let (initiated, when) = match &mut self.state {
+            FetchState::InProgress {
+                is_refresh: refresh_in_progress,
+            } => {
                 relay_log::trace!(
                     tags.project_key = self.project_key.as_str(),
                     "project fetch skipped, fetch in progress"
                 );
+                // Upgrade the refresh status if necessary.
+                *refresh_in_progress = *refresh_in_progress && is_refresh;
                 return None;
             }
             FetchState::Pending {
@@ -615,12 +776,13 @@ impl PrivateProjectState {
         };
 
         // Mark a current fetch in progress.
-        self.state = FetchState::InProgress;
+        self.state = FetchState::InProgress { is_refresh };
 
         relay_log::trace!(
             tags.project_key = &self.project_key.as_str(),
             attempts = self.backoff.attempt() + 1,
-            "project state fetch scheduled in {:?}",
+            "project state {} scheduled in {:?}",
+            if is_refresh { "refresh" } else { "fetch" },
             when.unwrap_or(now).saturating_duration_since(now),
         );
 
@@ -638,11 +800,15 @@ impl PrivateProjectState {
         fetch: &CompletedFetch,
         now: Instant,
         config: &Config,
-    ) -> Option<ExpiryTime> {
-        debug_assert!(
-            matches!(self.state, FetchState::InProgress),
-            "fetch completed while there was no current fetch registered"
-        );
+    ) -> FetchResult {
+        let FetchState::InProgress { is_refresh } = self.state else {
+            debug_assert!(
+                false,
+                "fetch completed while there was no current fetch registered"
+            );
+            // Be conservative in production.
+            return FetchResult::ReSchedule { refresh: false };
+        };
 
         if fetch.is_pending() {
             let next_backoff = self.backoff.next_backoff();
@@ -656,24 +822,56 @@ impl PrivateProjectState {
             };
             relay_log::trace!(
                 tags.project_key = &self.project_key.as_str(),
-                "project state fetch completed but still pending"
+                "project state {} completed but still pending",
+                if is_refresh { "refresh" } else { "fetch" },
             );
 
-            None
+            FetchResult::ReSchedule {
+                refresh: is_refresh,
+            }
         } else {
             relay_log::trace!(
                 tags.project_key = &self.project_key.as_str(),
-                "project state fetch completed with non-pending config"
+                "project state {} completed with non-pending config",
+                if is_refresh { "refresh" } else { "fetch" },
             );
 
             self.backoff.reset();
             self.last_fetch = Some(now);
 
             let when = LastFetch(now);
+
+            let refresh = when.refresh_time(config);
+            let expiry = match self.expiry {
+                Some(expiry) if is_refresh => ExpiryTime(expiry),
+                // Only bump/re-compute the expiry time if the fetch was not a refresh,
+                // to not keep refreshed projects forever in the cache.
+                Some(_) | None => when.expiry_time(config),
+            };
+            self.expiry = Some(expiry.0);
+
             self.state = FetchState::Complete { when };
-            Some(when.expiry_time(config))
+            FetchResult::Done { expiry, refresh }
         }
     }
+}
+
+/// Result returned when completing a fetch.
+#[derive(Debug)]
+#[must_use = "fetch result must be used"]
+enum FetchResult {
+    /// Another fetch must be scheduled immediately.
+    ReSchedule {
+        /// Whether the fetch should be re-scheduled as a refresh.
+        refresh: bool,
+    },
+    /// The fetch is completed and should be registered for refresh and eviction.
+    Done {
+        /// When the project should be expired.
+        expiry: ExpiryTime,
+        /// When the project should be refreshed.
+        refresh: Option<RefreshTime>,
+    },
 }
 
 /// New type containing the last successful fetch time as an [`Instant`].
@@ -683,21 +881,28 @@ struct LastFetch(Instant);
 impl LastFetch {
     /// Returns the [`Expiry`] of the last fetch in relation to `now`.
     fn check_expiry(&self, now: Instant, config: &Config) -> Expiry {
-        let expiry = config.project_cache_expiry();
         let elapsed = now.saturating_duration_since(self.0);
 
-        if elapsed >= expiry + config.project_grace_period() {
+        if elapsed >= config.expiry + config.grace_period {
             Expiry::Expired
-        } else if elapsed >= expiry {
+        } else if elapsed >= config.expiry {
             Expiry::Stale
         } else {
             Expiry::Fresh
         }
     }
 
+    /// Returns when the project needs to be queued for a refresh.
+    fn refresh_time(&self, config: &Config) -> Option<RefreshTime> {
+        config
+            .refresh_interval
+            .map(|duration| self.0 + duration)
+            .map(RefreshTime)
+    }
+
     /// Returns when the project is based to expire based on the current [`LastFetch`].
     fn expiry_time(&self, config: &Config) -> ExpiryTime {
-        ExpiryTime(self.0 + config.project_grace_period() + config.project_cache_expiry())
+        ExpiryTime(self.0 + config.grace_period + config.expiry)
     }
 }
 
@@ -721,7 +926,13 @@ impl Expiry {
     }
 }
 
+/// Instant when a project is scheduled for refresh.
+#[derive(Debug)]
+#[must_use = "an refresh time must be used to schedule a refresh"]
+struct RefreshTime(Instant);
+
 /// Instant when a project is scheduled for expiry.
+#[derive(Debug)]
 #[must_use = "an expiry time must be used to schedule an eviction"]
 struct ExpiryTime(Instant);
 
@@ -734,8 +945,8 @@ mod tests {
     async fn collect_evicted(store: &mut ProjectStore) -> Vec<ProjectKey> {
         let mut evicted = Vec::new();
         // Small timeout to really only get what is ready to be evicted right now.
-        while let Ok(Some(eviction)) =
-            tokio::time::timeout(Duration::from_nanos(5), store.next_eviction()).await
+        while let Ok(Some(Action::Eviction(eviction))) =
+            tokio::time::timeout(Duration::from_nanos(5), store.poll()).await
         {
             evicted.push(eviction.0);
             store.evict(eviction);
@@ -755,21 +966,20 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_store_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
-        let mut store = ProjectStore::default();
-        let config = Default::default();
+        let mut store = ProjectStore::new(&Default::default());
 
-        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key).unwrap();
         assert_eq!(fetch.project_key(), project_key);
         assert_eq!(fetch.when(), None);
         assert_eq!(fetch.revision().as_str(), None);
         assert_state!(store, project_key, ProjectState::Pending);
 
         // Fetch already in progress, nothing to do.
-        assert!(store.try_begin_fetch(project_key, &config).is_none());
+        assert!(store.try_begin_fetch(project_key).is_none());
 
         // A pending fetch should trigger a new fetch immediately.
         let fetch = fetch.complete(ProjectState::Pending.into());
-        let fetch = store.complete_fetch(fetch, &config).unwrap();
+        let fetch = store.complete_fetch(fetch).unwrap();
         assert_eq!(fetch.project_key(), project_key);
         // First backoff is still immediately.
         assert_eq!(fetch.when(), None);
@@ -778,7 +988,7 @@ mod tests {
 
         // Pending again.
         let fetch = fetch.complete(ProjectState::Pending.into());
-        let fetch = store.complete_fetch(fetch, &config).unwrap();
+        let fetch = store.complete_fetch(fetch).unwrap();
         assert_eq!(fetch.project_key(), project_key);
         // This time it needs to be in the future (backoff).
         assert!(fetch.when() > Some(Instant::now()));
@@ -787,41 +997,42 @@ mod tests {
 
         // Now complete with disabled.
         let fetch = fetch.complete(ProjectState::Disabled.into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
         assert_state!(store, project_key, ProjectState::Disabled);
 
         // A new fetch is not yet necessary.
-        assert!(store.try_begin_fetch(project_key, &config).is_none());
+        assert!(store.try_begin_fetch(project_key).is_none());
     }
 
     #[tokio::test(start_paused = true)]
     async fn test_store_fetch_pending_does_not_replace_state() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
-        let mut store = ProjectStore::default();
-        let config = Config::from_json_value(serde_json::json!({
-            "cache": {
-                "project_expiry": 5,
-                "project_grace_period": 5,
-            }
-        }))
-        .unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 5,
+                }
+            }))
+            .unwrap(),
+        );
 
-        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key).unwrap();
         let fetch = fetch.complete(ProjectState::Disabled.into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
         assert_state!(store, project_key, ProjectState::Disabled);
 
         tokio::time::advance(Duration::from_secs(6)).await;
 
-        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key).unwrap();
         let fetch = fetch.complete(ProjectState::Pending.into());
         // We're returned a new fetch, because the current one completed pending.
-        let fetch = store.complete_fetch(fetch, &config).unwrap();
+        let fetch = store.complete_fetch(fetch).unwrap();
         // The old cached state is still available and not replaced.
         assert_state!(store, project_key, ProjectState::Disabled);
 
         let fetch = fetch.complete(ProjectState::new_allowed().into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
         assert_state!(store, project_key, ProjectState::Enabled(_));
     }
 
@@ -829,18 +1040,19 @@ mod tests {
     async fn test_store_evict_projects() {
         let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
-        let mut store = ProjectStore::default();
-        let config = Config::from_json_value(serde_json::json!({
-            "cache": {
-                "project_expiry": 5,
-                "project_grace_period": 0,
-            }
-        }))
-        .unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 0,
+                }
+            }))
+            .unwrap(),
+        );
 
-        let fetch = store.try_begin_fetch(project_key1, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key1).unwrap();
         let fetch = fetch.complete(ProjectState::Disabled.into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
 
         assert_eq!(collect_evicted(&mut store).await, Vec::new());
         assert_state!(store, project_key1, ProjectState::Disabled);
@@ -851,9 +1063,9 @@ mod tests {
         assert_eq!(collect_evicted(&mut store).await, Vec::new());
         assert_state!(store, project_key1, ProjectState::Disabled);
 
-        let fetch = store.try_begin_fetch(project_key2, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key2).unwrap();
         let fetch = fetch.complete(ProjectState::Disabled.into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
 
         // A total of 6 seconds should expire the first project.
         tokio::time::advance(Duration::from_secs(3)).await;
@@ -867,16 +1079,17 @@ mod tests {
     async fn test_store_evict_projects_pending_not_expired() {
         let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
-        let mut store = ProjectStore::default();
-        let config = Config::from_json_value(serde_json::json!({
-            "cache": {
-                "project_expiry": 5,
-                "project_grace_period": 0,
-            }
-        }))
-        .unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 0,
+                }
+            }))
+            .unwrap(),
+        );
 
-        let fetch = store.try_begin_fetch(project_key1, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key1).unwrap();
         // Create a new project in a pending state, but never fetch it, this should also never expire.
         store.shared().get_or_create(project_key2);
 
@@ -887,7 +1100,7 @@ mod tests {
 
         // Complete the project.
         let fetch = fetch.complete(ProjectState::Disabled.into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
 
         // Still should not be evicted, because we do have 5 seconds to expire since completion.
         assert_eq!(collect_evicted(&mut store).await, Vec::new());
@@ -905,18 +1118,19 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_store_evict_projects_stale() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
-        let mut store = ProjectStore::default();
-        let config = Config::from_json_value(serde_json::json!({
-            "cache": {
-                "project_expiry": 5,
-                "project_grace_period": 5,
-            }
-        }))
-        .unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 5,
+                }
+            }))
+            .unwrap(),
+        );
 
-        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key).unwrap();
         let fetch = fetch.complete(ProjectState::Disabled.into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
 
         // This is in the grace period, but not yet expired.
         tokio::time::advance(Duration::from_millis(9500)).await;
@@ -934,16 +1148,17 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn test_store_no_eviction_during_fetch() {
         let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
-        let mut store = ProjectStore::default();
-        let config = Config::from_json_value(serde_json::json!({
-            "cache": {
-                "project_expiry": 5,
-                "project_grace_period": 5,
-            }
-        }))
-        .unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 5,
+                }
+            }))
+            .unwrap(),
+        );
 
-        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key).unwrap();
 
         // Project is expired, but there is an ongoing fetch.
         tokio::time::advance(Duration::from_millis(10500)).await;
@@ -952,10 +1167,10 @@ mod tests {
 
         // Complete the project.
         let fetch = fetch.complete(ProjectState::Disabled.into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
         // But start a new fetch asap (after grace period).
         tokio::time::advance(Duration::from_millis(5001)).await;
-        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = store.try_begin_fetch(project_key).unwrap();
 
         // Again, expire the project.
         tokio::time::advance(Duration::from_millis(10500)).await;
@@ -964,7 +1179,7 @@ mod tests {
 
         // Complete the project.
         let fetch = fetch.complete(ProjectState::Disabled.into());
-        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert!(store.complete_fetch(fetch).is_none());
 
         // Not quite yet expired.
         tokio::time::advance(Duration::from_millis(9500)).await;
@@ -973,5 +1188,132 @@ mod tests {
         tokio::time::advance(Duration::from_millis(501)).await;
         assert_eq!(collect_evicted(&mut store).await, vec![project_key]);
         assert_state!(store, project_key, ProjectState::Pending);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_refresh() {
+        let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 5,
+                    "project_refresh_interval": 7,
+                }
+            }))
+            .unwrap(),
+        );
+
+        let fetch = store.try_begin_fetch(project_key).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch).is_none());
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        // Wait for a refresh.
+        let Some(Action::Refresh(refresh)) = store.poll().await else {
+            panic!();
+        };
+        assert_eq!(refresh.project_key(), project_key);
+
+        let fetch = store.refresh(refresh).unwrap();
+        // Upgrade the pending refresh fetch to a non-refresh fetch.
+        assert!(store.try_begin_fetch(project_key).is_none());
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch).is_none());
+
+        // Since the previous refresh has been upgraded to a proper fetch.
+        // Expiration has been rescheduled and a new refresh is planned to happen in 7 seconds from
+        // now.
+        let Some(Action::Refresh(refresh)) = store.poll().await else {
+            panic!();
+        };
+        let fetch = store.refresh(refresh).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch).is_none());
+
+        // At this point the refresh is through, but expiration is around the corner.
+        // Because the refresh doesn't bump the expiration deadline.
+        let Some(Action::Eviction(eviction)) = store.poll().await else {
+            panic!();
+        };
+        assert_eq!(eviction.project_key(), project_key);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_refresh_overtaken_by_eviction() {
+        let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 5,
+                    "project_refresh_interval": 7,
+                }
+            }))
+            .unwrap(),
+        );
+
+        let fetch = store.try_begin_fetch(project_key).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch).is_none());
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        // Move way past the expiration time.
+        tokio::time::advance(Duration::from_secs(20)).await;
+
+        // The eviction should be prioritized, there is no reason to refresh an already evicted
+        // project.
+        let Some(Action::Eviction(eviction)) = store.poll().await else {
+            panic!();
+        };
+        assert_eq!(eviction.project_key(), project_key);
+        store.evict(eviction);
+
+        // Make sure there is not another refresh queued.
+        // This would not technically be necessary because refresh code must be able to handle
+        // refreshes for non-fetched projects, but the current implementation should enforce this.
+        assert!(
+            tokio::time::timeout(Duration::from_secs(60), store.poll())
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_refresh_during_eviction() {
+        let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let mut store = ProjectStore::new(
+            &relay_config::Config::from_json_value(serde_json::json!({
+                "cache": {
+                    "project_expiry": 5,
+                    "project_grace_period": 5,
+                    "project_refresh_interval": 7,
+                }
+            }))
+            .unwrap(),
+        );
+
+        let fetch = store.try_begin_fetch(project_key).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch).is_none());
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        // Move way past the expiration time.
+        tokio::time::advance(Duration::from_secs(20)).await;
+
+        // Poll both the eviction and refresh token, while a proper implementation should prevent
+        // this, it's a good way to test that a refresh for an evicted project does not fetch the
+        // project.
+        let Some(Action::Eviction(eviction)) = store.poll().await else {
+            panic!();
+        };
+        let Some(Action::Refresh(refresh)) = store.poll().await else {
+            panic!();
+        };
+        assert_eq!(eviction.project_key(), project_key);
+        assert_eq!(refresh.project_key(), project_key);
+        store.evict(eviction);
+
+        assert!(store.refresh(refresh).is_none());
     }
 }

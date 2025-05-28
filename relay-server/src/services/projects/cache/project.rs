@@ -186,7 +186,6 @@ fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
 mod tests {
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::ProcessingGroup;
     use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_event_schema::protocol::EventId;
@@ -281,12 +280,8 @@ mod tests {
         let (outcome_aggregator, mut outcome_aggregator_rx) = relay_system::Addr::custom();
         let (test_store, _) = relay_system::Addr::custom();
 
-        let managed_envelope = ManagedEnvelope::new(
-            envelope,
-            outcome_aggregator.clone(),
-            test_store,
-            ProcessingGroup::Transaction,
-        );
+        let managed_envelope =
+            ManagedEnvelope::new(envelope, outcome_aggregator.clone(), test_store);
 
         project.check_envelope(managed_envelope).await.unwrap();
         drop(outcome_aggregator);

@@ -243,14 +243,8 @@ mod tests {
             .0
             .insert(Feature::OurLogsIngestion);
 
-        let managed_envelope = ManagedEnvelope::new(
-            dummy_envelope,
-            Addr::dummy(),
-            Addr::dummy(),
-            ProcessingGroup::Log,
-        );
-
-        let managed_envelope = managed_envelope.try_into().unwrap();
+        let managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy(), Addr::dummy());
+        let managed_envelope = (managed_envelope, ProcessingGroup::Log).try_into().unwrap();
 
         (managed_envelope, project_info)
     }

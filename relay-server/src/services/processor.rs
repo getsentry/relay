@@ -855,17 +855,6 @@ impl ProcessingResult {
     }
 }
 
-/// Response of the [`ProcessEnvelope`] message.
-#[cfg_attr(not(feature = "processing"), allow(dead_code))]
-pub struct ProcessEnvelopeResponse {
-    /// The processed envelope.
-    ///
-    /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
-    /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
-    /// to be dropped, this is `None`.
-    pub envelope: Option<TypedEnvelope<Processed>>,
-}
-
 /// Applies processing to all contents of the given envelope.
 ///
 /// Depending on the contents of the envelope and Relay's mode, this includes:
@@ -877,6 +866,23 @@ pub struct ProcessEnvelopeResponse {
 ///  - Rate limiters and inbound filters on events in processing mode.
 #[derive(Debug)]
 pub struct ProcessEnvelope {
+    /// Envelope to process.
+    pub envelope: ManagedEnvelope,
+    /// The project info.
+    pub project_info: Arc<ProjectInfo>,
+    /// Currently active cached rate limits for this project.
+    pub rate_limits: Arc<RateLimits>,
+    /// Root sampling project info.
+    pub sampling_project_info: Option<Arc<ProjectInfo>>,
+    /// Sampling reservoir counters.
+    pub reservoir_counters: ReservoirCounters,
+}
+
+/// Like a [`ProcessEnvelope`], but with an envelope which has been grouped.
+#[derive(Debug)]
+struct ProcessEnvelopeGrouped {
+    /// The group the envelope belongs to.
+    pub group: ProcessingGroup,
     /// Envelope to process.
     pub envelope: ManagedEnvelope,
     /// The project info.
@@ -1015,12 +1021,6 @@ impl BucketSource {
     }
 }
 
-/// Sends an envelope to the upstream or Kafka.
-#[derive(Debug)]
-pub struct SubmitEnvelope {
-    pub envelope: TypedEnvelope<Processed>,
-}
-
 /// Sends a client report to the upstream.
 #[derive(Debug)]
 pub struct SubmitClientReports {
@@ -1037,7 +1037,6 @@ pub enum EnvelopeProcessor {
     ProcessProjectMetrics(Box<ProcessMetrics>),
     ProcessBatchedMetrics(Box<ProcessBatchedMetrics>),
     FlushBuckets(Box<FlushBuckets>),
-    SubmitEnvelope(Box<SubmitEnvelope>),
     SubmitClientReports(Box<SubmitClientReports>),
 }
 
@@ -1049,7 +1048,6 @@ impl EnvelopeProcessor {
             EnvelopeProcessor::ProcessProjectMetrics(_) => "ProcessProjectMetrics",
             EnvelopeProcessor::ProcessBatchedMetrics(_) => "ProcessBatchedMetrics",
             EnvelopeProcessor::FlushBuckets(_) => "FlushBuckets",
-            EnvelopeProcessor::SubmitEnvelope(_) => "SubmitEnvelope",
             EnvelopeProcessor::SubmitClientReports(_) => "SubmitClientReports",
         }
     }
@@ -1086,14 +1084,6 @@ impl FromMessage<FlushBuckets> for EnvelopeProcessor {
 
     fn from_message(message: FlushBuckets, _: ()) -> Self {
         Self::FlushBuckets(Box::new(message))
-    }
-}
-
-impl FromMessage<SubmitEnvelope> for EnvelopeProcessor {
-    type Response = NoResponse;
-
-    fn from_message(message: SubmitEnvelope, _: ()) -> Self {
-        Self::SubmitEnvelope(Box::new(message))
     }
 }
 
@@ -2214,20 +2204,20 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
-    #[expect(clippy::too_many_arguments)]
     async fn process_envelope(
         &self,
         cogs: &mut Token,
-        mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
-        sampling_project_info: Option<Arc<ProjectInfo>>,
-        reservoir_counters: ReservoirCounters,
+        message: ProcessEnvelopeGrouped,
     ) -> Result<ProcessingResult, ProcessingError> {
-        // Get the group from the managed envelope context, and if it's not set, try to guess it
-        // from the contents of the envelope.
-        let group = managed_envelope.group();
+        let ProcessEnvelopeGrouped {
+            group,
+            envelope: mut managed_envelope,
+            project_info,
+            rate_limits,
+            sampling_project_info,
+            reservoir_counters,
+        } = message;
 
         // Pre-process the envelope headers.
         if let Some(sampling_state) = sampling_project_info.as_ref() {
@@ -2256,7 +2246,7 @@ impl EnvelopeProcessorService {
         macro_rules! run {
             ($fn_name:ident $(, $args:expr)*) => {
                 async {
-                    let mut managed_envelope = managed_envelope.try_into()?;
+                    let mut managed_envelope = (managed_envelope, group).try_into()?;
                     match self.$fn_name(&mut managed_envelope, $($args),*).await {
                         Ok(extracted_metrics) => Ok(ProcessingResult {
                             managed_envelope: managed_envelope.into_processed(),
@@ -2372,17 +2362,20 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Processes the envelope and returns the processed envelope back.
+    ///
+    /// Returns `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
+    /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
+    /// to be dropped, this is `None`.
     async fn process(
         &self,
         cogs: &mut Token,
-        message: ProcessEnvelope,
-    ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
-        let ProcessEnvelope {
-            envelope: mut managed_envelope,
-            project_info,
-            rate_limits,
-            sampling_project_info,
-            reservoir_counters,
+        mut message: ProcessEnvelopeGrouped,
+    ) -> Result<Option<TypedEnvelope<Processed>>, ProcessingError> {
+        let ProcessEnvelopeGrouped {
+            ref mut envelope,
+            ref project_info,
+            ..
         } = message;
 
         // Prefer the project's project ID, and fall back to the stated project id from the
@@ -2391,28 +2384,16 @@ impl EnvelopeProcessorService {
         //
         // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
         // since we cannot process an envelope without project ID, so drop it.
-        let project_id = match project_info
+        let Some(project_id) = project_info
             .project_id
-            .or_else(|| managed_envelope.envelope().meta().project_id())
-        {
-            Some(project_id) => project_id,
-            None => {
-                managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-                return Err(ProcessingError::MissingProjectId);
-            }
+            .or_else(|| envelope.envelope().meta().project_id())
+        else {
+            envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            return Err(ProcessingError::MissingProjectId);
         };
 
-        let client = managed_envelope
-            .envelope()
-            .meta()
-            .client()
-            .map(str::to_owned);
-
-        let user_agent = managed_envelope
-            .envelope()
-            .meta()
-            .user_agent()
-            .map(str::to_owned);
+        let client = envelope.envelope().meta().client().map(str::to_owned);
+        let user_agent = envelope.envelope().meta().user_agent().map(str::to_owned);
 
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
@@ -2426,18 +2407,7 @@ impl EnvelopeProcessorService {
             }
         });
 
-        let result = match self
-            .process_envelope(
-                cogs,
-                managed_envelope,
-                project_id,
-                project_info,
-                rate_limits,
-                sampling_project_info,
-                reservoir_counters,
-            )
-            .await
-        {
+        let result = match self.process_envelope(cogs, project_id, message).await {
             Ok(result) => {
                 let (mut managed_envelope, extracted_metrics) = result.into_inner();
 
@@ -2467,9 +2437,7 @@ impl EnvelopeProcessorService {
                     Some(managed_envelope)
                 };
 
-                Ok(ProcessEnvelopeResponse {
-                    envelope: envelope_response,
-                })
+                Ok(envelope_response)
             }
             Err(err) => Err(err),
         };
@@ -2488,25 +2456,56 @@ impl EnvelopeProcessorService {
         let wait_time = message.envelope.age();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
-        let group = message.envelope.group().variant();
-        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
-            self.process(cogs, message).await
-        });
-        match result {
-            Ok(response) => {
-                if let Some(envelope) = response.envelope {
-                    self.handle_submit_envelope(cogs, SubmitEnvelope { envelope });
-                };
-            }
-            Err(error) => {
-                // Errors are only logged for what we consider infrastructure or implementation
-                // bugs. In other cases, we "expect" errors and log them as debug level.
-                if error.is_unexpected() {
+        // This COGS handling may need an overhaul in the future:
+        // Cancel the passed in token, to start individual measurements per envelope instead.
+        cogs.cancel();
+
+        let scoping = message.envelope.scoping();
+        for (group, envelope) in ProcessingGroup::split_envelope(*message.envelope.into_envelope())
+        {
+            let mut cogs = self
+                .inner
+                .cogs
+                .timed(ResourceId::Relay, AppFeature::from(group));
+
+            let mut envelope = ManagedEnvelope::new(
+                envelope,
+                self.inner.addrs.outcome_aggregator.clone(),
+                self.inner.addrs.test_store.clone(),
+            );
+            envelope.scope(scoping);
+
+            let message = ProcessEnvelopeGrouped {
+                group,
+                envelope,
+                project_info: Arc::clone(&message.project_info),
+                rate_limits: Arc::clone(&message.rate_limits),
+                sampling_project_info: message.sampling_project_info.as_ref().map(Arc::clone),
+                reservoir_counters: Arc::clone(&message.reservoir_counters),
+            };
+
+            let result = metric!(
+                timer(RelayTimers::EnvelopeProcessingTime),
+                group = group.variant(),
+                { self.process(&mut cogs, message).await }
+            );
+
+            match result {
+                Ok(Some(envelope)) => self.submit_envelope(&mut cogs, envelope),
+                Ok(None) => {}
+                Err(error) if error.is_unexpected() => {
                     relay_log::error!(
                         tags.project_key = %project_key,
                         error = &error as &dyn Error,
                         "error processing envelope"
-                    );
+                    )
+                }
+                Err(error) => {
+                    relay_log::debug!(
+                        tags.project_key = %project_key,
+                        error = &error as &dyn Error,
+                        "error processing envelope"
+                    )
                 }
             }
         }
@@ -2610,10 +2609,8 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_submit_envelope(&self, cogs: &mut Token, message: SubmitEnvelope) {
+    fn submit_envelope(&self, cogs: &mut Token, mut envelope: TypedEnvelope<Processed>) {
         let _submit = cogs.start_category("submit");
-
-        let SubmitEnvelope { mut envelope } = message;
 
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
@@ -2693,14 +2690,8 @@ impl EnvelopeProcessorService {
             envelope,
             self.inner.addrs.outcome_aggregator.clone(),
             self.inner.addrs.test_store.clone(),
-            ProcessingGroup::ClientReport,
         );
-        self.handle_submit_envelope(
-            cogs,
-            SubmitEnvelope {
-                envelope: envelope.into_processed(),
-            },
-        );
+        self.submit_envelope(cogs, envelope.into_processed());
     }
 
     fn check_buckets(
@@ -3074,7 +3065,6 @@ impl EnvelopeProcessorService {
                     envelope,
                     self.inner.addrs.outcome_aggregator.clone(),
                     self.inner.addrs.test_store.clone(),
-                    ProcessingGroup::Metrics,
                 );
                 envelope
                     .set_partition_key(Some(partition_key))
@@ -3084,12 +3074,7 @@ impl EnvelopeProcessorService {
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.handle_submit_envelope(
-                    cogs,
-                    SubmitEnvelope {
-                        envelope: envelope.into_processed(),
-                    },
-                );
+                self.submit_envelope(cogs, envelope.into_processed());
                 num_batches += 1;
             }
 
@@ -3225,7 +3210,6 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::FlushBuckets(m) => {
                     self.handle_flush_buckets(&mut cogs, *m).await
                 }
-                EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(&mut cogs, *m),
                 EnvelopeProcessor::SubmitClientReports(m) => {
                     self.handle_submit_client_reports(&mut cogs, *m)
                 }
@@ -3235,7 +3219,8 @@ impl EnvelopeProcessorService {
 
     fn feature_weights(&self, message: &EnvelopeProcessor) -> FeatureWeights {
         match message {
-            EnvelopeProcessor::ProcessEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
+            // Envelope is split later and tokens are attributed then.
+            EnvelopeProcessor::ProcessEnvelope(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessProjectMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessBatchedMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::FlushBuckets(v) => v
@@ -3251,7 +3236,6 @@ impl EnvelopeProcessorService {
                     }
                 })
                 .fold(FeatureWeights::none(), FeatureWeights::merge),
-            EnvelopeProcessor::SubmitEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
         }
     }
@@ -3966,9 +3950,10 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
 
-        let message = ProcessEnvelope {
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(project_info),
             rate_limits: Default::default(),
@@ -3976,12 +3961,12 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let mut new_envelope = processor
             .process(&mut Token::noop(), message)
             .await
+            .unwrap()
             .unwrap();
-        let new_envelope = envelope_response.envelope.unwrap();
-        let new_envelope = new_envelope.envelope();
+        let new_envelope = new_envelope.envelope_mut();
 
         let event_item = new_envelope.items().last().unwrap();
         let annotated_event: Annotated<Event> =
@@ -4034,12 +4019,7 @@ mod tests {
         envelope.add_item(item);
 
         let (outcome_aggregator, test_store) = testutils::processor_services();
-        let managed_envelope = ManagedEnvelope::new(
-            envelope,
-            outcome_aggregator,
-            test_store,
-            ProcessingGroup::Error,
-        );
+        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
 
         let mut project_info = ProjectInfo::default();
         project_info.public_keys.push(PublicKeyConfig {
@@ -4048,7 +4028,8 @@ mod tests {
         });
         let project_info = Arc::new(project_info);
 
-        let process_message = ProcessEnvelope {
+        let process_message = ProcessEnvelopeGrouped {
+            group: ProcessingGroup::Transaction,
             envelope: managed_envelope,
             project_info: project_info.clone(),
             rate_limits: Default::default(),
@@ -4065,12 +4046,13 @@ mod tests {
         .unwrap();
 
         let processor = create_test_processor(config).await;
-        let response = processor
+        let envelope = processor
             .process(&mut Token::noop(), process_message)
             .await
+            .unwrap()
             .unwrap();
-        let envelope = response.envelope.as_ref().unwrap().envelope();
         let event = envelope
+            .envelope()
             .get_item_by(|item| item.ty() == &ItemType::Event)
             .unwrap();
 
