@@ -5,6 +5,7 @@
 **Internal**:
 
 - Remove the "unspecified" variant of `SpanKind`. ([#4774](https://github.com/getsentry/relay/pull/4774))
+- Normalize AI data and measurements into new OTEL compatible fields and extracting metrics out of said fields. ([#4768](https://github.com/getsentry/relay/pull/4768))
 
 ## 25.5.1
 
@@ -16,7 +17,6 @@
 **Internal**:
 
 - Reduce warning logs, emit warnings to the configured Sentry instance. ([#4753](https://github.com/getsentry/relay/pull/4753))
-- Normalize AI data and measurements into new OTEL compatible fields and extracting metrics out of said fields. ([#4768](https://github.com/getsentry/relay/pull/4768))
 
 ## 25.5.0
 

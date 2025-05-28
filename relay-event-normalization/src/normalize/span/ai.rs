@@ -4,16 +4,6 @@ use crate::ModelCosts;
 use relay_event_schema::protocol::{Event, Span, SpanData};
 use relay_protocol::Value;
 
-/// Converts a protocol Value to f64 if possible.
-pub fn value_to_f64(val: &relay_protocol::Value) -> Option<f64> {
-    match val {
-        relay_protocol::Value::F64(f) => Some(*f),
-        relay_protocol::Value::I64(i) => Some(*i as f64),
-        relay_protocol::Value::U64(u) => Some(*u as f64),
-        _ => None,
-    }
-}
-
 /// Calculated cost is in US dollars.
 fn calculate_ai_model_cost(
     model_id: &str,
@@ -45,13 +35,9 @@ fn calculate_ai_model_cost(
 
 /// Maps AI-related measurements (legacy) to span data.
 pub fn map_ai_measurements_to_data(span: &mut Span) {
-    let Some(span_op) = span.op.value() else {
+    if !span.op.value().is_some_and(|op| op.starts_with("ai.")) {
         return;
     };
-
-    if !span_op.starts_with("ai.") {
-        return;
-    }
 
     let Some(measurements) = span.measurements.value() else {
         return;
@@ -59,30 +45,51 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
 
     let data = span.data.get_or_insert_with(SpanData::default);
 
-    if let Some(ai_total_tokens_used) = measurements.get_value("ai_total_tokens_used") {
-        data.gen_ai_usage_total_tokens
-            .set_value(Value::F64(ai_total_tokens_used).into());
+    if data.gen_ai_usage_total_tokens.value().is_none() {
+        if let Some(ai_total_tokens_used) = measurements.get_value("ai_total_tokens_used") {
+            data.gen_ai_usage_total_tokens
+                .set_value(Value::F64(ai_total_tokens_used).into());
+        }
     }
 
-    if let Some(ai_prompt_tokens_used) = measurements.get_value("ai_prompt_tokens_used") {
-        data.gen_ai_usage_input_tokens
-            .set_value(Value::F64(ai_prompt_tokens_used).into());
+    if data.gen_ai_usage_input_tokens.value().is_none() {
+        if let Some(ai_prompt_tokens_used) = measurements.get_value("ai_prompt_tokens_used") {
+            data.gen_ai_usage_input_tokens
+                .set_value(Value::F64(ai_prompt_tokens_used).into());
+        }
     }
 
-    if let Some(ai_completion_tokens_used) = measurements.get_value("ai_completion_tokens_used") {
-        data.gen_ai_usage_output_tokens
-            .set_value(Value::F64(ai_completion_tokens_used).into());
+    if data.gen_ai_usage_output_tokens.value().is_none() {
+        if let Some(ai_completion_tokens_used) = measurements.get_value("ai_completion_tokens_used")
+        {
+            data.gen_ai_usage_output_tokens
+                .set_value(Value::F64(ai_completion_tokens_used).into());
+        }
+    }
+
+    // It might be that 'total_tokens' is not set in which case we need to calculate it
+    if data.gen_ai_usage_total_tokens.value().is_none() {
+        data.gen_ai_usage_total_tokens.set_value(
+            Value::F64(
+                data.gen_ai_usage_input_tokens
+                    .value()
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0)
+                    + data
+                        .gen_ai_usage_output_tokens
+                        .value()
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0),
+            )
+            .into(),
+        );
     }
 }
 
 /// Extract the gen_ai_usage_total_cost data into the span and calculate the
 /// gen_ai_usage_total_tokens if need be.
 pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
-    let Some(span_op) = span.op.value() else {
-        return;
-    };
-
-    if !span_op.starts_with("ai.") {
+    if !span.op.value().is_some_and(|op| op.starts_with("ai.")) {
         return;
     }
 
@@ -93,23 +100,15 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
     let total_tokens_used = data
         .gen_ai_usage_total_tokens
         .value()
-        .and_then(value_to_f64);
+        .and_then(Value::as_f64);
     let prompt_tokens_used = data
         .gen_ai_usage_input_tokens
         .value()
-        .and_then(value_to_f64);
+        .and_then(Value::as_f64);
     let completion_tokens_used = data
         .gen_ai_usage_output_tokens
         .value()
-        .and_then(value_to_f64);
-
-    // It might be that 'total_tokens' is not set in which case we need to calculate it
-    if total_tokens_used.is_none() {
-        data.gen_ai_usage_total_tokens.set_value(
-            Value::F64(prompt_tokens_used.unwrap_or(0.0) + completion_tokens_used.unwrap_or(0.0))
-                .into(),
-        );
-    }
+        .and_then(Value::as_f64);
 
     if let Some(model_id) = data.ai_model_id.value().and_then(|val| val.as_str()) {
         if let Some(total_cost) = calculate_ai_model_cost(
@@ -127,20 +126,13 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
 
 /// Extract the ai data from all of an event's spans
 pub fn enrich_ai_span_data(event: &mut Event, model_costs: Option<&ModelCosts>) {
-    if let Some(spans) = event.spans.value_mut() {
-        for span in spans {
-            if let Some(mut_span) = span.value_mut() {
-                map_ai_measurements_to_data(mut_span);
-            }
-        }
-    }
-    if let Some(model_costs) = model_costs {
-        if let Some(spans) = event.spans.value_mut() {
-            for span in spans {
-                if let Some(mut_span) = span.value_mut() {
-                    extract_ai_data(mut_span, model_costs);
-                }
-            }
+    let spans = event.spans.value_mut().iter_mut().flatten();
+    let spans = spans.filter_map(|span| span.value_mut().as_mut());
+
+    for span in spans {
+        map_ai_measurements_to_data(span);
+        if let Some(model_costs) = model_costs {
+            extract_ai_data(span, model_costs);
         }
     }
 }
