@@ -16,8 +16,12 @@ pub enum TrustedRelaySignatureErrors {
     InvalidSignatureVersion,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// Signature version that describes how the signature is constructed.
+///
+/// Defaults to `V1`.
+#[derive(Debug, Default, Clone, PartialEq)]
 pub enum TrustedRelaySignatureVersion {
+    #[default]
     V1,
 }
 
@@ -51,18 +55,29 @@ impl FromStr for TrustedRelaySignatureVersion {
     }
 }
 
+/// Contains data that is necessary for trusted relay signature verification.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrustedRelaySignature {
+    /// The signature string from the header
     pub signature: String,
+    /// The data that the signature was made from.
     pub signature_data: Vec<u8>,
-    pub version: TrustedRelaySignatureVersion,
 }
 
 impl TrustedRelaySignature {
     pub fn from_headers(headers: &HeaderMap) -> Result<Self, TrustedRelaySignatureErrors> {
-        let version = get_header(headers, SIGNATURE_VERSION_HEADER)?
-            .parse()
-            .map_err(|_| TrustedRelaySignatureErrors::InvalidSignatureVersion)?;
+        let version = match headers.get(SIGNATURE_VERSION_HEADER) {
+            Some(version) => version
+                .to_str()
+                .map_err(|_| {
+                    TrustedRelaySignatureErrors::MalformedHeader(
+                        SIGNATURE_VERSION_HEADER.to_string(),
+                    )
+                })?
+                .parse()
+                .map_err(|_| TrustedRelaySignatureErrors::InvalidSignatureVersion)?,
+            None => TrustedRelaySignatureVersion::default(),
+        };
         let signature = get_header(headers, SIGNATURE_HEADER)?;
 
         let signature_data = match version {
@@ -79,7 +94,6 @@ impl TrustedRelaySignature {
 
         Ok(TrustedRelaySignature {
             signature: signature.to_owned(),
-            version,
             signature_data,
         })
     }
