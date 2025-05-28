@@ -1603,7 +1603,7 @@ impl EnvelopeProcessorService {
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }
-            #[cfg(all(sentry))]
+            #[cfg(sentry)]
             if let Some(inner_event_fully_normalized) =
                 playstation::process(managed_envelope, &mut event, &project_info)?
             {

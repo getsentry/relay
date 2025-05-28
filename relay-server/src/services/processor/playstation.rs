@@ -26,7 +26,7 @@ pub fn expand(
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
     config: &Config,
     project_info: &ProjectInfo,
-) -> std::result::Result<(), ProcessingError> {
+) -> Result<(), ProcessingError> {
     if !project_info.has_feature(Feature::PlaystationIngestion) {
         return Ok(());
     }
@@ -288,7 +288,8 @@ mod tests {
     use std::borrow::Cow;
     use std::collections::BTreeMap;
 
-    use insta::assert_debug_snapshot;
+    use insta::{assert_debug_snapshot, assert_json_snapshot};
+    use relay_protocol::SerializableAnnotated;
 
     #[test]
     fn test_event_release_setting() {
@@ -330,20 +331,10 @@ mod tests {
         );
         assert_eq!(event.environment, Annotated::new("production".to_owned()));
 
-        assert_debug_snapshot!(event.user, @r#"
-        User {
-            id: ~,
-            email: "janedoe@example.com",
-            ip_address: ~,
-            username: LenientString(
-                "janedoe",
-            ),
-            name: ~,
-            sentry_user: ~,
-            geo: ~,
-            segment: ~,
-            data: ~,
-            other: {},
+        assert_json_snapshot!(SerializableAnnotated(&(event.user)), @r#"
+        {
+          "email": "janedoe@example.com",
+          "username": "janedoe"
         }
         "#);
 
@@ -479,91 +470,23 @@ mod tests {
         let mut event = Event::default();
         merge_playstation_context(&mut event, &prospero);
 
-        assert_debug_snapshot!(event.contexts.value().unwrap(), @r#"
-        Contexts(
-            {
-                "device": ContextInner(
-                    Device(
-                        DeviceContext {
-                            name: ~,
-                            family: ~,
-                            model: "PS5",
-                            model_id: ~,
-                            arch: "x86_64",
-                            battery_level: ~,
-                            orientation: ~,
-                            manufacturer: ~,
-                            brand: ~,
-                            screen_resolution: ~,
-                            screen_width_pixels: ~,
-                            screen_height_pixels: ~,
-                            screen_density: ~,
-                            screen_dpi: ~,
-                            online: ~,
-                            charging: ~,
-                            low_memory: ~,
-                            simulator: ~,
-                            memory_size: ~,
-                            free_memory: ~,
-                            usable_memory: ~,
-                            storage_size: ~,
-                            free_storage: ~,
-                            external_storage_size: ~,
-                            external_free_storage: ~,
-                            boot_time: ~,
-                            timezone: ~,
-                            locale: ~,
-                            processor_count: ~,
-                            cpu_description: ~,
-                            processor_frequency: ~,
-                            device_type: ~,
-                            battery_status: ~,
-                            device_unique_identifier: ~,
-                            supports_vibration: ~,
-                            supports_accelerometer: ~,
-                            supports_gyroscope: ~,
-                            supports_audio: ~,
-                            supports_location_service: ~,
-                            uuid: ~,
-                            other: {
-                                "manufacturer": String(
-                                    "Sony",
-                                ),
-                            },
-                        },
-                    ),
-                ),
-                "os": ContextInner(
-                    Os(
-                        OsContext {
-                            os: ~,
-                            name: "PlayStation",
-                            version: ~,
-                            build: ~,
-                            kernel_version: ~,
-                            rooted: ~,
-                            distribution_name: ~,
-                            distribution_version: ~,
-                            distribution_pretty_name: ~,
-                            raw_description: ~,
-                            other: {},
-                        },
-                    ),
-                ),
-                "runtime": ContextInner(
-                    Runtime(
-                        RuntimeContext {
-                            runtime: ~,
-                            name: "PS5",
-                            version: ~,
-                            build: ~,
-                            raw_description: ~,
-                            other: {},
-                        },
-                    ),
-                ),
-            },
-        )
+        assert_json_snapshot!(SerializableAnnotated(&event.contexts), @r#"
+        {
+          "device": {
+            "model": "PS5",
+            "arch": "x86_64",
+            "manufacturer": "Sony",
+            "type": "device"
+          },
+          "os": {
+            "name": "PlayStation",
+            "type": "os"
+          },
+          "runtime": {
+            "name": "PS5",
+            "type": "runtime"
+          }
+        }
         "#);
     }
 
@@ -582,87 +505,18 @@ mod tests {
         merge_playstation_context(&mut event, &prospero);
 
         // Should be all default since the presence of the default contexts blocks the merge:
-        assert_debug_snapshot!(event.contexts.value().unwrap(), @r#"
-        Contexts(
-            {
-                "device": ContextInner(
-                    Device(
-                        DeviceContext {
-                            name: ~,
-                            family: ~,
-                            model: ~,
-                            model_id: ~,
-                            arch: ~,
-                            battery_level: ~,
-                            orientation: ~,
-                            manufacturer: ~,
-                            brand: ~,
-                            screen_resolution: ~,
-                            screen_width_pixels: ~,
-                            screen_height_pixels: ~,
-                            screen_density: ~,
-                            screen_dpi: ~,
-                            online: ~,
-                            charging: ~,
-                            low_memory: ~,
-                            simulator: ~,
-                            memory_size: ~,
-                            free_memory: ~,
-                            usable_memory: ~,
-                            storage_size: ~,
-                            free_storage: ~,
-                            external_storage_size: ~,
-                            external_free_storage: ~,
-                            boot_time: ~,
-                            timezone: ~,
-                            locale: ~,
-                            processor_count: ~,
-                            cpu_description: ~,
-                            processor_frequency: ~,
-                            device_type: ~,
-                            battery_status: ~,
-                            device_unique_identifier: ~,
-                            supports_vibration: ~,
-                            supports_accelerometer: ~,
-                            supports_gyroscope: ~,
-                            supports_audio: ~,
-                            supports_location_service: ~,
-                            uuid: ~,
-                            other: {},
-                        },
-                    ),
-                ),
-                "os": ContextInner(
-                    Os(
-                        OsContext {
-                            os: ~,
-                            name: ~,
-                            version: ~,
-                            build: ~,
-                            kernel_version: ~,
-                            rooted: ~,
-                            distribution_name: ~,
-                            distribution_version: ~,
-                            distribution_pretty_name: ~,
-                            raw_description: ~,
-                            other: {},
-                        },
-                    ),
-                ),
-                "runtime": ContextInner(
-                    Runtime(
-                        RuntimeContext {
-                            runtime: ~,
-                            name: ~,
-                            version: ~,
-                            build: ~,
-                            raw_description: ~,
-                            other: {},
-                        },
-                    ),
-                ),
-            },
-        )
+        assert_json_snapshot!(SerializableAnnotated(&event.contexts), @r#"
+        {
+          "device": {
+            "type": "device"
+          },
+          "os": {
+            "type": "os"
+          },
+          "runtime": {
+            "type": "runtime"
+          }
+        }
         "#);
     }
 }
