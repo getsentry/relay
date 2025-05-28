@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
+
 **Internal**:
 
 - Remove the "unspecified" variant of `SpanKind`. ([#4774](https://github.com/getsentry/relay/pull/4774))
