@@ -12,7 +12,7 @@ use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
 
-use crate::envelope::{ContentType, CountFor, Item, ItemContainer, ItemType};
+use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
 use crate::utils::ItemAction;
@@ -75,48 +75,26 @@ pub fn expand_v2_spans(
             Ok(spans_v2) => spans_v2,
             Err(err) => {
                 relay_log::debug!("failed to parse V2 spans: {err}");
-                for (category, quantity) in span_v2_item.quantities(CountFor::Outcomes) {
-                    if let Some(indexed) = category.index_category() {
-                        managed_envelope.track_outcome(
-                            Outcome::Invalid(DiscardReason::InvalidSpan),
-                            indexed,
-                            quantity,
-                        );
-                    };
-                    managed_envelope.track_outcome(
-                        Outcome::Invalid(DiscardReason::InvalidSpan),
-                        category,
-                        quantity,
-                    );
-                }
+                track_invalid(
+                    managed_envelope,
+                    DiscardReason::InvalidSpan,
+                    span_v2_item.item_count().unwrap_or(1) as usize,
+                );
                 continue;
             }
         };
 
         for span_v2 in spans_v2.into_items() {
             let span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
-            let mut new_item = Item::new(ItemType::Span);
             match span_v1.to_json() {
                 Ok(payload) => {
+                    let mut new_item = Item::new(ItemType::Span);
                     new_item.set_payload(ContentType::Json, payload);
                     managed_envelope.envelope_mut().add_item(new_item);
                 }
                 Err(err) => {
                     relay_log::debug!("failed to serialize span: {}", err);
-                    for (category, quantity) in new_item.quantities(CountFor::Outcomes) {
-                        if let Some(indexed) = category.index_category() {
-                            managed_envelope.track_outcome(
-                                Outcome::Invalid(DiscardReason::Internal),
-                                indexed,
-                                quantity,
-                            );
-                        };
-                        managed_envelope.track_outcome(
-                            Outcome::Invalid(DiscardReason::Internal),
-                            category,
-                            quantity,
-                        );
-                    }
+                    track_invalid(managed_envelope, DiscardReason::Internal, 1);
                 }
             }
         }
@@ -143,7 +121,7 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
         Err(reason) => {
             // NOTE: logging quantity=1 is semantically wrong, but we cannot know the real quantity
             // without parsing.
-            track_invalid(managed_envelope, reason);
+            track_invalid(managed_envelope, reason, 1);
             return;
         }
     };
@@ -185,7 +163,7 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
                 }
 
                 let Ok(payload) = serde_json::to_vec(&span) else {
-                    track_invalid(managed_envelope, DiscardReason::Internal);
+                    track_invalid(managed_envelope, DiscardReason::Internal, 1);
                     continue;
                 };
                 let mut item = Item::new(ItemType::OtelSpan);
@@ -197,9 +175,17 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
     managed_envelope.update(); // update envelope summary
 }
 
-fn track_invalid(managed_envelope: &mut TypedEnvelope<SpanGroup>, reason: DiscardReason) {
-    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::Span, 1);
-    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::SpanIndexed, 1);
+fn track_invalid(
+    managed_envelope: &mut TypedEnvelope<SpanGroup>,
+    reason: DiscardReason,
+    quantity: usize,
+) {
+    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::Span, quantity);
+    managed_envelope.track_outcome(
+        Outcome::Invalid(reason),
+        DataCategory::SpanIndexed,
+        quantity,
+    );
 }
 
 fn parse_traces_data(item: Item) -> Result<TracesData, DiscardReason> {
