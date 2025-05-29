@@ -88,6 +88,13 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         }
     }
 
+    if let Some(name_attribute) = &name.0 {
+        data.insert(
+            String::from("sentry.name"),
+            Annotated::new(Value::String(name_attribute.to_owned())),
+        );
+    }
+
     if exclusive_time_ms == 0f64 {
         if let (Some(start), Some(end)) = (start_timestamp.value(), end_timestamp.value()) {
             if let Some(nanos) = (end.0 - start.0).num_nanoseconds() {
@@ -218,7 +225,7 @@ mod tests {
                     "value": "fastify -> @fastify/multipart",
                     "type": "string"
                 },
-                "hook.name": { 
+                "hook.name": {
                     "value": "onResponse",
                     "type": "string"
                 },
@@ -256,6 +263,7 @@ mod tests {
             "fastify.type": "middleware",
             "hook.name": "onResponse",
             "plugin.name": "fastify -> @fastify/multipart",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -296,7 +304,9 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.name": "middleware - fastify -> @fastify/multipart"
+          },
           "links": [],
           "kind": "internal"
         }
@@ -328,7 +338,9 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.name": "middleware - fastify -> @fastify/multipart"
+          },
           "links": [],
           "kind": "internal"
         }
@@ -413,6 +425,7 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
+            "sentry.name": "myname",
             "sentry.op": "myop"
           },
           "links": [],
