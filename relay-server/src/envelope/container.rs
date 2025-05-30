@@ -1,3 +1,11 @@
+#![cfg_attr(
+    not(any(test, feature = "processing")),
+    expect(
+        dead_code,
+        reason = "A number of functions and data in this module are only used in processing or tests."
+    )
+)]
+
 use std::marker::PhantomData;
 
 use bytes::BufMut;
@@ -161,6 +169,10 @@ impl<T> From<ContainerItems<T>> for ItemContainer<T> {
 
 impl ContainerItem for relay_event_schema::protocol::OurLog {
     const CONTENT_TYPE: ContentType = ContentType::LogContainer;
+}
+
+impl ContainerItem for relay_event_schema::protocol::SpanV2 {
+    const CONTENT_TYPE: ContentType = ContentType::SpanV2Container;
 }
 
 /// (De-)Serializes a list of Annotated items with metadata.
