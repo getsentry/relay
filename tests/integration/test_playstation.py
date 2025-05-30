@@ -100,45 +100,39 @@ def test_playstation_with_feature_flag(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 0
 
-    while True:
-        _, message = attachments_consumer.get_message()
-        if message is None or message["type"] != "attachment_chunk":
-            event = message
-            break
-
+    event, payload = attachments_consumer.get_event_only()
     assert event
-    assert event["type"] == "event"
+    assert payload
 
-    event_data = json.loads(event["payload"])
-    assert event_data["type"] == "error"
-    assert event_data["level"] == "fatal"
+    assert payload["type"] == "error"
+    assert payload["level"] == "fatal"
 
-    assert "contexts" in event_data
-    assert "device" in event_data["contexts"]
-    assert "os" in event_data["contexts"]
-    assert "runtime" in event_data["contexts"]
+    assert "contexts" in payload
+    assert "device" in payload["contexts"]
+    assert "os" in payload["contexts"]
+    assert "runtime" in payload["contexts"]
 
-    assert event_data["contexts"]["device"]["model"] == "PS5"
-    assert event_data["contexts"]["device"]["manufacturer"] == "Sony"
-    assert event_data["contexts"]["device"]["arch"] == "x86_64"
+    assert payload["contexts"]["device"]["model"] == "PS5"
+    assert payload["contexts"]["device"]["manufacturer"] == "Sony"
+    assert payload["contexts"]["device"]["arch"] == "x86_64"
 
-    assert event_data["contexts"]["os"]["name"] == "PlayStation"
-    assert event_data["contexts"]["runtime"]["name"] == "PS5"
+    assert payload["contexts"]["os"]["name"] == "PlayStation"
+    assert payload["contexts"]["runtime"]["name"] == "PS5"
 
-    tags_dict = dict(event_data["tags"])
+    tags_dict = dict(payload["tags"])
     assert tags_dict["cpu_vendor"] == "Sony"
     assert tags_dict["os.name"] == "PlayStation"
     assert tags_dict["cpu_brand"] == "PS5 CPU"
     assert "titleId" in tags_dict
 
-    assert "exception" in event_data
-    assert len(event_data["exception"]["values"]) == 1
-    assert event_data["exception"]["values"][0]["type"] == "Minidump"
-    assert event_data["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+    assert "exception" in payload
+    assert len(payload["exception"]["values"]) == 1
+    assert payload["exception"]["values"][0]["type"] == "Minidump"
+    assert payload["exception"]["values"][0]["mechanism"]["type"] == "minidump"
 
-    assert "_metrics" in event_data
-    assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
-    assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
+    assert "_metrics" in payload
+    assert payload["_metrics"]["bytes.ingested.event.minidump"] > 0
+    assert payload["_metrics"]["bytes.ingested.event.attachment"] > 0
 
     assert len(event["attachments"]) == 3
     assert "playstation.prosperodmp" in [
@@ -168,13 +162,9 @@ def test_playstation_user_data_extraction(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 0
 
-    while True:
-        _, message = attachments_consumer.get_message()
-        if message is None or message["type"] != "attachment_chunk":
-            event = message
-            break
-
+    event, payload = attachments_consumer.get_event_only()
     assert event
+    assert payload
     event_json = {
         "event_id": response.text.replace("-", ""),
         "timestamp": 1748373553.0,
@@ -248,13 +238,10 @@ def test_playstation_user_data_extraction(
         "project": 42,
     }
 
-    assert event["type"] == "event"
-    event_data = json.loads(event["payload"])
-
     for key in ["_metrics", "grouping_config"]:
-        del event_data[key]
+        del payload[key]
 
-    assert event_data == event_json
+    assert payload == event_json
     assert len(event["attachments"]) == 3
 
 
@@ -299,43 +286,39 @@ def test_playstation_attachment(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 0
 
-    while True:
-        _, message = attachments_consumer.get_message()
-        if message is None or message["type"] != "attachment_chunk":
-            event = message
-            break
-
+    event, payload = attachments_consumer.get_event_only()
     assert event
-    event_data = json.loads(event["payload"])
-    assert event_data["type"] == "error"
-    assert event_data["level"] == "fatal"
+    assert payload
 
-    assert "contexts" in event_data
-    assert "device" in event_data["contexts"]
-    assert "os" in event_data["contexts"]
-    assert "runtime" in event_data["contexts"]
+    assert payload["type"] == "error"
+    assert payload["level"] == "fatal"
 
-    assert event_data["contexts"]["device"]["model"] == "PS5"
-    assert event_data["contexts"]["device"]["manufacturer"] == "Sony"
-    assert event_data["contexts"]["device"]["arch"] == "x86_64"
+    assert "contexts" in payload
+    assert "device" in payload["contexts"]
+    assert "os" in payload["contexts"]
+    assert "runtime" in payload["contexts"]
 
-    assert event_data["contexts"]["os"]["name"] == "PlayStation"
-    assert event_data["contexts"]["runtime"]["name"] == "PS5"
+    assert payload["contexts"]["device"]["model"] == "PS5"
+    assert payload["contexts"]["device"]["manufacturer"] == "Sony"
+    assert payload["contexts"]["device"]["arch"] == "x86_64"
 
-    tags_dict = dict(event_data["tags"])
+    assert payload["contexts"]["os"]["name"] == "PlayStation"
+    assert payload["contexts"]["runtime"]["name"] == "PS5"
+
+    tags_dict = dict(payload["tags"])
     assert tags_dict["cpu_vendor"] == "Sony"
     assert tags_dict["os.name"] == "PlayStation"
     assert tags_dict["cpu_brand"] == "PS5 CPU"
     assert "titleId" in tags_dict
 
-    assert "exception" in event_data
-    assert len(event_data["exception"]["values"]) == 1
-    assert event_data["exception"]["values"][0]["type"] == "Minidump"
-    assert event_data["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+    assert "exception" in payload
+    assert len(payload["exception"]["values"]) == 1
+    assert payload["exception"]["values"][0]["type"] == "Minidump"
+    assert payload["exception"]["values"][0]["mechanism"]["type"] == "minidump"
 
-    assert "_metrics" in event_data
-    assert event_data["_metrics"]["bytes.ingested.event.minidump"] > 0
-    assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
+    assert "_metrics" in payload
+    assert payload["_metrics"]["bytes.ingested.event.minidump"] > 0
+    assert payload["_metrics"]["bytes.ingested.event.attachment"] > 0
 
     assert len(event["attachments"]) == 3
     assert "playstation.prosperodmp" in [
@@ -380,20 +363,15 @@ def test_playstation_attachment_no_feature_flag(
     )
     relay.send_envelope(PROJECT_ID, envelope)
 
-    while True:
-        _, message = attachments_consumer.get_message()
-        if message is None or message["type"] != "attachment_chunk":
-            event = message
-            break
-
+    event, payload = attachments_consumer.get_event_only()
     assert event
+    assert payload
 
     assert len(event["attachments"]) == 1
     attachment = event["attachments"][0]
     assert attachment["attachment_type"] == "playstation.prosperodump"
 
-    event_data = json.loads(event["payload"])
-    assert event_data["type"] == "error"
-    assert "exception" in event_data
-    assert event_data["exception"]["values"][0]["type"] == "ValueError"
-    assert event_data["exception"]["values"][0]["value"] == "Should not happen"
+    assert payload["type"] == "error"
+    assert "exception" in payload
+    assert payload["exception"]["values"][0]["type"] == "ValueError"
+    assert payload["exception"]["values"][0]["value"] == "Should not happen"
