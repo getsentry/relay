@@ -270,18 +270,11 @@ impl SessionLike for SessionUpdate {
     }
 }
 
+// Dummy implementation of `Getter` to satisfy the bound of `should_filter`.
+// We don't actually want to use `get_value` at this time.`
 impl Getter for SessionUpdate {
-    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
-        let path = path.strip_prefix("session.")?;
-
-        match path {
-            "release" => Some(self.attributes.release.as_str().into()),
-            "environment" => Some(self.attributes.environment.as_deref()?.into()),
-            "ip_address" => Some(self.attributes.ip_address.as_ref()?.as_str().into()),
-            "user_agent" => Some(self.attributes.user_agent.as_deref()?.into()),
-            // TODO: status, abnormal mechanism?
-            _ => None,
-        }
+    fn get_value(&self, _path: &str) -> Option<relay_protocol::Val<'_>> {
+        None
     }
 }
 
@@ -369,20 +362,12 @@ impl SessionAggregates {
     }
 }
 
+// Dummy implementation of `Getter` to satisfy the bound of `should_filter`.
+// We don't actually want to use `get_value` at this time.`
 impl Getter for SessionAggregates {
-    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
-        let path = path.strip_prefix("sessions.")?;
-
-        match path {
-            "release" => Some(self.attributes.release.as_str().into()),
-            "environment" => Some(self.attributes.environment.as_deref()?.into()),
-            "ip_address" => Some(self.attributes.ip_address.as_ref()?.as_str().into()),
-            "user_agent" => Some(self.attributes.user_agent.as_deref()?.into()),
-            _ => None,
-        }
+    fn get_value(&self, _path: &str) -> Option<relay_protocol::Val<'_>> {
+        None
     }
-
-    // TODO: Implement get_iter?
 }
 
 #[cfg(test)]
