@@ -151,10 +151,10 @@
 <a href=#151 id=151 data-nosnippet>151</a>        user_agent,
 <a href=#152 id=152 data-nosnippet>152</a>        client_hints,
 <a href=#153 id=153 data-nosnippet>153</a>    }) {
-<a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">if </span>!attributes.contains_key(<span class="string">"browser.name"</span>) {
+<a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">if </span>!attributes.contains_key(<span class="string">"sentry.browser.name"</span>) {
 <a href=#155 id=155 data-nosnippet>155</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = context.name.value() {
 <a href=#156 id=156 data-nosnippet>156</a>                attributes.insert(
-<a href=#157 id=157 data-nosnippet>157</a>                    <span class="string">"browser.name"</span>.to_owned(),
+<a href=#157 id=157 data-nosnippet>157</a>                    <span class="string">"sentry.browser.name"</span>.to_owned(),
 <a href=#158 id=158 data-nosnippet>158</a>                    Annotated::new(Attribute::new(
 <a href=#159 id=159 data-nosnippet>159</a>                        AttributeType::String,
 <a href=#160 id=160 data-nosnippet>160</a>                        Value::String(name.to_owned()),
@@ -163,10 +163,10 @@
 <a href=#163 id=163 data-nosnippet>163</a>            }
 <a href=#164 id=164 data-nosnippet>164</a>        }
 <a href=#165 id=165 data-nosnippet>165</a>
-<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">if </span>!attributes.contains_key(<span class="string">"browser.version"</span>) {
+<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">if </span>!attributes.contains_key(<span class="string">"sentry.browser.version"</span>) {
 <a href=#167 id=167 data-nosnippet>167</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(version) = context.version.value() {
 <a href=#168 id=168 data-nosnippet>168</a>                attributes.insert(
-<a href=#169 id=169 data-nosnippet>169</a>                    <span class="string">"browser.version"</span>.to_owned(),
+<a href=#169 id=169 data-nosnippet>169</a>                    <span class="string">"sentry.browser.version"</span>.to_owned(),
 <a href=#170 id=170 data-nosnippet>170</a>                    Annotated::new(Attribute::new(
 <a href=#171 id=171 data-nosnippet>171</a>                        AttributeType::String,
 <a href=#172 id=172 data-nosnippet>172</a>                        Value::String(version.to_owned()),
@@ -502,7 +502,7 @@
 <a href=#502 id=502 data-nosnippet>502</a>        <span class="kw">let </span>attributes = log.attributes.value().unwrap();
 <a href=#503 id=503 data-nosnippet>503</a>        <span class="macro">assert_eq!</span>(
 <a href=#504 id=504 data-nosnippet>504</a>            attributes
-<a href=#505 id=505 data-nosnippet>505</a>                .get(<span class="string">"browser.name"</span>)
+<a href=#505 id=505 data-nosnippet>505</a>                .get(<span class="string">"sentry.browser.name"</span>)
 <a href=#506 id=506 data-nosnippet>506</a>                .unwrap()
 <a href=#507 id=507 data-nosnippet>507</a>                .value()
 <a href=#508 id=508 data-nosnippet>508</a>                .unwrap()
@@ -512,7 +512,7 @@
 <a href=#512 id=512 data-nosnippet>512</a>        );
 <a href=#513 id=513 data-nosnippet>513</a>        <span class="macro">assert_eq!</span>(
 <a href=#514 id=514 data-nosnippet>514</a>            attributes
-<a href=#515 id=515 data-nosnippet>515</a>                .get(<span class="string">"browser.version"</span>)
+<a href=#515 id=515 data-nosnippet>515</a>                .get(<span class="string">"sentry.browser.version"</span>)
 <a href=#516 id=516 data-nosnippet>516</a>                .unwrap()
 <a href=#517 id=517 data-nosnippet>517</a>                .value()
 <a href=#518 id=518 data-nosnippet>518</a>                .unwrap()
