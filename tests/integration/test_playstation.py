@@ -1,7 +1,6 @@
 from unittest import mock
 import pytest
 import os
-import json
 import requests
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
