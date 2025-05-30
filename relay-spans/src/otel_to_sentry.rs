@@ -126,6 +126,8 @@ mod tests {
             "http.request.method": "GET",
             "http.route": "/home",
             "plugin.name": "fastify -> @fastify/multipart",
+            "sentry.description": "GET /home",
+            "sentry.exclusive_time_nano": 1000000000,
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -167,7 +169,9 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.exclusive_time_nano": 3200000000
+          },
           "links": [],
           "kind": "internal"
         }
@@ -250,7 +254,12 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-          "data": {},
+          "data": {
+            "db.name": "database",
+            "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            "db.type": "sql",
+            "sentry.description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+          },
           "links": [],
           "kind": "client"
         }
@@ -308,7 +317,12 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "index view query",
-          "data": {},
+          "data": {
+            "db.name": "database",
+            "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            "db.type": "sql",
+            "sentry.description": "index view query"
+          },
           "links": [],
           "kind": "client"
         }
@@ -356,6 +370,7 @@ mod tests {
           "description": "GET /api/search?q=foobar",
           "data": {
             "http.request.method": "GET",
+            "sentry.description": "GET /api/search?q=foobar",
             "url.path": "/api/search?q=foobar"
           },
           "links": [],
@@ -516,6 +531,7 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
+            "sentry.description": "mydescription",
             "sentry.op": "myop",
             "sentry.platform": "php",
             "sentry.profile.id": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
