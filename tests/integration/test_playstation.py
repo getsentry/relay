@@ -1,3 +1,4 @@
+from unittest import mock
 import pytest
 import os
 import json
@@ -236,10 +237,9 @@ def test_playstation_user_data_extraction(
         },
         "key_id": "123",
         "project": 42,
+        "_metrics": mock.ANY,
+        "grouping_config": mock.ANY,
     }
-
-    for key in ["_metrics", "grouping_config"]:
-        del payload[key]
 
     assert payload == event_json
     assert len(event["attachments"]) == 3
