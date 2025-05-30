@@ -4,6 +4,7 @@ import json
 import requests
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from .asserts import time_within_delta
 
 
 def load_dump_file(base_file_name: str):
@@ -140,8 +141,121 @@ def test_playstation_with_feature_flag(
     assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
 
     assert len(event["attachments"]) == 3
-    attachment = event["attachments"][0]
-    assert attachment["attachment_type"] == "playstation.prosperodump"
+    assert "playstation.prosperodmp" in [
+        attachment["name"] for attachment in event["attachments"]
+    ]
+
+
+def test_playstation_user_data_extraction(
+    mini_sentry,
+    relay,
+    relay_with_playstation,
+    outcomes_consumer,
+    attachments_consumer,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("user_data.prosperodmp")
+    mini_sentry.add_full_project_config(
+        PROJECT_ID,
+        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+    )
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+    relay = relay_with_playstation()
+    response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
+    assert response.ok
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 0
+
+    while True:
+        _, message = attachments_consumer.get_message()
+        if message is None or message["type"] != "attachment_chunk":
+            event = message
+            break
+
+    assert event
+    event_json = {
+        "event_id": response.text.replace("-", ""),
+        "timestamp": 1748373553.0,
+        "received": time_within_delta(),
+        "level": "error",
+        "version": "7",
+        "type": "error",
+        "logger": "",
+        "platform": "native",
+        "environment": "production",
+        "contexts": {
+            "app": {"app_version": "", "type": "app"},
+            "device": {
+                "name": "",
+                "model": "PS5",
+                "model_id": "5be3652dd663dbdcd044da0f2144b17f",
+                "arch": "x86_64",
+                "manufacturer": "Sony",
+                "type": "device",
+            },
+            "os": {"name": "Prospero", "type": "os"},
+            "runtime": {
+                "runtime": "PS5 11.20.00.05-00.00.00.0.1",
+                "name": "PS5",
+                "version": "11.20.00.05-00.00.00.0.1",
+                "type": "runtime",
+            },
+            "trace": {
+                "trace_id": "a4c6cc5ab0d949d23f6d42e518ba49b4",
+                "span_id": "75470378528743c2",
+                "status": "unknown",
+                "type": "trace",
+            },
+        },
+        "breadcrumbs": {
+            "values": [
+                {
+                    "timestamp": 1748373552.703305,
+                    "type": "default",
+                    "level": "info",
+                    "message": "crumb",
+                }
+            ]
+        },
+        "exception": {
+            "values": [
+                {
+                    "type": "Minidump",
+                    "value": "Invalid Minidump",
+                    "mechanism": {
+                        "type": "minidump",
+                        "synthetic": True,
+                        "handled": False,
+                    },
+                }
+            ]
+        },
+        "tags": [
+            ["tag-name", "tag value"],
+            ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
+        ],
+        "extra": {"extra-name": "extra value"},
+        "sdk": {
+            "name": "sentry.native.playstation",
+            "version": "0.8.5",
+            "packages": [
+                {"name": "github:getsentry/sentry-native", "version": "0.8.5"}
+            ],
+        },
+        "key_id": "123",
+        "project": 42,
+    }
+
+    assert event["type"] == "event"
+    event_data = json.loads(event["payload"])
+
+    for key in ["_metrics", "grouping_config"]:
+        del event_data[key]
+
+    assert event_data == event_json
+    assert len(event["attachments"]) == 3
 
 
 def test_playstation_attachment(
@@ -224,8 +338,9 @@ def test_playstation_attachment(
     assert event_data["_metrics"]["bytes.ingested.event.attachment"] > 0
 
     assert len(event["attachments"]) == 3
-    attachment = event["attachments"][0]
-    assert attachment["attachment_type"] == "playstation.prosperodump"
+    assert "playstation.prosperodmp" in [
+        attachment["name"] for attachment in event["attachments"]
+    ]
 
 
 def test_playstation_attachment_no_feature_flag(
