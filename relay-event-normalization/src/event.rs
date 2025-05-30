@@ -27,7 +27,7 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::normalize::request;
-use crate::span::ai::normalize_ai_measurements;
+use crate::span::ai::enrich_ai_span_data;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
@@ -322,7 +322,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             .get_or_default::<PerformanceScoreContext>()
             .score_profile_version = Annotated::new(version);
     }
-    normalize_ai_measurements(event, config.ai_model_costs);
+    enrich_ai_span_data(event, config.ai_model_costs);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);
@@ -2190,7 +2190,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ai_measurements() {
+    fn test_ai_legacy_measurements() {
         let json = r#"
             {
                 "spans": [
@@ -2271,26 +2271,113 @@ mod tests {
         assert_eq!(
             spans
                 .first()
-                .unwrap()
-                .value()
-                .unwrap()
-                .measurements
-                .value()
-                .unwrap()
-                .get_value("ai_total_cost"),
-            Some(1.23)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(1.23))
         );
         assert_eq!(
             spans
                 .get(1)
-                .unwrap()
-                .value()
-                .unwrap()
-                .measurements
-                .value()
-                .unwrap()
-                .get_value("ai_total_cost"),
-            Some(20.0 * 2.0 + 2.0)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(20.0 * 2.0 + 2.0))
+        );
+    }
+
+    #[test]
+    fn test_ai_data() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.total_tokens": 1230,
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "claude-2.1"
+                        }
+                    },
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "ac01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "gpt4-21-04"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 1,
+                    costs: vec![
+                        ModelCost {
+                            model_id: LazyGlob::new("claude-2*"),
+                            for_completion: false,
+                            cost_per_1k_tokens: 1.0,
+                        },
+                        ModelCost {
+                            model_id: LazyGlob::new("gpt4-21*"),
+                            for_completion: false,
+                            cost_per_1k_tokens: 2.0,
+                        },
+                        ModelCost {
+                            model_id: LazyGlob::new("gpt4-21*"),
+                            for_completion: true,
+                            cost_per_1k_tokens: 20.0,
+                        },
+                    ],
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let spans = event.value().unwrap().spans.value().unwrap();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(1.23))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(20.0 * 2.0 + 2.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_tokens.value()),
+            Some(&Value::F64(3000.0))
         );
     }
 
