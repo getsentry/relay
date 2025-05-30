@@ -55,7 +55,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     }) {
         match key.as_str() {
             "sentry.description" => {
-                description = String::from_value(value);
+                description = String::from_value(value.clone());
             }
             key if key.contains("exclusive_time_nano") => {
                 let value = match value.value() {
@@ -68,24 +68,24 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
                 exclusive_time_ms = value / 1e6f64;
             }
             "http.status_code" => {
-                http_status_code = i64::from_value(value);
+                http_status_code = i64::from_value(value.clone());
             }
             "rpc.grpc.status_code" => {
-                grpc_status_code = i64::from_value(value);
+                grpc_status_code = i64::from_value(value.clone());
             }
             "sentry.platform" => {
-                platform = String::from_value(value);
+                platform = String::from_value(value.clone());
             }
             "sentry.segment.id" => {
-                segment_id = SpanId::from_value(value);
+                segment_id = SpanId::from_value(value.clone());
             }
             "sentry.profile.id" => {
-                profile_id = EventId::from_value(value);
+                profile_id = EventId::from_value(value.clone());
             }
-            _ => {
-                data.insert(key.to_owned(), value);
-            }
+            _ => (),
         }
+
+        data.insert(key.to_owned(), value);
     }
 
     if exclusive_time_ms == 0f64 {
@@ -218,7 +218,7 @@ mod tests {
                     "value": "fastify -> @fastify/multipart",
                     "type": "string"
                 },
-                "hook.name": { 
+                "hook.name": {
                     "value": "onResponse",
                     "type": "string"
                 },
@@ -256,6 +256,7 @@ mod tests {
             "fastify.type": "middleware",
             "hook.name": "onResponse",
             "plugin.name": "fastify -> @fastify/multipart",
+            "sentry.exclusive_time_nano": "1000000000",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -296,7 +297,9 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.exclusive_time_nano": 3200000000
+          },
           "links": [],
           "kind": "internal"
         }
@@ -413,7 +416,11 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
-            "sentry.op": "myop"
+            "sentry.description": "mydescription",
+            "sentry.op": "myop",
+            "sentry.platform": "php",
+            "sentry.profile.id": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
+            "sentry.segment.id": "FA90FDEAD5F74052"
           },
           "links": [],
           "platform": "php"
