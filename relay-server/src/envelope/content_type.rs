@@ -9,24 +9,26 @@ pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 /// This is an optimized enum intended to reduce allocations for common content types.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ContentType {
-    /// text/plain
+    /// `text/plain`
     Text,
-    /// application/json
+    /// `application/json`
     Json,
-    /// application/x-msgpack
+    /// `application/x-msgpack`
     MsgPack,
-    /// application/octet-stream
+    /// `application/octet-stream`
     OctetStream,
-    /// application/x-dmp
+    /// `application/x-dmp`
     Minidump,
-    /// text/xml and application/xml
+    /// `text/xml` and `application/xml`
     Xml,
-    /// application/x-sentry-envelope
+    /// `application/x-sentry-envelope`
     Envelope,
-    /// "application/x-protobuf"
+    /// `application/x-protobuf`
     Protobuf,
     /// `application/vnd.sentry.items.log+json`
     LogContainer,
+    /// `application/vnd.sentry.items.span.v2+json`
+    SpanV2Container,
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
@@ -44,6 +46,7 @@ impl ContentType {
             Self::Envelope => CONTENT_TYPE,
             Self::Protobuf => "application/x-protobuf",
             Self::LogContainer => "application/vnd.sentry.items.log+json",
+            Self::SpanV2Container => "application/vnd.sentry.items.span.v2+json",
             Self::Other(ref other) => other,
         }
     }
@@ -69,6 +72,8 @@ impl ContentType {
             Some(Self::Protobuf)
         } else if ct.eq_ignore_ascii_case(Self::LogContainer.as_str()) {
             Some(Self::LogContainer)
+        } else if ct.eq_ignore_ascii_case(Self::SpanV2Container.as_str()) {
+            Some(Self::SpanV2Container)
         } else {
             None
         }

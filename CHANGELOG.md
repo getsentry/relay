@@ -6,6 +6,7 @@
 
 - Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
 - Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
+- Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 
 **Internal**:
 
