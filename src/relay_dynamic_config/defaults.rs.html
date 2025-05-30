@@ -834,7 +834,7 @@
 <a href=#834 id=834 data-nosnippet>834</a>                </span>MetricSpec {
 <a href=#835 id=835 data-nosnippet>835</a>                    category: DataCategory::Span,
 <a href=#836 id=836 data-nosnippet>836</a>                    mri: <span class="string">"c:spans/ai.total_tokens.used@none"</span>.into(),
-<a href=#837 id=837 data-nosnippet>837</a>                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.ai_total_tokens_used.value"</span>.into()),
+<a href=#837 id=837 data-nosnippet>837</a>                    field: <span class="prelude-val">Some</span>(<span class="string">"span.data.gen_ai\\.usage\\.total_tokens"</span>.into()),
 <a href=#838 id=838 data-nosnippet>838</a>                    condition: <span class="prelude-val">Some</span>(is_ai.clone()),
 <a href=#839 id=839 data-nosnippet>839</a>                    tags: <span class="macro">vec!</span>[
 <a href=#840 id=840 data-nosnippet>840</a>                        Tag::with_key(<span class="string">"span.op"</span>)
@@ -869,7 +869,7 @@
 <a href=#869 id=869 data-nosnippet>869</a>                MetricSpec {
 <a href=#870 id=870 data-nosnippet>870</a>                    category: DataCategory::Span,
 <a href=#871 id=871 data-nosnippet>871</a>                    mri: <span class="string">"c:spans/ai.total_cost@usd"</span>.into(),
-<a href=#872 id=872 data-nosnippet>872</a>                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.ai_total_cost.value"</span>.into()),
+<a href=#872 id=872 data-nosnippet>872</a>                    field: <span class="prelude-val">Some</span>(<span class="string">"span.data.gen_ai\\.usage\\.total_cost"</span>.into()),
 <a href=#873 id=873 data-nosnippet>873</a>                    condition: <span class="prelude-val">Some</span>(is_ai.clone()),
 <a href=#874 id=874 data-nosnippet>874</a>                    tags: <span class="macro">vec!</span>[
 <a href=#875 id=875 data-nosnippet>875</a>                        Tag::with_key(<span class="string">"span.op"</span>)

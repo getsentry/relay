@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["extract_ai_measurements","normalize_ai_measurements"]};
+window.SIDEBAR_ITEMS = {"fn":["enrich_ai_span_data","extract_ai_data","map_ai_measurements_to_data"]};
