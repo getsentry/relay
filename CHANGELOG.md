@@ -5,10 +5,13 @@
 **Features**:
 
 - Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
+- Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
+- Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 
 **Internal**:
 
 - Remove the "unspecified" variant of `SpanKind`. ([#4774](https://github.com/getsentry/relay/pull/4774))
+- Normalize AI data and measurements into new OTEL compatible fields and extracting metrics out of said fields. ([#4768](https://github.com/getsentry/relay/pull/4768))
 - Switch `sysinfo` dependency back to upstream and update to 0.35.1. ([#4776](https://github.com/getsentry/relay/pull/4776))
 
 ## 25.5.1
@@ -17,7 +20,6 @@
 
 - Cached projects can now be refreshed regularly, instead of only on demand. ([#4773](https://github.com/getsentry/relay/pull/4773))
 - Allow environment references in Relay configuration. ([#4750](https://github.com/getsentry/relay/pull/4750))
-- Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 
 **Internal**:
 

@@ -134,7 +134,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
-        insta::assert_debug_snapshot!(span_from_event, @r###"
+        insta::assert_debug_snapshot!(span_from_event, @r#"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -155,9 +155,10 @@ mod tests {
             ),
             data: SpanData {
                 app_start_type: ~,
-                ai_total_tokens_used: ~,
-                ai_prompt_tokens_used: ~,
-                ai_completion_tokens_used: ~,
+                gen_ai_usage_total_tokens: ~,
+                gen_ai_usage_input_tokens: ~,
+                gen_ai_usage_output_tokens: ~,
+                gen_ai_usage_total_cost: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
@@ -262,6 +263,6 @@ mod tests {
             _performance_issues_spans: ~,
             other: {},
         }
-        "###);
+        "#);
     }
 }
