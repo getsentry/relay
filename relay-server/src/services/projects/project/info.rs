@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 
 use crate::envelope::Envelope;
-use crate::extractors::RequestMeta;
+use crate::extractors::{RelaySignature, RequestMeta, TrustedRelaySignature};
 use crate::services::outcome::DiscardReason;
 use relay_auth::PublicKey;
 use relay_base_schema::organization::OrganizationId;
@@ -134,13 +134,20 @@ impl ProjectInfo {
             return Err(DiscardReason::FeatureDisabled(*disabled_feature));
         }
 
-        if !envelope.meta().is_from_internal_relay() {
-            if let Some(conf) = &self.config().trusted_relay_settings {
-                if conf.verify_signature
-                    && !Self::check_trusted_relay_signature(envelope, &self.config.trusted_relays)
-                {
+        if !envelope.meta().is_from_internal_relay()
+            && self.config().trusted_relay_settings.verify_signature
+        {
+            match envelope.meta().signature() {
+                Some(RelaySignature::Valid(signature)) => {
+                    if !Self::check_trusted_relay_signature(signature, &self.config.trusted_relays)
+                    {
+                        return Err(DiscardReason::InvalidSignature);
+                    }
+                }
+                Some(RelaySignature::Invalid(_)) => {
                     return Err(DiscardReason::InvalidSignature);
                 }
+                None => return Err(DiscardReason::MissingSignature),
             }
         }
 
@@ -150,12 +157,10 @@ impl ProjectInfo {
     /// Returns `true` if the signature could be verified with any public key of a trusted relay.
     ///
     /// If the signature is missing, then it will return `false`.
-    fn check_trusted_relay_signature(envelope: &Envelope, trusted_relays: &[PublicKey]) -> bool {
-        let Some(signature) = envelope.meta().signature() else {
-            // Drop envelope if trusted relay check is enabled but there is no signature.
-            return false;
-        };
-
+    fn check_trusted_relay_signature(
+        signature: &TrustedRelaySignature,
+        trusted_relays: &[PublicKey],
+    ) -> bool {
         trusted_relays
             .iter()
             .any(|public_key| public_key.verify(&signature.signature_data, &signature.signature))

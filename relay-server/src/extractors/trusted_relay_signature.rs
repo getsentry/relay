@@ -1,12 +1,15 @@
+use crate::service::ServiceState;
+use axum::extract::OptionalFromRequestParts;
 use axum::http::HeaderMap;
+use axum::http::request::Parts;
+use std::convert::Infallible;
 use std::str::FromStr;
 
 pub const SIGNATURE_DATA_HEADER: &str = "x-sentry-signature-headers";
 pub const SIGNATURE_VERSION_HEADER: &str = "x-sentry-relay-signature-version";
 pub const SIGNATURE_HEADER: &str = "x-sentry-relay-signature";
-pub const SIGNATURE_DATETIME_HEADER: &str = "x-sentry-relay-signature-datetime";
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum TrustedRelaySignatureErrors {
     #[error("missing header: {0}")]
     MissingHeader(String),
@@ -39,7 +42,7 @@ impl TrustedRelaySignatureVersion {
     /// For example: x-foo-header;x-bar-header;x-time-header
     pub fn signature_data_headers(&self) -> &'static str {
         match self {
-            Self::V1 => SIGNATURE_DATETIME_HEADER,
+            Self::V1 => "Date",
         }
     }
 }
@@ -55,6 +58,18 @@ impl FromStr for TrustedRelaySignatureVersion {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum RelaySignature {
+    Valid(TrustedRelaySignature),
+    Invalid(TrustedRelaySignatureErrors),
+}
+
+impl From<TrustedRelaySignatureErrors> for RelaySignature {
+    fn from(value: TrustedRelaySignatureErrors) -> Self {
+        Self::Invalid(value)
+    }
+}
+
 /// Contains data that is necessary for trusted relay signature verification.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrustedRelaySignature {
@@ -64,38 +79,62 @@ pub struct TrustedRelaySignature {
     pub signature_data: Vec<u8>,
 }
 
-impl TrustedRelaySignature {
-    pub fn from_headers(headers: &HeaderMap) -> Result<Self, TrustedRelaySignatureErrors> {
-        let version = match headers.get(SIGNATURE_VERSION_HEADER) {
-            Some(version) => version
+impl OptionalFromRequestParts<ServiceState> for RelaySignature {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _: &ServiceState,
+    ) -> Result<Option<Self>, Self::Rejection> {
+        let version = match parts.headers.get(SIGNATURE_VERSION_HEADER) {
+            Some(h) => match h
                 .to_str()
-                .map_err(|_| {
-                    TrustedRelaySignatureErrors::MalformedHeader(
-                        SIGNATURE_VERSION_HEADER.to_string(),
-                    )
-                })?
-                .parse()
-                .map_err(|_| TrustedRelaySignatureErrors::InvalidSignatureVersion)?,
+                .map_err(|_| TrustedRelaySignatureErrors::InvalidSignatureVersion)
+                .and_then(|h| h.parse())
+            {
+                Ok(version) => version,
+                Err(_) => {
+                    return Ok(Some(RelaySignature::Invalid(
+                        TrustedRelaySignatureErrors::InvalidSignatureVersion,
+                    )));
+                }
+            },
             None => TrustedRelaySignatureVersion::default(),
         };
-        let signature = get_header(headers, SIGNATURE_HEADER)?;
+        let signature = match parts.headers.get(SIGNATURE_HEADER) {
+            Some(h) => match h.to_str() {
+                Ok(signature) => signature,
+                Err(_) => {
+                    return Ok(Some(RelaySignature::Invalid(
+                        TrustedRelaySignatureErrors::MalformedHeader(SIGNATURE_HEADER.to_owned()),
+                    )));
+                }
+            },
+            None => return Ok(None),
+        };
 
         let signature_data = match version {
             TrustedRelaySignatureVersion::V1 => {
                 let mut data = Vec::new();
-                let data_headers = get_header(headers, SIGNATURE_DATA_HEADER)?;
+                let data_headers = match get_header(&parts.headers, SIGNATURE_DATA_HEADER) {
+                    Ok(headers) => headers,
+                    Err(e) => return Ok(Some(RelaySignature::Invalid(e))),
+                };
                 for header in data_headers.split(";") {
-                    let data_header = get_header(headers, header)?;
+                    let data_header = match get_header(&parts.headers, header) {
+                        Ok(header) => header,
+                        Err(e) => return Ok(Some(RelaySignature::Invalid(e))),
+                    };
                     data.extend_from_slice(data_header.as_bytes());
                 }
                 data
             }
         };
 
-        Ok(TrustedRelaySignature {
+        Ok(Some(RelaySignature::Valid(TrustedRelaySignature {
             signature: signature.to_owned(),
             signature_data,
-        })
+        })))
     }
 }
 
@@ -105,8 +144,8 @@ fn get_header<'a>(
 ) -> Result<&'a str, TrustedRelaySignatureErrors> {
     let header = headers
         .get(name)
-        .ok_or(TrustedRelaySignatureErrors::MissingHeader(name.to_string()))?;
+        .ok_or(TrustedRelaySignatureErrors::MissingHeader(name.to_owned()))?;
     header
         .to_str()
-        .map_err(|_| TrustedRelaySignatureErrors::MalformedHeader(name.to_string()))
+        .map_err(|_| TrustedRelaySignatureErrors::MalformedHeader(name.to_owned()))
 }

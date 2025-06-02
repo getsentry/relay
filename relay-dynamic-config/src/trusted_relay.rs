@@ -34,7 +34,7 @@ mod tests {
     #[test]
     fn test_default() {
         let config = TrustedRelayConfig::default();
-        assert_eq!(config.verify_signature, false);
+        assert!(!config.verify_signature);
     }
 
     #[test]

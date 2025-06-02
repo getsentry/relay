@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use axum::RequestPartsExt;
 use axum::extract::rejection::PathRejection;
-use axum::extract::{ConnectInfo, FromRequestParts, Path};
+use axum::extract::{ConnectInfo, FromRequestParts, OptionalFromRequestParts, Path};
 use axum::http::StatusCode;
 use axum::http::header::{self, AsHeaderName};
 use axum::http::request::Parts;
@@ -22,8 +22,7 @@ use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::extractors::trusted_relay_signature::TrustedRelaySignature;
-use crate::extractors::{ForwardedFor, ReceivedAt};
+use crate::extractors::{ForwardedFor, ReceivedAt, RelaySignature};
 use crate::service::ServiceState;
 use crate::statsd::{ClientName, RelayCounters};
 use crate::utils::ApiErrorResponse;
@@ -236,7 +235,7 @@ pub struct RequestMeta<D = PartialDsn> {
     ///
     /// NOTE: This is internal only.
     #[serde(skip)]
-    signature: Option<TrustedRelaySignature>,
+    signature: Option<RelaySignature>,
 
     /// Whether the request is coming from an statically configured internal Relay.
     ///
@@ -337,7 +336,7 @@ impl<D> RequestMeta<D> {
     }
 
     /// Returns the trusted relay signature.
-    pub fn signature(&self) -> Option<&TrustedRelaySignature> {
+    pub fn signature(&self) -> Option<&RelaySignature> {
         self.signature.as_ref()
     }
 }
@@ -503,13 +502,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
-        let signature = match TrustedRelaySignature::from_headers(&parts.headers) {
-            Ok(sig) => Some(sig),
-            Err(_) => {
-                relay_log::debug!("Signature extraction failed");
-                None
-            }
-        };
+        let signature = RelaySignature::from_request_parts(parts, state).await?;
 
         Ok(RequestMeta {
             dsn: None,

@@ -52,8 +52,8 @@ def test_missing_version(mini_sentry, relay, relay_credentials):
     headers = {
         "x-sentry-relay-signature": "uqFY5JuNcRvi1vUDv2A2xRjKH-U-jchmW61owNBA8QaZ5Cf9A2HQclN6bSDXq-8Cj72GEysHA44reOgWjix2AA.eyJ0IjoiMjAyNS0wNS0yOFQwODo0Nzo0Ny45MzcwNjBaIn0",
         "x-sentry-relay-id": "relay-1",
-        "x-sentry-signature-headers": "x-sentry-relay-signature-datetime",
-        "x-sentry-relay-signature-datetime": "2025-05-28 08:47:47.937053 UTC",
+        "x-sentry-signature-headers": "date",
+        "date": "2025-05-28 08:47:47.937053 UTC",
     }
 
     relay.send_event(project_id, {"message": "trusted event"}, headers=headers)
@@ -90,8 +90,8 @@ def test_internal_relays(mini_sentry, relay, relay_credentials):
         "x-sentry-relay-signature": "this-is-a-cool-signature",
         "x-sentry-relay-signature-version": "v1",
         "x-sentry-relay-id": credentials["id"],
-        "x-sentry-signature-headers": "x-sentry-relay-signature-datetime",
-        "x-sentry-relay-signature-datetime": "202505211045",
+        "x-sentry-signature-headers": "date",
+        "date": "202505211045",
     }
 
     managed_relay.send_event(
@@ -138,8 +138,8 @@ def test_invalid_signature(
         "x-sentry-relay-signature": "this-is-a-cool-signature",
         "x-sentry-relay-signature-version": "v1",
         "x-sentry-relay-id": credentials["id"],
-        "x-sentry-signature-headers": "x-sentry-relay-signature-datetime",
-        "x-sentry-relay-signature-datetime": "202505211045",
+        "x-sentry-signature-headers": "date",
+        "date": "202505211045",
     }
 
     relay.send_event(
@@ -196,7 +196,7 @@ def test_not_trusted_relay(
     events_consumer.assert_empty()
     outcomes = outcomes_consumer.get_outcomes(timeout=1)
     for outcome in outcomes:
-        assert outcome["reason"] == "invalid_signature"
+        assert outcome["reason"] == "missing_signature"
 
 
 def test_reject_without_signature(
@@ -222,7 +222,7 @@ def test_reject_without_signature(
     events_consumer.assert_empty()
     outcomes = outcomes_consumer.get_outcomes(timeout=1)
     for outcome in outcomes:
-        assert outcome["reason"] == "invalid_signature"
+        assert outcome["reason"] == "missing_signature"
 
 
 def test_static_relay(mini_sentry, relay, relay_with_processing, outcomes_consumer):
@@ -284,7 +284,7 @@ def test_drop_envelope(
     outcomes = outcomes_consumer.get_outcomes(timeout=1)
     assert len(outcomes) == 2
     for outcome in outcomes:
-        assert outcome["reason"] == "invalid_signature"
+        assert outcome["reason"] == "missing_signature"
 
     # make sure that no event got through
     events_consumer.assert_empty()
