@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Use sentry prefix for browser name/version in logs. ([#4783](https://github.com/getsentry/relay/pull/4783))
+- Do not overcount the number of bytes in logs. ([#4786](https://github.com/getsentry/relay/pull/4786))
 
 **Internal**:
 
