@@ -380,9 +380,10 @@ fn emit_envelope_metrics(envelope: &Envelope) {
     let client_name = envelope.meta().client_name().name();
     for item in envelope.items() {
         let item_type = item.ty().name();
-        let is_container = match item.content_type() {
-            Some(ContentType::LogContainer | ContentType::SpanV2Container) => "true",
-            _ => "false",
+        let is_container = if item.content_type().is_some_and(ContentType::is_container) {
+            "true"
+        } else {
+            "false"
         };
 
         metric!(

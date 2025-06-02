@@ -51,6 +51,14 @@ impl ContentType {
         }
     }
 
+    /// Returns `true` if this is the content type of an [`ItemContainer`].
+    pub fn is_container(&self) -> bool {
+        matches!(
+            self,
+            ContentType::LogContainer | ContentType::SpanV2Container
+        )
+    }
+
     fn from_str(ct: &str) -> Option<Self> {
         if ct.eq_ignore_ascii_case(Self::Text.as_str()) {
             Some(Self::Text)
