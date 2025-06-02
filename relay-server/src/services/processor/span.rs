@@ -15,6 +15,7 @@ use relay_spans::otel_trace::TracesData;
 use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
+use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 use crate::utils::TypedEnvelope;
 
@@ -70,35 +71,42 @@ pub fn expand_v2_spans(
     if span_v2_items.len() > 1 {
         return Err(ProcessingError::DuplicateItem(ItemType::Span));
     }
-    for span_v2_item in span_v2_items {
-        let spans_v2 = match ItemContainer::parse(&span_v2_item) {
-            Ok(spans_v2) => spans_v2,
-            Err(err) => {
-                relay_log::debug!("failed to parse V2 spans: {err}");
-                track_invalid(
-                    managed_envelope,
-                    DiscardReason::InvalidSpan,
-                    span_v2_item.item_count().unwrap_or(1) as usize,
-                );
-                continue;
-            }
-        };
 
-        for span_v2 in spans_v2.into_items() {
-            let span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
-            match span_v1.to_json() {
-                Ok(payload) => {
-                    let mut new_item = Item::new(ItemType::Span);
-                    new_item.set_payload(ContentType::Json, payload);
-                    managed_envelope.envelope_mut().add_item(new_item);
-                }
+    if span_v2_items.is_empty() {
+        return Ok(());
+    }
+
+    relay_statsd::metric!(timer(RelayTimers::SpanV2Expansion), {
+        for span_v2_item in span_v2_items {
+            let spans_v2 = match ItemContainer::parse(&span_v2_item) {
+                Ok(spans_v2) => spans_v2,
                 Err(err) => {
-                    relay_log::debug!("failed to serialize span: {}", err);
-                    track_invalid(managed_envelope, DiscardReason::Internal, 1);
+                    relay_log::debug!("failed to parse V2 spans: {err}");
+                    track_invalid(
+                        managed_envelope,
+                        DiscardReason::InvalidSpan,
+                        span_v2_item.item_count().unwrap_or(1) as usize,
+                    );
+                    continue;
+                }
+            };
+
+            for span_v2 in spans_v2.into_items() {
+                let span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
+                match span_v1.to_json() {
+                    Ok(payload) => {
+                        let mut new_item = Item::new(ItemType::Span);
+                        new_item.set_payload(ContentType::Json, payload);
+                        managed_envelope.envelope_mut().add_item(new_item);
+                    }
+                    Err(err) => {
+                        relay_log::debug!("failed to serialize span: {}", err);
+                        track_invalid(managed_envelope, DiscardReason::Internal, 1);
+                    }
                 }
             }
         }
-    }
+    });
 
     Ok(())
 }
