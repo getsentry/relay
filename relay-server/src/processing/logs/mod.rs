@@ -5,6 +5,8 @@ use crate::processing::{self, Context, Counted, Managed, Output, Quantities};
 use crate::services::processor::ProcessingError;
 use crate::utils::ManagedEnvelope;
 
+mod filter;
+
 pub struct LogsProcessor {}
 
 impl LogsProcessor {
@@ -45,6 +47,8 @@ impl processing::Processor for LogsProcessor {
         work: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<()>, ProcessingError> {
+        filter::filter();
+
         // ourlog::filter(
         //     managed_envelope,
         //     &self.inner.config,
