@@ -16,9 +16,7 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize, de, ser};
 use smallvec::SmallVec;
 
-use crate::envelope::{ContentType, Item};
-
-use super::ItemType;
+use crate::envelope::{ContentType, Item, ItemType};
 
 /// Error emitted when failing to parse an [`ItemContainer`].
 #[derive(thiserror::Error, Debug)]
