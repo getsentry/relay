@@ -4290,6 +4290,7 @@ dependencies = [
  "relay-redis",
  "relay-replays",
  "relay-sampling",
+ "relay-signature",
  "relay-spans",
  "relay-statsd",
  "relay-system",
@@ -4320,6 +4321,15 @@ dependencies = [
  "url",
  "uuid",
  "zstd",
+]
+
+[[package]]
+name = "relay-signature"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.1",
+ "relay-auth",
+ "thiserror 2.0.12",
 ]
 
 [[package]]

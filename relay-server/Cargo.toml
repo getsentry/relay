@@ -90,6 +90,7 @@ relay-redis = { workspace = true }
 relay-replays = { workspace = true }
 relay-sampling = { workspace = true }
 relay-spans = { workspace = true }
+relay-signature = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }
 relay-threading = { workspace = true }

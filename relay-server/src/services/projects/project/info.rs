@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 
 use crate::envelope::Envelope;
-use crate::extractors::{RelaySignature, RequestMeta, TrustedRelaySignature};
+use crate::extractors::RequestMeta;
 use crate::services::outcome::DiscardReason;
 use relay_auth::PublicKey;
 use relay_base_schema::organization::OrganizationId;
@@ -16,6 +16,7 @@ use relay_dynamic_config::ErrorBoundary;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
+use relay_signature::{RelaySignature, check_trusted_relay_signature};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use url::Url;
@@ -139,8 +140,7 @@ impl ProjectInfo {
         {
             match envelope.meta().signature() {
                 Some(RelaySignature::Valid(signature)) => {
-                    if !Self::check_trusted_relay_signature(signature, &self.config.trusted_relays)
-                    {
+                    if !check_trusted_relay_signature(signature, &self.config.trusted_relays) {
                         return Err(DiscardReason::InvalidSignature);
                     }
                 }
@@ -152,18 +152,6 @@ impl ProjectInfo {
         }
 
         Ok(())
-    }
-
-    /// Returns `true` if the signature could be verified with any public key of a trusted relay.
-    ///
-    /// If the signature is missing, then it will return `false`.
-    fn check_trusted_relay_signature(
-        signature: &TrustedRelaySignature,
-        trusted_relays: &[PublicKey],
-    ) -> bool {
-        trusted_relays
-            .iter()
-            .any(|public_key| public_key.verify(&signature.signature_data, &signature.signature))
     }
 
     /// Returns `true` if the given project ID matches this project.

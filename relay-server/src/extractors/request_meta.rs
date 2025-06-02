@@ -3,6 +3,10 @@ use std::fmt;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 
+use crate::extractors::{ForwardedFor, ReceivedAt};
+use crate::service::ServiceState;
+use crate::statsd::{ClientName, RelayCounters};
+use crate::utils::ApiErrorResponse;
 use axum::RequestPartsExt;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{ConnectInfo, FromRequestParts, OptionalFromRequestParts, Path};
@@ -19,13 +23,9 @@ use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
 use relay_config::UpstreamDescriptor;
 use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
+use relay_signature::RelaySignature;
 use serde::{Deserialize, Serialize};
 use url::Url;
-
-use crate::extractors::{ForwardedFor, ReceivedAt, RelaySignature};
-use crate::service::ServiceState;
-use crate::statsd::{ClientName, RelayCounters};
-use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BadEventMeta {

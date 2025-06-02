@@ -12,7 +12,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
+use crate::services::processor::TrySign;
+use crate::statsd::{RelayHistograms, RelayTimers};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
+use chrono::Utc;
 use itertools::Itertools;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_config::{Config, Credentials, RelayMode};
@@ -20,6 +25,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
 };
+use relay_signature::TrustedRelaySignatureVersion;
 use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
@@ -29,11 +35,6 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
-
-use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::services::processor::TrySign;
-use crate::statsd::{RelayHistograms, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
 /// Rate limits returned by the upstream.
 ///
@@ -462,7 +463,7 @@ where
         // Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
-        self.body().ok().map(TrySign::Mandatory)
+        self.body().ok().map(TrySign::Body)
     }
 
     fn method(&self) -> Method {
@@ -786,7 +787,7 @@ impl SharedClient {
 
             if let Some(payload) = request.sign() {
                 match payload {
-                    TrySign::Mandatory(payload) => {
+                    TrySign::Body(payload) => {
                         let credentials = self
                             .config
                             .credentials()
@@ -795,16 +796,26 @@ impl SharedClient {
                         let signature = credentials.secret_key.sign(&payload);
                         builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
                     }
-                    TrySign::OptionalHeaders(headers) => {
+                    TrySign::RelayEnvelopeSign => {
                         if let Some(credentials) = self.config.credentials() {
-                            let mut data = Vec::new();
-                            for (name, value) in headers {
-                                builder.header(name, &value);
-                                data.extend_from_slice(value.as_bytes());
-                            }
+                            // For Relay envelope signatures we want to use the timestamp
+                            // when sending the envelope upstream.
+                            // This will prevent that backlogged events are dropped because
+                            // the timestamp is to old.
+                            let now = Utc::now().to_rfc3339();
+                            let data = now.as_bytes();
                             let signature = credentials.secret_key.sign(&data);
 
                             builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
+                            builder.header(
+                                "X-Sentry-Signature-Headers",
+                                TrustedRelaySignatureVersion::V1.signature_data_headers(),
+                            );
+                            builder.header(
+                                "X-Sentry-Relay-Signature-Version",
+                                TrustedRelaySignatureVersion::V1.as_str(),
+                            );
+                            builder.header("Date", now);
                         }
                     }
                 }
