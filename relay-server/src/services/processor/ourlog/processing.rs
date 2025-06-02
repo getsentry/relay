@@ -25,7 +25,7 @@ pub fn process(
     let log_items = managed_envelope
         .envelope()
         .items()
-        .filter(|item| matches!(item.ty(), ItemType::Log))
+        .filter(|item| ItemContainer::<OurLog>::is_container(item))
         .count();
 
     // The `Log` item must always be sent as an `ItemContainer`, currently it is not allowed to

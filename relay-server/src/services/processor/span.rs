@@ -7,7 +7,7 @@ use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
-use relay_event_schema::protocol::{Event, Span};
+use relay_event_schema::protocol::{Event, Span, SpanV2};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
@@ -57,7 +57,7 @@ pub fn expand_v2_spans(
 ) -> Result<(), ProcessingError> {
     let span_v2_items = managed_envelope
         .envelope_mut()
-        .take_items_by(is_span_v2_item);
+        .take_items_by(ItemContainer::<SpanV2>::is_container);
 
     // V2 spans must always be sent as an `ItemContainer`, currently it is not allowed to
     // send multiple containers for V2 spans.
@@ -101,10 +101,6 @@ pub fn expand_v2_spans(
     }
 
     Ok(())
-}
-
-fn is_span_v2_item(item: &Item) -> bool {
-    item.ty() == &ItemType::Span && item.content_type() == Some(&ContentType::SpanV2Container)
 }
 
 pub fn convert_otel_traces_data(managed_envelope: &mut TypedEnvelope<SpanGroup>) {
