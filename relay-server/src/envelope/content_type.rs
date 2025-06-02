@@ -51,7 +51,7 @@ impl ContentType {
         }
     }
 
-    /// Returns `true` if this is the content type of an [`ItemContainer`].
+    /// Returns `true` if this is the content type of an [`ItemContainer`](crate::envelope::ItemContainer).
     pub fn is_container(&self) -> bool {
         matches!(
             self,
