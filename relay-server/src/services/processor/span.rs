@@ -15,6 +15,7 @@ use relay_spans::otel_trace::TracesData;
 use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
+use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 use crate::utils::TypedEnvelope;
 
@@ -70,6 +71,13 @@ pub fn expand_v2_spans(
     if span_v2_items.len() > 1 {
         return Err(ProcessingError::DuplicateItem(ItemType::Span));
     }
+
+    if span_v2_items.is_empty() {
+        return Ok(());
+    }
+
+    let now = std::time::Instant::now();
+
     for span_v2_item in span_v2_items {
         let spans_v2 = match ItemContainer::parse(&span_v2_item) {
             Ok(spans_v2) => spans_v2,
@@ -99,6 +107,8 @@ pub fn expand_v2_spans(
             }
         }
     }
+
+    relay_statsd::metric!(timer(RelayTimers::SpanV2Expansion) = now.elapsed());
 
     Ok(())
 }
