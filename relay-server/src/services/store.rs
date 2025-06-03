@@ -991,6 +991,7 @@ impl StoreService {
             }
         };
 
+        let num_logs = logs.items.len() as u32;
         for log in logs.items {
             let timestamp_seconds = log.timestamp as i64;
             let timestamp_nanos = (log.timestamp.fract() * 1e9) as u32;
@@ -1060,27 +1061,27 @@ impl StoreService {
             };
 
             self.produce(KafkaTopic::Items, message)?;
-
-            // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::LogItem,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::LogByte,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: payload.len() as u32,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
         }
+
+        // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogItem,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: num_logs,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogByte,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: payload.len() as u32,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
 
         Ok(())
     }
