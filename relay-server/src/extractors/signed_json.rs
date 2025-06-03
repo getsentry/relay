@@ -8,7 +8,7 @@ use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use relay_auth::{RelayId, UnpackError};
 use relay_config::RelayInfo;
-use relay_signature::{RelaySignature, RelaySignatureData};
+use relay_signature::RelaySignatureData;
 use serde::de::DeserializeOwned;
 
 #[derive(Debug, thiserror::Error)]

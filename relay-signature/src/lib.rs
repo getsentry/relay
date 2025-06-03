@@ -1,10 +1,7 @@
-use axum::RequestExt;
-use axum::body::{Body, Bytes};
-use axum::extract::{FromRequest, OptionalFromRequest, OptionalFromRequestParts, Request};
+use axum::body::Bytes;
+use axum::extract::OptionalFromRequestParts;
+use axum::http::HeaderMap;
 use axum::http::request::Parts;
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::{IntoResponse, Response};
-use chrono::Utc;
 use relay_auth::PublicKey;
 use relay_config::Credentials;
 use std::collections::HashMap;
@@ -121,7 +118,7 @@ impl TrySign {
                     return Ok(HashMap::new());
                 };
                 let data = now.as_bytes();
-                let signature = credentials.secret_key.sign(&data);
+                let signature = credentials.secret_key.sign(data);
                 Ok(HashMap::from([
                     ("X-Sentry-Relay-Signature", signature),
                     (SIGNATURE_DATA_HEADER, "Date".to_owned()),
@@ -155,15 +152,15 @@ impl RelaySignatureData {
             .ok_or(RelaySignatureError::MissingSignature)?
             .to_str()
             .map_err(|_| RelaySignatureError::InvalidSignature)?;
-        let version = get_header(&headers, SIGNATURE_VERSION_HEADER)
+        let version = get_header(headers, SIGNATURE_VERSION_HEADER)
             .unwrap_or(RelaySignatureVersion::Signed.as_str())
             .parse()
             .map_err(|_| RelaySignatureError::InvalidSignatureVersion)?;
         let signature_data = match version {
             RelaySignatureVersion::EnvelopeSignature => {
                 let mut data = Vec::new();
-                for header in get_header(&headers, SIGNATURE_DATA_HEADER)?.split(";") {
-                    let data_header = get_header(&headers, header)?;
+                for header in get_header(headers, SIGNATURE_DATA_HEADER)?.split(";") {
+                    let data_header = get_header(headers, header)?;
                     data.extend_from_slice(data_header.as_bytes());
                 }
                 Bytes::from(data)

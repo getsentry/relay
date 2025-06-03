@@ -5,7 +5,6 @@ mod received_at;
 mod remote;
 mod request_meta;
 mod signed_json;
-mod trusted_relay_signature;
 
 pub use self::content_type::*;
 pub use self::forwarded_for::*;
@@ -14,4 +13,3 @@ pub use self::received_at::*;
 pub use self::remote::*;
 pub use self::request_meta::*;
 pub use self::signed_json::*;
-pub use trusted_relay_signature::*;
