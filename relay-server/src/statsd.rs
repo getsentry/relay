@@ -217,7 +217,9 @@ impl CounterMetric for RuntimeCounters {
 pub enum RelayHistograms {
     /// The number of bytes received by Relay for each individual envelope item type.
     ///
-    /// Metric is tagged by the item type.
+    /// This metric is tagged with:
+    ///  - `item_type`: The type of the items being counted.
+    ///  - `is_container`: Whether this item is a container holding multiple items.
     EnvelopeItemSize,
 
     /// Number of elements in the envelope buffer across all the stacks.
@@ -589,6 +591,8 @@ pub enum RelayTimers {
     BodyReadDuration,
     /// Timing in milliseconds to count spans in a serialized transaction payload.
     CheckNestedSpans,
+    /// The time in milliseconds it takes to expand a Span V2 container into Spans V1.
+    SpanV2Expansion,
 }
 
 impl TimerMetric for RelayTimers {
@@ -642,6 +646,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
             RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
+            RelayTimers::SpanV2Expansion => "envelope.span_v2_expansion",
         }
     }
 }
@@ -682,8 +687,20 @@ pub enum RelayCounters {
     ///
     /// Note: This does not count raw items, it counts the logical amount of items,
     /// e.g. a single item container counts all its contained items.
+    ///
+    /// This metric is tagged with:
+    ///  - `item_type`: The type of the items being counted.
+    ///  - `is_container`: Whether this item is a container holding multiple items.
+    ///  - `sdk`: The name of the Sentry SDK sending the envelope. This tag is only set for
+    ///    Sentry's SDKs and defaults to "proprietary".
     EnvelopeItems,
     /// Number of bytes we processed per envelope item.
+    ///
+    /// This metric is tagged with:
+    ///  - `item_type`: The type of the items being counted.
+    ///  - `is_container`: Whether this item is a container holding multiple items.
+    ///  - `sdk`: The name of the Sentry SDK sending the envelope. This tag is only set for
+    ///    Sentry's SDKs and defaults to "proprietary".
     EnvelopeItemBytes,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,

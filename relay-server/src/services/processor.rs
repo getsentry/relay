@@ -2010,24 +2010,26 @@ impl EnvelopeProcessorService {
     async fn process_sessions(
         &self,
         managed_envelope: &mut TypedEnvelope<SessionGroup>,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        config: &Config,
+        project_info: &ProjectInfo,
+        rate_limits: &RateLimits,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         session::process(
             managed_envelope,
+            &self.inner.global_config.current(),
+            config,
             &mut extracted_metrics,
-            &project_info,
-            &self.inner.config,
+            project_info,
         );
 
         self.enforce_quotas(
             managed_envelope,
             Annotated::empty(),
             &mut extracted_metrics,
-            &project_info,
-            &rate_limits,
+            project_info,
+            rate_limits,
         )
         .await?;
 
@@ -2166,6 +2168,7 @@ impl EnvelopeProcessorService {
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
+        span::expand_v2_spans(managed_envelope)?;
         span::filter(managed_envelope, config.clone(), project_info.clone());
         span::convert_otel_traces_data(managed_envelope);
 
@@ -2286,7 +2289,12 @@ impl EnvelopeProcessorService {
                     reservoir_counters
                 )
             }
-            ProcessingGroup::Session => run!(process_sessions, project_info, rate_limits),
+            ProcessingGroup::Session => run!(
+                process_sessions,
+                &self.inner.config.clone(),
+                &project_info,
+                &rate_limits
+            ),
             ProcessingGroup::Standalone => run!(
                 process_standalone,
                 self.inner.config.clone(),

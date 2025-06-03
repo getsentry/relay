@@ -1,3 +1,11 @@
+#![cfg_attr(
+    not(any(test, feature = "processing")),
+    expect(
+        dead_code,
+        reason = "A number of functions and data in this module are only used in processing or tests."
+    )
+)]
+
 use std::marker::PhantomData;
 
 use bytes::BufMut;
@@ -8,7 +16,7 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize, de, ser};
 use smallvec::SmallVec;
 
-use crate::envelope::{ContentType, Item};
+use crate::envelope::{ContentType, Item, ItemType};
 
 /// Error emitted when failing to parse an [`ItemContainer`].
 #[derive(thiserror::Error, Debug)]
@@ -18,6 +26,12 @@ pub enum ContainerParseError {
     MismatchedContentType {
         expected: ContentType,
         actual: Option<ContentType>,
+    },
+    /// The item container was expected to have a different item type.
+    #[error("expected item with item type {expected} but got {actual:?}")]
+    MismatchedItemType {
+        expected: ItemType,
+        actual: ItemType,
     },
     /// The item container specified length does not match the amount of items contained in the
     /// container.
@@ -44,6 +58,8 @@ pub enum ContainerWriteError {
 
 /// Any item contained in an [`ItemContainer`] needs to implement this trait.
 pub trait ContainerItem: FromValue + IntoValue {
+    /// The expected item type of the container for this type.
+    const ITEM_TYPE: ItemType;
     /// The expected content type of the container for this type.
     const CONTENT_TYPE: ContentType;
 }
@@ -90,6 +106,13 @@ impl<T: ContainerItem> ItemContainer<T> {
             });
         }
 
+        if item.ty() != &T::ITEM_TYPE {
+            return Err(ContainerParseError::MismatchedItemType {
+                expected: T::ITEM_TYPE,
+                actual: item.ty().clone(),
+            });
+        }
+
         let payload = item.payload();
         // Currently we assume every payload is JSON, but in the future we may allow other formats.
         let mut de = serde_json::Deserializer::from_slice(&payload);
@@ -122,6 +145,11 @@ impl<T: ContainerItem> ItemContainer<T> {
         );
 
         Ok(())
+    }
+
+    /// Checks whether a given item is a container of `T`s, according to its item and content types.
+    pub fn is_container(item: &Item) -> bool {
+        item.ty() == &T::ITEM_TYPE && item.content_type() == Some(&T::CONTENT_TYPE)
     }
 
     fn deserialize<'de, D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -160,7 +188,13 @@ impl<T> From<ContainerItems<T>> for ItemContainer<T> {
 }
 
 impl ContainerItem for relay_event_schema::protocol::OurLog {
+    const ITEM_TYPE: ItemType = ItemType::Log;
     const CONTENT_TYPE: ContentType = ContentType::LogContainer;
+}
+
+impl ContainerItem for relay_event_schema::protocol::SpanV2 {
+    const ITEM_TYPE: ItemType = ItemType::Span;
+    const CONTENT_TYPE: ContentType = ContentType::SpanV2Container;
 }
 
 /// (De-)Serializes a list of Annotated items with metadata.
@@ -242,6 +276,7 @@ mod tests {
         message: Annotated<String>,
     }
     impl ContainerItem for TestLog {
+        const ITEM_TYPE: ItemType = ItemType::Log;
         const CONTENT_TYPE: ContentType = ContentType::LogContainer;
     }
 
@@ -307,6 +342,25 @@ mod tests {
             Err(ContainerParseError::MismatchedContentType {
                 expected: ContentType::LogContainer,
                 actual: Some(ContentType::Json),
+            })
+        ));
+    }
+
+    #[test]
+    fn test_container_deserialize_invalid_item_type() {
+        let (item, _) = Item::parse(Bytes::from_static(
+            br#"{"type":"span","content_type":"application/vnd.sentry.items.log+json","item_count":1}
+{"items":[{"level":"info","message":"foobar"}]}
+        "#,
+        ))
+        .unwrap();
+
+        assert_eq!(item.item_count(), Some(1));
+        assert!(matches!(
+            ItemContainer::<TestLog>::parse(&item),
+            Err(ContainerParseError::MismatchedItemType {
+                expected: ItemType::Log,
+                actual: ItemType::Span,
             })
         ));
     }

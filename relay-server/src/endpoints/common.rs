@@ -8,7 +8,9 @@ use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
+use crate::envelope::{
+    AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType, Items,
+};
 use crate::service::ServiceState;
 use crate::services::buffer::ProjectKeyPair;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
@@ -375,21 +377,31 @@ pub async fn handle_envelope(
 }
 
 fn emit_envelope_metrics(envelope: &Envelope) {
-    let client_name = envelope.meta().client_name();
+    let client_name = envelope.meta().client_name().name();
     for item in envelope.items() {
+        let item_type = item.ty().name();
+        let is_container = if item.content_type().is_some_and(ContentType::is_container) {
+            "true"
+        } else {
+            "false"
+        };
+
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name()
+            item_type = item_type,
+            is_container = is_container,
         );
         metric!(
             counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(1),
-            item_type = item.ty().name(),
-            sdk = client_name.name(),
+            item_type = item_type,
+            is_container = is_container,
+            sdk = client_name,
         );
         metric!(
             counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() as u64,
-            item_type = item.ty().name(),
-            sdk = client_name.name(),
+            item_type = item_type,
+            is_container = is_container,
+            sdk = client_name,
         );
     }
 }

@@ -3,7 +3,8 @@
 use url::Url;
 
 use relay_event_schema::protocol::{
-    Csp, Event, EventType, Exception, LogEntry, Replay, Span, Values,
+    Csp, Event, EventType, Exception, LogEntry, Replay, SessionAggregates, SessionUpdate, Span,
+    Values,
 };
 
 /// A data item to which filters can be applied.
@@ -173,6 +174,88 @@ impl Filterable for Span {
     }
 
     fn header(&self, _: &str) -> Option<&str> {
+        None
+    }
+}
+
+impl Filterable for SessionUpdate {
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
+
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
+
+    fn ip_addr(&self) -> Option<&str> {
+        self.attributes
+            .ip_address
+            .as_ref()
+            .map(|addr| addr.as_str())
+    }
+
+    fn logentry(&self) -> Option<&LogEntry> {
+        None
+    }
+
+    fn release(&self) -> Option<&str> {
+        Some(&self.attributes.release)
+    }
+
+    fn transaction(&self) -> Option<&str> {
+        None
+    }
+
+    fn url(&self) -> Option<Url> {
+        None
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        self.attributes.user_agent.as_deref()
+    }
+
+    fn header(&self, _header_name: &str) -> Option<&str> {
+        None
+    }
+}
+
+impl Filterable for SessionAggregates {
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
+
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
+
+    fn ip_addr(&self) -> Option<&str> {
+        self.attributes
+            .ip_address
+            .as_ref()
+            .map(|addr| addr.as_str())
+    }
+
+    fn logentry(&self) -> Option<&LogEntry> {
+        None
+    }
+
+    fn release(&self) -> Option<&str> {
+        Some(&self.attributes.release)
+    }
+
+    fn transaction(&self) -> Option<&str> {
+        None
+    }
+
+    fn url(&self) -> Option<Url> {
+        None
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        self.attributes.user_agent.as_deref()
+    }
+
+    fn header(&self, _header_name: &str) -> Option<&str> {
         None
     }
 }
