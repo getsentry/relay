@@ -111,11 +111,11 @@ def test_ourlog_extraction_with_otel_logs(
                 item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
                 attributes={
                     "boolean.attribute": AnyValue(bool_value=True),
-                    "browser.name": AnyValue(string_value="Python Requests"),
-                    "browser.version": AnyValue(string_value="2.32"),
                     "double.attribute": AnyValue(double_value=637.704),
                     "int.attribute": AnyValue(int_value=10),
                     "sentry.body": AnyValue(string_value="Example log record"),
+                    "sentry.browser.name": AnyValue(string_value="Python Requests"),
+                    "sentry.browser.version": AnyValue(string_value="2.32"),
                     "sentry.severity_number": AnyValue(int_value=10),
                     "sentry.severity_text": AnyValue(string_value="Information"),
                     "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
@@ -286,9 +286,9 @@ def test_ourlog_extraction_with_sentry_logs(
                 ),
                 item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
                 attributes={
-                    "browser.name": AnyValue(string_value="Python Requests"),
-                    "browser.version": AnyValue(string_value="2.32"),
                     "sentry.body": AnyValue(string_value="This is really bad"),
+                    "sentry.browser.name": AnyValue(string_value="Python Requests"),
+                    "sentry.browser.version": AnyValue(string_value="2.32"),
                     "sentry.severity_number": AnyValue(int_value=17),
                     "sentry.severity_text": AnyValue(string_value="error"),
                     "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b175"),
@@ -318,12 +318,12 @@ def test_ourlog_extraction_with_sentry_logs(
                 item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
                 attributes={
                     "boolean.attribute": AnyValue(bool_value=True),
-                    "browser.name": AnyValue(string_value="Python Requests"),
-                    "browser.version": AnyValue(string_value="2.32"),
                     "double.attribute": AnyValue(double_value=1.23),
                     "integer.attribute": AnyValue(int_value=42),
                     "pii": AnyValue(string_value="[creditcard]"),
                     "sentry.body": AnyValue(string_value="Example log record"),
+                    "sentry.browser.name": AnyValue(string_value="Python Requests"),
+                    "sentry.browser.version": AnyValue(string_value="2.32"),
                     "sentry.severity_number": AnyValue(int_value=9),
                     "sentry.severity_text": AnyValue(string_value="info"),
                     "sentry.trace_flags": AnyValue(int_value=0),
@@ -402,9 +402,9 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
                 ),
                 item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
                 attributes={
-                    "browser.name": AnyValue(string_value="Python Requests"),
-                    "browser.version": AnyValue(string_value="2.32"),
                     "sentry.body": AnyValue(string_value="Example log record 2"),
+                    "sentry.browser.name": AnyValue(string_value="Python Requests"),
+                    "sentry.browser.version": AnyValue(string_value="2.32"),
                     "sentry.observed_timestamp_nanos": AnyValue(
                         string_value=str(timestamp_nanos)
                     ),
@@ -562,9 +562,11 @@ def test_browser_name_version_extraction(
             ),
             item_type=TraceItemType.TRACE_ITEM_TYPE_LOG,
             attributes={
-                "browser.name": AnyValue(string_value=expected_browser_name),
-                "browser.version": AnyValue(string_value=expected_browser_version),
                 "sentry.body": AnyValue(string_value="This is really bad"),
+                "sentry.browser.name": AnyValue(string_value=expected_browser_name),
+                "sentry.browser.version": AnyValue(
+                    string_value=expected_browser_version
+                ),
                 "sentry.severity_number": AnyValue(int_value=17),
                 "sentry.severity_text": AnyValue(string_value="error"),
                 "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b175"),

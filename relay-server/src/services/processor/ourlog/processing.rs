@@ -25,7 +25,7 @@ pub fn process(
     let log_items = managed_envelope
         .envelope()
         .items()
-        .filter(|item| matches!(item.ty(), ItemType::Log))
+        .filter(|item| ItemContainer::<OurLog>::is_container(item))
         .count();
 
     // The `Log` item must always be sent as an `ItemContainer`, currently it is not allowed to
@@ -151,10 +151,10 @@ fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: 
         user_agent,
         client_hints,
     }) {
-        if !attributes.contains_key("browser.name") {
+        if !attributes.contains_key("sentry.browser.name") {
             if let Some(name) = context.name.value() {
                 attributes.insert(
-                    "browser.name".to_owned(),
+                    "sentry.browser.name".to_owned(),
                     Annotated::new(Attribute::new(
                         AttributeType::String,
                         Value::String(name.to_owned()),
@@ -163,10 +163,10 @@ fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: 
             }
         }
 
-        if !attributes.contains_key("browser.version") {
+        if !attributes.contains_key("sentry.browser.version") {
             if let Some(version) = context.version.value() {
                 attributes.insert(
-                    "browser.version".to_owned(),
+                    "sentry.browser.version".to_owned(),
                     Annotated::new(Attribute::new(
                         AttributeType::String,
                         Value::String(version.to_owned()),
@@ -502,7 +502,7 @@ mod tests {
         let attributes = log.attributes.value().unwrap();
         assert_eq!(
             attributes
-                .get("browser.name")
+                .get("sentry.browser.name")
                 .unwrap()
                 .value()
                 .unwrap()
@@ -512,7 +512,7 @@ mod tests {
         );
         assert_eq!(
             attributes
-                .get("browser.version")
+                .get("sentry.browser.version")
                 .unwrap()
                 .value()
                 .unwrap()

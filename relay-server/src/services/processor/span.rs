@@ -7,7 +7,7 @@ use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
-use relay_event_schema::protocol::{Event, Span};
+use relay_event_schema::protocol::{Event, Span, SpanV2};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
@@ -15,6 +15,7 @@ use relay_spans::otel_trace::TracesData;
 use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
+use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 use crate::utils::TypedEnvelope;
 
@@ -57,7 +58,7 @@ pub fn expand_v2_spans(
 ) -> Result<(), ProcessingError> {
     let span_v2_items = managed_envelope
         .envelope_mut()
-        .take_items_by(is_span_v2_item);
+        .take_items_by(ItemContainer::<SpanV2>::is_container);
 
     // V2 spans must always be sent as an `ItemContainer`, currently it is not allowed to
     // send multiple containers for V2 spans.
@@ -70,6 +71,13 @@ pub fn expand_v2_spans(
     if span_v2_items.len() > 1 {
         return Err(ProcessingError::DuplicateItem(ItemType::Span));
     }
+
+    if span_v2_items.is_empty() {
+        return Ok(());
+    }
+
+    let now = std::time::Instant::now();
+
     for span_v2_item in span_v2_items {
         let spans_v2 = match ItemContainer::parse(&span_v2_item) {
             Ok(spans_v2) => spans_v2,
@@ -100,11 +108,9 @@ pub fn expand_v2_spans(
         }
     }
 
-    Ok(())
-}
+    relay_statsd::metric!(timer(RelayTimers::SpanV2Expansion) = now.elapsed());
 
-fn is_span_v2_item(item: &Item) -> bool {
-    item.ty() == &ItemType::Span && item.content_type() == Some(&ContentType::SpanV2Container)
+    Ok(())
 }
 
 pub fn convert_otel_traces_data(managed_envelope: &mut TypedEnvelope<SpanGroup>) {
