@@ -13,7 +13,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::services::processor::TrySign;
 use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
@@ -25,7 +24,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
 };
-use relay_signature::TrustedRelaySignatureVersion;
+use relay_signature::{RelaySignatureVersion, TrySign};
 use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
@@ -786,38 +785,11 @@ impl SharedClient {
             request.build(&mut builder)?;
 
             if let Some(payload) = request.sign() {
-                match payload {
-                    TrySign::Body(payload) => {
-                        let credentials = self
-                            .config
-                            .credentials()
-                            .ok_or(UpstreamRequestError::NoCredentials)?;
-
-                        let signature = credentials.secret_key.sign(&payload);
-                        builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
-                    }
-                    TrySign::RelayEnvelopeSign => {
-                        if let Some(credentials) = self.config.credentials() {
-                            // For Relay envelope signatures we want to use the timestamp
-                            // when sending the envelope upstream.
-                            // This will prevent that backlogged events are dropped because
-                            // the timestamp is to old.
-                            let now = Utc::now().to_rfc3339();
-                            let data = now.as_bytes();
-                            let signature = credentials.secret_key.sign(&data);
-
-                            builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
-                            builder.header(
-                                "X-Sentry-Signature-Headers",
-                                TrustedRelaySignatureVersion::V1.signature_data_headers(),
-                            );
-                            builder.header(
-                                "X-Sentry-Relay-Signature-Version",
-                                TrustedRelaySignatureVersion::V1.as_str(),
-                            );
-                            builder.header("Date", now);
-                        }
-                    }
+                let headers = payload
+                    .create_signature(self.config.credentials())
+                    .map_err(|_| UpstreamRequestError::NoCredentials)?;
+                for (name, value) in headers {
+                    builder.header(name, value);
                 }
             }
 

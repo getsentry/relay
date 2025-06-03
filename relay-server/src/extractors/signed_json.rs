@@ -1,3 +1,6 @@
+use crate::service::ServiceState;
+use crate::services::relays::GetRelay;
+use crate::utils::ApiErrorResponse;
 use axum::extract::rejection::BytesRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
@@ -5,11 +8,8 @@ use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use relay_auth::{RelayId, UnpackError};
 use relay_config::RelayInfo;
+use relay_signature::{RelaySignature, RelaySignatureData};
 use serde::de::DeserializeOwned;
-
-use crate::service::ServiceState;
-use crate::services::relays::GetRelay;
-use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SignatureError {
@@ -81,19 +81,24 @@ impl FromRequest<ServiceState> for SignedBytes {
 
         relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id));
 
-        let signature = get_header(&request, "x-sentry-relay-signature")?.to_owned();
-
         let relay = state
             .relay_cache()
             .send(GetRelay { relay_id })
             .await?
             .ok_or(SignatureError::UnknownRelay)?;
 
+        let headers = request.headers().clone();
         let body = Bytes::from_request(request, state).await?;
-        if !relay.public_key.verify(&body, &signature) {
-            Err(SignatureError::BadSignature(UnpackError::BadSignature))
+
+        let signature = RelaySignatureData::from_request_data(&headers, Some(body))
+            .map_err(|_| SignatureError::MissingHeader("x-sentry-relay-signature"))?;
+        if signature.verify(&relay.public_key) {
+            Ok(Self {
+                body: signature.signature_data,
+                relay,
+            })
         } else {
-            Ok(SignedBytes { body, relay })
+            Err(SignatureError::BadSignature(UnpackError::BadSignature))
         }
     }
 }

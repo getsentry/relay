@@ -66,6 +66,7 @@ use crate::utils::{
     SamplingResult, TypedEnvelope,
 };
 use relay_base_schema::organization::OrganizationId;
+use relay_signature::TrySign;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
@@ -3454,7 +3455,10 @@ impl UpstreamRequest for SendEnvelope {
     fn sign(&mut self) -> Option<TrySign> {
         match self.envelope.meta().is_from_internal_relay() {
             true => None,
-            false => Some(TrySign::RelayEnvelopeSign),
+            false => {
+                let now = Utc::now().to_rfc3339();
+                Some(TrySign::RelayEnvelopeSign(now))
+            }
         }
     }
 
@@ -3495,17 +3499,6 @@ impl UpstreamRequest for SendEnvelope {
             }
         })
     }
-}
-
-/// Represents data that needs to be signed but allows for variants where the signature is
-/// optional.
-#[derive(Debug)]
-pub enum TrySign {
-    /// Bytes of an envelope body that need are used to produce a signature.
-    Body(Bytes),
-    /// Envelope Signature that is used to verify if the request is coming from
-    /// a trusted relay.
-    RelayEnvelopeSign,
 }
 
 /// A container for metric buckets from multiple projects.

@@ -37,7 +37,7 @@ def test_trusted_relay_chain(mini_sentry, relay, relay_credentials):
     assert event["logentry"]["formatted"] == "trusted event"
 
 
-def test_missing_version(mini_sentry, relay, relay_credentials):
+def test_missing_version(mini_sentry, relay, events_consumer, outcomes_consumer):
     """
     Tests a request with the correct signature but no version is provided.
     """
@@ -49,6 +49,9 @@ def test_missing_version(mini_sentry, relay, relay_credentials):
 
     relay = relay(mini_sentry)
 
+    events_consumer = events_consumer()
+    outcomes_consumer = outcomes_consumer()
+
     headers = {
         "x-sentry-relay-signature": "uqFY5JuNcRvi1vUDv2A2xRjKH-U-jchmW61owNBA8QaZ5Cf9A2HQclN6bSDXq-8Cj72GEysHA44reOgWjix2AA.eyJ0IjoiMjAyNS0wNS0yOFQwODo0Nzo0Ny45MzcwNjBaIn0",
         "x-sentry-relay-id": "relay-1",
@@ -58,11 +61,15 @@ def test_missing_version(mini_sentry, relay, relay_credentials):
 
     relay.send_event(project_id, {"message": "trusted event"}, headers=headers)
     sleep(1)
-    relay.send_event(project_id, {"message": "trusted event"}, headers=headers)
+    with pytest.raises(HTTPError) as error:
+        relay.send_event(project_id, {"message": "trusted event"}, headers=headers)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-    assert event["logentry"]["formatted"] == "trusted event"
+    assert error.value.response.status_code == 403
+
+    events_consumer.assert_empty()
+    outcomes = outcomes_consumer.get_outcomes(timeout=1)
+    for outcome in outcomes:
+        assert outcome["reason"] == "invalid_signature"
 
 
 def test_internal_relays(mini_sentry, relay, relay_credentials):

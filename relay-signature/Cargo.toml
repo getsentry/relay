@@ -1,0 +1,14 @@
+[package]
+name = "relay-signature"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = "2.0.12"
+axum = { workspace = true }
+relay-auth = { workspace = true }
+relay-config = { workspace = true }
+chrono = { workspace = true }
+
+[lints]
+workspace = true
