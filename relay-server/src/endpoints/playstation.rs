@@ -45,8 +45,7 @@ async fn extract_multipart(
     meta: RequestMeta,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items =
-        utils::filtered_multipart_items(multipart, infer_attachment_type, config).await?;
+    let mut items = utils::multipart_items(multipart, infer_attachment_type, config, true).await?;
 
     let prosperodump_item = items
         .iter_mut()

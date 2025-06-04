@@ -155,6 +155,8 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
 pub async fn multipart_items<F>(
     mut multipart: Multipart<'_>,
     mut infer_type: F,
+    config: &Config,
+    ignore_large_fields: bool,
 ) -> Result<Items, multer::Error>
 where
     F: FnMut(Option<&str>, &str) -> AttachmentType,
@@ -167,12 +169,21 @@ where
             let mut item = Item::new(ItemType::Attachment);
             item.set_attachment_type(infer_type(field.name(), file_name));
             item.set_filename(file_name);
-            // Extract the body after the immutable borrow on `file_name` is gone.
-            if let Some(content_type) = field.content_type() {
-                item.set_payload(content_type.as_ref().into(), field.bytes().await?);
-            } else {
-                item.set_payload_without_content_type(field.bytes().await?);
+
+            let content_type = field.content_type().cloned();
+            let field = LimitedField::new(field, config.max_attachment_size());
+            match field.bytes().await {
+                Err(multer::Error::FieldSizeExceeded { .. }) if ignore_large_fields => continue,
+                Err(err) => return Err(err),
+                Ok(bytes) => {
+                    if let Some(content_type) = content_type {
+                        item.set_payload(content_type.as_ref().into(), bytes);
+                    } else {
+                        item.set_payload_without_content_type(bytes);
+                    }
+                }
             }
+
             items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
@@ -264,61 +275,6 @@ impl futures::Stream for LimitedField<'_> {
             Poll::Pending => Poll::Pending,
         }
     }
-}
-
-// TODO: (Tobias we want to merge that with the existing function).
-pub async fn filtered_multipart_items<F>(
-    mut multipart: Multipart<'_>,
-    mut infer_type: F,
-    config: &Config,
-) -> Result<Items, multer::Error>
-where
-    F: FnMut(Option<&str>, &str) -> AttachmentType,
-{
-    let mut items = Items::new();
-    let mut form_data = FormDataWriter::new();
-
-    while let Some(field) = multipart.next_field().await? {
-        if let Some(file_name) = field.file_name() {
-            let mut item = Item::new(ItemType::Attachment);
-            item.set_attachment_type(infer_type(field.name(), file_name));
-            item.set_filename(file_name);
-
-            let content_type = field.content_type().cloned();
-            let field = LimitedField::new(field, config.max_attachment_size());
-            match field.bytes().await {
-                Err(multer::Error::FieldSizeExceeded { .. }) => continue,
-                Err(err) => return Err(err),
-                Ok(bytes) => {
-                    if let Some(content_type) = content_type {
-                        item.set_payload(content_type.as_ref().into(), bytes);
-                    } else {
-                        item.set_payload_without_content_type(bytes);
-                    }
-                }
-            }
-
-            items.push(item);
-        } else if let Some(field_name) = field.name().map(str::to_owned) {
-            // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
-            // process sentry event payloads even if they contain invalid encoding.
-            let string = field.text().await?;
-            form_data.append(&field_name, &string);
-        } else {
-            relay_log::trace!("multipart content without name or file_name");
-        }
-    }
-
-    let form_data = form_data.into_inner();
-    if !form_data.is_empty() {
-        let mut item = Item::new(ItemType::FormData);
-        // Content type is `Text` (since it is not a json object but multiple
-        // json arrays serialized one after the other).
-        item.set_payload(ContentType::Text, form_data);
-        items.push(item);
-    }
-
-    Ok(items)
 }
 
 pub fn multipart_from_request(
@@ -439,7 +395,7 @@ mod tests {
         }))?;
 
         let items =
-            filtered_multipart_items(multipart, |_, _| AttachmentType::Attachment, &config).await?;
+            multipart_items(multipart, |_, _| AttachmentType::Attachment, &config, true).await?;
 
         // The large field is skipped so only the small one should make it through.
         assert_eq!(items.len(), 1);
@@ -480,7 +436,7 @@ mod tests {
         );
 
         let result =
-            filtered_multipart_items(multipart, |_, _| AttachmentType::Attachment, &config).await;
+            multipart_items(multipart, |_, _| AttachmentType::Attachment, &config, true).await;
 
         // Should be warned if the overall stream limit is being breached.
         assert!(result.is_err_and(|x| matches!(x, multer::Error::StreamSizeExceeded { limit: _ })));
