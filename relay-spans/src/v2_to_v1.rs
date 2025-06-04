@@ -108,7 +108,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let status = span_v2_status_to_span_v1_status(status, http_status_code, grpc_status_code);
 
     SpanV1 {
-        op: name, // The input `SpanV2` might have specified an op as the `sentry.op` attribute
+        op: name,
         description,
         data: SpanData::from_value(Annotated::new(data.into())),
         exclusive_time: exclusive_time_ms.into(),
