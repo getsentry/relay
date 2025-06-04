@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
+use crate::envelope::Envelope;
+use crate::extractors::RequestMeta;
+use crate::services::outcome::DiscardReason;
+use relay_auth::RelaySignature;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
@@ -15,10 +19,6 @@ use relay_quotas::{Quota, Scoping};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use url::Url;
-
-use crate::envelope::Envelope;
-use crate::extractors::RequestMeta;
-use crate::services::outcome::DiscardReason;
 
 /// Information about an enabled project.
 ///
@@ -101,6 +101,7 @@ impl ProjectInfo {
     ///  - Disabled or unknown projects
     ///  - Disabled project keys (DSN)
     ///  - Feature flags
+    ///  - Trusted Relay signature invalid
     pub fn check_envelope(
         &self,
         envelope: &Envelope,
@@ -131,6 +132,26 @@ impl ProjectInfo {
             .find(|f| !self.has_feature(**f))
         {
             return Err(DiscardReason::FeatureDisabled(*disabled_feature));
+        }
+
+        if !envelope.meta().is_from_internal_relay()
+            && self.config().trusted_relay_settings.verify_signature
+        {
+            match envelope.meta().signature() {
+                Some(RelaySignature::Valid(signature)) => {
+                    // signatures that are older than 5 minutes will be dropped.
+                    if !signature.verify_any_timestamp(
+                        &self.config.trusted_relays,
+                        Some(Duration::minutes(5)),
+                    ) {
+                        return Err(DiscardReason::InvalidSignature);
+                    }
+                }
+                Some(RelaySignature::Invalid(_)) => {
+                    return Err(DiscardReason::InvalidSignature);
+                }
+                None => return Err(DiscardReason::MissingSignature),
+            }
         }
 
         Ok(())

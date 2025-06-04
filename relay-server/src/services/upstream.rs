@@ -12,9 +12,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
+use crate::statsd::{RelayHistograms, RelayTimers};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
 use itertools::Itertools;
-use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
+use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration, TrySign};
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
@@ -29,10 +32,6 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
-
-use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::statsd::{RelayHistograms, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
 /// Rate limits returned by the upstream.
 ///
@@ -304,11 +303,11 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// should return the payload to sign. For requests with content encoding, this must be the
     /// **uncompressed** payload.
     ///
-    /// This requires configuration of the Relay's credentials. If the credentials are not
-    /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
+    /// If the variant of [`TrySign`] forces a signature and no Relay credentials are configured,
+    /// the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
     /// Defaults to `None`.
-    fn sign(&mut self) -> Option<Bytes> {
+    fn sign(&mut self) -> Option<TrySign> {
         None
     }
 
@@ -457,11 +456,11 @@ where
         true
     }
 
-    fn sign(&mut self) -> Option<Bytes> {
+    fn sign(&mut self) -> Option<TrySign> {
         // Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
-        self.body().ok()
+        self.body().ok().map(TrySign::Body)
     }
 
     fn method(&self) -> Method {
@@ -784,13 +783,12 @@ impl SharedClient {
             request.build(&mut builder)?;
 
             if let Some(payload) = request.sign() {
-                let credentials = self
-                    .config
-                    .credentials()
-                    .ok_or(UpstreamRequestError::NoCredentials)?;
-
-                let signature = credentials.secret_key.sign(&payload);
-                builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
+                if let Some(signature) = payload
+                    .create_signature(self.config.credentials().map(|cred| &cred.secret_key))
+                    .map_err(|_| UpstreamRequestError::NoCredentials)?
+                {
+                    builder.header("x-sentry-relay-signature", signature);
+                }
             }
 
             match builder.finish() {

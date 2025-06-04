@@ -65,6 +65,7 @@ use crate::utils::{
     self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
     SamplingResult, TypedEnvelope,
 };
+use relay_auth::TrySign;
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
@@ -3458,6 +3459,13 @@ impl UpstreamRequest for SendEnvelope {
         Ok(())
     }
 
+    fn sign(&mut self) -> Option<TrySign> {
+        match self.envelope.meta().is_from_internal_relay() {
+            true => None,
+            false => Some(TrySign::RelayEnvelopeSign),
+        }
+    }
+
     fn respond(
         self: Box<Self>,
         result: Result<http::Response, UpstreamRequestError>,
@@ -3636,8 +3644,8 @@ impl UpstreamRequest for SendMetricsRequest {
         true
     }
 
-    fn sign(&mut self) -> Option<Bytes> {
-        Some(self.unencoded.clone())
+    fn sign(&mut self) -> Option<TrySign> {
+        Some(TrySign::Body(self.unencoded.clone()))
     }
 
     fn method(&self) -> reqwest::Method {
