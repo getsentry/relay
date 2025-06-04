@@ -769,4 +769,21 @@ mod tests {
         deserialized.received_at = reqmeta.received_at;
         assert_eq!(deserialized, reqmeta);
     }
+
+    #[test]
+    fn test_signature_not_serialized() {
+        let dsn: relay_common::Dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let without_signature = RequestMeta::new(dsn.clone());
+        let mut with_signature = RequestMeta::new(dsn);
+        with_signature.signature = Some(RelaySignature::Valid(RelaySignatureData::new(
+            "test-signature".to_owned(),
+            bytes::Bytes::from("signature-data"),
+        )));
+
+        let serialized_without_signature = serde_json::to_string(&without_signature).unwrap();
+        let serialized_with_signature = serde_json::to_string(&with_signature).unwrap();
+        assert_eq!(serialized_with_signature, serialized_without_signature);
+    }
 }
