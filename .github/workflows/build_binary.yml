@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       # Use an older docker container to build the binary to guarantee glibc compatibility.
-      # Ubuntu needs to be supported until 2027-05-31 (EOL + 2 Years).
+      # Ubuntu 20.04 needs to be supported until 2027-05-31 (EOL + 2 Years).
       # Make sure to update documentation once the version is updated:
       # https://docs.sentry.io/product/relay/operating-guidelines/
       image: ubuntu:20.04
