@@ -6,16 +6,19 @@
 //!
 //! The processor service, will then do its actual work using the processing logic defined here.
 
+use std::convert::Infallible;
 use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::protocol::EventId;
+use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_system::Addr;
 use smallvec::SmallVec;
 
+use crate::envelope::{CountFor, Item};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::services::projects::project::ProjectInfo;
@@ -121,7 +124,27 @@ impl<T> Output<T> {
     }
 }
 
-pub type Quantities = SmallVec<[(DataCategory, usize); 3]>;
+// TODO: this could be an enumap
+pub type Quantities = SmallVec<[(DataCategory, usize); 1]>;
+
+trait CountedType {
+    fn quantities() -> Quantities;
+}
+
+impl<T> CountedType for Annotated<T>
+where
+    T: CountedType,
+{
+    fn quantities() -> Quantities {
+        T::quantities()
+    }
+}
+
+impl CountedType for relay_event_schema::protocol::OurLog {
+    fn quantities() -> Quantities {
+        todo!()
+    }
+}
 
 pub trait Counted {
     fn quantities(&self) -> Quantities;
@@ -132,6 +155,29 @@ impl Counted for () {
         Quantities::new()
     }
 }
+
+impl Counted for Item {
+    fn quantities(&self) -> Quantities {
+        // TODO: figure out differences with rate limits and outcomes,
+        // ideally we get rid of this all-together.
+        self.quantities(CountFor::Outcomes)
+    }
+}
+
+// TODO: just temporary, until `RecordKeeper` has better signatures
+impl Counted for Annotated<relay_event_schema::protocol::OurLog> {
+    fn quantities(&self) -> Quantities {
+        todo!()
+    }
+}
+
+// TODO: this should be implemented, to make sure there are no conflicting impls,
+// but currently can't be because of the `Counted for &T` impl.
+// impl<T> Counted for T where T: CountedType {
+//     fn quantities(&self) -> Quantities {
+//         T::quantities()
+//     }
+// }
 
 // TODO: maybe this wildcard impl sucks and counted should just be implemented on a reference but
 // take self instead of &self
@@ -189,6 +235,42 @@ impl<T: Counted> Managed<T> {
         }
     }
 
+    pub fn map<S, F>(self, f: F) -> Managed<S>
+    where
+        F: FnOnce(T, &mut RecordKeeper) -> S,
+        S: Counted,
+    {
+        self.try_map(move |inner, records| Ok::<_, Infallible>(f(inner, records)))
+            .unwrap_or_else(|e| match e {})
+    }
+
+    // TODO: this could take a trait as fn (a 'transformer')
+    pub fn try_map<S, F, E>(self, f: F) -> Result<Managed<S>, E>
+    where
+        F: FnOnce(T, &mut RecordKeeper) -> Result<S, E>,
+        S: Counted,
+    {
+        // TODO: take quantities before and after and validate the amount of emitted outcomes
+        todo!()
+    }
+
+    // TODO: this could be much nicer for iterated items, which need to be filtered
+    pub fn modify<F>(self, f: F)
+    where
+        F: FnOnce(&mut T, &mut RecordKeeper),
+    {
+        self.try_modify(move |inner, records| Ok::<_, Infallible>(f(inner, records)))
+            .unwrap_or_else(|e| match e {})
+    }
+
+    pub fn try_modify<F, E>(self, f: F) -> Result<(), E>
+    where
+        F: FnOnce(&mut T, &mut RecordKeeper) -> Result<(), E>,
+    {
+        // TODO: take quantities before and after and validate the amount of emitted outcomes
+        todo!()
+    }
+
     pub fn reject(&mut self, outcome: Outcome) {
         for (category, quantity) in self.value.quantities() {
             self.track_outcome(outcome.clone(), category, quantity);
@@ -226,6 +308,63 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        &self.value
     }
 }
+
+// TODO: actually write these docs
+/// A thing that keeps outcomes (records) up to date, with what is happening.
+pub struct RecordKeeper {}
+
+// TODO: maybe some of these could be Result extensions
+// TODO: quantities is not enough, we need outcomes here (an outcome reason)
+impl RecordKeeper {
+    pub fn or_default<T, E, Q>(&mut self, r: Result<T, E>, q: Q) -> T
+    where
+        T: Default,
+        Q: Counted,
+    {
+        match r {
+            Ok(result) => result,
+            Err(_) => {
+                let quantities = q.quantities();
+                // TODO: use those quantities
+                T::default()
+            }
+        }
+    }
+
+    // TODO: might need a better name
+    pub fn with<T, E, F>(&mut self, r: Result<T, E>, f: F)
+    where
+        F: FnOnce(T),
+        T: CountedType,
+    {
+        match r {
+            Ok(result) => f(result),
+            Err(_) => {
+                let quantities = T::quantities();
+                // TODO: use those quantities
+            }
+        }
+    }
+}
+
+macro_rules! if_processing {
+    ($ctx:expr, $if_true:block) => {
+        #[cfg(feature = "processing")] {
+            if $ctx.config.processing_enabled() $if_true
+        }
+    };
+    ($ctx:expr, $if_true:block else $if_false:block) => {
+        {
+            #[cfg(feature = "processing")] {
+                if $ctx.config.processing_enabled() $if_true else $if_false
+            }
+            #[cfg(not(feature = "processing"))] {
+                $if_false
+            }
+        }
+    };
+}
+pub(self) use if_processing;

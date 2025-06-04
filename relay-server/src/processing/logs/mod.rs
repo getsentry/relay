@@ -1,13 +1,17 @@
+use relay_event_schema::protocol::OurLog;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{ItemType, Items};
+use crate::envelope::{ContainerItems, ItemType, Items};
 use crate::processing::{
-    self, Context, Counted, Managed, Output, Quantities, QuotaRateLimiter, RateLimited, RateLimiter,
+    self, Context, Counted, Managed, Output, Quantities, QuotaRateLimiter, RateLimited,
+    RateLimiter, if_processing,
 };
 use crate::services::processor::ProcessingError;
 use crate::utils::ManagedEnvelope;
 
 mod filter;
+mod process;
+mod validate;
 
 pub struct LogsProcessor {
     limiter: QuotaRateLimiter,
@@ -23,7 +27,7 @@ impl LogsProcessor {
 
 impl processing::Processor for LogsProcessor {
     type UnitOfWork = EinsLog;
-    type Output = ();
+    type Output = LogOutput;
     type Error = ProcessingError;
 
     fn prepare_envelope(
@@ -37,49 +41,47 @@ impl processing::Processor for LogsProcessor {
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::Log));
 
-        // if !logs_items.is_empty() {
-        //     grouped_envelopes.push((
-        //         ProcessingGroup::Log,
-        //         Envelope::from_parts(headers.clone(), logs_items),
-        //     ))
-        // }
-
         let work = EinsLog { otel_logs, logs };
         Some(Managed::from_envelope(envelope, work))
     }
 
     async fn process(
         &self,
-        work: Managed<Self::UnitOfWork>,
+        mut work: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
-    ) -> Result<Output<()>, ProcessingError> {
+    ) -> Result<Output<Self::Output>, ProcessingError> {
+        validate::container(&work, ctx)?;
+
         filter::feature_flag(ctx)?;
         filter::sampled(ctx)?;
 
-        // ourlog::filter(
-        //     managed_envelope,
-        //     &self.inner.config,
-        //     &project_info,
-        //     &self.inner.global_config.current(),
-        // );
+        self.limiter.enforce_quotas(&mut work, ctx);
 
-        self.limiter.enforce_quotas(work.as_ref(), ctx);
+        if_processing!(ctx, {
+            let work = process::expand(work)?;
+            process::process(work, ctx)?;
 
-        //
-        // self.enforce_quotas(
-        //     managed_envelope,
-        //     Annotated::empty(),
-        //     &mut extracted_metrics,
-        //     &project_info,
-        //     &rate_limits,
-        // )
-        // .await?;
-        //
-        // if_processing!(self.inner.config, {
-        //     ourlog::process(managed_envelope, &project_info)?;
-        // });
+            Ok(Output::just(work.into()))
+        } else {
+            Ok(Output::just(work.into()))
+        })
+    }
+}
 
-        Ok(Output::just(()))
+enum LogOutput {
+    NotProcessed(Managed<EinsLog>),
+    Processed(Managed<ZweiLog>),
+}
+
+impl From<Managed<EinsLog>> for LogOutput {
+    fn from(value: Managed<EinsLog>) -> Self {
+        Self::NotProcessed(value)
+    }
+}
+
+impl From<Managed<ZweiLog>> for LogOutput {
+    fn from(value: Managed<ZweiLog>) -> Self {
+        Self::Processed(value)
     }
 }
 
@@ -106,7 +108,7 @@ impl RateLimited for Managed<EinsLog> {
     async fn enforce<T>(
         &mut self,
         rate_limiter: T,
-        ctx: Context<'_>,
+        _ctx: Context<'_>,
     ) -> Result<RateLimits, Self::Error>
     where
         T: RateLimiter,
@@ -141,5 +143,15 @@ impl RateLimited for Managed<EinsLog> {
         // TODO: how to enforce the limits here?
 
         Ok(total_limits)
+    }
+}
+
+struct ZweiLog {
+    logs: ContainerItems<OurLog>,
+}
+
+impl Counted for ZweiLog {
+    fn quantities(&self) -> Quantities {
+        todo!()
     }
 }
