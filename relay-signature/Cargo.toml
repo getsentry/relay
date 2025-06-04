@@ -1,10 +1,16 @@
 [package]
 name = "relay-signature"
-version = "0.1.0"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Signature creation and verification between Relays"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "25.5.1"
 edition = "2024"
+license-file = "../LICENSE.md"
+publish = false
 
 [dependencies]
-thiserror = "2.0.12"
+thiserror = { workspace = true }
 axum = { workspace = true }
 relay-auth = { workspace = true }
 relay-config = { workspace = true }

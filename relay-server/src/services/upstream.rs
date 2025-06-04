@@ -784,11 +784,11 @@ impl SharedClient {
             request.build(&mut builder)?;
 
             if let Some(payload) = request.sign() {
-                let headers = payload
-                    .create_signature_headers(self.config.credentials())
-                    .map_err(|_| UpstreamRequestError::NoCredentials)?;
-                for (name, value) in headers {
-                    builder.header(name, value);
+                if let Some(signature) = payload
+                    .create_signature(self.config.credentials())
+                    .map_err(|_| UpstreamRequestError::NoCredentials)?
+                {
+                    builder.header("x-sentry-relay-signature", signature);
                 }
             }
 

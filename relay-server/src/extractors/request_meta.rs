@@ -9,7 +9,7 @@ use crate::statsd::{ClientName, RelayCounters};
 use crate::utils::ApiErrorResponse;
 use axum::RequestPartsExt;
 use axum::extract::rejection::PathRejection;
-use axum::extract::{ConnectInfo, FromRequestParts, OptionalFromRequestParts, Path};
+use axum::extract::{ConnectInfo, FromRequestParts, Path};
 use axum::http::StatusCode;
 use axum::http::header::{self, AsHeaderName};
 use axum::http::request::Parts;
@@ -23,7 +23,7 @@ use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
 use relay_config::UpstreamDescriptor;
 use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
-use relay_signature::RelaySignature;
+use relay_signature::{RelaySignature, RelaySignatureData, RelaySignatureError};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -502,7 +502,17 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
-        let signature = RelaySignature::from_request_parts(parts, state).await?;
+        let signature =
+            parts
+                .headers
+                .get("x-sentry-relay-signature")
+                .map(|sig| match sig.to_str() {
+                    Ok(s) => RelaySignature::Valid(RelaySignatureData {
+                        signature: s.to_owned(),
+                        signature_data: bytes::Bytes::new(),
+                    }),
+                    Err(_) => RelaySignature::Invalid(RelaySignatureError::InvalidSignature),
+                });
 
         Ok(RequestMeta {
             dsn: None,

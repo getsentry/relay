@@ -4325,13 +4325,13 @@ dependencies = [
 
 [[package]]
 name = "relay-signature"
-version = "0.1.0"
+version = "25.5.1"
 dependencies = [
  "axum 0.8.1",
  "chrono",
  "relay-auth",
  "relay-config",
- "thiserror 2.0.12",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
