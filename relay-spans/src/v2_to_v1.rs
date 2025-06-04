@@ -31,16 +31,17 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         trace_id,
         span_id,
         parent_span_id,
-        name,
+        name: _name,
         kind,
         links,
         attributes,
         status,
         is_remote,
         other: _other,
-    } = span_v2;
+    } = span_v2.clone();
 
     let mut description = Annotated::empty();
+    let mut op = Annotated::empty();
     let mut http_status_code = Annotated::empty();
     let mut grpc_status_code = Annotated::empty();
     let mut platform = Annotated::empty();
@@ -56,6 +57,9 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         match key.as_str() {
             "sentry.description" => {
                 description = String::from_value(value);
+            }
+            "sentry.op" => {
+                op = String::from_value(value);
             }
             key if key.contains("exclusive_time_nano") => {
                 let value = match value.value() {
@@ -105,8 +109,10 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
 
     let status = span_v2_status_to_span_v1_status(status, http_status_code, grpc_status_code);
 
+    let op = op.or_else(|| Annotated::from(derive_op_for_v2_span(&span_v2)));
+
     SpanV1 {
-        op: name,
+        op,
         description,
         data: SpanData::from_value(Annotated::new(data.into())),
         exclusive_time: exclusive_time_ms.into(),
@@ -189,6 +195,55 @@ fn span_v2_link_to_span_v1_link(link: SpanV2Link) -> SpanLink {
     }
 }
 
+// TODO: Documentation
+fn derive_op_for_v2_span(span: &SpanV2) -> String {
+    let op = String::from("default");
+
+    let attributes = if let Some(attributes) = span.attributes.value() {
+        attributes
+    } else {
+        return op;
+    };
+
+    let kind = span.kind.value().unwrap_or(&SpanV2Kind::Internal);
+
+    if attributes.get("http.request.method").is_some() || attributes.get("http.method").is_some() {
+        return match kind {
+            SpanV2Kind::Client => String::from("http.client"),
+            SpanV2Kind::Server => String::from("http.server"),
+            _ => {
+                if attributes.get("sentry.http.prefetch").is_some() {
+                    String::from("http.prefetch")
+                } else {
+                    String::from("http")
+                }
+            }
+        };
+    }
+
+    if attributes.get("db.system").is_some() {
+        return String::from("db");
+    }
+
+    if attributes.get("rpc.service").is_some() {
+        return String::from("rpc");
+    }
+
+    if attributes.get("messaging.system").is_some() {
+        return String::from("message");
+    }
+
+    if let Some(faas_trigger) = attributes.get("faas.trigger") {
+        if let Some(trigger_value) = faas_trigger.value() {
+            if let Some(trigger_str) = trigger_value.value.value.value().and_then(|v| v.as_str()) {
+                return trigger_str.to_string();
+            }
+        }
+    }
+
+    op
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,7 +273,7 @@ mod tests {
                     "value": "fastify -> @fastify/multipart",
                     "type": "string"
                 },
-                "hook.name": { 
+                "hook.name": {
                     "value": "onResponse",
                     "type": "string"
                 },
@@ -246,7 +301,7 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 1000.0,
-          "op": "middleware - fastify -> @fastify/multipart",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -291,7 +346,7 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 3200.0,
-          "op": "middleware - fastify -> @fastify/multipart",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -323,7 +378,7 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 0.0788,
-          "op": "middleware - fastify -> @fastify/multipart",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -399,7 +454,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
-          "op": "myname",
+          "op": "myop",
           "span_id": "fa90fdead5f74052",
           "parent_span_id": "fa90fdead5f74051",
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -412,8 +467,7 @@ mod tests {
             "sentry.environment": "prod",
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
-            "sentry.sdk.name": "sentry.php",
-            "sentry.op": "myop"
+            "sentry.sdk.name": "sentry.php"
           },
           "links": [],
           "platform": "php"
@@ -440,6 +494,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -470,6 +525,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -477,6 +533,158 @@ mod tests {
           "status": "unknown",
           "data": {},
           "links": []
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_http_client_span() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "kind": "client",
+            "attributes": {
+                "http.method": {
+                    "value": "GET",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "http.client",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "data": {
+            "http.request_method": "GET"
+          },
+          "kind": "client"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_http_server_span() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "kind": "server",
+            "attributes": {
+                "http.method": {
+                    "value": "GET",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "http.server",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "data": {
+            "http.request_method": "GET"
+          },
+          "kind": "server"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_database_span() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "kind": "client",
+            "attributes": {
+                "db.system": {
+                    "value": "postgres",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "db",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "data": {
+            "db.system": "postgres"
+          },
+          "kind": "client"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_span_with_sentry_op() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "kind": "client",
+            "attributes": {
+                "db.system": {
+                    "value": "postgres",
+                    "type": "string"
+                },
+                "sentry.op": {
+                    "value": "function",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "function",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "data": {
+            "db.system": "postgres"
+          },
+          "kind": "client"
         }
         "###);
     }
@@ -500,6 +708,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -548,6 +757,7 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "exclusive_time": 0.0,
+          "op": "default",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "status": "unknown",
           "data": {},
@@ -564,6 +774,38 @@ mod tests {
               }
             }
           ]
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_faas_trigger_span() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "name": "FAAS",
+            "attributes": {
+                "faas.trigger": {
+                    "value": "http",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "exclusive_time": 0.0,
+          "op": "http",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "data": {
+            "faas.trigger": "http"
+          }
         }
         "###);
     }
