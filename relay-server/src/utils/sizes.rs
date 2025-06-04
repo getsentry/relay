@@ -33,6 +33,7 @@ pub fn check_envelope_size_limits(
     let mut attachments_size = 0;
     let mut session_count = 0;
     let mut client_reports_size = 0;
+    let mut span_count = 0;
 
     for item in envelope.items() {
         let max_size = match item.ty() {
@@ -67,7 +68,13 @@ pub fn check_envelope_size_limits(
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
             ItemType::Log => config.max_log_size(),
             ItemType::OtelLog => config.max_log_size(),
-            ItemType::Span | ItemType::OtelSpan => config.max_span_size(),
+            ItemType::Span | ItemType::OtelSpan => {
+                span_count += item.item_count().unwrap_or(1) as usize;
+                match item.content_type() {
+                    Some(ty) if ty.is_container() => config.max_span_container_size(),
+                    _ => config.max_span_size(),
+                }
+            }
             ItemType::OtelTracesData => config.max_event_size(), // a spans container similar to `Transaction`
             ItemType::ProfileChunk => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,
@@ -91,6 +98,9 @@ pub fn check_envelope_size_limits(
     }
     if session_count > config.max_session_count() {
         return Err(DiscardItemType::Session);
+    }
+    if span_count > config.max_span_count() {
+        return Err(DiscardItemType::Span);
     }
     if client_reports_size > config.max_client_reports_size() {
         return Err(DiscardItemType::ClientReport);
