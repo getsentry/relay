@@ -88,6 +88,10 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         }
     }
 
+    // Note: This writes the incoming `name` field to a the `sentry.name` attribute. This creates a
+    // bit of duplication, since the attribute `sentry.name` will have the same value as the `op`
+    // field. This duplication is temporary, since we will soon generate a proper `op` field that will
+    // be different from the name.
     if let Some(name_attribute) = &name.0 {
         data.insert(
             String::from("sentry.name"),
