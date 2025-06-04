@@ -43,8 +43,10 @@ fn infer_attachment_type(_field_name: Option<&str>, file_name: &str) -> Attachme
 async fn extract_multipart(
     multipart: Multipart<'static>,
     meta: RequestMeta,
+    config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = utils::multipart_items(multipart, infer_attachment_type).await?;
+    let mut items =
+        utils::filtered_multipart_items(multipart, infer_attachment_type, config).await?;
 
     let prosperodump_item = items
         .iter_mut()
@@ -73,7 +75,7 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     // The crash dumps are transmitted as `...` in a multipart form-data/ request.
     let Remote(multipart) = request.extract_with_state(&state).await?;
-    let mut envelope = extract_multipart(multipart, meta).await?;
+    let mut envelope = extract_multipart(multipart, meta, state.config()).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
@@ -89,5 +91,5 @@ async fn handle(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }

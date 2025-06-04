@@ -16,6 +16,81 @@ def load_dump_file(base_file_name: str):
         return f.read()
 
 
+def event_json(response):
+    return {
+        "event_id": response.text.replace("-", ""),
+        "timestamp": 1748373553.0,
+        "received": time_within_delta(),
+        "level": "error",
+        "version": "7",
+        "type": "error",
+        "logger": "",
+        "platform": "native",
+        "environment": "production",
+        "contexts": {
+            "app": {"app_version": "", "type": "app"},
+            "device": {
+                "name": "",
+                "model": "PS5",
+                "model_id": "5be3652dd663dbdcd044da0f2144b17f",
+                "arch": "x86_64",
+                "manufacturer": "Sony",
+                "type": "device",
+            },
+            "os": {"name": "Prospero", "type": "os"},
+            "runtime": {
+                "runtime": "PS5 11.20.00.05-00.00.00.0.1",
+                "name": "PS5",
+                "version": "11.20.00.05-00.00.00.0.1",
+                "type": "runtime",
+            },
+            "trace": {
+                "trace_id": "a4c6cc5ab0d949d23f6d42e518ba49b4",
+                "span_id": "75470378528743c2",
+                "status": "unknown",
+                "type": "trace",
+            },
+        },
+        "breadcrumbs": {
+            "values": [
+                {
+                    "timestamp": 1748373552.703305,
+                    "type": "default",
+                    "level": "info",
+                    "message": "crumb",
+                }
+            ]
+        },
+        "exception": {
+            "values": [
+                {
+                    "type": "Minidump",
+                    "value": "Invalid Minidump",
+                    "mechanism": {
+                        "type": "minidump",
+                        "synthetic": True,
+                        "handled": False,
+                    },
+                }
+            ]
+        },
+        "tags": [
+            ["tag-name", "tag value"],
+            ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
+        ],
+        "extra": {"extra-name": "extra value"},
+        "sdk": {
+            "name": "sentry.native.playstation",
+            "version": "0.8.5",
+            "packages": [
+                {"name": "github:getsentry/sentry-native", "version": "0.8.5"}
+            ],
+        },
+        "key_id": "123",
+        "project": 42,
+    }
+
+
 def test_playstation_no_feature_flag(
     mini_sentry, relay_with_playstation, outcomes_consumer
 ):
@@ -175,78 +250,6 @@ def test_playstation_user_data_extraction(
             break
 
     assert event
-    event_json = {
-        "event_id": response.text.replace("-", ""),
-        "timestamp": 1748373553.0,
-        "received": time_within_delta(),
-        "level": "error",
-        "version": "7",
-        "type": "error",
-        "logger": "",
-        "platform": "native",
-        "environment": "production",
-        "contexts": {
-            "app": {"app_version": "", "type": "app"},
-            "device": {
-                "name": "",
-                "model": "PS5",
-                "model_id": "5be3652dd663dbdcd044da0f2144b17f",
-                "arch": "x86_64",
-                "manufacturer": "Sony",
-                "type": "device",
-            },
-            "os": {"name": "Prospero", "type": "os"},
-            "runtime": {
-                "runtime": "PS5 11.20.00.05-00.00.00.0.1",
-                "name": "PS5",
-                "version": "11.20.00.05-00.00.00.0.1",
-                "type": "runtime",
-            },
-            "trace": {
-                "trace_id": "a4c6cc5ab0d949d23f6d42e518ba49b4",
-                "span_id": "75470378528743c2",
-                "status": "unknown",
-                "type": "trace",
-            },
-        },
-        "breadcrumbs": {
-            "values": [
-                {
-                    "timestamp": 1748373552.703305,
-                    "type": "default",
-                    "level": "info",
-                    "message": "crumb",
-                }
-            ]
-        },
-        "exception": {
-            "values": [
-                {
-                    "type": "Minidump",
-                    "value": "Invalid Minidump",
-                    "mechanism": {
-                        "type": "minidump",
-                        "synthetic": True,
-                        "handled": False,
-                    },
-                }
-            ]
-        },
-        "tags": [
-            ["tag-name", "tag value"],
-            ["server_name", "5be3652dd663dbdcd044da0f2144b17f"],
-        ],
-        "extra": {"extra-name": "extra value"},
-        "sdk": {
-            "name": "sentry.native.playstation",
-            "version": "0.8.5",
-            "packages": [
-                {"name": "github:getsentry/sentry-native", "version": "0.8.5"}
-            ],
-        },
-        "key_id": "123",
-        "project": 42,
-    }
 
     assert event["type"] == "event"
     event_data = json.loads(event["payload"])
@@ -254,7 +257,61 @@ def test_playstation_user_data_extraction(
     for key in ["_metrics", "grouping_config"]:
         del event_data[key]
 
-    assert event_data == event_json
+    assert event_data == event_json(response)
+    assert len(event["attachments"]) == 3
+
+
+def test_playstation_ignore_large_fields(
+    mini_sentry,
+    relay,
+    relay_with_playstation,
+    outcomes_consumer,
+    attachments_consumer,
+):
+    PROJECT_ID = 42
+    playstation_dump = load_dump_file("user_data.prosperodmp")
+    mini_sentry.add_full_project_config(
+        PROJECT_ID,
+        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+    )
+    outcomes_consumer = outcomes_consumer()
+    attachments_consumer = attachments_consumer()
+
+    # Make a dummy video that is larger than the dump
+    video_content = "1" * (len(playstation_dump) + 100)
+    relay = relay_with_playstation(
+        {
+            "limits": {
+                "max_attachment_size": len(video_content) - 1,
+            }
+        }
+    )
+
+    response = relay.send_playstation_request(
+        PROJECT_ID, playstation_dump, video_content
+    )
+    assert response.ok
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 0
+
+    while True:
+        _, message = attachments_consumer.get_message()
+        if message is None or message["type"] != "attachment_chunk":
+            event = message
+            break
+
+    assert event
+
+    assert event["type"] == "event"
+    event_data = json.loads(event["payload"])
+
+    for key in ["_metrics", "grouping_config"]:
+        del event_data[key]
+
+    assert event_data == event_json(response)
+    # Even though we also send a video it does not show up here since it is too large and hence
+    # gets skipped.
     assert len(event["attachments"]) == 3
 
 
