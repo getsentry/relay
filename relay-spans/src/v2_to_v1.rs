@@ -92,10 +92,10 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     // bit of duplication, since the attribute `sentry.name` will have the same value as the `op`
     // field. This duplication is temporary, since we will soon generate a proper `op` field that will
     // be different from the name.
-    if let Some(name_attribute) = &name.0 {
+    if let Some(name) = name.value() {
         data.insert(
-            String::from("sentry.name"),
-            Annotated::new(Value::String(name_attribute.to_owned())),
+            "sentry.name".to_owned(),
+            Annotated::new(Value::String(name.to_owned())),
         );
     }
 
