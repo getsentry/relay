@@ -23,24 +23,3 @@ pub fn sampled(ctx: Context<'_>) -> Result<(), ProcessingError> {
         false => Ok(()),
     }
 }
-
-// pub fn filter(logs: &mut Managed<EinsLog>, ctx: Context<'_>) {
-//     let logging_disabled = ctx.should_filter(Feature::OurLogsIngestion);
-//
-//     let logs_sampled = ctx
-//         .global_config
-//         .options
-//         .ourlogs_ingestion_sample_rate
-//         .map(sample)
-//         .unwrap_or(true);
-//
-//     let action = match logging_disabled || !logs_sampled {
-//         true => ItemAction::DropSilently,
-//         false => ItemAction::Keep,
-//     };
-//
-//     managed_envelope.retain_items(move |item| match item.ty() {
-//         ItemType::OtelLog | ItemType::Log => action.clone(),
-//         _ => ItemAction::Keep,
-//     });
-// }
