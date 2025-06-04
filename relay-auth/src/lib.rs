@@ -758,7 +758,7 @@ pub struct RelaySignatureData {
     /// The signature string.
     pub signature: String,
     /// The data which the signature will be checked against.
-    pub signature_data: Bytes,
+    pub data: Bytes,
 }
 
 impl RelaySignatureData {
@@ -766,14 +766,14 @@ impl RelaySignatureData {
     pub fn new(signature: String, signature_data: Bytes) -> Self {
         Self {
             signature,
-            signature_data,
+            data: signature_data,
         }
     }
 
     /// Verifies the signature against a single public key and checks if the timestamp
     /// is within the specified `max_age`.
     pub fn verify_timestamp(&self, public_key: &PublicKey, max_age: Option<Duration>) -> bool {
-        public_key.verify_timestamp(&self.signature_data, &self.signature, max_age)
+        public_key.verify_timestamp(&self.data, &self.signature, max_age)
     }
 
     /// Verifies the signature against a single public key.

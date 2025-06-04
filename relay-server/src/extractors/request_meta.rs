@@ -506,10 +506,10 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                 .headers
                 .get("x-sentry-relay-signature")
                 .map(|sig| match sig.to_str() {
-                    Ok(s) => RelaySignature::Valid(RelaySignatureData {
-                        signature: s.to_owned(),
-                        signature_data: bytes::Bytes::new(),
-                    }),
+                    Ok(sig) => RelaySignature::Valid(RelaySignatureData::new(
+                        sig.to_owned(),
+                        bytes::Bytes::new(),
+                    )),
                     Err(_) => RelaySignature::Invalid(RelaySignatureError::MalformedSignature),
                 });
 
