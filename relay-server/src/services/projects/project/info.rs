@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -139,7 +139,11 @@ impl ProjectInfo {
         {
             match envelope.meta().signature() {
                 Some(RelaySignature::Valid(signature)) => {
-                    if !signature.verify_any(&self.config.trusted_relays) {
+                    // signatures that are older than 5 minutes will be dropped.
+                    if !signature.verify_any_timestamp(
+                        &self.config.trusted_relays,
+                        Some(Duration::minutes(5)),
+                    ) {
                         return Err(DiscardReason::InvalidSignature);
                     }
                 }
