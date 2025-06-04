@@ -65,8 +65,8 @@ use crate::utils::{
     self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
     SamplingResult, TypedEnvelope,
 };
+use relay_auth::TrySign;
 use relay_base_schema::organization::OrganizationId;
-use relay_signature::TrySign;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {

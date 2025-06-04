@@ -3694,6 +3694,7 @@ dependencies = [
 name = "relay-auth"
 version = "25.5.1"
 dependencies = [
+ "bytes",
  "chrono",
  "data-encoding",
  "ed25519-dalek",
@@ -4290,7 +4291,6 @@ dependencies = [
  "relay-redis",
  "relay-replays",
  "relay-sampling",
- "relay-signature",
  "relay-spans",
  "relay-statsd",
  "relay-system",
@@ -4321,17 +4321,6 @@ dependencies = [
  "url",
  "uuid",
  "zstd",
-]
-
-[[package]]
-name = "relay-signature"
-version = "25.5.1"
-dependencies = [
- "axum 0.8.1",
- "chrono",
- "relay-auth",
- "relay-config",
- "thiserror 1.0.69",
 ]
 
 [[package]]

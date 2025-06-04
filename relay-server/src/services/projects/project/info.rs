@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::services::outcome::DiscardReason;
+use relay_auth::RelaySignature;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
@@ -15,7 +16,6 @@ use relay_dynamic_config::ErrorBoundary;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
-use relay_signature::RelaySignature;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use url::Url;

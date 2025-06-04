@@ -17,13 +17,12 @@ use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
 use itertools::Itertools;
-use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
+use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration, TrySign};
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
 };
-use relay_signature::TrySign;
 use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
@@ -785,7 +784,7 @@ impl SharedClient {
 
             if let Some(payload) = request.sign() {
                 if let Some(signature) = payload
-                    .create_signature(self.config.credentials())
+                    .create_signature(self.config.credentials().map(|cred| &cred.secret_key))
                     .map_err(|_| UpstreamRequestError::NoCredentials)?
                 {
                     builder.header("x-sentry-relay-signature", signature);

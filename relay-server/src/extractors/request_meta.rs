@@ -16,14 +16,13 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
 use data_encoding::BASE64;
-use relay_auth::RelayId;
+use relay_auth::{RelayId, RelaySignature, RelaySignatureData, RelaySignatureError};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
 use relay_config::UpstreamDescriptor;
 use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
-use relay_signature::{RelaySignature, RelaySignatureData, RelaySignatureError};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -511,7 +510,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                         signature: s.to_owned(),
                         signature_data: bytes::Bytes::new(),
                     }),
-                    Err(_) => RelaySignature::Invalid(RelaySignatureError::InvalidSignature),
+                    Err(_) => RelaySignature::Invalid(RelaySignatureError::MalformedSignature),
                 });
 
         Ok(RequestMeta {

@@ -65,7 +65,6 @@ relay-redis = { path = "relay-redis" }
 relay-replays = { path = "relay-replays" }
 relay-sampling = { path = "relay-sampling" }
 relay-server = { path = "relay-server" }
-relay-signature = { path = "relay-signature" }
 relay-spans = { path = "relay-spans" }
 relay-statsd = { path = "relay-statsd" }
 relay-system = { path = "relay-system" }
