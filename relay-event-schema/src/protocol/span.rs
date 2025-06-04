@@ -455,8 +455,7 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
-    /// The maximum number of tokens that should be used by an
-    /// LLM call.
+    /// The maximum number of tokens that should be used by an LLM call.
     #[metastructure(field = "gen_ai.request.max_tokens")]
     pub gen_ai_request_max_tokens: Annotated<Value>,
 
