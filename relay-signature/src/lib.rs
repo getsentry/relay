@@ -1,3 +1,10 @@
+//! Relay module to create and verify signatures between Relays.
+//!
+//! Relays can have public and private key pairs which are used to sign requests and
+//! add the resulting signature to an envelope header.
+//!
+//!
+//!
 use axum::body::Bytes;
 use axum::extract::OptionalFromRequestParts;
 use axum::http::HeaderMap;
@@ -8,10 +15,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::str::FromStr;
 
-pub const SIGNATURE_DATA_HEADER: &str = "x-sentry-signature-headers";
-pub const SIGNATURE_VERSION_HEADER: &str = "x-sentry-relay-signature-version";
-pub const SIGNATURE_HEADER: &str = "x-sentry-relay-signature";
-
+/// Errors that can happen during the signature or verification process.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum RelaySignatureError {
     #[error("missing header: {0}")]
@@ -30,10 +34,13 @@ pub enum RelaySignatureError {
     MissingBody,
 }
 
-/// Signature version that describes how the signature is constructed.
+/// Signature version that describes what data the signature contains.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RelaySignatureVersion {
+    /// Signs a datetime with a Relay private key which the receiving Relay
+    /// can verify with a stored public key to make sure the sending Relay is trusted.
     EnvelopeSignature,
+    /// Used for authentication challenge when a relay registers itself upstream.
     Signed,
 }
 
@@ -42,7 +49,7 @@ impl RelaySignatureVersion {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::EnvelopeSignature => "envelope-signature",
-            Self::Signed => "singed",
+            Self::Signed => "signed",
         }
     }
 }
@@ -53,7 +60,7 @@ impl FromStr for RelaySignatureVersion {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "envelope-signature" => Ok(Self::EnvelopeSignature),
-            "singed" => Ok(Self::Signed),
+            "signed" => Ok(Self::Signed),
             _ => Err(RelaySignatureError::InvalidSignatureVersion),
         }
     }
@@ -78,7 +85,7 @@ where
     type Rejection = Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Option<Self>, Self::Rejection> {
-        match RelaySignatureData::from_request_data(&parts.headers, None) {
+        match RelaySignatureData::from_request_data(&parts.headers, Bytes::new()) {
             Ok(data) => Ok(Some(RelaySignature::Valid(data))),
             Err(RelaySignatureError::MissingSignature) => Ok(None),
             Err(e) => Ok(Some(RelaySignature::Invalid(e))),
@@ -91,50 +98,51 @@ where
 pub enum TrySign {
     /// Bytes of an envelope body that need are used to produce a signature.
     Body(Bytes),
-    /// Envelope Signature that is used to verify if the request is coming from
-    /// a trusted relay.
-    RelayEnvelopeSign(String),
+    /// Used to verify if an envelope comes from a trusted relay.
+    RelayEnvelopeSign,
 }
 
 impl TrySign {
     /// Creates a signature with necessary additional data and returns it as a map.
     ///
-    /// It will create different data depending on the variant of [`TrySign`].
-    /// The data is meant to be used in HTTP headers, that's why it comes as a map.
-    pub fn create_signature(
+    /// The result contains all information necessary to reconstruct and verify the signature
+    /// except the public key.
+    ///
+    /// This method can only fail if credentials are missing for a signature that is mandatory.
+    pub fn create_signature_headers(
         self,
         credentials: Option<&Credentials>,
     ) -> Result<HashMap<&'static str, String>, RelaySignatureError> {
         match self {
             TrySign::Body(data) => {
                 let credentials = credentials.ok_or(RelaySignatureError::MissingCredentials)?;
-                Ok(HashMap::from([(
-                    "X-Sentry-Relay-Signature",
-                    credentials.secret_key.sign(data.as_ref()),
-                )]))
+                let signature = credentials.secret_key.sign(data.as_ref());
+                Ok(HashMap::from([
+                    ("x-sentry-relay-signature", signature),
+                    ("x-sentry-relay-signature-version", "signed".to_owned()),
+                ]))
             }
-            TrySign::RelayEnvelopeSign(now) => {
+            TrySign::RelayEnvelopeSign => {
                 let Some(credentials) = credentials else {
                     return Ok(HashMap::new());
                 };
-                let data = now.as_bytes();
-                let signature = credentials.secret_key.sign(data);
+                let signature = credentials.secret_key.sign(&[]);
                 Ok(HashMap::from([
-                    ("X-Sentry-Relay-Signature", signature),
-                    (SIGNATURE_DATA_HEADER, "Date".to_owned()),
-                    (SIGNATURE_VERSION_HEADER, "envelope-signature".to_owned()),
-                    ("Date", now),
+                    ("x-sentry-relay-signature", signature),
+                    (
+                        "x-sentry-relay-signature-version",
+                        "envelope-signature".to_owned(),
+                    ),
                 ]))
             }
         }
     }
 }
 
-/// Contains data that is necessary for trusted relay signature verification.
-///
+/// Contains information necessary to verify the correctness of the signature.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RelaySignatureData {
-    /// The signature string from the header
+    /// The signature string from the header.
     pub signature: String,
     /// The data that the signature was made from.
     pub signature_data: Bytes,
@@ -143,39 +151,42 @@ pub struct RelaySignatureData {
 }
 
 impl RelaySignatureData {
+    /// Create [`RelaySignatureData`] based on request information.
+    ///
+    /// Depending on the signature version a body can be mandatory and will
+    /// produce an error if it's missing.
     pub fn from_request_data(
         headers: &HeaderMap,
-        body: Option<Bytes>,
+        data: Bytes,
     ) -> Result<Self, RelaySignatureError> {
         let signature = headers
-            .get(SIGNATURE_HEADER)
+            .get("x-sentry-relay-signature")
             .ok_or(RelaySignatureError::MissingSignature)?
             .to_str()
             .map_err(|_| RelaySignatureError::InvalidSignature)?;
-        let version = get_header(headers, SIGNATURE_VERSION_HEADER)
-            .unwrap_or(RelaySignatureVersion::Signed.as_str())
-            .parse()
-            .map_err(|_| RelaySignatureError::InvalidSignatureVersion)?;
-        let signature_data = match version {
-            RelaySignatureVersion::EnvelopeSignature => {
-                let mut data = Vec::new();
-                for header in get_header(headers, SIGNATURE_DATA_HEADER)?.split(";") {
-                    let data_header = get_header(headers, header)?;
-                    data.extend_from_slice(data_header.as_bytes());
-                }
-                Bytes::from(data)
-            }
-            RelaySignatureVersion::Signed => body.ok_or(RelaySignatureError::MissingBody)?,
-        };
+        // Defaults to the authentication challenge signature version
+        // if no explicit version is provided.
+        let version: RelaySignatureVersion =
+            get_header(headers, "x-sentry-relay-signature-version")
+                .unwrap_or(RelaySignatureVersion::Signed.as_str())
+                .parse()
+                .map_err(|_| RelaySignatureError::InvalidSignatureVersion)?;
         Ok(RelaySignatureData {
             signature: signature.to_owned(),
-            signature_data,
+            signature_data: data,
             version,
         })
     }
 
+    /// Verifies the signature against a single public key.
     pub fn verify(&self, public_key: &PublicKey) -> bool {
-        public_key.verify(&self.signature_data, &self.signature)
+        public_key.verify_timestamp(&self.signature_data, &self.signature, None)
+    }
+
+    /// Verifies the signature against any of the public keys and returns `true` if
+    /// one of them can verify it successfully.
+    pub fn verify_any(&self, public_keys: &[PublicKey]) -> bool {
+        public_keys.iter().any(|public_key| self.verify(public_key))
     }
 }
 
@@ -186,16 +197,4 @@ fn get_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<&'a str, RelaySi
     header
         .to_str()
         .map_err(|_| RelaySignatureError::MalformedHeader(name.to_owned()))
-}
-
-/// Returns `true` if the signature could be verified with any public key of a trusted relay.
-///
-/// If the signature is missing, then it will return `false`.
-pub fn check_trusted_relay_signature(
-    signature: &RelaySignatureData,
-    trusted_relays: &[PublicKey],
-) -> bool {
-    trusted_relays
-        .iter()
-        .any(|public_key| signature.verify(public_key))
 }

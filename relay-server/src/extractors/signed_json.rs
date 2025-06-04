@@ -90,7 +90,7 @@ impl FromRequest<ServiceState> for SignedBytes {
         let headers = request.headers().clone();
         let body = Bytes::from_request(request, state).await?;
 
-        let signature = RelaySignatureData::from_request_data(&headers, Some(body))
+        let signature = RelaySignatureData::from_request_data(&headers, body)
             .map_err(|_| SignatureError::MissingHeader("x-sentry-relay-signature"))?;
         if signature.verify(&relay.public_key) {
             Ok(Self {

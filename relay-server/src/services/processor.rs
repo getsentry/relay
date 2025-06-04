@@ -3455,10 +3455,7 @@ impl UpstreamRequest for SendEnvelope {
     fn sign(&mut self) -> Option<TrySign> {
         match self.envelope.meta().is_from_internal_relay() {
             true => None,
-            false => {
-                let now = Utc::now().to_rfc3339();
-                Some(TrySign::RelayEnvelopeSign(now))
-            }
+            false => Some(TrySign::RelayEnvelopeSign),
         }
     }
 

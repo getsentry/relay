@@ -15,7 +15,7 @@ use relay_dynamic_config::ErrorBoundary;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
-use relay_signature::{RelaySignature, check_trusted_relay_signature};
+use relay_signature::RelaySignature;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use url::Url;
@@ -139,7 +139,7 @@ impl ProjectInfo {
         {
             match envelope.meta().signature() {
                 Some(RelaySignature::Valid(signature)) => {
-                    if !check_trusted_relay_signature(signature, &self.config.trusted_relays) {
+                    if !signature.verify_any(&self.config.trusted_relays) {
                         return Err(DiscardReason::InvalidSignature);
                     }
                 }
