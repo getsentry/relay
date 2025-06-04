@@ -1,17 +1,23 @@
-use smallvec::SmallVec;
+use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{Item, ItemType, Items};
-use crate::processing::{self, Context, Counted, Managed, Output, Quantities};
+use crate::envelope::{ItemType, Items};
+use crate::processing::{
+    self, Context, Counted, Managed, Output, Quantities, QuotaRateLimiter, RateLimited, RateLimiter,
+};
 use crate::services::processor::ProcessingError;
 use crate::utils::ManagedEnvelope;
 
 mod filter;
 
-pub struct LogsProcessor {}
+pub struct LogsProcessor {
+    limiter: QuotaRateLimiter,
+}
 
 impl LogsProcessor {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            limiter: QuotaRateLimiter::default(),
+        }
     }
 }
 
@@ -42,12 +48,13 @@ impl processing::Processor for LogsProcessor {
         Some(Managed::from_envelope(envelope, work))
     }
 
-    fn process(
+    async fn process(
         &self,
         work: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<()>, ProcessingError> {
-        filter::filter();
+        filter::feature_flag(ctx)?;
+        filter::sampled(ctx)?;
 
         // ourlog::filter(
         //     managed_envelope,
@@ -55,6 +62,9 @@ impl processing::Processor for LogsProcessor {
         //     &project_info,
         //     &self.inner.global_config.current(),
         // );
+
+        self.limiter.enforce_quotas(work.as_ref(), ctx);
+
         //
         // self.enforce_quotas(
         //     managed_envelope,
@@ -87,5 +97,49 @@ struct EinsLog {
 impl Counted for EinsLog {
     fn quantities(&self) -> Quantities {
         todo!()
+    }
+}
+
+impl RateLimited for Managed<EinsLog> {
+    type Error = ProcessingError;
+
+    async fn enforce<T>(
+        &mut self,
+        rate_limiter: T,
+        ctx: Context<'_>,
+    ) -> Result<RateLimits, Self::Error>
+    where
+        T: RateLimiter,
+    {
+        // TODO: indexed/non-indexed categories
+        // TODO: does quantities then need something for rate limits as well?
+        // This seems very error prone to use item/drop quantities here.
+        // for (category, count) in self.quantities() {
+        //     checker.try_consume(self.scoping.item(category), count, false);
+        // }
+        let scoping = self.scoping();
+
+        // TODO: maybe we need over-accept here?
+        let items = rate_limiter
+            .try_consume(scoping.item(DataCategory::LogItem), self.logs.len())
+            .await;
+        let bytes = rate_limiter
+            .try_consume(scoping.item(DataCategory::LogByte), 100)
+            .await;
+        let total_limits = items.merge_with(bytes);
+
+        // TODO: this check uses the current time, but maybe the 'checker' should only return
+        // active limits (what currently is the case), then this check could be `is_empty()`.
+        if total_limits.is_limited() {
+            // TODO: we can discard the entire envelope here as rate limited
+            // but in other cases we will have to discard single elements
+
+            // TODO: Return an error here which will reject the data with the correct outcome.
+            return Err(ProcessingError::NoEventPayload);
+        }
+
+        // TODO: how to enforce the limits here?
+
+        Ok(total_limits)
     }
 }

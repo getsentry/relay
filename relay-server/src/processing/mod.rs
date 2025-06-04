@@ -21,7 +21,10 @@ use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::ManagedEnvelope;
 
+mod limits;
 pub mod logs;
+
+pub use self::limits::*;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
 ///
@@ -65,20 +68,40 @@ pub trait Processor {
     // TODO: what are the outputs of the processing function?
     //  - extracted metrics
     //  - the result which can be converted into envelope + things for upstream?
-    fn process(
+    async fn process(
         &self,
         work: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Self::Error>;
+
+    // TODO: maybe an on error here, might be hard to call with work (as ownership is gone)?
+    // The handler could emit outcomes but propagate okay upwards or fail upwards?
 }
 
 /// Read-only context for processing.
+#[derive(Copy, Clone)]
 pub struct Context<'a> {
     pub config: &'a Config,
     pub global_config: &'a GlobalConfig,
     // pub scoping: Scoping, part of scoping
     pub project_info: &'a ProjectInfo,
     pub rate_limits: &'a RateLimits,
+}
+
+impl Context<'_> {
+    /// Checks on-off feature flags for envelope items, like profiles and spans.
+    ///
+    /// It checks for the presence of the passed feature flag, but does not filter items
+    /// when there is no full project config available. This is the case in stat and proxy
+    /// Relays.
+    pub fn should_filter(&self, feature: relay_dynamic_config::Feature) -> bool {
+        use relay_config::RelayMode::*;
+
+        match self.config.relay_mode() {
+            Proxy | Static | Capture => false,
+            Managed => !self.project_info.has_feature(feature),
+        }
+    }
 }
 
 /// The main processing output and all of its by products.
@@ -110,6 +133,17 @@ impl Counted for () {
     }
 }
 
+// TODO: maybe this wildcard impl sucks and counted should just be implemented on a reference but
+// take self instead of &self
+impl<T> Counted for &T
+where
+    T: Counted,
+{
+    fn quantities(&self) -> Quantities {
+        (*self).quantities()
+    }
+}
+
 pub struct Managed<T: Counted> {
     value: T,
     // TODO: store this stuff in an inner thing, maybe as Arc<Inner>
@@ -131,6 +165,10 @@ impl<T: Counted> Managed<T> {
             event_id: todo!(),
             remote_addr: todo!(),
         }
+    }
+
+    pub fn scoping(&self) -> Scoping {
+        self.scoping
     }
 
     // pub fn split(self) -> (T, Managed<()>) {
@@ -173,5 +211,21 @@ impl<T: Counted> Managed<T> {
 impl<T: Counted> Drop for Managed<T> {
     fn drop(&mut self) {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
+    }
+}
+
+impl<T: Counted> AsRef<T> for Managed<T> {
+    fn as_ref(&self) -> &T {
+        &self.value
+    }
+}
+
+// TODO: maybe this should go, ideally we only want to allow modifications
+// that make it impossible to mess up
+impl<T: Counted> std::ops::Deref for Managed<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }

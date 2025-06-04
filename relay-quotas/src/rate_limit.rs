@@ -299,6 +299,14 @@ impl RateLimits {
         }
     }
 
+    /// Merges all limits from another [`RateLimits`] with this one.
+    ///
+    /// See also: [`Self::merge`].
+    pub fn merge_with(mut self, other: Self) -> Self {
+        self.merge(other);
+        self
+    }
+
     /// Returns `true` if this instance contains no active limits.
     ///
     /// This is the opposite of [`is_limited`](Self::is_limited).
