@@ -455,6 +455,11 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
+    /// The maximum number of tokens that should be used by an
+    /// LLM call.
+    #[metastructure(field = "gen_ai.request.max_tokens")]
+    pub gen_ai_request_max_tokens: Annotated<Value>,
+
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
@@ -809,6 +814,7 @@ impl Getter for SpanData {
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
+            "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
             "http\\.decoded_response_content_length" => {
@@ -1257,9 +1263,10 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
+            gen_ai_request_max_tokens: ~,
             gen_ai_usage_total_tokens: ~,
             gen_ai_usage_input_tokens: ~,
             gen_ai_usage_output_tokens: ~,
@@ -1364,7 +1371,7 @@ mod tests {
                 ),
             },
         }
-        "#);
+        "###);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));
