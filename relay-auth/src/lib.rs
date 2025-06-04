@@ -746,10 +746,7 @@ impl TrySign {
                 let Some(credentials) = secret_key else {
                     return Ok(None);
                 };
-                let header = SignatureHeader {
-                    timestamp: Some(Utc::now()),
-                };
-                Ok(Some(credentials.sign_with_header(&[], &header)))
+                Ok(Some(credentials.sign(&[])))
             }
         }
     }
@@ -775,7 +772,7 @@ impl RelaySignatureData {
 
     /// Verifies the signature against a single public key.
     pub fn verify(&self, public_key: &PublicKey) -> bool {
-        public_key.verify_timestamp(&self.signature_data, &self.signature, None)
+        public_key.verify(&self.signature_data, &self.signature)
     }
 
     /// Verifies the signature against any of the public keys and returns `true` if
@@ -1003,5 +1000,43 @@ mod tests {
     #[test]
     fn test_relay_version_from_str() {
         assert_eq!(RelayVersion::new(20, 7, 0), "20.7.0".parse().unwrap());
+    }
+
+    #[test]
+    fn test_verify_any() {
+        let pair1 = generate_key_pair();
+        let pair2 = generate_key_pair();
+        let pair3 = generate_key_pair();
+
+        let data = Bytes::new();
+        let signature = pair3.0.sign(&data);
+        let signature_data = RelaySignatureData::new(signature, data);
+        assert!(signature_data.verify_any(&[pair1.1, pair2.1, pair3.1]));
+    }
+
+    #[test]
+    fn test_body_signature_missing_key() {
+        let result = TrySign::Body(Bytes::new()).create_signature(None);
+        assert_eq!(result, Err(RelaySignatureError::MissingCredentials))
+    }
+
+    #[test]
+    fn test_body_signature() {
+        let (secret, _) = generate_key_pair();
+        let result = TrySign::Body(Bytes::new()).create_signature(Some(&secret));
+        assert!(result.unwrap().is_some())
+    }
+
+    #[test]
+    fn test_envelope_sign() {
+        let (secret, _) = generate_key_pair();
+        let result = TrySign::RelayEnvelopeSign.create_signature(Some(&secret));
+        assert!(result.unwrap().is_some())
+    }
+
+    #[test]
+    fn test_envelope_sign_missing_key() {
+        let result = TrySign::RelayEnvelopeSign.create_signature(None);
+        assert!(result.unwrap().is_none())
     }
 }
