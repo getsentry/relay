@@ -166,8 +166,9 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
 async fn extract_multipart(
     multipart: Multipart<'static>,
     meta: RequestMeta,
+    config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = utils::multipart_items(multipart, infer_attachment_type).await?;
+    let mut items = utils::multipart_items(multipart, infer_attachment_type, config, false).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -226,7 +227,7 @@ async fn handle(
         extract_raw_minidump(request.extract().await?, meta)?
     } else {
         let Remote(multipart) = request.extract_with_state(&state).await?;
-        extract_multipart(multipart, meta).await?
+        extract_multipart(multipart, meta, state.config()).await?
     };
 
     let id = envelope.event_id();
@@ -395,7 +396,7 @@ mod tests {
         let config = Config::default();
 
         let multipart = utils::multipart_from_request(request, &config)?;
-        let items = multipart_items(multipart, infer_attachment_type).await?;
+        let items = multipart_items(multipart, infer_attachment_type, &config, false).await?;
 
         // we expect the multipart body to contain
         // * one arbitrary attachment from the user (a `config.json`)
