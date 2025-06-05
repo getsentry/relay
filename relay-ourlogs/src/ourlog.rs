@@ -163,6 +163,10 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
         })
         .unwrap_or_default();
 
+    // This is separate from the sdk provided time since Relay always acts as the collector in Sentry.
+    // We may change this in the future with forwarding Relays.
+    let observed_time_unix_nano = UnixTimestamp::now().as_nanos();
+
     attributes.insert(
         "sentry.severity_text".to_owned(),
         Annotated::new(Attribute::new(
@@ -203,7 +207,7 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>) {
         "sentry.observed_timestamp_nanos".to_owned(),
         Annotated::new(Attribute::new(
             AttributeType::String,
-            Value::String(timestamp_nanos.to_string()),
+            Value::String(observed_time_unix_nano.to_string()),
         )),
     );
     attributes.insert(
@@ -476,8 +480,34 @@ mod tests {
             }
         }"#;
 
+        let before_test = UnixTimestamp::now().as_nanos();
         let mut merged_log = Annotated::<OurLog>::from_json(json).unwrap();
         ourlog_merge_otel(&mut merged_log);
+        let after_test = UnixTimestamp::now().as_nanos();
+
+        // Test the observed timestamp separately
+        let observed_timestamp = merged_log
+            .value()
+            .and_then(|log| log.attribute("sentry.observed_timestamp_nanos"))
+            .and_then(|attr| attr.as_str().and_then(|s| s.parse::<u64>().ok()))
+            .unwrap_or(0);
+
+        assert!(observed_timestamp > 0);
+        assert!(observed_timestamp >= before_test);
+        assert!(observed_timestamp <= after_test);
+
+        // Set observed timestamp to a fixed value for snapshot testing
+        if let Some(log) = merged_log.value_mut() {
+            if let Some(attributes) = log.attributes.value_mut() {
+                attributes.insert(
+                    "sentry.observed_timestamp_nanos".to_owned(),
+                    Annotated::new(Attribute::new(
+                        AttributeType::String,
+                        Value::String("946684800000000000".to_string()),
+                    )),
+                );
+            }
+        }
 
         insta::assert_debug_snapshot!(merged_log, @r###"
         OurLog {
@@ -608,7 +638,34 @@ mod tests {
             body: Annotated::new("somebody".into()),
             ..Default::default()
         });
+
+        let before_test = UnixTimestamp::now().as_nanos();
         ourlog_merge_otel(&mut ourlog);
+        let after_test = UnixTimestamp::now().as_nanos();
+
+        // Test the observed timestamp separately
+        let observed_timestamp = ourlog
+            .value()
+            .and_then(|log| log.attribute("sentry.observed_timestamp_nanos"))
+            .and_then(|attr| attr.as_str().and_then(|s| s.parse::<u64>().ok()))
+            .unwrap_or(0);
+
+        assert!(observed_timestamp > 0);
+        assert!(observed_timestamp >= before_test);
+        assert!(observed_timestamp <= after_test);
+
+        // Set observed timestamp to a fixed value for snapshot testing
+        if let Some(log) = ourlog.value_mut() {
+            if let Some(attributes) = log.attributes.value_mut() {
+                attributes.insert(
+                    "sentry.observed_timestamp_nanos".to_owned(),
+                    Annotated::new(Attribute::new(
+                        AttributeType::String,
+                        Value::String("1638144000000000000".to_string()),
+                    )),
+                );
+            }
+        }
 
         insta::assert_debug_snapshot!(ourlog, @r#"
         OurLog {

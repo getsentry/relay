@@ -743,6 +743,7 @@ def test_span_ingestion(
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
                 "sentry.category": "db",
+                "sentry.name": "my 1st OTel span",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -780,6 +781,7 @@ def test_span_ingestion(
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
                 "sentry.category": "db",
+                "sentry.name": "my 1st V2 span",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -859,6 +861,7 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
+                "sentry.name": "resource.script",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -926,6 +929,7 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
+                "sentry.name": "my 2nd OTel span",
                 "user_agent.original": "python-requests/2.32.2",
             },
             "duration_ms": 500,
@@ -988,6 +992,7 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
+                "sentry.name": "my 3rd protobuf OTel span",
                 "ui.component_name": "MyComponent",
                 "user_agent.original": "python-requests/2.32.2",
             },
