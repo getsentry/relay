@@ -42,6 +42,17 @@ mod tests {
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
+                    "key": "http.route", "value": {
+                        "stringValue": "/home"
+                    }
+                },
+                {
+                    "key": "http.request.method",
+                    "value": {
+                        "stringValue": "GET"
+                        }
+                    },
+                {
                     "key": "sentry.environment",
                     "value": {
                         "stringValue": "test"
@@ -107,10 +118,13 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "ok",
+          "description": "GET /home",
           "data": {
             "sentry.environment": "test",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
+            "http.request.method": "GET",
+            "http.route": "/home",
             "plugin.name": "fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
@@ -236,7 +250,11 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-          "data": {},
+          "data": {
+            "db.name": "database",
+            "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            "db.type": "sql"
+          },
           "links": [],
           "kind": "client"
         }
@@ -294,7 +312,11 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "index view query",
-          "data": {},
+          "data": {
+            "db.name": "database",
+            "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            "db.type": "sql"
+          },
           "links": [],
           "kind": "client"
         }
@@ -340,7 +362,10 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "GET /api/search?q=foobar",
-          "data": {},
+          "data": {
+            "http.request.method": "GET",
+            "url.path": "/api/search?q=foobar"
+          },
           "links": [],
           "kind": "client"
         }

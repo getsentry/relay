@@ -68,10 +68,12 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
                 exclusive_time_ms = value / 1e6f64;
             }
             "http.status_code" => {
-                http_status_code = i64::from_value(value);
+                http_status_code = i64::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             "rpc.grpc.status_code" => {
-                grpc_status_code = i64::from_value(value);
+                grpc_status_code = i64::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             "sentry.platform" => {
                 platform = String::from_value(value);
@@ -218,7 +220,7 @@ mod tests {
                     "value": "fastify -> @fastify/multipart",
                     "type": "string"
                 },
-                "hook.name": { 
+                "hook.name": {
                     "value": "onResponse",
                     "type": "string"
                 },
