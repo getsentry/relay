@@ -60,8 +60,9 @@ jobs:
 
   linux-aarch64:
     name: Linux Aarch64
-    # Ubuntu 22.04 needs to be supported until Apr 2029 (EOL + 2 Years)
-    # Make sure to update documentation if this changes: https://docs.sentry.io/product/relay/operating-guidelines/
+    # Ubuntu 22.04 needs to be supported until Apr 2029 (EOL + 2 Years).
+    # Make sure to update documentation once the version is updated:
+    # https://docs.sentry.io/product/relay/operating-guidelines/
     runs-on: ubuntu-22.04-arm
 
     steps:
@@ -94,7 +95,7 @@ jobs:
 
   macos:
     name: macOS
-    # Make sure to change documentation once this version changes
+    # Make sure to update documentation once the version is updated:
     # https://docs.sentry.io/product/relay/operating-guidelines/
     runs-on: macos-14
 
@@ -127,7 +128,7 @@ jobs:
 
   windows:
     name: Windows
-    # Make sure to change documentation once this version changes
+    # Make sure to update documentation once the version is updated:
     # https://docs.sentry.io/product/relay/operating-guidelines/
     runs-on: windows-2019
 
