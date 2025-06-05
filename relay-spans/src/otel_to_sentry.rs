@@ -126,6 +126,7 @@ mod tests {
             "http.request.method": "GET",
             "http.route": "/home",
             "plugin.name": "fastify -> @fastify/multipart",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -167,7 +168,9 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.name": "middleware - fastify -> @fastify/multipart"
+          },
           "links": [],
           "kind": "internal"
         }
@@ -198,7 +201,9 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.name": "middleware - fastify -> @fastify/multipart"
+          },
           "links": [],
           "kind": "internal"
         }
@@ -253,7 +258,8 @@ mod tests {
           "data": {
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql"
+            "db.type": "sql",
+            "sentry.name": "database query"
           },
           "links": [],
           "kind": "client"
@@ -315,7 +321,8 @@ mod tests {
           "data": {
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-            "db.type": "sql"
+            "db.type": "sql",
+            "sentry.name": "database query"
           },
           "links": [],
           "kind": "client"
@@ -364,6 +371,7 @@ mod tests {
           "description": "GET /api/search?q=foobar",
           "data": {
             "http.request.method": "GET",
+            "sentry.name": "http client request",
             "url.path": "/api/search?q=foobar"
           },
           "links": [],
@@ -524,6 +532,7 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
+            "sentry.name": "myname",
             "sentry.op": "myop"
           },
           "links": [],
