@@ -96,6 +96,10 @@ def test_ourlog_extraction_with_otel_logs(
 
     timestamp_proto.FromSeconds(int(timestamp))
 
+    start_timestamp_nanos = int((start.timestamp() - 1) * 1e9)
+    end = datetime.now(timezone.utc)
+    end_timestamp_nanos = int((end.timestamp() + 1) * 1e9)
+
     expected_logs = [
         MessageToDict(
             TraceItem(
@@ -141,7 +145,13 @@ def test_ourlog_extraction_with_otel_logs(
         expected_log["itemId"] = log["itemId"]
         expected_log["received"] = time_within_delta()
 
-        # This field is set by Relay so we need to remove it
+        observed_timestamp_str = log["attributes"]["sentry.observed_timestamp_nanos"][
+            "stringValue"
+        ]
+        observed_timestamp = int(observed_timestamp_str)
+        assert observed_timestamp > 0
+        assert start_timestamp_nanos < observed_timestamp < end_timestamp_nanos
+
         del log["attributes"]["sentry.observed_timestamp_nanos"]
 
     assert logs == expected_logs
@@ -266,6 +276,10 @@ def test_ourlog_extraction_with_sentry_logs(
 
     relay.send_envelope(project_id, envelope)
 
+    start_timestamp_nanos = int((start.timestamp() - 1) * 1e9)
+    end = datetime.now(timezone.utc)
+    end_timestamp_nanos = int((end.timestamp() + 1) * 1e9)
+
     timestamp_nanos = int(timestamp * 1e6) * 1000
     timestamp_proto = Timestamp()
 
@@ -293,9 +307,6 @@ def test_ourlog_extraction_with_sentry_logs(
                     "sentry.severity_text": AnyValue(string_value="error"),
                     "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b175"),
                     "sentry.trace_flags": AnyValue(int_value=0),
-                    "sentry.observed_timestamp_nanos": AnyValue(
-                        string_value=str(timestamp_nanos)
-                    ),
                     "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
                     "sentry.timestamp_nanos": AnyValue(
                         string_value=str(timestamp_nanos)
@@ -328,9 +339,6 @@ def test_ourlog_extraction_with_sentry_logs(
                     "sentry.severity_text": AnyValue(string_value="info"),
                     "sentry.trace_flags": AnyValue(int_value=0),
                     "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b174"),
-                    "sentry.observed_timestamp_nanos": AnyValue(
-                        string_value=str(timestamp_nanos)
-                    ),
                     "string.attribute": AnyValue(string_value="some string"),
                     "valid_string_with_other": AnyValue(string_value="test"),
                     "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
@@ -348,10 +356,17 @@ def test_ourlog_extraction_with_sentry_logs(
     logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
     for log, expected_log in zip(logs, expected_logs):
-        # we can't generate uuid7 with a specific timestamp
-        # in Python just yet so we're overriding it
         expected_log["itemId"] = log["itemId"]
         expected_log["received"] = time_within_delta()
+
+        observed_timestamp_str = log["attributes"]["sentry.observed_timestamp_nanos"][
+            "stringValue"
+        ]
+        observed_timestamp = int(observed_timestamp_str)
+        assert observed_timestamp > 0
+        assert start_timestamp_nanos < observed_timestamp < end_timestamp_nanos
+
+        del log["attributes"]["sentry.observed_timestamp_nanos"]
 
     assert logs == expected_logs
 
@@ -383,6 +398,10 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
 
     relay.send_envelope(project_id, envelope)
 
+    start_timestamp_nanos = int((start.timestamp() - 1) * 1e9)
+    end = datetime.now(timezone.utc)
+    end_timestamp_nanos = int((end.timestamp() + 1) * 1e9)
+
     timestamp_nanos = int(timestamp * 1e6) * 1000
     timestamp_proto = Timestamp()
 
@@ -405,9 +424,6 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
                     "sentry.body": AnyValue(string_value="Example log record 2"),
                     "sentry.browser.name": AnyValue(string_value="Python Requests"),
                     "sentry.browser.version": AnyValue(string_value="2.32"),
-                    "sentry.observed_timestamp_nanos": AnyValue(
-                        string_value=str(timestamp_nanos)
-                    ),
                     "sentry.severity_number": AnyValue(int_value=13),
                     "sentry.severity_text": AnyValue(string_value="warn"),
                     "sentry.timestamp_nanos": AnyValue(
@@ -426,10 +442,17 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
 
     for log, expected_log in zip(logs, expected_logs):
-        # we can't generate uuid7 with a specific timestamp
-        # in Python just yet so we're overriding it
         expected_log["itemId"] = log["itemId"]
         expected_log["received"] = time_within_delta()
+
+        observed_timestamp_str = log["attributes"]["sentry.observed_timestamp_nanos"][
+            "stringValue"
+        ]
+        observed_timestamp = int(observed_timestamp_str)
+        assert observed_timestamp > 0
+        assert start_timestamp_nanos < observed_timestamp < end_timestamp_nanos
+
+        del log["attributes"]["sentry.observed_timestamp_nanos"]
 
     assert logs == expected_logs
 
@@ -544,6 +567,10 @@ def test_browser_name_version_extraction(
 
     relay.send_envelope(project_id, envelope, headers={"User-Agent": user_agent})
 
+    start_timestamp_nanos = int((start.timestamp() - 1) * 1e9)
+    end = datetime.now(timezone.utc)
+    end_timestamp_nanos = int((end.timestamp() + 1) * 1e9)
+
     timestamp_nanos = int(timestamp * 1e6) * 1000
     timestamp_proto = Timestamp()
 
@@ -571,9 +598,6 @@ def test_browser_name_version_extraction(
                 "sentry.severity_text": AnyValue(string_value="error"),
                 "sentry.span_id": AnyValue(string_value="eee19b7ec3c1b175"),
                 "sentry.trace_flags": AnyValue(int_value=0),
-                "sentry.observed_timestamp_nanos": AnyValue(
-                    string_value=str(timestamp_nanos)
-                ),
                 "sentry.timestamp_precise": AnyValue(int_value=timestamp_nanos),
                 "sentry.timestamp_nanos": AnyValue(string_value=str(timestamp_nanos)),
             },
@@ -592,6 +616,15 @@ def test_browser_name_version_extraction(
     # in Python just yet so we're overriding it
     expected_log["itemId"] = log["itemId"]
     expected_log["received"] = time_within_delta()
+
+    observed_timestamp_str = log["attributes"]["sentry.observed_timestamp_nanos"][
+        "stringValue"
+    ]
+    observed_timestamp = int(observed_timestamp_str)
+    assert observed_timestamp > 0
+    assert start_timestamp_nanos < observed_timestamp < end_timestamp_nanos
+
+    del log["attributes"]["sentry.observed_timestamp_nanos"]
 
     assert log == expected_log
 

@@ -134,7 +134,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
-        insta::assert_debug_snapshot!(span_from_event, @r#"
+        insta::assert_debug_snapshot!(span_from_event, @r###"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -155,6 +155,7 @@ mod tests {
             ),
             data: SpanData {
                 app_start_type: ~,
+                gen_ai_request_max_tokens: ~,
                 gen_ai_usage_total_tokens: ~,
                 gen_ai_usage_input_tokens: ~,
                 gen_ai_usage_output_tokens: ~,
@@ -263,6 +264,6 @@ mod tests {
             _performance_issues_spans: ~,
             other: {},
         }
-        "#);
+        "###);
     }
 }
