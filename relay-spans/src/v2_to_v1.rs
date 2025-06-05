@@ -210,7 +210,8 @@ fn span_v2_link_to_span_v1_link(link: SpanV2Link) -> SpanLink {
 
 // TODO: Documentation
 fn derive_op_for_v2_span(span: &SpanV2) -> String {
-    let op = String::from("default");
+    // NOTE: `op` is not a required field in the SDK, so the fallback is an empty string.
+    let op = String::from("");
 
     let attributes = if let Some(attributes) = span.attributes.value() {
         attributes

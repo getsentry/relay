@@ -433,7 +433,7 @@ def envelope_with_spans(
                 bytes=json.dumps(
                     {
                         "description": r"test \" with \" escaped \" chars",
-                        "op": "default",
+                        "op": "",
                         "span_id": "cd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
                         "start_timestamp": start.timestamp(),
@@ -451,7 +451,7 @@ def envelope_with_spans(
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
-                        "op": "default",
+                        "op": "",
                         "span_id": "ed429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
                         "start_timestamp": start.timestamp(),
@@ -561,7 +561,7 @@ def envelope_with_transaction_and_spans(start: datetime, end: datetime) -> Envel
                         "start_timestamp": start.timestamp(),
                         "spans": [
                             {
-                                "op": "default",
+                                "op": "",
                                 "span_id": "968cff94913ebb07",
                                 "segment_id": "968cff94913ebb07",
                                 "start_timestamp": start.timestamp(),
@@ -767,7 +767,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "db",
-                "op": "my 1st otel span",
+                "op": "",
                 "status": "unknown",
             },
             "span_id": "a342abb1214ca181",
@@ -805,7 +805,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "db",
-                "op": "my 1st v2 span",
+                "op": "",
                 "status": "unknown",
             },
             "span_id": "a342abb1214ca182",
@@ -918,7 +918,7 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "968cff94913ebb07",
-            "sentry_tags": {"browser.name": "Chrome", "op": "default"},
+            "sentry_tags": {"browser.name": "Chrome", "op": ""},
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "start_timestamp_precise": start.timestamp(),
@@ -953,7 +953,7 @@ def test_span_ingestion(
             "segment_id": "d342abb1214ca182",
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "op": "my 2nd otel span",
+                "op": "",
                 "status": "unknown",
             },
             "span_id": "d342abb1214ca182",
@@ -980,7 +980,7 @@ def test_span_ingestion(
             "segment_id": "968cff94913ebb07",
             "sentry_tags": {
                 "browser.name": "Chrome",
-                "op": "default",
+                "op": "",
             },
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
@@ -1017,7 +1017,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "op": "my 3rd protobuf otel span",
+                "op": "",
                 "category": "ui",
                 "status": "unknown",
             },
@@ -1139,7 +1139,7 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "tags": {
-                "span.op": "default",
+                "span.op": "",
             },
             "timestamp": expected_timestamp + 1,
             "type": "d",
@@ -1255,7 +1255,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
             "retention_days": 90,
-            "tags": {"span.op": "default"},
+            "tags": {"span.op": ""},
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [345.0, 345.0],
@@ -2123,7 +2123,7 @@ def test_span_filtering_with_generic_inbound_filter(
                 bytes=json.dumps(
                     {
                         "description": "organizations/metrics/data",
-                        "op": "default",
+                        "op": "",
                         "span_id": "cd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
                         "start_timestamp": start.timestamp(),
