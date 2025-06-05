@@ -10,7 +10,7 @@
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>relay_system::Addr;
 <a href=#12 id=12 data-nosnippet>12</a>
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{CountFor, Envelope, Item};
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{Processed, ProcessingGroup};
@@ -252,7 +252,7 @@
 <a href=#252 id=252 data-nosnippet>252</a>            ItemAction::Keep =&gt; <span class="bool-val">true</span>,
 <a href=#253 id=253 data-nosnippet>253</a>            ItemAction::DropSilently =&gt; <span class="bool-val">false</span>,
 <a href=#254 id=254 data-nosnippet>254</a>            ItemAction::Drop(outcome) =&gt; {
-<a href=#255 id=255 data-nosnippet>255</a>                <span class="kw">for </span>(category, quantity) <span class="kw">in </span>item.quantities(CountFor::Outcomes) {
+<a href=#255 id=255 data-nosnippet>255</a>                <span class="kw">for </span>(category, quantity) <span class="kw">in </span>item.quantities() {
 <a href=#256 id=256 data-nosnippet>256</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(indexed) = category.index_category() {
 <a href=#257 id=257 data-nosnippet>257</a>                        outcomes.push((outcome.clone(), indexed, quantity));
 <a href=#258 id=258 data-nosnippet>258</a>                    };

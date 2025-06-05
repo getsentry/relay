@@ -12,7 +12,7 @@
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 <a href=#14 id=14 data-nosnippet>14</a>
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{CountFor, ItemType};
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{
 <a href=#18 id=18 data-nosnippet>18</a>    EventProcessing, Sampling, SpansExtracted, TransactionGroup, event_category,
@@ -131,7 +131,7 @@
 <a href=#131 id=131 data-nosnippet>131</a>        </span>.take_items_by(|item| <span class="kw-2">*</span>item.ty() != ItemType::Profile);
 <a href=#132 id=132 data-nosnippet>132</a>
 <a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">for </span>item <span class="kw">in </span>dropped_items {
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span>item.quantities(CountFor::Outcomes) {
+<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">for </span>(category, quantity) <span class="kw">in </span>item.quantities() {
 <a href=#135 id=135 data-nosnippet>135</a>            <span class="comment">// Dynamic sampling only drops indexed items. Upgrade the category to the index
 <a href=#136 id=136 data-nosnippet>136</a>            // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
 <a href=#137 id=137 data-nosnippet>137</a>            // but attachments are still emitted as attachments.
