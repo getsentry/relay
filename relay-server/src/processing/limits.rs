@@ -1,11 +1,14 @@
-use relay_quotas::{GlobalLimiter, ItemScoping, Quota, RateLimits};
+use relay_quotas::{ItemScoping, Quota, RateLimits};
 
 use crate::processing::Context;
+
+#[cfg(feature = "processing")]
 use crate::services::global_rate_limits::GlobalRateLimitsServiceHandle;
 
 // TODO: this may need a better name
 #[derive(Default)]
 pub struct QuotaRateLimiter {
+    #[cfg(feature = "processing")]
     redis: Option<relay_quotas::RedisRateLimiter<GlobalRateLimitsServiceHandle>>,
 }
 
@@ -13,11 +16,7 @@ impl QuotaRateLimiter {
     // TODO: maybe this should take a `&mut Managed<T>` or some variant of this
     // TODO: maybe this should return a result which can be applied to items, instead
     // of modifying in place?
-    pub async fn enforce_quotas<T>(
-        &self,
-        data: &mut T,
-        ctx: Context<'_>,
-    ) -> Result<RateLimits, T::Error>
+    pub async fn enforce_quotas<T>(&self, data: &mut T, ctx: Context<'_>) -> Result<(), T::Error>
     where
         T: RateLimited,
     {
@@ -27,17 +26,25 @@ impl QuotaRateLimiter {
         };
 
         // TODO: indexed/non-indexed special casing thing
-        let cached = CachedRateLimiter {
+        let limiter = CachedRateLimiter {
             cached: ctx.rate_limits,
             quotas,
         };
-        let redis = self.redis.as_ref().map(|redis| RedisRateLimiter {
-            redis: &redis,
-            quotas,
-        });
-        let limiter = CombinedRateLimiter(cached, redis);
 
-        data.enforce(limiter, ctx).await
+        #[cfg(feature = "processing")]
+        let limiter = {
+            let redis = self.redis.as_ref().map(|redis| redis::RedisRateLimiter {
+                redis: &redis,
+                quotas,
+            });
+            redis::CombinedRateLimiter(limiter, redis)
+        };
+
+        // TODO: `?` we need to emit outcomes here.
+        // TODO: the returned rate limits must be merged back, the limiter should take care of this
+        let _rate_limits = data.enforce(limiter, ctx).await?;
+
+        Ok(())
     }
 }
 
@@ -52,38 +59,44 @@ impl RateLimiter for CachedRateLimiter<'_> {
     }
 }
 
-struct RedisRateLimiter<'a, T> {
-    redis: &'a relay_quotas::RedisRateLimiter<T>,
-    quotas: CombinedQuotas<'a>,
-}
+#[cfg(feature = "processing")]
+mod redis {
+    use super::*;
+    use relay_quotas::GlobalLimiter;
 
-impl<T> RateLimiter for RedisRateLimiter<'_, T>
-where
-    T: GlobalLimiter,
-{
-    async fn try_consume(&self, scope: ItemScoping, quantity: usize) -> RateLimits {
-        // TODO: error case
-        self.redis
-            .is_rate_limited(self.quotas, scope, quantity, false)
-            .await
-            .unwrap()
+    pub struct RedisRateLimiter<'a, T> {
+        pub redis: &'a relay_quotas::RedisRateLimiter<T>,
+        pub quotas: CombinedQuotas<'a>,
     }
-}
 
-struct CombinedRateLimiter<T, S>(T, S);
-
-impl<T, S> RateLimiter for CombinedRateLimiter<T, S>
-where
-    T: RateLimiter,
-    S: RateLimiter,
-{
-    async fn try_consume(&self, scope: ItemScoping, quantity: usize) -> RateLimits {
-        let limits = self.0.try_consume(scope, quantity).await;
-        if !limits.is_empty() {
-            return limits;
+    impl<T> RateLimiter for RedisRateLimiter<'_, T>
+    where
+        T: GlobalLimiter,
+    {
+        async fn try_consume(&self, scope: ItemScoping, quantity: usize) -> RateLimits {
+            // TODO: error case
+            self.redis
+                .is_rate_limited(self.quotas, scope, quantity, false)
+                .await
+                .unwrap()
         }
+    }
 
-        self.1.try_consume(scope, quantity).await
+    pub struct CombinedRateLimiter<T, S>(pub T, pub S);
+
+    impl<T, S> RateLimiter for CombinedRateLimiter<T, S>
+    where
+        T: RateLimiter,
+        S: RateLimiter,
+    {
+        async fn try_consume(&self, scope: ItemScoping, quantity: usize) -> RateLimits {
+            let limits = self.0.try_consume(scope, quantity).await;
+            if !limits.is_empty() {
+                return limits;
+            }
+
+            self.1.try_consume(scope, quantity).await
+        }
     }
 }
 

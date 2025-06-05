@@ -7,7 +7,9 @@
 //! The processor service, will then do its actual work using the processing logic defined here.
 
 use std::convert::Infallible;
+use std::mem::ManuallyDrop;
 use std::net::IpAddr;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use relay_config::Config;
@@ -18,11 +20,13 @@ use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_system::Addr;
 use smallvec::SmallVec;
 
+use crate::Envelope;
 use crate::envelope::{CountFor, Item};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::ManagedEnvelope;
+use crate::services::test_store::TestStore;
+use crate::utils::{EnvelopeSummary, ManagedEnvelope};
 
 mod limits;
 pub mod logs;
@@ -40,7 +44,7 @@ pub trait Processor {
     /// A unit of work, the processor can process.
     type UnitOfWork: Counted;
     /// The result after processing a [`Self::UnitOfWork`].
-    type Output;
+    type Output: Forward;
     /// The error returned by [`Self::process`].
     ///
     /// Implementations should use specific errors, instead of returning
@@ -124,10 +128,18 @@ impl<T> Output<T> {
     }
 }
 
+pub trait Forward {
+    // TODO: document what should happen in an error case
+    // TODO: change the error type, it must contain information which outcomes to emit
+    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, ()>;
+}
+
 // TODO: this could be an enumap
+// TODO: this should probably be a new-type with the correct utilities to deal with indexed and
+// non-indexed categories
 pub type Quantities = SmallVec<[(DataCategory, usize); 1]>;
 
-trait CountedType {
+pub trait CountedType {
     fn quantities() -> Quantities;
 }
 
@@ -142,11 +154,14 @@ where
 
 impl CountedType for relay_event_schema::protocol::OurLog {
     fn quantities() -> Quantities {
-        todo!()
+        // TODO: log byte size (and this is why byte sizes suck)
+        smallvec::smallvec![(DataCategory::LogItem, 1)]
     }
 }
 
 pub trait Counted {
+    // TODO: better docs, what type of quantities ('Usage::RateLimits' or 'Usage::Outcomes')
+    /// This needs to be pure.
     fn quantities(&self) -> Quantities;
 }
 
@@ -158,16 +173,63 @@ impl Counted for () {
 
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
-        // TODO: figure out differences with rate limits and outcomes,
-        // ideally we get rid of this all-together.
-        self.quantities(CountFor::Outcomes)
+        // TODO: get rid of `CountFor`, this is currently just used for sessions to not emit
+        // outcomes, but this seems redundant and no longer necessary.
+        self.quantities(CountFor::RateLimits)
     }
 }
 
 // TODO: just temporary, until `RecordKeeper` has better signatures
 impl Counted for Annotated<relay_event_schema::protocol::OurLog> {
     fn quantities(&self) -> Quantities {
-        todo!()
+        // TODO: again, byte size
+        smallvec::smallvec![(DataCategory::LogItem, 1)]
+    }
+}
+
+impl Counted for Box<Envelope> {
+    fn quantities(&self) -> Quantities {
+        let mut quantities = Quantities::new();
+
+        // TODO: longterm, this can be moved into `EnvelopeSummary` after we figure out
+        // how indexed/non-indexed should behave. In this case here, we cannot generically
+        // emit for the indexed category because we specifically need to differentiate.
+        let summary = EnvelopeSummary::compute(&*self);
+        if let Some(category) = summary.event_category {
+            quantities.push((category, 1));
+            if let Some(category) = category.index_category() {
+                quantities.push((category, 1));
+            }
+        }
+
+        let data = [
+            (DataCategory::Attachment, summary.attachment_quantity),
+            (DataCategory::Profile, summary.profile_quantity),
+            (DataCategory::ProfileIndexed, summary.profile_quantity),
+            (DataCategory::Span, summary.span_quantity),
+            (DataCategory::SpanIndexed, summary.span_quantity),
+            (
+                DataCategory::Transaction,
+                summary.secondary_transaction_quantity,
+            ),
+            (DataCategory::Span, summary.secondary_span_quantity),
+            (DataCategory::Replay, summary.replay_quantity),
+            (DataCategory::ProfileChunk, summary.profile_chunk_quantity),
+            (
+                DataCategory::ProfileChunkUi,
+                summary.profile_chunk_ui_quantity,
+            ),
+            (DataCategory::LogItem, summary.log_item_quantity),
+            (DataCategory::LogByte, summary.log_byte_quantity),
+        ];
+
+        for (category, quantity) in data {
+            if quantity > 0 {
+                quantities.push((category, quantity));
+            }
+        }
+
+        quantities
     }
 }
 
@@ -192,34 +254,27 @@ where
 
 pub struct Managed<T: Counted> {
     value: T,
-    // TODO: store this stuff in an inner thing, maybe as Arc<Inner>
-    outcome_aggregator: Addr<TrackOutcome>,
-    // TODO: needs test_store here?
-    received_at: DateTime<Utc>,
-    scoping: Scoping,
-    event_id: Option<EventId>,
-    remote_addr: Option<IpAddr>,
+    meta: Arc<Meta>,
 }
 
 impl<T: Counted> Managed<T> {
     pub fn from_envelope(envelope: &ManagedEnvelope, value: T) -> Self {
         Self {
             value,
-            outcome_aggregator: todo!(),
-            received_at: todo!(),
-            scoping: todo!(),
-            event_id: todo!(),
-            remote_addr: todo!(),
+            meta: Arc::new(Meta {
+                outcome_aggregator: envelope.outcome_aggregator().clone(),
+                test_store: envelope.test_store().clone(),
+                received_at: envelope.received_at(),
+                scoping: envelope.scoping(),
+                event_id: envelope.envelope().event_id(),
+                remote_addr: envelope.meta().remote_addr(),
+            }),
         }
     }
 
     pub fn scoping(&self) -> Scoping {
-        self.scoping
+        self.meta.scoping
     }
-
-    // pub fn split(self) -> (T, Managed<()>) {
-    //     let other = self.wrap(());
-    // }
 
     pub fn wrap<S>(&self, other: S) -> Managed<S>
     where
@@ -227,11 +282,7 @@ impl<T: Counted> Managed<T> {
     {
         Managed {
             value: other,
-            outcome_aggregator: self.outcome_aggregator.clone(),
-            received_at: self.received_at,
-            scoping: self.scoping,
-            event_id: self.event_id,
-            remote_addr: self.remote_addr,
+            meta: Arc::clone(&self.meta),
         }
     }
 
@@ -250,12 +301,33 @@ impl<T: Counted> Managed<T> {
         F: FnOnce(T, &mut RecordKeeper) -> Result<S, E>,
         S: Counted,
     {
+        let (value, meta) = self.destructure();
+        let quantities = value.quantities();
+
+        let mut records = RecordKeeper::new(&meta, quantities);
+
+        // TODO: make sure there are no double outcomes produced,
+        // e.g. through multiple drop impls.
+        match f(value, &mut records) {
+            Ok(value) => {
+                records.success(value.quantities());
+                Ok(Managed { value, meta })
+            }
+            Err(err) => {
+                // Emit the original quantities as outcomes.
+                // TODO: this actually needs an outcome too, this somehow needs to be
+                // inferred from the error?
+                // TODO: this is obviously the wrong reason.
+                records.failure(Outcome::Invalid(DiscardReason::Cors));
+                Err(err)
+            }
+        }
+
         // TODO: take quantities before and after and validate the amount of emitted outcomes
-        todo!()
     }
 
     // TODO: this could be much nicer for iterated items, which need to be filtered
-    pub fn modify<F>(self, f: F)
+    pub fn modify<F>(&mut self, f: F)
     where
         F: FnOnce(&mut T, &mut RecordKeeper),
     {
@@ -263,30 +335,60 @@ impl<T: Counted> Managed<T> {
             .unwrap_or_else(|e| match e {})
     }
 
-    pub fn try_modify<F, E>(self, f: F) -> Result<(), E>
+    pub fn try_modify<F, E>(&mut self, f: F) -> Result<(), E>
     where
         F: FnOnce(&mut T, &mut RecordKeeper) -> Result<(), E>,
     {
-        // TODO: take quantities before and after and validate the amount of emitted outcomes
-        todo!()
+        let quantities = self.value.quantities();
+        let mut records = RecordKeeper::new(&self.meta, quantities);
+
+        match f(&mut self.value, &mut records) {
+            Ok(()) => {
+                records.success(self.value.quantities());
+                Ok(())
+            }
+            Err(err) => {
+                // TODO: fix this outcome, same as in `try_map`.
+                records.failure(Outcome::Invalid(DiscardReason::Cors));
+                Err(err)
+            }
+        }
     }
 
     pub fn reject(&mut self, outcome: Outcome) {
         for (category, quantity) in self.value.quantities() {
-            self.track_outcome(outcome.clone(), category, quantity);
+            self.meta.track_outcome(outcome.clone(), category, quantity);
         }
     }
 
-    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
-        self.outcome_aggregator.send(TrackOutcome {
-            timestamp: self.received_at,
-            scoping: self.scoping,
-            outcome,
-            event_id: self.event_id,
-            remote_addr: self.remote_addr,
-            category,
-            quantity: quantity.try_into().unwrap_or(u32::MAX),
-        });
+    /// Destructures this managed instance into its own parts.
+    ///
+    /// While destructured no outcomes will be emitted on drop.
+    fn destructure(self) -> (T, Arc<Meta>) {
+        // SAFETY: this follows an approach mentioned in the RFC
+        // <https://github.com/rust-lang/rfcs/pull/3466> to move fields out of
+        // a type with a drop implementation.
+        //
+        // The original type is wrapped in a manual drop to prevent running the
+        // drop handler, afterwards all fields are moved out of the type.
+        //
+        // And the original type is forgotten, destructuring the original type
+        // without running its drop implementation.
+        let this = ManuallyDrop::new(self);
+        let value = unsafe { std::ptr::read(&this.value) };
+        let meta = unsafe { std::ptr::read(&this.meta) };
+        (value, meta)
+    }
+}
+
+impl From<Managed<Box<Envelope>>> for ManagedEnvelope {
+    fn from(value: Managed<Box<Envelope>>) -> Self {
+        let (value, meta) = value.destructure();
+        ManagedEnvelope::new(
+            value,
+            meta.outcome_aggregator.clone(),
+            meta.test_store.clone(),
+        )
     }
 }
 
@@ -312,13 +414,104 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
     }
 }
 
+struct Meta {
+    /// Outcome aggregator service.
+    outcome_aggregator: Addr<TrackOutcome>,
+    /// Test store service address.
+    ///
+    /// Only used for `ManagedEnvelope` <-> `Managed<T>` conversions.
+    test_store: Addr<TestStore>,
+
+    // TODO: only the 2 above are actually immutable, maybe it makes sense to split
+    // the following fields out, to not arc them.
+    /// Received timestamp, when the contained payload/information was received.
+    ///
+    /// See also: [`crate::extractors::RequestMeta::received_at`].
+    received_at: DateTime<Utc>,
+    /// Data scoping information of the contained item.
+    scoping: Scoping,
+    /// Optional event id associated with the contained data.
+    event_id: Option<EventId>,
+    /// Optional remote addr from where the data was received from.
+    remote_addr: Option<IpAddr>,
+}
+
+impl Meta {
+    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+        self.outcome_aggregator.send(TrackOutcome {
+            timestamp: self.received_at,
+            scoping: self.scoping,
+            outcome,
+            event_id: self.event_id,
+            remote_addr: self.remote_addr,
+            category,
+            quantity: quantity.try_into().unwrap_or(u32::MAX),
+        });
+    }
+}
+
 // TODO: actually write these docs
 /// A thing that keeps outcomes (records) up to date, with what is happening.
-pub struct RecordKeeper {}
+pub struct RecordKeeper<'a> {
+    meta: &'a Meta,
+    on_drop: Quantities,
+    // TODO: this doesn't actually just need to be quantities,
+    // it also has to contain the outcomes to emit.
+    in_flight: Quantities,
+}
+
+impl<'a> RecordKeeper<'a> {
+    fn new(meta: &'a Meta, quantities: Quantities) -> Self {
+        Self {
+            meta,
+            on_drop: quantities,
+            in_flight: Default::default(),
+        }
+    }
+
+    /// Defuses the drop guard and emits outcomes for the original quantities provided.
+    fn failure(mut self, outcome: Outcome) {
+        for (category, quantity) in std::mem::take(&mut self.on_drop) {
+            self.meta.track_outcome(outcome.clone(), category, quantity);
+        }
+    }
+
+    /// Defuses the drop guard and emits the collected outcomes.
+    fn success(mut self, new: Quantities) {
+        // TODO: we can debug assert, validate that the quantities before - in_flight,
+        // equals the new quantities.
+
+        let original = std::mem::take(&mut self.on_drop);
+        // TODO: assert_debug_eq!(new + in_flight, original);
+
+        self.on_drop.clear();
+        for (category, quantity) in std::mem::take(&mut self.in_flight) {
+            self.meta.track_outcome(
+                // TODO: this is the wrong outcome, the signatures need to be changed
+                // to also contain outcomes.
+                Outcome::Invalid(DiscardReason::Internal),
+                category,
+                quantity,
+            );
+        }
+    }
+}
+
+impl<'a> Drop for RecordKeeper<'a> {
+    fn drop(&mut self) {
+        for (category, quantity) in std::mem::take(&mut self.on_drop) {
+            self.meta.track_outcome(
+                Outcome::Invalid(DiscardReason::Internal),
+                category,
+                quantity,
+            );
+        }
+    }
+}
 
 // TODO: maybe some of these could be Result extensions
 // TODO: quantities is not enough, we need outcomes here (an outcome reason)
-impl RecordKeeper {
+impl RecordKeeper<'_> {
     pub fn or_default<T, E, Q>(&mut self, r: Result<T, E>, q: Q) -> T
     where
         T: Default,
@@ -328,7 +521,7 @@ impl RecordKeeper {
             Ok(result) => result,
             Err(_) => {
                 let quantities = q.quantities();
-                // TODO: use those quantities
+                self.in_flight.extend_from_slice(&quantities);
                 T::default()
             }
         }
@@ -344,7 +537,7 @@ impl RecordKeeper {
             Ok(result) => f(result),
             Err(_) => {
                 let quantities = T::quantities();
-                // TODO: use those quantities
+                self.in_flight.extend_from_slice(&quantities);
             }
         }
     }
@@ -367,4 +560,4 @@ macro_rules! if_processing {
         }
     };
 }
-pub(self) use if_processing;
+use if_processing;
