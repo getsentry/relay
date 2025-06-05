@@ -16,10 +16,10 @@ pub fn feature_flag(ctx: Context<'_>) -> Result<(), ProcessingError> {
 pub fn sampled(ctx: Context<'_>) -> Result<(), ProcessingError> {
     let sample_rate = ctx.global_config.options.ourlogs_ingestion_sample_rate;
 
-    match sample_rate.map_or(true, sample) {
+    match sample_rate.is_none_or(sample) {
         // TODO: make it possible to filter with a proper error here.
         // TODO: we need to differentiate between silent and not silent
-        true => Err(ProcessingError::NoEventPayload),
-        false => Ok(()),
+        false => Err(ProcessingError::NoEventPayload),
+        true => Ok(()),
     }
 }

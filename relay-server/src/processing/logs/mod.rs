@@ -1,15 +1,17 @@
 use relay_event_schema::protocol::OurLog;
 use relay_quotas::{DataCategory, RateLimits};
 
-use crate::envelope::{ContainerItems, ItemType, Items};
+use crate::Envelope;
+use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ItemType, Items};
 use crate::processing::{
-    self, Context, Counted, Managed, Output, Quantities, QuotaRateLimiter, RateLimited,
+    self, Context, Counted, Forward, Managed, Output, Quantities, QuotaRateLimiter, RateLimited,
     RateLimiter, if_processing,
 };
 use crate::services::processor::ProcessingError;
 use crate::utils::ManagedEnvelope;
 
 mod filter;
+#[cfg(feature = "processing")]
 mod process;
 mod validate;
 
@@ -34,6 +36,8 @@ impl processing::Processor for LogsProcessor {
         &self,
         envelope: &mut ManagedEnvelope,
     ) -> Option<Managed<Self::UnitOfWork>> {
+        let headers = envelope.envelope().headers().clone();
+
         let otel_logs = envelope
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLog));
@@ -41,7 +45,11 @@ impl processing::Processor for LogsProcessor {
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::Log));
 
-        let work = EinsLog { otel_logs, logs };
+        let work = EinsLog {
+            headers,
+            otel_logs,
+            logs,
+        };
         Some(Managed::from_envelope(envelope, work))
     }
 
@@ -50,16 +58,19 @@ impl processing::Processor for LogsProcessor {
         mut work: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, ProcessingError> {
+        // TODO: here are the wrong outcomes emitted (only through the Drop -> Invalid(Internal))
+        // There could be a Rejected() error which can only be obtained from the Managed<>
+        // And the trait only allows Rejected<T> to bubble up.
         validate::container(&work, ctx)?;
 
         filter::feature_flag(ctx)?;
         filter::sampled(ctx)?;
 
-        self.limiter.enforce_quotas(&mut work, ctx);
+        self.limiter.enforce_quotas(&mut work, ctx).await?;
 
         if_processing!(ctx, {
-            let work = process::expand(work)?;
-            process::process(work, ctx)?;
+            let mut work = process::expand(work)?;
+            process::process(&mut work, ctx)?;
 
             Ok(Output::just(work.into()))
         } else {
@@ -68,7 +79,7 @@ impl processing::Processor for LogsProcessor {
     }
 }
 
-enum LogOutput {
+pub enum LogOutput {
     NotProcessed(Managed<EinsLog>),
     Processed(Managed<ZweiLog>),
 }
@@ -85,7 +96,20 @@ impl From<Managed<ZweiLog>> for LogOutput {
     }
 }
 
-struct EinsLog {
+impl Forward for LogOutput {
+    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, ()> {
+        let logs = match self {
+            Self::NotProcessed(logs) => logs,
+            Self::Processed(logs) => logs.try_map(|logs, _| logs.serialize())?,
+        };
+
+        Ok(logs.map(|logs, _| logs.serialize_envelope()))
+    }
+}
+
+pub struct EinsLog {
+    headers: EnvelopeHeaders,
+
     /// Otel Logs are not sent in containers, an envelope is very likely to contain multiple otel logs.
     otel_logs: Items,
     /// Logs are sent in item containers, there is specified limit of a single container per
@@ -96,9 +120,32 @@ struct EinsLog {
     logs: Items,
 }
 
+impl EinsLog {
+    fn serialize_envelope(self) -> Box<Envelope> {
+        let mut items = self.logs;
+        items.extend(self.otel_logs);
+        Envelope::from_parts(self.headers, items)
+    }
+
+    fn items(&self) -> impl Iterator<Item = &Item> {
+        self.otel_logs.iter().chain(self.logs.iter())
+    }
+
+    fn count(&self) -> usize {
+        self.items()
+            .map(|item| item.item_count().unwrap_or(1) as usize)
+            .sum()
+    }
+}
+
 impl Counted for EinsLog {
     fn quantities(&self) -> Quantities {
-        todo!()
+        let bytes = self.items().map(|item| item.len()).sum();
+
+        smallvec::smallvec![
+            (DataCategory::LogItem, self.count()),
+            (DataCategory::LogByte, bytes)
+        ]
     }
 }
 
@@ -146,12 +193,32 @@ impl RateLimited for Managed<EinsLog> {
     }
 }
 
-struct ZweiLog {
+pub struct ZweiLog {
+    headers: EnvelopeHeaders,
     logs: ContainerItems<OurLog>,
 }
 
 impl Counted for ZweiLog {
     fn quantities(&self) -> Quantities {
-        todo!()
+        // TODO: bytes are missing here
+        smallvec::smallvec![(DataCategory::LogItem, 1)]
+    }
+}
+
+impl ZweiLog {
+    // TODO: error type
+    fn serialize(self) -> Result<EinsLog, ()> {
+        let mut item = Item::new(ItemType::Log);
+
+        ItemContainer::from(self.logs)
+            .write_to(&mut item)
+            .inspect_err(|err| relay_log::debug!("failed to serialize logs: {err}"))
+            .map_err(drop)?;
+
+        Ok(EinsLog {
+            headers: self.headers,
+            otel_logs: Default::default(),
+            logs: smallvec::smallvec![item],
+        })
     }
 }

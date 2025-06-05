@@ -45,7 +45,6 @@ use zstd::stream::Encoder as ZstdEncoder;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::http;
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
@@ -65,6 +64,7 @@ use crate::utils::{
     self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
     SamplingResult, TypedEnvelope,
 };
+use crate::{http, processing};
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
@@ -2267,6 +2267,14 @@ impl EnvelopeProcessorService {
             };
         }
 
+        let global_config = self.inner.global_config.current();
+        let ctx = processing::Context {
+            config: &self.inner.config,
+            global_config: &global_config,
+            project_info: &project_info,
+            rate_limits: &rate_limits,
+        };
+
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
@@ -2320,12 +2328,8 @@ impl EnvelopeProcessorService {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
             ProcessingGroup::Log => {
-                use crate::processing::{self, Processor as _};
+                use crate::processing::{self, Forward as _, Processor as _};
 
-                let ctx = processing::Context {
-                    project_info: &project_info,
-                    rate_limits: &rate_limits,
-                };
                 let processor = processing::logs::LogsProcessor::new();
                 let work = processor.prepare_envelope(&mut managed_envelope).expect(
                     "there must be work for the logs processor in the logs processing group",
@@ -2334,7 +2338,15 @@ impl EnvelopeProcessorService {
                     managed_envelope.envelope_mut().is_empty(),
                     "processing group should map 1:1 to processor"
                 );
-                processor.process(work, ctx).map_err(Into::into)
+                managed_envelope.reject(Outcome::RateLimited(None));
+
+                let x = processor.process(work, ctx).await.unwrap();
+
+                let managed_envelope = ManagedEnvelope::from(x.main.serialize_envelope().unwrap());
+                Ok(ProcessingResult {
+                    managed_envelope: managed_envelope.into_processed(),
+                    extracted_metrics: x.metrics,
+                })
             }
             ProcessingGroup::Span => run!(
                 process_standalone_spans,

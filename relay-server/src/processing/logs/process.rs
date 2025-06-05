@@ -1,10 +1,11 @@
 use relay_event_schema::protocol::OurLog;
 use relay_ourlogs::OtelLog;
 use relay_protocol::Annotated;
+use smallvec::SmallVec;
 
-use crate::envelope::{ContainerItems, ContainerParseError, CountFor, Item, ItemContainer};
+use crate::envelope::{ContainerItems, ContainerParseError, Item, ItemContainer};
 use crate::processing::logs::{EinsLog, ZweiLog};
-use crate::processing::{Counted, Managed, Quantities};
+use crate::processing::{Context, Managed};
 use crate::services::processor::ProcessingError;
 
 pub fn expand(logs: Managed<EinsLog>) -> Result<Managed<ZweiLog>, ProcessingError> {
@@ -14,15 +15,23 @@ pub fn expand(logs: Managed<EinsLog>) -> Result<Managed<ZweiLog>, ProcessingErro
     logs.try_map(|logs, records| {
         // TODO: loop over logs
         // TODO: error handling -> Outcomes for individual elements
-        let expanded = expand_log_container(&logs.logs[0]);
-        let mut expanded = records.or_default(expanded, &logs.logs[0]);
+        let mut all_logs = SmallVec::with_capacity(logs.count());
 
-        expanded.reserve_exact(logs.otel_logs.len());
-        for otel_log in logs.otel_logs {
-            records.with(expand_otel_log(&otel_log), |log| expanded.push(log));
+        for logs in logs.logs {
+            let expanded = expand_log_container(&logs);
+            let expanded = records.or_default(expanded, logs);
+            all_logs.extend(expanded);
         }
 
-        Ok(ZweiLog { logs: expanded })
+        all_logs.reserve_exact(logs.otel_logs.len());
+        for otel_log in logs.otel_logs {
+            records.with(expand_otel_log(&otel_log), |log| all_logs.push(log));
+        }
+
+        Ok(ZweiLog {
+            headers: logs.headers,
+            logs: all_logs,
+        })
     })
 }
 
@@ -57,7 +66,7 @@ fn expand_log_container(item: &Item) -> Result<ContainerItems<OurLog>, Container
     Ok(logs)
 }
 
-pub fn process(logs: Managed<ZweiLog>, ctx: Context<'_>) -> Result<(), ProcessingError> {
+pub fn process(logs: &mut Managed<ZweiLog>, _ctx: Context<'_>) -> Result<(), ProcessingError> {
     // TODO: some signature that allows to directly retain items seems thinkable
     logs.modify(|logs, records| {
         logs.logs
@@ -68,21 +77,21 @@ pub fn process(logs: Managed<ZweiLog>, ctx: Context<'_>) -> Result<(), Processin
 }
 
 fn process_log(log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
-    scrub(log).inspect_err(|err| {
-        relay_log::debug!("failed to scrub pii from log: {err}");
-    })?;
-
-    normalize(log).inspect_err(|err| {
-        relay_log::debug!("failed to normalize log: {err}");
-    })?;
+    // scrub(log).inspect_err(|err| {
+    //     relay_log::debug!("failed to scrub pii from log: {err}");
+    // })?;
+    //
+    // normalize(log).inspect_err(|err| {
+    //     relay_log::debug!("failed to normalize log: {err}");
+    // })?;
 
     Ok(())
 }
 
-fn normalize(log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
+fn normalize(_log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
     todo!()
 }
 
-fn scrub(log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
+fn scrub(_log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
     todo!()
 }
