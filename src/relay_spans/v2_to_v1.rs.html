@@ -68,503 +68,505 @@
 <a href=#68 id=68 data-nosnippet>68</a>                exclusive_time_ms = value / <span class="number">1e6f64</span>;
 <a href=#69 id=69 data-nosnippet>69</a>            }
 <a href=#70 id=70 data-nosnippet>70</a>            <span class="string">"http.status_code" </span>=&gt; {
-<a href=#71 id=71 data-nosnippet>71</a>                http_status_code = i64::from_value(value);
-<a href=#72 id=72 data-nosnippet>72</a>            }
-<a href=#73 id=73 data-nosnippet>73</a>            <span class="string">"rpc.grpc.status_code" </span>=&gt; {
-<a href=#74 id=74 data-nosnippet>74</a>                grpc_status_code = i64::from_value(value);
-<a href=#75 id=75 data-nosnippet>75</a>            }
-<a href=#76 id=76 data-nosnippet>76</a>            <span class="string">"sentry.platform" </span>=&gt; {
-<a href=#77 id=77 data-nosnippet>77</a>                platform = String::from_value(value);
-<a href=#78 id=78 data-nosnippet>78</a>            }
-<a href=#79 id=79 data-nosnippet>79</a>            <span class="string">"sentry.segment.id" </span>=&gt; {
-<a href=#80 id=80 data-nosnippet>80</a>                segment_id = SpanId::from_value(value);
-<a href=#81 id=81 data-nosnippet>81</a>            }
-<a href=#82 id=82 data-nosnippet>82</a>            <span class="string">"sentry.profile.id" </span>=&gt; {
-<a href=#83 id=83 data-nosnippet>83</a>                profile_id = EventId::from_value(value);
-<a href=#84 id=84 data-nosnippet>84</a>            }
-<a href=#85 id=85 data-nosnippet>85</a>            <span class="kw">_ </span>=&gt; {
-<a href=#86 id=86 data-nosnippet>86</a>                data.insert(key.to_owned(), value);
-<a href=#87 id=87 data-nosnippet>87</a>            }
-<a href=#88 id=88 data-nosnippet>88</a>        }
-<a href=#89 id=89 data-nosnippet>89</a>    }
-<a href=#90 id=90 data-nosnippet>90</a>
-<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">if </span>exclusive_time_ms == <span class="number">0f64 </span>{
-<a href=#92 id=92 data-nosnippet>92</a>        <span class="kw">if let </span>(<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) = (start_timestamp.value(), end_timestamp.value()) {
-<a href=#93 id=93 data-nosnippet>93</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(nanos) = (end.<span class="number">0 </span>- start.<span class="number">0</span>).num_nanoseconds() {
-<a href=#94 id=94 data-nosnippet>94</a>                exclusive_time_ms = nanos <span class="kw">as </span>f64 / <span class="number">1e6f64</span>;
-<a href=#95 id=95 data-nosnippet>95</a>            }
-<a href=#96 id=96 data-nosnippet>96</a>        }
-<a href=#97 id=97 data-nosnippet>97</a>    }
-<a href=#98 id=98 data-nosnippet>98</a>
-<a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">let </span>links = links.map_value(|links| {
-<a href=#100 id=100 data-nosnippet>100</a>        links
-<a href=#101 id=101 data-nosnippet>101</a>            .into_iter()
-<a href=#102 id=102 data-nosnippet>102</a>            .map(|link| link.map_value(span_v2_link_to_span_v1_link))
-<a href=#103 id=103 data-nosnippet>103</a>            .collect()
-<a href=#104 id=104 data-nosnippet>104</a>    });
-<a href=#105 id=105 data-nosnippet>105</a>
-<a href=#106 id=106 data-nosnippet>106</a>    <span class="kw">let </span>status = span_v2_status_to_span_v1_status(status, http_status_code, grpc_status_code);
+<a href=#71 id=71 data-nosnippet>71</a>                http_status_code = i64::from_value(value.clone());
+<a href=#72 id=72 data-nosnippet>72</a>                data.insert(key.to_owned(), value);
+<a href=#73 id=73 data-nosnippet>73</a>            }
+<a href=#74 id=74 data-nosnippet>74</a>            <span class="string">"rpc.grpc.status_code" </span>=&gt; {
+<a href=#75 id=75 data-nosnippet>75</a>                grpc_status_code = i64::from_value(value.clone());
+<a href=#76 id=76 data-nosnippet>76</a>                data.insert(key.to_owned(), value);
+<a href=#77 id=77 data-nosnippet>77</a>            }
+<a href=#78 id=78 data-nosnippet>78</a>            <span class="string">"sentry.platform" </span>=&gt; {
+<a href=#79 id=79 data-nosnippet>79</a>                platform = String::from_value(value);
+<a href=#80 id=80 data-nosnippet>80</a>            }
+<a href=#81 id=81 data-nosnippet>81</a>            <span class="string">"sentry.segment.id" </span>=&gt; {
+<a href=#82 id=82 data-nosnippet>82</a>                segment_id = SpanId::from_value(value);
+<a href=#83 id=83 data-nosnippet>83</a>            }
+<a href=#84 id=84 data-nosnippet>84</a>            <span class="string">"sentry.profile.id" </span>=&gt; {
+<a href=#85 id=85 data-nosnippet>85</a>                profile_id = EventId::from_value(value);
+<a href=#86 id=86 data-nosnippet>86</a>            }
+<a href=#87 id=87 data-nosnippet>87</a>            <span class="kw">_ </span>=&gt; {
+<a href=#88 id=88 data-nosnippet>88</a>                data.insert(key.to_owned(), value);
+<a href=#89 id=89 data-nosnippet>89</a>            }
+<a href=#90 id=90 data-nosnippet>90</a>        }
+<a href=#91 id=91 data-nosnippet>91</a>    }
+<a href=#92 id=92 data-nosnippet>92</a>
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">if </span>exclusive_time_ms == <span class="number">0f64 </span>{
+<a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">if let </span>(<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) = (start_timestamp.value(), end_timestamp.value()) {
+<a href=#95 id=95 data-nosnippet>95</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(nanos) = (end.<span class="number">0 </span>- start.<span class="number">0</span>).num_nanoseconds() {
+<a href=#96 id=96 data-nosnippet>96</a>                exclusive_time_ms = nanos <span class="kw">as </span>f64 / <span class="number">1e6f64</span>;
+<a href=#97 id=97 data-nosnippet>97</a>            }
+<a href=#98 id=98 data-nosnippet>98</a>        }
+<a href=#99 id=99 data-nosnippet>99</a>    }
+<a href=#100 id=100 data-nosnippet>100</a>
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">let </span>links = links.map_value(|links| {
+<a href=#102 id=102 data-nosnippet>102</a>        links
+<a href=#103 id=103 data-nosnippet>103</a>            .into_iter()
+<a href=#104 id=104 data-nosnippet>104</a>            .map(|link| link.map_value(span_v2_link_to_span_v1_link))
+<a href=#105 id=105 data-nosnippet>105</a>            .collect()
+<a href=#106 id=106 data-nosnippet>106</a>    });
 <a href=#107 id=107 data-nosnippet>107</a>
-<a href=#108 id=108 data-nosnippet>108</a>    SpanV1 {
-<a href=#109 id=109 data-nosnippet>109</a>        op: name,
-<a href=#110 id=110 data-nosnippet>110</a>        description,
-<a href=#111 id=111 data-nosnippet>111</a>        data: SpanData::from_value(Annotated::new(data.into())),
-<a href=#112 id=112 data-nosnippet>112</a>        exclusive_time: exclusive_time_ms.into(),
-<a href=#113 id=113 data-nosnippet>113</a>        parent_span_id,
-<a href=#114 id=114 data-nosnippet>114</a>        segment_id,
-<a href=#115 id=115 data-nosnippet>115</a>        span_id,
-<a href=#116 id=116 data-nosnippet>116</a>        is_remote,
-<a href=#117 id=117 data-nosnippet>117</a>        profile_id,
-<a href=#118 id=118 data-nosnippet>118</a>        start_timestamp,
-<a href=#119 id=119 data-nosnippet>119</a>        status,
-<a href=#120 id=120 data-nosnippet>120</a>        timestamp: end_timestamp,
-<a href=#121 id=121 data-nosnippet>121</a>        trace_id,
-<a href=#122 id=122 data-nosnippet>122</a>        platform,
-<a href=#123 id=123 data-nosnippet>123</a>        kind: kind.map_value(span_v2_kind_to_span_v1_kind),
-<a href=#124 id=124 data-nosnippet>124</a>        links,
-<a href=#125 id=125 data-nosnippet>125</a>        ..Default::default()
-<a href=#126 id=126 data-nosnippet>126</a>    }
-<a href=#127 id=127 data-nosnippet>127</a>}
-<a href=#128 id=128 data-nosnippet>128</a>
-<a href=#129 id=129 data-nosnippet>129</a><span class="kw">fn </span>span_v2_status_to_span_v1_status(
-<a href=#130 id=130 data-nosnippet>130</a>    status: Annotated&lt;SpanV2Status&gt;,
-<a href=#131 id=131 data-nosnippet>131</a>    http_status_code: Annotated&lt;i64&gt;,
-<a href=#132 id=132 data-nosnippet>132</a>    grpc_status_code: Annotated&lt;i64&gt;,
-<a href=#133 id=133 data-nosnippet>133</a>) -&gt; Annotated&lt;SpanStatus&gt; {
-<a href=#134 id=134 data-nosnippet>134</a>    status
-<a href=#135 id=135 data-nosnippet>135</a>        .and_then(|status| (status == SpanV2Status::Ok).then_some(SpanStatus::Ok))
-<a href=#136 id=136 data-nosnippet>136</a>        .or_else(|| {
-<a href=#137 id=137 data-nosnippet>137</a>            http_status_code.and_then(|http_status_code| {
-<a href=#138 id=138 data-nosnippet>138</a>                status_codes::HTTP
-<a href=#139 id=139 data-nosnippet>139</a>                    .get(<span class="kw-2">&amp;</span>http_status_code)
-<a href=#140 id=140 data-nosnippet>140</a>                    .and_then(|sentry_status| SpanStatus::from_str(sentry_status).ok())
-<a href=#141 id=141 data-nosnippet>141</a>            })
-<a href=#142 id=142 data-nosnippet>142</a>        })
-<a href=#143 id=143 data-nosnippet>143</a>        .or_else(|| {
-<a href=#144 id=144 data-nosnippet>144</a>            grpc_status_code.and_then(|grpc_status_code| {
-<a href=#145 id=145 data-nosnippet>145</a>                status_codes::GRPC
-<a href=#146 id=146 data-nosnippet>146</a>                    .get(<span class="kw-2">&amp;</span>grpc_status_code)
-<a href=#147 id=147 data-nosnippet>147</a>                    .and_then(|sentry_status| SpanStatus::from_str(sentry_status).ok())
-<a href=#148 id=148 data-nosnippet>148</a>            })
-<a href=#149 id=149 data-nosnippet>149</a>        })
-<a href=#150 id=150 data-nosnippet>150</a>        .or_else(|| Annotated::new(SpanStatus::Unknown))
-<a href=#151 id=151 data-nosnippet>151</a>}
-<a href=#152 id=152 data-nosnippet>152</a>
-<a href=#153 id=153 data-nosnippet>153</a><span class="kw">fn </span>span_v2_kind_to_span_v1_kind(kind: SpanV2Kind) -&gt; SpanKind {
-<a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">match </span>kind {
-<a href=#155 id=155 data-nosnippet>155</a>        SpanV2Kind::Internal =&gt; SpanKind::Internal,
-<a href=#156 id=156 data-nosnippet>156</a>        SpanV2Kind::Server =&gt; SpanKind::Server,
-<a href=#157 id=157 data-nosnippet>157</a>        SpanV2Kind::Client =&gt; SpanKind::Client,
-<a href=#158 id=158 data-nosnippet>158</a>        SpanV2Kind::Producer =&gt; SpanKind::Producer,
-<a href=#159 id=159 data-nosnippet>159</a>        SpanV2Kind::Consumer =&gt; SpanKind::Consumer,
-<a href=#160 id=160 data-nosnippet>160</a>    }
-<a href=#161 id=161 data-nosnippet>161</a>}
-<a href=#162 id=162 data-nosnippet>162</a>
-<a href=#163 id=163 data-nosnippet>163</a><span class="kw">fn </span>span_v2_link_to_span_v1_link(link: SpanV2Link) -&gt; SpanLink {
-<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">let </span>SpanV2Link {
-<a href=#165 id=165 data-nosnippet>165</a>        trace_id,
-<a href=#166 id=166 data-nosnippet>166</a>        span_id,
-<a href=#167 id=167 data-nosnippet>167</a>        sampled,
-<a href=#168 id=168 data-nosnippet>168</a>        attributes,
-<a href=#169 id=169 data-nosnippet>169</a>        other,
-<a href=#170 id=170 data-nosnippet>170</a>    } = link;
-<a href=#171 id=171 data-nosnippet>171</a>
-<a href=#172 id=172 data-nosnippet>172</a>    <span class="kw">let </span>attributes = attributes.map_value(|attributes| {
-<a href=#173 id=173 data-nosnippet>173</a>        attributes
-<a href=#174 id=174 data-nosnippet>174</a>            .into_iter()
-<a href=#175 id=175 data-nosnippet>175</a>            .map(|(key, attribute)| {
-<a href=#176 id=176 data-nosnippet>176</a>                (
-<a href=#177 id=177 data-nosnippet>177</a>                    key,
-<a href=#178 id=178 data-nosnippet>178</a>                    attribute.and_then(|attribute| attribute.value.value.into_value()),
-<a href=#179 id=179 data-nosnippet>179</a>                )
-<a href=#180 id=180 data-nosnippet>180</a>            })
-<a href=#181 id=181 data-nosnippet>181</a>            .collect()
-<a href=#182 id=182 data-nosnippet>182</a>    });
-<a href=#183 id=183 data-nosnippet>183</a>    SpanLink {
-<a href=#184 id=184 data-nosnippet>184</a>        trace_id,
-<a href=#185 id=185 data-nosnippet>185</a>        span_id,
-<a href=#186 id=186 data-nosnippet>186</a>        sampled,
-<a href=#187 id=187 data-nosnippet>187</a>        attributes,
-<a href=#188 id=188 data-nosnippet>188</a>        other,
-<a href=#189 id=189 data-nosnippet>189</a>    }
-<a href=#190 id=190 data-nosnippet>190</a>}
-<a href=#191 id=191 data-nosnippet>191</a>
-<a href=#192 id=192 data-nosnippet>192</a><span class="attr">#[cfg(test)]
-<a href=#193 id=193 data-nosnippet>193</a></span><span class="kw">mod </span>tests {
-<a href=#194 id=194 data-nosnippet>194</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#195 id=195 data-nosnippet>195</a>    <span class="kw">use </span>relay_protocol::SerializableAnnotated;
-<a href=#196 id=196 data-nosnippet>196</a>
-<a href=#197 id=197 data-nosnippet>197</a>    <span class="attr">#[test]
-<a href=#198 id=198 data-nosnippet>198</a>    </span><span class="kw">fn </span>parse_span() {
-<a href=#199 id=199 data-nosnippet>199</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#200 id=200 data-nosnippet>200</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#201 id=201 data-nosnippet>201</a>            "span_id": "e342abb1214ca181",
-<a href=#202 id=202 data-nosnippet>202</a>            "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#203 id=203 data-nosnippet>203</a>            "name": "middleware - fastify -&gt; @fastify/multipart",
-<a href=#204 id=204 data-nosnippet>204</a>            "kind": "internal",
-<a href=#205 id=205 data-nosnippet>205</a>            "start_timestamp": "2023-10-18T09:14:14.980Z",
-<a href=#206 id=206 data-nosnippet>206</a>            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
-<a href=#207 id=207 data-nosnippet>207</a>            "links": [],
-<a href=#208 id=208 data-nosnippet>208</a>            "attributes": {
-<a href=#209 id=209 data-nosnippet>209</a>                "sentry.environment": {
-<a href=#210 id=210 data-nosnippet>210</a>                    "value": "test",
-<a href=#211 id=211 data-nosnippet>211</a>                    "type": "string"
-<a href=#212 id=212 data-nosnippet>212</a>                },
-<a href=#213 id=213 data-nosnippet>213</a>                "fastify.type": {
-<a href=#214 id=214 data-nosnippet>214</a>                    "value": "middleware",
-<a href=#215 id=215 data-nosnippet>215</a>                    "type": "string"
-<a href=#216 id=216 data-nosnippet>216</a>                },
-<a href=#217 id=217 data-nosnippet>217</a>                "plugin.name": {
-<a href=#218 id=218 data-nosnippet>218</a>                    "value": "fastify -&gt; @fastify/multipart",
-<a href=#219 id=219 data-nosnippet>219</a>                    "type": "string"
-<a href=#220 id=220 data-nosnippet>220</a>                },
-<a href=#221 id=221 data-nosnippet>221</a>                "hook.name": { 
-<a href=#222 id=222 data-nosnippet>222</a>                    "value": "onResponse",
-<a href=#223 id=223 data-nosnippet>223</a>                    "type": "string"
-<a href=#224 id=224 data-nosnippet>224</a>                },
-<a href=#225 id=225 data-nosnippet>225</a>                "sentry.sample_rate": {
-<a href=#226 id=226 data-nosnippet>226</a>                    "value": 1,
-<a href=#227 id=227 data-nosnippet>227</a>                    "type": "u64"
-<a href=#228 id=228 data-nosnippet>228</a>                },
-<a href=#229 id=229 data-nosnippet>229</a>                "sentry.parentSampled": {
-<a href=#230 id=230 data-nosnippet>230</a>                    "value": true,
-<a href=#231 id=231 data-nosnippet>231</a>                    "type": "boolean"
-<a href=#232 id=232 data-nosnippet>232</a>                },
-<a href=#233 id=233 data-nosnippet>233</a>                "sentry.exclusive_time_nano": {
-<a href=#234 id=234 data-nosnippet>234</a>                    "value": "1000000000",
-<a href=#235 id=235 data-nosnippet>235</a>                    "type": "u64"
-<a href=#236 id=236 data-nosnippet>236</a>                }
-<a href=#237 id=237 data-nosnippet>237</a>            },
-<a href=#238 id=238 data-nosnippet>238</a>            "status": "ok",
-<a href=#239 id=239 data-nosnippet>239</a>            "links": []
-<a href=#240 id=240 data-nosnippet>240</a>        }"#</span>;
-<a href=#241 id=241 data-nosnippet>241</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-<a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-<a href=#243 id=243 data-nosnippet>243</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
-<a href=#244 id=244 data-nosnippet>244</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#245 id=245 data-nosnippet>245</a>        {
-<a href=#246 id=246 data-nosnippet>246</a>          "timestamp": 1697620454.980079,
-<a href=#247 id=247 data-nosnippet>247</a>          "start_timestamp": 1697620454.98,
-<a href=#248 id=248 data-nosnippet>248</a>          "exclusive_time": 1000.0,
-<a href=#249 id=249 data-nosnippet>249</a>          "op": "middleware - fastify -&gt; @fastify/multipart",
-<a href=#250 id=250 data-nosnippet>250</a>          "span_id": "e342abb1214ca181",
-<a href=#251 id=251 data-nosnippet>251</a>          "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#252 id=252 data-nosnippet>252</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#253 id=253 data-nosnippet>253</a>          "status": "ok",
-<a href=#254 id=254 data-nosnippet>254</a>          "data": {
-<a href=#255 id=255 data-nosnippet>255</a>            "sentry.environment": "test",
-<a href=#256 id=256 data-nosnippet>256</a>            "fastify.type": "middleware",
-<a href=#257 id=257 data-nosnippet>257</a>            "hook.name": "onResponse",
-<a href=#258 id=258 data-nosnippet>258</a>            "plugin.name": "fastify -&gt; @fastify/multipart",
-<a href=#259 id=259 data-nosnippet>259</a>            "sentry.parentSampled": true,
-<a href=#260 id=260 data-nosnippet>260</a>            "sentry.sample_rate": 1
-<a href=#261 id=261 data-nosnippet>261</a>          },
-<a href=#262 id=262 data-nosnippet>262</a>          "links": [],
-<a href=#263 id=263 data-nosnippet>263</a>          "kind": "internal"
-<a href=#264 id=264 data-nosnippet>264</a>        }
-<a href=#265 id=265 data-nosnippet>265</a>        "###</span>);
-<a href=#266 id=266 data-nosnippet>266</a>    }
-<a href=#267 id=267 data-nosnippet>267</a>
-<a href=#268 id=268 data-nosnippet>268</a>    <span class="attr">#[test]
-<a href=#269 id=269 data-nosnippet>269</a>    </span><span class="kw">fn </span>parse_span_with_exclusive_time_nano_attribute() {
-<a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#271 id=271 data-nosnippet>271</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#272 id=272 data-nosnippet>272</a>            "span_id": "e342abb1214ca181",
-<a href=#273 id=273 data-nosnippet>273</a>            "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#274 id=274 data-nosnippet>274</a>            "name": "middleware - fastify -&gt; @fastify/multipart",
-<a href=#275 id=275 data-nosnippet>275</a>            "kind": "internal",
-<a href=#276 id=276 data-nosnippet>276</a>            "start_timestamp": "2023-10-18T09:14:14.980Z",
-<a href=#277 id=277 data-nosnippet>277</a>            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
-<a href=#278 id=278 data-nosnippet>278</a>            "links": [],
-<a href=#279 id=279 data-nosnippet>279</a>            "attributes": {
-<a href=#280 id=280 data-nosnippet>280</a>                "sentry.exclusive_time_nano": {
-<a href=#281 id=281 data-nosnippet>281</a>                    "value": 3200000000,
-<a href=#282 id=282 data-nosnippet>282</a>                    "type": "u64"
-<a href=#283 id=283 data-nosnippet>283</a>                }
-<a href=#284 id=284 data-nosnippet>284</a>            }
-<a href=#285 id=285 data-nosnippet>285</a>        }"#</span>;
-<a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#290 id=290 data-nosnippet>290</a>        {
-<a href=#291 id=291 data-nosnippet>291</a>          "timestamp": 1697620454.980079,
-<a href=#292 id=292 data-nosnippet>292</a>          "start_timestamp": 1697620454.98,
-<a href=#293 id=293 data-nosnippet>293</a>          "exclusive_time": 3200.0,
-<a href=#294 id=294 data-nosnippet>294</a>          "op": "middleware - fastify -&gt; @fastify/multipart",
-<a href=#295 id=295 data-nosnippet>295</a>          "span_id": "e342abb1214ca181",
-<a href=#296 id=296 data-nosnippet>296</a>          "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#297 id=297 data-nosnippet>297</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#298 id=298 data-nosnippet>298</a>          "status": "unknown",
-<a href=#299 id=299 data-nosnippet>299</a>          "data": {},
-<a href=#300 id=300 data-nosnippet>300</a>          "links": [],
-<a href=#301 id=301 data-nosnippet>301</a>          "kind": "internal"
-<a href=#302 id=302 data-nosnippet>302</a>        }
-<a href=#303 id=303 data-nosnippet>303</a>        "###</span>);
-<a href=#304 id=304 data-nosnippet>304</a>    }
-<a href=#305 id=305 data-nosnippet>305</a>
-<a href=#306 id=306 data-nosnippet>306</a>    <span class="attr">#[test]
-<a href=#307 id=307 data-nosnippet>307</a>    </span><span class="kw">fn </span>parse_span_no_exclusive_time_nano_attribute() {
-<a href=#308 id=308 data-nosnippet>308</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#309 id=309 data-nosnippet>309</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#310 id=310 data-nosnippet>310</a>            "span_id": "e342abb1214ca181",
-<a href=#311 id=311 data-nosnippet>311</a>            "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#312 id=312 data-nosnippet>312</a>            "name": "middleware - fastify -&gt; @fastify/multipart",
-<a href=#313 id=313 data-nosnippet>313</a>            "kind": "internal",
-<a href=#314 id=314 data-nosnippet>314</a>            "start_timestamp": "2023-10-18T09:14:14.980Z",
-<a href=#315 id=315 data-nosnippet>315</a>            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
-<a href=#316 id=316 data-nosnippet>316</a>            "links": []
-<a href=#317 id=317 data-nosnippet>317</a>        }"#</span>;
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
-<a href=#321 id=321 data-nosnippet>321</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#322 id=322 data-nosnippet>322</a>        {
-<a href=#323 id=323 data-nosnippet>323</a>          "timestamp": 1697620454.980079,
-<a href=#324 id=324 data-nosnippet>324</a>          "start_timestamp": 1697620454.98,
-<a href=#325 id=325 data-nosnippet>325</a>          "exclusive_time": 0.0788,
-<a href=#326 id=326 data-nosnippet>326</a>          "op": "middleware - fastify -&gt; @fastify/multipart",
-<a href=#327 id=327 data-nosnippet>327</a>          "span_id": "e342abb1214ca181",
-<a href=#328 id=328 data-nosnippet>328</a>          "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#329 id=329 data-nosnippet>329</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#330 id=330 data-nosnippet>330</a>          "status": "unknown",
-<a href=#331 id=331 data-nosnippet>331</a>          "data": {},
-<a href=#332 id=332 data-nosnippet>332</a>          "links": [],
-<a href=#333 id=333 data-nosnippet>333</a>          "kind": "internal"
-<a href=#334 id=334 data-nosnippet>334</a>        }
-<a href=#335 id=335 data-nosnippet>335</a>        "###</span>);
-<a href=#336 id=336 data-nosnippet>336</a>    }
-<a href=#337 id=337 data-nosnippet>337</a>
-<a href=#338 id=338 data-nosnippet>338</a>    <span class="attr">#[test]
-<a href=#339 id=339 data-nosnippet>339</a>    </span><span class="kw">fn </span>parse_sentry_attributes() {
-<a href=#340 id=340 data-nosnippet>340</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#341 id=341 data-nosnippet>341</a>            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#342 id=342 data-nosnippet>342</a>            "span_id": "fa90fdead5f74052",
-<a href=#343 id=343 data-nosnippet>343</a>            "parent_span_id": "fa90fdead5f74051",
-<a href=#344 id=344 data-nosnippet>344</a>            "start_timestamp": 123,
-<a href=#345 id=345 data-nosnippet>345</a>            "end_timestamp": 123.5,
-<a href=#346 id=346 data-nosnippet>346</a>            "name": "myname",
-<a href=#347 id=347 data-nosnippet>347</a>            "status": "ok",
-<a href=#348 id=348 data-nosnippet>348</a>            "links": [],
-<a href=#349 id=349 data-nosnippet>349</a>            "attributes": {
-<a href=#350 id=350 data-nosnippet>350</a>                "browser.name": {
-<a href=#351 id=351 data-nosnippet>351</a>                    "value": "Chrome",
-<a href=#352 id=352 data-nosnippet>352</a>                    "type": "string"
-<a href=#353 id=353 data-nosnippet>353</a>                },
-<a href=#354 id=354 data-nosnippet>354</a>                "sentry.description": {
-<a href=#355 id=355 data-nosnippet>355</a>                    "value": "mydescription",
-<a href=#356 id=356 data-nosnippet>356</a>                    "type": "string"
-<a href=#357 id=357 data-nosnippet>357</a>                },
-<a href=#358 id=358 data-nosnippet>358</a>                "sentry.environment": {
-<a href=#359 id=359 data-nosnippet>359</a>                    "value": "prod",
-<a href=#360 id=360 data-nosnippet>360</a>                    "type": "string"
-<a href=#361 id=361 data-nosnippet>361</a>                },
-<a href=#362 id=362 data-nosnippet>362</a>                "sentry.op": {
-<a href=#363 id=363 data-nosnippet>363</a>                    "value": "myop",
-<a href=#364 id=364 data-nosnippet>364</a>                    "type": "string"
-<a href=#365 id=365 data-nosnippet>365</a>                },
-<a href=#366 id=366 data-nosnippet>366</a>                "sentry.platform": {
-<a href=#367 id=367 data-nosnippet>367</a>                    "value": "php",
-<a href=#368 id=368 data-nosnippet>368</a>                    "type": "string"
-<a href=#369 id=369 data-nosnippet>369</a>                },
-<a href=#370 id=370 data-nosnippet>370</a>                "sentry.profile.id": {
-<a href=#371 id=371 data-nosnippet>371</a>                    "value": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
-<a href=#372 id=372 data-nosnippet>372</a>                    "type": "string"
-<a href=#373 id=373 data-nosnippet>373</a>                },
-<a href=#374 id=374 data-nosnippet>374</a>                "sentry.release": {
-<a href=#375 id=375 data-nosnippet>375</a>                    "value": "myapp@1.0.0",
-<a href=#376 id=376 data-nosnippet>376</a>                    "type": "string"
-<a href=#377 id=377 data-nosnippet>377</a>                },
-<a href=#378 id=378 data-nosnippet>378</a>                "sentry.sdk.name": {
-<a href=#379 id=379 data-nosnippet>379</a>                    "value": "sentry.php",
-<a href=#380 id=380 data-nosnippet>380</a>                    "type": "string"
-<a href=#381 id=381 data-nosnippet>381</a>                },
-<a href=#382 id=382 data-nosnippet>382</a>                "sentry.segment.id": {
-<a href=#383 id=383 data-nosnippet>383</a>                    "value": "FA90FDEAD5F74052",
-<a href=#384 id=384 data-nosnippet>384</a>                    "type": "string"
-<a href=#385 id=385 data-nosnippet>385</a>                },
-<a href=#386 id=386 data-nosnippet>386</a>                "sentry.segment.name": {
-<a href=#387 id=387 data-nosnippet>387</a>                    "value": "my 1st transaction",
-<a href=#388 id=388 data-nosnippet>388</a>                    "type": "string"
-<a href=#389 id=389 data-nosnippet>389</a>                }
-<a href=#390 id=390 data-nosnippet>390</a>            }
-<a href=#391 id=391 data-nosnippet>391</a>        }"#</span>;
-<a href=#392 id=392 data-nosnippet>392</a>
-<a href=#393 id=393 data-nosnippet>393</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-<a href=#394 id=394 data-nosnippet>394</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-<a href=#395 id=395 data-nosnippet>395</a>
-<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
-<a href=#397 id=397 data-nosnippet>397</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#398 id=398 data-nosnippet>398</a>        {
-<a href=#399 id=399 data-nosnippet>399</a>          "timestamp": 123.5,
-<a href=#400 id=400 data-nosnippet>400</a>          "start_timestamp": 123.0,
-<a href=#401 id=401 data-nosnippet>401</a>          "exclusive_time": 500.0,
-<a href=#402 id=402 data-nosnippet>402</a>          "op": "myname",
-<a href=#403 id=403 data-nosnippet>403</a>          "span_id": "fa90fdead5f74052",
-<a href=#404 id=404 data-nosnippet>404</a>          "parent_span_id": "fa90fdead5f74051",
-<a href=#405 id=405 data-nosnippet>405</a>          "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#406 id=406 data-nosnippet>406</a>          "segment_id": "fa90fdead5f74052",
-<a href=#407 id=407 data-nosnippet>407</a>          "status": "ok",
-<a href=#408 id=408 data-nosnippet>408</a>          "description": "mydescription",
-<a href=#409 id=409 data-nosnippet>409</a>          "profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
-<a href=#410 id=410 data-nosnippet>410</a>          "data": {
-<a href=#411 id=411 data-nosnippet>411</a>            "browser.name": "Chrome",
-<a href=#412 id=412 data-nosnippet>412</a>            "sentry.environment": "prod",
-<a href=#413 id=413 data-nosnippet>413</a>            "sentry.release": "myapp@1.0.0",
-<a href=#414 id=414 data-nosnippet>414</a>            "sentry.segment.name": "my 1st transaction",
-<a href=#415 id=415 data-nosnippet>415</a>            "sentry.sdk.name": "sentry.php",
-<a href=#416 id=416 data-nosnippet>416</a>            "sentry.op": "myop"
-<a href=#417 id=417 data-nosnippet>417</a>          },
-<a href=#418 id=418 data-nosnippet>418</a>          "links": [],
-<a href=#419 id=419 data-nosnippet>419</a>          "platform": "php"
-<a href=#420 id=420 data-nosnippet>420</a>        }
-<a href=#421 id=421 data-nosnippet>421</a>        "###</span>);
-<a href=#422 id=422 data-nosnippet>422</a>    }
-<a href=#423 id=423 data-nosnippet>423</a>
-<a href=#424 id=424 data-nosnippet>424</a>    <span class="attr">#[test]
-<a href=#425 id=425 data-nosnippet>425</a>    </span><span class="kw">fn </span>parse_span_is_remote() {
-<a href=#426 id=426 data-nosnippet>426</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#427 id=427 data-nosnippet>427</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#428 id=428 data-nosnippet>428</a>            "span_id": "e342abb1214ca181",
-<a href=#429 id=429 data-nosnippet>429</a>            "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#430 id=430 data-nosnippet>430</a>            "start_timestamp": 123,
-<a href=#431 id=431 data-nosnippet>431</a>            "end_timestamp": 123.5,
-<a href=#432 id=432 data-nosnippet>432</a>            "is_remote": true,
-<a href=#433 id=433 data-nosnippet>433</a>            "links": []
-<a href=#434 id=434 data-nosnippet>434</a>        }"#</span>;
-<a href=#435 id=435 data-nosnippet>435</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-<a href=#436 id=436 data-nosnippet>436</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-<a href=#437 id=437 data-nosnippet>437</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
-<a href=#438 id=438 data-nosnippet>438</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#439 id=439 data-nosnippet>439</a>        {
-<a href=#440 id=440 data-nosnippet>440</a>          "timestamp": 123.5,
-<a href=#441 id=441 data-nosnippet>441</a>          "start_timestamp": 123.0,
-<a href=#442 id=442 data-nosnippet>442</a>          "exclusive_time": 500.0,
-<a href=#443 id=443 data-nosnippet>443</a>          "span_id": "e342abb1214ca181",
-<a href=#444 id=444 data-nosnippet>444</a>          "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#445 id=445 data-nosnippet>445</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#446 id=446 data-nosnippet>446</a>          "is_remote": true,
-<a href=#447 id=447 data-nosnippet>447</a>          "status": "unknown",
-<a href=#448 id=448 data-nosnippet>448</a>          "data": {},
-<a href=#449 id=449 data-nosnippet>449</a>          "links": []
-<a href=#450 id=450 data-nosnippet>450</a>        }
-<a href=#451 id=451 data-nosnippet>451</a>        "###</span>);
-<a href=#452 id=452 data-nosnippet>452</a>    }
-<a href=#453 id=453 data-nosnippet>453</a>
-<a href=#454 id=454 data-nosnippet>454</a>    <span class="attr">#[test]
-<a href=#455 id=455 data-nosnippet>455</a>    </span><span class="kw">fn </span>parse_span_is_not_remote() {
-<a href=#456 id=456 data-nosnippet>456</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#457 id=457 data-nosnippet>457</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#458 id=458 data-nosnippet>458</a>            "span_id": "e342abb1214ca181",
-<a href=#459 id=459 data-nosnippet>459</a>            "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#460 id=460 data-nosnippet>460</a>            "start_timestamp": 123,
-<a href=#461 id=461 data-nosnippet>461</a>            "end_timestamp": 123.5,
-<a href=#462 id=462 data-nosnippet>462</a>            "is_remote": false,
-<a href=#463 id=463 data-nosnippet>463</a>            "links": []
-<a href=#464 id=464 data-nosnippet>464</a>        }"#</span>;
-<a href=#465 id=465 data-nosnippet>465</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-<a href=#466 id=466 data-nosnippet>466</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-<a href=#467 id=467 data-nosnippet>467</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
-<a href=#468 id=468 data-nosnippet>468</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#469 id=469 data-nosnippet>469</a>        {
-<a href=#470 id=470 data-nosnippet>470</a>          "timestamp": 123.5,
-<a href=#471 id=471 data-nosnippet>471</a>          "start_timestamp": 123.0,
-<a href=#472 id=472 data-nosnippet>472</a>          "exclusive_time": 500.0,
-<a href=#473 id=473 data-nosnippet>473</a>          "span_id": "e342abb1214ca181",
-<a href=#474 id=474 data-nosnippet>474</a>          "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#475 id=475 data-nosnippet>475</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#476 id=476 data-nosnippet>476</a>          "is_remote": false,
-<a href=#477 id=477 data-nosnippet>477</a>          "status": "unknown",
-<a href=#478 id=478 data-nosnippet>478</a>          "data": {},
-<a href=#479 id=479 data-nosnippet>479</a>          "links": []
-<a href=#480 id=480 data-nosnippet>480</a>        }
-<a href=#481 id=481 data-nosnippet>481</a>        "###</span>);
-<a href=#482 id=482 data-nosnippet>482</a>    }
-<a href=#483 id=483 data-nosnippet>483</a>
-<a href=#484 id=484 data-nosnippet>484</a>    <span class="attr">#[test]
-<a href=#485 id=485 data-nosnippet>485</a>    </span><span class="kw">fn </span>extract_span_kind() {
-<a href=#486 id=486 data-nosnippet>486</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#487 id=487 data-nosnippet>487</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#488 id=488 data-nosnippet>488</a>            "span_id": "e342abb1214ca181",
-<a href=#489 id=489 data-nosnippet>489</a>            "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#490 id=490 data-nosnippet>490</a>            "start_timestamp": 123,
-<a href=#491 id=491 data-nosnippet>491</a>            "end_timestamp": 123.5,
-<a href=#492 id=492 data-nosnippet>492</a>            "kind": "client",
-<a href=#493 id=493 data-nosnippet>493</a>            "links": []
-<a href=#494 id=494 data-nosnippet>494</a>        }"#</span>;
-<a href=#495 id=495 data-nosnippet>495</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-<a href=#496 id=496 data-nosnippet>496</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-<a href=#497 id=497 data-nosnippet>497</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
-<a href=#498 id=498 data-nosnippet>498</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#499 id=499 data-nosnippet>499</a>        {
-<a href=#500 id=500 data-nosnippet>500</a>          "timestamp": 123.5,
-<a href=#501 id=501 data-nosnippet>501</a>          "start_timestamp": 123.0,
-<a href=#502 id=502 data-nosnippet>502</a>          "exclusive_time": 500.0,
-<a href=#503 id=503 data-nosnippet>503</a>          "span_id": "e342abb1214ca181",
-<a href=#504 id=504 data-nosnippet>504</a>          "parent_span_id": "0c7a7dea069bf5a6",
-<a href=#505 id=505 data-nosnippet>505</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-<a href=#506 id=506 data-nosnippet>506</a>          "status": "unknown",
-<a href=#507 id=507 data-nosnippet>507</a>          "data": {},
-<a href=#508 id=508 data-nosnippet>508</a>          "links": [],
-<a href=#509 id=509 data-nosnippet>509</a>          "kind": "client"
-<a href=#510 id=510 data-nosnippet>510</a>        }
-<a href=#511 id=511 data-nosnippet>511</a>        "###</span>);
-<a href=#512 id=512 data-nosnippet>512</a>    }
-<a href=#513 id=513 data-nosnippet>513</a>
-<a href=#514 id=514 data-nosnippet>514</a>    <span class="attr">#[test]
-<a href=#515 id=515 data-nosnippet>515</a>    </span><span class="kw">fn </span>parse_link() {
-<a href=#516 id=516 data-nosnippet>516</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#517 id=517 data-nosnippet>517</a>            "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
-<a href=#518 id=518 data-nosnippet>518</a>            "links": [
-<a href=#519 id=519 data-nosnippet>519</a>                {
-<a href=#520 id=520 data-nosnippet>520</a>                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#521 id=521 data-nosnippet>521</a>                    "span_id": "fa90fdead5f74052",
-<a href=#522 id=522 data-nosnippet>522</a>                    "sampled": true,
-<a href=#523 id=523 data-nosnippet>523</a>                    "attributes": {
-<a href=#524 id=524 data-nosnippet>524</a>                        "str_key": {
-<a href=#525 id=525 data-nosnippet>525</a>                            "value": "str_value",
-<a href=#526 id=526 data-nosnippet>526</a>                            "type": "string"
-<a href=#527 id=527 data-nosnippet>527</a>                        },
-<a href=#528 id=528 data-nosnippet>528</a>                        "bool_key": {
-<a href=#529 id=529 data-nosnippet>529</a>                            "value": true,
-<a href=#530 id=530 data-nosnippet>530</a>                            "type": "boolean"
-<a href=#531 id=531 data-nosnippet>531</a>                        },
-<a href=#532 id=532 data-nosnippet>532</a>                        "int_key": {
-<a href=#533 id=533 data-nosnippet>533</a>                            "value": 123,
-<a href=#534 id=534 data-nosnippet>534</a>                            "type": "i64"
-<a href=#535 id=535 data-nosnippet>535</a>                        },
-<a href=#536 id=536 data-nosnippet>536</a>                        "double_key": {
-<a href=#537 id=537 data-nosnippet>537</a>                            "value": 1.23,
-<a href=#538 id=538 data-nosnippet>538</a>                            "type": "f64"
-<a href=#539 id=539 data-nosnippet>539</a>                        }
-<a href=#540 id=540 data-nosnippet>540</a>                    }
-<a href=#541 id=541 data-nosnippet>541</a>                }
-<a href=#542 id=542 data-nosnippet>542</a>            ]
-<a href=#543 id=543 data-nosnippet>543</a>        }"#</span>;
-<a href=#544 id=544 data-nosnippet>544</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
-<a href=#545 id=545 data-nosnippet>545</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
-<a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
-<a href=#547 id=547 data-nosnippet>547</a>
-<a href=#548 id=548 data-nosnippet>548</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
-<a href=#549 id=549 data-nosnippet>549</a>        {
-<a href=#550 id=550 data-nosnippet>550</a>          "exclusive_time": 0.0,
-<a href=#551 id=551 data-nosnippet>551</a>          "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
-<a href=#552 id=552 data-nosnippet>552</a>          "status": "unknown",
-<a href=#553 id=553 data-nosnippet>553</a>          "data": {},
-<a href=#554 id=554 data-nosnippet>554</a>          "links": [
-<a href=#555 id=555 data-nosnippet>555</a>            {
-<a href=#556 id=556 data-nosnippet>556</a>              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#557 id=557 data-nosnippet>557</a>              "span_id": "fa90fdead5f74052",
-<a href=#558 id=558 data-nosnippet>558</a>              "sampled": true,
-<a href=#559 id=559 data-nosnippet>559</a>              "attributes": {
-<a href=#560 id=560 data-nosnippet>560</a>                "bool_key": true,
-<a href=#561 id=561 data-nosnippet>561</a>                "double_key": 1.23,
-<a href=#562 id=562 data-nosnippet>562</a>                "int_key": 123,
-<a href=#563 id=563 data-nosnippet>563</a>                "str_key": "str_value"
-<a href=#564 id=564 data-nosnippet>564</a>              }
-<a href=#565 id=565 data-nosnippet>565</a>            }
-<a href=#566 id=566 data-nosnippet>566</a>          ]
-<a href=#567 id=567 data-nosnippet>567</a>        }
-<a href=#568 id=568 data-nosnippet>568</a>        "###</span>);
-<a href=#569 id=569 data-nosnippet>569</a>    }
-<a href=#570 id=570 data-nosnippet>570</a>}</code></pre></div></section></main></body></html>
+<a href=#108 id=108 data-nosnippet>108</a>    <span class="kw">let </span>status = span_v2_status_to_span_v1_status(status, http_status_code, grpc_status_code);
+<a href=#109 id=109 data-nosnippet>109</a>
+<a href=#110 id=110 data-nosnippet>110</a>    SpanV1 {
+<a href=#111 id=111 data-nosnippet>111</a>        op: name,
+<a href=#112 id=112 data-nosnippet>112</a>        description,
+<a href=#113 id=113 data-nosnippet>113</a>        data: SpanData::from_value(Annotated::new(data.into())),
+<a href=#114 id=114 data-nosnippet>114</a>        exclusive_time: exclusive_time_ms.into(),
+<a href=#115 id=115 data-nosnippet>115</a>        parent_span_id,
+<a href=#116 id=116 data-nosnippet>116</a>        segment_id,
+<a href=#117 id=117 data-nosnippet>117</a>        span_id,
+<a href=#118 id=118 data-nosnippet>118</a>        is_remote,
+<a href=#119 id=119 data-nosnippet>119</a>        profile_id,
+<a href=#120 id=120 data-nosnippet>120</a>        start_timestamp,
+<a href=#121 id=121 data-nosnippet>121</a>        status,
+<a href=#122 id=122 data-nosnippet>122</a>        timestamp: end_timestamp,
+<a href=#123 id=123 data-nosnippet>123</a>        trace_id,
+<a href=#124 id=124 data-nosnippet>124</a>        platform,
+<a href=#125 id=125 data-nosnippet>125</a>        kind: kind.map_value(span_v2_kind_to_span_v1_kind),
+<a href=#126 id=126 data-nosnippet>126</a>        links,
+<a href=#127 id=127 data-nosnippet>127</a>        ..Default::default()
+<a href=#128 id=128 data-nosnippet>128</a>    }
+<a href=#129 id=129 data-nosnippet>129</a>}
+<a href=#130 id=130 data-nosnippet>130</a>
+<a href=#131 id=131 data-nosnippet>131</a><span class="kw">fn </span>span_v2_status_to_span_v1_status(
+<a href=#132 id=132 data-nosnippet>132</a>    status: Annotated&lt;SpanV2Status&gt;,
+<a href=#133 id=133 data-nosnippet>133</a>    http_status_code: Annotated&lt;i64&gt;,
+<a href=#134 id=134 data-nosnippet>134</a>    grpc_status_code: Annotated&lt;i64&gt;,
+<a href=#135 id=135 data-nosnippet>135</a>) -&gt; Annotated&lt;SpanStatus&gt; {
+<a href=#136 id=136 data-nosnippet>136</a>    status
+<a href=#137 id=137 data-nosnippet>137</a>        .and_then(|status| (status == SpanV2Status::Ok).then_some(SpanStatus::Ok))
+<a href=#138 id=138 data-nosnippet>138</a>        .or_else(|| {
+<a href=#139 id=139 data-nosnippet>139</a>            http_status_code.and_then(|http_status_code| {
+<a href=#140 id=140 data-nosnippet>140</a>                status_codes::HTTP
+<a href=#141 id=141 data-nosnippet>141</a>                    .get(<span class="kw-2">&amp;</span>http_status_code)
+<a href=#142 id=142 data-nosnippet>142</a>                    .and_then(|sentry_status| SpanStatus::from_str(sentry_status).ok())
+<a href=#143 id=143 data-nosnippet>143</a>            })
+<a href=#144 id=144 data-nosnippet>144</a>        })
+<a href=#145 id=145 data-nosnippet>145</a>        .or_else(|| {
+<a href=#146 id=146 data-nosnippet>146</a>            grpc_status_code.and_then(|grpc_status_code| {
+<a href=#147 id=147 data-nosnippet>147</a>                status_codes::GRPC
+<a href=#148 id=148 data-nosnippet>148</a>                    .get(<span class="kw-2">&amp;</span>grpc_status_code)
+<a href=#149 id=149 data-nosnippet>149</a>                    .and_then(|sentry_status| SpanStatus::from_str(sentry_status).ok())
+<a href=#150 id=150 data-nosnippet>150</a>            })
+<a href=#151 id=151 data-nosnippet>151</a>        })
+<a href=#152 id=152 data-nosnippet>152</a>        .or_else(|| Annotated::new(SpanStatus::Unknown))
+<a href=#153 id=153 data-nosnippet>153</a>}
+<a href=#154 id=154 data-nosnippet>154</a>
+<a href=#155 id=155 data-nosnippet>155</a><span class="kw">fn </span>span_v2_kind_to_span_v1_kind(kind: SpanV2Kind) -&gt; SpanKind {
+<a href=#156 id=156 data-nosnippet>156</a>    <span class="kw">match </span>kind {
+<a href=#157 id=157 data-nosnippet>157</a>        SpanV2Kind::Internal =&gt; SpanKind::Internal,
+<a href=#158 id=158 data-nosnippet>158</a>        SpanV2Kind::Server =&gt; SpanKind::Server,
+<a href=#159 id=159 data-nosnippet>159</a>        SpanV2Kind::Client =&gt; SpanKind::Client,
+<a href=#160 id=160 data-nosnippet>160</a>        SpanV2Kind::Producer =&gt; SpanKind::Producer,
+<a href=#161 id=161 data-nosnippet>161</a>        SpanV2Kind::Consumer =&gt; SpanKind::Consumer,
+<a href=#162 id=162 data-nosnippet>162</a>    }
+<a href=#163 id=163 data-nosnippet>163</a>}
+<a href=#164 id=164 data-nosnippet>164</a>
+<a href=#165 id=165 data-nosnippet>165</a><span class="kw">fn </span>span_v2_link_to_span_v1_link(link: SpanV2Link) -&gt; SpanLink {
+<a href=#166 id=166 data-nosnippet>166</a>    <span class="kw">let </span>SpanV2Link {
+<a href=#167 id=167 data-nosnippet>167</a>        trace_id,
+<a href=#168 id=168 data-nosnippet>168</a>        span_id,
+<a href=#169 id=169 data-nosnippet>169</a>        sampled,
+<a href=#170 id=170 data-nosnippet>170</a>        attributes,
+<a href=#171 id=171 data-nosnippet>171</a>        other,
+<a href=#172 id=172 data-nosnippet>172</a>    } = link;
+<a href=#173 id=173 data-nosnippet>173</a>
+<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">let </span>attributes = attributes.map_value(|attributes| {
+<a href=#175 id=175 data-nosnippet>175</a>        attributes
+<a href=#176 id=176 data-nosnippet>176</a>            .into_iter()
+<a href=#177 id=177 data-nosnippet>177</a>            .map(|(key, attribute)| {
+<a href=#178 id=178 data-nosnippet>178</a>                (
+<a href=#179 id=179 data-nosnippet>179</a>                    key,
+<a href=#180 id=180 data-nosnippet>180</a>                    attribute.and_then(|attribute| attribute.value.value.into_value()),
+<a href=#181 id=181 data-nosnippet>181</a>                )
+<a href=#182 id=182 data-nosnippet>182</a>            })
+<a href=#183 id=183 data-nosnippet>183</a>            .collect()
+<a href=#184 id=184 data-nosnippet>184</a>    });
+<a href=#185 id=185 data-nosnippet>185</a>    SpanLink {
+<a href=#186 id=186 data-nosnippet>186</a>        trace_id,
+<a href=#187 id=187 data-nosnippet>187</a>        span_id,
+<a href=#188 id=188 data-nosnippet>188</a>        sampled,
+<a href=#189 id=189 data-nosnippet>189</a>        attributes,
+<a href=#190 id=190 data-nosnippet>190</a>        other,
+<a href=#191 id=191 data-nosnippet>191</a>    }
+<a href=#192 id=192 data-nosnippet>192</a>}
+<a href=#193 id=193 data-nosnippet>193</a>
+<a href=#194 id=194 data-nosnippet>194</a><span class="attr">#[cfg(test)]
+<a href=#195 id=195 data-nosnippet>195</a></span><span class="kw">mod </span>tests {
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#197 id=197 data-nosnippet>197</a>    <span class="kw">use </span>relay_protocol::SerializableAnnotated;
+<a href=#198 id=198 data-nosnippet>198</a>
+<a href=#199 id=199 data-nosnippet>199</a>    <span class="attr">#[test]
+<a href=#200 id=200 data-nosnippet>200</a>    </span><span class="kw">fn </span>parse_span() {
+<a href=#201 id=201 data-nosnippet>201</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#202 id=202 data-nosnippet>202</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#203 id=203 data-nosnippet>203</a>            "span_id": "e342abb1214ca181",
+<a href=#204 id=204 data-nosnippet>204</a>            "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#205 id=205 data-nosnippet>205</a>            "name": "middleware - fastify -&gt; @fastify/multipart",
+<a href=#206 id=206 data-nosnippet>206</a>            "kind": "internal",
+<a href=#207 id=207 data-nosnippet>207</a>            "start_timestamp": "2023-10-18T09:14:14.980Z",
+<a href=#208 id=208 data-nosnippet>208</a>            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
+<a href=#209 id=209 data-nosnippet>209</a>            "links": [],
+<a href=#210 id=210 data-nosnippet>210</a>            "attributes": {
+<a href=#211 id=211 data-nosnippet>211</a>                "sentry.environment": {
+<a href=#212 id=212 data-nosnippet>212</a>                    "value": "test",
+<a href=#213 id=213 data-nosnippet>213</a>                    "type": "string"
+<a href=#214 id=214 data-nosnippet>214</a>                },
+<a href=#215 id=215 data-nosnippet>215</a>                "fastify.type": {
+<a href=#216 id=216 data-nosnippet>216</a>                    "value": "middleware",
+<a href=#217 id=217 data-nosnippet>217</a>                    "type": "string"
+<a href=#218 id=218 data-nosnippet>218</a>                },
+<a href=#219 id=219 data-nosnippet>219</a>                "plugin.name": {
+<a href=#220 id=220 data-nosnippet>220</a>                    "value": "fastify -&gt; @fastify/multipart",
+<a href=#221 id=221 data-nosnippet>221</a>                    "type": "string"
+<a href=#222 id=222 data-nosnippet>222</a>                },
+<a href=#223 id=223 data-nosnippet>223</a>                "hook.name": {
+<a href=#224 id=224 data-nosnippet>224</a>                    "value": "onResponse",
+<a href=#225 id=225 data-nosnippet>225</a>                    "type": "string"
+<a href=#226 id=226 data-nosnippet>226</a>                },
+<a href=#227 id=227 data-nosnippet>227</a>                "sentry.sample_rate": {
+<a href=#228 id=228 data-nosnippet>228</a>                    "value": 1,
+<a href=#229 id=229 data-nosnippet>229</a>                    "type": "u64"
+<a href=#230 id=230 data-nosnippet>230</a>                },
+<a href=#231 id=231 data-nosnippet>231</a>                "sentry.parentSampled": {
+<a href=#232 id=232 data-nosnippet>232</a>                    "value": true,
+<a href=#233 id=233 data-nosnippet>233</a>                    "type": "boolean"
+<a href=#234 id=234 data-nosnippet>234</a>                },
+<a href=#235 id=235 data-nosnippet>235</a>                "sentry.exclusive_time_nano": {
+<a href=#236 id=236 data-nosnippet>236</a>                    "value": "1000000000",
+<a href=#237 id=237 data-nosnippet>237</a>                    "type": "u64"
+<a href=#238 id=238 data-nosnippet>238</a>                }
+<a href=#239 id=239 data-nosnippet>239</a>            },
+<a href=#240 id=240 data-nosnippet>240</a>            "status": "ok",
+<a href=#241 id=241 data-nosnippet>241</a>            "links": []
+<a href=#242 id=242 data-nosnippet>242</a>        }"#</span>;
+<a href=#243 id=243 data-nosnippet>243</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
+<a href=#246 id=246 data-nosnippet>246</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#247 id=247 data-nosnippet>247</a>        {
+<a href=#248 id=248 data-nosnippet>248</a>          "timestamp": 1697620454.980079,
+<a href=#249 id=249 data-nosnippet>249</a>          "start_timestamp": 1697620454.98,
+<a href=#250 id=250 data-nosnippet>250</a>          "exclusive_time": 1000.0,
+<a href=#251 id=251 data-nosnippet>251</a>          "op": "middleware - fastify -&gt; @fastify/multipart",
+<a href=#252 id=252 data-nosnippet>252</a>          "span_id": "e342abb1214ca181",
+<a href=#253 id=253 data-nosnippet>253</a>          "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#254 id=254 data-nosnippet>254</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#255 id=255 data-nosnippet>255</a>          "status": "ok",
+<a href=#256 id=256 data-nosnippet>256</a>          "data": {
+<a href=#257 id=257 data-nosnippet>257</a>            "sentry.environment": "test",
+<a href=#258 id=258 data-nosnippet>258</a>            "fastify.type": "middleware",
+<a href=#259 id=259 data-nosnippet>259</a>            "hook.name": "onResponse",
+<a href=#260 id=260 data-nosnippet>260</a>            "plugin.name": "fastify -&gt; @fastify/multipart",
+<a href=#261 id=261 data-nosnippet>261</a>            "sentry.parentSampled": true,
+<a href=#262 id=262 data-nosnippet>262</a>            "sentry.sample_rate": 1
+<a href=#263 id=263 data-nosnippet>263</a>          },
+<a href=#264 id=264 data-nosnippet>264</a>          "links": [],
+<a href=#265 id=265 data-nosnippet>265</a>          "kind": "internal"
+<a href=#266 id=266 data-nosnippet>266</a>        }
+<a href=#267 id=267 data-nosnippet>267</a>        "###</span>);
+<a href=#268 id=268 data-nosnippet>268</a>    }
+<a href=#269 id=269 data-nosnippet>269</a>
+<a href=#270 id=270 data-nosnippet>270</a>    <span class="attr">#[test]
+<a href=#271 id=271 data-nosnippet>271</a>    </span><span class="kw">fn </span>parse_span_with_exclusive_time_nano_attribute() {
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#273 id=273 data-nosnippet>273</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#274 id=274 data-nosnippet>274</a>            "span_id": "e342abb1214ca181",
+<a href=#275 id=275 data-nosnippet>275</a>            "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#276 id=276 data-nosnippet>276</a>            "name": "middleware - fastify -&gt; @fastify/multipart",
+<a href=#277 id=277 data-nosnippet>277</a>            "kind": "internal",
+<a href=#278 id=278 data-nosnippet>278</a>            "start_timestamp": "2023-10-18T09:14:14.980Z",
+<a href=#279 id=279 data-nosnippet>279</a>            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
+<a href=#280 id=280 data-nosnippet>280</a>            "links": [],
+<a href=#281 id=281 data-nosnippet>281</a>            "attributes": {
+<a href=#282 id=282 data-nosnippet>282</a>                "sentry.exclusive_time_nano": {
+<a href=#283 id=283 data-nosnippet>283</a>                    "value": 3200000000,
+<a href=#284 id=284 data-nosnippet>284</a>                    "type": "u64"
+<a href=#285 id=285 data-nosnippet>285</a>                }
+<a href=#286 id=286 data-nosnippet>286</a>            }
+<a href=#287 id=287 data-nosnippet>287</a>        }"#</span>;
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+<a href=#289 id=289 data-nosnippet>289</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+<a href=#290 id=290 data-nosnippet>290</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#292 id=292 data-nosnippet>292</a>        {
+<a href=#293 id=293 data-nosnippet>293</a>          "timestamp": 1697620454.980079,
+<a href=#294 id=294 data-nosnippet>294</a>          "start_timestamp": 1697620454.98,
+<a href=#295 id=295 data-nosnippet>295</a>          "exclusive_time": 3200.0,
+<a href=#296 id=296 data-nosnippet>296</a>          "op": "middleware - fastify -&gt; @fastify/multipart",
+<a href=#297 id=297 data-nosnippet>297</a>          "span_id": "e342abb1214ca181",
+<a href=#298 id=298 data-nosnippet>298</a>          "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#299 id=299 data-nosnippet>299</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#300 id=300 data-nosnippet>300</a>          "status": "unknown",
+<a href=#301 id=301 data-nosnippet>301</a>          "data": {},
+<a href=#302 id=302 data-nosnippet>302</a>          "links": [],
+<a href=#303 id=303 data-nosnippet>303</a>          "kind": "internal"
+<a href=#304 id=304 data-nosnippet>304</a>        }
+<a href=#305 id=305 data-nosnippet>305</a>        "###</span>);
+<a href=#306 id=306 data-nosnippet>306</a>    }
+<a href=#307 id=307 data-nosnippet>307</a>
+<a href=#308 id=308 data-nosnippet>308</a>    <span class="attr">#[test]
+<a href=#309 id=309 data-nosnippet>309</a>    </span><span class="kw">fn </span>parse_span_no_exclusive_time_nano_attribute() {
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#311 id=311 data-nosnippet>311</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#312 id=312 data-nosnippet>312</a>            "span_id": "e342abb1214ca181",
+<a href=#313 id=313 data-nosnippet>313</a>            "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#314 id=314 data-nosnippet>314</a>            "name": "middleware - fastify -&gt; @fastify/multipart",
+<a href=#315 id=315 data-nosnippet>315</a>            "kind": "internal",
+<a href=#316 id=316 data-nosnippet>316</a>            "start_timestamp": "2023-10-18T09:14:14.980Z",
+<a href=#317 id=317 data-nosnippet>317</a>            "end_timestamp": "2023-10-18T09:14:14.980078800Z",
+<a href=#318 id=318 data-nosnippet>318</a>            "links": []
+<a href=#319 id=319 data-nosnippet>319</a>        }"#</span>;
+<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
+<a href=#323 id=323 data-nosnippet>323</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#324 id=324 data-nosnippet>324</a>        {
+<a href=#325 id=325 data-nosnippet>325</a>          "timestamp": 1697620454.980079,
+<a href=#326 id=326 data-nosnippet>326</a>          "start_timestamp": 1697620454.98,
+<a href=#327 id=327 data-nosnippet>327</a>          "exclusive_time": 0.0788,
+<a href=#328 id=328 data-nosnippet>328</a>          "op": "middleware - fastify -&gt; @fastify/multipart",
+<a href=#329 id=329 data-nosnippet>329</a>          "span_id": "e342abb1214ca181",
+<a href=#330 id=330 data-nosnippet>330</a>          "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#331 id=331 data-nosnippet>331</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#332 id=332 data-nosnippet>332</a>          "status": "unknown",
+<a href=#333 id=333 data-nosnippet>333</a>          "data": {},
+<a href=#334 id=334 data-nosnippet>334</a>          "links": [],
+<a href=#335 id=335 data-nosnippet>335</a>          "kind": "internal"
+<a href=#336 id=336 data-nosnippet>336</a>        }
+<a href=#337 id=337 data-nosnippet>337</a>        "###</span>);
+<a href=#338 id=338 data-nosnippet>338</a>    }
+<a href=#339 id=339 data-nosnippet>339</a>
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="attr">#[test]
+<a href=#341 id=341 data-nosnippet>341</a>    </span><span class="kw">fn </span>parse_sentry_attributes() {
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#343 id=343 data-nosnippet>343</a>            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#344 id=344 data-nosnippet>344</a>            "span_id": "fa90fdead5f74052",
+<a href=#345 id=345 data-nosnippet>345</a>            "parent_span_id": "fa90fdead5f74051",
+<a href=#346 id=346 data-nosnippet>346</a>            "start_timestamp": 123,
+<a href=#347 id=347 data-nosnippet>347</a>            "end_timestamp": 123.5,
+<a href=#348 id=348 data-nosnippet>348</a>            "name": "myname",
+<a href=#349 id=349 data-nosnippet>349</a>            "status": "ok",
+<a href=#350 id=350 data-nosnippet>350</a>            "links": [],
+<a href=#351 id=351 data-nosnippet>351</a>            "attributes": {
+<a href=#352 id=352 data-nosnippet>352</a>                "browser.name": {
+<a href=#353 id=353 data-nosnippet>353</a>                    "value": "Chrome",
+<a href=#354 id=354 data-nosnippet>354</a>                    "type": "string"
+<a href=#355 id=355 data-nosnippet>355</a>                },
+<a href=#356 id=356 data-nosnippet>356</a>                "sentry.description": {
+<a href=#357 id=357 data-nosnippet>357</a>                    "value": "mydescription",
+<a href=#358 id=358 data-nosnippet>358</a>                    "type": "string"
+<a href=#359 id=359 data-nosnippet>359</a>                },
+<a href=#360 id=360 data-nosnippet>360</a>                "sentry.environment": {
+<a href=#361 id=361 data-nosnippet>361</a>                    "value": "prod",
+<a href=#362 id=362 data-nosnippet>362</a>                    "type": "string"
+<a href=#363 id=363 data-nosnippet>363</a>                },
+<a href=#364 id=364 data-nosnippet>364</a>                "sentry.op": {
+<a href=#365 id=365 data-nosnippet>365</a>                    "value": "myop",
+<a href=#366 id=366 data-nosnippet>366</a>                    "type": "string"
+<a href=#367 id=367 data-nosnippet>367</a>                },
+<a href=#368 id=368 data-nosnippet>368</a>                "sentry.platform": {
+<a href=#369 id=369 data-nosnippet>369</a>                    "value": "php",
+<a href=#370 id=370 data-nosnippet>370</a>                    "type": "string"
+<a href=#371 id=371 data-nosnippet>371</a>                },
+<a href=#372 id=372 data-nosnippet>372</a>                "sentry.profile.id": {
+<a href=#373 id=373 data-nosnippet>373</a>                    "value": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
+<a href=#374 id=374 data-nosnippet>374</a>                    "type": "string"
+<a href=#375 id=375 data-nosnippet>375</a>                },
+<a href=#376 id=376 data-nosnippet>376</a>                "sentry.release": {
+<a href=#377 id=377 data-nosnippet>377</a>                    "value": "myapp@1.0.0",
+<a href=#378 id=378 data-nosnippet>378</a>                    "type": "string"
+<a href=#379 id=379 data-nosnippet>379</a>                },
+<a href=#380 id=380 data-nosnippet>380</a>                "sentry.sdk.name": {
+<a href=#381 id=381 data-nosnippet>381</a>                    "value": "sentry.php",
+<a href=#382 id=382 data-nosnippet>382</a>                    "type": "string"
+<a href=#383 id=383 data-nosnippet>383</a>                },
+<a href=#384 id=384 data-nosnippet>384</a>                "sentry.segment.id": {
+<a href=#385 id=385 data-nosnippet>385</a>                    "value": "FA90FDEAD5F74052",
+<a href=#386 id=386 data-nosnippet>386</a>                    "type": "string"
+<a href=#387 id=387 data-nosnippet>387</a>                },
+<a href=#388 id=388 data-nosnippet>388</a>                "sentry.segment.name": {
+<a href=#389 id=389 data-nosnippet>389</a>                    "value": "my 1st transaction",
+<a href=#390 id=390 data-nosnippet>390</a>                    "type": "string"
+<a href=#391 id=391 data-nosnippet>391</a>                }
+<a href=#392 id=392 data-nosnippet>392</a>            }
+<a href=#393 id=393 data-nosnippet>393</a>        }"#</span>;
+<a href=#394 id=394 data-nosnippet>394</a>
+<a href=#395 id=395 data-nosnippet>395</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+<a href=#397 id=397 data-nosnippet>397</a>
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
+<a href=#399 id=399 data-nosnippet>399</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#400 id=400 data-nosnippet>400</a>        {
+<a href=#401 id=401 data-nosnippet>401</a>          "timestamp": 123.5,
+<a href=#402 id=402 data-nosnippet>402</a>          "start_timestamp": 123.0,
+<a href=#403 id=403 data-nosnippet>403</a>          "exclusive_time": 500.0,
+<a href=#404 id=404 data-nosnippet>404</a>          "op": "myname",
+<a href=#405 id=405 data-nosnippet>405</a>          "span_id": "fa90fdead5f74052",
+<a href=#406 id=406 data-nosnippet>406</a>          "parent_span_id": "fa90fdead5f74051",
+<a href=#407 id=407 data-nosnippet>407</a>          "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#408 id=408 data-nosnippet>408</a>          "segment_id": "fa90fdead5f74052",
+<a href=#409 id=409 data-nosnippet>409</a>          "status": "ok",
+<a href=#410 id=410 data-nosnippet>410</a>          "description": "mydescription",
+<a href=#411 id=411 data-nosnippet>411</a>          "profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+<a href=#412 id=412 data-nosnippet>412</a>          "data": {
+<a href=#413 id=413 data-nosnippet>413</a>            "browser.name": "Chrome",
+<a href=#414 id=414 data-nosnippet>414</a>            "sentry.environment": "prod",
+<a href=#415 id=415 data-nosnippet>415</a>            "sentry.release": "myapp@1.0.0",
+<a href=#416 id=416 data-nosnippet>416</a>            "sentry.segment.name": "my 1st transaction",
+<a href=#417 id=417 data-nosnippet>417</a>            "sentry.sdk.name": "sentry.php",
+<a href=#418 id=418 data-nosnippet>418</a>            "sentry.op": "myop"
+<a href=#419 id=419 data-nosnippet>419</a>          },
+<a href=#420 id=420 data-nosnippet>420</a>          "links": [],
+<a href=#421 id=421 data-nosnippet>421</a>          "platform": "php"
+<a href=#422 id=422 data-nosnippet>422</a>        }
+<a href=#423 id=423 data-nosnippet>423</a>        "###</span>);
+<a href=#424 id=424 data-nosnippet>424</a>    }
+<a href=#425 id=425 data-nosnippet>425</a>
+<a href=#426 id=426 data-nosnippet>426</a>    <span class="attr">#[test]
+<a href=#427 id=427 data-nosnippet>427</a>    </span><span class="kw">fn </span>parse_span_is_remote() {
+<a href=#428 id=428 data-nosnippet>428</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#429 id=429 data-nosnippet>429</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#430 id=430 data-nosnippet>430</a>            "span_id": "e342abb1214ca181",
+<a href=#431 id=431 data-nosnippet>431</a>            "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#432 id=432 data-nosnippet>432</a>            "start_timestamp": 123,
+<a href=#433 id=433 data-nosnippet>433</a>            "end_timestamp": 123.5,
+<a href=#434 id=434 data-nosnippet>434</a>            "is_remote": true,
+<a href=#435 id=435 data-nosnippet>435</a>            "links": []
+<a href=#436 id=436 data-nosnippet>436</a>        }"#</span>;
+<a href=#437 id=437 data-nosnippet>437</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+<a href=#438 id=438 data-nosnippet>438</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+<a href=#439 id=439 data-nosnippet>439</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
+<a href=#440 id=440 data-nosnippet>440</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#441 id=441 data-nosnippet>441</a>        {
+<a href=#442 id=442 data-nosnippet>442</a>          "timestamp": 123.5,
+<a href=#443 id=443 data-nosnippet>443</a>          "start_timestamp": 123.0,
+<a href=#444 id=444 data-nosnippet>444</a>          "exclusive_time": 500.0,
+<a href=#445 id=445 data-nosnippet>445</a>          "span_id": "e342abb1214ca181",
+<a href=#446 id=446 data-nosnippet>446</a>          "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#447 id=447 data-nosnippet>447</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#448 id=448 data-nosnippet>448</a>          "is_remote": true,
+<a href=#449 id=449 data-nosnippet>449</a>          "status": "unknown",
+<a href=#450 id=450 data-nosnippet>450</a>          "data": {},
+<a href=#451 id=451 data-nosnippet>451</a>          "links": []
+<a href=#452 id=452 data-nosnippet>452</a>        }
+<a href=#453 id=453 data-nosnippet>453</a>        "###</span>);
+<a href=#454 id=454 data-nosnippet>454</a>    }
+<a href=#455 id=455 data-nosnippet>455</a>
+<a href=#456 id=456 data-nosnippet>456</a>    <span class="attr">#[test]
+<a href=#457 id=457 data-nosnippet>457</a>    </span><span class="kw">fn </span>parse_span_is_not_remote() {
+<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#459 id=459 data-nosnippet>459</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#460 id=460 data-nosnippet>460</a>            "span_id": "e342abb1214ca181",
+<a href=#461 id=461 data-nosnippet>461</a>            "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#462 id=462 data-nosnippet>462</a>            "start_timestamp": 123,
+<a href=#463 id=463 data-nosnippet>463</a>            "end_timestamp": 123.5,
+<a href=#464 id=464 data-nosnippet>464</a>            "is_remote": false,
+<a href=#465 id=465 data-nosnippet>465</a>            "links": []
+<a href=#466 id=466 data-nosnippet>466</a>        }"#</span>;
+<a href=#467 id=467 data-nosnippet>467</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+<a href=#468 id=468 data-nosnippet>468</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+<a href=#469 id=469 data-nosnippet>469</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
+<a href=#470 id=470 data-nosnippet>470</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#471 id=471 data-nosnippet>471</a>        {
+<a href=#472 id=472 data-nosnippet>472</a>          "timestamp": 123.5,
+<a href=#473 id=473 data-nosnippet>473</a>          "start_timestamp": 123.0,
+<a href=#474 id=474 data-nosnippet>474</a>          "exclusive_time": 500.0,
+<a href=#475 id=475 data-nosnippet>475</a>          "span_id": "e342abb1214ca181",
+<a href=#476 id=476 data-nosnippet>476</a>          "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#477 id=477 data-nosnippet>477</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#478 id=478 data-nosnippet>478</a>          "is_remote": false,
+<a href=#479 id=479 data-nosnippet>479</a>          "status": "unknown",
+<a href=#480 id=480 data-nosnippet>480</a>          "data": {},
+<a href=#481 id=481 data-nosnippet>481</a>          "links": []
+<a href=#482 id=482 data-nosnippet>482</a>        }
+<a href=#483 id=483 data-nosnippet>483</a>        "###</span>);
+<a href=#484 id=484 data-nosnippet>484</a>    }
+<a href=#485 id=485 data-nosnippet>485</a>
+<a href=#486 id=486 data-nosnippet>486</a>    <span class="attr">#[test]
+<a href=#487 id=487 data-nosnippet>487</a>    </span><span class="kw">fn </span>extract_span_kind() {
+<a href=#488 id=488 data-nosnippet>488</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#489 id=489 data-nosnippet>489</a>            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#490 id=490 data-nosnippet>490</a>            "span_id": "e342abb1214ca181",
+<a href=#491 id=491 data-nosnippet>491</a>            "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#492 id=492 data-nosnippet>492</a>            "start_timestamp": 123,
+<a href=#493 id=493 data-nosnippet>493</a>            "end_timestamp": 123.5,
+<a href=#494 id=494 data-nosnippet>494</a>            "kind": "client",
+<a href=#495 id=495 data-nosnippet>495</a>            "links": []
+<a href=#496 id=496 data-nosnippet>496</a>        }"#</span>;
+<a href=#497 id=497 data-nosnippet>497</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+<a href=#498 id=498 data-nosnippet>498</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+<a href=#499 id=499 data-nosnippet>499</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
+<a href=#500 id=500 data-nosnippet>500</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#501 id=501 data-nosnippet>501</a>        {
+<a href=#502 id=502 data-nosnippet>502</a>          "timestamp": 123.5,
+<a href=#503 id=503 data-nosnippet>503</a>          "start_timestamp": 123.0,
+<a href=#504 id=504 data-nosnippet>504</a>          "exclusive_time": 500.0,
+<a href=#505 id=505 data-nosnippet>505</a>          "span_id": "e342abb1214ca181",
+<a href=#506 id=506 data-nosnippet>506</a>          "parent_span_id": "0c7a7dea069bf5a6",
+<a href=#507 id=507 data-nosnippet>507</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#508 id=508 data-nosnippet>508</a>          "status": "unknown",
+<a href=#509 id=509 data-nosnippet>509</a>          "data": {},
+<a href=#510 id=510 data-nosnippet>510</a>          "links": [],
+<a href=#511 id=511 data-nosnippet>511</a>          "kind": "client"
+<a href=#512 id=512 data-nosnippet>512</a>        }
+<a href=#513 id=513 data-nosnippet>513</a>        "###</span>);
+<a href=#514 id=514 data-nosnippet>514</a>    }
+<a href=#515 id=515 data-nosnippet>515</a>
+<a href=#516 id=516 data-nosnippet>516</a>    <span class="attr">#[test]
+<a href=#517 id=517 data-nosnippet>517</a>    </span><span class="kw">fn </span>parse_link() {
+<a href=#518 id=518 data-nosnippet>518</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#519 id=519 data-nosnippet>519</a>            "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+<a href=#520 id=520 data-nosnippet>520</a>            "links": [
+<a href=#521 id=521 data-nosnippet>521</a>                {
+<a href=#522 id=522 data-nosnippet>522</a>                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#523 id=523 data-nosnippet>523</a>                    "span_id": "fa90fdead5f74052",
+<a href=#524 id=524 data-nosnippet>524</a>                    "sampled": true,
+<a href=#525 id=525 data-nosnippet>525</a>                    "attributes": {
+<a href=#526 id=526 data-nosnippet>526</a>                        "str_key": {
+<a href=#527 id=527 data-nosnippet>527</a>                            "value": "str_value",
+<a href=#528 id=528 data-nosnippet>528</a>                            "type": "string"
+<a href=#529 id=529 data-nosnippet>529</a>                        },
+<a href=#530 id=530 data-nosnippet>530</a>                        "bool_key": {
+<a href=#531 id=531 data-nosnippet>531</a>                            "value": true,
+<a href=#532 id=532 data-nosnippet>532</a>                            "type": "boolean"
+<a href=#533 id=533 data-nosnippet>533</a>                        },
+<a href=#534 id=534 data-nosnippet>534</a>                        "int_key": {
+<a href=#535 id=535 data-nosnippet>535</a>                            "value": 123,
+<a href=#536 id=536 data-nosnippet>536</a>                            "type": "i64"
+<a href=#537 id=537 data-nosnippet>537</a>                        },
+<a href=#538 id=538 data-nosnippet>538</a>                        "double_key": {
+<a href=#539 id=539 data-nosnippet>539</a>                            "value": 1.23,
+<a href=#540 id=540 data-nosnippet>540</a>                            "type": "f64"
+<a href=#541 id=541 data-nosnippet>541</a>                        }
+<a href=#542 id=542 data-nosnippet>542</a>                    }
+<a href=#543 id=543 data-nosnippet>543</a>                }
+<a href=#544 id=544 data-nosnippet>544</a>            ]
+<a href=#545 id=545 data-nosnippet>545</a>        }"#</span>;
+<a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">let </span>span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+<a href=#547 id=547 data-nosnippet>547</a>        <span class="kw">let </span>span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+<a href=#548 id=548 data-nosnippet>548</a>        <span class="kw">let </span>annotated_span: Annotated&lt;SpanV1&gt; = Annotated::new(span_v1);
+<a href=#549 id=549 data-nosnippet>549</a>
+<a href=#550 id=550 data-nosnippet>550</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#551 id=551 data-nosnippet>551</a>        {
+<a href=#552 id=552 data-nosnippet>552</a>          "exclusive_time": 0.0,
+<a href=#553 id=553 data-nosnippet>553</a>          "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+<a href=#554 id=554 data-nosnippet>554</a>          "status": "unknown",
+<a href=#555 id=555 data-nosnippet>555</a>          "data": {},
+<a href=#556 id=556 data-nosnippet>556</a>          "links": [
+<a href=#557 id=557 data-nosnippet>557</a>            {
+<a href=#558 id=558 data-nosnippet>558</a>              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#559 id=559 data-nosnippet>559</a>              "span_id": "fa90fdead5f74052",
+<a href=#560 id=560 data-nosnippet>560</a>              "sampled": true,
+<a href=#561 id=561 data-nosnippet>561</a>              "attributes": {
+<a href=#562 id=562 data-nosnippet>562</a>                "bool_key": true,
+<a href=#563 id=563 data-nosnippet>563</a>                "double_key": 1.23,
+<a href=#564 id=564 data-nosnippet>564</a>                "int_key": 123,
+<a href=#565 id=565 data-nosnippet>565</a>                "str_key": "str_value"
+<a href=#566 id=566 data-nosnippet>566</a>              }
+<a href=#567 id=567 data-nosnippet>567</a>            }
+<a href=#568 id=568 data-nosnippet>568</a>          ]
+<a href=#569 id=569 data-nosnippet>569</a>        }
+<a href=#570 id=570 data-nosnippet>570</a>        "###</span>);
+<a href=#571 id=571 data-nosnippet>571</a>    }
+<a href=#572 id=572 data-nosnippet>572</a>}</code></pre></div></section></main></body></html>
