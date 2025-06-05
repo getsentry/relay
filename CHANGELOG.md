@@ -20,6 +20,7 @@
 - Remove the "unspecified" variant of `SpanKind`. ([#4774](https://github.com/getsentry/relay/pull/4774))
 - Normalize AI data and measurements into new OTEL compatible fields and extracting metrics out of said fields. ([#4768](https://github.com/getsentry/relay/pull/4768))
 - Switch `sysinfo` dependency back to upstream and update to 0.35.1. ([#4776](https://github.com/getsentry/relay/pull/4776))
+- Consistently always emit session outcomes. ([#4798](https://github.com/getsentry/relay/pull/4798))
 
 ## 25.5.1
 
