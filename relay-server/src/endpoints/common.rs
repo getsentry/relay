@@ -8,9 +8,7 @@ use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::envelope::{
-    AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType, Items,
-};
+use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
 use crate::services::buffer::ProjectKeyPair;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
