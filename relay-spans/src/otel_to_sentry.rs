@@ -42,6 +42,17 @@ mod tests {
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
+                    "key": "http.route", "value": {
+                        "stringValue": "/home"
+                    }
+                },
+                {
+                    "key": "http.request.method",
+                    "value": {
+                        "stringValue": "GET"
+                        }
+                    },
+                {
                     "key": "sentry.environment",
                     "value": {
                         "stringValue": "test"
@@ -107,10 +118,13 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "ok",
+          "description": "GET /home",
           "data": {
             "sentry.environment": "test",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
+            "http.request.method": "GET",
+            "http.route": "/home",
             "plugin.name": "fastify -> @fastify/multipart",
             "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
@@ -242,6 +256,9 @@ mod tests {
           "status": "unknown",
           "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
           "data": {
+            "db.name": "database",
+            "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            "db.type": "sql",
             "sentry.name": "database query"
           },
           "links": [],
@@ -302,6 +319,9 @@ mod tests {
           "status": "unknown",
           "description": "index view query",
           "data": {
+            "db.name": "database",
+            "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            "db.type": "sql",
             "sentry.name": "database query"
           },
           "links": [],
@@ -350,7 +370,9 @@ mod tests {
           "status": "unknown",
           "description": "GET /api/search?q=foobar",
           "data": {
-            "sentry.name": "http client request"
+            "http.request.method": "GET",
+            "sentry.name": "http client request",
+            "url.path": "/api/search?q=foobar"
           },
           "links": [],
           "kind": "client"
