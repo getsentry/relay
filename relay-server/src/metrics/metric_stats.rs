@@ -119,7 +119,7 @@ impl MetricStats {
             .options
             .metric_stats_rollout_rate;
 
-        is_rolled_out(organization_id.value(), rate)
+        is_rolled_out(organization_id.value(), rate).is_keep()
     }
 
     fn to_volume_metric(&self, bucket: impl TrackableBucket, outcome: &Outcome) -> Option<Bucket> {
