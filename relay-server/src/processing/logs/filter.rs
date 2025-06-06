@@ -2,7 +2,7 @@ use relay_dynamic_config::Feature;
 
 use crate::processing::Context;
 use crate::services::processor::ProcessingError;
-use crate::utils::sample;
+use crate::utils::{PickResult, sample};
 
 pub fn feature_flag(ctx: Context<'_>) -> Result<(), ProcessingError> {
     match ctx.should_filter(Feature::OurLogsIngestion) {
@@ -16,10 +16,10 @@ pub fn feature_flag(ctx: Context<'_>) -> Result<(), ProcessingError> {
 pub fn sampled(ctx: Context<'_>) -> Result<(), ProcessingError> {
     let sample_rate = ctx.global_config.options.ourlogs_ingestion_sample_rate;
 
-    match sample_rate.is_none_or(sample) {
+    match sample_rate.map(sample).unwrap_or_default() {
         // TODO: make it possible to filter with a proper error here.
         // TODO: we need to differentiate between silent and not silent
-        false => Err(ProcessingError::NoEventPayload),
-        true => Ok(()),
+        PickResult::Discard => Err(ProcessingError::NoEventPayload),
+        PickResult::Keep => Ok(()),
     }
 }
