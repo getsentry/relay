@@ -22,10 +22,7 @@ pub fn is_rolled_out(id: u64, rate: f32) -> PickResult {
 impl PickResult {
     /// Returns `true` if the sampling result is [`PickResult::Keep`].
     pub fn is_keep(self) -> bool {
-        match self {
-            PickResult::Keep => true,
-            PickResult::Discard => false,
-        }
+        matches!(self, PickResult::Keep)
     }
 
     /// Returns `true` if the sampling result is [`PickResult::Discard`].
