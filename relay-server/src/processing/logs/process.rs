@@ -1,18 +1,24 @@
-use relay_event_schema::protocol::OurLog;
+use relay_event_normalization::{
+    ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, SchemaProcessor,
+};
+use relay_event_schema::processor::{ProcessingState, process_value};
+use relay_event_schema::protocol::{Attribute, AttributeType, BrowserContext, OurLog};
 use relay_ourlogs::OtelLog;
-use relay_protocol::Annotated;
+use relay_pii::PiiProcessor;
+use relay_protocol::{Annotated, ErrorKind, Value};
 use smallvec::SmallVec;
 
 use crate::envelope::{ContainerItems, ContainerParseError, Item, ItemContainer};
+use crate::extractors::RequestMeta;
 use crate::processing::logs::{EinsLog, ZweiLog};
 use crate::processing::{Context, Managed};
 use crate::services::processor::ProcessingError;
 
-pub fn expand(logs: Managed<EinsLog>) -> Result<Managed<ZweiLog>, ProcessingError> {
+pub fn expand(logs: Managed<EinsLog>) -> Managed<ZweiLog> {
     // TODO: if we have to drop singular elements here, how do we keep track which ones were
     // dropped?
 
-    logs.try_map(|logs, records| {
+    logs.map(|logs, records| {
         // TODO: loop over logs
         // TODO: error handling -> Outcomes for individual elements
         let mut all_logs = SmallVec::with_capacity(logs.count());
@@ -28,10 +34,10 @@ pub fn expand(logs: Managed<EinsLog>) -> Result<Managed<ZweiLog>, ProcessingErro
             records.with(expand_otel_log(&otel_log), |log| all_logs.push(log));
         }
 
-        Ok(ZweiLog {
+        ZweiLog {
             headers: logs.headers,
             logs: all_logs,
-        })
+        }
     })
 }
 
@@ -66,32 +72,141 @@ fn expand_log_container(item: &Item) -> Result<ContainerItems<OurLog>, Container
     Ok(logs)
 }
 
-pub fn process(logs: &mut Managed<ZweiLog>, _ctx: Context<'_>) -> Result<(), ProcessingError> {
+pub fn process(logs: &mut Managed<ZweiLog>, ctx: Context<'_>) {
     // TODO: some signature that allows to directly retain items seems thinkable
     logs.modify(|logs, records| {
+        let meta = logs.headers.meta();
         logs.logs
-            .retain_mut(|log| records.or_default(process_log(log).map(|_| true), &*log));
+            .retain_mut(|log| records.or_default(process_log(log, meta, ctx).map(|_| true), &*log));
     });
+}
+
+fn process_log(
+    log: &mut Annotated<OurLog>,
+    meta: &RequestMeta,
+    ctx: Context<'_>,
+) -> Result<(), ProcessingError> {
+    scrub(log, ctx).inspect_err(|err| {
+        relay_log::debug!("failed to scrub pii from log: {err}");
+    })?;
+
+    normalize(log, meta).inspect_err(|err| {
+        relay_log::debug!("failed to normalize log: {err}");
+    })?;
 
     Ok(())
 }
 
-fn process_log(log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
-    // scrub(log).inspect_err(|err| {
-    //     relay_log::debug!("failed to scrub pii from log: {err}");
-    // })?;
-    //
-    // normalize(log).inspect_err(|err| {
-    //     relay_log::debug!("failed to normalize log: {err}");
-    // })?;
+fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<(), ProcessingError> {
+    let pii_config = ctx
+        .project_info
+        .config
+        .datascrubbing_settings
+        .pii_config()
+        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+
+    if let Some(ref config) = ctx.project_info.config.pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(log, &mut processor, ProcessingState::root())?;
+    }
+
+    if let Some(config) = pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(log, &mut processor, ProcessingState::root())?;
+    }
 
     Ok(())
 }
 
-fn normalize(_log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
-    todo!()
+fn normalize(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<(), ProcessingError> {
+    process_value(log, &mut SchemaProcessor, ProcessingState::root())?;
+
+    let Some(log) = log.value_mut() else {
+        return Err(ProcessingError::NoEventPayload);
+    };
+
+    process_attribute_types(log);
+    populate_ua_fields(log, meta.user_agent(), meta.client_hints().as_deref());
+
+    Ok(())
 }
 
-fn scrub(_log: &mut Annotated<OurLog>) -> Result<(), ProcessingError> {
-    todo!()
+fn process_attribute_types(log: &mut OurLog) {
+    let Some(attributes) = log.attributes.value_mut() else {
+        return;
+    };
+
+    let attributes = attributes.iter_mut().map(|(_, attr)| attr);
+
+    for attribute in attributes {
+        use AttributeType::*;
+
+        let Some(inner) = attribute.value_mut() else {
+            continue;
+        };
+
+        match (&mut inner.value.ty, &mut inner.value.value) {
+            (Annotated(Some(Boolean), _), Annotated(Some(Value::Bool(_)), _)) => (),
+            (Annotated(Some(Integer), _), Annotated(Some(Value::I64(_)), _)) => (),
+            (Annotated(Some(Integer), _), Annotated(Some(Value::U64(_)), _)) => (),
+            (Annotated(Some(Double), _), Annotated(Some(Value::I64(_)), _)) => (),
+            (Annotated(Some(Double), _), Annotated(Some(Value::U64(_)), _)) => (),
+            (Annotated(Some(Double), _), Annotated(Some(Value::F64(_)), _)) => (),
+            (Annotated(Some(String), _), Annotated(Some(Value::String(_)), _)) => (),
+            // Note: currently the mapping to Kafka requires that invalid or unknown combinations
+            // of types and values are removed from the mapping.
+            //
+            // Usually Relay would only modify the offending values, but for now, until there
+            // is better support in the pipeline here, we need to remove the entire attribute.
+            (Annotated(Some(Unknown(_)), _), _) => {
+                let original = attribute.value_mut().take();
+                attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                attribute.meta_mut().set_original_value(original);
+            }
+            (Annotated(Some(_), _), Annotated(Some(_), _)) => {
+                let original = attribute.value_mut().take();
+                attribute.meta_mut().add_error(ErrorKind::InvalidData);
+                attribute.meta_mut().set_original_value(original);
+            }
+            (Annotated(None, _), _) | (_, Annotated(None, _)) => {
+                let original = attribute.value_mut().take();
+                attribute.meta_mut().add_error(ErrorKind::MissingAttribute);
+                attribute.meta_mut().set_original_value(original);
+            }
+        }
+    }
+}
+
+fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: ClientHints<&str>) {
+    let attributes = log.attributes.get_or_insert_with(Default::default);
+    let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+        user_agent,
+        client_hints,
+    }) else {
+        return;
+    };
+
+    if !attributes.contains_key("sentry.browser.name") {
+        if let Some(name) = context.name.value() {
+            attributes.insert(
+                "sentry.browser.name".to_owned(),
+                Annotated::new(Attribute::new(
+                    AttributeType::String,
+                    Value::String(name.to_owned()),
+                )),
+            );
+        }
+    }
+
+    if !attributes.contains_key("sentry.browser.version") {
+        if let Some(version) = context.version.value() {
+            attributes.insert(
+                "sentry.browser.version".to_owned(),
+                Annotated::new(Attribute::new(
+                    AttributeType::String,
+                    Value::String(version.to_owned()),
+                )),
+            );
+        }
+    }
 }

@@ -32,6 +32,10 @@ pub mod cogs;
 pub mod global_config;
 #[cfg(feature = "processing")]
 pub mod global_rate_limits;
+#[cfg(not(feature = "processing"))]
+pub mod global_rate_limits_dummy;
+#[cfg(not(feature = "processing"))]
+pub use global_rate_limits_dummy as global_rate_limits;
 pub mod health_check;
 pub mod metrics;
 pub mod outcome;

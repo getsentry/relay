@@ -48,6 +48,7 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
+use crate::processing::QuotaRateLimiter;
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -1142,8 +1143,8 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     quotas_client: Option<AsyncRedisClient>,
     addrs: Addrs,
-    #[cfg(feature = "processing")]
     rate_limiter: Option<Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>>,
+    quota_limiter: Arc<QuotaRateLimiter>,
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
@@ -1184,16 +1185,22 @@ impl EnvelopeProcessorService {
         };
 
         #[cfg(feature = "processing")]
-        let rate_limiter = if let (Some(quotas), Some(global_rate_limits)) =
-            (quotas.clone(), &addrs.global_rate_limits)
-        {
-            Some(Arc::new(
-                RedisRateLimiter::new(quotas, global_rate_limits.clone().into())
-                    .max_limit(config.max_rate_limit()),
-            ))
-        } else {
-            None
+        let global_rate_limits = addrs.global_rate_limits.clone().map(Into::into);
+        #[cfg(not(feature = "processing"))]
+        let global_rate_limits = None;
+
+        let rate_limiter = match (quotas.clone(), global_rate_limits) {
+            (Some(redis), Some(global)) => {
+                Some(RedisRateLimiter::new(redis, global).max_limit(config.max_rate_limit()))
+            }
+            _ => None,
         };
+
+        let quota_limiter = Arc::new(QuotaRateLimiter::new(
+            project_cache.clone(),
+            rate_limiter.clone(),
+        ));
+        let rate_limiter = rate_limiter.map(Arc::new);
 
         let inner = InnerProcessor {
             pool,
@@ -1202,8 +1209,8 @@ impl EnvelopeProcessorService {
             cogs,
             #[cfg(feature = "processing")]
             quotas_client: quotas.clone(),
-            #[cfg(feature = "processing")]
             rate_limiter,
+            quota_limiter,
             addrs,
             geoip_lookup,
             #[cfg(feature = "processing")]
@@ -2330,7 +2337,8 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Log => {
                 use crate::processing::{self, Forward as _, Processor as _};
 
-                let processor = processing::logs::LogsProcessor::new();
+                let processor =
+                    processing::logs::LogsProcessor::new(Arc::clone(&self.inner.quota_limiter));
                 let work = processor.prepare_envelope(&mut managed_envelope).expect(
                     "there must be work for the logs processor in the logs processing group",
                 );
@@ -2338,14 +2346,24 @@ impl EnvelopeProcessorService {
                     managed_envelope.envelope_mut().is_empty(),
                     "processing group should map 1:1 to processor"
                 );
+                // std::mem::forget(managed_envelope);
+                managed_envelope.update();
                 managed_envelope.reject(Outcome::RateLimited(None));
 
-                let x = processor.process(work, ctx).await.unwrap();
+                let output = processor
+                    .process(work, ctx)
+                    .await
+                    .map_err(|err| err.into_inner())?;
 
-                let managed_envelope = ManagedEnvelope::from(x.main.serialize_envelope().unwrap());
+                let managed_envelope = ManagedEnvelope::from(
+                    output
+                        .main
+                        .serialize_envelope()
+                        .map_err(|_| ProcessingError::NoEventPayload)?,
+                );
                 Ok(ProcessingResult {
                     managed_envelope: managed_envelope.into_processed(),
-                    extracted_metrics: x.metrics,
+                    extracted_metrics: output.metrics,
                 })
             }
             ProcessingGroup::Span => run!(
