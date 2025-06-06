@@ -209,7 +209,7 @@ impl Counted for Box<Envelope> {
         // TODO: longterm, this can be moved into `EnvelopeSummary` after we figure out
         // how indexed/non-indexed should behave. In this case here, we cannot generically
         // emit for the indexed category because we specifically need to differentiate.
-        let summary = EnvelopeSummary::compute(&*self);
+        let summary = EnvelopeSummary::compute(self);
         if let Some(category) = summary.event_category {
             quantities.push((category, 1));
             if let Some(category) = category.index_category() {
@@ -305,7 +305,7 @@ impl<T: Counted> Managed<T> {
         S: Counted,
     {
         self.try_map(move |inner, records| Ok::<_, Infallible>(f(inner, records)))
-            .unwrap_or_else(|e| match e.into_inner() {})
+            .unwrap_or_else(|e| match e.0 {})
     }
 
     // TODO: this could take a trait as fn (a 'transformer')
@@ -340,8 +340,11 @@ impl<T: Counted> Managed<T> {
     where
         F: FnOnce(&mut T, &mut RecordKeeper),
     {
-        self.try_modify(move |inner, records| Ok::<_, Infallible>(f(inner, records)))
-            .unwrap_or_else(|e| match e {})
+        self.try_modify(move |inner, records| {
+            f(inner, records);
+            Ok::<_, Infallible>(())
+        })
+        .unwrap_or_else(|e| match e {})
     }
 
     pub fn try_modify<F, E>(&mut self, f: F) -> Result<(), Rejected<E::Error>>
@@ -471,9 +474,7 @@ impl OutcomeError for ProcessingError {
     fn consume(self) -> (Outcome, Self::Error) {
         // TODO: make our own, better error type than this pos
         let outcome = match &self {
-            ProcessingError::DuplicateItem(item_type) => {
-                Outcome::Invalid(DiscardReason::DuplicateItem)
-            }
+            ProcessingError::DuplicateItem(_) => Outcome::Invalid(DiscardReason::DuplicateItem),
             _ => Outcome::Invalid(DiscardReason::Cors),
         };
 
@@ -559,11 +560,11 @@ impl<'a> RecordKeeper<'a> {
     }
 
     /// Defuses the drop guard and emits the collected outcomes.
-    fn success(mut self, new: Quantities) {
+    fn success(mut self, _new: Quantities) {
         // TODO: we can debug assert, validate that the quantities before - in_flight,
         // equals the new quantities.
 
-        let original = std::mem::take(&mut self.on_drop);
+        let _original = std::mem::take(&mut self.on_drop);
         // TODO: assert_debug_eq!(new + in_flight, original);
 
         self.on_drop.clear();

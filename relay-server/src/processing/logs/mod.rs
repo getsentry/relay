@@ -79,6 +79,8 @@ impl processing::Processor for LogsProcessor {
     }
 }
 
+// TODO: `Items` is seemingly massive (smallvec of Item)
+#[expect(clippy::large_enum_variant)]
 pub enum LogOutput {
     NotProcessed(Managed<EinsLog>),
     Processed(Managed<ZweiLog>),

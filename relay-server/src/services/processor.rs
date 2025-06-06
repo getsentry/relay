@@ -48,7 +48,7 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
-use crate::processing::QuotaRateLimiter;
+use crate::processing::{Forward as _, Processor as _, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -90,7 +90,6 @@ mod attachment;
 mod dynamic_sampling;
 mod event;
 mod metrics;
-mod ourlog;
 mod profile;
 mod profile_chunk;
 mod replay;
@@ -2130,33 +2129,43 @@ impl EnvelopeProcessorService {
     ///
     async fn process_logs(
         &self,
-        managed_envelope: &mut TypedEnvelope<LogGroup>,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
+        managed_envelope: &mut ManagedEnvelope,
+        ctx: processing::Context<'_>,
+    ) -> Result<ProcessingResult, ProcessingError> {
+        let processor = processing::logs::LogsProcessor::new(Arc::clone(&self.inner.quota_limiter));
+        let Some(logs) = processor.prepare_envelope(managed_envelope) else {
+            debug_assert!(
+                false,
+                "there must be work for the logs processor in the logs processing group"
+            );
+            return Err(ProcessingError::NoEventPayload);
+        };
 
-        ourlog::filter(
-            managed_envelope,
-            &self.inner.config,
-            &project_info,
-            &self.inner.global_config.current(),
+        debug_assert!(
+            managed_envelope.envelope_mut().is_empty(),
+            "processing group should map 1:1 to processor"
         );
 
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            &project_info,
-            &rate_limits,
-        )
-        .await?;
+        managed_envelope.update();
+        managed_envelope.reject(Outcome::RateLimited(None));
 
-        if_processing!(self.inner.config, {
-            ourlog::process(managed_envelope, &project_info)?;
-        });
+        let output = processor
+            .process(logs, ctx)
+            .await
+            .map_err(|err| err.into_inner())?;
 
-        Ok(Some(extracted_metrics))
+        let managed_envelope = ManagedEnvelope::from(
+            output
+                .main
+                .serialize_envelope()
+                // TODO: better error here
+                .map_err(|_| ProcessingError::NoEventPayload)?,
+        );
+
+        Ok(ProcessingResult {
+            managed_envelope: managed_envelope.into_processed(),
+            extracted_metrics: output.metrics,
+        })
     }
 
     /// Processes standalone spans.
@@ -2334,38 +2343,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log => {
-                use crate::processing::{self, Forward as _, Processor as _};
-
-                let processor =
-                    processing::logs::LogsProcessor::new(Arc::clone(&self.inner.quota_limiter));
-                let work = processor.prepare_envelope(&mut managed_envelope).expect(
-                    "there must be work for the logs processor in the logs processing group",
-                );
-                assert!(
-                    managed_envelope.envelope_mut().is_empty(),
-                    "processing group should map 1:1 to processor"
-                );
-                // std::mem::forget(managed_envelope);
-                managed_envelope.update();
-                managed_envelope.reject(Outcome::RateLimited(None));
-
-                let output = processor
-                    .process(work, ctx)
-                    .await
-                    .map_err(|err| err.into_inner())?;
-
-                let managed_envelope = ManagedEnvelope::from(
-                    output
-                        .main
-                        .serialize_envelope()
-                        .map_err(|_| ProcessingError::NoEventPayload)?,
-                );
-                Ok(ProcessingResult {
-                    managed_envelope: managed_envelope.into_processed(),
-                    extracted_metrics: output.metrics,
-                })
-            }
+            ProcessingGroup::Log => self.process_logs(&mut managed_envelope, ctx).await,
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
