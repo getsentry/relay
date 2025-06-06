@@ -22,7 +22,7 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
-use crate::envelope::{CountFor, Item};
+use crate::envelope::Item;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{ProcessingError, ProcessingExtractedMetrics};
 use crate::services::projects::project::ProjectInfo;
@@ -188,9 +188,7 @@ impl Counted for () {
 
 impl Counted for Item {
     fn quantities(&self) -> Quantities {
-        // TODO: get rid of `CountFor`, this is currently just used for sessions to not emit
-        // outcomes, but this seems redundant and no longer necessary.
-        self.quantities(CountFor::RateLimits)
+        self.quantities()
     }
 }
 
