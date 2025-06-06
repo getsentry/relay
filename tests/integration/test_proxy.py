@@ -23,7 +23,7 @@ def test_span_allowed(mini_sentry, relay):
                 bytes=json.dumps(
                     {
                         "description": r"test \" with \" escaped \" chars",
-                        "op": "default",
+                        "op": "",
                         "span_id": "cd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
                         "start_timestamp": start.timestamp(),

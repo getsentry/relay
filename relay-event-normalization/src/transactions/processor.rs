@@ -683,7 +683,7 @@ mod tests {
             {
               "timestamp": 946684810.0,
               "start_timestamp": 946684800.0,
-              "op": "default",
+              "op": "",
               "span_id": "fa90fdead5f74053",
               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
             }
