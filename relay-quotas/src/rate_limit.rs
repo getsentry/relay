@@ -476,6 +476,10 @@ impl CachedRateLimits {
     ///
     /// This is a thread-safe wrapper around [`RateLimits::merge`].
     pub fn merge(&self, limits: RateLimits) {
+        if limits.is_empty() {
+            return;
+        }
+
         let mut inner = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         let current = Arc::make_mut(&mut inner);
         for limit in limits {

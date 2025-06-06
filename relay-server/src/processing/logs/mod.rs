@@ -1,12 +1,17 @@
+use std::sync::Arc;
+
 use relay_event_schema::protocol::OurLog;
-use relay_quotas::{DataCategory, RateLimits};
+use relay_quotas::DataCategory;
 
 use crate::Envelope;
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemContainer, ItemType, Items};
-use crate::processing::{
-    self, Context, Counted, Forward, Managed, Output, Quantities, QuotaRateLimiter, RateLimited,
-    RateLimiter, if_processing,
+use crate::envelope::{
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
+use crate::processing::{
+    self, Context, Counted, Forward, Managed, ManagedResult as _, Output, Quantities,
+    QuotaRateLimiter, RateLimited, RateLimiter, Rejected, if_processing,
+};
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::ProcessingError;
 use crate::utils::ManagedEnvelope;
 
@@ -16,14 +21,12 @@ mod process;
 mod validate;
 
 pub struct LogsProcessor {
-    limiter: QuotaRateLimiter,
+    limiter: Arc<QuotaRateLimiter>,
 }
 
 impl LogsProcessor {
-    pub fn new() -> Self {
-        Self {
-            limiter: QuotaRateLimiter::default(),
-        }
+    pub fn new(limiter: Arc<QuotaRateLimiter>) -> Self {
+        Self { limiter }
     }
 }
 
@@ -55,26 +58,23 @@ impl processing::Processor for LogsProcessor {
 
     async fn process(
         &self,
-        mut work: Managed<Self::UnitOfWork>,
+        mut logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
-    ) -> Result<Output<Self::Output>, ProcessingError> {
-        // TODO: here are the wrong outcomes emitted (only through the Drop -> Invalid(Internal))
-        // There could be a Rejected() error which can only be obtained from the Managed<>
-        // And the trait only allows Rejected<T> to bubble up.
-        validate::container(&work, ctx)?;
+    ) -> Result<Output<Self::Output>, Rejected<ProcessingError>> {
+        validate::container(&logs, ctx)?;
+        filter::feature_flag(ctx).reject(&logs)?;
 
-        filter::feature_flag(ctx)?;
-        filter::sampled(ctx)?;
+        filter::sampled(ctx).reject(&logs)?;
 
-        self.limiter.enforce_quotas(&mut work, ctx).await?;
+        self.limiter.enforce_quotas(&mut logs, ctx).await?;
 
         if_processing!(ctx, {
-            let mut work = process::expand(work)?;
-            process::process(&mut work, ctx)?;
+            let mut logs = process::expand(logs);
+            process::process(&mut logs, ctx);
 
-            Ok(Output::just(work.into()))
+            Ok(Output::just(logs.into()))
         } else {
-            Ok(Output::just(work.into()))
+            Ok(Output::just(logs.into()))
         })
     }
 }
@@ -97,10 +97,14 @@ impl From<Managed<ZweiLog>> for LogOutput {
 }
 
 impl Forward for LogOutput {
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, ()> {
+    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let logs = match self {
             Self::NotProcessed(logs) => logs,
-            Self::Processed(logs) => logs.try_map(|logs, _| logs.serialize())?,
+            Self::Processed(logs) => logs.try_map(|logs, _| {
+                logs.serialize()
+                    .map_err(drop)
+                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+            })?,
         };
 
         Ok(logs.map(|logs, _| logs.serialize_envelope()))
@@ -154,9 +158,9 @@ impl RateLimited for Managed<EinsLog> {
 
     async fn enforce<T>(
         &mut self,
-        rate_limiter: T,
+        mut rate_limiter: T,
         _ctx: Context<'_>,
-    ) -> Result<RateLimits, Self::Error>
+    ) -> Result<(), Rejected<Self::Error>>
     where
         T: RateLimiter,
     {
@@ -180,16 +184,10 @@ impl RateLimited for Managed<EinsLog> {
         // TODO: this check uses the current time, but maybe the 'checker' should only return
         // active limits (what currently is the case), then this check could be `is_empty()`.
         if total_limits.is_limited() {
-            // TODO: we can discard the entire envelope here as rate limited
-            // but in other cases we will have to discard single elements
-
-            // TODO: Return an error here which will reject the data with the correct outcome.
-            return Err(ProcessingError::NoEventPayload);
+            return Err(self.reject_err(ProcessingError::NoEventPayload));
         }
 
-        // TODO: how to enforce the limits here?
-
-        Ok(total_limits)
+        Ok(())
     }
 }
 
@@ -206,14 +204,12 @@ impl Counted for ZweiLog {
 }
 
 impl ZweiLog {
-    // TODO: error type
-    fn serialize(self) -> Result<EinsLog, ()> {
+    fn serialize(self) -> Result<EinsLog, ContainerWriteError> {
         let mut item = Item::new(ItemType::Log);
 
         ItemContainer::from(self.logs)
             .write_to(&mut item)
-            .inspect_err(|err| relay_log::debug!("failed to serialize logs: {err}"))
-            .map_err(drop)?;
+            .inspect_err(|err| relay_log::debug!("failed to serialize logs: {err}"))?;
 
         Ok(EinsLog {
             headers: self.headers,

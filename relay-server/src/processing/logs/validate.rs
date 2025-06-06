@@ -1,5 +1,5 @@
 use crate::processing::logs::EinsLog;
-use crate::processing::{Context, if_processing};
+use crate::processing::{Context, Managed, Rejected, if_processing};
 use crate::services::processor::ProcessingError;
 
 /// Validates that there is only a single log container processed at a time.
@@ -12,13 +12,16 @@ use crate::services::processor::ProcessingError;
 ///
 /// This limit mostly exists to incentivise SDKs to batch multiple logs into a single container,
 /// technically it can be removed without issues.
-pub fn container(_logs: &EinsLog, _ctx: Context<'_>) -> Result<(), ProcessingError> {
+pub fn container(
+    _logs: &Managed<EinsLog>,
+    _ctx: Context<'_>,
+) -> Result<(), Rejected<ProcessingError>> {
     if_processing!(_ctx, {
         use crate::envelope::ItemType;
 
         // It's fine if there was no log container, as we still accept otel logs.
         if _logs.logs.len() > 1 {
-            return Err(ProcessingError::DuplicateItem(ItemType::Log));
+            return Err(_logs.reject_err(ProcessingError::DuplicateItem(ItemType::Log)));
         }
     });
 

@@ -10,6 +10,7 @@ use std::convert::Infallible;
 use std::mem::ManuallyDrop;
 use std::net::IpAddr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use relay_config::Config;
@@ -30,8 +31,10 @@ use crate::utils::{EnvelopeSummary, ManagedEnvelope};
 
 mod limits;
 pub mod logs;
+mod utils;
 
 pub use self::limits::*;
+pub use self::utils::*;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
 ///
@@ -79,7 +82,7 @@ pub trait Processor {
         &self,
         work: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
-    ) -> Result<Output<Self::Output>, Self::Error>;
+    ) -> Result<Output<Self::Output>, Rejected<Self::Error>>;
 
     // TODO: maybe an on error here, might be hard to call with work (as ownership is gone)?
     // The handler could emit outcomes but propagate okay upwards or fail upwards?
@@ -111,6 +114,18 @@ impl Context<'_> {
     }
 }
 
+// TODO: better docs:
+/// A way to make sure outcomes have been emitted
+#[derive(Debug, Clone, Copy)]
+#[must_use = "a rejection must be propagated"]
+pub struct Rejected<T>(T);
+
+impl<T> Rejected<T> {
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
 /// The main processing output and all of its by products.
 ///
 /// TODO: the output needs to be tracked as well
@@ -131,7 +146,7 @@ impl<T> Output<T> {
 pub trait Forward {
     // TODO: document what should happen in an error case
     // TODO: change the error type, it must contain information which outcomes to emit
-    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, ()>;
+    fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>>;
 }
 
 // TODO: this could be an enumap
@@ -255,13 +270,14 @@ where
 pub struct Managed<T: Counted> {
     value: T,
     meta: Arc<Meta>,
+    done: AtomicBool,
 }
 
 impl<T: Counted> Managed<T> {
     pub fn from_envelope(envelope: &ManagedEnvelope, value: T) -> Self {
-        Self {
+        Self::from_parts(
             value,
-            meta: Arc::new(Meta {
+            Arc::new(Meta {
                 outcome_aggregator: envelope.outcome_aggregator().clone(),
                 test_store: envelope.test_store().clone(),
                 received_at: envelope.received_at(),
@@ -269,21 +285,18 @@ impl<T: Counted> Managed<T> {
                 event_id: envelope.envelope().event_id(),
                 remote_addr: envelope.meta().remote_addr(),
             }),
-        }
-    }
-
-    pub fn scoping(&self) -> Scoping {
-        self.meta.scoping
+        )
     }
 
     pub fn wrap<S>(&self, other: S) -> Managed<S>
     where
         S: Counted,
     {
-        Managed {
-            value: other,
-            meta: Arc::clone(&self.meta),
-        }
+        Managed::from_parts(other, Arc::clone(&self.meta))
+    }
+
+    pub fn scoping(&self) -> Scoping {
+        self.meta.scoping
     }
 
     pub fn map<S, F>(self, f: F) -> Managed<S>
@@ -292,15 +305,18 @@ impl<T: Counted> Managed<T> {
         S: Counted,
     {
         self.try_map(move |inner, records| Ok::<_, Infallible>(f(inner, records)))
-            .unwrap_or_else(|e| match e {})
+            .unwrap_or_else(|e| match e.into_inner() {})
     }
 
     // TODO: this could take a trait as fn (a 'transformer')
-    pub fn try_map<S, F, E>(self, f: F) -> Result<Managed<S>, E>
+    pub fn try_map<S, F, E>(self, f: F) -> Result<Managed<S>, Rejected<E::Error>>
     where
         F: FnOnce(T, &mut RecordKeeper) -> Result<S, E>,
         S: Counted,
+        E: OutcomeError,
     {
+        debug_assert!(!self.is_done());
+
         let (value, meta) = self.destructure();
         let quantities = value.quantities();
 
@@ -311,16 +327,9 @@ impl<T: Counted> Managed<T> {
         match f(value, &mut records) {
             Ok(value) => {
                 records.success(value.quantities());
-                Ok(Managed { value, meta })
+                Ok(Managed::from_parts(value, meta))
             }
-            Err(err) => {
-                // Emit the original quantities as outcomes.
-                // TODO: this actually needs an outcome too, this somehow needs to be
-                // inferred from the error?
-                // TODO: this is obviously the wrong reason.
-                records.failure(Outcome::Invalid(DiscardReason::Cors));
-                Err(err)
-            }
+            Err(err) => Err(records.failure(err)),
         }
 
         // TODO: take quantities before and after and validate the amount of emitted outcomes
@@ -335,10 +344,13 @@ impl<T: Counted> Managed<T> {
             .unwrap_or_else(|e| match e {})
     }
 
-    pub fn try_modify<F, E>(&mut self, f: F) -> Result<(), E>
+    pub fn try_modify<F, E>(&mut self, f: F) -> Result<(), Rejected<E::Error>>
     where
         F: FnOnce(&mut T, &mut RecordKeeper) -> Result<(), E>,
+        E: OutcomeError,
     {
+        debug_assert!(!self.is_done());
+
         let quantities = self.value.quantities();
         let mut records = RecordKeeper::new(&self.meta, quantities);
 
@@ -348,16 +360,27 @@ impl<T: Counted> Managed<T> {
                 Ok(())
             }
             Err(err) => {
-                // TODO: fix this outcome, same as in `try_map`.
-                records.failure(Outcome::Invalid(DiscardReason::Cors));
+                let err = records.failure(err);
+                self.done.store(true, Ordering::Relaxed);
                 Err(err)
             }
         }
     }
 
-    pub fn reject(&mut self, outcome: Outcome) {
-        for (category, quantity) in self.value.quantities() {
-            self.meta.track_outcome(outcome.clone(), category, quantity);
+    pub fn reject_err<E>(&self, error: E) -> Rejected<E::Error>
+    where
+        E: OutcomeError,
+    {
+        let (outcome, error) = error.consume();
+        self.do_reject(outcome);
+        Rejected(error)
+    }
+
+    fn do_reject(&self, outcome: Outcome) {
+        if !self.done.fetch_or(true, Ordering::Relaxed) {
+            for (category, quantity) in self.value.quantities() {
+                self.meta.track_outcome(outcome.clone(), category, quantity);
+            }
         }
     }
 
@@ -379,22 +402,36 @@ impl<T: Counted> Managed<T> {
         let meta = unsafe { std::ptr::read(&this.meta) };
         (value, meta)
     }
+
+    fn from_parts(value: T, meta: Arc<Meta>) -> Self {
+        Self {
+            value,
+            meta,
+            done: AtomicBool::new(false),
+        }
+    }
+
+    fn is_done(&self) -> bool {
+        self.done.load(Ordering::Relaxed)
+    }
 }
 
 impl From<Managed<Box<Envelope>>> for ManagedEnvelope {
     fn from(value: Managed<Box<Envelope>>) -> Self {
         let (value, meta) = value.destructure();
-        ManagedEnvelope::new(
+        let mut envelope = ManagedEnvelope::new(
             value,
             meta.outcome_aggregator.clone(),
             meta.test_store.clone(),
-        )
+        );
+        envelope.scope(meta.scoping);
+        envelope
     }
 }
 
 impl<T: Counted> Drop for Managed<T> {
     fn drop(&mut self) {
-        self.reject(Outcome::Invalid(DiscardReason::Internal));
+        self.do_reject(Outcome::Invalid(DiscardReason::Internal));
     }
 }
 
@@ -411,6 +448,44 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+pub trait OutcomeError {
+    type Error;
+
+    fn consume(self) -> (Outcome, Self::Error);
+}
+
+impl<E> OutcomeError for (Outcome, E) {
+    type Error = E;
+
+    fn consume(self) -> (Outcome, Self::Error) {
+        self
+    }
+}
+
+impl OutcomeError for ProcessingError {
+    type Error = Self;
+
+    fn consume(self) -> (Outcome, Self::Error) {
+        // TODO: make our own, better error type than this pos
+        let outcome = match &self {
+            ProcessingError::DuplicateItem(item_type) => {
+                Outcome::Invalid(DiscardReason::DuplicateItem)
+            }
+            _ => Outcome::Invalid(DiscardReason::Cors),
+        };
+
+        (outcome, self)
+    }
+}
+
+impl OutcomeError for Infallible {
+    type Error = Self;
+
+    fn consume(self) -> (Outcome, Self::Error) {
+        match self {}
     }
 }
 
@@ -470,10 +545,17 @@ impl<'a> RecordKeeper<'a> {
     }
 
     /// Defuses the drop guard and emits outcomes for the original quantities provided.
-    fn failure(mut self, outcome: Outcome) {
+    fn failure<E>(mut self, error: E) -> Rejected<E::Error>
+    where
+        E: OutcomeError,
+    {
+        let (outcome, error) = error.consume();
+
         for (category, quantity) in std::mem::take(&mut self.on_drop) {
             self.meta.track_outcome(outcome.clone(), category, quantity);
         }
+
+        Rejected(error)
     }
 
     /// Defuses the drop guard and emits the collected outcomes.

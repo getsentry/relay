@@ -1,31 +1,55 @@
 use relay_quotas::{ItemScoping, Quota, RateLimits};
 
-use crate::processing::Context;
+use crate::processing::{Context, Counted, Managed, Rejected};
 
-#[cfg(feature = "processing")]
 use crate::services::global_rate_limits::GlobalRateLimitsServiceHandle;
+use crate::services::projects::cache::ProjectCacheHandle;
+
+type Redis = relay_quotas::RedisRateLimiter<GlobalRateLimitsServiceHandle>;
 
 // TODO: this may need a better name
-#[derive(Default)]
 pub struct QuotaRateLimiter {
-    #[cfg(feature = "processing")]
-    redis: Option<relay_quotas::RedisRateLimiter<GlobalRateLimitsServiceHandle>>,
+    #[cfg_attr(
+        not(feature = "processing"),
+        expect(unused, reason = "only needed for processing")
+    )]
+    project_cache: ProjectCacheHandle,
+    #[cfg_attr(
+        not(feature = "processing"),
+        expect(unused, reason = "only needed for processing")
+    )]
+    redis: Option<Redis>,
 }
 
 impl QuotaRateLimiter {
+    pub fn new(project_cache: ProjectCacheHandle, redis: Option<Redis>) -> Self {
+        Self {
+            project_cache,
+            redis,
+        }
+    }
+
     // TODO: maybe this should take a `&mut Managed<T>` or some variant of this
     // TODO: maybe this should return a result which can be applied to items, instead
     // of modifying in place?
-    pub async fn enforce_quotas<T>(&self, data: &mut T, ctx: Context<'_>) -> Result<(), T::Error>
+    pub async fn enforce_quotas<T>(
+        &self,
+        data: &mut Managed<T>,
+        ctx: Context<'_>,
+    ) -> Result<(), Rejected<<Managed<T> as RateLimited>::Error>>
     where
-        T: RateLimited,
+        T: Counted,
+        Managed<T>: RateLimited,
     {
         let quotas = CombinedQuotas {
             global_quotas: &ctx.global_config.quotas,
             project_quotas: ctx.project_info.get_quotas(),
         };
 
-        // TODO: indexed/non-indexed special casing thing
+        // TODO: indexed/non-indexed special casing thing, cached rate limits
+        // can only be enforced on indexed in the processor.
+        // Which means this will always be correct, but there is the chance someone will re-use
+        // this code outside of the processor. Do we guard against this already to prevent misuse?
         let limiter = CachedRateLimiter {
             cached: ctx.rate_limits,
             quotas,
@@ -34,17 +58,15 @@ impl QuotaRateLimiter {
         #[cfg(feature = "processing")]
         let limiter = {
             let redis = self.redis.as_ref().map(|redis| redis::RedisRateLimiter {
-                redis: &redis,
+                redis,
                 quotas,
+                limits: RateLimits::new(),
+                project: self.project_cache.get(data.scoping().project_key),
             });
             redis::CombinedRateLimiter(limiter, redis)
         };
 
-        // TODO: `?` we need to emit outcomes here.
-        // TODO: the returned rate limits must be merged back, the limiter should take care of this
-        let _rate_limits = data.enforce(limiter, ctx).await?;
-
-        Ok(())
+        data.enforce(limiter, ctx).await
     }
 }
 
@@ -54,31 +76,53 @@ struct CachedRateLimiter<'a> {
 }
 
 impl RateLimiter for CachedRateLimiter<'_> {
-    async fn try_consume(&self, scope: ItemScoping, _quantity: usize) -> RateLimits {
+    async fn try_consume(&mut self, scope: ItemScoping, _quantity: usize) -> RateLimits {
         self.cached.check_with_quotas(self.quotas, scope)
     }
 }
 
 #[cfg(feature = "processing")]
 mod redis {
+    use crate::services::projects::cache::Project;
+
     use super::*;
     use relay_quotas::GlobalLimiter;
 
     pub struct RedisRateLimiter<'a, T> {
         pub redis: &'a relay_quotas::RedisRateLimiter<T>,
         pub quotas: CombinedQuotas<'a>,
+        pub limits: RateLimits,
+        pub project: Project<'a>,
     }
 
     impl<T> RateLimiter for RedisRateLimiter<'_, T>
     where
         T: GlobalLimiter,
     {
-        async fn try_consume(&self, scope: ItemScoping, quantity: usize) -> RateLimits {
-            // TODO: error case
-            self.redis
+        async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
+            let limits = self
+                .redis
                 .is_rate_limited(self.quotas, scope, quantity, false)
                 .await
-                .unwrap()
+                .inspect_err(|err| {
+                    relay_log::error!(
+                        error = err as &dyn std::error::Error,
+                        "rate limiting failed"
+                    );
+                })
+                // Return empty (no) rate limits when the rate limiter fails,
+                // this means even with a failing Redis instance no items will be dropped.
+                .unwrap_or_default();
+
+            self.limits.merge(limits.clone());
+            limits
+        }
+    }
+
+    impl<T> Drop for RedisRateLimiter<'_, T> {
+        fn drop(&mut self) {
+            let limits = std::mem::take(&mut self.limits);
+            self.project.rate_limits().merge(limits);
         }
     }
 
@@ -89,7 +133,7 @@ mod redis {
         T: RateLimiter,
         S: RateLimiter,
     {
-        async fn try_consume(&self, scope: ItemScoping, quantity: usize) -> RateLimits {
+        async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
             let limits = self.0.try_consume(scope, quantity).await;
             if !limits.is_empty() {
                 return limits;
@@ -106,15 +150,15 @@ pub trait RateLimiter {
     //  - Maybe should be conditional on the impl
     // TODO: maybe the checker should return Option<RateLimits> or something
     // and only return active rate limits. As `RateLimits` can contain expired limits.
-    async fn try_consume(&self, scope: ItemScoping, quantity: usize) -> RateLimits;
+    async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits;
 }
 
 impl<T> RateLimiter for Option<T>
 where
     T: RateLimiter,
 {
-    async fn try_consume(&self, scope: ItemScoping, quantity: usize) -> RateLimits {
-        match self.as_ref() {
+    async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits {
+        match self.as_mut() {
             Some(limiter) => limiter.try_consume(scope, quantity).await,
             None => RateLimits::default(),
         }
@@ -129,7 +173,7 @@ pub trait RateLimited {
         &mut self,
         rate_limiter: T,
         ctx: Context<'_>,
-    ) -> Result<RateLimits, Self::Error>
+    ) -> Result<(), Rejected<Self::Error>>
     where
         T: RateLimiter;
 }
