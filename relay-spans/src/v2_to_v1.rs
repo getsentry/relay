@@ -214,7 +214,7 @@ fn span_v2_link_to_span_v1_link(link: SpanV2Link) -> SpanLink {
 /// This uses attributes of the span to figure out an appropriate operation name, inferring what the SDK might have sent. Reliably infers an op for well-known OTel span kinds like database operations. Does not infer an op for frontend and mobile spans sent by Sentry SDKs that don't have an OTel equivalent (e.g., resource loads). This relies on the SDK to send a `sentry.op` attribute, since we cannot infer an op.
 fn derive_op_for_v2_span(span: &SpanV2) -> String {
     // NOTE: `op` is not a required field in the SDK, so the fallback is an empty string.
-    let op = String::from("");
+    let op = String::from("default");
 
     let attributes = if let Some(attributes) = span.attributes.value() {
         attributes
@@ -318,7 +318,7 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 1000.0,
-          "op": "",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -364,7 +364,7 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 3200.0,
-          "op": "",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -398,7 +398,7 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 0.0788,
-          "op": "",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -517,7 +517,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
-          "op": "",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -548,7 +548,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
-          "op": "",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -731,7 +731,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
-          "op": "",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -780,7 +780,7 @@ mod tests {
         insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
         {
           "exclusive_time": 0.0,
-          "op": "",
+          "op": "default",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "status": "unknown",
           "data": {},

@@ -595,7 +595,7 @@ def _get_event_payload(data_category):
             "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
             "spans": [
                 {
-                    "op": "",
+                    "op": "default",
                     "span_id": "968cff94913ebb07",
                     "segment_id": "968cff94913ebb07",
                     "start_timestamp": now.timestamp(),
@@ -740,7 +740,7 @@ def _get_profile_payload(metadata_only=True):
 def _get_span_payload():
     now = datetime.now(UTC)
     return {
-        "op": "",
+        "op": "default",
         "span_id": "968cff94913ebb07",
         "segment_id": "968cff94913ebb07",
         "start_timestamp": now.timestamp(),
