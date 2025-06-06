@@ -528,6 +528,10 @@ def envelope_with_spans(
                                     "type": "string",
                                     "value": "https://example.com/p/blah.js",
                                 },
+                                "sentry.op": {
+                                    "type": "string",
+                                    "value": "resource.script",
+                                },
                                 "sentry.exclusive_time_nano": {
                                     "type": "integer",
                                     "value": 161 * 1e6,
@@ -1387,7 +1391,7 @@ def test_standalone_span_ingestion_tag_extraction(
                         {
                             "trace_id": "ff62a8b040f340bda5d830223def1d81",
                             "span_id": "b0429c44b67a3eb2",
-                            "name": "resource.script",
+                            "name": "loading resource",
                             "status": "ok",
                             "start_timestamp": start.timestamp(),
                             "end_timestamp": end.timestamp() + 1,
@@ -1396,9 +1400,17 @@ def test_standalone_span_ingestion_tag_extraction(
                                     "type": "string",
                                     "value": "https://example.com/p/blah.js",
                                 },
+                                "sentry.op": {
+                                    "type": "string",
+                                    "value": "resource.script",
+                                },
                                 "sentry.exclusive_time_nano": {
                                     "type": "integer",
                                     "value": 161 * 1e6,
+                                },
+                                "prefetch_conditions": {
+                                    "type": "string",
+                                    "value": "normal",
                                 },
                                 # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
                                 "sentry.segment.id": {
@@ -1423,14 +1435,17 @@ def test_standalone_span_ingestion_tag_extraction(
     for span in spans:
         span.pop("received", None)
 
-    assert spans[0] == {
-        "data": {
-            "browser.name": "Python Requests",
-            "client.address": "127.0.0.1",
-            "sentry.name": "resource.script",
-            "user_agent.original": "python-requests/2.32.2",
-        },
+    span = spans[0]
+
+    assert span == {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "span_id": "b0429c44b67a3eb2",
+        "segment_id": "b0429c44b67a3eb2",
+        # N.B. `description` is an incoming attribute, but is a field in `Span`
         "description": "https://example.com/p/blah.js",
+        "start_timestamp_ms": int(start.timestamp() * 1e3),
+        "start_timestamp_precise": start.timestamp(),
+        "end_timestamp_precise": end.timestamp() + 1,
         "duration_ms": 1500,
         "exclusive_time_ms": 161.0,
         "is_segment": True,
@@ -1438,8 +1453,17 @@ def test_standalone_span_ingestion_tag_extraction(
         "organization_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "segment_id": "b0429c44b67a3eb2",
+        # N.B. `data` contains all incoming attributes that don't have a corresponding top-level field as well as custom attributes
+        "data": {
+            "sentry.name": "loading resource",
+            "browser.name": "Python Requests",
+            "client.address": "127.0.0.1",
+            "user_agent.original": "python-requests/2.32.2",
+            "prefetch_conditions": "normal",
+        },
+        # N.B. `sentry_tags` contains all extracted tags
         "sentry_tags": {
+            "browser.name": "Python Requests",
             "category": "resource",
             "description": "https://example.com/*/blah.js",
             "domain": "example.com",
@@ -1448,11 +1472,6 @@ def test_standalone_span_ingestion_tag_extraction(
             "op": "resource.script",
             "status": "ok",
         },
-        "span_id": "b0429c44b67a3eb2",
-        "start_timestamp_ms": int(start.timestamp() * 1e3),
-        "start_timestamp_precise": start.timestamp(),
-        "end_timestamp_precise": end.timestamp() + 1,
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
 
     spans_consumer.assert_empty()
