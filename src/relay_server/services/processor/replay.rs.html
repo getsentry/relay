@@ -261,7 +261,7 @@
 <a href=#261 id=261 data-nosnippet>261</a>        <span class="kw">match </span><span class="kw-2">&amp;</span>error {
 <a href=#262 id=262 data-nosnippet>262</a>            relay_replays::recording::ParseRecordingError::Compression(e) =&gt; {
 <a href=#263 id=263 data-nosnippet>263</a>                <span class="comment">// 20k errors per day at 0.1% sample rate == 20 logs per day
-<a href=#264 id=264 data-nosnippet>264</a>                </span><span class="kw">if </span>sample(<span class="number">0.001</span>) {
+<a href=#264 id=264 data-nosnippet>264</a>                </span><span class="kw">if </span>sample(<span class="number">0.001</span>).is_keep() {
 <a href=#265 id=265 data-nosnippet>265</a>                    relay_log::with_scope(
 <a href=#266 id=266 data-nosnippet>266</a>                        <span class="kw">move </span>|scope| {
 <a href=#267 id=267 data-nosnippet>267</a>                            scope.add_attachment(relay_log::protocol::Attachment {

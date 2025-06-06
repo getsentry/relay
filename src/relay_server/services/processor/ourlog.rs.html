@@ -25,9 +25,9 @@
 <a href=#25 id=25 data-nosnippet>25</a>        .options
 <a href=#26 id=26 data-nosnippet>26</a>        .ourlogs_ingestion_sample_rate
 <a href=#27 id=27 data-nosnippet>27</a>        .map(sample)
-<a href=#28 id=28 data-nosnippet>28</a>        .unwrap_or(<span class="bool-val">true</span>);
+<a href=#28 id=28 data-nosnippet>28</a>        .unwrap_or_default();
 <a href=#29 id=29 data-nosnippet>29</a>
-<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">let </span>action = <span class="kw">match </span>logging_disabled || !logs_sampled {
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">let </span>action = <span class="kw">match </span>logging_disabled || logs_sampled.is_discard() {
 <a href=#31 id=31 data-nosnippet>31</a>        <span class="bool-val">true </span>=&gt; ItemAction::DropSilently,
 <a href=#32 id=32 data-nosnippet>32</a>        <span class="bool-val">false </span>=&gt; ItemAction::Keep,
 <a href=#33 id=33 data-nosnippet>33</a>    };

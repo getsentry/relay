@@ -293,7 +293,7 @@
 <a href=#293 id=293 data-nosnippet>293</a>    }
 <a href=#294 id=294 data-nosnippet>294</a>
 <a href=#295 id=295 data-nosnippet>295</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(sample_rate) = global_config.options.span_extraction_sample_rate {
-<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">if </span>!sample(sample_rate) {
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">if </span>sample(sample_rate).is_discard() {
 <a href=#297 id=297 data-nosnippet>297</a>            <span class="kw">return </span>spans_extracted;
 <a href=#298 id=298 data-nosnippet>298</a>        }
 <a href=#299 id=299 data-nosnippet>299</a>    }
