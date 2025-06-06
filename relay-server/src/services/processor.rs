@@ -1389,7 +1389,7 @@ impl EnvelopeProcessorService {
         // If spans were already extracted for an event, we rely on span processing to extract metrics.
         let extract_spans = !spans_extracted.0
             && project_info.config.features.produces_spans()
-            && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0));
+            && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0)).is_keep();
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
@@ -2933,7 +2933,7 @@ impl EnvelopeProcessorService {
         };
 
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate) {
+        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate).is_keep() {
             for limit in limits.exceeded_limits() {
                 relay_log::with_scope(
                     |scope| {
