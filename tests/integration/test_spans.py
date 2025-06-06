@@ -528,6 +528,10 @@ def envelope_with_spans(
                                     "type": "string",
                                     "value": "https://example.com/p/blah.js",
                                 },
+                                "sentry.op": {
+                                    "type": "string",
+                                    "value": "resource.script",
+                                },
                                 "sentry.exclusive_time_nano": {
                                     "type": "integer",
                                     "value": 161 * 1e6,
@@ -767,7 +771,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "db",
-                "op": "my 1st otel span",
+                "op": "default",
                 "status": "unknown",
             },
             "span_id": "a342abb1214ca181",
@@ -805,7 +809,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "db",
-                "op": "my 1st v2 span",
+                "op": "default",
                 "status": "unknown",
             },
             "span_id": "a342abb1214ca182",
@@ -953,7 +957,7 @@ def test_span_ingestion(
             "segment_id": "d342abb1214ca182",
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "op": "my 2nd otel span",
+                "op": "default",
                 "status": "unknown",
             },
             "span_id": "d342abb1214ca182",
@@ -1017,7 +1021,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "op": "my 3rd protobuf otel span",
+                "op": "default",
                 "category": "ui",
                 "status": "unknown",
             },
@@ -1139,7 +1143,7 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "tags": {
-                "span.op": "default",
+                "span.op": "",
             },
             "timestamp": expected_timestamp + 1,
             "type": "d",
@@ -1255,7 +1259,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
             "retention_days": 90,
-            "tags": {"span.op": "default"},
+            "tags": {"span.op": ""},
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [345.0, 345.0],
@@ -1352,6 +1356,125 @@ def test_span_ingestion(
     assert len(score_total_metrics[0]["value"]) == 1
 
     metrics_consumer.assert_empty()
+
+
+def test_standalone_span_ingestion_tag_extraction(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+    relay = relay_with_processing(options={})
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = Envelope()
+
+    envelope.add_item(
+        Item(
+            type="span",
+            headers={"metrics_extracted": False, "item_count": 1},
+            content_type="application/vnd.sentry.items.span.v2+json",
+            payload=PayloadRef(
+                json={
+                    "items": [
+                        {
+                            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                            "span_id": "b0429c44b67a3eb2",
+                            "name": "loading resource",
+                            "status": "ok",
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": end.timestamp() + 1,
+                            "attributes": {
+                                "sentry.description": {
+                                    "type": "string",
+                                    "value": "https://example.com/p/blah.js",
+                                },
+                                "sentry.op": {
+                                    "type": "string",
+                                    "value": "resource.script",
+                                },
+                                "sentry.exclusive_time_nano": {
+                                    "type": "integer",
+                                    "value": 161 * 1e6,
+                                },
+                                "prefetch_conditions": {
+                                    "type": "string",
+                                    "value": "normal",
+                                },
+                                # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
+                                "sentry.segment.id": {
+                                    "type": "string",
+                                    "value": "b0429c44b67a3eb2",
+                                },
+                            },
+                        },
+                    ]
+                }
+            ),
+        )
+    )
+
+    relay.send_envelope(
+        project_id,
+        envelope,
+    )
+
+    spans = spans_consumer.get_spans(timeout=10.0, n=1)
+
+    for span in spans:
+        span.pop("received", None)
+
+    span = spans[0]
+
+    assert span == {
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        "span_id": "b0429c44b67a3eb2",
+        "segment_id": "b0429c44b67a3eb2",
+        # N.B. `description` is an incoming attribute, but is a field in `Span`
+        "description": "https://example.com/p/blah.js",
+        "start_timestamp_ms": int(start.timestamp() * 1e3),
+        "start_timestamp_precise": start.timestamp(),
+        "end_timestamp_precise": end.timestamp() + 1,
+        "duration_ms": 1500,
+        "exclusive_time_ms": 161.0,
+        "is_segment": True,
+        "is_remote": False,
+        "organization_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
+        # N.B. `data` contains all incoming attributes that don't have a corresponding top-level field as well as custom attributes
+        "data": {
+            "sentry.name": "loading resource",
+            "browser.name": "Python Requests",
+            "client.address": "127.0.0.1",
+            "user_agent.original": "python-requests/2.32.2",
+            "prefetch_conditions": "normal",
+        },
+        # N.B. `sentry_tags` contains all extracted tags
+        "sentry_tags": {
+            "browser.name": "Python Requests",
+            "category": "resource",
+            "description": "https://example.com/*/blah.js",
+            "domain": "example.com",
+            "file_extension": "js",
+            "group": "8a97a9e43588e2bd",
+            "op": "resource.script",
+            "status": "ok",
+        },
+    }
+
+    spans_consumer.assert_empty()
 
 
 def test_otel_endpoint_disabled(mini_sentry, relay):
