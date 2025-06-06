@@ -1354,6 +1354,110 @@ def test_span_ingestion(
     metrics_consumer.assert_empty()
 
 
+def test_standalone_span_ingestion_tag_extraction(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+    relay = relay_with_processing(options={})
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = Envelope()
+
+    envelope.add_item(
+        Item(
+            type="span",
+            headers={"metrics_extracted": False, "item_count": 1},
+            content_type="application/vnd.sentry.items.span.v2+json",
+            payload=PayloadRef(
+                json={
+                    "items": [
+                        {
+                            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                            "span_id": "b0429c44b67a3eb2",
+                            "name": "resource.script",
+                            "status": "ok",
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": end.timestamp() + 1,
+                            "attributes": {
+                                "sentry.description": {
+                                    "type": "string",
+                                    "value": "https://example.com/p/blah.js",
+                                },
+                                "sentry.exclusive_time_nano": {
+                                    "type": "integer",
+                                    "value": 161 * 1e6,
+                                },
+                                # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
+                                "sentry.segment.id": {
+                                    "type": "string",
+                                    "value": "b0429c44b67a3eb2",
+                                },
+                            },
+                        },
+                    ]
+                }
+            ),
+        )
+    )
+
+    relay.send_envelope(
+        project_id,
+        envelope,
+    )
+
+    spans = spans_consumer.get_spans(timeout=10.0, n=1)
+
+    for span in spans:
+        span.pop("received", None)
+
+    assert spans[0] == {
+        "data": {
+            "browser.name": "Python Requests",
+            "client.address": "127.0.0.1",
+            "sentry.name": "resource.script",
+            "user_agent.original": "python-requests/2.32.2",
+        },
+        "description": "https://example.com/p/blah.js",
+        "duration_ms": 1500,
+        "exclusive_time_ms": 161.0,
+        "is_segment": True,
+        "is_remote": False,
+        "organization_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
+        "segment_id": "b0429c44b67a3eb2",
+        "sentry_tags": {
+            "category": "resource",
+            "description": "https://example.com/*/blah.js",
+            "domain": "example.com",
+            "file_extension": "js",
+            "group": "8a97a9e43588e2bd",
+            "op": "resource.script",
+            "status": "ok",
+        },
+        "span_id": "b0429c44b67a3eb2",
+        "start_timestamp_ms": int(start.timestamp() * 1e3),
+        "start_timestamp_precise": start.timestamp(),
+        "end_timestamp_precise": end.timestamp() + 1,
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+    }
+
+    spans_consumer.assert_empty()
+
+
 def test_otel_endpoint_disabled(mini_sentry, relay):
     relay = relay(
         mini_sentry,
