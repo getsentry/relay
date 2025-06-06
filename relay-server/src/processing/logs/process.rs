@@ -210,3 +210,283 @@ fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: 
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_attribute_types() {
+        let json = r#"{
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log message",
+            "attributes": {
+                "valid_bool": {
+                    "type": "boolean",
+                    "value": true
+                },
+                "valid_int_i64": {
+                    "type": "integer",
+                    "value": -42
+                },
+                "valid_int_u64": {
+                    "type": "integer",
+                    "value": 42
+                },
+                "valid_int_from_string": {
+                    "type": "integer",
+                    "value": "42"
+                },
+                "valid_double": {
+                    "type": "double",
+                    "value": 42.5
+                },
+                "double_with_i64": {
+                    "type": "double",
+                    "value": -42
+                },
+                "valid_double_with_u64": {
+                    "type": "double",
+                    "value": 42
+                },
+                "valid_string": {
+                    "type": "string",
+                    "value": "test"
+                },
+                "valid_string_with_other": {
+                    "type": "string",
+                    "value": "test",
+                    "some_other_field": "some_other_value"
+                },
+                "unknown_type": {
+                    "type": "custom",
+                    "value": "test"
+                },
+                "invalid_int_from_invalid_string": {
+                    "type": "integer",
+                    "value": "abc"
+                },
+                "missing_type": {
+                    "value": "value with missing type"
+                },
+                "missing_value": {
+                    "type": "string"
+                }
+            }
+        }"#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        if let Some(log) = data.value_mut() {
+            process_attribute_types(log);
+        }
+
+        insta::assert_debug_snapshot!(data.value().unwrap().attributes, @r###"
+        {
+            "double_with_i64": Attribute {
+                value: I64(
+                    -42,
+                ),
+                type: Double,
+                other: {},
+            },
+            "invalid_int_from_invalid_string": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: InvalidData,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": String(
+                                "integer",
+                            ),
+                            "value": String(
+                                "abc",
+                            ),
+                        },
+                    ),
+                ),
+            },
+            "missing_type": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: MissingAttribute,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": ~,
+                            "value": String(
+                                "value with missing type",
+                            ),
+                        },
+                    ),
+                ),
+            },
+            "missing_value": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: MissingAttribute,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": String(
+                                "string",
+                            ),
+                            "value": ~,
+                        },
+                    ),
+                ),
+            },
+            "unknown_type": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: InvalidData,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": String(
+                                "custom",
+                            ),
+                            "value": String(
+                                "test",
+                            ),
+                        },
+                    ),
+                ),
+            },
+            "valid_bool": Attribute {
+                value: Bool(
+                    true,
+                ),
+                type: Boolean,
+                other: {},
+            },
+            "valid_double": Attribute {
+                value: F64(
+                    42.5,
+                ),
+                type: Double,
+                other: {},
+            },
+            "valid_double_with_u64": Attribute {
+                value: I64(
+                    42,
+                ),
+                type: Double,
+                other: {},
+            },
+            "valid_int_from_string": Meta {
+                remarks: [],
+                errors: [
+                    Error {
+                        kind: InvalidData,
+                        data: {},
+                    },
+                ],
+                original_length: None,
+                original_value: Some(
+                    Object(
+                        {
+                            "type": String(
+                                "integer",
+                            ),
+                            "value": String(
+                                "42",
+                            ),
+                        },
+                    ),
+                ),
+            },
+            "valid_int_i64": Attribute {
+                value: I64(
+                    -42,
+                ),
+                type: Integer,
+                other: {},
+            },
+            "valid_int_u64": Attribute {
+                value: I64(
+                    42,
+                ),
+                type: Integer,
+                other: {},
+            },
+            "valid_string": Attribute {
+                value: String(
+                    "test",
+                ),
+                type: String,
+                other: {},
+            },
+            "valid_string_with_other": Attribute {
+                value: String(
+                    "test",
+                ),
+                type: String,
+                other: {
+                    "some_other_field": String(
+                        "some_other_value",
+                    ),
+                },
+            },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_populate_ua_fields() {
+        let mut log = OurLog::default();
+        populate_ua_fields(
+            &mut log,
+            Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            ),
+            ClientHints::default(),
+        );
+
+        let attributes = log.attributes.value().unwrap();
+        assert_eq!(
+            attributes
+                .get("sentry.browser.name")
+                .unwrap()
+                .value()
+                .unwrap()
+                .value
+                .value,
+            Value::String("Chrome".to_owned()).into(),
+        );
+        assert_eq!(
+            attributes
+                .get("sentry.browser.version")
+                .unwrap()
+                .value()
+                .unwrap()
+                .value
+                .value,
+            Value::String("131.0.0".to_owned()).into(),
+        );
+    }
+}
