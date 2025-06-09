@@ -1352,9 +1352,18 @@ def test_standalone_span_ingestion_metric_extraction(
         envelope,
     )
 
-    now_timestamp = int(now.timestamp())
+    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+
+    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
+
+    for metric in metrics:
+        try:
+            metric["value"].sort()
+        except AttributeError:
+            pass
+
     expected_timestamp = int(end.timestamp())
-    expected_received = time_after(now_timestamp)
+    expected_received = time_after(int(now.timestamp()))
 
     expected_metrics = [
         {
@@ -1424,16 +1433,6 @@ def test_standalone_span_ingestion_metric_extraction(
             "value": [500.0],
         },
     ]
-
-    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
-
-    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
-
-    for metric in metrics:
-        try:
-            metric["value"].sort()
-        except AttributeError:
-            pass
 
     assert metrics == expected_metrics
 
