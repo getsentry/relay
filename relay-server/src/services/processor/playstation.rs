@@ -113,7 +113,7 @@ fn add_attachments(
     minidump_buffer: Vec<u8>,
 ) {
     let mut item = Item::new(ItemType::Attachment);
-    item.set_filename("processed_minidump.dmp");
+    item.set_filename("generated_minidump.dmp");
     item.set_payload(ContentType::Minidump, minidump_buffer);
     item.set_attachment_type(AttachmentType::Minidump);
     envelope.add_item(item);
