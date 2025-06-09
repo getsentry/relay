@@ -1358,19 +1358,30 @@ def test_span_ingestion(
     metrics_consumer.assert_empty()
 
 
-def test_standalone_span_ingestion_tag_extraction(
+def test_standalone_span_ingestion_metric_extraction(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
 ):
-    relay = relay_with_processing(options={})
-    spans_consumer = spans_consumer()
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "max_secs_in_past": 2**64 - 1,
+                "shift_key": "none",
+            }
+        }
+    )
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
+        "projects:span-metrics-extraction",
+        # "projects:relay-otel-endpoint",
     ]
 
     duration = timedelta(milliseconds=500)
@@ -1383,39 +1394,21 @@ def test_standalone_span_ingestion_tag_extraction(
     envelope.add_item(
         Item(
             type="span",
-            headers={"metrics_extracted": False, "item_count": 1},
+            headers={"metrics_extracted": True, "item_count": 1},
             content_type="application/vnd.sentry.items.span.v2+json",
             payload=PayloadRef(
                 json={
                     "items": [
                         {
-                            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                            "span_id": "b0429c44b67a3eb2",
-                            "name": "loading resource",
-                            "status": "ok",
+                            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+                            "span_id": "a342abb1214ca182",
+                            "name": "SELECT from users",
                             "start_timestamp": start.timestamp(),
-                            "end_timestamp": end.timestamp() + 1,
+                            "end_timestamp": end.timestamp(),
                             "attributes": {
-                                "sentry.description": {
+                                "db.system": {
                                     "type": "string",
-                                    "value": "https://example.com/p/blah.js",
-                                },
-                                "sentry.op": {
-                                    "type": "string",
-                                    "value": "resource.script",
-                                },
-                                "sentry.exclusive_time_nano": {
-                                    "type": "integer",
-                                    "value": 161 * 1e6,
-                                },
-                                "prefetch_conditions": {
-                                    "type": "string",
-                                    "value": "normal",
-                                },
-                                # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
-                                "sentry.segment.id": {
-                                    "type": "string",
-                                    "value": "b0429c44b67a3eb2",
+                                    "value": "mysql",
                                 },
                             },
                         },
@@ -1430,51 +1423,91 @@ def test_standalone_span_ingestion_tag_extraction(
         envelope,
     )
 
-    spans = spans_consumer.get_spans(timeout=10.0, n=1)
+    now_timestamp = int(now.timestamp())
+    expected_timestamp = int(end.timestamp())
 
-    for span in spans:
-        span.pop("received", None)
-
-    span = spans[0]
-
-    assert span == {
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        "span_id": "b0429c44b67a3eb2",
-        "segment_id": "b0429c44b67a3eb2",
-        # N.B. `description` is an incoming attribute, but is a field in `Span`
-        "description": "https://example.com/p/blah.js",
-        "start_timestamp_ms": int(start.timestamp() * 1e3),
-        "start_timestamp_precise": start.timestamp(),
-        "end_timestamp_precise": end.timestamp() + 1,
-        "duration_ms": 1500,
-        "exclusive_time_ms": 161.0,
-        "is_segment": True,
-        "is_remote": False,
-        "organization_id": 1,
-        "project_id": 42,
-        "retention_days": 90,
-        # N.B. `data` contains all incoming attributes that don't have a corresponding top-level field as well as custom attributes
-        "data": {
-            "sentry.name": "loading resource",
-            "browser.name": "Python Requests",
-            "client.address": "127.0.0.1",
-            "user_agent.original": "python-requests/2.32.2",
-            "prefetch_conditions": "normal",
+    expected_metrics = [
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"decision": "keep", "target_project_id": "42"},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
         },
-        # N.B. `sentry_tags` contains all extracted tags
-        "sentry_tags": {
-            "browser.name": "Python Requests",
-            "category": "resource",
-            "description": "https://example.com/*/blah.js",
-            "domain": "example.com",
-            "file_extension": "js",
-            "group": "8a97a9e43588e2bd",
-            "op": "resource.script",
-            "status": "ok",
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
         },
-    }
+        {
+            "name": "d:spans/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"span.op": "db", "span.category": "db"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+        {
+            "name": "d:spans/duration_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"span.op": "db", "span.category": "db"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+        {
+            "name": "d:spans/exclusive_time@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"span.op": "db", "span.category": "db"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+        {
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"span.op": "db", "span.category": "db"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+    ]
 
-    spans_consumer.assert_empty()
+    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+
+    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
+
+    for metric in metrics:
+        try:
+            metric["value"].sort()
+        except AttributeError:
+            pass
+
+    assert metrics == expected_metrics
+
+    metrics_consumer.assert_empty()
 
 
 def test_otel_endpoint_disabled(mini_sentry, relay):
