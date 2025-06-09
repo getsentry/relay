@@ -1143,7 +1143,7 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "tags": {
-                "span.op": "",
+                "span.op": "default",
             },
             "timestamp": expected_timestamp + 1,
             "type": "d",
