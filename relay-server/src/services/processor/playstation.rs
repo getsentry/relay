@@ -5,7 +5,8 @@
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{
-    AppContext, Context, Contexts, DeviceContext, LenientString, OsContext, RuntimeContext, Tags,
+    AppContext, ClientSdkInfo, Context, Contexts, DeviceContext, LenientString, OsContext,
+    RuntimeContext, Tags,
 };
 use relay_event_schema::protocol::{Event, TagEntry};
 use relay_prosperoconv::{self, ProsperoDump};
@@ -268,6 +269,12 @@ fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
             ..Default::default()
         });
     }
+
+    event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
+        name: Annotated::new("sentry.playstation".to_owned()),
+        version: Annotated::new("0.1.0".to_owned()),
+        ..Default::default()
+    });
 }
 
 fn infer_content_type(filename: &str) -> ContentType {
