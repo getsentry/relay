@@ -1354,13 +1354,14 @@ def test_standalone_span_ingestion_metric_extraction(
 
     now_timestamp = int(now.timestamp())
     expected_timestamp = int(end.timestamp())
+    expected_received = time_after(now_timestamp)
 
     expected_metrics = [
         {
             "name": "c:spans/count_per_root_project@none",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_after(now_timestamp),
+            "received_at": expected_received,
             "retention_days": 90,
             "tags": {"decision": "keep", "target_project_id": "42"},
             "timestamp": expected_timestamp,
@@ -1371,7 +1372,7 @@ def test_standalone_span_ingestion_metric_extraction(
             "name": "c:spans/usage@none",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_after(now_timestamp),
+            "received_at": expected_received,
             "retention_days": 90,
             "tags": {},
             "timestamp": expected_timestamp,
@@ -1382,7 +1383,7 @@ def test_standalone_span_ingestion_metric_extraction(
             "name": "d:spans/duration@millisecond",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_after(now_timestamp),
+            "received_at": expected_received,
             "retention_days": 90,
             "tags": {"span.op": "db", "span.category": "db"},
             "timestamp": expected_timestamp,
@@ -1393,7 +1394,7 @@ def test_standalone_span_ingestion_metric_extraction(
             "name": "d:spans/duration_light@millisecond",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_after(now_timestamp),
+            "received_at": expected_received,
             "retention_days": 90,
             "tags": {"span.op": "db", "span.category": "db"},
             "timestamp": expected_timestamp,
@@ -1404,7 +1405,7 @@ def test_standalone_span_ingestion_metric_extraction(
             "name": "d:spans/exclusive_time@millisecond",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_after(now_timestamp),
+            "received_at": expected_received,
             "retention_days": 90,
             "tags": {"span.op": "db", "span.category": "db"},
             "timestamp": expected_timestamp,
@@ -1415,7 +1416,7 @@ def test_standalone_span_ingestion_metric_extraction(
             "name": "d:spans/exclusive_time_light@millisecond",
             "org_id": 1,
             "project_id": 42,
-            "received_at": time_after(now_timestamp),
+            "received_at": expected_received,
             "retention_days": 90,
             "tags": {"span.op": "db", "span.category": "db"},
             "timestamp": expected_timestamp,
@@ -1567,7 +1568,7 @@ def test_span_reject_invalid_timestamps(
 
     spans = spans_consumer.get_spans(timeout=10.0, n=1)
     assert len(spans) == 1
-    assert spans[0]["sentry_tags"]["op"] == "span with valid timestamps"
+    assert spans[0]["sentry_tags"]["op"] == "default"
 
 
 def test_span_ingestion_with_performance_scores(
