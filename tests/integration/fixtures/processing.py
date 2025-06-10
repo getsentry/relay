@@ -96,7 +96,7 @@ def relay_with_processing(relay, mini_sentry, processing_config):
 
 
 @pytest.fixture
-def relay_with_playstation(relay_with_processing):
+def relay_processing_with_playstation(relay_with_processing):
     """
     Skips the test if Relay is not compiled with Playstation support else behaves like
     `relay_with_processing`
@@ -109,6 +109,21 @@ def relay_with_playstation(relay_with_processing):
     except Exception:
         pytest.skip("Test requires Relay compiled with PlayStation support")
     return relay_with_processing
+
+
+@pytest.fixture
+def relay_with_playstation(mini_sentry, relay):
+    """
+    Skips the test if Relay is not compiled with Playstation support else behaves like `relay`
+    """
+    internal_relay = relay(mini_sentry)
+    try:
+        response = internal_relay.post("/api/42/playstation/")
+        if response.status_code == 404:
+            pytest.skip("Test requires Relay compiled with PlayStation support")
+    except Exception:
+        pytest.skip("Test requires Relay compiled with PlayStation support")
+    return relay
 
 
 def kafka_producer(options):

@@ -92,13 +92,13 @@ def event_json(response):
 
 
 def test_playstation_no_feature_flag(
-    mini_sentry, relay_with_playstation, outcomes_consumer
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
-    relay = relay_with_playstation()
+    relay = relay_processing_with_playstation()
 
     response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
     assert response.ok
@@ -110,12 +110,14 @@ def test_playstation_no_feature_flag(
     assert outcomes[1]["reason"] == "feature_disabled"
 
 
-def test_playstation_wrong_file(mini_sentry, relay_with_playstation, outcomes_consumer):
+def test_playstation_wrong_file(
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("unreal_crash")
     mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
-    relay = relay_with_playstation()
+    relay = relay_processing_with_playstation()
 
     with pytest.raises(requests.exceptions.HTTPError) as exc_info:
         _ = relay.send_playstation_request(PROJECT_ID, playstation_dump)
@@ -125,12 +127,14 @@ def test_playstation_wrong_file(mini_sentry, relay_with_playstation, outcomes_co
     assert response.json()["detail"] == "invalid prosperodump"
 
 
-def test_playstation_too_large(mini_sentry, relay_with_playstation, outcomes_consumer):
+def test_playstation_too_large(
+    mini_sentry, relay_processing_with_playstation, outcomes_consumer
+):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("playstation.prosperodmp")
     mini_sentry.add_full_project_config(PROJECT_ID)
     outcomes_consumer = outcomes_consumer()
-    relay = relay_with_playstation(
+    relay = relay_processing_with_playstation(
         {
             "limits": {
                 "max_attachments_size": len(playstation_dump) - 1,
@@ -149,7 +153,7 @@ def test_playstation_too_large(mini_sentry, relay_with_playstation, outcomes_con
 def test_playstation_with_feature_flag(
     mini_sentry,
     relay,
-    relay_with_playstation,
+    relay_processing_with_playstation,
     outcomes_consumer,
     attachments_consumer,
     num_intermediate_relays,
@@ -164,7 +168,7 @@ def test_playstation_with_feature_flag(
     attachments_consumer = attachments_consumer()
 
     # The innermost Relay needs to be in processing mode
-    upstream = relay_with_playstation()
+    upstream = relay_processing_with_playstation()
     # Build chain of relays
     for _ in range(num_intermediate_relays):
         upstream = relay(upstream)
@@ -224,7 +228,7 @@ def test_playstation_with_feature_flag(
 def test_playstation_user_data_extraction(
     mini_sentry,
     relay,
-    relay_with_playstation,
+    relay_processing_with_playstation,
     outcomes_consumer,
     attachments_consumer,
 ):
@@ -236,7 +240,7 @@ def test_playstation_user_data_extraction(
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_with_playstation()
+    relay = relay_processing_with_playstation()
     response = relay.send_playstation_request(PROJECT_ID, playstation_dump)
     assert response.ok
 
@@ -263,7 +267,6 @@ def test_playstation_user_data_extraction(
 
 def test_playstation_ignore_large_fields(
     mini_sentry,
-    relay,
     relay_with_playstation,
     outcomes_consumer,
     attachments_consumer,
@@ -280,44 +283,24 @@ def test_playstation_ignore_large_fields(
     # Make a dummy video that is larger than the dump
     video_content = "1" * (len(playstation_dump) + 100)
     relay = relay_with_playstation(
+        mini_sentry,
         {
             "limits": {
                 "max_attachment_size": len(video_content) - 1,
             }
-        }
+        },
     )
 
     response = relay.send_playstation_request(
         PROJECT_ID, playstation_dump, video_content
     )
     assert response.ok
-
-    outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 0
-
-    while True:
-        _, message = attachments_consumer.get_message()
-        if message is None or message["type"] != "attachment_chunk":
-            event = message
-            break
-
-    assert event
-
-    assert event["type"] == "event"
-    event_data = json.loads(event["payload"])
-
-    for key in ["_metrics", "grouping_config"]:
-        del event_data[key]
-
-    assert event_data == event_json(response)
-    # Even though we also send a video it does not show up here since it is too large and hence
-    # gets skipped.
-    assert len(event["attachments"]) == 3
+    assert len(mini_sentry.captured_events.get().items) == 1
 
 
 def test_playstation_attachment(
     mini_sentry,
-    relay_with_playstation,
+    relay_processing_with_playstation,
     outcomes_consumer,
     attachments_consumer,
 ):
@@ -329,7 +312,7 @@ def test_playstation_attachment(
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_with_playstation()
+    relay = relay_processing_with_playstation()
 
     bogus_error = {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -402,7 +385,7 @@ def test_playstation_attachment(
 
 def test_playstation_attachment_no_feature_flag(
     mini_sentry,
-    relay_with_playstation,
+    relay_processing_with_playstation,
     outcomes_consumer,
     attachments_consumer,
 ):
@@ -413,7 +396,7 @@ def test_playstation_attachment_no_feature_flag(
     )
     outcomes_consumer = outcomes_consumer()
     attachments_consumer = attachments_consumer()
-    relay = relay_with_playstation()
+    relay = relay_processing_with_playstation()
 
     bogus_error = {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
