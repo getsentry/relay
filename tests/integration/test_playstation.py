@@ -145,7 +145,7 @@ def test_playstation_with_feature_flag(
         attachment["name"] for attachment in event["attachments"]
     ]
 
-    assert event_data["sdk"]["name"] == "sentry.playstation"
+    assert event_data["sdk"]["name"] == "sentry.playstation.devkit"
 
 
 def test_playstation_user_data_extraction(
