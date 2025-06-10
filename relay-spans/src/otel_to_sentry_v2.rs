@@ -66,7 +66,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     }) {
         match key.as_str() {
             "sentry.description" => {
-                description = otel_value_to_string(value);
+                description = otel_value_to_string(value.clone());
             }
             key if key.starts_with("db") => {
                 name = name.or(Some("db".to_owned()));
@@ -80,17 +80,17 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
                     3 => "http.client",
                     _ => "http",
                 };
-                http_method = otel_value_to_string(value);
+                http_method = otel_value_to_string(value.clone());
                 name = name.or(Some(http_op.to_owned()));
             }
             "http.route" | "url.path" => {
-                http_route = otel_value_to_string(value);
+                http_route = otel_value_to_string(value.clone());
             }
-            _ => {
-                if let Some(v) = otel_value_to_attr(value) {
-                    sentry_attributes.insert(key, Annotated::new(v));
-                }
-            }
+            _ => (),
+        }
+
+        if let Some(v) = otel_value_to_attr(value) {
+            sentry_attributes.insert(key, Annotated::new(v));
         }
     }
 
@@ -415,6 +415,18 @@ mod tests {
           "end_timestamp": 1697620454.980079,
           "links": [],
           "attributes": {
+            "db.name": {
+              "type": "string",
+              "value": "database"
+            },
+            "db.statement": {
+              "type": "string",
+              "value": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+            },
+            "db.type": {
+              "type": "string",
+              "value": "sql"
+            },
             "sentry.description": {
               "type": "string",
               "value": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
@@ -475,6 +487,18 @@ mod tests {
           "end_timestamp": 1697620454.980079,
           "links": [],
           "attributes": {
+            "db.name": {
+              "type": "string",
+              "value": "database"
+            },
+            "db.statement": {
+              "type": "string",
+              "value": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+            },
+            "db.type": {
+              "type": "string",
+              "value": "sql"
+            },
             "sentry.description": {
               "type": "string",
               "value": "index view query"
@@ -523,9 +547,17 @@ mod tests {
           "end_timestamp": 1697620454.980079,
           "links": [],
           "attributes": {
+            "http.request.method": {
+              "type": "string",
+              "value": "GET"
+            },
             "sentry.description": {
               "type": "string",
               "value": "GET /api/search?q=foobar"
+            },
+            "url.path": {
+              "type": "string",
+              "value": "/api/search?q=foobar"
             }
           }
         }

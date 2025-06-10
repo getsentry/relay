@@ -250,13 +250,13 @@ class SentryLike:
         response.raise_for_status()
         return response
 
-    def send_session(self, project_id, payload, item_headers=None):
+    def send_session(self, project_id, payload, item_headers=None, headers=None):
         envelope = Envelope()
         envelope.add_session(payload)
         if item_headers:
             item = envelope.items[0]
             item.headers = {**item.headers, **item_headers}
-        self.send_envelope(project_id, envelope)
+        self.send_envelope(project_id, envelope, headers=headers)
 
     def send_transaction(
         self,
@@ -292,10 +292,10 @@ class SentryLike:
 
         self.send_envelope(project_id, envelope)
 
-    def send_session_aggregates(self, project_id, payload):
+    def send_session_aggregates(self, project_id, payload, headers=None):
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="sessions"))
-        self.send_envelope(project_id, envelope)
+        self.send_envelope(project_id, envelope, headers=headers)
 
     def send_client_report(self, project_id, payload):
         envelope = Envelope()

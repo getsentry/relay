@@ -2,6 +2,7 @@ use std::fmt::{self, Display};
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
+use relay_protocol::Getter;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -269,6 +270,14 @@ impl SessionLike for SessionUpdate {
     }
 }
 
+// Dummy implementation of `Getter` to satisfy the bound of `should_filter`.
+// We don't actually want to use `get_value` at this time.`
+impl Getter for SessionUpdate {
+    fn get_value(&self, _path: &str) -> Option<relay_protocol::Val<'_>> {
+        None
+    }
+}
+
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn is_zero(val: &u32) -> bool {
     *val == 0
@@ -350,6 +359,14 @@ impl SessionAggregates {
     /// Serializes a session batch back into JSON.
     pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(self)
+    }
+}
+
+// Dummy implementation of `Getter` to satisfy the bound of `should_filter`.
+// We don't actually want to use `get_value` at this time.`
+impl Getter for SessionAggregates {
+    fn get_value(&self, _path: &str) -> Option<relay_protocol::Val<'_>> {
+        None
     }
 }
 
