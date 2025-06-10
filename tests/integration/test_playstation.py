@@ -268,8 +268,6 @@ def test_playstation_user_data_extraction(
 def test_playstation_ignore_large_fields(
     mini_sentry,
     relay_with_playstation,
-    outcomes_consumer,
-    attachments_consumer,
 ):
     PROJECT_ID = 42
     playstation_dump = load_dump_file("user_data.prosperodmp")
@@ -277,8 +275,6 @@ def test_playstation_ignore_large_fields(
         PROJECT_ID,
         extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
     )
-    outcomes_consumer = outcomes_consumer()
-    attachments_consumer = attachments_consumer()
 
     # Make a dummy video that is larger than the dump
     video_content = "1" * (len(playstation_dump) + 100)
@@ -295,7 +291,9 @@ def test_playstation_ignore_large_fields(
         PROJECT_ID, playstation_dump, video_content
     )
     assert response.ok
-    assert len(mini_sentry.captured_events.get().items) == 1
+    assert [
+        item.headers["filename"] for item in mini_sentry.captured_events.get().items
+    ] == ["playstation.prosperodmp"]
 
 
 def test_playstation_attachment(
