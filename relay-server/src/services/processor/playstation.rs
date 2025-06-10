@@ -272,7 +272,7 @@ fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
 
     event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
         name: Annotated::new("sentry.playstation".to_owned()),
-        version: Annotated::new("0.1.0".to_owned()),
+        version: Annotated::new("0.0.1".to_owned()),
         ..Default::default()
     });
 }

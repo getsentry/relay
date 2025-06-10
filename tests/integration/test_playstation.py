@@ -281,7 +281,7 @@ def test_playstation_attachment(
         "type": "error",
         "exception": {"values": [{"type": "ValueError", "value": "Should not happen"}]},
         "sdk": {
-            "name": "sentry.playstation.crs",
+            "name": "sentry.native.playstation",
             "version": "0.1.0",
         },
     }
@@ -348,7 +348,7 @@ def test_playstation_attachment(
         attachment["name"] for attachment in event["attachments"]
     ]
 
-    assert event_data["sdk"]["name"] == "sentry.playstation.crs"
+    assert event_data["sdk"]["name"] == "sentry.native.playstation"
 
 
 def test_playstation_attachment_no_feature_flag(
