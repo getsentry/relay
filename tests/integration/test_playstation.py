@@ -224,6 +224,8 @@ def test_playstation_with_feature_flag(
         attachment["name"] for attachment in event["attachments"]
     ]
 
+    assert event_data["sdk"]["name"] == "sentry.playstation.devkit"
+
 
 def test_playstation_user_data_extraction(
     mini_sentry,
@@ -316,6 +318,10 @@ def test_playstation_attachment(
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "type": "error",
         "exception": {"values": [{"type": "ValueError", "value": "Should not happen"}]},
+        "sdk": {
+            "name": "sentry.native.playstation",
+            "version": "0.1.0",
+        },
     }
     envelope = Envelope()
     envelope.add_event(bogus_error)
@@ -379,6 +385,8 @@ def test_playstation_attachment(
     assert "playstation.prosperodmp" in [
         attachment["name"] for attachment in event["attachments"]
     ]
+
+    assert event_data["sdk"]["name"] == "sentry.native.playstation"
 
 
 def test_playstation_attachment_no_feature_flag(
