@@ -1504,7 +1504,7 @@ impl SpanKafkaMessage<'_> {
             data.insert(key, Some(serde_json::Value::String(value.clone())));
         }
 
-        if data.values().filter(|v| v.is_some()).count() > 0 {
+        if data.values().any(Option::is_some) {
             self.data = Some(data);
         }
     }
