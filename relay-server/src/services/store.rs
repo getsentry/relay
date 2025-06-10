@@ -915,6 +915,7 @@ impl StoreService {
             }
         };
 
+        span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
         span.event_id = event_id;
@@ -1418,8 +1419,8 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     is_remote: bool,
 
-    #[serde(default, skip_serializing_if = "none_or_empty_object")]
-    data: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "none_or_empty_map")]
+    data: Option<BTreeMap<String, Option<serde_json::Value>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
@@ -1476,6 +1477,39 @@ struct SpanKafkaMessage<'a> {
     _performance_issues_spans: Option<bool>,
 }
 
+impl SpanKafkaMessage<'_> {
+    /// Backfills `data` based on `sentry_tags`.
+    ///
+    /// Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
+    /// The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    fn backfill_data(&mut self) {
+        let Some(sentry_tags) = self.sentry_tags.as_ref() else {
+            return;
+        };
+
+        let mut data = self.data.take().unwrap_or_default();
+
+        for (key, value) in sentry_tags {
+            let Some(value) = value else {
+                continue;
+            };
+
+            let key = if *key == "description" {
+                "sentry.normalized_description".to_owned()
+            } else {
+                format!("sentry.{key}")
+            };
+
+            // TODO: Should a a tag supersede an existing value?
+            data.insert(key, Some(serde_json::Value::String(value.clone())));
+        }
+
+        if data.values().filter(|v| v.is_some()).count() > 0 {
+            self.data = Some(data);
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type", content = "value")]
 enum LogAttributeValue {
@@ -1526,6 +1560,10 @@ fn none_or_empty_vec<T>(value: &Option<Vec<T>>) -> bool {
         Some(vec) => vec.is_empty(),
         None => true,
     }
+}
+
+fn none_or_empty_map<S, T>(value: &Option<BTreeMap<S, T>>) -> bool {
+    value.as_ref().is_none_or(BTreeMap::is_empty)
 }
 
 #[derive(Clone, Debug, Serialize)]
