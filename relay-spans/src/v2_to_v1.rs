@@ -223,12 +223,10 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
         return op;
     };
 
-    let kind = span.kind.value().unwrap_or(&SpanV2Kind::Internal);
-
     if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
-        return match kind {
-            SpanV2Kind::Client => String::from("http.client"),
-            SpanV2Kind::Server => String::from("http.server"),
+        return match span.kind.value() {
+            Some(SpanV2Kind::Client) => String::from("http.client"),
+            Some(SpanV2Kind::Server) => String::from("http.server"),
             _ => {
                 if attributes.contains_key("sentry.http.prefetch") {
                     String::from("http.prefetch")
