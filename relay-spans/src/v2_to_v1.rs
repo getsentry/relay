@@ -249,12 +249,13 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
         return String::from("message");
     }
 
-    if let Some(faas_trigger) = attributes.get("faas.trigger") {
-        if let Some(trigger_value) = faas_trigger.value() {
-            if let Some(trigger_str) = trigger_value.value.value.value().and_then(|v| v.as_str()) {
-                return trigger_str.to_string();
-            }
-        }
+    if let Some(faas_trigger) = attributes
+        .get("faas.trigger")
+        .and_then(|faas_trigger| faas_trigger.value())
+        .and_then(|trigger_value| trigger_value.value.value.value())
+        .and_then(|v| v.as_str())
+    {
+        return faas_trigger.to_owned();
     }
 
     op
