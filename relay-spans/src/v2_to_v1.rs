@@ -219,9 +219,7 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
     // NOTE: `op` is not a required field in the SDK, so the fallback is an empty string.
     let op = String::from("default");
 
-    let attributes = if let Some(attributes) = span.attributes.value() {
-        attributes
-    } else {
+    let Some(attributes) = span.attributes.value() else {
         return op;
     };
 
