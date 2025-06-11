@@ -14,14 +14,6 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 
-/// Expresses the purpose of counting quantities.
-///
-/// Sessions are counted for rate limiting enforcement but not for outcome reporting.
-pub enum CountFor {
-    RateLimits,
-    Outcomes,
-}
-
 #[derive(Clone, Debug)]
 pub struct Item {
     pub(super) headers: ItemHeaders,
@@ -110,7 +102,7 @@ impl Item {
     /// Returns the number used for counting towards rate limits and producing outcomes.
     ///
     /// For attachments, we count the number of bytes. Other items are counted as 1.
-    pub fn quantities(&self, purpose: CountFor) -> SmallVec<[(DataCategory, usize); 1]> {
+    pub fn quantities(&self) -> SmallVec<[(DataCategory, usize); 1]> {
         let item_count = self.item_count().unwrap_or(1) as usize;
 
         match self.ty() {
@@ -125,10 +117,9 @@ impl Item {
                 (DataCategory::Attachment, self.len().max(1)),
                 (DataCategory::AttachmentItem, item_count)
             ],
-            ItemType::Session | ItemType::Sessions => match purpose {
-                CountFor::RateLimits => smallvec![(DataCategory::Session, item_count)],
-                CountFor::Outcomes => smallvec![],
-            },
+            ItemType::Session | ItemType::Sessions => {
+                smallvec![(DataCategory::Session, item_count)]
+            }
             ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
             ItemType::Log | ItemType::OtelLog => smallvec![
                 (DataCategory::LogByte, self.len().max(1)),
