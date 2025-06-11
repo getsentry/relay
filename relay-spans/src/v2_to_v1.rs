@@ -240,7 +240,7 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
         };
     }
 
-    if attributes.contains_key("db.system") {
+    if attributes.contains_key("db.system") || attributes.contains_key("db.system.name") {
         return String::from("db");
     }
 
