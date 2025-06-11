@@ -1489,7 +1489,7 @@ impl SpanKafkaMessage<'_> {
             return;
         };
 
-        let mut data = self.data.take().unwrap_or_default();
+        let data = self.data.get_or_insert_default();
 
         for (key, value) in sentry_tags {
             let Some(value) = value else {
@@ -1504,10 +1504,6 @@ impl SpanKafkaMessage<'_> {
 
             // TODO: Should a a tag supersede an existing value?
             data.insert(key, Some(value));
-        }
-
-        if data.values().any(Option::is_some) {
-            self.data = Some(data);
         }
     }
 }
