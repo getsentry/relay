@@ -158,6 +158,7 @@ pub struct SamplingEvaluator<'a> {
     now: DateTime<Utc>,
     rule_ids: Vec<RuleId>,
     factor: f64,
+    minimum_sample_rate: Option<f64>,
     reservoir: Option<&'a ReservoirEvaluator<'a>>,
 }
 
@@ -168,6 +169,7 @@ impl<'a> SamplingEvaluator<'a> {
             now,
             rule_ids: vec![],
             factor: 1.0,
+            minimum_sample_rate: None,
             reservoir: Some(reservoir),
         }
     }
@@ -178,6 +180,7 @@ impl<'a> SamplingEvaluator<'a> {
             now,
             rule_ids: vec![],
             factor: 1.0,
+            minimum_sample_rate: None,
             reservoir: None,
         }
     }
@@ -232,7 +235,8 @@ impl<'a> SamplingEvaluator<'a> {
             }
             SamplingValue::SampleRate { value } => {
                 let sample_rate = rule.apply_decaying_fn(value, self.now)?;
-                let adjusted = (sample_rate * self.factor).clamp(0.0, 1.0);
+                let minimum_sample_rate = self.minimum_sample_rate.unwrap_or(0.0);
+                let adjusted = (sample_rate.max(minimum_sample_rate) * self.factor).clamp(0.0, 1.0);
 
                 self.rule_ids.push(rule.id);
                 Some(adjusted)
@@ -251,6 +255,13 @@ impl<'a> SamplingEvaluator<'a> {
                 self.rule_ids.push(rule.id);
                 // If the reservoir has not yet reached its limit, we want to sample 100%.
                 Some(1.0)
+            }
+            SamplingValue::MinimumSampleRate { value } => {
+                if self.minimum_sample_rate.is_none() {
+                    self.minimum_sample_rate = Some(rule.apply_decaying_fn(value, self.now)?);
+                    self.rule_ids.push(rule.id);
+                }
+                None
             }
         }
     }
@@ -535,6 +546,30 @@ mod tests {
 
         // 0.8 * 0.5 * 0.25 == 0.1
         assert_eq!(get_sampling_match(&rules, &dsc).await.sample_rate(), 0.1);
+    }
+
+    #[tokio::test]
+    async fn test_minimum_sample_rate() {
+        let rules = simple_sampling_rules(vec![
+            (RuleCondition::all(), SamplingValue::Factor { value: 1.5 }),
+            (
+                RuleCondition::all(),
+                SamplingValue::MinimumSampleRate { value: 0.5 },
+            ),
+            // Only the first matching minimum is applied.
+            (
+                RuleCondition::all(),
+                SamplingValue::MinimumSampleRate { value: 1.0 },
+            ),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: 0.05 },
+            ),
+        ]);
+        let dsc = mocked_dsc_with_getter_values(vec![]);
+
+        // max(0.05, 0.5) * 1.5 = 0.75
+        assert_eq!(get_sampling_match(&rules, &dsc).await.sample_rate(), 0.75);
     }
 
     fn mocked_sampling_rule() -> SamplingRule {

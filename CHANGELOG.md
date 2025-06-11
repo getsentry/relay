@@ -8,6 +8,7 @@
 - Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 - Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 - Enable filtering sessions by IP address, release, and user agent. ([#4745](https://github.com/getsentry/relay/pull/4745))
+- Implements a minimum sample rate dynamic sampling rule. ([#4801](https://github.com/getsentry/relay/pull/4801))
 
 **Bug Fixes**:
 
