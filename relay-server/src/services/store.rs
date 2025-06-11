@@ -1185,12 +1185,13 @@ where
         .serialize(serializer)
 }
 
-fn serialize_btreemap_skip_nulls<S>(
-    map: &Option<BTreeMap<&str, Option<String>>>,
+fn serialize_btreemap_skip_nulls<S, T>(
+    map: &Option<BTreeMap<&str, Option<T>>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
+    T: serde::Serialize,
 {
     let Some(map) = map else {
         return serializer.serialize_none();
@@ -1419,8 +1420,8 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     is_remote: bool,
 
-    #[serde(default, skip_serializing_if = "none_or_empty_map")]
-    data: Option<BTreeMap<String, Option<serde_json::Value>>>,
+    #[serde(default, skip_serializing_if = "none_or_empty_map", borrow)]
+    data: Option<BTreeMap<String, Option<&'a RawValue>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
@@ -1450,7 +1451,8 @@ struct SpanKafkaMessage<'a> {
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
-    sentry_tags: Option<BTreeMap<&'a str, Option<String>>>,
+    #[serde(borrow)]
+    sentry_tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
     span_id: &'a str,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
@@ -1501,7 +1503,7 @@ impl SpanKafkaMessage<'_> {
             };
 
             // TODO: Should a a tag supersede an existing value?
-            data.insert(key, Some(serde_json::Value::String(value.clone())));
+            data.insert(key, Some(value));
         }
 
         if data.values().any(Option::is_some) {
