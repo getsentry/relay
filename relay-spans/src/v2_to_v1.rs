@@ -225,12 +225,12 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
 
     let kind = span.kind.value().unwrap_or(&SpanV2Kind::Internal);
 
-    if attributes.get("http.request.method").is_some() || attributes.get("http.method").is_some() {
+    if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
         return match kind {
             SpanV2Kind::Client => String::from("http.client"),
             SpanV2Kind::Server => String::from("http.server"),
             _ => {
-                if attributes.get("sentry.http.prefetch").is_some() {
+                if attributes.contains_key("sentry.http.prefetch") {
                     String::from("http.prefetch")
                 } else {
                     String::from("http")
@@ -239,15 +239,15 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
         };
     }
 
-    if attributes.get("db.system").is_some() {
+    if attributes.contains_key("db.system") {
         return String::from("db");
     }
 
-    if attributes.get("rpc.service").is_some() {
+    if attributes.contains_key("rpc.service") {
         return String::from("rpc");
     }
 
-    if attributes.get("messaging.system").is_some() {
+    if attributes.contains_key("messaging.system") {
         return String::from("message");
     }
 
