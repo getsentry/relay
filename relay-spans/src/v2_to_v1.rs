@@ -25,6 +25,9 @@ use relay_protocol::{Annotated, FromValue, Object, Value};
 pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut exclusive_time_ms = 0f64;
     let mut data = Object::new();
+
+    let inferred_op = derive_op_for_v2_span(&span_v2);
+
     let SpanV2 {
         start_timestamp,
         end_timestamp,
@@ -38,7 +41,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         status,
         is_remote,
         other: _other,
-    } = span_v2.clone();
+    } = span_v2;
 
     let mut description = Annotated::empty();
     let mut op = Annotated::empty();
@@ -123,7 +126,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let status = span_v2_status_to_span_v1_status(status, http_status_code, grpc_status_code);
 
     // If the SDK sent in a `sentry.op` attribute, use it. If not, derive it from the span attributes.
-    let op = op.or_else(|| Annotated::from(derive_op_for_v2_span(&span_v2)));
+    let op = op.or_else(|| Annotated::from(inferred_op));
 
     SpanV1 {
         op,
