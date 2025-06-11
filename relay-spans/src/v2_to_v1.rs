@@ -211,7 +211,10 @@ fn span_v2_link_to_span_v1_link(link: SpanV2Link) -> SpanLink {
 
 /// Generates a `sentry.op` attribute for V2 span, if possible.
 ///
-/// This uses attributes of the span to figure out an appropriate operation name, inferring what the SDK might have sent. Reliably infers an op for well-known OTel span kinds like database operations. Does not infer an op for frontend and mobile spans sent by Sentry SDKs that don't have an OTel equivalent (e.g., resource loads). This relies on the SDK to send a `sentry.op` attribute, since we cannot infer an op.
+/// This uses attributes of the span to figure out an appropriate operation name, inferring what the
+/// SDK might have sent. Reliably infers an op for well-known OTel span kinds like database
+/// operations. Does not infer an op for frontend and mobile spans sent by Sentry SDKs that don't
+/// have an OTel equivalent (e.g., resource loads).
 fn derive_op_for_v2_span(span: &SpanV2) -> String {
     // NOTE: `op` is not a required field in the SDK, so the fallback is an empty string.
     let op = String::from("default");
