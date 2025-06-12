@@ -44,8 +44,6 @@ impl<'a> PiiProcessor<'a> {
         }
 
         for (selector, rules) in self.compiled_config.applications.iter() {
-            dbg!(selector);
-            dbg!(rules);
             if selector.matches_path(&state.path()) {
                 #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
