@@ -1502,7 +1502,6 @@ impl SpanKafkaMessage<'_> {
                 format!("sentry.{key}")
             };
 
-            // TODO: Should a a tag supersede an existing value?
             data.insert(Cow::Owned(key), Some(value));
         }
     }
