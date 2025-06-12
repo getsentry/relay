@@ -17,7 +17,9 @@ use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
 use itertools::Itertools;
-use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration, TrySign};
+use relay_auth::{
+    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SignatureType,
+};
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
@@ -303,11 +305,11 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// should return the payload to sign. For requests with content encoding, this must be the
     /// **uncompressed** payload.
     ///
-    /// If the variant of [`TrySign`] forces a signature and no Relay credentials are configured,
+    /// If the variant of [`SignatureType`] forces a signature and no Relay credentials are configured,
     /// the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
     /// Defaults to `None`.
-    fn sign(&mut self) -> Option<TrySign> {
+    fn sign(&mut self) -> Option<SignatureType> {
         None
     }
 
@@ -456,11 +458,11 @@ where
         true
     }
 
-    fn sign(&mut self) -> Option<TrySign> {
+    fn sign(&mut self) -> Option<SignatureType> {
         // Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
-        self.body().ok().map(TrySign::Body)
+        self.body().ok().map(SignatureType::Body)
     }
 
     fn method(&self) -> Method {

@@ -21,7 +21,7 @@ fn is_false(b: &bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::trusted_relay::TrustedRelayConfig;
+    use super::*;
 
     #[test]
     fn test_serialize() {

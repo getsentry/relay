@@ -16,7 +16,7 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
 use data_encoding::BASE64;
-use relay_auth::{RelayId, RelaySignature, RelaySignatureData, RelaySignatureError};
+use relay_auth::{RelayId, RelaySignature, RelaySignatureData, SignatureError};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
@@ -230,7 +230,9 @@ pub struct RequestMeta<D = PartialDsn> {
     #[serde(skip, default = "Utc::now")]
     received_at: DateTime<Utc>,
 
-    /// Contains necessary data to verify if the request comes from a trusted relay.
+    /// Contains the signature information extracted from the request.
+    ///
+    /// This can be used, for example, to verify a trusted relay during ingestion.
     ///
     /// NOTE: This is internal only.
     #[serde(skip)]
@@ -510,7 +512,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                         sig.to_owned(),
                         bytes::Bytes::new(),
                     )),
-                    Err(_) => RelaySignature::Invalid(RelaySignatureError::MalformedSignature),
+                    Err(_) => RelaySignature::Invalid(SignatureError::MalformedSignature),
                 });
 
         Ok(RequestMeta {

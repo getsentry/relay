@@ -149,7 +149,7 @@ pub enum UnpackError {
 
 /// Errors during the signature or verification process.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
-pub enum RelaySignatureError {
+pub enum SignatureError {
     /// The signature from the header could not be converted to a String.
     #[error("invalid relay signature")]
     MalformedSignature,
@@ -707,26 +707,26 @@ pub enum RelaySignature {
     /// The signature has a valid format. It does not mean that it is verified.
     Valid(RelaySignatureData),
     /// The signature could not be converted into the proper signature format.
-    Invalid(RelaySignatureError),
+    Invalid(SignatureError),
 }
 
-impl From<RelaySignatureError> for RelaySignature {
-    fn from(value: RelaySignatureError) -> Self {
+impl From<SignatureError> for RelaySignature {
+    fn from(value: SignatureError) -> Self {
         Self::Invalid(value)
     }
 }
 
 /// Types of signatures that are supported by Relay.
 #[derive(Debug)]
-pub enum TrySign {
+pub enum SignatureType {
     /// Bytes of an envelope body that are used to produce a signature.
     Body(Bytes),
     /// No data is needed for this signature because we only want to see if
     /// the receiving relay can verify the signature correctly.
-    RelayEnvelopeSign,
+    RequestSign,
 }
 
-impl TrySign {
+impl SignatureType {
     /// Creates a signature based on the variant.
     ///
     /// Some variants might not produce a signature if credentials are missing, in which case
@@ -736,13 +736,13 @@ impl TrySign {
     pub fn create_signature(
         self,
         secret_key: Option<&SecretKey>,
-    ) -> Result<Option<String>, RelaySignatureError> {
+    ) -> Result<Option<String>, SignatureError> {
         match self {
-            TrySign::Body(data) => {
-                let credentials = secret_key.ok_or(RelaySignatureError::MissingCredentials)?;
+            SignatureType::Body(data) => {
+                let credentials = secret_key.ok_or(SignatureError::MissingCredentials)?;
                 Ok(Some(credentials.sign(data.as_ref())))
             }
-            TrySign::RelayEnvelopeSign => {
+            SignatureType::RequestSign => {
                 let Some(credentials) = secret_key else {
                     return Ok(None);
                 };
@@ -1021,27 +1021,27 @@ mod tests {
 
     #[test]
     fn test_body_signature_missing_key() {
-        let result = TrySign::Body(Bytes::new()).create_signature(None);
-        assert_eq!(result, Err(RelaySignatureError::MissingCredentials))
+        let result = SignatureType::Body(Bytes::new()).create_signature(None);
+        assert_eq!(result, Err(SignatureError::MissingCredentials))
     }
 
     #[test]
     fn test_body_signature() {
         let (secret, _) = generate_key_pair();
-        let result = TrySign::Body(Bytes::new()).create_signature(Some(&secret));
+        let result = SignatureType::Body(Bytes::new()).create_signature(Some(&secret));
         assert!(result.unwrap().is_some())
     }
 
     #[test]
     fn test_envelope_sign() {
         let (secret, _) = generate_key_pair();
-        let result = TrySign::RelayEnvelopeSign.create_signature(Some(&secret));
+        let result = SignatureType::RequestSign.create_signature(Some(&secret));
         assert!(result.unwrap().is_some())
     }
 
     #[test]
     fn test_envelope_sign_missing_key() {
-        let result = TrySign::RelayEnvelopeSign.create_signature(None);
+        let result = SignatureType::RequestSign.create_signature(None);
         assert!(result.unwrap().is_none())
     }
 
