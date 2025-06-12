@@ -9,6 +9,8 @@ use relay_protocol::Error;
 /// This uses attributes in the OTEL span to populate various fields in the Sentry span.
 /// * The Sentry span's `name` field may be set based on `db` or `http` attributes
 ///   if the OTEL span's `name` is empty.
+/// * The Sentry span's `op` field will be inferred based on the OTEL span's `sentry.op` attribute,
+///   or other available attributes if `sentry.op` is not provided.
 /// * The Sentry span's `description` field may be set based on `db` or `http` attributes
 ///   if the OTEL span's `sentry.description` attribute is empty.
 /// * The Sentry span's `status` field is set based on the OTEL span's `status` field and
