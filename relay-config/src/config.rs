@@ -557,6 +557,10 @@ pub struct Metrics {
     ///
     /// Defaults to `true`.
     pub aggregate: bool,
+    /// Removes tags from all metrics based on the configuration.
+    ///
+    /// By default, not tags are removed.
+    pub deny_tags: DenyMetricTags,
 }
 
 impl Default for Metrics {
@@ -569,8 +573,21 @@ impl Default for Metrics {
             sample_rate: 1.0,
             periodic_secs: 5,
             aggregate: true,
+            deny_tags: Default::default(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+/// Controls which tags are removed from all metrics.
+pub struct DenyMetricTags {
+    /// A list of tag names that will be removed when they exactly match any value specified.
+    pub tags: Vec<String>,
+    /// A list of prefixes. Any tag that begins with any of these prefixes will be removed.
+    pub starts_with: Vec<String>,
+    /// A list of suffixes. Any tag that ends with any of these suffixes will be removed.
+    pub ends_with: Vec<String>,
 }
 
 /// Controls processing of Sentry metrics and metric metadata.
@@ -2089,6 +2106,21 @@ impl Config {
     /// Returns whether local metric aggregation should be enabled.
     pub fn metrics_aggregate(&self) -> bool {
         self.values.metrics.aggregate
+    }
+
+    /// Returns a list of tags that should be removed from metrics.
+    pub fn metrics_deny_list(&self) -> &Vec<String> {
+        &self.values.metrics.deny_tags.tags
+    }
+
+    /// Returns a list of prefixes to removes tags that matches them.
+    pub fn metrics_starts_with_deny_list(&self) -> &Vec<String> {
+        &self.values.metrics.deny_tags.starts_with
+    }
+
+    /// Returns a list of suffixes to removes tags that matches them.
+    pub fn metrics_ends_with_deny_list(&self) -> &Vec<String> {
+        &self.values.metrics.deny_tags.ends_with
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.
