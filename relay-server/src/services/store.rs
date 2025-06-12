@@ -1914,8 +1914,7 @@ impl Message for KafkaMessage<'_> {
             | Self::Log { .. }
             | Self::ReplayRecordingNotChunked(_)
             | Self::ProfileChunk(_)
-            | Self::Metric { .. }
-            | Self::Item { .. } => Uuid::nil(),
+            | Self::Item { .. } => None,
         }
         .filter(|uuid| !uuid.is_nil())
         .map(|uuid| uuid.into_bytes())
