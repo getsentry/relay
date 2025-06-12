@@ -168,7 +168,7 @@ async fn extract_multipart(
     meta: RequestMeta,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = utils::multipart_items(multipart, infer_attachment_type, config, false).await?;
+    let mut items = utils::multipart_items(multipart, infer_attachment_type, config).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -396,7 +396,7 @@ mod tests {
         let config = Config::default();
 
         let multipart = utils::multipart_from_request(request, &config)?;
-        let items = multipart_items(multipart, infer_attachment_type, &config, false).await?;
+        let items = multipart_items(multipart, infer_attachment_type, &config).await?;
 
         // we expect the multipart body to contain
         // * one arbitrary attachment from the user (a `config.json`)

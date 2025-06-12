@@ -23,8 +23,7 @@ async fn extract_envelope(
     multipart: Multipart<'static>,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let items =
-        utils::multipart_items(multipart, |_, _| AttachmentType::default(), config, false).await?;
+    let items = utils::multipart_items(multipart, |_, _| AttachmentType::default(), config).await?;
 
     let mut envelope = Envelope::from_request(Some(path.event_id), meta);
     for item in items {

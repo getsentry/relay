@@ -1,7 +1,7 @@
 use std::io;
 use std::task::Poll;
 
-use axum::extract::Request;
+use axum::extract::{FromRequest, Request};
 use bytes::{Bytes, BytesMut};
 use futures::{StreamExt, TryStreamExt};
 use multer::{Field, Multipart};
@@ -9,6 +9,8 @@ use relay_config::Config;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
+use crate::extractors::Remote;
+use crate::service::ServiceState;
 
 /// Type used for encoding string lengths.
 type Len = u32;
@@ -153,6 +155,17 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
 }
 
 pub async fn multipart_items<F>(
+    multipart: Multipart<'_>,
+    infer_type: F,
+    config: &Config,
+) -> Result<Items, multer::Error>
+where
+    F: FnMut(Option<&str>, &str) -> AttachmentType,
+{
+    multipart_items_inner(multipart, infer_type, config, false).await
+}
+
+async fn multipart_items_inner<F>(
     mut multipart: Multipart<'_>,
     mut infer_type: F,
     config: &Config,
@@ -163,6 +176,7 @@ where
 {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
+    let mut attachments_size = 0;
 
     while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
@@ -176,6 +190,14 @@ where
                 Err(multer::Error::FieldSizeExceeded { .. }) if ignore_large_fields => continue,
                 Err(err) => return Err(err),
                 Ok(bytes) => {
+                    attachments_size += bytes.len();
+
+                    if attachments_size > config.max_attachments_size() {
+                        return Err(multer::Error::StreamSizeExceeded {
+                            limit: config.max_attachments_size() as u64,
+                        });
+                    }
+
                     if let Some(content_type) = content_type {
                         item.set_payload(content_type.as_ref().into(), bytes);
                     } else {
@@ -274,6 +296,38 @@ impl futures::Stream for LimitedField<'_> {
             }
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+pub struct UnconstrainedMultipart(pub Multipart<'static>);
+
+impl FromRequest<ServiceState> for UnconstrainedMultipart {
+    type Rejection = Remote<multer::Error>;
+
+    async fn from_request(
+        request: Request,
+        _state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
+        let content_type = request
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        let boundary = multer::parse_boundary(content_type)?;
+
+        Ok(UnconstrainedMultipart(Multipart::new(
+            request.into_body().into_data_stream(),
+            boundary,
+        )))
+    }
+}
+
+impl UnconstrainedMultipart {
+    pub async fn items<F>(self, infer_type: F, config: &Config) -> Result<Items, multer::Error>
+    where
+        F: FnMut(Option<&str>, &str) -> AttachmentType,
+    {
+        multipart_items_inner(self.0, infer_type, config, true).await
     }
 }
 
@@ -385,7 +439,7 @@ mod tests {
               ok\r\n\
               --X-BOUNDARY--\r\n";
 
-        let stream = futures::stream::once(async { Ok::<_, Infallible>(data) });
+        let stream = futures::stream::once(async move { Ok::<_, Infallible>(data) });
         let multipart = Multipart::new(stream, "X-BOUNDARY");
 
         let config = Config::from_json_value(serde_json::json!({
@@ -394,8 +448,9 @@ mod tests {
             }
         }))?;
 
-        let items =
-            multipart_items(multipart, |_, _| AttachmentType::Attachment, &config, true).await?;
+        let items = UnconstrainedMultipart(multipart)
+            .items(|_, _| AttachmentType::Attachment, &config)
+            .await?;
 
         // The large field is skipped so only the small one should make it through.
         assert_eq!(items.len(), 1);
@@ -420,23 +475,19 @@ mod tests {
               ok\r\n\
               --X-BOUNDARY--\r\n";
 
-        let stream = futures::stream::once(async { Ok::<_, Infallible>(data) });
+        let stream = futures::stream::once(async move { Ok::<_, Infallible>(data) });
 
         let config = Config::from_json_value(serde_json::json!({
             "limits": {
                 "max_attachments_size": 5
             }
         }))?;
-        let limits = multer::SizeLimit::new().whole_stream(config.max_attachments_size() as u64);
 
-        let multipart = Multipart::with_constraints(
-            stream,
-            "X-BOUNDARY",
-            multer::Constraints::new().size_limit(limits),
-        );
+        let multipart = Multipart::new(stream, "X-BOUNDARY");
 
-        let result =
-            multipart_items(multipart, |_, _| AttachmentType::Attachment, &config, true).await;
+        let result = UnconstrainedMultipart(multipart)
+            .items(|_, _| AttachmentType::Attachment, &config)
+            .await;
 
         // Should be warned if the overall stream limit is being breached.
         assert!(result.is_err_and(|x| matches!(x, multer::Error::StreamSizeExceeded { limit: _ })));
