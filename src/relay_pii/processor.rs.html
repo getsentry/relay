@@ -1475,469 +1475,496 @@
 <a href=#1475 id=1475 data-nosnippet>1475</a>    }
 <a href=#1476 id=1476 data-nosnippet>1476</a>
 <a href=#1477 id=1477 data-nosnippet>1477</a>    <span class="attr">#[test]
-<a href=#1478 id=1478 data-nosnippet>1478</a>    </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_not_scrubbed() {
-<a href=#1479 id=1479 data-nosnippet>1479</a>        <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
-<a href=#1480 id=1480 data-nosnippet>1480</a>            <span class="string">r#"{
-<a href=#1481 id=1481 data-nosnippet>1481</a>                "data": {
-<a href=#1482 id=1482 data-nosnippet>1482</a>                    "http": {
-<a href=#1483 id=1483 data-nosnippet>1483</a>                        "query": "dance=true"
-<a href=#1484 id=1484 data-nosnippet>1484</a>                    }
-<a href=#1485 id=1485 data-nosnippet>1485</a>                }
-<a href=#1486 id=1486 data-nosnippet>1486</a>            }"#</span>,
-<a href=#1487 id=1487 data-nosnippet>1487</a>        )
-<a href=#1488 id=1488 data-nosnippet>1488</a>        .unwrap();
-<a href=#1489 id=1489 data-nosnippet>1489</a>
-<a href=#1490 id=1490 data-nosnippet>1490</a>        <span class="kw">let </span>ds_config = DataScrubbingConfig {
-<a href=#1491 id=1491 data-nosnippet>1491</a>            scrub_data: <span class="bool-val">true</span>,
-<a href=#1492 id=1492 data-nosnippet>1492</a>            scrub_defaults: <span class="bool-val">true</span>,
-<a href=#1493 id=1493 data-nosnippet>1493</a>            ..Default::default()
-<a href=#1494 id=1494 data-nosnippet>1494</a>        };
-<a href=#1495 id=1495 data-nosnippet>1495</a>        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
-<a href=#1496 id=1496 data-nosnippet>1496</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
-<a href=#1497 id=1497 data-nosnippet>1497</a>        process_value(<span class="kw-2">&amp;mut </span>breadcrumb, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-<a href=#1498 id=1498 data-nosnippet>1498</a>        <span class="macro">assert_annotated_snapshot!</span>(breadcrumb);
-<a href=#1499 id=1499 data-nosnippet>1499</a>    }
-<a href=#1500 id=1500 data-nosnippet>1500</a>
-<a href=#1501 id=1501 data-nosnippet>1501</a>    <span class="attr">#[test]
-<a href=#1502 id=1502 data-nosnippet>1502</a>    </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_strings_are_scrubbed() {
-<a href=#1503 id=1503 data-nosnippet>1503</a>        <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
-<a href=#1504 id=1504 data-nosnippet>1504</a>            <span class="string">r#"{
-<a href=#1505 id=1505 data-nosnippet>1505</a>                "data": {
-<a href=#1506 id=1506 data-nosnippet>1506</a>                    "http": {
-<a href=#1507 id=1507 data-nosnippet>1507</a>                        "query": "ccnumber=5105105105105100&amp;process_id=123",
-<a href=#1508 id=1508 data-nosnippet>1508</a>                        "fragment": "ccnumber=5105105105105100,process_id=123"
-<a href=#1509 id=1509 data-nosnippet>1509</a>                    }
-<a href=#1510 id=1510 data-nosnippet>1510</a>                }
-<a href=#1511 id=1511 data-nosnippet>1511</a>            }"#</span>,
-<a href=#1512 id=1512 data-nosnippet>1512</a>        )
-<a href=#1513 id=1513 data-nosnippet>1513</a>        .unwrap();
-<a href=#1514 id=1514 data-nosnippet>1514</a>
-<a href=#1515 id=1515 data-nosnippet>1515</a>        <span class="kw">let </span>ds_config = DataScrubbingConfig {
-<a href=#1516 id=1516 data-nosnippet>1516</a>            scrub_data: <span class="bool-val">true</span>,
-<a href=#1517 id=1517 data-nosnippet>1517</a>            scrub_defaults: <span class="bool-val">true</span>,
-<a href=#1518 id=1518 data-nosnippet>1518</a>            ..Default::default()
-<a href=#1519 id=1519 data-nosnippet>1519</a>        };
-<a href=#1520 id=1520 data-nosnippet>1520</a>        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
-<a href=#1521 id=1521 data-nosnippet>1521</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
-<a href=#1522 id=1522 data-nosnippet>1522</a>        process_value(<span class="kw-2">&amp;mut </span>breadcrumb, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-<a href=#1523 id=1523 data-nosnippet>1523</a>        <span class="macro">assert_annotated_snapshot!</span>(breadcrumb);
-<a href=#1524 id=1524 data-nosnippet>1524</a>    }
-<a href=#1525 id=1525 data-nosnippet>1525</a>
-<a href=#1526 id=1526 data-nosnippet>1526</a>    <span class="attr">#[test]
-<a href=#1527 id=1527 data-nosnippet>1527</a>    </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_objects_are_scrubbed() {
-<a href=#1528 id=1528 data-nosnippet>1528</a>        <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
-<a href=#1529 id=1529 data-nosnippet>1529</a>            <span class="string">r#"{
-<a href=#1530 id=1530 data-nosnippet>1530</a>                "data": {
-<a href=#1531 id=1531 data-nosnippet>1531</a>                    "http": {
-<a href=#1532 id=1532 data-nosnippet>1532</a>                        "query": {
-<a href=#1533 id=1533 data-nosnippet>1533</a>                            "ccnumber": "5105105105105100",
-<a href=#1534 id=1534 data-nosnippet>1534</a>                            "process_id": "123"
-<a href=#1535 id=1535 data-nosnippet>1535</a>                        },
-<a href=#1536 id=1536 data-nosnippet>1536</a>                        "fragment": {
-<a href=#1537 id=1537 data-nosnippet>1537</a>                            "ccnumber": "5105105105105100",
-<a href=#1538 id=1538 data-nosnippet>1538</a>                            "process_id": "123"
-<a href=#1539 id=1539 data-nosnippet>1539</a>                        }
-<a href=#1540 id=1540 data-nosnippet>1540</a>                    }
-<a href=#1541 id=1541 data-nosnippet>1541</a>                }
-<a href=#1542 id=1542 data-nosnippet>1542</a>            }"#</span>,
-<a href=#1543 id=1543 data-nosnippet>1543</a>        )
-<a href=#1544 id=1544 data-nosnippet>1544</a>        .unwrap();
-<a href=#1545 id=1545 data-nosnippet>1545</a>
-<a href=#1546 id=1546 data-nosnippet>1546</a>        <span class="kw">let </span>ds_config = DataScrubbingConfig {
-<a href=#1547 id=1547 data-nosnippet>1547</a>            scrub_data: <span class="bool-val">true</span>,
-<a href=#1548 id=1548 data-nosnippet>1548</a>            scrub_defaults: <span class="bool-val">true</span>,
-<a href=#1549 id=1549 data-nosnippet>1549</a>            ..Default::default()
-<a href=#1550 id=1550 data-nosnippet>1550</a>        };
-<a href=#1551 id=1551 data-nosnippet>1551</a>        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
-<a href=#1552 id=1552 data-nosnippet>1552</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
-<a href=#1553 id=1553 data-nosnippet>1553</a>
-<a href=#1554 id=1554 data-nosnippet>1554</a>        process_value(<span class="kw-2">&amp;mut </span>breadcrumb, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-<a href=#1555 id=1555 data-nosnippet>1555</a>        <span class="macro">assert_annotated_snapshot!</span>(breadcrumb);
-<a href=#1556 id=1556 data-nosnippet>1556</a>    }
-<a href=#1557 id=1557 data-nosnippet>1557</a>
-<a href=#1558 id=1558 data-nosnippet>1558</a>    <span class="attr">#[test]
-<a href=#1559 id=1559 data-nosnippet>1559</a>    </span><span class="kw">fn </span>test_scrub_breadcrumb_data_untyped_props_are_scrubbed() {
-<a href=#1560 id=1560 data-nosnippet>1560</a>        <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
-<a href=#1561 id=1561 data-nosnippet>1561</a>            <span class="string">r#"{
-<a href=#1562 id=1562 data-nosnippet>1562</a>                "data": {
-<a href=#1563 id=1563 data-nosnippet>1563</a>                    "untyped": "ccnumber=5105105105105100",
-<a href=#1564 id=1564 data-nosnippet>1564</a>                    "more_untyped": {
-<a href=#1565 id=1565 data-nosnippet>1565</a>                        "typed": "no",
-<a href=#1566 id=1566 data-nosnippet>1566</a>                        "scrubbed": "yes",
-<a href=#1567 id=1567 data-nosnippet>1567</a>                        "ccnumber": "5105105105105100"
-<a href=#1568 id=1568 data-nosnippet>1568</a>                    }
-<a href=#1569 id=1569 data-nosnippet>1569</a>                }
-<a href=#1570 id=1570 data-nosnippet>1570</a>            }"#</span>,
-<a href=#1571 id=1571 data-nosnippet>1571</a>        )
-<a href=#1572 id=1572 data-nosnippet>1572</a>        .unwrap();
-<a href=#1573 id=1573 data-nosnippet>1573</a>
-<a href=#1574 id=1574 data-nosnippet>1574</a>        <span class="kw">let </span>ds_config = DataScrubbingConfig {
-<a href=#1575 id=1575 data-nosnippet>1575</a>            scrub_data: <span class="bool-val">true</span>,
-<a href=#1576 id=1576 data-nosnippet>1576</a>            scrub_defaults: <span class="bool-val">true</span>,
-<a href=#1577 id=1577 data-nosnippet>1577</a>            ..Default::default()
-<a href=#1578 id=1578 data-nosnippet>1578</a>        };
-<a href=#1579 id=1579 data-nosnippet>1579</a>        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
-<a href=#1580 id=1580 data-nosnippet>1580</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+<a href=#1478 id=1478 data-nosnippet>1478</a>    </span><span class="kw">fn </span>test_csp_source_file_pii() {
+<a href=#1479 id=1479 data-nosnippet>1479</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
+<a href=#1480 id=1480 data-nosnippet>1480</a>            <span class="macro">json!</span>({
+<a href=#1481 id=1481 data-nosnippet>1481</a>                <span class="string">"csp"</span>: {
+<a href=#1482 id=1482 data-nosnippet>1482</a>                    <span class="string">"source_file"</span>: <span class="string">"authentication.js"</span>,
+<a href=#1483 id=1483 data-nosnippet>1483</a>                }
+<a href=#1484 id=1484 data-nosnippet>1484</a>            })
+<a href=#1485 id=1485 data-nosnippet>1485</a>            .into(),
+<a href=#1486 id=1486 data-nosnippet>1486</a>        );
+<a href=#1487 id=1487 data-nosnippet>1487</a>
+<a href=#1488 id=1488 data-nosnippet>1488</a>        <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
+<a href=#1489 id=1489 data-nosnippet>1489</a>            <span class="string">r#"
+<a href=#1490 id=1490 data-nosnippet>1490</a>            {
+<a href=#1491 id=1491 data-nosnippet>1491</a>                "applications": {
+<a href=#1492 id=1492 data-nosnippet>1492</a>                    "csp.source_file": ["@anything:filter"]
+<a href=#1493 id=1493 data-nosnippet>1493</a>                }
+<a href=#1494 id=1494 data-nosnippet>1494</a>            }
+<a href=#1495 id=1495 data-nosnippet>1495</a>            "#</span>,
+<a href=#1496 id=1496 data-nosnippet>1496</a>        )
+<a href=#1497 id=1497 data-nosnippet>1497</a>        .unwrap();
+<a href=#1498 id=1498 data-nosnippet>1498</a>
+<a href=#1499 id=1499 data-nosnippet>1499</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(config.compiled());
+<a href=#1500 id=1500 data-nosnippet>1500</a>        processor::process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+<a href=#1501 id=1501 data-nosnippet>1501</a>        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.csp.<span class="macro">source_file!</span>).as_str(), <span class="string">"[Filtered]"</span>);
+<a href=#1502 id=1502 data-nosnippet>1502</a>    }
+<a href=#1503 id=1503 data-nosnippet>1503</a>
+<a href=#1504 id=1504 data-nosnippet>1504</a>    <span class="attr">#[test]
+<a href=#1505 id=1505 data-nosnippet>1505</a>    </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_not_scrubbed() {
+<a href=#1506 id=1506 data-nosnippet>1506</a>        <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
+<a href=#1507 id=1507 data-nosnippet>1507</a>            <span class="string">r#"{
+<a href=#1508 id=1508 data-nosnippet>1508</a>                "data": {
+<a href=#1509 id=1509 data-nosnippet>1509</a>                    "http": {
+<a href=#1510 id=1510 data-nosnippet>1510</a>                        "query": "dance=true"
+<a href=#1511 id=1511 data-nosnippet>1511</a>                    }
+<a href=#1512 id=1512 data-nosnippet>1512</a>                }
+<a href=#1513 id=1513 data-nosnippet>1513</a>            }"#</span>,
+<a href=#1514 id=1514 data-nosnippet>1514</a>        )
+<a href=#1515 id=1515 data-nosnippet>1515</a>        .unwrap();
+<a href=#1516 id=1516 data-nosnippet>1516</a>
+<a href=#1517 id=1517 data-nosnippet>1517</a>        <span class="kw">let </span>ds_config = DataScrubbingConfig {
+<a href=#1518 id=1518 data-nosnippet>1518</a>            scrub_data: <span class="bool-val">true</span>,
+<a href=#1519 id=1519 data-nosnippet>1519</a>            scrub_defaults: <span class="bool-val">true</span>,
+<a href=#1520 id=1520 data-nosnippet>1520</a>            ..Default::default()
+<a href=#1521 id=1521 data-nosnippet>1521</a>        };
+<a href=#1522 id=1522 data-nosnippet>1522</a>        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+<a href=#1523 id=1523 data-nosnippet>1523</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+<a href=#1524 id=1524 data-nosnippet>1524</a>        process_value(<span class="kw-2">&amp;mut </span>breadcrumb, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+<a href=#1525 id=1525 data-nosnippet>1525</a>        <span class="macro">assert_annotated_snapshot!</span>(breadcrumb);
+<a href=#1526 id=1526 data-nosnippet>1526</a>    }
+<a href=#1527 id=1527 data-nosnippet>1527</a>
+<a href=#1528 id=1528 data-nosnippet>1528</a>    <span class="attr">#[test]
+<a href=#1529 id=1529 data-nosnippet>1529</a>    </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_strings_are_scrubbed() {
+<a href=#1530 id=1530 data-nosnippet>1530</a>        <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
+<a href=#1531 id=1531 data-nosnippet>1531</a>            <span class="string">r#"{
+<a href=#1532 id=1532 data-nosnippet>1532</a>                "data": {
+<a href=#1533 id=1533 data-nosnippet>1533</a>                    "http": {
+<a href=#1534 id=1534 data-nosnippet>1534</a>                        "query": "ccnumber=5105105105105100&amp;process_id=123",
+<a href=#1535 id=1535 data-nosnippet>1535</a>                        "fragment": "ccnumber=5105105105105100,process_id=123"
+<a href=#1536 id=1536 data-nosnippet>1536</a>                    }
+<a href=#1537 id=1537 data-nosnippet>1537</a>                }
+<a href=#1538 id=1538 data-nosnippet>1538</a>            }"#</span>,
+<a href=#1539 id=1539 data-nosnippet>1539</a>        )
+<a href=#1540 id=1540 data-nosnippet>1540</a>        .unwrap();
+<a href=#1541 id=1541 data-nosnippet>1541</a>
+<a href=#1542 id=1542 data-nosnippet>1542</a>        <span class="kw">let </span>ds_config = DataScrubbingConfig {
+<a href=#1543 id=1543 data-nosnippet>1543</a>            scrub_data: <span class="bool-val">true</span>,
+<a href=#1544 id=1544 data-nosnippet>1544</a>            scrub_defaults: <span class="bool-val">true</span>,
+<a href=#1545 id=1545 data-nosnippet>1545</a>            ..Default::default()
+<a href=#1546 id=1546 data-nosnippet>1546</a>        };
+<a href=#1547 id=1547 data-nosnippet>1547</a>        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+<a href=#1548 id=1548 data-nosnippet>1548</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+<a href=#1549 id=1549 data-nosnippet>1549</a>        process_value(<span class="kw-2">&amp;mut </span>breadcrumb, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+<a href=#1550 id=1550 data-nosnippet>1550</a>        <span class="macro">assert_annotated_snapshot!</span>(breadcrumb);
+<a href=#1551 id=1551 data-nosnippet>1551</a>    }
+<a href=#1552 id=1552 data-nosnippet>1552</a>
+<a href=#1553 id=1553 data-nosnippet>1553</a>    <span class="attr">#[test]
+<a href=#1554 id=1554 data-nosnippet>1554</a>    </span><span class="kw">fn </span>test_scrub_breadcrumb_data_http_objects_are_scrubbed() {
+<a href=#1555 id=1555 data-nosnippet>1555</a>        <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
+<a href=#1556 id=1556 data-nosnippet>1556</a>            <span class="string">r#"{
+<a href=#1557 id=1557 data-nosnippet>1557</a>                "data": {
+<a href=#1558 id=1558 data-nosnippet>1558</a>                    "http": {
+<a href=#1559 id=1559 data-nosnippet>1559</a>                        "query": {
+<a href=#1560 id=1560 data-nosnippet>1560</a>                            "ccnumber": "5105105105105100",
+<a href=#1561 id=1561 data-nosnippet>1561</a>                            "process_id": "123"
+<a href=#1562 id=1562 data-nosnippet>1562</a>                        },
+<a href=#1563 id=1563 data-nosnippet>1563</a>                        "fragment": {
+<a href=#1564 id=1564 data-nosnippet>1564</a>                            "ccnumber": "5105105105105100",
+<a href=#1565 id=1565 data-nosnippet>1565</a>                            "process_id": "123"
+<a href=#1566 id=1566 data-nosnippet>1566</a>                        }
+<a href=#1567 id=1567 data-nosnippet>1567</a>                    }
+<a href=#1568 id=1568 data-nosnippet>1568</a>                }
+<a href=#1569 id=1569 data-nosnippet>1569</a>            }"#</span>,
+<a href=#1570 id=1570 data-nosnippet>1570</a>        )
+<a href=#1571 id=1571 data-nosnippet>1571</a>        .unwrap();
+<a href=#1572 id=1572 data-nosnippet>1572</a>
+<a href=#1573 id=1573 data-nosnippet>1573</a>        <span class="kw">let </span>ds_config = DataScrubbingConfig {
+<a href=#1574 id=1574 data-nosnippet>1574</a>            scrub_data: <span class="bool-val">true</span>,
+<a href=#1575 id=1575 data-nosnippet>1575</a>            scrub_defaults: <span class="bool-val">true</span>,
+<a href=#1576 id=1576 data-nosnippet>1576</a>            ..Default::default()
+<a href=#1577 id=1577 data-nosnippet>1577</a>        };
+<a href=#1578 id=1578 data-nosnippet>1578</a>        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+<a href=#1579 id=1579 data-nosnippet>1579</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+<a href=#1580 id=1580 data-nosnippet>1580</a>
 <a href=#1581 id=1581 data-nosnippet>1581</a>        process_value(<span class="kw-2">&amp;mut </span>breadcrumb, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 <a href=#1582 id=1582 data-nosnippet>1582</a>        <span class="macro">assert_annotated_snapshot!</span>(breadcrumb);
 <a href=#1583 id=1583 data-nosnippet>1583</a>    }
 <a href=#1584 id=1584 data-nosnippet>1584</a>
 <a href=#1585 id=1585 data-nosnippet>1585</a>    <span class="attr">#[test]
-<a href=#1586 id=1586 data-nosnippet>1586</a>    </span><span class="kw">fn </span>test_scrub_graphql_response_data_with_variables() {
-<a href=#1587 id=1587 data-nosnippet>1587</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-<a href=#1588 id=1588 data-nosnippet>1588</a>            <span class="macro">json!</span>({
-<a href=#1589 id=1589 data-nosnippet>1589</a>              <span class="string">"request"</span>: {
-<a href=#1590 id=1590 data-nosnippet>1590</a>                <span class="string">"data"</span>: {
-<a href=#1591 id=1591 data-nosnippet>1591</a>                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"</span>,
-<a href=#1592 id=1592 data-nosnippet>1592</a>                  <span class="string">"variables"</span>: {
-<a href=#1593 id=1593 data-nosnippet>1593</a>                    <span class="string">"login"</span>: <span class="string">"foo"
-<a href=#1594 id=1594 data-nosnippet>1594</a>                  </span>}
-<a href=#1595 id=1595 data-nosnippet>1595</a>                },
-<a href=#1596 id=1596 data-nosnippet>1596</a>                <span class="string">"api_target"</span>: <span class="string">"graphql"
-<a href=#1597 id=1597 data-nosnippet>1597</a>              </span>},
-<a href=#1598 id=1598 data-nosnippet>1598</a>              <span class="string">"contexts"</span>: {
-<a href=#1599 id=1599 data-nosnippet>1599</a>                <span class="string">"response"</span>: {
-<a href=#1600 id=1600 data-nosnippet>1600</a>                  <span class="string">"type"</span>: <span class="string">"response"</span>,
-<a href=#1601 id=1601 data-nosnippet>1601</a>                  <span class="string">"data"</span>: {
-<a href=#1602 id=1602 data-nosnippet>1602</a>                    <span class="string">"data"</span>: {
-<a href=#1603 id=1603 data-nosnippet>1603</a>                      <span class="string">"viewer"</span>: {
-<a href=#1604 id=1604 data-nosnippet>1604</a>                        <span class="string">"login"</span>: <span class="string">"foo"
-<a href=#1605 id=1605 data-nosnippet>1605</a>                      </span>}
-<a href=#1606 id=1606 data-nosnippet>1606</a>                    }
-<a href=#1607 id=1607 data-nosnippet>1607</a>                  }
-<a href=#1608 id=1608 data-nosnippet>1608</a>                }
-<a href=#1609 id=1609 data-nosnippet>1609</a>              }
-<a href=#1610 id=1610 data-nosnippet>1610</a>            })
-<a href=#1611 id=1611 data-nosnippet>1611</a>            .into(),
-<a href=#1612 id=1612 data-nosnippet>1612</a>        );
-<a href=#1613 id=1613 data-nosnippet>1613</a>
-<a href=#1614 id=1614 data-nosnippet>1614</a>        scrub_graphql(data.value_mut().as_mut().unwrap());
-<a href=#1615 id=1615 data-nosnippet>1615</a>
-<a href=#1616 id=1616 data-nosnippet>1616</a>        <span class="macro">assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>data);
-<a href=#1617 id=1617 data-nosnippet>1617</a>    }
-<a href=#1618 id=1618 data-nosnippet>1618</a>
-<a href=#1619 id=1619 data-nosnippet>1619</a>    <span class="attr">#[test]
-<a href=#1620 id=1620 data-nosnippet>1620</a>    </span><span class="kw">fn </span>test_scrub_graphql_response_data_without_variables() {
-<a href=#1621 id=1621 data-nosnippet>1621</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-<a href=#1622 id=1622 data-nosnippet>1622</a>            <span class="macro">json!</span>({
-<a href=#1623 id=1623 data-nosnippet>1623</a>              <span class="string">"request"</span>: {
-<a href=#1624 id=1624 data-nosnippet>1624</a>                <span class="string">"data"</span>: {
-<a href=#1625 id=1625 data-nosnippet>1625</a>                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"
-<a href=#1626 id=1626 data-nosnippet>1626</a>                </span>},
-<a href=#1627 id=1627 data-nosnippet>1627</a>                <span class="string">"api_target"</span>: <span class="string">"graphql"
-<a href=#1628 id=1628 data-nosnippet>1628</a>              </span>},
-<a href=#1629 id=1629 data-nosnippet>1629</a>              <span class="string">"contexts"</span>: {
-<a href=#1630 id=1630 data-nosnippet>1630</a>                <span class="string">"response"</span>: {
-<a href=#1631 id=1631 data-nosnippet>1631</a>                  <span class="string">"type"</span>: <span class="string">"response"</span>,
-<a href=#1632 id=1632 data-nosnippet>1632</a>                  <span class="string">"data"</span>: {
-<a href=#1633 id=1633 data-nosnippet>1633</a>                    <span class="string">"data"</span>: {
-<a href=#1634 id=1634 data-nosnippet>1634</a>                      <span class="string">"viewer"</span>: {
-<a href=#1635 id=1635 data-nosnippet>1635</a>                        <span class="string">"login"</span>: <span class="string">"foo"
-<a href=#1636 id=1636 data-nosnippet>1636</a>                      </span>}
-<a href=#1637 id=1637 data-nosnippet>1637</a>                    }
-<a href=#1638 id=1638 data-nosnippet>1638</a>                  }
-<a href=#1639 id=1639 data-nosnippet>1639</a>                }
-<a href=#1640 id=1640 data-nosnippet>1640</a>              }
-<a href=#1641 id=1641 data-nosnippet>1641</a>            })
-<a href=#1642 id=1642 data-nosnippet>1642</a>            .into(),
-<a href=#1643 id=1643 data-nosnippet>1643</a>        );
-<a href=#1644 id=1644 data-nosnippet>1644</a>
-<a href=#1645 id=1645 data-nosnippet>1645</a>        scrub_graphql(data.value_mut().as_mut().unwrap());
-<a href=#1646 id=1646 data-nosnippet>1646</a>        <span class="macro">assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>data);
-<a href=#1647 id=1647 data-nosnippet>1647</a>    }
-<a href=#1648 id=1648 data-nosnippet>1648</a>
-<a href=#1649 id=1649 data-nosnippet>1649</a>    <span class="attr">#[test]
-<a href=#1650 id=1650 data-nosnippet>1650</a>    </span><span class="kw">fn </span>test_does_not_scrub_if_no_graphql() {
-<a href=#1651 id=1651 data-nosnippet>1651</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
-<a href=#1652 id=1652 data-nosnippet>1652</a>            <span class="macro">json!</span>({
-<a href=#1653 id=1653 data-nosnippet>1653</a>              <span class="string">"request"</span>: {
-<a href=#1654 id=1654 data-nosnippet>1654</a>                <span class="string">"data"</span>: {
-<a href=#1655 id=1655 data-nosnippet>1655</a>                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"</span>,
-<a href=#1656 id=1656 data-nosnippet>1656</a>                  <span class="string">"variables"</span>: {
-<a href=#1657 id=1657 data-nosnippet>1657</a>                    <span class="string">"login"</span>: <span class="string">"foo"
-<a href=#1658 id=1658 data-nosnippet>1658</a>                  </span>}
-<a href=#1659 id=1659 data-nosnippet>1659</a>                },
-<a href=#1660 id=1660 data-nosnippet>1660</a>              },
-<a href=#1661 id=1661 data-nosnippet>1661</a>              <span class="string">"contexts"</span>: {
-<a href=#1662 id=1662 data-nosnippet>1662</a>                <span class="string">"response"</span>: {
-<a href=#1663 id=1663 data-nosnippet>1663</a>                  <span class="string">"type"</span>: <span class="string">"response"</span>,
-<a href=#1664 id=1664 data-nosnippet>1664</a>                  <span class="string">"data"</span>: {
-<a href=#1665 id=1665 data-nosnippet>1665</a>                    <span class="string">"data"</span>: {
-<a href=#1666 id=1666 data-nosnippet>1666</a>                      <span class="string">"viewer"</span>: {
-<a href=#1667 id=1667 data-nosnippet>1667</a>                        <span class="string">"login"</span>: <span class="string">"foo"
-<a href=#1668 id=1668 data-nosnippet>1668</a>                      </span>}
-<a href=#1669 id=1669 data-nosnippet>1669</a>                    }
-<a href=#1670 id=1670 data-nosnippet>1670</a>                  }
-<a href=#1671 id=1671 data-nosnippet>1671</a>                }
-<a href=#1672 id=1672 data-nosnippet>1672</a>              }
-<a href=#1673 id=1673 data-nosnippet>1673</a>            })
-<a href=#1674 id=1674 data-nosnippet>1674</a>            .into(),
-<a href=#1675 id=1675 data-nosnippet>1675</a>        );
-<a href=#1676 id=1676 data-nosnippet>1676</a>
-<a href=#1677 id=1677 data-nosnippet>1677</a>        <span class="kw">let </span>scrubbing_config = DataScrubbingConfig {
-<a href=#1678 id=1678 data-nosnippet>1678</a>            scrub_data: <span class="bool-val">true</span>,
-<a href=#1679 id=1679 data-nosnippet>1679</a>            scrub_ip_addresses: <span class="bool-val">true</span>,
-<a href=#1680 id=1680 data-nosnippet>1680</a>            scrub_defaults: <span class="bool-val">true</span>,
-<a href=#1681 id=1681 data-nosnippet>1681</a>            ..Default::default()
-<a href=#1682 id=1682 data-nosnippet>1682</a>        };
-<a href=#1683 id=1683 data-nosnippet>1683</a>
-<a href=#1684 id=1684 data-nosnippet>1684</a>        <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>scrubbing_config).unwrap();
-<a href=#1685 id=1685 data-nosnippet>1685</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
-<a href=#1686 id=1686 data-nosnippet>1686</a>
-<a href=#1687 id=1687 data-nosnippet>1687</a>        process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-<a href=#1688 id=1688 data-nosnippet>1688</a>
-<a href=#1689 id=1689 data-nosnippet>1689</a>        <span class="macro">assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>data);
-<a href=#1690 id=1690 data-nosnippet>1690</a>    }
-<a href=#1691 id=1691 data-nosnippet>1691</a>
-<a href=#1692 id=1692 data-nosnippet>1692</a>    <span class="attr">#[test]
-<a href=#1693 id=1693 data-nosnippet>1693</a>    </span><span class="kw">fn </span>test_logentry_params_scrubbed() {
-<a href=#1694 id=1694 data-nosnippet>1694</a>        <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-<a href=#1695 id=1695 data-nosnippet>1695</a>            <span class="string">r##"
-<a href=#1696 id=1696 data-nosnippet>1696</a>                {
-<a href=#1697 id=1697 data-nosnippet>1697</a>                    "applications": {
-<a href=#1698 id=1698 data-nosnippet>1698</a>                        "$string": ["@anything:remove"]
-<a href=#1699 id=1699 data-nosnippet>1699</a>                    }
-<a href=#1700 id=1700 data-nosnippet>1700</a>                }
-<a href=#1701 id=1701 data-nosnippet>1701</a>                "##</span>,
-<a href=#1702 id=1702 data-nosnippet>1702</a>        )
-<a href=#1703 id=1703 data-nosnippet>1703</a>        .unwrap();
-<a href=#1704 id=1704 data-nosnippet>1704</a>
-<a href=#1705 id=1705 data-nosnippet>1705</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-<a href=#1706 id=1706 data-nosnippet>1706</a>            logentry: Annotated::new(LogEntry {
-<a href=#1707 id=1707 data-nosnippet>1707</a>                message: Annotated::new(Message::from(<span class="string">"failed to parse report id=%s"</span>.to_owned())),
-<a href=#1708 id=1708 data-nosnippet>1708</a>                formatted: Annotated::new(<span class="string">"failed to parse report id=1"</span>.to_string().into()),
-<a href=#1709 id=1709 data-nosnippet>1709</a>                params: Annotated::new(Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(
-<a href=#1710 id=1710 data-nosnippet>1710</a>                    <span class="string">"12345"</span>.to_owned(),
-<a href=#1711 id=1711 data-nosnippet>1711</a>                ))])),
-<a href=#1712 id=1712 data-nosnippet>1712</a>                ..Default::default()
-<a href=#1713 id=1713 data-nosnippet>1713</a>            }),
-<a href=#1714 id=1714 data-nosnippet>1714</a>            ..Default::default()
-<a href=#1715 id=1715 data-nosnippet>1715</a>        });
-<a href=#1716 id=1716 data-nosnippet>1716</a>
-<a href=#1717 id=1717 data-nosnippet>1717</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
-<a href=#1718 id=1718 data-nosnippet>1718</a>        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
-<a href=#1719 id=1719 data-nosnippet>1719</a>
-<a href=#1720 id=1720 data-nosnippet>1720</a>        <span class="kw">let </span>params = <span class="macro">get_value!</span>(event.logentry.<span class="macro">params!</span>);
-<a href=#1721 id=1721 data-nosnippet>1721</a>        <span class="macro">assert_debug_snapshot!</span>(params, @<span class="string">r#"Array(
-<a href=#1722 id=1722 data-nosnippet>1722</a>    [
-<a href=#1723 id=1723 data-nosnippet>1723</a>        Meta {
-<a href=#1724 id=1724 data-nosnippet>1724</a>            remarks: [
-<a href=#1725 id=1725 data-nosnippet>1725</a>                Remark {
-<a href=#1726 id=1726 data-nosnippet>1726</a>                    ty: Removed,
-<a href=#1727 id=1727 data-nosnippet>1727</a>                    rule_id: "@anything:remove",
-<a href=#1728 id=1728 data-nosnippet>1728</a>                    range: None,
-<a href=#1729 id=1729 data-nosnippet>1729</a>                },
-<a href=#1730 id=1730 data-nosnippet>1730</a>            ],
-<a href=#1731 id=1731 data-nosnippet>1731</a>            errors: [],
-<a href=#1732 id=1732 data-nosnippet>1732</a>            original_length: None,
-<a href=#1733 id=1733 data-nosnippet>1733</a>            original_value: None,
-<a href=#1734 id=1734 data-nosnippet>1734</a>        },
-<a href=#1735 id=1735 data-nosnippet>1735</a>    ],
-<a href=#1736 id=1736 data-nosnippet>1736</a>)"#</span>);
-<a href=#1737 id=1737 data-nosnippet>1737</a>    }
-<a href=#1738 id=1738 data-nosnippet>1738</a>
-<a href=#1739 id=1739 data-nosnippet>1739</a>    <span class="attr">#[test]
-<a href=#1740 id=1740 data-nosnippet>1740</a>    </span><span class="kw">fn </span>test_is_pairlist() {
-<a href=#1741 id=1741 data-nosnippet>1741</a>        <span class="kw">for </span>(case, expected) <span class="kw">in </span>[
-<a href=#1742 id=1742 data-nosnippet>1742</a>            (<span class="string">r#"[]"#</span>, <span class="bool-val">false</span>),
-<a href=#1743 id=1743 data-nosnippet>1743</a>            (<span class="string">r#"["foo"]"#</span>, <span class="bool-val">false</span>),
-<a href=#1744 id=1744 data-nosnippet>1744</a>            (<span class="string">r#"["foo", 123]"#</span>, <span class="bool-val">false</span>),
-<a href=#1745 id=1745 data-nosnippet>1745</a>            (<span class="string">r#"[[1, "foo"]]"#</span>, <span class="bool-val">false</span>),
-<a href=#1746 id=1746 data-nosnippet>1746</a>            (<span class="string">r#"[[["too_nested", 123]]]"#</span>, <span class="bool-val">false</span>),
-<a href=#1747 id=1747 data-nosnippet>1747</a>            (<span class="string">r#"[["foo", "bar"], [1, "foo"]]"#</span>, <span class="bool-val">false</span>),
-<a href=#1748 id=1748 data-nosnippet>1748</a>            (<span class="string">r#"[["foo", "bar"], ["foo", "bar", "baz"]]"#</span>, <span class="bool-val">false</span>),
-<a href=#1749 id=1749 data-nosnippet>1749</a>            (<span class="string">r#"[["foo", "bar", "baz"], ["foo", "bar"]]"#</span>, <span class="bool-val">false</span>),
-<a href=#1750 id=1750 data-nosnippet>1750</a>            (<span class="string">r#"["foo", ["bar", "baz"], ["foo", "bar"]]"#</span>, <span class="bool-val">false</span>),
-<a href=#1751 id=1751 data-nosnippet>1751</a>            (<span class="string">r#"[["foo", "bar"], [["too_nested", 123]]]"#</span>, <span class="bool-val">false</span>),
-<a href=#1752 id=1752 data-nosnippet>1752</a>            (<span class="string">r#"[["foo", 123]]"#</span>, <span class="bool-val">true</span>),
-<a href=#1753 id=1753 data-nosnippet>1753</a>            (<span class="string">r#"[["foo", "bar"]]"#</span>, <span class="bool-val">true</span>),
-<a href=#1754 id=1754 data-nosnippet>1754</a>            (
-<a href=#1755 id=1755 data-nosnippet>1755</a>                <span class="string">r#"[["foo", "bar"], ["foo", {"nested": {"something": 1}}]]"#</span>,
-<a href=#1756 id=1756 data-nosnippet>1756</a>                <span class="bool-val">true</span>,
-<a href=#1757 id=1757 data-nosnippet>1757</a>            ),
-<a href=#1758 id=1758 data-nosnippet>1758</a>        ] {
-<a href=#1759 id=1759 data-nosnippet>1759</a>            <span class="kw">let </span>v = Annotated::&lt;Value&gt;::from_json(case).unwrap();
-<a href=#1760 id=1760 data-nosnippet>1760</a>            <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(Value::Array(<span class="kw-2">mut </span>a)), <span class="kw">_</span>) = v <span class="kw">else </span>{
-<a href=#1761 id=1761 data-nosnippet>1761</a>                <span class="macro">panic!</span>()
-<a href=#1762 id=1762 data-nosnippet>1762</a>            };
-<a href=#1763 id=1763 data-nosnippet>1763</a>            <span class="macro">assert_eq!</span>(is_pairlist(<span class="kw-2">&amp;mut </span>a), expected, <span class="string">"{case}"</span>);
-<a href=#1764 id=1764 data-nosnippet>1764</a>        }
-<a href=#1765 id=1765 data-nosnippet>1765</a>    }
-<a href=#1766 id=1766 data-nosnippet>1766</a>
-<a href=#1767 id=1767 data-nosnippet>1767</a>    <span class="attr">#[test]
-<a href=#1768 id=1768 data-nosnippet>1768</a>    </span><span class="kw">fn </span>test_tuple_array_scrubbed_with_path_selector() {
-<a href=#1769 id=1769 data-nosnippet>1769</a>        <span class="comment">// We expect that both of these configs express the same semantics.
-<a href=#1770 id=1770 data-nosnippet>1770</a>        </span><span class="kw">let </span>configs = <span class="macro">vec!</span>[
-<a href=#1771 id=1771 data-nosnippet>1771</a>            <span class="comment">// This configuration matches on the authorization element (the 1st element of the array
-<a href=#1772 id=1772 data-nosnippet>1772</a>            // represents the key).
-<a href=#1773 id=1773 data-nosnippet>1773</a>            </span><span class="string">r##"
-<a href=#1774 id=1774 data-nosnippet>1774</a>                {
-<a href=#1775 id=1775 data-nosnippet>1775</a>                    "applications": {
-<a href=#1776 id=1776 data-nosnippet>1776</a>                        "exception.values.0.stacktrace.frames.0.vars.headers.authorization": ["@anything:replace"]
-<a href=#1777 id=1777 data-nosnippet>1777</a>                    }
-<a href=#1778 id=1778 data-nosnippet>1778</a>                }
-<a href=#1779 id=1779 data-nosnippet>1779</a>                "##</span>,
-<a href=#1780 id=1780 data-nosnippet>1780</a>            <span class="comment">// This configuration matches on the 2nd element of the array.
-<a href=#1781 id=1781 data-nosnippet>1781</a>            </span><span class="string">r##"
-<a href=#1782 id=1782 data-nosnippet>1782</a>                {
-<a href=#1783 id=1783 data-nosnippet>1783</a>                    "applications": {
-<a href=#1784 id=1784 data-nosnippet>1784</a>                        "exception.values.0.stacktrace.frames.0.vars.headers.0.1": ["@anything:replace"]
-<a href=#1785 id=1785 data-nosnippet>1785</a>                    }
-<a href=#1786 id=1786 data-nosnippet>1786</a>                }
-<a href=#1787 id=1787 data-nosnippet>1787</a>                "##</span>,
-<a href=#1788 id=1788 data-nosnippet>1788</a>        ];
-<a href=#1789 id=1789 data-nosnippet>1789</a>
-<a href=#1790 id=1790 data-nosnippet>1790</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
-<a href=#1791 id=1791 data-nosnippet>1791</a>            <span class="macro">serde_json::json!</span>(
-<a href=#1792 id=1792 data-nosnippet>1792</a>            {
-<a href=#1793 id=1793 data-nosnippet>1793</a>              <span class="string">"message"</span>: <span class="string">"hi"</span>,
-<a href=#1794 id=1794 data-nosnippet>1794</a>              <span class="string">"exception"</span>: {
-<a href=#1795 id=1795 data-nosnippet>1795</a>                <span class="string">"values"</span>: [
-<a href=#1796 id=1796 data-nosnippet>1796</a>                  {
-<a href=#1797 id=1797 data-nosnippet>1797</a>                    <span class="string">"type"</span>: <span class="string">"BrokenException"</span>,
-<a href=#1798 id=1798 data-nosnippet>1798</a>                    <span class="string">"value"</span>: <span class="string">"Something failed"</span>,
-<a href=#1799 id=1799 data-nosnippet>1799</a>                    <span class="string">"stacktrace"</span>: {
-<a href=#1800 id=1800 data-nosnippet>1800</a>                      <span class="string">"frames"</span>: [
-<a href=#1801 id=1801 data-nosnippet>1801</a>                        {
-<a href=#1802 id=1802 data-nosnippet>1802</a>                            <span class="string">"vars"</span>: {
-<a href=#1803 id=1803 data-nosnippet>1803</a>                                <span class="string">"headers"</span>: [
-<a href=#1804 id=1804 data-nosnippet>1804</a>                                    [<span class="string">"authorization"</span>, <span class="string">"Bearer abc123"</span>]
-<a href=#1805 id=1805 data-nosnippet>1805</a>                                ]
-<a href=#1806 id=1806 data-nosnippet>1806</a>                            }
-<a href=#1807 id=1807 data-nosnippet>1807</a>                        }
-<a href=#1808 id=1808 data-nosnippet>1808</a>                      ]
-<a href=#1809 id=1809 data-nosnippet>1809</a>                    }
-<a href=#1810 id=1810 data-nosnippet>1810</a>                  }
-<a href=#1811 id=1811 data-nosnippet>1811</a>                ]
-<a href=#1812 id=1812 data-nosnippet>1812</a>              }
-<a href=#1813 id=1813 data-nosnippet>1813</a>            })
-<a href=#1814 id=1814 data-nosnippet>1814</a>            .into(),
-<a href=#1815 id=1815 data-nosnippet>1815</a>        );
+<a href=#1586 id=1586 data-nosnippet>1586</a>    </span><span class="kw">fn </span>test_scrub_breadcrumb_data_untyped_props_are_scrubbed() {
+<a href=#1587 id=1587 data-nosnippet>1587</a>        <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb: Annotated&lt;Breadcrumb&gt; = Annotated::from_json(
+<a href=#1588 id=1588 data-nosnippet>1588</a>            <span class="string">r#"{
+<a href=#1589 id=1589 data-nosnippet>1589</a>                "data": {
+<a href=#1590 id=1590 data-nosnippet>1590</a>                    "untyped": "ccnumber=5105105105105100",
+<a href=#1591 id=1591 data-nosnippet>1591</a>                    "more_untyped": {
+<a href=#1592 id=1592 data-nosnippet>1592</a>                        "typed": "no",
+<a href=#1593 id=1593 data-nosnippet>1593</a>                        "scrubbed": "yes",
+<a href=#1594 id=1594 data-nosnippet>1594</a>                        "ccnumber": "5105105105105100"
+<a href=#1595 id=1595 data-nosnippet>1595</a>                    }
+<a href=#1596 id=1596 data-nosnippet>1596</a>                }
+<a href=#1597 id=1597 data-nosnippet>1597</a>            }"#</span>,
+<a href=#1598 id=1598 data-nosnippet>1598</a>        )
+<a href=#1599 id=1599 data-nosnippet>1599</a>        .unwrap();
+<a href=#1600 id=1600 data-nosnippet>1600</a>
+<a href=#1601 id=1601 data-nosnippet>1601</a>        <span class="kw">let </span>ds_config = DataScrubbingConfig {
+<a href=#1602 id=1602 data-nosnippet>1602</a>            scrub_data: <span class="bool-val">true</span>,
+<a href=#1603 id=1603 data-nosnippet>1603</a>            scrub_defaults: <span class="bool-val">true</span>,
+<a href=#1604 id=1604 data-nosnippet>1604</a>            ..Default::default()
+<a href=#1605 id=1605 data-nosnippet>1605</a>        };
+<a href=#1606 id=1606 data-nosnippet>1606</a>        <span class="kw">let </span>pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+<a href=#1607 id=1607 data-nosnippet>1607</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+<a href=#1608 id=1608 data-nosnippet>1608</a>        process_value(<span class="kw-2">&amp;mut </span>breadcrumb, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+<a href=#1609 id=1609 data-nosnippet>1609</a>        <span class="macro">assert_annotated_snapshot!</span>(breadcrumb);
+<a href=#1610 id=1610 data-nosnippet>1610</a>    }
+<a href=#1611 id=1611 data-nosnippet>1611</a>
+<a href=#1612 id=1612 data-nosnippet>1612</a>    <span class="attr">#[test]
+<a href=#1613 id=1613 data-nosnippet>1613</a>    </span><span class="kw">fn </span>test_scrub_graphql_response_data_with_variables() {
+<a href=#1614 id=1614 data-nosnippet>1614</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
+<a href=#1615 id=1615 data-nosnippet>1615</a>            <span class="macro">json!</span>({
+<a href=#1616 id=1616 data-nosnippet>1616</a>              <span class="string">"request"</span>: {
+<a href=#1617 id=1617 data-nosnippet>1617</a>                <span class="string">"data"</span>: {
+<a href=#1618 id=1618 data-nosnippet>1618</a>                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"</span>,
+<a href=#1619 id=1619 data-nosnippet>1619</a>                  <span class="string">"variables"</span>: {
+<a href=#1620 id=1620 data-nosnippet>1620</a>                    <span class="string">"login"</span>: <span class="string">"foo"
+<a href=#1621 id=1621 data-nosnippet>1621</a>                  </span>}
+<a href=#1622 id=1622 data-nosnippet>1622</a>                },
+<a href=#1623 id=1623 data-nosnippet>1623</a>                <span class="string">"api_target"</span>: <span class="string">"graphql"
+<a href=#1624 id=1624 data-nosnippet>1624</a>              </span>},
+<a href=#1625 id=1625 data-nosnippet>1625</a>              <span class="string">"contexts"</span>: {
+<a href=#1626 id=1626 data-nosnippet>1626</a>                <span class="string">"response"</span>: {
+<a href=#1627 id=1627 data-nosnippet>1627</a>                  <span class="string">"type"</span>: <span class="string">"response"</span>,
+<a href=#1628 id=1628 data-nosnippet>1628</a>                  <span class="string">"data"</span>: {
+<a href=#1629 id=1629 data-nosnippet>1629</a>                    <span class="string">"data"</span>: {
+<a href=#1630 id=1630 data-nosnippet>1630</a>                      <span class="string">"viewer"</span>: {
+<a href=#1631 id=1631 data-nosnippet>1631</a>                        <span class="string">"login"</span>: <span class="string">"foo"
+<a href=#1632 id=1632 data-nosnippet>1632</a>                      </span>}
+<a href=#1633 id=1633 data-nosnippet>1633</a>                    }
+<a href=#1634 id=1634 data-nosnippet>1634</a>                  }
+<a href=#1635 id=1635 data-nosnippet>1635</a>                }
+<a href=#1636 id=1636 data-nosnippet>1636</a>              }
+<a href=#1637 id=1637 data-nosnippet>1637</a>            })
+<a href=#1638 id=1638 data-nosnippet>1638</a>            .into(),
+<a href=#1639 id=1639 data-nosnippet>1639</a>        );
+<a href=#1640 id=1640 data-nosnippet>1640</a>
+<a href=#1641 id=1641 data-nosnippet>1641</a>        scrub_graphql(data.value_mut().as_mut().unwrap());
+<a href=#1642 id=1642 data-nosnippet>1642</a>
+<a href=#1643 id=1643 data-nosnippet>1643</a>        <span class="macro">assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>data);
+<a href=#1644 id=1644 data-nosnippet>1644</a>    }
+<a href=#1645 id=1645 data-nosnippet>1645</a>
+<a href=#1646 id=1646 data-nosnippet>1646</a>    <span class="attr">#[test]
+<a href=#1647 id=1647 data-nosnippet>1647</a>    </span><span class="kw">fn </span>test_scrub_graphql_response_data_without_variables() {
+<a href=#1648 id=1648 data-nosnippet>1648</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
+<a href=#1649 id=1649 data-nosnippet>1649</a>            <span class="macro">json!</span>({
+<a href=#1650 id=1650 data-nosnippet>1650</a>              <span class="string">"request"</span>: {
+<a href=#1651 id=1651 data-nosnippet>1651</a>                <span class="string">"data"</span>: {
+<a href=#1652 id=1652 data-nosnippet>1652</a>                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"
+<a href=#1653 id=1653 data-nosnippet>1653</a>                </span>},
+<a href=#1654 id=1654 data-nosnippet>1654</a>                <span class="string">"api_target"</span>: <span class="string">"graphql"
+<a href=#1655 id=1655 data-nosnippet>1655</a>              </span>},
+<a href=#1656 id=1656 data-nosnippet>1656</a>              <span class="string">"contexts"</span>: {
+<a href=#1657 id=1657 data-nosnippet>1657</a>                <span class="string">"response"</span>: {
+<a href=#1658 id=1658 data-nosnippet>1658</a>                  <span class="string">"type"</span>: <span class="string">"response"</span>,
+<a href=#1659 id=1659 data-nosnippet>1659</a>                  <span class="string">"data"</span>: {
+<a href=#1660 id=1660 data-nosnippet>1660</a>                    <span class="string">"data"</span>: {
+<a href=#1661 id=1661 data-nosnippet>1661</a>                      <span class="string">"viewer"</span>: {
+<a href=#1662 id=1662 data-nosnippet>1662</a>                        <span class="string">"login"</span>: <span class="string">"foo"
+<a href=#1663 id=1663 data-nosnippet>1663</a>                      </span>}
+<a href=#1664 id=1664 data-nosnippet>1664</a>                    }
+<a href=#1665 id=1665 data-nosnippet>1665</a>                  }
+<a href=#1666 id=1666 data-nosnippet>1666</a>                }
+<a href=#1667 id=1667 data-nosnippet>1667</a>              }
+<a href=#1668 id=1668 data-nosnippet>1668</a>            })
+<a href=#1669 id=1669 data-nosnippet>1669</a>            .into(),
+<a href=#1670 id=1670 data-nosnippet>1670</a>        );
+<a href=#1671 id=1671 data-nosnippet>1671</a>
+<a href=#1672 id=1672 data-nosnippet>1672</a>        scrub_graphql(data.value_mut().as_mut().unwrap());
+<a href=#1673 id=1673 data-nosnippet>1673</a>        <span class="macro">assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>data);
+<a href=#1674 id=1674 data-nosnippet>1674</a>    }
+<a href=#1675 id=1675 data-nosnippet>1675</a>
+<a href=#1676 id=1676 data-nosnippet>1676</a>    <span class="attr">#[test]
+<a href=#1677 id=1677 data-nosnippet>1677</a>    </span><span class="kw">fn </span>test_does_not_scrub_if_no_graphql() {
+<a href=#1678 id=1678 data-nosnippet>1678</a>        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
+<a href=#1679 id=1679 data-nosnippet>1679</a>            <span class="macro">json!</span>({
+<a href=#1680 id=1680 data-nosnippet>1680</a>              <span class="string">"request"</span>: {
+<a href=#1681 id=1681 data-nosnippet>1681</a>                <span class="string">"data"</span>: {
+<a href=#1682 id=1682 data-nosnippet>1682</a>                  <span class="string">"query"</span>: <span class="string">"{\n  viewer {\n    login\n  }\n}"</span>,
+<a href=#1683 id=1683 data-nosnippet>1683</a>                  <span class="string">"variables"</span>: {
+<a href=#1684 id=1684 data-nosnippet>1684</a>                    <span class="string">"login"</span>: <span class="string">"foo"
+<a href=#1685 id=1685 data-nosnippet>1685</a>                  </span>}
+<a href=#1686 id=1686 data-nosnippet>1686</a>                },
+<a href=#1687 id=1687 data-nosnippet>1687</a>              },
+<a href=#1688 id=1688 data-nosnippet>1688</a>              <span class="string">"contexts"</span>: {
+<a href=#1689 id=1689 data-nosnippet>1689</a>                <span class="string">"response"</span>: {
+<a href=#1690 id=1690 data-nosnippet>1690</a>                  <span class="string">"type"</span>: <span class="string">"response"</span>,
+<a href=#1691 id=1691 data-nosnippet>1691</a>                  <span class="string">"data"</span>: {
+<a href=#1692 id=1692 data-nosnippet>1692</a>                    <span class="string">"data"</span>: {
+<a href=#1693 id=1693 data-nosnippet>1693</a>                      <span class="string">"viewer"</span>: {
+<a href=#1694 id=1694 data-nosnippet>1694</a>                        <span class="string">"login"</span>: <span class="string">"foo"
+<a href=#1695 id=1695 data-nosnippet>1695</a>                      </span>}
+<a href=#1696 id=1696 data-nosnippet>1696</a>                    }
+<a href=#1697 id=1697 data-nosnippet>1697</a>                  }
+<a href=#1698 id=1698 data-nosnippet>1698</a>                }
+<a href=#1699 id=1699 data-nosnippet>1699</a>              }
+<a href=#1700 id=1700 data-nosnippet>1700</a>            })
+<a href=#1701 id=1701 data-nosnippet>1701</a>            .into(),
+<a href=#1702 id=1702 data-nosnippet>1702</a>        );
+<a href=#1703 id=1703 data-nosnippet>1703</a>
+<a href=#1704 id=1704 data-nosnippet>1704</a>        <span class="kw">let </span>scrubbing_config = DataScrubbingConfig {
+<a href=#1705 id=1705 data-nosnippet>1705</a>            scrub_data: <span class="bool-val">true</span>,
+<a href=#1706 id=1706 data-nosnippet>1706</a>            scrub_ip_addresses: <span class="bool-val">true</span>,
+<a href=#1707 id=1707 data-nosnippet>1707</a>            scrub_defaults: <span class="bool-val">true</span>,
+<a href=#1708 id=1708 data-nosnippet>1708</a>            ..Default::default()
+<a href=#1709 id=1709 data-nosnippet>1709</a>        };
+<a href=#1710 id=1710 data-nosnippet>1710</a>
+<a href=#1711 id=1711 data-nosnippet>1711</a>        <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>scrubbing_config).unwrap();
+<a href=#1712 id=1712 data-nosnippet>1712</a>        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+<a href=#1713 id=1713 data-nosnippet>1713</a>
+<a href=#1714 id=1714 data-nosnippet>1714</a>        process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+<a href=#1715 id=1715 data-nosnippet>1715</a>
+<a href=#1716 id=1716 data-nosnippet>1716</a>        <span class="macro">assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>data);
+<a href=#1717 id=1717 data-nosnippet>1717</a>    }
+<a href=#1718 id=1718 data-nosnippet>1718</a>
+<a href=#1719 id=1719 data-nosnippet>1719</a>    <span class="attr">#[test]
+<a href=#1720 id=1720 data-nosnippet>1720</a>    </span><span class="kw">fn </span>test_logentry_params_scrubbed() {
+<a href=#1721 id=1721 data-nosnippet>1721</a>        <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
+<a href=#1722 id=1722 data-nosnippet>1722</a>            <span class="string">r##"
+<a href=#1723 id=1723 data-nosnippet>1723</a>                {
+<a href=#1724 id=1724 data-nosnippet>1724</a>                    "applications": {
+<a href=#1725 id=1725 data-nosnippet>1725</a>                        "$string": ["@anything:remove"]
+<a href=#1726 id=1726 data-nosnippet>1726</a>                    }
+<a href=#1727 id=1727 data-nosnippet>1727</a>                }
+<a href=#1728 id=1728 data-nosnippet>1728</a>                "##</span>,
+<a href=#1729 id=1729 data-nosnippet>1729</a>        )
+<a href=#1730 id=1730 data-nosnippet>1730</a>        .unwrap();
+<a href=#1731 id=1731 data-nosnippet>1731</a>
+<a href=#1732 id=1732 data-nosnippet>1732</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+<a href=#1733 id=1733 data-nosnippet>1733</a>            logentry: Annotated::new(LogEntry {
+<a href=#1734 id=1734 data-nosnippet>1734</a>                message: Annotated::new(Message::from(<span class="string">"failed to parse report id=%s"</span>.to_owned())),
+<a href=#1735 id=1735 data-nosnippet>1735</a>                formatted: Annotated::new(<span class="string">"failed to parse report id=1"</span>.to_string().into()),
+<a href=#1736 id=1736 data-nosnippet>1736</a>                params: Annotated::new(Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(
+<a href=#1737 id=1737 data-nosnippet>1737</a>                    <span class="string">"12345"</span>.to_owned(),
+<a href=#1738 id=1738 data-nosnippet>1738</a>                ))])),
+<a href=#1739 id=1739 data-nosnippet>1739</a>                ..Default::default()
+<a href=#1740 id=1740 data-nosnippet>1740</a>            }),
+<a href=#1741 id=1741 data-nosnippet>1741</a>            ..Default::default()
+<a href=#1742 id=1742 data-nosnippet>1742</a>        });
+<a href=#1743 id=1743 data-nosnippet>1743</a>
+<a href=#1744 id=1744 data-nosnippet>1744</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
+<a href=#1745 id=1745 data-nosnippet>1745</a>        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+<a href=#1746 id=1746 data-nosnippet>1746</a>
+<a href=#1747 id=1747 data-nosnippet>1747</a>        <span class="kw">let </span>params = <span class="macro">get_value!</span>(event.logentry.<span class="macro">params!</span>);
+<a href=#1748 id=1748 data-nosnippet>1748</a>        <span class="macro">assert_debug_snapshot!</span>(params, @<span class="string">r#"Array(
+<a href=#1749 id=1749 data-nosnippet>1749</a>    [
+<a href=#1750 id=1750 data-nosnippet>1750</a>        Meta {
+<a href=#1751 id=1751 data-nosnippet>1751</a>            remarks: [
+<a href=#1752 id=1752 data-nosnippet>1752</a>                Remark {
+<a href=#1753 id=1753 data-nosnippet>1753</a>                    ty: Removed,
+<a href=#1754 id=1754 data-nosnippet>1754</a>                    rule_id: "@anything:remove",
+<a href=#1755 id=1755 data-nosnippet>1755</a>                    range: None,
+<a href=#1756 id=1756 data-nosnippet>1756</a>                },
+<a href=#1757 id=1757 data-nosnippet>1757</a>            ],
+<a href=#1758 id=1758 data-nosnippet>1758</a>            errors: [],
+<a href=#1759 id=1759 data-nosnippet>1759</a>            original_length: None,
+<a href=#1760 id=1760 data-nosnippet>1760</a>            original_value: None,
+<a href=#1761 id=1761 data-nosnippet>1761</a>        },
+<a href=#1762 id=1762 data-nosnippet>1762</a>    ],
+<a href=#1763 id=1763 data-nosnippet>1763</a>)"#</span>);
+<a href=#1764 id=1764 data-nosnippet>1764</a>    }
+<a href=#1765 id=1765 data-nosnippet>1765</a>
+<a href=#1766 id=1766 data-nosnippet>1766</a>    <span class="attr">#[test]
+<a href=#1767 id=1767 data-nosnippet>1767</a>    </span><span class="kw">fn </span>test_is_pairlist() {
+<a href=#1768 id=1768 data-nosnippet>1768</a>        <span class="kw">for </span>(case, expected) <span class="kw">in </span>[
+<a href=#1769 id=1769 data-nosnippet>1769</a>            (<span class="string">r#"[]"#</span>, <span class="bool-val">false</span>),
+<a href=#1770 id=1770 data-nosnippet>1770</a>            (<span class="string">r#"["foo"]"#</span>, <span class="bool-val">false</span>),
+<a href=#1771 id=1771 data-nosnippet>1771</a>            (<span class="string">r#"["foo", 123]"#</span>, <span class="bool-val">false</span>),
+<a href=#1772 id=1772 data-nosnippet>1772</a>            (<span class="string">r#"[[1, "foo"]]"#</span>, <span class="bool-val">false</span>),
+<a href=#1773 id=1773 data-nosnippet>1773</a>            (<span class="string">r#"[[["too_nested", 123]]]"#</span>, <span class="bool-val">false</span>),
+<a href=#1774 id=1774 data-nosnippet>1774</a>            (<span class="string">r#"[["foo", "bar"], [1, "foo"]]"#</span>, <span class="bool-val">false</span>),
+<a href=#1775 id=1775 data-nosnippet>1775</a>            (<span class="string">r#"[["foo", "bar"], ["foo", "bar", "baz"]]"#</span>, <span class="bool-val">false</span>),
+<a href=#1776 id=1776 data-nosnippet>1776</a>            (<span class="string">r#"[["foo", "bar", "baz"], ["foo", "bar"]]"#</span>, <span class="bool-val">false</span>),
+<a href=#1777 id=1777 data-nosnippet>1777</a>            (<span class="string">r#"["foo", ["bar", "baz"], ["foo", "bar"]]"#</span>, <span class="bool-val">false</span>),
+<a href=#1778 id=1778 data-nosnippet>1778</a>            (<span class="string">r#"[["foo", "bar"], [["too_nested", 123]]]"#</span>, <span class="bool-val">false</span>),
+<a href=#1779 id=1779 data-nosnippet>1779</a>            (<span class="string">r#"[["foo", 123]]"#</span>, <span class="bool-val">true</span>),
+<a href=#1780 id=1780 data-nosnippet>1780</a>            (<span class="string">r#"[["foo", "bar"]]"#</span>, <span class="bool-val">true</span>),
+<a href=#1781 id=1781 data-nosnippet>1781</a>            (
+<a href=#1782 id=1782 data-nosnippet>1782</a>                <span class="string">r#"[["foo", "bar"], ["foo", {"nested": {"something": 1}}]]"#</span>,
+<a href=#1783 id=1783 data-nosnippet>1783</a>                <span class="bool-val">true</span>,
+<a href=#1784 id=1784 data-nosnippet>1784</a>            ),
+<a href=#1785 id=1785 data-nosnippet>1785</a>        ] {
+<a href=#1786 id=1786 data-nosnippet>1786</a>            <span class="kw">let </span>v = Annotated::&lt;Value&gt;::from_json(case).unwrap();
+<a href=#1787 id=1787 data-nosnippet>1787</a>            <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(Value::Array(<span class="kw-2">mut </span>a)), <span class="kw">_</span>) = v <span class="kw">else </span>{
+<a href=#1788 id=1788 data-nosnippet>1788</a>                <span class="macro">panic!</span>()
+<a href=#1789 id=1789 data-nosnippet>1789</a>            };
+<a href=#1790 id=1790 data-nosnippet>1790</a>            <span class="macro">assert_eq!</span>(is_pairlist(<span class="kw-2">&amp;mut </span>a), expected, <span class="string">"{case}"</span>);
+<a href=#1791 id=1791 data-nosnippet>1791</a>        }
+<a href=#1792 id=1792 data-nosnippet>1792</a>    }
+<a href=#1793 id=1793 data-nosnippet>1793</a>
+<a href=#1794 id=1794 data-nosnippet>1794</a>    <span class="attr">#[test]
+<a href=#1795 id=1795 data-nosnippet>1795</a>    </span><span class="kw">fn </span>test_tuple_array_scrubbed_with_path_selector() {
+<a href=#1796 id=1796 data-nosnippet>1796</a>        <span class="comment">// We expect that both of these configs express the same semantics.
+<a href=#1797 id=1797 data-nosnippet>1797</a>        </span><span class="kw">let </span>configs = <span class="macro">vec!</span>[
+<a href=#1798 id=1798 data-nosnippet>1798</a>            <span class="comment">// This configuration matches on the authorization element (the 1st element of the array
+<a href=#1799 id=1799 data-nosnippet>1799</a>            // represents the key).
+<a href=#1800 id=1800 data-nosnippet>1800</a>            </span><span class="string">r##"
+<a href=#1801 id=1801 data-nosnippet>1801</a>                {
+<a href=#1802 id=1802 data-nosnippet>1802</a>                    "applications": {
+<a href=#1803 id=1803 data-nosnippet>1803</a>                        "exception.values.0.stacktrace.frames.0.vars.headers.authorization": ["@anything:replace"]
+<a href=#1804 id=1804 data-nosnippet>1804</a>                    }
+<a href=#1805 id=1805 data-nosnippet>1805</a>                }
+<a href=#1806 id=1806 data-nosnippet>1806</a>                "##</span>,
+<a href=#1807 id=1807 data-nosnippet>1807</a>            <span class="comment">// This configuration matches on the 2nd element of the array.
+<a href=#1808 id=1808 data-nosnippet>1808</a>            </span><span class="string">r##"
+<a href=#1809 id=1809 data-nosnippet>1809</a>                {
+<a href=#1810 id=1810 data-nosnippet>1810</a>                    "applications": {
+<a href=#1811 id=1811 data-nosnippet>1811</a>                        "exception.values.0.stacktrace.frames.0.vars.headers.0.1": ["@anything:replace"]
+<a href=#1812 id=1812 data-nosnippet>1812</a>                    }
+<a href=#1813 id=1813 data-nosnippet>1813</a>                }
+<a href=#1814 id=1814 data-nosnippet>1814</a>                "##</span>,
+<a href=#1815 id=1815 data-nosnippet>1815</a>        ];
 <a href=#1816 id=1816 data-nosnippet>1816</a>
-<a href=#1817 id=1817 data-nosnippet>1817</a>        <span class="kw">for </span>config <span class="kw">in </span>configs {
-<a href=#1818 id=1818 data-nosnippet>1818</a>            <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(config).unwrap();
-<a href=#1819 id=1819 data-nosnippet>1819</a>            <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
-<a href=#1820 id=1820 data-nosnippet>1820</a>            process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
-<a href=#1821 id=1821 data-nosnippet>1821</a>
-<a href=#1822 id=1822 data-nosnippet>1822</a>            <span class="kw">let </span>vars = <span class="macro">get_value!</span>(event.exceptions.values[<span class="number">0</span>].stacktrace.frames[<span class="number">0</span>].vars).unwrap();
-<a href=#1823 id=1823 data-nosnippet>1823</a>
-<a href=#1824 id=1824 data-nosnippet>1824</a>            <span class="macro">allow_duplicates!</span>(<span class="macro">assert_debug_snapshot!</span>(vars, @<span class="string">r#"
-<a href=#1825 id=1825 data-nosnippet>1825</a>        FrameVars(
-<a href=#1826 id=1826 data-nosnippet>1826</a>            {
-<a href=#1827 id=1827 data-nosnippet>1827</a>                "headers": Array(
-<a href=#1828 id=1828 data-nosnippet>1828</a>                    [
-<a href=#1829 id=1829 data-nosnippet>1829</a>                        Array(
-<a href=#1830 id=1830 data-nosnippet>1830</a>                            [
-<a href=#1831 id=1831 data-nosnippet>1831</a>                                String(
-<a href=#1832 id=1832 data-nosnippet>1832</a>                                    "authorization",
-<a href=#1833 id=1833 data-nosnippet>1833</a>                                ),
-<a href=#1834 id=1834 data-nosnippet>1834</a>                                Annotated(
-<a href=#1835 id=1835 data-nosnippet>1835</a>                                    String(
-<a href=#1836 id=1836 data-nosnippet>1836</a>                                        "[Filtered]",
-<a href=#1837 id=1837 data-nosnippet>1837</a>                                    ),
-<a href=#1838 id=1838 data-nosnippet>1838</a>                                    Meta {
-<a href=#1839 id=1839 data-nosnippet>1839</a>                                        remarks: [
-<a href=#1840 id=1840 data-nosnippet>1840</a>                                            Remark {
-<a href=#1841 id=1841 data-nosnippet>1841</a>                                                ty: Substituted,
-<a href=#1842 id=1842 data-nosnippet>1842</a>                                                rule_id: "@anything:replace",
-<a href=#1843 id=1843 data-nosnippet>1843</a>                                                range: Some(
-<a href=#1844 id=1844 data-nosnippet>1844</a>                                                    (
-<a href=#1845 id=1845 data-nosnippet>1845</a>                                                        0,
-<a href=#1846 id=1846 data-nosnippet>1846</a>                                                        10,
-<a href=#1847 id=1847 data-nosnippet>1847</a>                                                    ),
-<a href=#1848 id=1848 data-nosnippet>1848</a>                                                ),
-<a href=#1849 id=1849 data-nosnippet>1849</a>                                            },
-<a href=#1850 id=1850 data-nosnippet>1850</a>                                        ],
-<a href=#1851 id=1851 data-nosnippet>1851</a>                                        errors: [],
-<a href=#1852 id=1852 data-nosnippet>1852</a>                                        original_length: Some(
-<a href=#1853 id=1853 data-nosnippet>1853</a>                                            13,
-<a href=#1854 id=1854 data-nosnippet>1854</a>                                        ),
-<a href=#1855 id=1855 data-nosnippet>1855</a>                                        original_value: None,
-<a href=#1856 id=1856 data-nosnippet>1856</a>                                    },
-<a href=#1857 id=1857 data-nosnippet>1857</a>                                ),
-<a href=#1858 id=1858 data-nosnippet>1858</a>                            ],
-<a href=#1859 id=1859 data-nosnippet>1859</a>                        ),
-<a href=#1860 id=1860 data-nosnippet>1860</a>                    ],
-<a href=#1861 id=1861 data-nosnippet>1861</a>                ),
-<a href=#1862 id=1862 data-nosnippet>1862</a>            },
-<a href=#1863 id=1863 data-nosnippet>1863</a>        )
-<a href=#1864 id=1864 data-nosnippet>1864</a>        "#</span>));
-<a href=#1865 id=1865 data-nosnippet>1865</a>        }
-<a href=#1866 id=1866 data-nosnippet>1866</a>    }
-<a href=#1867 id=1867 data-nosnippet>1867</a>
-<a href=#1868 id=1868 data-nosnippet>1868</a>    <span class="attr">#[test]
-<a href=#1869 id=1869 data-nosnippet>1869</a>    </span><span class="kw">fn </span>test_tuple_array_scrubbed_with_string_selector_and_password_matcher() {
-<a href=#1870 id=1870 data-nosnippet>1870</a>        <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
-<a href=#1871 id=1871 data-nosnippet>1871</a>            <span class="string">r##"
-<a href=#1872 id=1872 data-nosnippet>1872</a>                {
-<a href=#1873 id=1873 data-nosnippet>1873</a>                    "applications": {
-<a href=#1874 id=1874 data-nosnippet>1874</a>                        "$string": ["@password:remove"]
-<a href=#1875 id=1875 data-nosnippet>1875</a>                    }
-<a href=#1876 id=1876 data-nosnippet>1876</a>                }
-<a href=#1877 id=1877 data-nosnippet>1877</a>                "##</span>,
-<a href=#1878 id=1878 data-nosnippet>1878</a>        )
-<a href=#1879 id=1879 data-nosnippet>1879</a>        .unwrap();
-<a href=#1880 id=1880 data-nosnippet>1880</a>
-<a href=#1881 id=1881 data-nosnippet>1881</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
-<a href=#1882 id=1882 data-nosnippet>1882</a>            <span class="macro">serde_json::json!</span>(
-<a href=#1883 id=1883 data-nosnippet>1883</a>            {
-<a href=#1884 id=1884 data-nosnippet>1884</a>              <span class="string">"message"</span>: <span class="string">"hi"</span>,
-<a href=#1885 id=1885 data-nosnippet>1885</a>              <span class="string">"exception"</span>: {
-<a href=#1886 id=1886 data-nosnippet>1886</a>                <span class="string">"values"</span>: [
-<a href=#1887 id=1887 data-nosnippet>1887</a>                  {
-<a href=#1888 id=1888 data-nosnippet>1888</a>                    <span class="string">"type"</span>: <span class="string">"BrokenException"</span>,
-<a href=#1889 id=1889 data-nosnippet>1889</a>                    <span class="string">"value"</span>: <span class="string">"Something failed"</span>,
-<a href=#1890 id=1890 data-nosnippet>1890</a>                    <span class="string">"stacktrace"</span>: {
-<a href=#1891 id=1891 data-nosnippet>1891</a>                      <span class="string">"frames"</span>: [
-<a href=#1892 id=1892 data-nosnippet>1892</a>                        {
-<a href=#1893 id=1893 data-nosnippet>1893</a>                            <span class="string">"vars"</span>: {
-<a href=#1894 id=1894 data-nosnippet>1894</a>                                <span class="string">"headers"</span>: [
-<a href=#1895 id=1895 data-nosnippet>1895</a>                                    [<span class="string">"authorization"</span>, <span class="string">"abc123"</span>]
-<a href=#1896 id=1896 data-nosnippet>1896</a>                                ]
-<a href=#1897 id=1897 data-nosnippet>1897</a>                            }
-<a href=#1898 id=1898 data-nosnippet>1898</a>                        }
-<a href=#1899 id=1899 data-nosnippet>1899</a>                      ]
-<a href=#1900 id=1900 data-nosnippet>1900</a>                    }
-<a href=#1901 id=1901 data-nosnippet>1901</a>                  }
-<a href=#1902 id=1902 data-nosnippet>1902</a>                ]
-<a href=#1903 id=1903 data-nosnippet>1903</a>              }
-<a href=#1904 id=1904 data-nosnippet>1904</a>            })
-<a href=#1905 id=1905 data-nosnippet>1905</a>            .into(),
-<a href=#1906 id=1906 data-nosnippet>1906</a>        );
+<a href=#1817 id=1817 data-nosnippet>1817</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
+<a href=#1818 id=1818 data-nosnippet>1818</a>            <span class="macro">serde_json::json!</span>(
+<a href=#1819 id=1819 data-nosnippet>1819</a>            {
+<a href=#1820 id=1820 data-nosnippet>1820</a>              <span class="string">"message"</span>: <span class="string">"hi"</span>,
+<a href=#1821 id=1821 data-nosnippet>1821</a>              <span class="string">"exception"</span>: {
+<a href=#1822 id=1822 data-nosnippet>1822</a>                <span class="string">"values"</span>: [
+<a href=#1823 id=1823 data-nosnippet>1823</a>                  {
+<a href=#1824 id=1824 data-nosnippet>1824</a>                    <span class="string">"type"</span>: <span class="string">"BrokenException"</span>,
+<a href=#1825 id=1825 data-nosnippet>1825</a>                    <span class="string">"value"</span>: <span class="string">"Something failed"</span>,
+<a href=#1826 id=1826 data-nosnippet>1826</a>                    <span class="string">"stacktrace"</span>: {
+<a href=#1827 id=1827 data-nosnippet>1827</a>                      <span class="string">"frames"</span>: [
+<a href=#1828 id=1828 data-nosnippet>1828</a>                        {
+<a href=#1829 id=1829 data-nosnippet>1829</a>                            <span class="string">"vars"</span>: {
+<a href=#1830 id=1830 data-nosnippet>1830</a>                                <span class="string">"headers"</span>: [
+<a href=#1831 id=1831 data-nosnippet>1831</a>                                    [<span class="string">"authorization"</span>, <span class="string">"Bearer abc123"</span>]
+<a href=#1832 id=1832 data-nosnippet>1832</a>                                ]
+<a href=#1833 id=1833 data-nosnippet>1833</a>                            }
+<a href=#1834 id=1834 data-nosnippet>1834</a>                        }
+<a href=#1835 id=1835 data-nosnippet>1835</a>                      ]
+<a href=#1836 id=1836 data-nosnippet>1836</a>                    }
+<a href=#1837 id=1837 data-nosnippet>1837</a>                  }
+<a href=#1838 id=1838 data-nosnippet>1838</a>                ]
+<a href=#1839 id=1839 data-nosnippet>1839</a>              }
+<a href=#1840 id=1840 data-nosnippet>1840</a>            })
+<a href=#1841 id=1841 data-nosnippet>1841</a>            .into(),
+<a href=#1842 id=1842 data-nosnippet>1842</a>        );
+<a href=#1843 id=1843 data-nosnippet>1843</a>
+<a href=#1844 id=1844 data-nosnippet>1844</a>        <span class="kw">for </span>config <span class="kw">in </span>configs {
+<a href=#1845 id=1845 data-nosnippet>1845</a>            <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(config).unwrap();
+<a href=#1846 id=1846 data-nosnippet>1846</a>            <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
+<a href=#1847 id=1847 data-nosnippet>1847</a>            process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+<a href=#1848 id=1848 data-nosnippet>1848</a>
+<a href=#1849 id=1849 data-nosnippet>1849</a>            <span class="kw">let </span>vars = <span class="macro">get_value!</span>(event.exceptions.values[<span class="number">0</span>].stacktrace.frames[<span class="number">0</span>].vars).unwrap();
+<a href=#1850 id=1850 data-nosnippet>1850</a>
+<a href=#1851 id=1851 data-nosnippet>1851</a>            <span class="macro">allow_duplicates!</span>(<span class="macro">assert_debug_snapshot!</span>(vars, @<span class="string">r#"
+<a href=#1852 id=1852 data-nosnippet>1852</a>        FrameVars(
+<a href=#1853 id=1853 data-nosnippet>1853</a>            {
+<a href=#1854 id=1854 data-nosnippet>1854</a>                "headers": Array(
+<a href=#1855 id=1855 data-nosnippet>1855</a>                    [
+<a href=#1856 id=1856 data-nosnippet>1856</a>                        Array(
+<a href=#1857 id=1857 data-nosnippet>1857</a>                            [
+<a href=#1858 id=1858 data-nosnippet>1858</a>                                String(
+<a href=#1859 id=1859 data-nosnippet>1859</a>                                    "authorization",
+<a href=#1860 id=1860 data-nosnippet>1860</a>                                ),
+<a href=#1861 id=1861 data-nosnippet>1861</a>                                Annotated(
+<a href=#1862 id=1862 data-nosnippet>1862</a>                                    String(
+<a href=#1863 id=1863 data-nosnippet>1863</a>                                        "[Filtered]",
+<a href=#1864 id=1864 data-nosnippet>1864</a>                                    ),
+<a href=#1865 id=1865 data-nosnippet>1865</a>                                    Meta {
+<a href=#1866 id=1866 data-nosnippet>1866</a>                                        remarks: [
+<a href=#1867 id=1867 data-nosnippet>1867</a>                                            Remark {
+<a href=#1868 id=1868 data-nosnippet>1868</a>                                                ty: Substituted,
+<a href=#1869 id=1869 data-nosnippet>1869</a>                                                rule_id: "@anything:replace",
+<a href=#1870 id=1870 data-nosnippet>1870</a>                                                range: Some(
+<a href=#1871 id=1871 data-nosnippet>1871</a>                                                    (
+<a href=#1872 id=1872 data-nosnippet>1872</a>                                                        0,
+<a href=#1873 id=1873 data-nosnippet>1873</a>                                                        10,
+<a href=#1874 id=1874 data-nosnippet>1874</a>                                                    ),
+<a href=#1875 id=1875 data-nosnippet>1875</a>                                                ),
+<a href=#1876 id=1876 data-nosnippet>1876</a>                                            },
+<a href=#1877 id=1877 data-nosnippet>1877</a>                                        ],
+<a href=#1878 id=1878 data-nosnippet>1878</a>                                        errors: [],
+<a href=#1879 id=1879 data-nosnippet>1879</a>                                        original_length: Some(
+<a href=#1880 id=1880 data-nosnippet>1880</a>                                            13,
+<a href=#1881 id=1881 data-nosnippet>1881</a>                                        ),
+<a href=#1882 id=1882 data-nosnippet>1882</a>                                        original_value: None,
+<a href=#1883 id=1883 data-nosnippet>1883</a>                                    },
+<a href=#1884 id=1884 data-nosnippet>1884</a>                                ),
+<a href=#1885 id=1885 data-nosnippet>1885</a>                            ],
+<a href=#1886 id=1886 data-nosnippet>1886</a>                        ),
+<a href=#1887 id=1887 data-nosnippet>1887</a>                    ],
+<a href=#1888 id=1888 data-nosnippet>1888</a>                ),
+<a href=#1889 id=1889 data-nosnippet>1889</a>            },
+<a href=#1890 id=1890 data-nosnippet>1890</a>        )
+<a href=#1891 id=1891 data-nosnippet>1891</a>        "#</span>));
+<a href=#1892 id=1892 data-nosnippet>1892</a>        }
+<a href=#1893 id=1893 data-nosnippet>1893</a>    }
+<a href=#1894 id=1894 data-nosnippet>1894</a>
+<a href=#1895 id=1895 data-nosnippet>1895</a>    <span class="attr">#[test]
+<a href=#1896 id=1896 data-nosnippet>1896</a>    </span><span class="kw">fn </span>test_tuple_array_scrubbed_with_string_selector_and_password_matcher() {
+<a href=#1897 id=1897 data-nosnippet>1897</a>        <span class="kw">let </span>config = serde_json::from_str::&lt;PiiConfig&gt;(
+<a href=#1898 id=1898 data-nosnippet>1898</a>            <span class="string">r##"
+<a href=#1899 id=1899 data-nosnippet>1899</a>                {
+<a href=#1900 id=1900 data-nosnippet>1900</a>                    "applications": {
+<a href=#1901 id=1901 data-nosnippet>1901</a>                        "$string": ["@password:remove"]
+<a href=#1902 id=1902 data-nosnippet>1902</a>                    }
+<a href=#1903 id=1903 data-nosnippet>1903</a>                }
+<a href=#1904 id=1904 data-nosnippet>1904</a>                "##</span>,
+<a href=#1905 id=1905 data-nosnippet>1905</a>        )
+<a href=#1906 id=1906 data-nosnippet>1906</a>        .unwrap();
 <a href=#1907 id=1907 data-nosnippet>1907</a>
-<a href=#1908 id=1908 data-nosnippet>1908</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
-<a href=#1909 id=1909 data-nosnippet>1909</a>        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
-<a href=#1910 id=1910 data-nosnippet>1910</a>
-<a href=#1911 id=1911 data-nosnippet>1911</a>        <span class="kw">let </span>vars = <span class="macro">get_value!</span>(event.exceptions.values[<span class="number">0</span>].stacktrace.frames[<span class="number">0</span>].vars).unwrap();
-<a href=#1912 id=1912 data-nosnippet>1912</a>
-<a href=#1913 id=1913 data-nosnippet>1913</a>        <span class="macro">assert_debug_snapshot!</span>(vars, @<span class="string">r###"
-<a href=#1914 id=1914 data-nosnippet>1914</a>        FrameVars(
-<a href=#1915 id=1915 data-nosnippet>1915</a>            {
-<a href=#1916 id=1916 data-nosnippet>1916</a>                "headers": Array(
-<a href=#1917 id=1917 data-nosnippet>1917</a>                    [
-<a href=#1918 id=1918 data-nosnippet>1918</a>                        Array(
-<a href=#1919 id=1919 data-nosnippet>1919</a>                            [
-<a href=#1920 id=1920 data-nosnippet>1920</a>                                String(
-<a href=#1921 id=1921 data-nosnippet>1921</a>                                    "authorization",
-<a href=#1922 id=1922 data-nosnippet>1922</a>                                ),
-<a href=#1923 id=1923 data-nosnippet>1923</a>                                Meta {
-<a href=#1924 id=1924 data-nosnippet>1924</a>                                    remarks: [
-<a href=#1925 id=1925 data-nosnippet>1925</a>                                        Remark {
-<a href=#1926 id=1926 data-nosnippet>1926</a>                                            ty: Removed,
-<a href=#1927 id=1927 data-nosnippet>1927</a>                                            rule_id: "@password:remove",
-<a href=#1928 id=1928 data-nosnippet>1928</a>                                            range: None,
-<a href=#1929 id=1929 data-nosnippet>1929</a>                                        },
-<a href=#1930 id=1930 data-nosnippet>1930</a>                                    ],
-<a href=#1931 id=1931 data-nosnippet>1931</a>                                    errors: [],
-<a href=#1932 id=1932 data-nosnippet>1932</a>                                    original_length: None,
-<a href=#1933 id=1933 data-nosnippet>1933</a>                                    original_value: None,
-<a href=#1934 id=1934 data-nosnippet>1934</a>                                },
-<a href=#1935 id=1935 data-nosnippet>1935</a>                            ],
-<a href=#1936 id=1936 data-nosnippet>1936</a>                        ),
-<a href=#1937 id=1937 data-nosnippet>1937</a>                    ],
-<a href=#1938 id=1938 data-nosnippet>1938</a>                ),
-<a href=#1939 id=1939 data-nosnippet>1939</a>            },
-<a href=#1940 id=1940 data-nosnippet>1940</a>        )
-<a href=#1941 id=1941 data-nosnippet>1941</a>        "###</span>);
-<a href=#1942 id=1942 data-nosnippet>1942</a>    }
-<a href=#1943 id=1943 data-nosnippet>1943</a>}</code></pre></div></section></main></body></html>
+<a href=#1908 id=1908 data-nosnippet>1908</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event::from_value(
+<a href=#1909 id=1909 data-nosnippet>1909</a>            <span class="macro">serde_json::json!</span>(
+<a href=#1910 id=1910 data-nosnippet>1910</a>            {
+<a href=#1911 id=1911 data-nosnippet>1911</a>              <span class="string">"message"</span>: <span class="string">"hi"</span>,
+<a href=#1912 id=1912 data-nosnippet>1912</a>              <span class="string">"exception"</span>: {
+<a href=#1913 id=1913 data-nosnippet>1913</a>                <span class="string">"values"</span>: [
+<a href=#1914 id=1914 data-nosnippet>1914</a>                  {
+<a href=#1915 id=1915 data-nosnippet>1915</a>                    <span class="string">"type"</span>: <span class="string">"BrokenException"</span>,
+<a href=#1916 id=1916 data-nosnippet>1916</a>                    <span class="string">"value"</span>: <span class="string">"Something failed"</span>,
+<a href=#1917 id=1917 data-nosnippet>1917</a>                    <span class="string">"stacktrace"</span>: {
+<a href=#1918 id=1918 data-nosnippet>1918</a>                      <span class="string">"frames"</span>: [
+<a href=#1919 id=1919 data-nosnippet>1919</a>                        {
+<a href=#1920 id=1920 data-nosnippet>1920</a>                            <span class="string">"vars"</span>: {
+<a href=#1921 id=1921 data-nosnippet>1921</a>                                <span class="string">"headers"</span>: [
+<a href=#1922 id=1922 data-nosnippet>1922</a>                                    [<span class="string">"authorization"</span>, <span class="string">"abc123"</span>]
+<a href=#1923 id=1923 data-nosnippet>1923</a>                                ]
+<a href=#1924 id=1924 data-nosnippet>1924</a>                            }
+<a href=#1925 id=1925 data-nosnippet>1925</a>                        }
+<a href=#1926 id=1926 data-nosnippet>1926</a>                      ]
+<a href=#1927 id=1927 data-nosnippet>1927</a>                    }
+<a href=#1928 id=1928 data-nosnippet>1928</a>                  }
+<a href=#1929 id=1929 data-nosnippet>1929</a>                ]
+<a href=#1930 id=1930 data-nosnippet>1930</a>              }
+<a href=#1931 id=1931 data-nosnippet>1931</a>            })
+<a href=#1932 id=1932 data-nosnippet>1932</a>            .into(),
+<a href=#1933 id=1933 data-nosnippet>1933</a>        );
+<a href=#1934 id=1934 data-nosnippet>1934</a>
+<a href=#1935 id=1935 data-nosnippet>1935</a>        <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());
+<a href=#1936 id=1936 data-nosnippet>1936</a>        process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+<a href=#1937 id=1937 data-nosnippet>1937</a>
+<a href=#1938 id=1938 data-nosnippet>1938</a>        <span class="kw">let </span>vars = <span class="macro">get_value!</span>(event.exceptions.values[<span class="number">0</span>].stacktrace.frames[<span class="number">0</span>].vars).unwrap();
+<a href=#1939 id=1939 data-nosnippet>1939</a>
+<a href=#1940 id=1940 data-nosnippet>1940</a>        <span class="macro">assert_debug_snapshot!</span>(vars, @<span class="string">r###"
+<a href=#1941 id=1941 data-nosnippet>1941</a>        FrameVars(
+<a href=#1942 id=1942 data-nosnippet>1942</a>            {
+<a href=#1943 id=1943 data-nosnippet>1943</a>                "headers": Array(
+<a href=#1944 id=1944 data-nosnippet>1944</a>                    [
+<a href=#1945 id=1945 data-nosnippet>1945</a>                        Array(
+<a href=#1946 id=1946 data-nosnippet>1946</a>                            [
+<a href=#1947 id=1947 data-nosnippet>1947</a>                                String(
+<a href=#1948 id=1948 data-nosnippet>1948</a>                                    "authorization",
+<a href=#1949 id=1949 data-nosnippet>1949</a>                                ),
+<a href=#1950 id=1950 data-nosnippet>1950</a>                                Meta {
+<a href=#1951 id=1951 data-nosnippet>1951</a>                                    remarks: [
+<a href=#1952 id=1952 data-nosnippet>1952</a>                                        Remark {
+<a href=#1953 id=1953 data-nosnippet>1953</a>                                            ty: Removed,
+<a href=#1954 id=1954 data-nosnippet>1954</a>                                            rule_id: "@password:remove",
+<a href=#1955 id=1955 data-nosnippet>1955</a>                                            range: None,
+<a href=#1956 id=1956 data-nosnippet>1956</a>                                        },
+<a href=#1957 id=1957 data-nosnippet>1957</a>                                    ],
+<a href=#1958 id=1958 data-nosnippet>1958</a>                                    errors: [],
+<a href=#1959 id=1959 data-nosnippet>1959</a>                                    original_length: None,
+<a href=#1960 id=1960 data-nosnippet>1960</a>                                    original_value: None,
+<a href=#1961 id=1961 data-nosnippet>1961</a>                                },
+<a href=#1962 id=1962 data-nosnippet>1962</a>                            ],
+<a href=#1963 id=1963 data-nosnippet>1963</a>                        ),
+<a href=#1964 id=1964 data-nosnippet>1964</a>                    ],
+<a href=#1965 id=1965 data-nosnippet>1965</a>                ),
+<a href=#1966 id=1966 data-nosnippet>1966</a>            },
+<a href=#1967 id=1967 data-nosnippet>1967</a>        )
+<a href=#1968 id=1968 data-nosnippet>1968</a>        "###</span>);
+<a href=#1969 id=1969 data-nosnippet>1969</a>    }
+<a href=#1970 id=1970 data-nosnippet>1970</a>}</code></pre></div></section></main></body></html>
