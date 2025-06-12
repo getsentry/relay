@@ -3453,10 +3453,7 @@ impl UpstreamRequest for SendEnvelope {
     }
 
     fn sign(&mut self) -> Option<SignatureType> {
-        match self.envelope.meta().is_from_internal_relay() {
-            true => None,
-            false => Some(SignatureType::RequestSign),
-        }
+        Some(SignatureType::RequestSign)
     }
 
     fn respond(
