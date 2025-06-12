@@ -929,8 +929,19 @@ impl StoreService {
                 .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
         }
 
-        self.inner_produce_item_span(scoping, received_at, event_id, retention_days, span.clone())?;
-        self.inner_produce_span(scoping, span)?;
+        if self.config.produce_protobuf_spans() {
+            self.inner_produce_protobuf_span(
+                scoping,
+                received_at,
+                event_id,
+                retention_days,
+                span.clone(),
+            )?;
+        }
+
+        if self.config.produce_json_spans() {
+            self.inner_produce_json_span(scoping, span)?;
+        }
 
         self.outcome_aggregator.send(TrackOutcome {
             category: DataCategory::SpanIndexed,
@@ -945,7 +956,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn inner_produce_span(
+    fn inner_produce_json_span(
         &self,
         scoping: Scoping,
         span: SpanKafkaMessage,
@@ -964,7 +975,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn inner_produce_item_span(
+    fn inner_produce_protobuf_span(
         &self,
         scoping: Scoping,
         received_at: DateTime<Utc>,
@@ -1212,10 +1223,10 @@ impl StoreService {
             KafkaMessage::Item {
                 headers: BTreeMap::from([
                     (
-                        "item_type".to_string(),
-                        TraceItemType::Span.as_str_name().to_owned(),
+                        "item_type".to_owned(),
+                        (TraceItemType::Span as i32).to_string(),
                     ),
-                    ("project_id".to_string(), scoping.project_id.to_string()),
+                    ("project_id".to_owned(), scoping.project_id.to_string()),
                 ]),
                 item_type: TraceItemType::Span,
                 message: trace_item,
