@@ -1,5 +1,6 @@
 use chrono::{DateTime, TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
+use relay_common::time::UnixTimestamp;
 
 use crate::OtelLog;
 use relay_event_schema::protocol::datetime_to_timestamp;
@@ -45,6 +46,10 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
         })
         .unwrap_or_else(String::new);
 
+    let received_at_nanos = received_at
+        .timestamp_nanos_opt()
+        .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64);
+
     let mut attribute_data = Object::new();
 
     attribute_data.insert(
@@ -75,15 +80,13 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
             Value::I64(time_unix_nano as i64),
         )),
     );
-    if let Some(received_at) = received_at.timestamp_nanos_opt() {
-        attribute_data.insert(
-            "sentry.observed_timestamp_nanos".to_owned(),
-            Annotated::new(Attribute::new(
-                AttributeType::String,
-                Value::String(received_at.to_string()),
-            )),
-        );
-    }
+    attribute_data.insert(
+        "sentry.observed_timestamp_nanos".to_owned(),
+        Annotated::new(Attribute::new(
+            AttributeType::String,
+            Value::String(received_at_nanos.to_string()),
+        )),
+    );
     attribute_data.insert(
         "sentry.trace_flags".to_owned(),
         Annotated::new(Attribute::new(AttributeType::Integer, Value::I64(0))),
@@ -161,6 +164,10 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
         })
         .unwrap_or_default();
 
+    let received_at_nanos = received_at
+        .timestamp_nanos_opt()
+        .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64);
+
     attributes.insert(
         "sentry.severity_text".to_owned(),
         Annotated::new(Attribute::new(
@@ -197,17 +204,13 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
             Value::I64(timestamp_nanos),
         )),
     );
-
-    if let Some(received_at) = received_at.timestamp_nanos_opt() {
-        attributes.insert(
-            "sentry.observed_timestamp_nanos".to_owned(),
-            Annotated::new(Attribute::new(
-                AttributeType::String,
-                Value::String(received_at.to_string()),
-            )),
-        );
-    }
-
+    attributes.insert(
+        "sentry.observed_timestamp_nanos".to_owned(),
+        Annotated::new(Attribute::new(
+            AttributeType::String,
+            Value::String(received_at_nanos.to_string()),
+        )),
+    );
     attributes.insert(
         "sentry.trace_flags".to_owned(),
         Annotated::new(Attribute::new(AttributeType::Integer, Value::I64(0))),
@@ -420,8 +423,16 @@ mod tests {
         }"#;
 
         let otel_log: OtelLog = serde_json::from_str(json_without_observed_time).unwrap();
-        let _ = otel_to_sentry_log(otel_log, DateTime::from_timestamp_nanos(946684800000000000))
-            .unwrap();
+        let our_log =
+            otel_to_sentry_log(otel_log, DateTime::from_timestamp_nanos(946684800000000000))
+                .unwrap();
+
+        let observed_timestamp = our_log
+            .attribute("sentry.observed_timestamp_nanos")
+            .and_then(|value| value.as_str().and_then(|s| s.parse::<u64>().ok()))
+            .unwrap_or(0);
+
+        assert_eq!(observed_timestamp, 946684800000000000);
     }
 
     #[test]
@@ -444,7 +455,6 @@ mod tests {
             otel_to_sentry_log(otel_log, DateTime::from_timestamp_nanos(946684800000000000))
                 .unwrap();
 
-        // Get the observed timestamp from attributes
         let observed_timestamp = our_log
             .attribute("sentry.observed_timestamp_nanos")
             .and_then(|value| value.as_str().and_then(|s| s.parse::<u64>().ok()))
