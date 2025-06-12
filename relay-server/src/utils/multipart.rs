@@ -1,5 +1,3 @@
-#![cfg_attr(not(sentry), allow(dead_code))]
-
 use std::io;
 use std::task::Poll;
 
@@ -302,7 +300,7 @@ impl futures::Stream for LimitedField<'_> {
     }
 }
 
-pub struct UnconstrainedMultipart(pub Multipart<'static>);
+pub struct UnconstrainedMultipart(#[allow(dead_code)] pub Multipart<'static>);
 
 impl FromRequest<ServiceState> for UnconstrainedMultipart {
     type Rejection = Remote<multer::Error>;
@@ -325,6 +323,7 @@ impl FromRequest<ServiceState> for UnconstrainedMultipart {
     }
 }
 
+#[cfg_attr(not(any(test, sentry)), expect(dead_code))]
 impl UnconstrainedMultipart {
     pub async fn items<F>(self, infer_type: F, config: &Config) -> Result<Items, multer::Error>
     where
