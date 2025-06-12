@@ -1,7 +1,9 @@
 use std::io;
 use std::task::Poll;
 
-use axum::extract::{FromRequest, Request};
+#[cfg(sentry)]
+use axum::extract::FromRequest;
+use axum::extract::Request;
 use bytes::{Bytes, BytesMut};
 use futures::{StreamExt, TryStreamExt};
 use multer::{Field, Multipart};
@@ -9,7 +11,9 @@ use relay_config::Config;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
+#[cfg(sentry)]
 use crate::extractors::Remote;
+#[cfg(sentry)]
 use crate::service::ServiceState;
 
 /// Type used for encoding string lengths.
@@ -299,8 +303,11 @@ impl futures::Stream for LimitedField<'_> {
     }
 }
 
+#[cfg(sentry)]
+
 pub struct UnconstrainedMultipart(pub Multipart<'static>);
 
+#[cfg(sentry)]
 impl FromRequest<ServiceState> for UnconstrainedMultipart {
     type Rejection = Remote<multer::Error>;
 
@@ -322,6 +329,7 @@ impl FromRequest<ServiceState> for UnconstrainedMultipart {
     }
 }
 
+#[cfg(sentry)]
 impl UnconstrainedMultipart {
     pub async fn items<F>(self, infer_type: F, config: &Config) -> Result<Items, multer::Error>
     where
@@ -426,6 +434,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(sentry)]
     async fn test_individual_size_limit_exceeded() -> anyhow::Result<()> {
         let data = "--X-BOUNDARY\r\n\
               Content-Disposition: form-data; name=\"file\"; filename=\"large.txt\"\r\n\
@@ -462,6 +471,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(sentry)]
     async fn test_collective_size_limit_exceeded() -> anyhow::Result<()> {
         let data = "--X-BOUNDARY\r\n\
               Content-Disposition: form-data; name=\"file\"; filename=\"large.txt\"\r\n\
