@@ -20,7 +20,7 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
-use relay_event_normalization::span::ai::extract_ai_measurements;
+use relay_event_normalization::span::ai::{extract_ai_data, map_ai_measurements_to_data};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
@@ -293,7 +293,7 @@ pub fn extract_from_event(
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
-        if !sample(sample_rate) {
+        if sample(sample_rate).is_discard() {
             return spans_extracted;
         }
     }
@@ -647,8 +647,10 @@ fn normalize(
     span.sentry_tags = Annotated::new(tags);
 
     normalize_performance_score(span, performance_score);
+
+    map_ai_measurements_to_data(span);
     if let Some(model_costs_config) = ai_model_costs {
-        extract_ai_measurements(span, model_costs_config);
+        extract_ai_data(span, model_costs_config);
     }
 
     tag_extraction::extract_measurements(span, is_mobile);
@@ -812,9 +814,7 @@ mod tests {
 
     use bytes::Bytes;
     use once_cell::sync::Lazy;
-    use relay_event_schema::protocol::{
-        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext,
-    };
+    use relay_event_schema::protocol::{Context, ContextInner, EventId, Timestamp, TraceContext};
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
     use relay_system::Addr;
@@ -856,7 +856,7 @@ mod tests {
                 "trace".into(),
                 ContextInner(Context::Trace(Box::new(TraceContext {
                     trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
                     exclusive_time: 1000.0.into(),
                     ..Default::default()
                 })))
@@ -866,14 +866,10 @@ mod tests {
             ..Default::default()
         };
 
-        let managed_envelope = ManagedEnvelope::new(
-            dummy_envelope,
-            Addr::dummy(),
-            Addr::dummy(),
-            ProcessingGroup::Transaction,
-        );
-
-        let managed_envelope = managed_envelope.try_into().unwrap();
+        let managed_envelope = ManagedEnvelope::new(dummy_envelope, Addr::dummy(), Addr::dummy());
+        let managed_envelope = (managed_envelope, ProcessingGroup::Transaction)
+            .try_into()
+            .unwrap();
 
         let event = Annotated::from(event);
 
@@ -1014,7 +1010,7 @@ mod tests {
         .unwrap();
         set_segment_attributes(&mut span);
         assert_eq!(get_value!(span.is_segment!), &true);
-        assert_eq!(get_value!(span.segment_id!).0.as_str(), "fa90fdead5f74052");
+        assert_eq!(get_value!(span.segment_id!).to_string(), "fa90fdead5f74052");
     }
 
     #[test]
@@ -1043,7 +1039,7 @@ mod tests {
         .unwrap();
         set_segment_attributes(&mut span);
         assert_eq!(get_value!(span.is_segment!), &true);
-        assert_eq!(get_value!(span.segment_id!).0.as_str(), "fa90fdead5f74052");
+        assert_eq!(get_value!(span.segment_id!).to_string(), "fa90fdead5f74052");
     }
 
     #[test]
@@ -1057,7 +1053,7 @@ mod tests {
         .unwrap();
         set_segment_attributes(&mut span);
         assert_eq!(get_value!(span.is_segment!), &false);
-        assert_eq!(get_value!(span.segment_id!).0.as_str(), "ea90fdead5f74051");
+        assert_eq!(get_value!(span.segment_id!).to_string(), "ea90fdead5f74051");
     }
 
     #[test]

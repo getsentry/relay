@@ -272,7 +272,7 @@ mod tests {
     use relay_event_schema::protocol::{
         ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DebugMeta, EventId, Exception,
         Frame, Geo, IpAddr, LenientString, Level, LogEntry, PairList, RawStacktrace, ReplayContext,
-        Request, Span, SpanId, Stacktrace, TagEntry, Tags, TraceContext, User, Values,
+        Request, Span, Stacktrace, TagEntry, Tags, TraceContext, User, Values,
     };
     use relay_protocol::{
         Annotated, Error, ErrorKind, FromValue, Object, SerializableAnnotated, Value,
@@ -587,7 +587,7 @@ mod tests {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
                     trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
                 });
@@ -1467,7 +1467,7 @@ mod tests {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
                     trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
                 });
@@ -1481,7 +1481,7 @@ mod tests {
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
                 ),
                 trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
 
                 ..Default::default()
             })]),
@@ -1535,7 +1535,7 @@ mod tests {
                 let mut contexts = Contexts::new();
                 contexts.add(TraceContext {
                     trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
                 });
@@ -1549,7 +1549,7 @@ mod tests {
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
                 ),
                 trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                span_id: Annotated::new("fa90fdead5f74053".parse().unwrap()),
 
                 ..Default::default()
             })]),

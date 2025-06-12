@@ -1,6 +1,7 @@
-use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Error, FromValue, IntoValue, Object, Value};
 
 use std::fmt;
+use std::str::FromStr;
 
 use serde::Serialize;
 
@@ -46,7 +47,7 @@ pub struct SpanV2 {
     /// spans, e.g. a `server` and `client` span with the same name.
     ///
     /// See <https://opentelemetry.io/docs/specs/otel/trace/api/#spankind>
-    #[metastructure(required = true, skip_serialization = "empty", trim = false)]
+    #[metastructure(skip_serialization = "empty", trim = false)]
     pub kind: Annotated<SpanV2Kind>,
 
     /// Timestamp when the span started.
@@ -181,19 +182,16 @@ pub enum SpanV2Kind {
     Producer,
     /// Processing of a scheduled operation.
     Consumer,
-    /// Catchall variant for forward compatibility.
-    Other(String),
 }
 
 impl SpanV2Kind {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::Internal => "internal",
             Self::Server => "server",
             Self::Client => "client",
             Self::Producer => "producer",
             Self::Consumer => "consumer",
-            Self::Other(s) => s,
         }
     }
 }
@@ -216,25 +214,44 @@ impl fmt::Display for SpanV2Kind {
     }
 }
 
-impl From<String> for SpanV2Kind {
-    fn from(value: String) -> Self {
-        match value.as_str() {
+#[derive(Debug, Clone, Copy)]
+pub struct ParseSpanV2KindError;
+
+impl fmt::Display for ParseSpanV2KindError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid span kind")
+    }
+}
+
+impl FromStr for SpanV2Kind {
+    type Err = ParseSpanV2KindError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let kind = match s {
             "internal" => Self::Internal,
             "server" => Self::Server,
             "client" => Self::Client,
             "producer" => Self::Producer,
             "consumer" => Self::Consumer,
-            _ => Self::Other(value),
-        }
+            _ => return Err(ParseSpanV2KindError),
+        };
+        Ok(kind)
     }
 }
 
 impl FromValue for SpanV2Kind {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    fn from_value(Annotated(value, meta): Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized,
     {
-        String::from_value(value).map_value(|s| s.into())
+        match &value {
+            Some(Value::String(s)) => match s.parse() {
+                Ok(kind) => Annotated(Some(kind), meta),
+                Err(_) => Annotated::from_error(Error::expected("a span kind"), value),
+            },
+            Some(_) => Annotated::from_error(Error::expected("a span kind"), value),
+            None => Annotated::empty(),
+        }
     }
 }
 
@@ -393,7 +410,7 @@ mod tests {
 
         let links = vec![Annotated::new(SpanV2Link {
             trace_id: Annotated::new("627a2885119dcc8184fae7eef09438cb".parse().unwrap()),
-            span_id: Annotated::new(SpanId("6c71fc6b09b8b716".into())),
+            span_id: Annotated::new("6c71fc6b09b8b716".parse().unwrap()),
             sampled: Annotated::new(true),
             attributes: Annotated::new(attrs!(
                 "sentry.link.type" => "previous_trace", String
@@ -407,7 +424,7 @@ mod tests {
             end_timestamp: Annotated::new(Utc.timestamp_opt(1742921669, 750000000).unwrap().into()),
             name: Annotated::new("GET http://app.test/".to_owned()),
             trace_id: Annotated::new("6cf173d587eb48568a9b2e12dcfbea52".parse().unwrap()),
-            span_id: Annotated::new(SpanId("438f40bd3b4a41ee".into())),
+            span_id: Annotated::new("438f40bd3b4a41ee".parse().unwrap()),
             parent_span_id: Annotated::empty(),
             status: Annotated::new(SpanV2Status::Ok),
             kind: Annotated::new(SpanV2Kind::Server),

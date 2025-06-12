@@ -236,3 +236,129 @@ def test_session_aggregates_invalid_release(
     )
 
     sessions_consumer.assert_empty()
+
+
+def test_session_filtering(mini_sentry, relay_with_processing, sessions_consumer):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["webCrawlers"] = {"isEnabled": True}
+    filter_settings["localhost"] = {"isEnabled": True}
+    filter_settings["clientIps"] = {"blacklistedIps": ["1.2.3.0/24"]}
+    filter_settings["releases"] = {"releases": ["sentry-bad*"]}
+
+    timestamp = datetime.now(tz=timezone.utc)
+    # should get filtered because web crawler filtering is enabled.
+    relay.send_session(
+        project_id,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"user_agent": "BingBot"},
+        },
+    )
+
+    # should get filtered because localhost filtering is enabled.
+    relay.send_session(
+        project_id,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab59",
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"ip_address": "127.0.0.1"},
+        },
+    )
+
+    # should get filtered because client IP filtering is enabled.
+    relay.send_session(
+        project_id,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab59",
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {},
+        },
+        headers={"X-Forwarded-For": "1.2.3.4"},
+    )
+
+    # should get filtered because release filtering is enabled.
+    relay.send_session(
+        project_id,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab59",
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"release": "sentry-bad@1.0.0"},
+        },
+    )
+
+    # should get filtered because web crawler filtering is enabled.
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": timestamp.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {"user_agent": "BingBot"},
+        },
+    )
+
+    # should get filtered because localhost filtering is enabled.
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": timestamp.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {"ip_address": "127.0.0.1"},
+        },
+    )
+
+    # should get filtered because client IP filtering is enabled.
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": timestamp.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {},
+        },
+        headers={"X-Forwarded-For": "1.2.3.4"},
+    )
+
+    # should get filtered because release filtering is enabled.
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": timestamp.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {"release": "sentry-bad@1.0.0"},
+        },
+    )
+
+    sessions_consumer.assert_empty()

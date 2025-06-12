@@ -4,6 +4,41 @@
 
 **Features**:
 
+- Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
+- Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
+- Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
+- Enable filtering sessions by IP address, release, and user agent. ([#4745](https://github.com/getsentry/relay/pull/4745))
+
+**Bug Fixes**:
+
+- Use sentry prefix for browser name/version in logs. ([#4783](https://github.com/getsentry/relay/pull/4783))
+- Do not overcount the number of bytes in logs. ([#4786](https://github.com/getsentry/relay/pull/4786))
+- Record observed time for logs. ([#4795](https://github.com/getsentry/relay/pull/4795))
+
+**Internal**:
+
+- Remove the "unspecified" variant of `SpanKind`. ([#4774](https://github.com/getsentry/relay/pull/4774))
+- Normalize AI data and measurements into new OTEL compatible fields and extracting metrics out of said fields. ([#4768](https://github.com/getsentry/relay/pull/4768))
+- Switch `sysinfo` dependency back to upstream and update to 0.35.1. ([#4776](https://github.com/getsentry/relay/pull/4776))
+- Consistently always emit session outcomes. ([#4798](https://github.com/getsentry/relay/pull/4798))
+- Set default sdk name for playstation crashes. ([#4802](https://github.com/getsentry/relay/pull/4802))
+- Skip large attachments on playstation crashes. ([#4793](https://github.com/getsentry/relay/pull/4793))
+
+## 25.5.1
+
+**Features**:
+
+- Cached projects can now be refreshed regularly, instead of only on demand. ([#4773](https://github.com/getsentry/relay/pull/4773))
+- Allow environment references in Relay configuration. ([#4750](https://github.com/getsentry/relay/pull/4750))
+
+**Internal**:
+
+- Reduce warning logs, emit warnings to the configured Sentry instance. ([#4753](https://github.com/getsentry/relay/pull/4753))
+
+## 25.5.0
+
+**Features**:
+
 - Custom attachment expansion for Switch. ([#4566](https://github.com/getsentry/relay/pull/4566))
 - Add the type of the attachment that made the envelope too large to invalid outcomes. ([#4695](https://github.com/getsentry/relay/pull/4695))
 - Add OTA Updates Event Context for Expo and other applications. ([#4690](https://github.com/getsentry/relay/pull/4690))

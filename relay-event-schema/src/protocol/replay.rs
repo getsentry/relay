@@ -333,12 +333,9 @@ impl Getter for Replay {
             "contexts.browser.version" => {
                 self.context::<BrowserContext>()?.version.as_str()?.into()
             }
-            "contexts.profile.profile_id" => self
-                .context::<ProfileContext>()?
-                .profile_id
-                .value()?
-                .0
-                .into(),
+            "contexts.profile.profile_id" => {
+                (&self.context::<ProfileContext>()?.profile_id.value()?.0).into()
+            }
             "contexts.device.uuid" => self.context::<DeviceContext>()?.uuid.value()?.into(),
             "contexts.trace.status" => self
                 .context::<TraceContext>()?

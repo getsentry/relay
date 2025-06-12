@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::{CountFor, Envelope, Item};
+use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
@@ -64,17 +64,16 @@ struct EnvelopeContext {
     scoping: Scoping,
     partition_key: Option<u32>,
     done: bool,
-    group: ProcessingGroup,
 }
 
 #[derive(Debug)]
-pub struct InvalidProcessingGroupType(pub ManagedEnvelope);
+pub struct InvalidProcessingGroupType(pub ManagedEnvelope, pub ProcessingGroup);
 
 impl Display for InvalidProcessingGroupType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "failed to convert to the processing group {} based on the provided type",
-            self.0.group().variant()
+            self.1.variant()
         ))
     }
 }
@@ -89,7 +88,7 @@ impl<G> TypedEnvelope<G> {
     ///
     /// Once it's marked processed it can be submitted to upstream.
     pub fn into_processed(self) -> TypedEnvelope<Processed> {
-        TypedEnvelope::new(self.0, Processed)
+        TypedEnvelope::new(self.0)
     }
 
     /// Accepts the envelope and drops the internal managed envelope with its context.
@@ -105,17 +104,19 @@ impl<G> TypedEnvelope<G> {
     ///
     /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
     /// requires the check for the error if conversion is failing.
-    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
-        Self(managed_envelope, PhantomData::<G> {})
+    fn new(managed_envelope: ManagedEnvelope) -> Self {
+        Self(managed_envelope, Default::default())
     }
 }
 
-impl<G: TryFrom<ProcessingGroup>> TryFrom<ManagedEnvelope> for TypedEnvelope<G> {
+impl<G: TryFrom<ProcessingGroup>> TryFrom<(ManagedEnvelope, ProcessingGroup)> for TypedEnvelope<G> {
     type Error = InvalidProcessingGroupType;
-    fn try_from(value: ManagedEnvelope) -> Result<Self, Self::Error> {
-        match value.group().try_into() {
-            Ok(group) => Ok(TypedEnvelope::new(value, group)),
-            Err(_) => Err(InvalidProcessingGroupType(value)),
+    fn try_from(
+        (envelope, group): (ManagedEnvelope, ProcessingGroup),
+    ) -> Result<Self, Self::Error> {
+        match <ProcessingGroup as TryInto<G>>::try_into(group) {
+            Ok(_) => Ok(TypedEnvelope::new(envelope)),
+            Err(_) => Err(InvalidProcessingGroupType(envelope, group)),
         }
     }
 }
@@ -171,7 +172,6 @@ impl ManagedEnvelope {
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
-        group: ProcessingGroup,
     ) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
@@ -184,7 +184,6 @@ impl ManagedEnvelope {
                 scoping,
                 partition_key: None,
                 done: false,
-                group,
             },
             outcome_aggregator,
             test_store,
@@ -197,12 +196,7 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        let mut envelope = Self::new(
-            envelope,
-            outcome_aggregator,
-            test_store,
-            ProcessingGroup::Ungrouped,
-        );
+        let mut envelope = Self::new(envelope, outcome_aggregator, test_store);
         envelope.context.done = true;
         envelope
     }
@@ -210,11 +204,6 @@ impl ManagedEnvelope {
     /// Returns a reference to the contained [`Envelope`].
     pub fn envelope(&self) -> &Envelope {
         self.envelope.as_ref()
-    }
-
-    /// Returns the [`ProcessingGroup`] where this envelope belongs to.
-    pub fn group(&self) -> ProcessingGroup {
-        self.context.group
     }
 
     /// Returns a mutable reference to the contained [`Envelope`].
@@ -232,7 +221,7 @@ impl ManagedEnvelope {
     ///
     /// Once it's marked processed it can be submitted to upstream.
     pub fn into_processed(self) -> TypedEnvelope<Processed> {
-        TypedEnvelope::new(self, Processed)
+        TypedEnvelope::new(self)
     }
 
     /// Take the envelope out of the context and replace it with a dummy.
@@ -263,7 +252,7 @@ impl ManagedEnvelope {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                for (category, quantity) in item.quantities(CountFor::Outcomes) {
+                for (category, quantity) in item.quantities() {
                     if let Some(indexed) = category.index_category() {
                         outcomes.push((outcome.clone(), indexed, quantity));
                     };
@@ -564,12 +553,7 @@ mod tests {
 
         let (test_store, _) = Addr::custom();
         let (outcome_aggregator, mut rx) = Addr::custom();
-        let mut env = ManagedEnvelope::new(
-            envelope,
-            outcome_aggregator,
-            test_store,
-            ProcessingGroup::Ungrouped,
-        );
+        let mut env = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
         env.context.summary.span_quantity = 123;
         env.context.summary.secondary_span_quantity = 456;
 

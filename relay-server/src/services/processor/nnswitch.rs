@@ -203,10 +203,8 @@ fn get_zstd_dictionary(id: usize) -> Option<&'static zstd::dict::DecoderDictiona
 }
 
 fn decompress_data_zstd(data: Bytes, dictionary_id: u8) -> std::io::Result<Vec<u8>> {
-    let dictionary = get_zstd_dictionary(dictionary_id as usize).ok_or(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        "Unknown compression dictionary",
-    ))?;
+    let dictionary = get_zstd_dictionary(dictionary_id as usize)
+        .ok_or(std::io::Error::other("Unknown compression dictionary"))?;
 
     let mut decompressor = ZstdDecompressor::with_prepared_dictionary(dictionary)?;
     decompressor.decompress(data.as_ref(), MAX_DECOMPRESSED_SIZE)
@@ -244,14 +242,13 @@ mod tests {
 {"message":"hello world","level":"error","map":{"a":"val"}}
 {"type":"attachment","filename":"dying_message.dat","length":<len>}
 "#.replace("<len>", &dying_message.len().to_string());
-        ManagedEnvelope::new(
+
+        let envelope = ManagedEnvelope::new(
             Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap(),
             Addr::dummy(),
             Addr::dummy(),
-            ProcessingGroup::Error,
-        )
-        .try_into()
-        .unwrap()
+        );
+        (envelope, ProcessingGroup::Error).try_into().unwrap()
     }
 
     #[test]

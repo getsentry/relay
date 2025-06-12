@@ -67,7 +67,7 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
                 quantity,
             })
             .await
-            .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)?;
+            .map_err(|_| RateLimitingError::UnreachableGlobalRateLimits)??;
 
         // Perform a reverse lookup to match each owned quota with its original reference.
         // If multiple identical quotas exist, the first match will be reused. Equality is determined
@@ -80,18 +80,15 @@ impl GlobalLimiter for GlobalRateLimitsServiceHandle {
         //
         // The operation has a time complexity of O(n^2), but the number of quotas is assumed
         // to be small, as they are currently used only for metric bucket limiting.
-        let rate_limited_global_quotas =
-            rate_limited_owned_global_quotas.map(|owned_global_quotas| {
-                owned_global_quotas
-                    .iter()
-                    .filter_map(|owned_global_quota| {
-                        let global_quota = owned_global_quota.build_ref();
-                        global_quotas.iter().find(|x| **x == global_quota)
-                    })
-                    .collect::<Vec<_>>()
-            });
 
-        rate_limited_global_quotas
+        let res = rate_limited_owned_global_quotas
+            .iter()
+            .filter_map(|owned_global_quota| {
+                let global_quota = owned_global_quota.build_ref();
+                global_quotas.iter().find(|x| **x == global_quota)
+            })
+            .collect::<Vec<_>>();
+        Ok(res)
     }
 }
 

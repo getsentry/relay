@@ -1123,28 +1123,6 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
         return;
     };
 
-    if span_op.starts_with("ai.") {
-        if let Some(data) = span.data.value() {
-            for (field, key) in [
-                (&data.ai_total_tokens_used, "ai_total_tokens_used"),
-                (&data.ai_completion_tokens_used, "ai_completion_tokens_used"),
-                (&data.ai_prompt_tokens_used, "ai_prompt_tokens_used"),
-            ] {
-                if let Some(value) = value_to_f64(field.value()) {
-                    let measurements = span.measurements.get_or_insert_with(Default::default);
-                    measurements.insert(
-                        key.into(),
-                        Measurement {
-                            value: value.into(),
-                            unit: MetricUnit::None.into(),
-                        }
-                        .into(),
-                    );
-                }
-            }
-        }
-    }
-
     if span_op.starts_with("cache.") {
         if let Some(data) = span.data.value() {
             if let Some(value) = value_to_f64(data.cache_item_size.value()) {
@@ -1322,7 +1300,7 @@ fn sql_tables_from_query(
             let mut visitor = SqlTableNameVisitor {
                 table_names: Default::default(),
             };
-            ast.visit(&mut visitor);
+            let _ = ast.visit(&mut visitor);
             let comma_size: usize = 1;
             let mut s = String::with_capacity(
                 visitor
@@ -1483,9 +1461,9 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_debug_snapshot;
+    use insta::{assert_debug_snapshot, assert_json_snapshot};
     use relay_event_schema::protocol::{Request, SpanData};
-    use relay_protocol::{Getter, Object, get_value};
+    use relay_protocol::{Getter, Object, SerializableAnnotated, get_value};
 
     use super::*;
     use crate::span::description::{Mode, scrub_queries};
@@ -1990,7 +1968,7 @@ LIMIT 1
     }
 
     #[test]
-    fn test_ai_extraction() {
+    fn test_ai_extraction_legacy_data_fields() {
         let json = r#"
             {
                 "spans": [
@@ -2032,30 +2010,79 @@ LIMIT 1
             .value()
             .unwrap();
         let tags = span.sentry_tags.value().unwrap();
-        let measurements = span.measurements.value().unwrap();
 
         assert_eq!(
             tags.get_value("ai_pipeline_group").unwrap().as_str(),
             Some("68e6cafc5b68d276")
         );
-        assert_debug_snapshot!(measurements, @r###"
-        Measurements(
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
+        {
+          "gen_ai.usage.total_tokens": 300,
+          "gen_ai.usage.input_tokens": 100,
+          "gen_ai.usage.output_tokens": 200,
+          "ai.pipeline.name": "My AI pipeline",
+          "ai.streaming": true
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_ai_extraction() {
+        let json = r#"
             {
-                "ai_completion_tokens_used": Measurement {
-                    value: 200.0,
-                    unit: None,
-                },
-                "ai_prompt_tokens_used": Measurement {
-                    value: 100.0,
-                    unit: None,
-                },
-                "ai_total_tokens_used": Measurement {
-                    value: 300.0,
-                    unit: None,
-                },
-            },
-        )
-        "###);
+                "spans": [
+                    {
+                        "timestamp": 1694732408.3145,
+                        "start_timestamp": 1694732407.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "OpenAI Chat Completion",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "gen_ai.usage.total_tokens": 300,
+                            "gen_ai.usage.output_tokens": 200,
+                            "gen_ai.usage.input_tokens": 100,
+                            "ai.streaming": true,
+                            "ai.pipeline.name": "My AI pipeline"
+                        },
+                        "hash": "e2fae740cccd3781"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200, &[]);
+
+        let span = &event
+            .spans
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .value()
+            .unwrap();
+        let tags = span.sentry_tags.value().unwrap();
+
+        assert_eq!(
+            tags.get_value("ai_pipeline_group").unwrap().as_str(),
+            Some("68e6cafc5b68d276")
+        );
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
+        {
+          "gen_ai.usage.total_tokens": 300,
+          "gen_ai.usage.input_tokens": 100,
+          "gen_ai.usage.output_tokens": 200,
+          "ai.pipeline.name": "My AI pipeline",
+          "ai.streaming": true
+        }
+        "#);
     }
 
     #[test]

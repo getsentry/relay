@@ -12,7 +12,7 @@ use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::envelope::{CountFor, ItemType};
+use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, Sampling, SpansExtracted, TransactionGroup, event_category,
@@ -131,7 +131,7 @@ pub fn drop_unsampled_items(
         .take_items_by(|item| *item.ty() != ItemType::Profile);
 
     for item in dropped_items {
-        for (category, quantity) in item.quantities(CountFor::Outcomes) {
+        for (category, quantity) in item.quantities() {
             // Dynamic sampling only drops indexed items. Upgrade the category to the index
             // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
             // but attachments are still emitted as attachments.
@@ -291,7 +291,7 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup, SpanGroup};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -335,20 +335,22 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
 
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group),
+        let message = ProcessEnvelopeGrouped {
+            group,
+            envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store),
             project_info: Arc::new(ProjectInfo::default()),
             rate_limits: Default::default(),
             sampling_project_info,
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        processor
             .process(&mut Token::noop(), message)
             .await
-            .unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        ctx.envelope().clone()
+            .unwrap()
+            .unwrap()
+            .envelope()
+            .clone()
     }
 
     fn extract_first_event_from_envelope(envelope: Envelope) -> Event {
@@ -474,14 +476,12 @@ mod tests {
             }
 
             let envelope = new_envelope(false, "foo");
-            let managed_envelope: TypedEnvelope<TransactionGroup> = ManagedEnvelope::new(
-                envelope,
-                outcome_aggregator.clone(),
-                test_store.clone(),
+            let managed_envelope: TypedEnvelope<TransactionGroup> = (
+                ManagedEnvelope::new(envelope, outcome_aggregator.clone(), test_store.clone()),
                 ProcessingGroup::Transaction,
             )
-            .try_into()
-            .unwrap();
+                .try_into()
+                .unwrap();
 
             let event = Annotated::from(event);
 
@@ -771,10 +771,12 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         let config = Arc::new(Config::default());
 
-        let mut managed_envelope: TypedEnvelope<Group> =
-            ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), processing_group)
-                .try_into()
-                .unwrap();
+        let mut managed_envelope: TypedEnvelope<Group> = (
+            ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy()),
+            processing_group,
+        )
+            .try_into()
+            .unwrap();
 
         let mut event = Annotated::new(Event::default());
 

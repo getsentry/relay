@@ -4,7 +4,6 @@ use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
 };
@@ -158,8 +157,8 @@ impl Getter for Span {
                 "exclusive_time" => self.exclusive_time.value()?.into(),
                 "description" => self.description.as_str()?.into(),
                 "op" => self.op.as_str()?.into(),
-                "span_id" => self.span_id.as_str()?.into(),
-                "parent_span_id" => self.parent_span_id.as_str()?.into(),
+                "span_id" => self.span_id.value()?.into(),
+                "parent_span_id" => self.parent_span_id.value()?.into(),
                 "trace_id" => self.trace_id.value()?.deref().into(),
                 "status" => self.status.as_str()?.into(),
                 "origin" => self.origin.as_str()?.into(),
@@ -456,17 +455,34 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
+    /// The maximum number of tokens that should be used by an LLM call.
+    #[metastructure(field = "gen_ai.request.max_tokens")]
+    pub gen_ai_request_max_tokens: Annotated<Value>,
+
     /// The total tokens that were used by an LLM call
-    #[metastructure(field = "ai.total_tokens.used")]
-    pub ai_total_tokens_used: Annotated<Value>,
+    #[metastructure(
+        field = "gen_ai.usage.total_tokens",
+        legacy_alias = "ai.total_tokens.used"
+    )]
+    pub gen_ai_usage_total_tokens: Annotated<Value>,
 
     /// The input tokens used by an LLM call (usually cheaper than output tokens)
-    #[metastructure(field = "ai.prompt_tokens.used")]
-    pub ai_prompt_tokens_used: Annotated<Value>,
+    #[metastructure(
+        field = "gen_ai.usage.input_tokens",
+        legacy_alias = "ai.prompt_tokens.used"
+    )]
+    pub gen_ai_usage_input_tokens: Annotated<Value>,
 
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
-    #[metastructure(field = "ai.completion_tokens.used")]
-    pub ai_completion_tokens_used: Annotated<Value>,
+    #[metastructure(
+        field = "gen_ai.usage.output_tokens",
+        legacy_alias = "ai.completion_tokens.used"
+    )]
+    pub gen_ai_usage_output_tokens: Annotated<Value>,
+
+    /// The total cost for the tokens used
+    #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
+    pub gen_ai_usage_total_cost: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -797,6 +813,9 @@ impl Getter for SpanData {
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
+            "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
+            "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
+            "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -936,20 +955,17 @@ impl FromValue for Route {
 }
 
 #[derive(Clone, Debug, PartialEq, ProcessValue)]
-#[repr(i32)]
 pub enum SpanKind {
-    Unspecified = OtelSpanKind::Unspecified as i32,
-    Internal = OtelSpanKind::Internal as i32,
-    Server = OtelSpanKind::Server as i32,
-    Client = OtelSpanKind::Client as i32,
-    Producer = OtelSpanKind::Producer as i32,
-    Consumer = OtelSpanKind::Consumer as i32,
+    Internal,
+    Server,
+    Client,
+    Producer,
+    Consumer,
 }
 
 impl SpanKind {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unspecified => "unspecified",
             Self::Internal => "internal",
             Self::Server => "server",
             Self::Client => "client",
@@ -973,7 +989,6 @@ impl std::str::FromStr for SpanKind {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "unspecified" => SpanKind::Unspecified,
             "internal" => SpanKind::Internal,
             "server" => SpanKind::Server,
             "client" => SpanKind::Client,
@@ -987,19 +1002,6 @@ impl std::str::FromStr for SpanKind {
 impl Default for SpanKind {
     fn default() -> Self {
         Self::Internal
-    }
-}
-
-impl From<OtelSpanKind> for SpanKind {
-    fn from(otel_kind: OtelSpanKind) -> Self {
-        match otel_kind {
-            OtelSpanKind::Unspecified => Self::Unspecified,
-            OtelSpanKind::Internal => Self::Internal,
-            OtelSpanKind::Server => Self::Server,
-            OtelSpanKind::Client => Self::Client,
-            OtelSpanKind::Producer => Self::Producer,
-            OtelSpanKind::Consumer => Self::Consumer,
-        }
     }
 }
 
@@ -1095,7 +1097,7 @@ mod tests {
 
         let links = Annotated::new(vec![Annotated::new(SpanLink {
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
             sampled: Annotated::new(true),
             attributes: Annotated::new({
                 let mut map: std::collections::BTreeMap<String, Annotated<Value>> = Object::new();
@@ -1119,7 +1121,7 @@ mod tests {
             description: Annotated::new("desc".to_owned()),
             op: Annotated::new("operation".to_owned()),
             trace_id: Annotated::new("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap()),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            span_id: Annotated::new("fa90fdead5f74052".parse().unwrap()),
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new("auto.http".to_owned()),
             kind: Annotated::new(SpanKind::Server),
@@ -1263,9 +1265,11 @@ mod tests {
         insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
-            ai_total_tokens_used: ~,
-            ai_prompt_tokens_used: ~,
-            ai_completion_tokens_used: ~,
+            gen_ai_request_max_tokens: ~,
+            gen_ai_usage_total_tokens: ~,
+            gen_ai_usage_input_tokens: ~,
+            gen_ai_usage_output_tokens: ~,
+            gen_ai_usage_total_cost: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",

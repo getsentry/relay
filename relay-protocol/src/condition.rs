@@ -84,7 +84,7 @@ impl EqCondition {
                 .iter()
                 .filter_map(|v| v.as_str())
                 .any(|v| self.cmp(v, f)),
-            (Some(Val::Uuid(f)), Value::String(val)) => Some(f) == val.parse().ok(),
+            (Some(Val::HexId(f)), Value::String(val)) => f.match_str(val),
             (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
             _ => false,
         }
@@ -837,8 +837,10 @@ impl std::ops::Not for RuleCondition {
 
 #[cfg(test)]
 mod tests {
+    use uuid::Uuid;
+
     use super::*;
-    use crate::GetterIter;
+    use crate::{GetterIter, HexId};
 
     #[derive(Debug)]
     struct Exception {
@@ -855,6 +857,8 @@ mod tests {
     }
 
     struct Trace {
+        trace_id: Uuid,
+        span_id: [u8; 4],
         transaction: String,
         release: String,
         environment: String,
@@ -865,6 +869,8 @@ mod tests {
     impl Getter for Trace {
         fn get_value(&self, path: &str) -> Option<Val<'_>> {
             Some(match path.strip_prefix("trace.")? {
+                "trace_id" => (&self.trace_id).into(),
+                "span_id" => Val::HexId(HexId(&self.span_id[..])),
                 "transaction" => self.transaction.as_str().into(),
                 "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
@@ -885,6 +891,8 @@ mod tests {
 
     fn mock_trace() -> Trace {
         Trace {
+            trace_id: "6b7d15b8-cee2-4354-9fee-dae7ef43e434".parse().unwrap(),
+            span_id: [0xde, 0xad, 0xbe, 0xef],
             transaction: "transaction1".to_string(),
             release: "1.1.1".to_string(),
             environment: "debug".to_string(),
@@ -1140,6 +1148,11 @@ mod tests {
                 RuleCondition::glob("trace.release", "1.1.1")
                     & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
+            (
+                "trace/span ID bytes",
+                RuleCondition::eq("trace.trace_id", "6b7d15b8cee243549feedae7ef43e434")
+                    & RuleCondition::eq("trace.span_id", "DEADBEEF"),
+            ),
             ("match no conditions", RuleCondition::all()),
             ("string cmp", RuleCondition::gt("trace.transaction", "t")),
         ];
@@ -1289,6 +1302,7 @@ mod tests {
                     & RuleCondition::glob("trace.transaction", "t22")
                     & RuleCondition::eq_ignore_case("trace.user", "vip"),
             ),
+            ("span ID", RuleCondition::eq("trace.span_id", "deadbeer")),
         ];
 
         let trace = mock_trace();

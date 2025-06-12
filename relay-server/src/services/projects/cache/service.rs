@@ -9,7 +9,9 @@ use relay_system::{Service, ServiceSpawn, ServiceSpawnExt as _};
 use tokio::sync::broadcast;
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
-use crate::services::projects::cache::state::{CompletedFetch, Eviction, Fetch, ProjectStore};
+use crate::services::projects::cache::state::{
+    self, CompletedFetch, Eviction, Fetch, ProjectStore, Refresh,
+};
 use crate::services::projects::project::ProjectState;
 use crate::services::projects::source::ProjectSource;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
@@ -80,7 +82,7 @@ impl ProjectCacheService {
         let project_events_tx = broadcast::channel(PROJECT_EVENTS_CHANNEL_SIZE).0;
 
         Self {
-            store: ProjectStore::default(),
+            store: ProjectStore::new(&config),
             source,
             config,
             scheduled_fetches: FuturesScheduled::default(),
@@ -143,7 +145,7 @@ impl ProjectCacheService {
 /// All [`ProjectCacheService`] message handlers.
 impl ProjectCacheService {
     fn handle_fetch(&mut self, project_key: ProjectKey) {
-        if let Some(fetch) = self.store.try_begin_fetch(project_key, &self.config) {
+        if let Some(fetch) = self.store.try_begin_fetch(project_key) {
             self.schedule_fetch(fetch);
         }
     }
@@ -151,7 +153,7 @@ impl ProjectCacheService {
     fn handle_completed_fetch(&mut self, fetch: CompletedFetch) {
         let project_key = fetch.project_key();
 
-        if let Some(fetch) = self.store.complete_fetch(fetch, &self.config) {
+        if let Some(fetch) = self.store.complete_fetch(fetch) {
             relay_log::trace!(
                 project_key = fetch.project_key().as_str(),
                 "re-scheduling project fetch: {fetch:?}"
@@ -181,6 +183,17 @@ impl ProjectCacheService {
 
         relay_log::trace!(tags.project_key = project_key.as_str(), "project evicted");
         metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
+    }
+
+    fn handle_refresh(&mut self, refresh: Refresh) {
+        let project_key = refresh.project_key();
+
+        if let Some(fetch) = self.store.refresh(refresh) {
+            self.schedule_fetch(fetch);
+        }
+
+        relay_log::trace!(tags.project_key = project_key.as_str(), "project refreshed");
+        metric!(counter(RelayCounters::RefreshStaleProjectCaches) += 1);
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -217,10 +230,16 @@ impl relay_system::Service for ProjectCacheService {
                     message.variant(),
                     self.handle_message(message)
                 ),
-                Some(eviction) = self.store.next_eviction() => timed!(
-                    "eviction",
-                    self.handle_eviction(eviction)
-                ),
+                Some(action) = self.store.poll() => match action {
+                    state::Action::Eviction(eviction) => timed!(
+                        "eviction",
+                        self.handle_eviction(eviction)
+                    ),
+                    state::Action::Refresh(refresh) => timed!(
+                        "refresh",
+                        self.handle_refresh(refresh)
+                    ),
+                }
             }
         }
     }

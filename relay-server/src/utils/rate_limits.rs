@@ -8,7 +8,7 @@ use relay_quotas::{
     ReasonCode, Scoping,
 };
 
-use crate::envelope::{CountFor, Envelope, Item, ItemType};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::services::outcome::Outcome;
 use crate::utils::ManagedEnvelope;
 
@@ -235,7 +235,7 @@ impl EnvelopeSummary {
 
             summary.payload_size += item.len();
 
-            for (category, quantity) in item.quantities(CountFor::RateLimits) {
+            for (category, quantity) in item.quantities() {
                 summary.add_quantity(category, quantity);
             }
         }
@@ -955,7 +955,6 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::services::processor::ProcessingGroup;
     use crate::{
         envelope::{AttachmentType, ContentType, SourceQuantities},
         extractors::RequestMeta,
@@ -1167,7 +1166,6 @@ mod tests {
                 envelope,
                 outcome_aggregator,
                 test_store,
-                ProcessingGroup::Ungrouped,
             )
         }}
     }

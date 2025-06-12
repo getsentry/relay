@@ -7,14 +7,15 @@ use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
-use relay_event_schema::protocol::{Event, Span};
+use relay_event_schema::protocol::{Event, Span, SpanV2};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
+use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 use crate::utils::TypedEnvelope;
 
@@ -24,6 +25,8 @@ use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 pub use processing::*;
 use relay_config::Config;
+
+use super::ProcessingError;
 
 pub fn filter(
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
@@ -46,6 +49,70 @@ pub fn filter(
     });
 }
 
+/// Expands V2 spans to V1 spans.
+///
+/// This expands one item (contanining multiple V2 spans) into several
+/// (containing one V1 span each).
+pub fn expand_v2_spans(
+    managed_envelope: &mut TypedEnvelope<SpanGroup>,
+) -> Result<(), ProcessingError> {
+    let span_v2_items = managed_envelope
+        .envelope_mut()
+        .take_items_by(ItemContainer::<SpanV2>::is_container);
+
+    // V2 spans must always be sent as an `ItemContainer`, currently it is not allowed to
+    // send multiple containers for V2 spans.
+    //
+    // This restriction may be lifted in the future, this is why this validation only happens
+    // when processing is enabled, allowing it to be changed easily in the future.
+    //
+    // This limit mostly exists to incentivise SDKs to batch multiple spans into a single container,
+    // technically it can be removed without issues.
+    if span_v2_items.len() > 1 {
+        return Err(ProcessingError::DuplicateItem(ItemType::Span));
+    }
+
+    if span_v2_items.is_empty() {
+        return Ok(());
+    }
+
+    let now = std::time::Instant::now();
+
+    for span_v2_item in span_v2_items {
+        let spans_v2 = match ItemContainer::parse(&span_v2_item) {
+            Ok(spans_v2) => spans_v2,
+            Err(err) => {
+                relay_log::debug!("failed to parse V2 spans: {err}");
+                track_invalid(
+                    managed_envelope,
+                    DiscardReason::InvalidSpan,
+                    span_v2_item.item_count().unwrap_or(1) as usize,
+                );
+                continue;
+            }
+        };
+
+        for span_v2 in spans_v2.into_items() {
+            let span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
+            match span_v1.to_json() {
+                Ok(payload) => {
+                    let mut new_item = Item::new(ItemType::Span);
+                    new_item.set_payload(ContentType::Json, payload);
+                    managed_envelope.envelope_mut().add_item(new_item);
+                }
+                Err(err) => {
+                    relay_log::debug!("failed to serialize span: {}", err);
+                    track_invalid(managed_envelope, DiscardReason::Internal, 1);
+                }
+            }
+        }
+    }
+
+    relay_statsd::metric!(timer(RelayTimers::SpanV2Expansion) = now.elapsed());
+
+    Ok(())
+}
+
 pub fn convert_otel_traces_data(managed_envelope: &mut TypedEnvelope<SpanGroup>) {
     let envelope = managed_envelope.envelope_mut();
 
@@ -60,7 +127,7 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
         Err(reason) => {
             // NOTE: logging quantity=1 is semantically wrong, but we cannot know the real quantity
             // without parsing.
-            track_invalid(managed_envelope, reason);
+            track_invalid(managed_envelope, reason, 1);
             return;
         }
     };
@@ -102,7 +169,7 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
                 }
 
                 let Ok(payload) = serde_json::to_vec(&span) else {
-                    track_invalid(managed_envelope, DiscardReason::Internal);
+                    track_invalid(managed_envelope, DiscardReason::Internal, 1);
                     continue;
                 };
                 let mut item = Item::new(ItemType::OtelSpan);
@@ -114,9 +181,17 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
     managed_envelope.update(); // update envelope summary
 }
 
-fn track_invalid(managed_envelope: &mut TypedEnvelope<SpanGroup>, reason: DiscardReason) {
-    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::Span, 1);
-    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::SpanIndexed, 1);
+fn track_invalid(
+    managed_envelope: &mut TypedEnvelope<SpanGroup>,
+    reason: DiscardReason,
+    quantity: usize,
+) {
+    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::Span, quantity);
+    managed_envelope.track_outcome(
+        Outcome::Invalid(reason),
+        DataCategory::SpanIndexed,
+        quantity,
+    );
 }
 
 fn parse_traces_data(item: Item) -> Result<TracesData, DiscardReason> {
@@ -226,13 +301,10 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         let (test_store, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
-        let managed_envelope = ManagedEnvelope::new(
-            envelope,
-            outcome_aggregator,
-            test_store,
-            ProcessingGroup::Span,
-        );
-        let mut typed_envelope: TypedEnvelope<_> = managed_envelope.try_into().unwrap();
+        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let mut typed_envelope: TypedEnvelope<_> = (managed_envelope, ProcessingGroup::Span)
+            .try_into()
+            .unwrap();
         let mut item = Item::new(ItemType::OtelTracesData);
         item.set_payload(ContentType::Json, traces_data);
         typed_envelope.envelope_mut().add_item(item.clone());

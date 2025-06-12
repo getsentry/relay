@@ -8,11 +8,13 @@ use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
+use crate::envelope::{
+    AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType, Items,
+};
 use crate::service::ServiceState;
-use crate::services::buffer::{EnvelopeBuffer, ProjectKeyPair};
+use crate::services::buffer::ProjectKeyPair;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
-use crate::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
+use crate::services::processor::{BucketSource, MetricData, ProcessMetrics};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
@@ -288,35 +290,10 @@ fn queue_envelope(
         }
     }
 
-    // Split off the envelopes by item type.
-    let scoping = managed_envelope.scoping();
-    let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
-    for (group, envelope) in envelopes {
-        let mut envelope = ManagedEnvelope::new(
-            envelope,
-            state.outcome_aggregator().clone(),
-            state.test_store().clone(),
-            group,
-        );
-        envelope.scope(scoping);
-
-        let project_key_pair = ProjectKeyPair::from_envelope(envelope.envelope());
-        let buffer = state.envelope_buffer(project_key_pair);
-        if !buffer.has_capacity() {
-            return Err(BadStoreRequest::QueueFailed);
-        }
-
-        // NOTE: This assumes that a `prefetch` has already been scheduled for both the
-        // envelope's projects. See `handle_check_envelope`.
-        relay_log::trace!("Pushing envelope to V2 buffer");
-
-        buffer
-            .addr()
-            .send(EnvelopeBuffer::Push(envelope.into_envelope()));
+    let pkp = ProjectKeyPair::from_envelope(&*envelope);
+    if !state.envelope_buffer(pkp).try_push(managed_envelope) {
+        return Err(BadStoreRequest::QueueFailed);
     }
-    // The entire envelope is taken for a split above, and it's empty at this point, we can just
-    // accept it without additional checks.
-    managed_envelope.accept();
 
     Ok(())
 }
@@ -343,9 +320,6 @@ pub async fn handle_envelope(
         envelope,
         state.outcome_aggregator().clone(),
         state.test_store().clone(),
-        // It's not clear at this point which group this envelope belongs to.
-        // The decision will be made while queueing in `queue_envelope` function.
-        ProcessingGroup::Ungrouped,
     );
 
     // If configured, remove unknown items at the very beginning. If the envelope is
@@ -403,21 +377,31 @@ pub async fn handle_envelope(
 }
 
 fn emit_envelope_metrics(envelope: &Envelope) {
-    let client_name = envelope.meta().client_name();
+    let client_name = envelope.meta().client_name().name();
     for item in envelope.items() {
+        let item_type = item.ty().name();
+        let is_container = if item.content_type().is_some_and(ContentType::is_container) {
+            "true"
+        } else {
+            "false"
+        };
+
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name()
+            item_type = item_type,
+            is_container = is_container,
         );
         metric!(
             counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(1),
-            item_type = item.ty().name(),
-            sdk = client_name.name(),
+            item_type = item_type,
+            is_container = is_container,
+            sdk = client_name,
         );
         metric!(
             counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() as u64,
-            item_type = item.ty().name(),
-            sdk = client_name.name(),
+            item_type = item_type,
+            is_container = is_container,
+            sdk = client_name,
         );
     }
 }

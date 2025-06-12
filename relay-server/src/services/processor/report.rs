@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::sync::Arc;
 
 use chrono::{Duration as SignedDuration, Utc};
 use relay_common::time::UnixTimestamp;
@@ -44,8 +43,8 @@ pub enum ClientReportField {
 /// system.
 pub fn process_client_reports(
     managed_envelope: &mut TypedEnvelope<ClientReportGroup>,
-    config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
+    config: &Config,
+    project_info: &ProjectInfo,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
     // if client outcomes are disabled we leave the client reports unprocessed
@@ -278,7 +277,7 @@ mod tests {
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::outcome::RuleCategory;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
@@ -326,8 +325,9 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
 
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
-        let message = ProcessEnvelope {
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
             rate_limits: Default::default(),
@@ -335,11 +335,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let envelope = processor
             .process(&mut Token::noop(), message)
             .await
             .unwrap();
-        assert!(envelope_response.envelope.is_none());
+        assert!(envelope.is_none());
     }
 
     #[tokio::test]
@@ -383,9 +383,10 @@ mod tests {
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
 
-        let message = ProcessEnvelope {
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
             rate_limits: Default::default(),
@@ -393,15 +394,15 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let new_envelope = processor
             .process(&mut Token::noop(), message)
             .await
+            .unwrap()
             .unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let item = ctx.envelope().items().next().unwrap();
+        let item = new_envelope.envelope().items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
 
-        ctx.accept(); // do not try to capture or emit outcomes
+        new_envelope.accept(); // do not try to capture or emit outcomes
     }
 
     #[tokio::test]
@@ -450,8 +451,9 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
-        let message = ProcessEnvelope {
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
             rate_limits: Default::default(),
@@ -459,11 +461,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let envelope = processor
             .process(&mut Token::noop(), message)
             .await
             .unwrap();
-        assert!(envelope_response.envelope.is_none());
+        assert!(envelope.is_none());
     }
 
     #[tokio::test]
@@ -494,8 +496,9 @@ mod tests {
 
         let (group, envelope) = envelopes.pop().unwrap();
 
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
-        let message = ProcessEnvelope {
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
             rate_limits: Default::default(),
@@ -503,12 +506,12 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let new_envelope = processor
             .process(&mut Token::noop(), message)
             .await
+            .unwrap()
             .unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
+        let new_envelope = new_envelope.envelope();
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(
@@ -545,9 +548,10 @@ mod tests {
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
 
-        let message = ProcessEnvelope {
+        let message = ProcessEnvelopeGrouped {
+            group,
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
             rate_limits: Default::default(),
@@ -555,12 +559,12 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor
+        let new_envelope = processor
             .process(&mut Token::noop(), message)
             .await
+            .unwrap()
             .unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
+        let new_envelope = new_envelope.envelope();
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);

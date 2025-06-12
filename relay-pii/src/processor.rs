@@ -568,7 +568,7 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                 text: Cow::Owned(replace.text.clone()),
             });
         }
-        Redaction::Other => relay_log::warn!("Incoming redaction is not supported"),
+        Redaction::Other => relay_log::debug!("Incoming redaction is not supported"),
     }
 }
 

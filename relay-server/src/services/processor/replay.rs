@@ -1,7 +1,6 @@
 //! Replay related processor code.
 use std::error::Error;
 use std::net::IpAddr;
-use std::sync::Arc;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
@@ -28,12 +27,12 @@ use serde::{Deserialize, Serialize};
 pub fn process(
     managed_envelope: &mut TypedEnvelope<ReplayGroup>,
     global_config: &GlobalConfig,
-    config: Arc<Config>,
-    project_info: Arc<ProjectInfo>,
+    config: &Config,
+    project_info: &ProjectInfo,
     geoip_lookup: Option<&GeoIpLookup>,
 ) -> Result<(), ProcessingError> {
     // If the replay feature is not enabled drop the items silently.
-    if should_filter(&config, &project_info, Feature::SessionReplay) {
+    if should_filter(config, project_info, Feature::SessionReplay) {
         managed_envelope.drop_items_silently();
         return Ok(());
     }
@@ -168,7 +167,7 @@ fn handle_replay_event_item(
             }
         }
         Err(error) => {
-            relay_log::warn!(
+            relay_log::debug!(
                 error = &error as &dyn Error,
                 event_id = ?config.event_id,
                 project_id = config.project_id.map(|v| v.value()),
@@ -262,7 +261,7 @@ fn handle_replay_recording_item(
         match &error {
             relay_replays::recording::ParseRecordingError::Compression(e) => {
                 // 20k errors per day at 0.1% sample rate == 20 logs per day
-                if sample(0.001) {
+                if sample(0.001).is_keep() {
                     relay_log::with_scope(
                         move |scope| {
                             scope.add_attachment(relay_log::protocol::Attachment {

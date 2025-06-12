@@ -177,7 +177,7 @@ trait StringMods: AsRef<[u8]> {
             Redaction::Replace(replace) => {
                 self.swap_content(replace.text.as_str(), PADDING);
             }
-            Redaction::Other => relay_log::warn!("Incoming redaction is not supported"),
+            Redaction::Other => relay_log::debug!("Incoming redaction is not supported"),
         }
     }
 }

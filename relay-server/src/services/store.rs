@@ -776,7 +776,7 @@ impl StoreService {
 
         // If the recording payload can not fit in to the message do not produce and quit early.
         if payload_size >= max_payload_size {
-            relay_log::warn!("replay_recording over maximum size.");
+            relay_log::debug!("replay_recording over maximum size.");
             self.outcome_aggregator.send(TrackOutcome {
                 category: DataCategory::Replay,
                 event_id,
@@ -1265,6 +1265,7 @@ impl StoreService {
             }
         };
 
+        let num_logs = logs.items.len() as u32;
         for log in logs.items {
             let timestamp_seconds = log.timestamp as i64;
             let timestamp_nanos = (log.timestamp.fract() * 1e9) as u32;
@@ -1327,34 +1328,34 @@ impl StoreService {
                     ("project_id".to_owned(), scoping.project_id.to_string()),
                     (
                         "item_type".to_owned(),
-                        TraceItemType::Log.as_str_name().to_owned(),
+                        (TraceItemType::Log as i32).to_string(),
                     ),
                 ]),
                 message: trace_item,
             };
 
             self.produce(KafkaTopic::Items, message)?;
-
-            // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::LogItem,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::LogByte,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: payload.len() as u32,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
         }
+
+        // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogItem,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: num_logs,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogByte,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: payload.len() as u32,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
 
         Ok(())
     }
@@ -1885,20 +1886,28 @@ impl Message for KafkaMessage<'_> {
     }
 
     /// Returns the partitioning key for this kafka message determining.
-    fn key(&self) -> [u8; 16] {
-        let mut uuid = match self {
-            Self::Event(message) => message.event_id.0,
-            Self::Attachment(message) => message.event_id.0,
-            Self::AttachmentChunk(message) => message.event_id.0,
-            Self::UserReport(message) => message.event_id.0,
-            Self::ReplayEvent(message) => message.replay_id.0,
-            Self::Span { message, .. } => message.trace_id.0,
+    fn key(&self) -> Option<[u8; 16]> {
+        match self {
+            Self::Event(message) => Some(message.event_id.0),
+            Self::Attachment(message) => Some(message.event_id.0),
+            Self::AttachmentChunk(message) => Some(message.event_id.0),
+            Self::UserReport(message) => Some(message.event_id.0),
+            Self::ReplayEvent(message) => Some(message.replay_id.0),
+            Self::Span { message, .. } => Some(message.trace_id.0),
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
             // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
             // recieve the routing_key_hint form their envelopes.
-            Self::CheckIn(message) => message.routing_key_hint.unwrap_or_else(Uuid::nil),
+            Self::CheckIn(message) => message.routing_key_hint,
+
+            // Generate a new random routing key, instead of defaulting to `rdkafka` behaviour
+            // for no routing key.
+            //
+            // This results in significantly more work for Kafka, but we've seen that the metrics
+            // indexer consumer in Sentry, cannot deal with this load shape.
+            // Until the metric indexer is updated, we still need to assign random keys here.
+            Self::Metric { .. } => Some(Uuid::new_v4()),
 
             // Random partitioning
             Self::Profile(_)
@@ -1907,13 +1916,9 @@ impl Message for KafkaMessage<'_> {
             | Self::ProfileChunk(_)
             | Self::Metric { .. }
             | Self::Item { .. } => Uuid::nil(),
-        };
-
-        if uuid.is_nil() {
-            uuid = Uuid::new_v4();
         }
-
-        *uuid.as_bytes()
+        .filter(|uuid| !uuid.is_nil())
+        .map(|uuid| uuid.into_bytes())
     }
 
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
@@ -2001,7 +2006,7 @@ mod tests {
         for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             let res = producer
                 .client
-                .send(topic, *b"0123456789abcdef", None, "foo", b"");
+                .send(topic, Some(*b"0123456789abcdef"), None, "foo", b"");
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
