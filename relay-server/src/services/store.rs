@@ -1420,7 +1420,7 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     is_remote: bool,
 
-    #[serde(default, skip_serializing_if = "none_or_empty_map", borrow)]
+    #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
     data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
