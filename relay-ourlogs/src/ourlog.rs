@@ -1,4 +1,5 @@
-use chrono::{TimeZone, Utc, DateTime};
+use chrono::{DateTime, TimeZone, Utc};
+
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use crate::OtelLog;
@@ -9,6 +10,10 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Error, Object, Value};
 
+/// Transforms an OpenTelemetry log attribute value to a Sentry log attribute.
+///
+/// This function converts OTel attribute values to the appropriate Sentry attribute types.
+/// Unsupported types like arrays and key-value lists are ignored and return `None`.
 fn otel_value_to_log_attribute(value: OtelValue) -> Option<Attribute> {
     match value {
         OtelValue::BoolValue(v) => Some(Attribute::new(AttributeType::Boolean, Value::Bool(v))),
@@ -23,7 +28,22 @@ fn otel_value_to_log_attribute(value: OtelValue) -> Option<Attribute> {
     }
 }
 
-/// Transform an OtelLog to a Sentry log.
+/// Transforms an OpenTelemetry log record to a Sentry log.
+///
+/// This function converts an OTel log record into Sentry's log format, mapping severity levels,
+/// extracting attributes, and setting the observed timestamp to the envelope's received time.
+/// The observed timestamp represents when the log was received by Relay, which provides more
+/// accurate timing information for log analysis.
+///
+/// # Arguments
+///
+/// * `otel_log` - The OpenTelemetry log record to convert
+/// * `received_at` - The time when the envelope containing this log was received by Relay
+///
+/// # Returns
+///
+/// Returns a `Result` containing the converted `OurLog` on success, or an `Error` if the
+/// conversion fails (e.g., due to invalid trace or span IDs).
 pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Result<OurLog, Error> {
     let OtelLog {
         severity_number,
@@ -46,11 +66,15 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
         })
         .unwrap_or_else(String::new);
 
-    // Use the envelope's received time instead of the current time.
-    let observed_time_unix_nano = received_at.timestamp_nanos_opt().unwrap_or_else(|| {
-        relay_log::warn!("Failed to convert received_at to nanoseconds, using current time");
-        UnixTimestamp::now().as_nanos() as i64
-    }) as u64;
+    // Use the envelope's received time as the observed timestamp.
+    let observed_time_unix_nano = received_at
+        .timestamp_nanos_opt()
+        .unwrap_or_else(|| {
+            relay_log::warn!(
+                "failed to convert received_at to nanoseconds, falling back to current time"
+            );
+            UnixTimestamp::now().as_nanos() as i64
+        }) as u64;
     let mut attribute_data = Object::new();
 
     attribute_data.insert(
@@ -149,7 +173,17 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
     Ok(ourlog)
 }
 
-/// This fills attributes with OTel specific fields to be compatible with the otel schema.
+/// Fills attributes with OpenTelemetry-specific fields to be compatible with the OTel schema.
+///
+/// This function enriches a Sentry log with OpenTelemetry-compatible attributes including
+/// severity information, timestamps, and metadata. The observed timestamp is set to the
+/// envelope's received time rather than the current processing time, providing more accurate
+/// timing information.
+///
+/// # Arguments
+///
+/// * `ourlog` - The Sentry log to enrich with OTel-compatible attributes
+/// * `received_at` - The time when the envelope containing this log was received by Relay
 pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<Utc>) {
     let Some(ourlog_value) = ourlog.value_mut() else {
         return;
@@ -165,11 +199,15 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
         })
         .unwrap_or_default();
 
-    // Use the envelope's received time instead of the current time.
-    let observed_time_unix_nano = received_at.timestamp_nanos_opt().unwrap_or_else(|| {
-        relay_log::warn!("Failed to convert received_at to nanoseconds, using current time");
-        UnixTimestamp::now().as_nanos() as i64
-    }) as u64;
+    // Use the envelope's received time as the observed timestamp.
+    let observed_time_unix_nano = received_at
+        .timestamp_nanos_opt()
+        .unwrap_or_else(|| {
+            relay_log::warn!(
+                "failed to convert received_at to nanoseconds, falling back to current time"
+            );
+            UnixTimestamp::now().as_nanos() as i64
+        }) as u64;
 
     attributes.insert(
         "sentry.severity_text".to_owned(),
@@ -237,6 +275,19 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
     }
 }
 
+/// Converts a Sentry log level to an OpenTelemetry severity number.
+///
+/// This function maps Sentry's log levels to the corresponding OTel severity numbers
+/// according to the OpenTelemetry specification. If the level is unknown or missing,
+/// it defaults to 0 as per the OTel specification.
+///
+/// # Arguments
+///
+/// * `level` - The optional Sentry log level to convert
+///
+/// # Returns
+///
+/// Returns the corresponding OTel severity number as an `i64`.
 fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
     match level {
         Some(OurLogLevel::Trace) => 1,
@@ -245,7 +296,7 @@ fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
         Some(OurLogLevel::Warn) => 13,
         Some(OurLogLevel::Error) => 17,
         Some(OurLogLevel::Fatal) => 21,
-        // 0 is the default value.
+        // 0 is the default value per the OpenTelemetry specification.
         // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/68e1d6cd94bfca9bdf725327d4221f97ce0e0564/pkg/stanza/docs/types/severity.md
         _ => 0,
     }
@@ -254,7 +305,16 @@ fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::{SerializableAnnotated, get_path};
+    use relay_protocol::{get_path, SerializableAnnotated};
+
+    /// Test timestamp: 2024-01-01 12:00:00 UTC (1704110400000000000 nanoseconds)
+    const TEST_RECEIVED_AT: i64 = 1704110400;
+    const TEST_RECEIVED_AT_NANOS: u64 = 1704110400000000000;
+
+    /// Creates a test received_at timestamp for consistent testing.
+    fn test_received_at() -> DateTime<Utc> {
+        DateTime::<Utc>::from_timestamp(TEST_RECEIVED_AT, 0).unwrap()
+    }
 
     #[test]
     fn parse_otel_log() {
@@ -327,9 +387,8 @@ mod tests {
             ]
         }"#;
 
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log, received_at).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, test_received_at()).unwrap();
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
         assert_eq!(
             get_path!(annotated_log.body),
@@ -348,9 +407,8 @@ mod tests {
             "spanId": "EEE19B7EC3C1B174"
         }"#;
 
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log, received_at);
+        let our_log = otel_to_sentry_log(otel_log, test_received_at());
 
         assert!(our_log.is_err());
     }
@@ -388,9 +446,8 @@ mod tests {
                 }
             ]
         }"#;
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log, received_at).unwrap();
+        let our_log = otel_to_sentry_log(otel_log, test_received_at()).unwrap();
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
 
         assert_eq!(
@@ -423,9 +480,8 @@ mod tests {
             "attributes": []
         }"#;
 
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json_without_observed_time).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log, received_at).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, test_received_at()).unwrap();
 
         // Get the observed timestamp from attributes
         let observed_timestamp = our_log
@@ -433,8 +489,7 @@ mod tests {
             .and_then(|value| value.as_str().and_then(|s| s.parse::<u64>().ok()))
             .unwrap_or(0);
 
-        // The observed timestamp should be the received time in nanoseconds (1704110400000000000)
-        assert_eq!(observed_timestamp, 1704110400000000000);
+        assert_eq!(observed_timestamp, TEST_RECEIVED_AT_NANOS);
     }
 
     #[test]
@@ -452,9 +507,8 @@ mod tests {
             "attributes": []
         }"#;
 
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json_with_observed_time).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log, received_at).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, test_received_at()).unwrap();
 
         // Get the observed timestamp from attributes
         let observed_timestamp = our_log
@@ -463,7 +517,7 @@ mod tests {
             .unwrap_or(0);
 
         // The observed timestamp should be the received time, not the OTel observedTimeUnixNano
-        assert_eq!(observed_timestamp, 1704110400000000000);
+        assert_eq!(observed_timestamp, TEST_RECEIVED_AT_NANOS);
         assert_ne!(observed_timestamp, 1544712660300000000);
     }
 
@@ -483,9 +537,8 @@ mod tests {
             }
         }"#;
 
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let mut merged_log = Annotated::<OurLog>::from_json(json).unwrap();
-        ourlog_merge_otel(&mut merged_log, received_at);
+        ourlog_merge_otel(&mut merged_log, test_received_at());
 
         // Get the observed timestamp from attributes
         let observed_timestamp = merged_log
@@ -494,8 +547,7 @@ mod tests {
             .and_then(|attr| attr.as_str().and_then(|s| s.parse::<u64>().ok()))
             .unwrap_or(0);
 
-        // The observed timestamp should be the received time in nanoseconds (1704110400000000000)
-        assert_eq!(observed_timestamp, 1704110400000000000);
+        assert_eq!(observed_timestamp, TEST_RECEIVED_AT_NANOS);
 
         // Set observed timestamp to a fixed value for snapshot testing
         if let Some(log) = merged_log.value_mut() {
@@ -605,9 +657,8 @@ mod tests {
             }
         }"#;
 
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let mut data = Annotated::<OurLog>::from_json(json).unwrap();
-        ourlog_merge_otel(&mut data, received_at);
+        ourlog_merge_otel(&mut data, test_received_at());
         assert_eq!(
             data.value()
                 .unwrap()
@@ -641,8 +692,7 @@ mod tests {
             ..Default::default()
         });
 
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
-        ourlog_merge_otel(&mut ourlog, received_at);
+        ourlog_merge_otel(&mut ourlog, test_received_at());
 
         // Get the observed timestamp from attributes
         let observed_timestamp = ourlog
@@ -652,7 +702,7 @@ mod tests {
             .unwrap_or(0);
 
         // The observed timestamp should be the received time in nanoseconds (1704110400000000000)
-        assert_eq!(observed_timestamp, 1704110400000000000);
+        assert_eq!(observed_timestamp, TEST_RECEIVED_AT_NANOS);
 
         // Set observed timestamp to a fixed value for snapshot testing
         if let Some(log) = ourlog.value_mut() {
@@ -783,7 +833,7 @@ mod tests {
     #[test]
     fn test_otel_to_sentry_log_uses_received_time() {
         // Create a specific received time (2024-01-01 12:00:00 UTC)
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap();
+        let received_at = test_received_at();
 
         let json = r#"{
             "timeUnixNano": "1544712660300000000",
@@ -807,16 +857,16 @@ mod tests {
             .and_then(|value| value.as_str().and_then(|s| s.parse::<u64>().ok()))
             .unwrap_or(0);
 
-        // The observed timestamp should be the received time in nanoseconds (1704110400000000000)
+        // The observed timestamp should be the received time in nanoseconds
         let expected_observed_timestamp = received_at.timestamp_nanos_opt().unwrap() as u64;
         assert_eq!(observed_timestamp, expected_observed_timestamp);
-        assert_eq!(observed_timestamp, 1704110400000000000);
+        assert_eq!(observed_timestamp, TEST_RECEIVED_AT_NANOS);
     }
 
     #[test]
     fn test_ourlog_merge_otel_uses_received_time() {
         // Create a specific received time (2024-01-01 12:00:00 UTC)
-        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap();
+        let received_at = test_received_at();
 
         let json = r#"{
             "timestamp": 946684800.0,
@@ -842,9 +892,9 @@ mod tests {
             .and_then(|attr| attr.as_str().and_then(|s| s.parse::<u64>().ok()))
             .unwrap_or(0);
 
-        // The observed timestamp should be the received time in nanoseconds (1704110400000000000)
+        // The observed timestamp should be the received time in nanoseconds
         let expected_observed_timestamp = received_at.timestamp_nanos_opt().unwrap() as u64;
         assert_eq!(observed_timestamp, expected_observed_timestamp);
-        assert_eq!(observed_timestamp, 1704110400000000000);
+        assert_eq!(observed_timestamp, TEST_RECEIVED_AT_NANOS);
     }
 }
