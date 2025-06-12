@@ -327,8 +327,9 @@ mod tests {
             ]
         }"#;
 
+        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log, Utc::now()).unwrap();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, received_at).unwrap();
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
         assert_eq!(
             get_path!(annotated_log.body),
@@ -347,8 +348,9 @@ mod tests {
             "spanId": "EEE19B7EC3C1B174"
         }"#;
 
+        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log, Utc::now());
+        let our_log = otel_to_sentry_log(otel_log, received_at);
 
         assert!(our_log.is_err());
     }
@@ -386,8 +388,9 @@ mod tests {
                 }
             ]
         }"#;
+        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json).unwrap();
-        let our_log = otel_to_sentry_log(otel_log, Utc::now()).unwrap();
+        let our_log = otel_to_sentry_log(otel_log, received_at).unwrap();
         let annotated_log: Annotated<OurLog> = Annotated::new(our_log);
 
         assert_eq!(
@@ -420,10 +423,9 @@ mod tests {
             "attributes": []
         }"#;
 
-        let before_test = UnixTimestamp::now().as_nanos();
+        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json_without_observed_time).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log, Utc::now()).unwrap();
-        let after_test = UnixTimestamp::now().as_nanos();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, received_at).unwrap();
 
         // Get the observed timestamp from attributes
         let observed_timestamp = our_log
@@ -431,9 +433,8 @@ mod tests {
             .and_then(|value| value.as_str().and_then(|s| s.parse::<u64>().ok()))
             .unwrap_or(0);
 
-        assert!(observed_timestamp > 0);
-        assert!(observed_timestamp >= before_test);
-        assert!(observed_timestamp <= after_test);
+        // The observed timestamp should be the received time in nanoseconds (1704110400000000000)
+        assert_eq!(observed_timestamp, 1704110400000000000);
     }
 
     #[test]
@@ -451,10 +452,9 @@ mod tests {
             "attributes": []
         }"#;
 
-        let before_test = UnixTimestamp::now().as_nanos();
+        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let otel_log: OtelLog = serde_json::from_str(json_with_observed_time).unwrap();
-        let our_log: OurLog = otel_to_sentry_log(otel_log, Utc::now()).unwrap();
-        let after_test = UnixTimestamp::now().as_nanos();
+        let our_log: OurLog = otel_to_sentry_log(otel_log, received_at).unwrap();
 
         // Get the observed timestamp from attributes
         let observed_timestamp = our_log
@@ -462,9 +462,8 @@ mod tests {
             .and_then(|value| value.as_str().and_then(|s| s.parse::<u64>().ok()))
             .unwrap_or(0);
 
-        assert!(observed_timestamp > 0);
-        assert!(observed_timestamp >= before_test);
-        assert!(observed_timestamp <= after_test);
+        // The observed timestamp should be the received time, not the OTel observedTimeUnixNano
+        assert_eq!(observed_timestamp, 1704110400000000000);
         assert_ne!(observed_timestamp, 1544712660300000000);
     }
 
@@ -484,21 +483,19 @@ mod tests {
             }
         }"#;
 
-        let before_test = UnixTimestamp::now().as_nanos();
+        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let mut merged_log = Annotated::<OurLog>::from_json(json).unwrap();
-        ourlog_merge_otel(&mut merged_log, Utc::now());
-        let after_test = UnixTimestamp::now().as_nanos();
+        ourlog_merge_otel(&mut merged_log, received_at);
 
-        // Test the observed timestamp separately
+        // Get the observed timestamp from attributes
         let observed_timestamp = merged_log
             .value()
             .and_then(|log| log.attribute("sentry.observed_timestamp_nanos"))
             .and_then(|attr| attr.as_str().and_then(|s| s.parse::<u64>().ok()))
             .unwrap_or(0);
 
-        assert!(observed_timestamp > 0);
-        assert!(observed_timestamp >= before_test);
-        assert!(observed_timestamp <= after_test);
+        // The observed timestamp should be the received time in nanoseconds (1704110400000000000)
+        assert_eq!(observed_timestamp, 1704110400000000000);
 
         // Set observed timestamp to a fixed value for snapshot testing
         if let Some(log) = merged_log.value_mut() {
@@ -608,8 +605,9 @@ mod tests {
             }
         }"#;
 
+        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
         let mut data = Annotated::<OurLog>::from_json(json).unwrap();
-        ourlog_merge_otel(&mut data, Utc::now());
+        ourlog_merge_otel(&mut data, received_at);
         assert_eq!(
             data.value()
                 .unwrap()
@@ -643,20 +641,18 @@ mod tests {
             ..Default::default()
         });
 
-        let before_test = UnixTimestamp::now().as_nanos();
-        ourlog_merge_otel(&mut ourlog, Utc::now());
-        let after_test = UnixTimestamp::now().as_nanos();
+        let received_at = DateTime::<Utc>::from_timestamp(1704110400, 0).unwrap(); // 2024-01-01 12:00:00 UTC
+        ourlog_merge_otel(&mut ourlog, received_at);
 
-        // Test the observed timestamp separately
+        // Get the observed timestamp from attributes
         let observed_timestamp = ourlog
             .value()
             .and_then(|log| log.attribute("sentry.observed_timestamp_nanos"))
             .and_then(|attr| attr.as_str().and_then(|s| s.parse::<u64>().ok()))
             .unwrap_or(0);
 
-        assert!(observed_timestamp > 0);
-        assert!(observed_timestamp >= before_test);
-        assert!(observed_timestamp <= after_test);
+        // The observed timestamp should be the received time in nanoseconds (1704110400000000000)
+        assert_eq!(observed_timestamp, 1704110400000000000);
 
         // Set observed timestamp to a fixed value for snapshot testing
         if let Some(log) = ourlog.value_mut() {
