@@ -1421,7 +1421,7 @@ struct SpanKafkaMessage<'a> {
     is_remote: bool,
 
     #[serde(default, skip_serializing_if = "none_or_empty_map", borrow)]
-    data: Option<BTreeMap<String, Option<&'a RawValue>>>,
+    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
@@ -1503,7 +1503,7 @@ impl SpanKafkaMessage<'_> {
             };
 
             // TODO: Should a a tag supersede an existing value?
-            data.insert(key, Some(value));
+            data.insert(Cow::Owned(key), Some(value));
         }
     }
 }
