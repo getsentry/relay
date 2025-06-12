@@ -24,6 +24,7 @@
 - Consistently always emit session outcomes. ([#4798](https://github.com/getsentry/relay/pull/4798))
 - Set default sdk name for playstation crashes. ([#4802](https://github.com/getsentry/relay/pull/4802))
 - Skip large attachments on playstation crashes. ([#4793](https://github.com/getsentry/relay/pull/4793))
+- Derive a `sentry.op` attribute for V2 spans ([#4796](https://github.com/getsentry/relay/pull/4796))
 
 ## 25.5.1
 
