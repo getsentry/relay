@@ -41,10 +41,7 @@ pub fn check_envelope_size_limits(
 
     for item in envelope.items() {
         if item.is_container() && item.len() > config.max_container_size() {
-            return Err(item
-                .attachment_type()
-                .map(|t| t.into())
-                .unwrap_or_else(|| item.ty().into()));
+            return Err(item.ty().into());
         }
 
         let max_size = match item.ty() {
