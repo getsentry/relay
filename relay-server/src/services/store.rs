@@ -1010,7 +1010,10 @@ impl StoreService {
         if let Some(data) = span.data {
             for (key, raw_value) in data {
                 let Some(raw_value) = raw_value else { continue };
-                let json_value = serde_json::Value::deserialize(raw_value).unwrap();
+                let json_value = match serde_json::Value::deserialize(raw_value) {
+                    Ok(value) => value,
+                    Err(err) => relay_log::error!(error = &err as &dyn std::error::Error, "failed to deserialize span data value: {key}");
+                };
 
                 let any_value = match json_value {
                     JsonValue::String(string) => AnyValue {
