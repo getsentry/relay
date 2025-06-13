@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813)
+
 ## 25.6.0
 
 **Features**:

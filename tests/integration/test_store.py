@@ -377,7 +377,7 @@ def test_processing(
 @pytest.mark.parametrize(
     "window,max_rate_limit", [(86400, 2 * 86400), (2 * 86400, 86400)]
 )
-@pytest.mark.parametrize("event_type", ["default", "error", "transaction", "nel"])
+@pytest.mark.parametrize("event_type", ["default", "error", "transaction"])
 def test_processing_quotas(
     mini_sentry,
     relay_with_processing,
@@ -412,7 +412,7 @@ def test_processing_quotas(
     key_id = public_keys[0]["numericId"]
 
     # Default events are also mapped to "error" by Relay.
-    category = "error" if event_type == "default" or event_type == "nel" else event_type
+    category = "error" if event_type == "default" else event_type
 
     projectconfig["config"]["quotas"] = [
         {
@@ -436,28 +436,17 @@ def test_processing_quotas(
             return e
 
     for i in range(5):
-        if event_type == "nel":
-            relay.send_nel_event(project_id, dsn_key_idx=0)
-        else:
-            # send using the first dsn
-            relay.send_event(
-                project_id, transform({"message": f"regular{i}"}), dsn_key_idx=0
-            )
+        # send using the first dsn
+        relay.send_event(
+            project_id, transform({"message": f"regular{i}"}), dsn_key_idx=0
+        )
 
         event, _ = events_consumer.get_event(timeout=10)
-        if event_type == "nel":
-            assert event["logentry"]["formatted"] == "application / http.error"
-        else:
-            assert event["logentry"]["formatted"] == f"regular{i}"
+        assert event["logentry"]["formatted"] == f"regular{i}"
 
     # this one will not get a 429 but still get rate limited (silently) because
     # of our caching
-    if event_type == "nel":
-        relay.send_nel_event(project_id, dsn_key_idx=0)
-    else:
-        relay.send_event(
-            project_id, transform({"message": "some_message"}), dsn_key_idx=0
-        )
+    relay.send_event(project_id, transform({"message": "some_message"}), dsn_key_idx=0)
 
     if outcomes_consumer is not None:
         outcomes_consumer.assert_rate_limited(
@@ -487,18 +476,11 @@ def test_processing_quotas(
 
     for i in range(10):
         # now send using the second key
-        if event_type == "nel":
-            relay.send_nel_event(project_id, dsn_key_idx=1)
-        else:
-            relay.send_event(
-                project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
-            )
+        relay.send_event(
+            project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
+        )
         event, _ = events_consumer.get_event(timeout=10)
-
-        if event_type == "nel":
-            assert event["logentry"]["formatted"] == "application / http.error"
-        else:
-            assert event["logentry"]["formatted"] == f"otherkey{i}"
+        assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
 @pytest.mark.parametrize("namespace", ["transactions", "custom"])
