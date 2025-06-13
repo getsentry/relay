@@ -495,10 +495,10 @@ impl DiscardReason {
             DiscardReason::SecurityReport => "security_report",
             DiscardReason::Cors => "cors",
             DiscardReason::ProcessUnreal => "process_unreal",
-
-            // Relay specific reasons (not present in Sentry)
             DiscardReason::InvalidSignature => "invalid_signature",
             DiscardReason::MissingSignature => "missing_signature",
+
+            // Relay specific reasons (not present in Sentry)
             DiscardReason::Payload => "payload",
             DiscardReason::InvalidJson => "invalid_json",
             DiscardReason::InvalidMultipart => "invalid_multipart",
