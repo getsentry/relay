@@ -82,10 +82,6 @@ pub fn process(
     };
 
     for item in managed_envelope.envelope_mut().items_mut() {
-        if project_info.has_feature(Feature::SessionReplayCombinedEnvelopeItems) {
-            item.set_replay_combined_payload(true);
-        }
-
         match item.ty() {
             ItemType::ReplayEvent => {
                 let replay_event = handle_replay_event_item(item.payload(), &rpc)?;

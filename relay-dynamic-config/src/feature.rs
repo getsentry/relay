@@ -23,12 +23,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-recording-scrubbing`.
     #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
-    /// Enables combining session replay envelope items (Replay Recordings and Replay Events).
-    /// into one Kafka message.
-    ///
-    /// Serialized as `organizations:session-replay-combined-envelope-items`.
-    #[serde(rename = "organizations:session-replay-combined-envelope-items")]
-    SessionReplayCombinedEnvelopeItems,
     /// Disables select organizations from processing mobile replay events.
     ///
     /// Serialized as `organizations:session-replay-video-disabled`.
