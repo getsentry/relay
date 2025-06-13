@@ -5399,9 +5399,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "statsdproxy"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6d989f4c2230a3c1e0454e8361886943f3f998cf4f8c649ab76b9cc5ab54072"
+checksum = "6aaa182ca3fd30fd9251a3acea765de03ed35bbf9b1ee7c49caddeefd5e50bc1"
 dependencies = [
  "anyhow",
  "cadence",
