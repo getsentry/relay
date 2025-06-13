@@ -1212,9 +1212,9 @@ impl Default for Processing {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SpanProducers {
-    /// Send JSON spans to `ingest-spans`
+    /// Send JSON spans to `ingest-spans`.
     pub produce_json: bool,
-    /// Send Protobuf (TraceItem) to `snuba-items`
+    /// Send Protobuf (TraceItem) to `snuba-items`.
     pub produce_protobuf: bool,
 }
 
