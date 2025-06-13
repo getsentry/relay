@@ -49,52 +49,35 @@ pub trait Processor {
     /// The result after processing a [`Self::UnitOfWork`].
     type Output: Forward;
     /// The error returned by [`Self::process`].
-    ///
-    /// Implementations should use specific errors, instead of returning
-    /// [`ProcessingError`] directly.
-    type Error: Into<ProcessingError>;
+    type Error: std::error::Error;
 
     /// Extracts a [`Self::UnitOfWork`] from a [`ManagedEnvelope`].
     ///
     /// This is infallible, if a processor wants to report an error,
     /// it should return a [`Self::UnitOfWork`] which later, can produce an error when being
-    ///
-    // TODO: better name
-    // TODO: specify that the unit of work needs to be tracked, maybe encode that as a Track<UnitOfWork>,
-    // for outcomes etc.
-    // Maybe unit of work needs to implement a trait which can describe contents for outcomes etc,
-    // emitted by `Track`.
-    // TODO: maybe we don't need this preparation step at all?
     fn prepare_envelope(&self, envelope: &mut ManagedEnvelope)
     -> Option<Managed<Self::UnitOfWork>>;
 
-    // TODO: move processing error when it makes sense
-    // TODO: we may need multiple different entry points, one for each mode:
-    //  - processing
-    //  - managed internal (pop)
-    //  - managed external
-    //  - proxy
-    //  - static
-    // TODO: what are the outputs of the processing function?
-    //  - extracted metrics
-    //  - the result which can be converted into envelope + things for upstream?
+    /// Processes a [`Self::UnitOfWork`].
     async fn process(
         &self,
         work: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Self::Error>>;
-
-    // TODO: maybe an on error here, might be hard to call with work (as ownership is gone)?
-    // The handler could emit outcomes but propagate okay upwards or fail upwards?
 }
 
 /// Read-only context for processing.
 #[derive(Copy, Clone)]
 pub struct Context<'a> {
+    /// The Relay configuration.
     pub config: &'a Config,
+    /// A view of the currently active global configuration.
     pub global_config: &'a GlobalConfig,
-    // pub scoping: Scoping, part of scoping
+    /// Project configuration associated with the unit of work.
     pub project_info: &'a ProjectInfo,
+    /// Cached rate limits associated with the unit of work.
+    ///
+    /// The caller needs to ensure the rate limits are not yet expired.
     pub rate_limits: &'a RateLimits,
 }
 
@@ -114,21 +97,21 @@ impl Context<'_> {
     }
 }
 
-// TODO: better docs:
-/// A way to make sure outcomes have been emitted
+/// A wrapper type which ensures outcomes have been emitted for an error.
+///
+/// Errors are marked by [`Managed`], when outcomes have been emitted.
 #[derive(Debug, Clone, Copy)]
 #[must_use = "a rejection must be propagated"]
 pub struct Rejected<T>(T);
 
 impl<T> Rejected<T> {
+    /// Extracts the underlying error.
     pub fn into_inner(self) -> T {
         self.0
     }
 }
 
 /// The main processing output and all of its by products.
-///
-/// TODO: the output needs to be tracked as well
 pub struct Output<T> {
     pub main: T,
     pub metrics: ProcessingExtractedMetrics,
@@ -293,6 +276,10 @@ impl<T: Counted> Managed<T> {
         Managed::from_parts(other, Arc::clone(&self.meta))
     }
 
+    pub fn received_at(&self) -> DateTime<Utc> {
+        self.meta.received_at
+    }
+
     pub fn scoping(&self) -> Scoping {
         self.meta.scoping
     }
@@ -372,7 +359,10 @@ impl<T: Counted> Managed<T> {
     where
         E: OutcomeError,
     {
-        let (outcome, error) = error.consume();
+        let (outcome, error) = match error.consume() {
+            (Some(outcome), error) => (outcome, error),
+            (None, error) => return Rejected(error),
+        };
         self.do_reject(outcome);
         Rejected(error)
     }
@@ -455,13 +445,24 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
 pub trait OutcomeError {
     type Error;
 
-    fn consume(self) -> (Outcome, Self::Error);
+    /// Consumes the error and returns an outcome and [`Self::Error`].
+    ///
+    /// Returning a `None` outcome should discard the item(s) silently.
+    fn consume(self) -> (Option<Outcome>, Self::Error);
 }
 
 impl<E> OutcomeError for (Outcome, E) {
     type Error = E;
 
-    fn consume(self) -> (Outcome, Self::Error) {
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        (Some(self.0), self.1)
+    }
+}
+
+impl<E> OutcomeError for (Option<Outcome>, E) {
+    type Error = E;
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
         self
     }
 }
@@ -469,21 +470,21 @@ impl<E> OutcomeError for (Outcome, E) {
 impl OutcomeError for ProcessingError {
     type Error = Self;
 
-    fn consume(self) -> (Outcome, Self::Error) {
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
         // TODO: make our own, better error type than this pos
         let outcome = match &self {
             ProcessingError::DuplicateItem(_) => Outcome::Invalid(DiscardReason::DuplicateItem),
             _ => Outcome::Invalid(DiscardReason::Cors),
         };
 
-        (outcome, self)
+        (Some(outcome), self)
     }
 }
 
 impl OutcomeError for Infallible {
     type Error = Self;
 
-    fn consume(self) -> (Outcome, Self::Error) {
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
         match self {}
     }
 }
@@ -548,7 +549,10 @@ impl<'a> RecordKeeper<'a> {
     where
         E: OutcomeError,
     {
-        let (outcome, error) = error.consume();
+        let (outcome, error) = match error.consume() {
+            (Some(outcome), error) => (outcome, error),
+            (None, error) => return Rejected(error),
+        };
 
         for (category, quantity) in std::mem::take(&mut self.on_drop) {
             self.meta.track_outcome(outcome.clone(), category, quantity);

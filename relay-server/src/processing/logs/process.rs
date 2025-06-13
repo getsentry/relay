@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use relay_event_normalization::{
     ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, SchemaProcessor,
 };
@@ -10,31 +11,29 @@ use smallvec::SmallVec;
 
 use crate::envelope::{ContainerItems, ContainerParseError, Item, ItemContainer};
 use crate::extractors::RequestMeta;
-use crate::processing::logs::{EinsLog, ZweiLog};
+use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed};
-use crate::services::processor::ProcessingError;
+use crate::services::outcome::DiscardReason;
 
-pub fn expand(logs: Managed<EinsLog>) -> Managed<ZweiLog> {
-    // TODO: if we have to drop singular elements here, how do we keep track which ones were
-    // dropped?
-
+pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
+    let received_at = logs.received_at();
     logs.map(|logs, records| {
-        // TODO: loop over logs
-        // TODO: error handling -> Outcomes for individual elements
         let mut all_logs = SmallVec::with_capacity(logs.count());
 
         for logs in logs.logs {
-            let expanded = expand_log_container(&logs);
+            let expanded = expand_log_container(&logs, received_at);
             let expanded = records.or_default(expanded, logs);
             all_logs.extend(expanded);
         }
 
         all_logs.reserve_exact(logs.otel_logs.len());
         for otel_log in logs.otel_logs {
-            records.with(expand_otel_log(&otel_log), |log| all_logs.push(log));
+            records.with(expand_otel_log(&otel_log, received_at), |log| {
+                all_logs.push(log)
+            });
         }
 
-        ZweiLog {
+        ExpandedLogs {
             headers: logs.headers,
             logs: all_logs,
         }
@@ -42,23 +41,26 @@ pub fn expand(logs: Managed<EinsLog>) -> Managed<ZweiLog> {
 }
 
 /// TODO: this could store errors in the annotated, but I am not sure how much sense this makes
-fn expand_otel_log(item: &Item) -> Result<Annotated<OurLog>, ()> {
+fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<Annotated<OurLog>> {
     let log = serde_json::from_slice::<OtelLog>(&item.payload())
         .inspect_err(|err| {
             relay_log::debug!("failed to parse OTel Log: {err}");
         })
-        .map_err(drop)?;
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
 
-    let log = relay_ourlogs::otel_to_sentry_log(log)
+    let log = relay_ourlogs::otel_to_sentry_log(log, received_at)
         .inspect_err(|err| {
             relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
         })
-        .map_err(drop)?;
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
 
     Ok(Annotated::new(log))
 }
 
-fn expand_log_container(item: &Item) -> Result<ContainerItems<OurLog>, ContainerParseError> {
+fn expand_log_container(
+    item: &Item,
+    received_at: DateTime<Utc>,
+) -> Result<ContainerItems<OurLog>, ContainerParseError> {
     let mut logs = ItemContainer::parse(item)
         .inspect_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
@@ -66,13 +68,13 @@ fn expand_log_container(item: &Item) -> Result<ContainerItems<OurLog>, Container
         .into_items();
 
     for log in &mut logs {
-        relay_ourlogs::ourlog_merge_otel(log);
+        relay_ourlogs::ourlog_merge_otel(log, received_at);
     }
 
     Ok(logs)
 }
 
-pub fn process(logs: &mut Managed<ZweiLog>, ctx: Context<'_>) {
+pub fn process(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     // TODO: some signature that allows to directly retain items seems thinkable
     logs.modify(|logs, records| {
         let meta = logs.headers.meta();
@@ -81,11 +83,7 @@ pub fn process(logs: &mut Managed<ZweiLog>, ctx: Context<'_>) {
     });
 }
 
-fn process_log(
-    log: &mut Annotated<OurLog>,
-    meta: &RequestMeta,
-    ctx: Context<'_>,
-) -> Result<(), ProcessingError> {
+fn process_log(log: &mut Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {
     scrub(log, ctx).inspect_err(|err| {
         relay_log::debug!("failed to scrub pii from log: {err}");
     })?;
@@ -97,13 +95,13 @@ fn process_log(
     Ok(())
 }
 
-fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<(), ProcessingError> {
+fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     let pii_config = ctx
         .project_info
         .config
         .datascrubbing_settings
         .pii_config()
-        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+        .map_err(|e| Error::PiiConfigError(e.clone()))?;
 
     if let Some(ref config) = ctx.project_info.config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
@@ -118,11 +116,11 @@ fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<(), Processing
     Ok(())
 }
 
-fn normalize(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<(), ProcessingError> {
+fn normalize(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
     process_value(log, &mut SchemaProcessor, ProcessingState::root())?;
 
     let Some(log) = log.value_mut() else {
-        return Err(ProcessingError::NoEventPayload);
+        return Err(Error::Invalid(DiscardReason::NoData));
     };
 
     process_attribute_types(log);

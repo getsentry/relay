@@ -541,12 +541,18 @@ pub enum ProcessingError {
     #[cfg(all(sentry, feature = "processing"))]
     #[error("playstation dump processing failed: {0}")]
     InvalidPlaystationDump(String),
+
+    #[error("processing group does not match specific processor")]
+    ProcessingGroupMismatch,
+    #[error("new processing pipeline failed")]
+    ProcessingFailure,
+    #[error("failed to serialize processing result to an envelope")]
+    ProcessingEnvelopeSerialization,
 }
 
 impl ProcessingError {
     fn to_outcome(&self) -> Option<Outcome> {
         match self {
-            // General outcomes for invalid events
             Self::PayloadTooLarge(payload_type) => {
                 Some(Outcome::Invalid(DiscardReason::TooLarge(*payload_type)))
             }
@@ -562,35 +568,34 @@ impl ProcessingError {
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
-
             #[cfg(feature = "processing")]
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
-
-            // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
                 Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
-
-            // Internal errors
             Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
-
-            // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
-
             Self::InvalidReplay(reason) => Some(Outcome::Invalid(*reason)),
             Self::ReplayFiltered(key) => Some(Outcome::Filtered(key.clone())),
+
+            Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
+            // Outcomes are emitted in the new processing pipeline already.
+            Self::ProcessingFailure => None,
+            Self::ProcessingEnvelopeSerialization => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
         }
     }
 
@@ -2138,28 +2143,26 @@ impl EnvelopeProcessorService {
                 false,
                 "there must be work for the logs processor in the logs processing group"
             );
-            return Err(ProcessingError::NoEventPayload);
+            return Err(ProcessingError::ProcessingGroupMismatch);
         };
 
         debug_assert!(
             managed_envelope.envelope_mut().is_empty(),
             "processing group should map 1:1 to processor"
         );
-
         managed_envelope.update();
-        managed_envelope.reject(Outcome::RateLimited(None));
+        managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal));
 
         let output = processor
             .process(logs, ctx)
             .await
-            .map_err(|err| err.into_inner())?;
+            .map_err(|_| ProcessingError::ProcessingFailure)?;
 
         let managed_envelope = ManagedEnvelope::from(
             output
                 .main
                 .serialize_envelope()
-                // TODO: better error here
-                .map_err(|_| ProcessingError::NoEventPayload)?,
+                .map_err(|_| ProcessingError::ProcessingEnvelopeSerialization)?,
         );
 
         Ok(ProcessingResult {

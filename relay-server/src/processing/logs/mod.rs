@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
+use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::OurLog;
-use relay_quotas::DataCategory;
+use relay_pii::PiiConfigError;
+use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{
     ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
 use crate::processing::{
-    self, Context, Counted, Forward, Managed, ManagedResult as _, Output, Quantities,
+    self, Context, Counted, Forward, Managed, ManagedResult as _, OutcomeError, Output, Quantities,
     QuotaRateLimiter, RateLimited, RateLimiter, Rejected, if_processing,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -19,6 +21,55 @@ mod filter;
 #[cfg(feature = "processing")]
 mod process;
 mod validate;
+
+type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("")]
+    DuplicateContainer,
+    /// Events filtered because of a missing feature flag.
+    #[error("")]
+    FilterFeatureFlag,
+    /// Events filtered either due to a global sampling rule.
+    #[error("")]
+    FilterSampling,
+    #[error("")]
+    RateLimited(RateLimits),
+    #[error("")]
+    PiiConfigError(PiiConfigError),
+    #[error("envelope processor failed")]
+    ProcessingFailed(#[from] ProcessingAction),
+    #[error("")]
+    Invalid(DiscardReason),
+}
+
+impl OutcomeError for Error {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        let outcome = match &self {
+            Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::FilterFeatureFlag => None,
+            Self::FilterSampling => None,
+            Self::RateLimited(limits) => {
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                Some(Outcome::RateLimited(reason_code))
+            }
+            Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
+            Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
+        };
+
+        (outcome, self)
+    }
+}
+
+impl From<Error> for ProcessingError {
+    fn from(value: Error) -> Self {
+        todo!()
+    }
+}
 
 pub struct LogsProcessor {
     limiter: Arc<QuotaRateLimiter>,
@@ -31,9 +82,9 @@ impl LogsProcessor {
 }
 
 impl processing::Processor for LogsProcessor {
-    type UnitOfWork = EinsLog;
+    type UnitOfWork = SerializedLogs;
     type Output = LogOutput;
-    type Error = ProcessingError;
+    type Error = Error;
 
     fn prepare_envelope(
         &self,
@@ -48,7 +99,7 @@ impl processing::Processor for LogsProcessor {
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::Log));
 
-        let work = EinsLog {
+        let work = SerializedLogs {
             headers,
             otel_logs,
             logs,
@@ -60,7 +111,7 @@ impl processing::Processor for LogsProcessor {
         &self,
         mut logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
-    ) -> Result<Output<Self::Output>, Rejected<ProcessingError>> {
+    ) -> Result<Output<Self::Output>, Rejected<Error>> {
         validate::container(&logs, ctx)?;
         filter::feature_flag(ctx).reject(&logs)?;
 
@@ -82,18 +133,18 @@ impl processing::Processor for LogsProcessor {
 // TODO: `Items` is seemingly massive (smallvec of Item)
 #[expect(clippy::large_enum_variant)]
 pub enum LogOutput {
-    NotProcessed(Managed<EinsLog>),
-    Processed(Managed<ZweiLog>),
+    NotProcessed(Managed<SerializedLogs>),
+    Processed(Managed<ExpandedLogs>),
 }
 
-impl From<Managed<EinsLog>> for LogOutput {
-    fn from(value: Managed<EinsLog>) -> Self {
+impl From<Managed<SerializedLogs>> for LogOutput {
+    fn from(value: Managed<SerializedLogs>) -> Self {
         Self::NotProcessed(value)
     }
 }
 
-impl From<Managed<ZweiLog>> for LogOutput {
-    fn from(value: Managed<ZweiLog>) -> Self {
+impl From<Managed<ExpandedLogs>> for LogOutput {
+    fn from(value: Managed<ExpandedLogs>) -> Self {
         Self::Processed(value)
     }
 }
@@ -113,7 +164,9 @@ impl Forward for LogOutput {
     }
 }
 
-pub struct EinsLog {
+/// Logs in their serialized state, as transported in an envelope.
+pub struct SerializedLogs {
+    /// Original envelope headers.
     headers: EnvelopeHeaders,
 
     /// Otel Logs are not sent in containers, an envelope is very likely to contain multiple otel logs.
@@ -126,7 +179,7 @@ pub struct EinsLog {
     logs: Items,
 }
 
-impl EinsLog {
+impl SerializedLogs {
     fn serialize_envelope(self) -> Box<Envelope> {
         let mut items = self.logs;
         items.extend(self.otel_logs);
@@ -144,7 +197,7 @@ impl EinsLog {
     }
 }
 
-impl Counted for EinsLog {
+impl Counted for SerializedLogs {
     fn quantities(&self) -> Quantities {
         let bytes = self.items().map(|item| item.len()).sum();
 
@@ -155,8 +208,8 @@ impl Counted for EinsLog {
     }
 }
 
-impl RateLimited for Managed<EinsLog> {
-    type Error = ProcessingError;
+impl RateLimited for Managed<SerializedLogs> {
+    type Error = Error;
 
     async fn enforce<T>(
         &mut self,
@@ -174,46 +227,47 @@ impl RateLimited for Managed<EinsLog> {
         // }
         let scoping = self.scoping();
 
-        // TODO: maybe we need over-accept here?
         let items = rate_limiter
             .try_consume(scoping.item(DataCategory::LogItem), self.logs.len())
             .await;
         let bytes = rate_limiter
+            // TODO: byte count needs to be fixed, eventually
             .try_consume(scoping.item(DataCategory::LogByte), 100)
             .await;
         let total_limits = items.merge_with(bytes);
 
-        // TODO: this check uses the current time, but maybe the 'checker' should only return
-        // active limits (what currently is the case), then this check could be `is_empty()`.
-        if total_limits.is_limited() {
-            return Err(self.reject_err(ProcessingError::NoEventPayload));
+        if !total_limits.is_empty() {
+            return Err(self.reject_err(Error::RateLimited(total_limits)));
         }
 
         Ok(())
     }
 }
 
-pub struct ZweiLog {
+/// Logs which have been parsed and expanded from their serialized state.
+pub struct ExpandedLogs {
+    /// Original envelope headers.
     headers: EnvelopeHeaders,
+    /// Expanded and parsed logs.
     logs: ContainerItems<OurLog>,
 }
 
-impl Counted for ZweiLog {
+impl Counted for ExpandedLogs {
     fn quantities(&self) -> Quantities {
         // TODO: bytes are missing here
         smallvec::smallvec![(DataCategory::LogItem, 1)]
     }
 }
 
-impl ZweiLog {
-    fn serialize(self) -> Result<EinsLog, ContainerWriteError> {
+impl ExpandedLogs {
+    fn serialize(self) -> Result<SerializedLogs, ContainerWriteError> {
         let mut item = Item::new(ItemType::Log);
 
         ItemContainer::from(self.logs)
             .write_to(&mut item)
             .inspect_err(|err| relay_log::debug!("failed to serialize logs: {err}"))?;
 
-        Ok(EinsLog {
+        Ok(SerializedLogs {
             headers: self.headers,
             otel_logs: Default::default(),
             logs: smallvec::smallvec![item],
