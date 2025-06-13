@@ -2616,12 +2616,12 @@ impl Config {
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 
-    /// Returns `true` if we should produce TraceItem spans on `snuba-items`
+    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
     pub fn produce_protobuf_spans(&self) -> bool {
         self.values.processing.span_producers.produce_protobuf
     }
 
-    /// Returns `true` if we should produce JSON spans on `ingest-spans`
+    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
     pub fn produce_json_spans(&self) -> bool {
         self.values.processing.span_producers.produce_json
     }
