@@ -299,8 +299,8 @@ impl futures::Stream for LimitedField<'_> {
         }
     }
 }
-
-pub struct UnconstrainedMultipart(#[allow(dead_code)] pub Multipart<'static>);
+#[allow(dead_code)]
+pub struct UnconstrainedMultipart(pub Multipart<'static>);
 
 impl FromRequest<ServiceState> for UnconstrainedMultipart {
     type Rejection = Remote<multer::Error>;
@@ -481,7 +481,7 @@ mod tests {
 
         let config = Config::from_json_value(serde_json::json!({
             "limits": {
-                "max_attachments_size": 5
+                "max_attachments_size": 30
             }
         }))?;
 
