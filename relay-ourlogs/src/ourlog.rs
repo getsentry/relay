@@ -1,8 +1,8 @@
 use chrono::{DateTime, TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
-use relay_common::time::UnixTimestamp;
 
 use crate::OtelLog;
+use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::datetime_to_timestamp;
 use relay_event_schema::protocol::{
     Attribute, AttributeType, OurLog, OurLogLevel, SpanId, Timestamp, TraceId,
