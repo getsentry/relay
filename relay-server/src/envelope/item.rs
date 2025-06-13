@@ -385,7 +385,6 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::Nel
             | ItemType::UnrealReport
             | ItemType::UserReportV2 => true,
 
@@ -427,6 +426,7 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
+            | ItemType::Nel
             | ItemType::Log
             | ItemType::OtelLog
             | ItemType::OtelSpan
