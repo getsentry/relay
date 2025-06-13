@@ -89,6 +89,7 @@ mod attachment;
 mod dynamic_sampling;
 mod event;
 mod metrics;
+mod nel;
 mod ourlog;
 mod profile;
 mod profile_chunk;
@@ -251,6 +252,8 @@ pub enum ProcessingGroup {
     Replay,
     /// Crons.
     CheckIn,
+    /// NEL reports.
+    Nel,
     /// Logs.
     Log,
     /// Spans.
@@ -271,19 +274,6 @@ impl ProcessingGroup {
     pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
         let headers = envelope.headers().clone();
         let mut grouped_envelopes = smallvec![];
-
-        // Each NEL item *must* have a dedicated envelope.
-        let nel_envelopes = envelope
-            .take_items_by(|item| matches!(item.ty(), &ItemType::Nel))
-            .into_iter()
-            .map(|item| {
-                let headers = headers.clone();
-                let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
-                let mut envelope = Envelope::from_parts(headers, items);
-                envelope.set_event_id(EventId::new());
-                (ProcessingGroup::Error, envelope)
-            });
-        grouped_envelopes.extend(nel_envelopes);
 
         // Extract replays.
         let replay_items = envelope.take_items_by(|item| {
@@ -332,6 +322,16 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::Log,
                 Envelope::from_parts(headers.clone(), logs_items),
+            ))
+        }
+
+        // NEL items are converted to logs, but need their own processing before being merged with
+        // logs.
+        let nel_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Nel));
+        if !nel_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Nel,
+                Envelope::from_parts(headers.clone(), nel_items),
             ))
         }
 
@@ -2119,6 +2119,16 @@ impl EnvelopeProcessorService {
         Ok(None)
     }
 
+    async fn process_nel(
+        &self,
+        managed_envelope: &mut TypedEnvelope<LogGroup>,
+        project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
+    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+        nel::convert_to_logs(managed_envelope);
+        self.process_logs(managed_envelope, project_info, rate_limits)
+    }
+
     /// Process logs
     ///
     async fn process_logs(
@@ -2320,6 +2330,7 @@ impl EnvelopeProcessorService {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
             ProcessingGroup::Log => run!(process_logs, project_info, rate_limits),
+            ProcessingGroup::Nel => run!(process_nel, project_info, rate_limits),
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
