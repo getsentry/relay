@@ -1012,9 +1012,14 @@ impl StoreService {
                 let Some(raw_value) = raw_value else { continue };
                 let json_value = match serde_json::Value::deserialize(raw_value) {
                     Ok(value) => value,
-                    Err(err) => relay_log::error!(error = &err as &dyn std::error::Error, "failed to deserialize span data value: {key}");
+                    Err(err) => {
+                        relay_log::error!(
+                            error = &err as &dyn std::error::Error,
+                            "failed to deserialize span data value: {key}"
+                        );
+                        continue;
+                    }
                 };
-
                 let any_value = match json_value {
                     JsonValue::String(string) => AnyValue {
                         value: Some(Value::StringValue(string)),
@@ -1035,15 +1040,8 @@ impl StoreService {
                     JsonValue::Bool(bool) => AnyValue {
                         value: Some(Value::BoolValue(bool)),
                     },
-                    JsonValue::Array(value) => AnyValue {
-                        value: Some(Value::StringValue(
-                            serde_json::to_string(&value).unwrap_or_default(),
-                        )),
-                    },
-                    JsonValue::Object(value) => AnyValue {
-                        value: Some(Value::StringValue(
-                            serde_json::to_string(&value).unwrap_or_default(),
-                        )),
+                    JsonValue::Array(_) | JsonValue::Object(_) => AnyValue {
+                        value: Some(Value::StringValue(raw_value.get().to_owned())),
                     },
                     _ => continue,
                 };
