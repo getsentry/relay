@@ -279,10 +279,7 @@ impl StoreService {
                     replay_recording = Some(item);
                 }
                 ItemType::ReplayEvent => {
-                    if item.replay_combined_payload() {
-                        replay_event = Some(item);
-                    }
-
+                    replay_event = Some(item);
                     self.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,

@@ -16,14 +16,7 @@ def test_replay_combined_with_processing(
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
         project_id,
-        extra={
-            "config": {
-                "features": [
-                    "organizations:session-replay",
-                    "organizations:session-replay-combined-envelope-items",
-                ]
-            }
-        },
+        extra={"config": {"features": ["organizations:session-replay"]}},
     )
     replay_recordings_consumer = replay_recordings_consumer()
     replay_events_consumer = replay_events_consumer(timeout=10)
