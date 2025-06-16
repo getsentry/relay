@@ -23,6 +23,9 @@ use crate::utils::{ItemAction, ManagedEnvelope};
 ///  - `max_session_count`
 ///  - `max_span_size`
 ///  - `max_statsd_size`
+///  - `max_container_size`
+///  - `max_span_count`
+///  - `max_log_count`
 pub fn check_envelope_size_limits(
     config: &Config,
     envelope: &Envelope,
@@ -32,9 +35,15 @@ pub fn check_envelope_size_limits(
     let mut event_size = 0;
     let mut attachments_size = 0;
     let mut session_count = 0;
+    let mut span_count = 0;
+    let mut log_count = 0;
     let mut client_reports_size = 0;
 
     for item in envelope.items() {
+        if item.is_container() && item.len() > config.max_container_size() {
+            return Err(item.ty().into());
+        }
+
         let max_size = match item.ty() {
             ItemType::Event
             | ItemType::Transaction
@@ -65,15 +74,24 @@ pub fn check_envelope_size_limits(
             ItemType::CheckIn => config.max_check_in_size(),
             ItemType::Statsd => config.max_statsd_size(),
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
-            ItemType::Log => config.max_log_size(),
-            ItemType::OtelLog => config.max_log_size(),
-            ItemType::Span | ItemType::OtelSpan => config.max_span_size(),
+            ItemType::Log | ItemType::OtelLog => {
+                log_count += item.item_count().unwrap_or(1) as usize;
+                config.max_log_size()
+            }
+            ItemType::Span | ItemType::OtelSpan => {
+                span_count += item.item_count().unwrap_or(1) as usize;
+                config.max_span_size()
+            }
             ItemType::OtelTracesData => config.max_event_size(), // a spans container similar to `Transaction`
             ItemType::ProfileChunk => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,
         };
 
-        if item.len() > max_size {
+        // For item containers, we want to check that the contained items obey
+        // the size limits *on average*.
+        // For standalone items, this is just the item size itself.
+        let avg_item_size = item.len() / (item.item_count().unwrap_or(1) as usize);
+        if avg_item_size > max_size {
             return Err(item
                 .attachment_type()
                 .map(|t| t.into())
@@ -91,6 +109,12 @@ pub fn check_envelope_size_limits(
     }
     if session_count > config.max_session_count() {
         return Err(DiscardItemType::Session);
+    }
+    if span_count > config.max_span_count() {
+        return Err(DiscardItemType::Span);
+    }
+    if log_count > config.max_log_count() {
+        return Err(DiscardItemType::Log);
     }
     if client_reports_size > config.max_client_reports_size() {
         return Err(DiscardItemType::ClientReport);
