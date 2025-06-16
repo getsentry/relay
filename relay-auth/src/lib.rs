@@ -792,26 +792,56 @@ impl RelaySignatureData {
         }
     }
 
-    /// Verifies the signature against a single public key and checks if the timestamp
-    /// is within the specified `max_age`.
-    pub fn verify(&self, public_key: &PublicKey, max_age: Option<Duration>) -> bool {
-        public_key.verify_timestamp(&self.data, &self.signature, max_age)
+    /// Verifies the signature against a public key and checks its timestamp validity.
+    ///
+    /// This function performs two checks:
+    /// 1. It verifies that the signature is valid for the given data and public key.
+    /// 2. If `max_age` is specified, it checks that the signature's embedded timestamp
+    ///    is not older than `max_age` compared to the provided `start_time`.
+    pub fn verify(
+        &self,
+        public_key: &PublicKey,
+        start_time: DateTime<Utc>,
+        max_age: Option<Duration>,
+    ) -> bool {
+        let Some(header) = public_key.verify_meta(&self.data, &self.signature) else {
+            return false;
+        };
+        let Some(timestamp) = header.timestamp else {
+            return false;
+        };
+        match max_age {
+            Some(age) => {
+                let elapsed = start_time - timestamp;
+                elapsed >= Duration::zero() && elapsed <= age
+            }
+            None => true,
+        }
     }
 
-    /// Verifies the signature against any of the public keys and returns `true` if
-    /// one of them can verify it successfully. Also makes sure that the timestamp
-    /// is within the specified `max_age`.
-    pub fn verify_any(&self, public_keys: &[PublicKey], max_age: Option<Duration>) -> bool {
+    /// Verifies the signature against a list of public keys and returns `true`
+    /// if any of them can successfully verify it.
+    ///
+    /// This method attempts to verify the signature using each provided `PublicKey`.
+    /// The signature is considered valid if one key verifies it and the
+    /// timestamp check (if `max_age` is specified) passes.
+    ///
+    /// See [`RelaySignatureData::verify`] for details on how each verification is performed.
+    pub fn verify_any(
+        &self,
+        public_keys: &[PublicKey],
+        start_time: DateTime<Utc>,
+        max_age: Option<Duration>,
+    ) -> bool {
         public_keys
             .iter()
-            .any(|public_key| self.verify(public_key, max_age))
+            .any(|public_key| self.verify(public_key, start_time, max_age))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread::sleep;
 
     #[test]
     fn test_keys() {
@@ -1038,7 +1068,7 @@ mod tests {
         let data = Bytes::new();
         let signature = pair3.0.sign(&data);
         let signature_data = RelaySignatureData::new(signature, data);
-        assert!(signature_data.verify_any(&[pair1.1, pair2.1, pair3.1], None));
+        assert!(signature_data.verify_any(&[pair1.1, pair2.1, pair3.1], Utc::now(), None));
     }
 
     #[test]
@@ -1085,33 +1115,52 @@ mod tests {
 
     #[test]
     fn test_verify_max_age() {
+        let start_time = Utc::now();
         let pair = generate_key_pair();
         let data = Bytes::new();
         let signature = pair.0.sign(&data);
         let signature_data = RelaySignatureData::new(signature, data);
         // The signature is valid in general
-        assert!(signature_data.verify(&pair.1, None));
-        sleep(std::time::Duration::from_millis(1000));
+        assert!(signature_data.verify(&pair.1, start_time, None));
         // Signature is no longer valid because too much time elapsed
-        assert!(!signature_data.verify(&pair.1, Some(Duration::milliseconds(500))))
+        assert!(!signature_data.verify(
+            &pair.1,
+            start_time - Duration::seconds(1),
+            Some(Duration::milliseconds(500))
+        ))
     }
 
     #[test]
     fn test_verify_any_max_age() {
+        let start_time = Utc::now();
         let pair1 = generate_key_pair();
         let pair2 = generate_key_pair();
         let pair3 = generate_key_pair();
 
         let data = Bytes::new();
-        let signature = pair3.0.sign(&data);
+        let header = SignatureHeader {
+            timestamp: Some(start_time),
+        };
+        let signature = pair3.0.sign_with_header(&data, &header);
         let signature_data = RelaySignatureData::new(signature, data);
 
         let public_keys = &[pair1.1, pair2.1, pair3.1];
 
         // Signature is valid in general
-        assert!(signature_data.verify_any(public_keys, None));
-        sleep(std::time::Duration::from_millis(1000));
+        assert!(signature_data.verify_any(public_keys, start_time, None));
+        // Signature still valid
+        assert!(signature_data.verify_any(public_keys, start_time, Some(Duration::seconds(2))));
+        // Signature still valid after 1 second
+        assert!(signature_data.verify_any(
+            public_keys,
+            start_time + Duration::seconds(1),
+            Some(Duration::seconds(2))
+        ));
         // Signature is no longer valid because too much time elapsed
-        assert!(!signature_data.verify_any(public_keys, Some(Duration::milliseconds(500))))
+        assert!(!signature_data.verify_any(
+            public_keys,
+            start_time + Duration::seconds(3),
+            Some(Duration::seconds(2))
+        ))
     }
 }

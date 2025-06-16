@@ -143,10 +143,11 @@ impl ProjectInfo {
         {
             match envelope.meta().signature() {
                 Some(RelaySignature::Valid(signature)) => {
-                    // signatures that are older than 5 minutes will be dropped.
-                    if !signature
-                        .verify_any(&self.config.trusted_relays, Some(Duration::minutes(5)))
-                    {
+                    if !signature.verify_any(
+                        &self.config.trusted_relays,
+                        envelope.received_at(),
+                        Some(Duration::seconds(config.signature_max_age() as i64)),
+                    ) {
                         return Err(DiscardReason::InvalidSignature);
                     }
                 }
