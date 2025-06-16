@@ -772,7 +772,7 @@ def test_span_ingestion(
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
                 # Backfilled from `sentry_tags`:
-                "sentry.op": "my 1st otel span",
+                "sentry.op": "default",
                 "sentry.browser.name": "Chrome",
                 "sentry.status": "unknown",
             },
@@ -815,7 +815,7 @@ def test_span_ingestion(
                 "Chrome/111.0.0.0 Safari/537.36",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Chrome",
-                "sentry.op": "my 1st v2 span",
+                "sentry.op": "default",
                 "sentry.status": "unknown",
             },
             "duration_ms": 500,
@@ -985,7 +985,7 @@ def test_span_ingestion(
                 "user_agent.original": "python-requests/2.32.2",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
-                "sentry.op": "my 2nd otel span",
+                "sentry.op": "default",
                 "sentry.status": "unknown",
             },
             "duration_ms": 500,
@@ -1056,7 +1056,7 @@ def test_span_ingestion(
                 "user_agent.original": "python-requests/2.32.2",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
-                "sentry.op": "my 3rd protobuf otel span",
+                "sentry.op": "default",
                 "sentry.category": "ui",
                 "sentry.status": "unknown",
             },
