@@ -24,6 +24,7 @@ setuptools==70.0.0
 werkzeug==3.0.6
 zstandard==0.18.0
 sentry_protos==0.2.0
+pytest-insta==0.3.0
 
 # typing things
 mypy==1.10.0
