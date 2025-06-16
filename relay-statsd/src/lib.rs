@@ -22,6 +22,7 @@
 //!
 //! ```no_run
 //! # use std::collections::BTreeMap;
+//! use statsdproxy::config::DenyTagConfig;
 //! # use relay_statsd::MetricsClientConfig;
 //!
 //! relay_statsd::init(MetricsClientConfig {
@@ -30,9 +31,11 @@
 //!     default_tags: BTreeMap::new(),
 //!     sample_rate: 1.0,
 //!     aggregate: true,
-//!     deny_tags: vec![],
-//!     deny_starts_with: vec![],
-//!     deny_ends_with: vec![]
+//!     deny_tag_config: DenyTagConfig {
+//!         tags: vec![],
+//!         starts_with: vec![],
+//!         ends_with: vec![]
+//!     }
 //! });
 //! ```
 //!
@@ -66,11 +69,13 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
+pub use statsdproxy::config::DenyTagConfig;
+
 use cadence::{Metric, MetricBuilder, StatsdClient};
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 use statsdproxy::cadence::StatsdProxyMetricSink;
-use statsdproxy::config::{AggregateMetricsConfig, DenyTagConfig};
+use statsdproxy::config::AggregateMetricsConfig;
 use statsdproxy::middleware::deny_tag::DenyTag;
 use std::collections::BTreeMap;
 use std::net::ToSocketAddrs;
@@ -109,12 +114,8 @@ pub struct MetricsClientConfig<'a, A: ToSocketAddrs> {
     pub sample_rate: f32,
     /// If metrics should be batched or send immediately upstream.
     pub aggregate: bool,
-    /// A list of tag names that will be removed when they exactly match any value specified.
-    pub deny_tags: Vec<String>,
-    /// A list of prefixes. Any tag that ends with any of these suffixes will be removed.
-    pub deny_starts_with: Vec<String>,
-    /// A list of suffixes. Any tag that ends with any of these suffixes will be removed.
-    pub deny_ends_with: Vec<String>,
+    /// Deny tags from metrics based on this configuration.
+    pub deny_tag_config: DenyTagConfig,
 }
 
 impl Deref for MetricsClient {
@@ -276,9 +277,9 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
                 .expect("failed to create statsdproxy metric sink");
 
             let deny_config = DenyTagConfig {
-                tags: config.deny_tags.clone(),
-                starts_with: config.deny_starts_with.clone(),
-                ends_with: config.deny_ends_with.clone(),
+                tags: config.deny_tag_config.tags.clone(),
+                starts_with: config.deny_tag_config.starts_with.clone(),
+                ends_with: config.deny_tag_config.ends_with.clone(),
             };
 
             let deny = DenyTag::new(deny_config, upstream);
@@ -302,9 +303,9 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
                 .expect("failed to create statsdproxy metric sind");
 
             let deny_config = DenyTagConfig {
-                tags: config.deny_tags.clone(),
-                starts_with: config.deny_starts_with.clone(),
-                ends_with: config.deny_ends_with.clone(),
+                tags: config.deny_tag_config.tags.clone(),
+                starts_with: config.deny_tag_config.starts_with.clone(),
+                ends_with: config.deny_tag_config.ends_with.clone(),
             };
 
             DenyTag::new(deny_config, upstream)

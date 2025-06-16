@@ -2109,17 +2109,17 @@ impl Config {
     }
 
     /// Returns a list of tags that should be removed from metrics.
-    pub fn metrics_deny_list(&self) -> &Vec<String> {
+    pub fn metrics_deny_list(&self) -> &[String] {
         &self.values.metrics.deny_tags.tags
     }
 
     /// Returns a list of prefixes to removes tags that matches them.
-    pub fn metrics_starts_with_deny_list(&self) -> &Vec<String> {
+    pub fn metrics_starts_with_deny_list(&self) -> &[String] {
         &self.values.metrics.deny_tags.starts_with
     }
 
     /// Returns a list of suffixes to removes tags that matches them.
-    pub fn metrics_ends_with_deny_list(&self) -> &Vec<String> {
+    pub fn metrics_ends_with_deny_list(&self) -> &[String] {
         &self.values.metrics.deny_tags.ends_with
     }
 

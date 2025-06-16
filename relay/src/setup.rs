@@ -1,9 +1,9 @@
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use anyhow::Result;
-use relay_config::{Config, RelayMode};
+use relay_config::{Config, DenyMetricTags, RelayMode};
 use relay_server::MemoryStat;
-use relay_statsd::MetricsClientConfig;
+use relay_statsd::{DenyTagConfig, MetricsClientConfig};
 
 /// Validates that the `batch_size_bytes` of the configuration is correct and doesn't lead to
 /// deadlocks in the buffer.
@@ -117,9 +117,11 @@ pub fn init_metrics(config: &Config) -> Result<()> {
         default_tags,
         sample_rate: config.metrics_sample_rate(),
         aggregate: config.metrics_aggregate(),
-        deny_tags: config.metrics_deny_list().to_owned(),
-        deny_starts_with: config.metrics_starts_with_deny_list().to_owned(),
-        deny_ends_with: config.metrics_ends_with_deny_list().to_owned(),
+        deny_tag_config: DenyTagConfig {
+            tags: config.metrics_deny_list().to_owned(),
+            starts_with: config.metrics_starts_with_deny_list().to_owned(),
+            ends_with: config.metrics_ends_with_deny_list().to_owned(),
+        },
     });
 
     Ok(())
