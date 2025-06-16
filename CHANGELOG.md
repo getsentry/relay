@@ -8,6 +8,7 @@
 - Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 - Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 - Enable filtering sessions by IP address, release, and user agent. ([#4745](https://github.com/getsentry/relay/pull/4745))
+- Add configuration to deny tags based on prefix/suffix or exact match. ([#4805](https://github.com/getsentry/relay/pull/4805))
 
 **Bug Fixes**:
 
