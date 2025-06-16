@@ -559,7 +559,7 @@ pub struct Metrics {
     pub aggregate: bool,
     /// Removes tags from all metrics based on the configuration.
     ///
-    /// By default, not tags are removed.
+    /// By default, no tags are removed.
     pub deny_tags: DenyMetricTags,
 }
 
