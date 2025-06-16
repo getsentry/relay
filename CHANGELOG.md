@@ -25,6 +25,7 @@
 - Set default sdk name for playstation crashes. ([#4802](https://github.com/getsentry/relay/pull/4802))
 - Skip large attachments on playstation crashes. ([#4793](https://github.com/getsentry/relay/pull/4793))
 - Use the received timestamp as observed nanos for logs. ([#4810](https://github.com/getsentry/relay/pull/4810))
+- Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
 
 ## 25.5.1
 
