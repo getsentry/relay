@@ -481,7 +481,7 @@ mod tests {
 
         let config = Config::from_json_value(serde_json::json!({
             "limits": {
-                "max_attachments_size": 30
+                "max_attachments_size": 5
             }
         }))?;
 
