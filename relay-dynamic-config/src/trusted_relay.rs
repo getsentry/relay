@@ -5,18 +5,40 @@ use serde::{Deserialize, Serialize};
 #[serde(default, rename_all = "camelCase")]
 pub struct TrustedRelayConfig {
     /// Checks the signature of an event and rejects it if enabled.
-    #[serde(skip_serializing_if = "is_false")]
-    pub verify_signature: bool,
+    #[serde(skip_serializing_if = "SignatureVerification::is_default")]
+    pub verify_signature: SignatureVerification,
 }
 
 impl TrustedRelayConfig {
     pub fn is_empty(&self) -> bool {
-        !self.verify_signature
+        self.verify_signature == SignatureVerification::default()
     }
 }
 
-fn is_false(b: &bool) -> bool {
-    !b
+/// Types of verification that can be performed on the signature.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SignatureVerification {
+    /// Checks the signature for validity and verifies that the embedded timestamp
+    /// is not too old.
+    WithTimestamp,
+    /// Does not perform any validation on the signature.
+    #[default]
+    Disabled,
+}
+
+impl SignatureVerification {
+    pub fn is_default(&self) -> bool {
+        *self == SignatureVerification::default()
+    }
+
+    pub fn is_verify_timestamp(&self) -> bool {
+        *self == SignatureVerification::WithTimestamp
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        *self == SignatureVerification::Disabled
+    }
 }
 
 #[cfg(test)]
@@ -24,8 +46,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_serialize() {
-        let json = r#"{"verifySignature":true}"#;
+    fn test_serialize_with_timestamp() {
+        let json = r#"{"verifySignature":"withTimestamp"}"#;
         let result: TrustedRelayConfig = serde_json::from_str(json).unwrap();
         let serialized = serde_json::to_string(&result).unwrap();
         assert_eq!(json, serialized);
@@ -34,7 +56,7 @@ mod tests {
     #[test]
     fn test_default() {
         let config = TrustedRelayConfig::default();
-        assert!(!config.verify_signature);
+        assert_eq!(config.verify_signature, SignatureVerification::Disabled);
     }
 
     #[test]

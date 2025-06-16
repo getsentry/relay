@@ -18,7 +18,7 @@ use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
-    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SignatureType,
+    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SignatureType, TrySign,
 };
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
@@ -309,7 +309,7 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
     /// Defaults to `None`.
-    fn sign(&mut self) -> Option<SignatureType> {
+    fn sign(&mut self) -> Option<TrySign> {
         None
     }
 
@@ -458,11 +458,14 @@ where
         true
     }
 
-    fn sign(&mut self) -> Option<SignatureType> {
+    fn sign(&mut self) -> Option<TrySign> {
         // Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
-        self.body().ok().map(SignatureType::Body)
+        self.body()
+            .ok()
+            .map(SignatureType::Body)
+            .map(TrySign::Required)
     }
 
     fn method(&self) -> Method {

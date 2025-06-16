@@ -135,7 +135,11 @@ impl ProjectInfo {
         }
 
         if !envelope.meta().is_from_internal_relay()
-            && self.config().trusted_relay_settings.verify_signature
+            && self
+                .config()
+                .trusted_relay_settings
+                .verify_signature
+                .is_verify_timestamp()
         {
             match envelope.meta().signature() {
                 Some(RelaySignature::Valid(signature)) => {

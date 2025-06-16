@@ -65,7 +65,7 @@ use crate::utils::{
     self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
     SamplingResult, TypedEnvelope,
 };
-use relay_auth::SignatureType;
+use relay_auth::{SignatureType, TrySign};
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
@@ -3452,8 +3452,8 @@ impl UpstreamRequest for SendEnvelope {
         Ok(())
     }
 
-    fn sign(&mut self) -> Option<SignatureType> {
-        Some(SignatureType::RequestSign)
+    fn sign(&mut self) -> Option<TrySign> {
+        Some(TrySign::Optional(SignatureType::RequestSign))
     }
 
     fn respond(
@@ -3634,8 +3634,10 @@ impl UpstreamRequest for SendMetricsRequest {
         true
     }
 
-    fn sign(&mut self) -> Option<SignatureType> {
-        Some(SignatureType::Body(self.unencoded.clone()))
+    fn sign(&mut self) -> Option<TrySign> {
+        Some(TrySign::Required(SignatureType::Body(
+            self.unencoded.clone(),
+        )))
     }
 
     fn method(&self) -> reqwest::Method {
