@@ -1480,10 +1480,15 @@ struct SpanKafkaMessage<'a> {
 }
 
 impl SpanKafkaMessage<'_> {
-    /// Backfills `data` based on `sentry_tags`.
+    /// Backfills `data` based on `sentry_tags` and `tags`.
     ///
-    /// Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
-    /// The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    /// * Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
+    ///   The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    ///
+    /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
+    ///   is copied as `sentry.normalized_description`.
+    ///
+    /// Items in `tags` take precedence over those in `sentry_tags`.
     fn backfill_data(&mut self) {
         let data = self.data.get_or_insert_default();
 
