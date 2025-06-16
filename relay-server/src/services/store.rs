@@ -915,6 +915,7 @@ impl StoreService {
             }
         };
 
+        span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
         span.event_id = event_id;
@@ -1184,12 +1185,13 @@ where
         .serialize(serializer)
 }
 
-fn serialize_btreemap_skip_nulls<S>(
-    map: &Option<BTreeMap<&str, Option<String>>>,
+fn serialize_btreemap_skip_nulls<S, T>(
+    map: &Option<BTreeMap<&str, Option<T>>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
+    T: serde::Serialize,
 {
     let Some(map) = map else {
         return serializer.serialize_none();
@@ -1418,8 +1420,8 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     is_remote: bool,
 
-    #[serde(default, skip_serializing_if = "none_or_empty_object")]
-    data: Option<&'a RawValue>,
+    #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
+    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
@@ -1449,7 +1451,8 @@ struct SpanKafkaMessage<'a> {
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
-    sentry_tags: Option<BTreeMap<&'a str, Option<String>>>,
+    #[serde(borrow)]
+    sentry_tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
     span_id: &'a str,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
@@ -1474,6 +1477,34 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     _performance_issues_spans: Option<bool>,
+}
+
+impl SpanKafkaMessage<'_> {
+    /// Backfills `data` based on `sentry_tags`.
+    ///
+    /// Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
+    /// The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    fn backfill_data(&mut self) {
+        let Some(sentry_tags) = self.sentry_tags.as_ref() else {
+            return;
+        };
+
+        let data = self.data.get_or_insert_default();
+
+        for (key, value) in sentry_tags {
+            let Some(value) = value else {
+                continue;
+            };
+
+            let key = if *key == "description" {
+                "sentry.normalized_description".to_owned()
+            } else {
+                format!("sentry.{key}")
+            };
+
+            data.insert(Cow::Owned(key), Some(value));
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1526,6 +1557,10 @@ fn none_or_empty_vec<T>(value: &Option<Vec<T>>) -> bool {
         Some(vec) => vec.is_empty(),
         None => true,
     }
+}
+
+fn none_or_empty_map<S, T>(value: &Option<BTreeMap<S, T>>) -> bool {
+    value.as_ref().is_none_or(BTreeMap::is_empty)
 }
 
 #[derive(Clone, Debug, Serialize)]
