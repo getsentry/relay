@@ -94,6 +94,7 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
     }
 }
 
+/// Strip out the profiler_id from the transaction's profile context if the transaction lasts less than 20ms.
 pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
     let Some(event) = event.value_mut() else {
         return;
