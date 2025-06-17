@@ -330,8 +330,7 @@ impl ProcessingGroup {
             ))
         }
 
-        // NEL items are converted to logs, but need their own processing before being merged with
-        // logs.
+        // NEL items are transformed into logs in their own processing step.
         let nel_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Nel));
         if !nel_items.is_empty() {
             grouped_envelopes.push((

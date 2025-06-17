@@ -18,21 +18,20 @@ def test_nel_converted_to_logs(
     relay.send_nel_event(project_id)
 
     envelope = mini_sentry.captured_events.get(timeout=1)
-    assert [item.type for item in envelope.items] == ["log"]
-    print(envelope)
 
+    assert [item.type for item in envelope.items] == ["log"]
     assert json.loads(envelope.items[0].payload.bytes) == {
         "items": [
             {
                 "attributes": {
-                    "todo.nel.elapsed_time": {"type": "string", "value": 37},
+                    "todo.nel.elapsed_time": {"type": "integer", "value": 37},
                     "todo.nel.error_type": {"type": "string", "value": "http.error"},
                     "todo.nel.phase": {"type": "string", "value": "application"},
                     "todo.nel.referrer": {
                         "type": "string",
                         "value": "https://example.com/nel/",
                     },
-                    "todo.nel.sampling_fraction": {"type": "string", "value": 1.0},
+                    "todo.nel.sampling_fraction": {"type": "double", "value": 1.0},
                     "todo.nel.server_ip": {
                         "type": "string",
                         "value": "123.123.123.123",

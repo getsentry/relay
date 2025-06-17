@@ -2,8 +2,7 @@
 
 use chrono::{DateTime, Duration, Utc};
 use relay_event_schema::protocol::{
-    Attribute, AttributeType, AttributeValue, NetworkReportRaw, OurLog, OurLogLevel, Timestamp,
-    TraceId,
+    Attribute, AttributeValue, NetworkReportRaw, OurLog, OurLogLevel, Timestamp, TraceId,
 };
 use relay_protocol::{Annotated, Object};
 
@@ -12,7 +11,7 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     let nel = nel.into_value()?;
     let body = nel.body.into_value()?;
 
-    let message = if nel.ty.value().map_or("<unknown-type>", |v| v.as_str()) == "http.error" {
+    let message = if nel.ty.value().is_some_and(|v| v.as_str() == "http.error") {
         format!(
             "{} / {} ({})",
             body.phase.as_str().unwrap_or("<unknown-phase>"),
@@ -35,16 +34,15 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 
     macro_rules! add_attribute {
         ($name:literal, $value:expr) => {{
-            attributes.insert(
-                $name.to_owned(),
-                Annotated::new(Attribute {
-                    value: AttributeValue {
-                        ty: Annotated::new(AttributeType::String),
-                        value: $value.map_value(Into::into),
-                    },
-                    other: Default::default(),
-                }),
-            );
+            if let Some(value) = $value.into_value() {
+                attributes.insert(
+                    $name.to_owned(),
+                    Annotated::new(Attribute {
+                        value: AttributeValue::from(value),
+                        other: Default::default(),
+                    }),
+                );
+            }
         }};
     }
 
