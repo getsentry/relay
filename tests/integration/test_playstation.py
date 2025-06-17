@@ -252,7 +252,7 @@ def test_playstation_user_data_extraction(
     for key in ["_metrics", "grouping_config"]:
         del event_data[key]
 
-    assert event_data == event_json(response
+    assert event_data == event_json(response)
     assert len(event["attachments"]) == 3
 
 
