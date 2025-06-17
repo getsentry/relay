@@ -339,7 +339,8 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
             }),
         )
         .with(
-            // Logging layer, for now we need 2 separate layers to map to multiple event types
+            // Logging layer, for now we need 2 separate layers to map a tracing event to multiple
+            // items in Sentry
             sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
                 tracing::Level::ERROR | tracing::Level::WARN | tracing::Level::INFO => {
                     EventFilter::Log
