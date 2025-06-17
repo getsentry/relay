@@ -1,7 +1,10 @@
 use std::io;
+use std::task::Poll;
 
 use axum::extract::Request;
-use multer::Multipart;
+use bytes::{Bytes, BytesMut};
+use futures::{StreamExt, TryStreamExt};
+use multer::{Field, Multipart};
 use relay_config::Config;
 use serde::{Deserialize, Serialize};
 
@@ -152,6 +155,8 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
 pub async fn multipart_items<F>(
     mut multipart: Multipart<'_>,
     mut infer_type: F,
+    config: &Config,
+    ignore_large_fields: bool,
 ) -> Result<Items, multer::Error>
 where
     F: FnMut(Option<&str>, &str) -> AttachmentType,
@@ -164,12 +169,21 @@ where
             let mut item = Item::new(ItemType::Attachment);
             item.set_attachment_type(infer_type(field.name(), file_name));
             item.set_filename(file_name);
-            // Extract the body after the immutable borrow on `file_name` is gone.
-            if let Some(content_type) = field.content_type() {
-                item.set_payload(content_type.as_ref().into(), field.bytes().await?);
-            } else {
-                item.set_payload_without_content_type(field.bytes().await?);
+
+            let content_type = field.content_type().cloned();
+            let field = LimitedField::new(field, config.max_attachment_size());
+            match field.bytes().await {
+                Err(multer::Error::FieldSizeExceeded { .. }) if ignore_large_fields => continue,
+                Err(err) => return Err(err),
+                Ok(bytes) => {
+                    if let Some(content_type) = content_type {
+                        item.set_payload(content_type.as_ref().into(), bytes);
+                    } else {
+                        item.set_payload_without_content_type(bytes);
+                    }
+                }
             }
+
             items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {
             // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
@@ -193,6 +207,76 @@ where
     Ok(items)
 }
 
+/// Wrapper around `multer::Field` which consumes the entire underlying stream even when the
+/// size limit is exceeded.
+///
+/// The idea being that you can process fields in a multi-part form even if one fields is too large.
+struct LimitedField<'a> {
+    field: Field<'a>,
+    consumed_size: usize,
+    size_limit: usize,
+    inner_finished: bool,
+}
+
+impl<'a> LimitedField<'a> {
+    fn new(field: Field<'a>, limit: usize) -> Self {
+        LimitedField {
+            field,
+            consumed_size: 0,
+            size_limit: limit,
+            inner_finished: false,
+        }
+    }
+
+    async fn bytes(self) -> Result<Bytes, multer::Error> {
+        self.try_fold(BytesMut::new(), |mut acc, x| async move {
+            acc.extend_from_slice(&x);
+            Ok(acc)
+        })
+        .await
+        .map(|x| x.freeze())
+    }
+}
+
+impl futures::Stream for LimitedField<'_> {
+    type Item = Result<Bytes, multer::Error>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        if self.inner_finished {
+            return Poll::Ready(None);
+        }
+
+        match self.field.poll_next_unpin(cx) {
+            err @ Poll::Ready(Some(Err(_))) => err,
+            Poll::Ready(Some(Ok(t))) => {
+                self.consumed_size += t.len();
+                match self.consumed_size <= self.size_limit {
+                    true => Poll::Ready(Some(Ok(t))),
+                    false => {
+                        cx.waker().wake_by_ref();
+                        Poll::Pending
+                    }
+                }
+            }
+            Poll::Ready(None) if self.consumed_size > self.size_limit => {
+                self.inner_finished = true;
+                Poll::Ready(Some(Err(multer::Error::FieldSizeExceeded {
+                    limit: self.size_limit as u64,
+                    field_name: self.field.name().map(Into::into),
+                })))
+            }
+            Poll::Ready(None) => {
+                self.inner_finished = true;
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
 pub fn multipart_from_request(
     request: Request,
     config: &Config,
@@ -204,9 +288,8 @@ pub fn multipart_from_request(
         .unwrap_or("");
     let boundary = multer::parse_boundary(content_type)?;
 
-    let limits = multer::SizeLimit::new()
-        .whole_stream(config.max_attachments_size() as u64)
-        .per_field(config.max_attachment_size() as u64);
+    // Only enforce the stream limit here as the `per_field` limit is enforced by `LimitedField`.
+    let limits = multer::SizeLimit::new().whole_stream(config.max_attachments_size() as u64);
 
     Ok(Multipart::with_constraints(
         request.into_body().into_data_stream(),
@@ -284,6 +367,79 @@ mod tests {
 
         assert!(multipart.next_field().await?.is_some());
         assert!(multipart.next_field().await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_individual_size_limit_exceeded() -> anyhow::Result<()> {
+        let data = "--X-BOUNDARY\r\n\
+              Content-Disposition: form-data; name=\"file\"; filename=\"large.txt\"\r\n\
+              Content-Type: text/plain\r\n\
+              \r\n\
+              content too large for limit\r\n\
+              --X-BOUNDARY\r\n\
+              Content-Disposition: form-data; name=\"small_file\"; filename=\"small.txt\"\r\n\
+              Content-Type: text/plain\r\n\
+              \r\n\
+              ok\r\n\
+              --X-BOUNDARY--\r\n";
+
+        let stream = futures::stream::once(async { Ok::<_, Infallible>(data) });
+        let multipart = Multipart::new(stream, "X-BOUNDARY");
+
+        let config = Config::from_json_value(serde_json::json!({
+            "limits": {
+                "max_attachment_size": 5
+            }
+        }))?;
+
+        let items =
+            multipart_items(multipart, |_, _| AttachmentType::Attachment, &config, true).await?;
+
+        // The large field is skipped so only the small one should make it through.
+        assert_eq!(items.len(), 1);
+        let item = &items[0];
+        assert_eq!(item.filename(), Some("small.txt"));
+        assert_eq!(item.payload(), Bytes::from("ok"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_collective_size_limit_exceeded() -> anyhow::Result<()> {
+        let data = "--X-BOUNDARY\r\n\
+              Content-Disposition: form-data; name=\"file\"; filename=\"large.txt\"\r\n\
+              Content-Type: text/plain\r\n\
+              \r\n\
+              content too large for limit\r\n\
+              --X-BOUNDARY\r\n\
+              Content-Disposition: form-data; name=\"small_file\"; filename=\"small.txt\"\r\n\
+              Content-Type: text/plain\r\n\
+              \r\n\
+              ok\r\n\
+              --X-BOUNDARY--\r\n";
+
+        let stream = futures::stream::once(async { Ok::<_, Infallible>(data) });
+
+        let config = Config::from_json_value(serde_json::json!({
+            "limits": {
+                "max_attachments_size": 5
+            }
+        }))?;
+        let limits = multer::SizeLimit::new().whole_stream(config.max_attachments_size() as u64);
+
+        let multipart = Multipart::with_constraints(
+            stream,
+            "X-BOUNDARY",
+            multer::Constraints::new().size_limit(limits),
+        );
+
+        let result =
+            multipart_items(multipart, |_, _| AttachmentType::Attachment, &config, true).await;
+
+        // Should be warned if the overall stream limit is being breached.
+        assert!(result.is_err_and(|x| matches!(x, multer::Error::StreamSizeExceeded { limit: _ })));
 
         Ok(())
     }

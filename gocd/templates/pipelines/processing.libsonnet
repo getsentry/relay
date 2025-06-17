@@ -1,6 +1,9 @@
 local utils = import '../libs/utils.libsonnet';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
+// List of single tenant regions that use sentry-st organization
+local single_tenants = ['disney', 'geico', 'goldmansachs', 'ly', 's4s'];
+
 // The purpose of this stage is to let the deployment soak for a while and
 // detect any issues that might have been introduced.
 local soak_time(region) =
@@ -114,12 +117,12 @@ local deploy_primary(region) = [
       jobs: {
         create_sentry_release: {
           environment_variables: {
-            SENTRY_ORG: if region == 's4s' then 'sentry-st' else 'sentry',
-            SENTRY_PROJECT: if region == 's4s' then 'sentry-for-sentry' else 'relay',
-            SENTRY_URL: if region == 's4s' then 'https://sentry-st.sentry.io/' else 'https://sentry.my.sentry.io/',
+            SENTRY_ORG: if std.member(single_tenants, region) then 'sentry-st' else 'sentry',
+            SENTRY_PROJECT: if std.member(single_tenants, region) then (if region == 's4s' then 'sentry-for-sentry' else region) else 'relay',
+            SENTRY_URL: if std.member(single_tenants, region) then 'https://sentry-st.sentry.io/' else 'https://sentry.my.sentry.io/',
             // Temporary; self-service encrypted secrets aren't implemented yet.
             // This should really be rotated to an internal integration token.
-            SENTRY_AUTH_TOKEN: if region == 's4s' then '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
+            SENTRY_AUTH_TOKEN: if std.member(single_tenants, region) then '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}' else '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
           },
           timeout: 1200,
           elastic_profile_id: 'relay',

@@ -25,9 +25,9 @@ pub fn filter(
         .options
         .ourlogs_ingestion_sample_rate
         .map(sample)
-        .unwrap_or(true);
+        .unwrap_or_default();
 
-    let action = match logging_disabled || !logs_sampled {
+    let action = match logging_disabled || logs_sampled.is_discard() {
         true => ItemAction::DropSilently,
         false => ItemAction::Keep,
     };

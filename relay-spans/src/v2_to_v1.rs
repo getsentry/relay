@@ -68,10 +68,12 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
                 exclusive_time_ms = value / 1e6f64;
             }
             "http.status_code" => {
-                http_status_code = i64::from_value(value);
+                http_status_code = i64::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             "rpc.grpc.status_code" => {
-                grpc_status_code = i64::from_value(value);
+                grpc_status_code = i64::from_value(value.clone());
+                data.insert(key.to_owned(), value);
             }
             "sentry.platform" => {
                 platform = String::from_value(value);
@@ -86,6 +88,17 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
                 data.insert(key.to_owned(), value);
             }
         }
+    }
+
+    // Note: This writes the incoming `name` field to a the `sentry.name` attribute. This creates a
+    // bit of duplication, since the attribute `sentry.name` will have the same value as the `op`
+    // field. This duplication is temporary, since we will soon generate a proper `op` field that will
+    // be different from the name.
+    if let Some(name) = name.value() {
+        data.insert(
+            "sentry.name".to_owned(),
+            Annotated::new(Value::String(name.to_owned())),
+        );
     }
 
     if exclusive_time_ms == 0f64 {
@@ -218,7 +231,7 @@ mod tests {
                     "value": "fastify -> @fastify/multipart",
                     "type": "string"
                 },
-                "hook.name": { 
+                "hook.name": {
                     "value": "onResponse",
                     "type": "string"
                 },
@@ -256,6 +269,7 @@ mod tests {
             "fastify.type": "middleware",
             "hook.name": "onResponse",
             "plugin.name": "fastify -> @fastify/multipart",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -296,7 +310,9 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.name": "middleware - fastify -> @fastify/multipart"
+          },
           "links": [],
           "kind": "internal"
         }
@@ -328,7 +344,9 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.name": "middleware - fastify -> @fastify/multipart"
+          },
           "links": [],
           "kind": "internal"
         }
@@ -413,6 +431,7 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
+            "sentry.name": "myname",
             "sentry.op": "myop"
           },
           "links": [],

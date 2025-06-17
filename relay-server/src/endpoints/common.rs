@@ -375,21 +375,27 @@ pub async fn handle_envelope(
 }
 
 fn emit_envelope_metrics(envelope: &Envelope) {
-    let client_name = envelope.meta().client_name();
+    let client_name = envelope.meta().client_name().name();
     for item in envelope.items() {
+        let item_type = item.ty().name();
+        let is_container = if item.is_container() { "true" } else { "false" };
+
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name()
+            item_type = item_type,
+            is_container = is_container,
         );
         metric!(
             counter(RelayCounters::EnvelopeItems) += item.item_count().unwrap_or(1),
-            item_type = item.ty().name(),
-            sdk = client_name.name(),
+            item_type = item_type,
+            is_container = is_container,
+            sdk = client_name,
         );
         metric!(
             counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() as u64,
-            item_type = item.ty().name(),
-            sdk = client_name.name(),
+            item_type = item_type,
+            is_container = is_container,
+            sdk = client_name,
         );
     }
 }

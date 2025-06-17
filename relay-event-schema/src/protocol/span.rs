@@ -455,6 +455,10 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
+    /// The maximum number of tokens that should be used by an LLM call.
+    #[metastructure(field = "gen_ai.request.max_tokens")]
+    pub gen_ai_request_max_tokens: Annotated<Value>,
+
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
@@ -469,12 +473,26 @@ pub struct SpanData {
     )]
     pub gen_ai_usage_input_tokens: Annotated<Value>,
 
+    /// The input tokens used by an LLM call that were cached
+    /// (cheaper and faster than non-cached input tokens)
+    #[metastructure(field = "gen_ai.usage.input_tokens.cached")]
+    pub gen_ai_usage_input_tokens_cached: Annotated<Value>,
+
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
     #[metastructure(
         field = "gen_ai.usage.output_tokens",
         legacy_alias = "ai.completion_tokens.used"
     )]
     pub gen_ai_usage_output_tokens: Annotated<Value>,
+
+    /// The output tokens used to represent the model's internal thought
+    /// process while generating a response
+    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning")]
+    pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
+
+    // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
+    #[metastructure(field = "gen_ai.response.model")]
+    pub gen_ai_response_model: Annotated<Value>,
 
     /// The total cost for the tokens used
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
@@ -809,6 +827,7 @@ impl Getter for SpanData {
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
+            "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
             "http\\.decoded_response_content_length" => {
@@ -1257,12 +1276,16 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
+            gen_ai_request_max_tokens: ~,
             gen_ai_usage_total_tokens: ~,
             gen_ai_usage_input_tokens: ~,
+            gen_ai_usage_input_tokens_cached: ~,
             gen_ai_usage_output_tokens: ~,
+            gen_ai_usage_output_tokens_reasoning: ~,
+            gen_ai_response_model: ~,
             gen_ai_usage_total_cost: ~,
             browser_name: ~,
             code_filepath: String(
@@ -1364,7 +1387,7 @@ mod tests {
                 ),
             },
         }
-        "#);
+        "###);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));

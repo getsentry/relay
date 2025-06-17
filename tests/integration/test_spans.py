@@ -121,6 +121,19 @@ def test_span_extraction(
     child_span = spans_consumer.get_span()
     del child_span["received"]
     assert child_span == {
+        "data": {  # Backfilled from `sentry_tags`
+            "sentry.category": "http",
+            "sentry.normalized_description": "GET *",
+            "sentry.group": "37e3d9fab1ae9162",
+            "sentry.op": "http",
+            "sentry.platform": "other",
+            "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
+            "sentry.status": "ok",
+            "sentry.trace.status": "ok",
+            "sentry.transaction": "hi",
+            "sentry.transaction.op": "hi",
+        },
         "description": "GET /api/0/organizations/?member=1",
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -179,6 +192,13 @@ def test_span_extraction(
             "sentry.sdk.name": "raven-node",
             "sentry.sdk.version": "2.6.3",
             "sentry.segment.name": "hi",
+            # Backfilled from `sentry_tags`:
+            "sentry.op": "hi",
+            "sentry.platform": "other",
+            "sentry.status": "ok",
+            "sentry.trace.status": "ok",
+            "sentry.transaction": "hi",
+            "sentry.transaction.op": "hi",
         },
         "description": "hi",
         "duration_ms": duration_ms,
@@ -743,9 +763,14 @@ def test_span_ingestion(
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
                 "sentry.category": "db",
+                "sentry.name": "my 1st OTel span",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
+                # Backfilled from `sentry_tags`:
+                "sentry.op": "my 1st otel span",
+                "sentry.browser.name": "Chrome",
+                "sentry.status": "unknown",
             },
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -780,9 +805,14 @@ def test_span_ingestion(
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
                 "sentry.category": "db",
+                "sentry.name": "my 1st V2 span",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Chrome",
+                "sentry.op": "my 1st v2 span",
+                "sentry.status": "unknown",
             },
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -819,6 +849,14 @@ def test_span_ingestion(
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Chrome",
+                "sentry.category": "resource",
+                "sentry.normalized_description": "https://example.com/*/blah.js",
+                "sentry.domain": "example.com",
+                "sentry.file_extension": "js",
+                "sentry.group": "8a97a9e43588e2bd",
+                "sentry.op": "resource.script",
             },
             "description": "https://example.com/p/blah.js",
             "duration_ms": 1500,
@@ -859,9 +897,19 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
+                "sentry.name": "resource.script",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Chrome",
+                "sentry.category": "resource",
+                "sentry.normalized_description": "https://example.com/*/blah.js",
+                "sentry.domain": "example.com",
+                "sentry.file_extension": "js",
+                "sentry.group": "8a97a9e43588e2bd",
+                "sentry.op": "resource.script",
+                "sentry.status": "ok",
             },
             "description": "https://example.com/p/blah.js",
             "duration_ms": 1500,
@@ -905,6 +953,9 @@ def test_span_ingestion(
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Chrome",
+                "sentry.op": "default",
             },
             "description": r"test \" with \" escaped \" chars",
             "duration_ms": 1500,
@@ -926,7 +977,12 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
+                "sentry.name": "my 2nd OTel span",
                 "user_agent.original": "python-requests/2.32.2",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Python Requests",
+                "sentry.op": "my 2nd otel span",
+                "sentry.status": "unknown",
             },
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -965,6 +1021,9 @@ def test_span_ingestion(
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Chrome",
+                "sentry.op": "default",
             },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -988,8 +1047,14 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
+                "sentry.name": "my 3rd protobuf OTel span",
                 "ui.component_name": "MyComponent",
                 "user_agent.original": "python-requests/2.32.2",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Python Requests",
+                "sentry.op": "my 3rd protobuf otel span",
+                "sentry.category": "ui",
+                "sentry.status": "unknown",
             },
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -1604,6 +1669,9 @@ def test_span_ingestion_with_performance_scores(
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
                 "user_agent.original": "python-requests/2.32.2",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Python Requests",
+                "sentry.op": "ui.interaction.click",
             },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -1671,6 +1739,12 @@ def test_span_ingestion_with_performance_scores(
                 "sentry.segment.name": "/page/with/click/interaction/*/*",
                 "user": "[email]",
                 "user_agent.original": "python-requests/2.32.2",
+                # Backfilled from `sentry_tags`:
+                "sentry.browser.name": "Python Requests",
+                "sentry.op": "ui.interaction.click",
+                "sentry.transaction": "/page/with/click/interaction/*/*",
+                "sentry.replay_id": "8477286c8e5148b386b71ade38374d58",
+                "sentry.user": "[email]",
             },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -2397,6 +2471,24 @@ def test_scrubs_ip_addresses(
                 },
             }
         },
+        "data": {  # Backfilled from `sentry_tags`
+            "sentry.category": "http",
+            "sentry.normalized_description": "GET *",
+            "sentry.group": "37e3d9fab1ae9162",
+            "sentry.op": "http",
+            "sentry.platform": "other",
+            "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
+            "sentry.status": "ok",
+            "sentry.trace.status": "unknown",
+            "sentry.transaction": "hi",
+            "sentry.transaction.op": "hi",
+            "sentry.user": "id:unique_id",
+            "sentry.user.email": "[email]",
+            "sentry.user.id": "unique_id",
+            "sentry.user.ip": "127.0.0.1",
+            "sentry.user.username": "my_user",
+        },
         "description": "GET /api/0/organizations/?member=1",
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -2435,6 +2527,7 @@ def test_scrubs_ip_addresses(
     }
     if scrub_ip_addresses:
         del expected["sentry_tags"]["user.ip"]
+        del expected["data"]["sentry.user.ip"]
     else:
         del expected["_meta"]["sentry_tags"]["user.ip"]
     assert child_span == expected
@@ -2456,6 +2549,18 @@ def test_scrubs_ip_addresses(
             "sentry.sdk.name": "raven-node",
             "sentry.sdk.version": "2.6.3",
             "sentry.segment.name": "hi",
+            # Backfilled from `sentry_tags`:
+            "sentry.op": "hi",
+            "sentry.platform": "other",
+            "sentry.status": "unknown",
+            "sentry.trace.status": "unknown",
+            "sentry.transaction": "hi",
+            "sentry.transaction.op": "hi",
+            "sentry.user": "id:unique_id",
+            "sentry.user.email": "[email]",
+            "sentry.user.id": "unique_id",
+            "sentry.user.ip": "127.0.0.1",
+            "sentry.user.username": "my_user",
         },
         "description": "hi",
         "duration_ms": duration_ms,
@@ -2490,6 +2595,7 @@ def test_scrubs_ip_addresses(
     }
     if scrub_ip_addresses:
         del expected["sentry_tags"]["user.ip"]
+        del expected["data"]["sentry.user.ip"]
     assert child_span == expected
 
     spans_consumer.assert_empty()

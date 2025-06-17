@@ -5,7 +5,8 @@
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{
-    AppContext, Context, Contexts, DeviceContext, LenientString, OsContext, RuntimeContext, Tags,
+    AppContext, ClientSdkInfo, Context, Contexts, DeviceContext, LenientString, OsContext,
+    RuntimeContext, Tags,
 };
 use relay_event_schema::protocol::{Event, TagEntry};
 use relay_prosperoconv::{self, ProsperoDump};
@@ -113,7 +114,7 @@ fn add_attachments(
     minidump_buffer: Vec<u8>,
 ) {
     let mut item = Item::new(ItemType::Attachment);
-    item.set_filename("DO_NOT_USE");
+    item.set_filename("generated_minidump.dmp");
     item.set_payload(ContentType::Minidump, minidump_buffer);
     item.set_attachment_type(AttachmentType::Minidump);
     envelope.add_item(item);
@@ -268,6 +269,12 @@ fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
             ..Default::default()
         });
     }
+
+    event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
+        name: Annotated::new("sentry.playstation.devkit".to_owned()),
+        version: Annotated::new("0.0.1".to_owned()),
+        ..Default::default()
+    });
 }
 
 fn infer_content_type(filename: &str) -> ContentType {

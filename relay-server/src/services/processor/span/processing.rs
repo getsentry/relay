@@ -293,7 +293,7 @@ pub fn extract_from_event(
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
-        if !sample(sample_rate) {
+        if sample(sample_rate).is_discard() {
             return spans_extracted;
         }
     }

@@ -25,7 +25,7 @@ pub fn process(
     let log_items = managed_envelope
         .envelope()
         .items()
-        .filter(|item| matches!(item.ty(), ItemType::Log))
+        .filter(|item| ItemContainer::<OurLog>::is_container(item))
         .count();
 
     // The `Log` item must always be sent as an `ItemContainer`, currently it is not allowed to
@@ -41,11 +41,12 @@ pub fn process(
     }
 
     let normalize_config = NormalizeOurLogConfig::new(managed_envelope);
+    let received_at = managed_envelope.received_at();
 
     managed_envelope.retain_items(|item| {
         let mut logs = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
-                Ok(otel_log) => match relay_ourlogs::otel_to_sentry_log(otel_log) {
+                Ok(otel_log) => match relay_ourlogs::otel_to_sentry_log(otel_log, received_at) {
                     Ok(log) => ContainerItems::from_elem(Annotated::new(log), 1),
                     Err(err) => {
                         relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
@@ -62,7 +63,7 @@ pub fn process(
                 Ok(logs) => {
                     let mut logs = logs.into_items();
                     for log in logs.iter_mut() {
-                        relay_ourlogs::ourlog_merge_otel(log);
+                        relay_ourlogs::ourlog_merge_otel(log, received_at);
                     }
                     logs
                 }
