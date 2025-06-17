@@ -1003,8 +1003,8 @@ impl StoreService {
                 .to_le_bytes()
                 .to_vec(),
             attributes: Default::default(),
-            client_sample_rate: 1.0,
-            server_sample_rate: 1.0,
+            client_sample_rate: span.client_sample_rate,
+            server_sample_rate: span.server_sample_rate,
         };
 
         if let Some(data) = span.data {
@@ -1047,26 +1047,6 @@ impl StoreService {
                 };
 
                 trace_item.attributes.insert(key.into(), any_value);
-            }
-        }
-
-        if let Some(measurements) = span.measurements {
-            for (key, measurement) in measurements {
-                let Some(m) = measurement else {
-                    continue;
-                };
-                let Some(value) = m.value else {
-                    continue;
-                };
-                match key {
-                    Cow::Borrowed("client_sample_rate") if value > 0.0 => {
-                        trace_item.client_sample_rate = value
-                    }
-                    Cow::Borrowed("server_sample_rate") if value > 0.0 => {
-                        trace_item.server_sample_rate = value
-                    }
-                    _ => continue,
-                }
             }
         }
 
