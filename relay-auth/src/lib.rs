@@ -766,11 +766,12 @@ pub enum SignatureType {
 
 impl SignatureType {
     /// Creates a signature data based on the variant.
-    pub fn create_signature(self, secret_key: &SecretKey) -> Result<String, SignatureError> {
-        match self {
-            SignatureType::Body(data) => Ok(secret_key.sign(data.as_ref())),
-            SignatureType::RequestSign => Ok(secret_key.sign(&[])),
-        }
+    pub fn create_signature(self, secret_key: &SecretKey) -> String {
+        let data = match self {
+            SignatureType::Body(data) => data.as_ref(),
+            SignatureType::RequestSign => &[],
+        };
+        secret_key.sign(data)
     }
 }
 
@@ -1097,20 +1098,6 @@ mod tests {
     fn test_optional_credentials_missing() {
         let result = TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(None);
         assert_eq!(result, Ok(None))
-    }
-
-    #[test]
-    fn test_body_signature() {
-        let (secret, _) = generate_key_pair();
-        let result = SignatureType::Body(Bytes::new()).create_signature(&secret);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_request_sign_signature() {
-        let (secret, _) = generate_key_pair();
-        let result = SignatureType::RequestSign.create_signature(&secret);
-        assert!(result.is_ok())
     }
 
     #[test]
