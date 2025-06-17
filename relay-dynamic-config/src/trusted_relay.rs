@@ -54,6 +54,23 @@ mod tests {
     }
 
     #[test]
+    fn test_with_timestamp() {
+        let json = r#"{"verifySignature":"withTimestamp"}"#;
+        let result: TrustedRelayConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            result.verify_signature,
+            SignatureVerification::WithTimestamp
+        );
+    }
+
+    #[test]
+    fn test_disabled() {
+        let json = r#"{"verifySignature":"disabled"}"#;
+        let result: TrustedRelayConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verify_signature, SignatureVerification::Disabled);
+    }
+
+    #[test]
     fn test_default() {
         let config = TrustedRelayConfig::default();
         assert_eq!(config.verify_signature, SignatureVerification::Disabled);
