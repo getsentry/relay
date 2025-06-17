@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use relay_base_schema::metrics::MetricUnit;
-use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Empty, Error, FiniteF64, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 
@@ -10,7 +10,7 @@ use crate::processor::ProcessValue;
 pub struct Measurement {
     /// Value of observed measurement value.
     #[metastructure(required = true, skip_serialization = "never")]
-    pub value: Annotated<f64>,
+    pub value: Annotated<FiniteF64>,
 
     /// The unit of this measurement, defaulting to no unit.
     pub unit: Annotated<MetricUnit>,
@@ -29,7 +29,7 @@ impl Measurements {
     }
 
     /// Return the value of the measurement with the given name, if it exists.
-    pub fn get_value(&self, key: &str) -> Option<f64> {
+    pub fn get_value(&self, key: &str) -> Option<FiniteF64> {
         self.get(key)
             .and_then(Annotated::value)
             .and_then(|x| x.value.value())
@@ -207,21 +207,21 @@ mod tests {
             measurements.insert(
                 "lcp".to_owned(),
                 Annotated::new(Measurement {
-                    value: Annotated::new(420.69),
+                    value: Annotated::new(420.69.try_into().unwrap()),
                     unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );
             measurements.insert(
                 "fid".to_owned(),
                 Annotated::new(Measurement {
-                    value: Annotated::new(2020f64),
+                    value: Annotated::new(2020f64.try_into().unwrap()),
                     unit: Annotated::empty(),
                 }),
             );
             measurements.insert(
                 "inp".to_owned(),
                 Annotated::new(Measurement {
-                    value: Annotated::new(100.14),
+                    value: Annotated::new(100.14.try_into().unwrap()),
                     unit: Annotated::empty(),
                 }),
             );

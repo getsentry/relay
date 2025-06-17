@@ -1104,7 +1104,7 @@ mod tests {
         measurements.insert(
             "memory".into(),
             Annotated::new(Measurement {
-                value: Annotated::new(9001.0),
+                value: Annotated::new(9001.0.try_into().unwrap()),
                 unit: Annotated::new(MetricUnit::Information(InformationUnit::Byte)),
             }),
         );

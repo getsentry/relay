@@ -13,7 +13,7 @@ use relay_event_schema::protocol::{
     AppContext, BrowserContext, DeviceContext, Event, GpuContext, Measurement, MonitorContext,
     OsContext, ProfileContext, RuntimeContext, SentryTags, Span, Timestamp, TraceContext,
 };
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::{Annotated, Empty, FiniteF64, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -456,7 +456,7 @@ fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> 
                             MetricUnit::Information(InformationUnit::Byte),
                         ),
                     ] {
-                        if let Some(value) = value_to_f64(field.value()) {
+                        if let Some(value) = value_to_finite_f64(field.value()) {
                             measurements.insert(
                                 key.into(),
                                 Measurement {
@@ -1108,13 +1108,15 @@ pub fn extract_tags(
     span_tags
 }
 
-fn value_to_f64(val: Option<&Value>) -> Option<f64> {
-    match val {
+fn value_to_finite_f64(val: Option<&Value>) -> Option<FiniteF64> {
+    let float = match val {
         Some(Value::F64(f)) => Some(*f),
         Some(Value::I64(i)) => Some(*i as f64),
         Some(Value::U64(u)) => Some(*u as f64),
         _ => None,
-    }
+    };
+
+    float.and_then(FiniteF64::new)
 }
 
 /// Copies specific numeric values from span data to span measurements.
@@ -1125,7 +1127,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
 
     if span_op.starts_with("cache.") {
         if let Some(data) = span.data.value() {
-            if let Some(value) = value_to_f64(data.cache_item_size.value()) {
+            if let Some(value) = value_to_finite_f64(data.cache_item_size.value()) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     "cache.item_size".to_owned(),
@@ -1155,7 +1157,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                     "http.response_transfer_size",
                 ),
             ] {
-                if let Some(value) = value_to_f64(field.value()) {
+                if let Some(value) = value_to_finite_f64(field.value()) {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -1189,7 +1191,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                     MetricUnit::Information(InformationUnit::Byte),
                 ),
             ] {
-                if let Some(value) = value_to_f64(field.value()) {
+                if let Some(value) = value_to_finite_f64(field.value()) {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -1216,7 +1218,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                     MetricUnit::Duration(DurationUnit::Second),
                 ),
             ] {
-                if let Some(value) = value_to_f64(field.value()) {
+                if let Some(value) = value_to_finite_f64(field.value()) {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
