@@ -395,7 +395,7 @@ mod tests {
 
         let config = Config::default();
 
-        let multipart = utils::multipart_from_request(request, &config)?;
+        let multipart = utils::multipart_from_request(request)?;
         let items = multipart_items(multipart, infer_attachment_type, &config).await?;
 
         // we expect the multipart body to contain
