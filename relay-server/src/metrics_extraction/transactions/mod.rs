@@ -10,7 +10,8 @@ use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
     TransactionSource,
 };
-use relay_metrics::{Bucket, DurationUnit, FiniteF64};
+use relay_metrics::{Bucket, DurationUnit};
+use relay_protocol::FiniteF64;
 use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::IntoMetric;

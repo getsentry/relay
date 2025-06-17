@@ -20,6 +20,7 @@ relay-protocol-derive = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }
+thiserror = { workspace = true }
 unicase = { workspace = true }
 uuid = { workspace = true }
 

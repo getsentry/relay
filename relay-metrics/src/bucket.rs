@@ -6,14 +6,16 @@ use std::{fmt, mem};
 use hash32::{FnvHasher, Hasher as _};
 use relay_cardinality::CardinalityItem;
 use relay_common::time::UnixTimestamp;
+use relay_protocol::FiniteF64;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use crate::MetricNamespace;
+use crate::ParseMetricError;
 use crate::protocol::{
     self, CounterType, DistributionType, GaugeType, MetricName, MetricResourceIdentifier,
     MetricType, SetType, hash_set_value,
 };
-use crate::{FiniteF64, MetricNamespace, ParseMetricError};
 
 const VALUE_SEPARATOR: char = ':';
 
