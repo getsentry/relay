@@ -309,17 +309,7 @@ impl FromRequest<ServiceState> for UnconstrainedMultipart {
         request: Request,
         _state: &ServiceState,
     ) -> Result<Self, Self::Rejection> {
-        let content_type = request
-            .headers()
-            .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
-        let boundary = multer::parse_boundary(content_type)?;
-
-        Ok(UnconstrainedMultipart(Multipart::new(
-            request.into_body().into_data_stream(),
-            boundary,
-        )))
+        multipart_from_request(request).map(Self).map_err(Remote)
     }
 }
 
@@ -333,10 +323,7 @@ impl UnconstrainedMultipart {
     }
 }
 
-pub fn multipart_from_request(
-    request: Request,
-    config: &Config,
-) -> Result<Multipart<'static>, multer::Error> {
+pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, multer::Error> {
     let content_type = request
         .headers()
         .get("content-type")
@@ -344,13 +331,9 @@ pub fn multipart_from_request(
         .unwrap_or("");
     let boundary = multer::parse_boundary(content_type)?;
 
-    // Only enforce the stream limit here as the `per_field` limit is enforced by `LimitedField`.
-    let limits = multer::SizeLimit::new().whole_stream(config.max_attachments_size() as u64);
-
-    Ok(Multipart::with_constraints(
+    Ok(Multipart::new(
         request.into_body().into_data_stream(),
         boundary,
-        multer::Constraints::new().size_limit(limits),
     ))
 }
 
