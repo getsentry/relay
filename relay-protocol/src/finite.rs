@@ -105,6 +105,18 @@ impl Ord for FiniteF64 {
     }
 }
 
+impl PartialEq<f64> for FiniteF64 {
+    fn eq(&self, other: &f64) -> bool {
+        &self.0 == other
+    }
+}
+
+impl PartialOrd<f64> for FiniteF64 {
+    fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+
 impl Hash for FiniteF64 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Safety: NaN and infinity cannot be constructed from a finite f64.
