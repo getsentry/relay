@@ -742,13 +742,13 @@ impl TrySign {
                 let Some(secret_key) = secret_key else {
                     return Err(SignatureError::MissingCredentials);
                 };
-                signature_type.create_signature(secret_key).map(Some)
+                Ok(Some(signature_type.create_signature(secret_key)))
             }
             TrySign::Optional(signature_type) => {
                 let Some(secret_key) = secret_key else {
                     return Ok(None);
                 };
-                signature_type.create_signature(secret_key).map(Some)
+                Ok(Some(signature_type.create_signature(secret_key)))
             }
         }
     }
@@ -767,11 +767,10 @@ pub enum SignatureType {
 impl SignatureType {
     /// Creates a signature data based on the variant.
     pub fn create_signature(self, secret_key: &SecretKey) -> String {
-        let data = match self {
-            SignatureType::Body(data) => data.as_ref(),
-            SignatureType::RequestSign => &[],
-        };
-        secret_key.sign(data)
+        match self {
+            SignatureType::Body(data) => secret_key.sign(data.as_ref()),
+            SignatureType::RequestSign => secret_key.sign(&[]),
+        }
     }
 }
 
