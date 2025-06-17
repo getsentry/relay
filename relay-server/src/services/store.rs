@@ -1468,6 +1468,11 @@ struct SpanKafkaMessage<'a> {
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client_sample_rate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    server_sample_rate: Option<f64>,
+
     #[serde(
         default,
         rename = "_meta",
@@ -1488,7 +1493,9 @@ impl SpanKafkaMessage<'_> {
     /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
     ///   is copied as `sentry.normalized_description`.
     ///
-    /// * The value of every item in `measurements` is copied to `data` with the same key.
+    /// * The value of every item in `measurements` is copied to `data` with the same key, with the exceptions
+    ///   of `client_sample_rate` and `server_sample_rate`. Those measurements are instead written to the top-level
+    ///   fields of the same names.
     ///
     /// From highest to lowest, the order of precedence is
     /// * `measurements`
@@ -1536,7 +1543,13 @@ impl SpanKafkaMessage<'_> {
                     continue;
                 };
 
-                data.insert(key.clone(), Some(value.into()));
+                match &key[..] {
+                    "client_sample_rate" => self.client_sample_rate = Some(value),
+                    "server_sample_rate" => self.server_sample_rate = Some(value),
+                    _ => {
+                        data.insert(key.clone(), Some(value.into()));
+                    }
+                }
             }
         }
     }
