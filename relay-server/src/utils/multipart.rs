@@ -155,18 +155,7 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
         .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
 }
 
-pub async fn multipart_items<F>(
-    multipart: Multipart<'_>,
-    infer_type: F,
-    config: &Config,
-) -> Result<Items, multer::Error>
-where
-    F: FnMut(Option<&str>, &str) -> AttachmentType,
-{
-    multipart_items_inner(multipart, infer_type, config, false).await
-}
-
-async fn multipart_items_inner<F>(
+async fn multipart_items<F>(
     mut multipart: Multipart<'_>,
     mut infer_type: F,
     config: &Config,
@@ -299,6 +288,29 @@ impl futures::Stream for LimitedField<'_> {
         }
     }
 }
+
+pub struct ConstrainedMultipart(pub Multipart<'static>);
+
+impl FromRequest<ServiceState> for ConstrainedMultipart {
+    type Rejection = Remote<multer::Error>;
+
+    async fn from_request(
+        request: Request,
+        _state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
+        multipart_from_request(request).map(Self).map_err(Remote)
+    }
+}
+
+impl ConstrainedMultipart {
+    pub async fn items<F>(self, infer_type: F, config: &Config) -> Result<Items, multer::Error>
+    where
+        F: FnMut(Option<&str>, &str) -> AttachmentType,
+    {
+        multipart_items(self.0, infer_type, config, false).await
+    }
+}
+
 #[allow(dead_code)]
 pub struct UnconstrainedMultipart(pub Multipart<'static>);
 
@@ -319,7 +331,7 @@ impl UnconstrainedMultipart {
     where
         F: FnMut(Option<&str>, &str) -> AttachmentType,
     {
-        multipart_items_inner(self.0, infer_type, config, true).await
+        multipart_items(self.0, infer_type, config, true).await
     }
 }
 
