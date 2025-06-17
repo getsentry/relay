@@ -6,9 +6,10 @@ use rand::rngs::SmallRng;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    Bucket, BucketValue, DistributionValue, FiniteF64,
+    Bucket, BucketValue, DistributionValue,
     aggregator::{Aggregator, AggregatorConfig},
 };
+use relay_protocol::FiniteF64;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;

@@ -1,7 +1,8 @@
 use std::io;
 
 use relay_dynamic_config::{BucketEncoding, GlobalConfig};
-use relay_metrics::{Bucket, BucketValue, FiniteF64, MetricNamespace, SetView};
+use relay_metrics::{Bucket, BucketValue, MetricNamespace, SetView};
+use relay_protocol::FiniteF64;
 use serde::Serialize;
 
 static BASE64_NOPAD: data_encoding::Encoding = data_encoding::BASE64_NOPAD;
