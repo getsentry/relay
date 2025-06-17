@@ -206,7 +206,9 @@ fn expand_profile(
 
 #[cfg(test)]
 mod tests {
+    use chrono::{Duration, TimeZone, Utc};
     use std::sync::Arc;
+    use uuid::Uuid;
 
     #[cfg(feature = "processing")]
     use insta::assert_debug_snapshot;
@@ -650,9 +652,6 @@ mod tests {
     #[cfg(feature = "processing")]
     #[test]
     fn test_scrub_profiler_id_should_be_stripped() {
-        use chrono::{Duration, TimeZone, Utc};
-        use uuid::Uuid;
-
         let mut contexts = Contexts::new();
         contexts.add(ProfileContext {
             profiler_id: Annotated::new(EventId(
@@ -692,19 +691,14 @@ mod tests {
                 .profiler_id
                 .meta()
                 .iter_remarks()
-                .any(
-                    |remark| remark.rule_id == "transaction_duration".to_string()
-                        && remark.ty == RemarkType::Removed
-                )
+                .any(|remark| remark.rule_id == *"transaction_duration"
+                    && remark.ty == RemarkType::Removed)
         )
     }
 
     #[cfg(feature = "processing")]
     #[test]
     fn test_scrub_profiler_id_should_not_be_stripped() {
-        use chrono::{Duration, TimeZone, Utc};
-        use uuid::Uuid;
-
         let mut contexts = Contexts::new();
         contexts.add(ProfileContext {
             profiler_id: Annotated::new(EventId(
@@ -744,10 +738,8 @@ mod tests {
                 .profiler_id
                 .meta()
                 .iter_remarks()
-                .any(
-                    |remark| remark.rule_id == "transaction_duration".to_string()
-                        && remark.ty == RemarkType::Removed
-                )
+                .any(|remark| remark.rule_id == *"transaction_duration"
+                    && remark.ty == RemarkType::Removed)
         )
     }
 }
