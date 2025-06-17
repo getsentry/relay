@@ -289,6 +289,8 @@ impl futures::Stream for LimitedField<'_> {
     }
 }
 
+/// Wrapper around `multer::Multipart` that checks each field is smaller than 'max_attachment_size'
+/// and that the combined size of all fields is smaller than 'max_attachments_size'.
 pub struct ConstrainedMultipart(pub Multipart<'static>);
 
 impl FromRequest<ServiceState> for ConstrainedMultipart {
@@ -311,6 +313,9 @@ impl ConstrainedMultipart {
     }
 }
 
+/// Wrapper around `multer::Multipart` that skips over fields which are larger than
+/// 'max_attachment_size'. These fields are also not taken into account when checking that the
+/// combined size of all fields is smaller than 'max_attachments_size'.
 #[allow(dead_code)]
 pub struct UnconstrainedMultipart(pub Multipart<'static>);
 
