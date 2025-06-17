@@ -176,6 +176,12 @@ impl ops::Rem for FiniteF64 {
     }
 }
 
+impl ops::AddAssign for FiniteF64 {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.saturating_add(rhs)
+    }
+}
+
 /// Error type returned when conversion to [`FiniteF64`] fails.
 #[derive(Debug, thiserror::Error)]
 #[error("float is nan or infinite")]
