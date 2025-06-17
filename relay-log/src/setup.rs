@@ -332,9 +332,17 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
         .with(
             // Same as the default filter, except it converts warnings into events instead of breadcrumbs.
             sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
-                tracing::Level::ERROR => EventFilter::Exception,
-                tracing::Level::WARN => EventFilter::Event,
+                tracing::Level::ERROR | tracing::Level::WARN => EventFilter::Event,
                 tracing::Level::INFO => EventFilter::Breadcrumb,
+                tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
+            }),
+        )
+        .with(
+            // Logging layer, for now we need 2 separate layers to map to multiple event types
+            sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
+                tracing::Level::ERROR | tracing::Level::WARN | tracing::Level::INFO => {
+                    EventFilter::Log
+                }
                 tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
             }),
         )
