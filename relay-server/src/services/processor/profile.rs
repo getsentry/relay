@@ -9,7 +9,7 @@ use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileError, ProfileId};
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Getter};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -89,6 +89,25 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
                 if let Some(profile_context) = contexts.get_mut::<ProfileContext>() {
                     profile_context.profile_id = Annotated::empty();
                 }
+            }
+        }
+    }
+}
+
+pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+    let transaction_duration = event
+        .get_value("event.duration")
+        .and_then(|duration| duration.as_f64());
+
+    if let Some(contexts) = event.contexts.value_mut() {
+        if let Some(profile_context) = contexts.get_mut::<ProfileContext>() {
+            if profile_context.profiler_id.value().is_some()
+                && transaction_duration.is_some_and(|duration| duration < 20_f64)
+            {
+                profile_context.profiler_id = Annotated::empty();
             }
         }
     }
@@ -617,5 +636,94 @@ mod tests {
             ),
         }
         "###);
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_scrub_profiler_id_should_be_stripped() {
+        use chrono::{Duration, TimeZone, Utc};
+        use relay_protocol::Empty;
+        use uuid::Uuid;
+
+        let mut contexts = Contexts::new();
+        contexts.add(ProfileContext {
+            profiler_id: Annotated::new(EventId(
+                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
+            )),
+            ..Default::default()
+        });
+        let mut event: Annotated<Event> = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
+                    .unwrap()
+                    .checked_add_signed(Duration::milliseconds(15))
+                    .unwrap()
+                    .into(),
+            ),
+            contexts: Annotated::new(contexts),
+            ..Default::default()
+        });
+
+        scrub_profiler_id(&mut event);
+
+        let profile_context = event
+            .value()
+            .expect("missing event")
+            .contexts
+            .value()
+            .expect("missing contexts")
+            .get::<ProfileContext>()
+            .expect("missing profile context");
+
+        assert!(profile_context.profiler_id.is_empty())
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_scrub_profiler_id_should_not_be_stripped() {
+        use chrono::{Duration, TimeZone, Utc};
+
+        use relay_protocol::Empty;
+        use uuid::Uuid;
+
+        let mut contexts = Contexts::new();
+        contexts.add(ProfileContext {
+            profiler_id: Annotated::new(EventId(
+                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
+            )),
+            ..Default::default()
+        });
+        let mut event: Annotated<Event> = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
+                    .unwrap()
+                    .checked_add_signed(Duration::milliseconds(20))
+                    .unwrap()
+                    .into(),
+            ),
+            contexts: Annotated::new(contexts),
+            ..Default::default()
+        });
+
+        scrub_profiler_id(&mut event);
+
+        let profile_context = event
+            .value()
+            .expect("missing event")
+            .contexts
+            .value()
+            .expect("missing contexts")
+            .get::<ProfileContext>()
+            .expect("missing profile context");
+
+        assert!(!profile_context.profiler_id.is_empty())
     }
 }

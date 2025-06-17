@@ -1732,6 +1732,8 @@ impl EnvelopeProcessorService {
         // We take the main event out of the result.
         let mut event = extraction_result.event;
 
+        profile::scrub_profiler_id(&mut event);
+
         relay_cogs::with!(cogs, "profile_filter", {
             let profile_id = profile::filter(
                 managed_envelope,
