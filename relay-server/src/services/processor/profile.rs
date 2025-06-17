@@ -216,6 +216,7 @@ mod tests {
     #[cfg(not(feature = "processing"))]
     use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::EventId;
+    use relay_protocol::get_value;
     use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
 
@@ -677,14 +678,10 @@ mod tests {
 
         scrub_profiler_id(&mut event);
 
-        let profile_context = event
-            .value()
-            .expect("missing event")
-            .contexts
-            .value()
-            .expect("missing contexts")
+        let profile_context = get_value!(event.contexts)
+            .unwrap()
             .get::<ProfileContext>()
-            .expect("missing profile context");
+            .unwrap();
 
         assert!(
             profile_context
@@ -724,14 +721,10 @@ mod tests {
 
         scrub_profiler_id(&mut event);
 
-        let profile_context = event
-            .value()
-            .expect("missing event")
-            .contexts
-            .value()
-            .expect("missing contexts")
+        let profile_context = get_value!(event.contexts)
+            .unwrap()
             .get::<ProfileContext>()
-            .expect("missing profile context");
+            .unwrap();
 
         assert!(
             !profile_context
