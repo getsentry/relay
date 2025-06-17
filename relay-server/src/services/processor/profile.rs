@@ -9,7 +9,7 @@ use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileError, ProfileId};
-use relay_protocol::{Annotated, Getter};
+use relay_protocol::{Annotated, Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -106,13 +106,18 @@ pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
         .get_value("event.duration")
         .and_then(|duration| duration.as_f64());
 
-    if let Some(contexts) = event.contexts.value_mut() {
-        if let Some(profile_context) = contexts.get_mut::<ProfileContext>() {
-            if profile_context.profiler_id.value().is_some()
-                && transaction_duration.is_some_and(|duration| duration < 20_f64)
-            {
-                profile_context.profiler_id = Annotated::empty();
-            }
+    if !transaction_duration.is_some_and(|duration| duration < 20f64) {
+        return;
+    }
+    if let Some(contexts) = event.contexts.value_mut().as_mut() {
+        if let Some(profiler_id) = contexts
+            .get_mut::<ProfileContext>()
+            .map(|ctx| &mut ctx.profiler_id)
+        {
+            let id = std::mem::take(profiler_id.value_mut());
+            let remark = Remark::new(RemarkType::Removed, "transaction_duration");
+            profiler_id.meta_mut().add_remark(remark);
+            profiler_id.meta_mut().set_original_value(id);
         }
     }
 }
@@ -646,7 +651,6 @@ mod tests {
     #[test]
     fn test_scrub_profiler_id_should_be_stripped() {
         use chrono::{Duration, TimeZone, Utc};
-        use relay_protocol::Empty;
         use uuid::Uuid;
 
         let mut contexts = Contexts::new();
@@ -683,15 +687,22 @@ mod tests {
             .get::<ProfileContext>()
             .expect("missing profile context");
 
-        assert!(profile_context.profiler_id.is_empty())
+        assert!(
+            profile_context
+                .profiler_id
+                .meta()
+                .iter_remarks()
+                .any(
+                    |remark| remark.rule_id == "transaction_duration".to_string()
+                        && remark.ty == RemarkType::Removed
+                )
+        )
     }
 
     #[cfg(feature = "processing")]
     #[test]
     fn test_scrub_profiler_id_should_not_be_stripped() {
         use chrono::{Duration, TimeZone, Utc};
-
-        use relay_protocol::Empty;
         use uuid::Uuid;
 
         let mut contexts = Contexts::new();
@@ -728,6 +739,15 @@ mod tests {
             .get::<ProfileContext>()
             .expect("missing profile context");
 
-        assert!(!profile_context.profiler_id.is_empty())
+        assert!(
+            !profile_context
+                .profiler_id
+                .meta()
+                .iter_remarks()
+                .any(
+                    |remark| remark.rule_id == "transaction_duration".to_string()
+                        && remark.ty == RemarkType::Removed
+                )
+        )
     }
 }
