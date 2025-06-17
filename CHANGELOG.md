@@ -1,10 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add layer to send `tracing` events above `INFO` to Sentry logs, and stop sending breadcrumbs. ([#4753](https://github.com/getsentry/relay/pull/4753))
+
 ## 25.6.0
 
 **Features**:
 
-- Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
+- Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755))
 - Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 - Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 - Enable filtering sessions by IP address, release, and user agent. ([#4745](https://github.com/getsentry/relay/pull/4745))
