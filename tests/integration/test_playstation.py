@@ -88,6 +88,8 @@ def event_json(response):
         },
         "key_id": "123",
         "project": 42,
+        "_metrics": mock.ANY,
+        "grouping_config": mock.ANY,
     }
 
 
@@ -218,7 +220,7 @@ def test_playstation_with_feature_flag(
         attachment["name"] for attachment in event["attachments"]
     ]
 
-    assert event_data["sdk"]["name"] == "sentry.playstation.devkit"
+    assert payload["sdk"]["name"] == "sentry.playstation.devkit"
 
 
 def test_playstation_user_data_extraction(
@@ -244,15 +246,7 @@ def test_playstation_user_data_extraction(
     assert len(outcomes) == 0
 
     event, payload = attachments_consumer.get_event_only()
-    assert event
-
-    assert event["type"] == "event"
-    event_data = json.loads(event["payload"])
-
-    for key in ["_metrics", "grouping_config"]:
-        del event_data[key]
-
-    assert event_data == event_json(response)
+    assert payload == event_json(response)
     assert len(event["attachments"]) == 3
 
 
@@ -371,7 +365,7 @@ def test_playstation_attachment(
         attachment["name"] for attachment in event["attachments"]
     ]
 
-    assert event_data["sdk"]["name"] == "sentry.native.playstation"
+    assert payload["sdk"]["name"] == "sentry.native.playstation"
 
 
 def test_playstation_attachment_no_feature_flag(
