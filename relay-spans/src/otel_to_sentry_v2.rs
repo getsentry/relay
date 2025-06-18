@@ -56,23 +56,14 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
 
     let mut sentry_attributes = Object::default();
     let mut name = if name.is_empty() { None } else { Some(name) };
-    let mut description = None;
-    let mut http_method = None;
-    let mut http_route = None;
 
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
         let value = attribute.value?.value?;
         Some((attribute.key, value))
     }) {
         match key.as_str() {
-            "sentry.description" => {
-                description = otel_value_to_string(value.clone());
-            }
             key if key.starts_with("db") => {
                 name = name.or(Some("db".to_owned()));
-                if key == "db.statement" {
-                    description = description.or_else(|| otel_value_to_string(value.clone()));
-                }
             }
             "http.method" | "http.request.method" => {
                 let http_op = match kind {
@@ -80,11 +71,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
                     3 => "http.client",
                     _ => "http",
                 };
-                http_method = otel_value_to_string(value.clone());
                 name = name.or(Some(http_op.to_owned()));
-            }
-            "http.route" | "url.path" => {
-                http_route = otel_value_to_string(value.clone());
             }
             _ => (),
         }
@@ -92,21 +79,6 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         if let Some(v) = otel_value_to_attr(value) {
             sentry_attributes.insert(key, Annotated::new(v));
         }
-    }
-
-    if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
-        description = description.or_else(|| Some(format!("{http_method} {http_route}")));
-    }
-
-    // Put the fixed up description back into the attributes
-    if let Some(description) = description {
-        sentry_attributes.insert(
-            "sentry.description".into(),
-            Annotated::new(Attribute::new(
-                AttributeType::String,
-                Value::String(description),
-            )),
-        );
     }
 
     let sentry_links: Vec<Annotated<SpanV2Link>> = links
@@ -132,17 +104,6 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     };
 
     Ok(event_span)
-}
-
-fn otel_value_to_string(value: OtelValue) -> Option<String> {
-    match value {
-        OtelValue::StringValue(v) => Some(v),
-        OtelValue::BoolValue(v) => Some(v.to_string()),
-        OtelValue::IntValue(v) => Some(v.to_string()),
-        OtelValue::DoubleValue(v) => Some(v.to_string()),
-        OtelValue::BytesValue(v) => String::from_utf8(v).ok(),
-        _ => None,
-    }
 }
 
 fn otel_flags_is_remote(value: u32) -> Option<bool> {
@@ -426,10 +387,6 @@ mod tests {
             "db.type": {
               "type": "string",
               "value": "sql"
-            },
-            "sentry.description": {
-              "type": "string",
-              "value": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
             }
           }
         }
@@ -550,10 +507,6 @@ mod tests {
             "http.request.method": {
               "type": "string",
               "value": "GET"
-            },
-            "sentry.description": {
-              "type": "string",
-              "value": "GET /api/search?q=foobar"
             },
             "url.path": {
               "type": "string",
