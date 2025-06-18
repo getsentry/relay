@@ -19,9 +19,9 @@
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest, TextResponse};
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::envelope::ContentType::Minidump;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, Remote, RequestMeta};
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, RequestMeta};
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
-<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::utils;
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ConstrainedMultipart};
 <a href=#25 id=25 data-nosnippet>25</a>
 <a href=#26 id=26 data-nosnippet>26</a><span class="doccomment">/// The field name of a minidump in the multipart form-data upload.
 <a href=#27 id=27 data-nosnippet>27</a>///
@@ -164,11 +164,11 @@
 <a href=#164 id=164 data-nosnippet>164</a>}
 <a href=#165 id=165 data-nosnippet>165</a>
 <a href=#166 id=166 data-nosnippet>166</a><span class="kw">async fn </span>extract_multipart(
-<a href=#167 id=167 data-nosnippet>167</a>    multipart: Multipart&lt;<span class="lifetime">'static</span>&gt;,
+<a href=#167 id=167 data-nosnippet>167</a>    multipart: ConstrainedMultipart,
 <a href=#168 id=168 data-nosnippet>168</a>    meta: RequestMeta,
 <a href=#169 id=169 data-nosnippet>169</a>    config: <span class="kw-2">&amp;</span>Config,
 <a href=#170 id=170 data-nosnippet>170</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="kw">let </span><span class="kw-2">mut </span>items = utils::multipart_items(multipart, infer_attachment_type, config, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#171 id=171 data-nosnippet>171</a>    <span class="kw">let </span><span class="kw-2">mut </span>items = multipart.items(infer_attachment_type, config).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#172 id=172 data-nosnippet>172</a>
 <a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">let </span>minidump_item = items
 <a href=#174 id=174 data-nosnippet>174</a>        .iter_mut()
@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>    </span><span class="kw">let </span>envelope = <span class="kw">if </span>MINIDUMP_RAW_CONTENT_TYPES.contains(<span class="kw-2">&amp;</span>content_type.as_ref()) {
 <a href=#227 id=227 data-nosnippet>227</a>        extract_raw_minidump(request.extract().<span class="kw">await</span><span class="question-mark">?</span>, meta)<span class="question-mark">?
 <a href=#228 id=228 data-nosnippet>228</a>    </span>} <span class="kw">else </span>{
-<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">let </span>Remote(multipart) = request.extract_with_state(<span class="kw-2">&amp;</span>state).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">let </span>multipart = request.extract_with_state(<span class="kw-2">&amp;</span>state).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#230 id=230 data-nosnippet>230</a>        extract_multipart(multipart, meta, state.config()).<span class="kw">await</span><span class="question-mark">?
 <a href=#231 id=231 data-nosnippet>231</a>    </span>};
 <a href=#232 id=232 data-nosnippet>232</a>
@@ -252,7 +252,7 @@
 <a href=#252 id=252 data-nosnippet>252</a><span class="attr">#[cfg(test)]
 <a href=#253 id=253 data-nosnippet>253</a></span><span class="kw">mod </span>tests {
 <a href=#254 id=254 data-nosnippet>254</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::ContentType;
-<a href=#255 id=255 data-nosnippet>255</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::{FormDataIter, multipart_items};
+<a href=#255 id=255 data-nosnippet>255</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::FormDataIter;
 <a href=#256 id=256 data-nosnippet>256</a>    <span class="kw">use </span>axum::body::Body;
 <a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">use </span>bzip2::Compression <span class="kw">as </span>BzCompression;
 <a href=#258 id=258 data-nosnippet>258</a>    <span class="kw">use </span>bzip2::write::BzEncoder;
@@ -395,8 +395,8 @@
 <a href=#395 id=395 data-nosnippet>395</a>
 <a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">let </span>config = Config::default();
 <a href=#397 id=397 data-nosnippet>397</a>
-<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">let </span>multipart = utils::multipart_from_request(request, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
-<a href=#399 id=399 data-nosnippet>399</a>        <span class="kw">let </span>items = multipart_items(multipart, infer_attachment_type, <span class="kw-2">&amp;</span>config, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">let </span>multipart = ConstrainedMultipart(utils::multipart_from_request(request)<span class="question-mark">?</span>);
+<a href=#399 id=399 data-nosnippet>399</a>        <span class="kw">let </span>items = multipart.items(infer_attachment_type, <span class="kw-2">&amp;</span>config).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#400 id=400 data-nosnippet>400</a>
 <a href=#401 id=401 data-nosnippet>401</a>        <span class="comment">// we expect the multipart body to contain
 <a href=#402 id=402 data-nosnippet>402</a>        // * one arbitrary attachment from the user (a `config.json`)
