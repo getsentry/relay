@@ -327,11 +327,13 @@ fn derive_http_description(span: &SpanV2, attributes: &Object<Attribute>) -> Opt
         .and_then(|attr_val| attr_val.value.value.value())
         .and_then(|v| v.as_str())?;
 
+    let description = http_method.to_owned();
+
     // Get URL path information
     let (url_path, _has_route) = get_sanitized_url_path(attributes, span.kind.value());
 
     if url_path.is_none() {
-        return None;
+        return Some(description);
     }
 
     let url_path = url_path.unwrap();
@@ -770,6 +772,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "GET",
           "data": {
             "http.request_method": "GET"
           },
@@ -807,6 +810,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "GET",
           "data": {
             "http.request_method": "GET"
           },
