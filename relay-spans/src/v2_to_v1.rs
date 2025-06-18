@@ -421,7 +421,7 @@ fn get_client_url_path(attributes: &Object<Attribute>) -> Option<String> {
     {
         if let Ok(parsed_url) = Url::parse(url) {
             return Some(format!(
-                "{}:{}{}",
+                "{}://{}{}",
                 parsed_url.scheme(),
                 parsed_url.domain().unwrap_or(""),
                 parsed_url.path()
