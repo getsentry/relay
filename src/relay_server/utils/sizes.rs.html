@@ -90,7 +90,7 @@
 <a href=#90 id=90 data-nosnippet>90</a>        <span class="comment">// For item containers, we want to check that the contained items obey
 <a href=#91 id=91 data-nosnippet>91</a>        // the size limits *on average*.
 <a href=#92 id=92 data-nosnippet>92</a>        // For standalone items, this is just the item size itself.
-<a href=#93 id=93 data-nosnippet>93</a>        </span><span class="kw">let </span>avg_item_size = item.len() / (item.item_count().unwrap_or(<span class="number">1</span>) <span class="kw">as </span>usize);
+<a href=#93 id=93 data-nosnippet>93</a>        </span><span class="kw">let </span>avg_item_size = item.len() / (item.item_count().unwrap_or(<span class="number">1</span>).max(<span class="number">1</span>) <span class="kw">as </span>usize);
 <a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">if </span>avg_item_size &gt; max_size {
 <a href=#95 id=95 data-nosnippet>95</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(item
 <a href=#96 id=96 data-nosnippet>96</a>                .attachment_type()
