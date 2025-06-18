@@ -8,6 +8,7 @@ use relay_event_schema::protocol::{
     SpanV2Status,
 };
 use relay_protocol::{Annotated, FromValue, Object, Value};
+use url::Url;
 
 /// Transforms a Sentry span V2 to a Sentry span V1.
 ///
@@ -333,7 +334,11 @@ fn derive_http_description(
     let description = http_method.to_owned();
 
     // Get URL path information
-    let url_path = get_sanitized_url_path(attributes, kind);
+    let url_path = match kind {
+        Some(SpanV2Kind::Server) => get_server_url_path(attributes),
+        Some(SpanV2Kind::Client) => get_client_url_path(attributes),
+        _ => None,
+    };
 
     if url_path.is_none() {
         return Some(description);
@@ -370,11 +375,9 @@ fn derive_db_description(attributes: &Object<Attribute>, span_name: &str) -> Opt
     Some(span_name.to_string())
 }
 
-fn get_sanitized_url_path(
-    attributes: &Object<Attribute>,
-    kind: &Option<&SpanV2Kind>,
-) -> Option<String> {
-    // Check for http.route first (this indicates we have a route)
+fn get_server_url_path(attributes: &Object<Attribute>) -> Option<String> {
+    // `http.route` takes precedence. If available, this is the matched route of the server
+    // framework for server spans. Not always available, even for server spans.
     if let Some(route) = attributes
         .get("http.route")
         .and_then(|attr| attr.value())
@@ -384,32 +387,17 @@ fn get_sanitized_url_path(
         return Some(route.to_string());
     }
 
-    // For server spans, check http.target
-    if matches!(kind, Some(SpanV2Kind::Server)) {
-        if let Some(target) = attributes
-            .get("http.target")
-            .and_then(|attr| attr.value())
-            .and_then(|attr_val| attr_val.value.value.value())
-            .and_then(|v| v.as_str())
-        {
-            return Some(strip_url_query_and_fragment(target));
-        }
-    }
-
-    // Check for full URL (http.url or url.full)
-    if let Some(url) = attributes
-        .get("http.url")
-        .or_else(|| attributes.get("url.full"))
+    // `url.path` is the path of the HTTP request for server spans. This is required for server spans.
+    if let Some(path) = attributes
+        .get("url.path")
         .and_then(|attr| attr.value())
         .and_then(|attr_val| attr_val.value.value.value())
         .and_then(|v| v.as_str())
     {
-        if let Some(path) = extract_path_from_url(url) {
-            return Some(path);
-        }
+        return Some(path.to_string());
     }
 
-    // Fall back to http.target for client spans too
+    // `http.target` is deprecated, but might be present in older data. Here as a fallback
     if let Some(target) = attributes
         .get("http.target")
         .and_then(|attr| attr.value())
@@ -432,15 +420,26 @@ fn strip_url_query_and_fragment(url: &str) -> String {
         .to_string()
 }
 
-fn extract_path_from_url(url: &str) -> Option<String> {
-    // Simple URL path extraction - find the path part after the domain
-    if let Some(protocol_end) = url.find("://") {
-        let after_protocol = &url[protocol_end + 3..];
-        if let Some(path_start) = after_protocol.find('/') {
-            let path = &after_protocol[path_start..];
-            return Some(strip_url_query_and_fragment(path));
+fn get_client_url_path(attributes: &Object<Attribute>) -> Option<String> {
+    // `url.full` is a new required attribute for client spans. This is the full URL and should be
+    // safe to parse. `http.url` is its old name
+    if let Some(url) = attributes
+        .get("url.full")
+        .or_else(|| attributes.get("http.url"))
+        .and_then(|attr| attr.value())
+        .and_then(|attr_val| attr_val.value.value.value())
+        .and_then(|v| v.as_str())
+    {
+        if let Ok(parsed_url) = Url::parse(url) {
+            return Some(format!(
+                "{}:{}{}",
+                parsed_url.scheme(),
+                parsed_url.domain().unwrap_or(""),
+                parsed_url.path()
+            ));
         }
     }
+
     None
 }
 
