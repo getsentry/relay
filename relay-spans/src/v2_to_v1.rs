@@ -330,7 +330,7 @@ fn derive_http_description(span: &SpanV2, attributes: &Object<Attribute>) -> Opt
     let description = http_method.to_owned();
 
     // Get URL path information
-    let (url_path, _has_route) = get_sanitized_url_path(attributes, span.kind.value());
+    let url_path = get_sanitized_url_path(attributes, span.kind.value());
 
     if url_path.is_none() {
         return Some(description);
@@ -370,7 +370,7 @@ fn derive_db_description(attributes: &Object<Attribute>, span_name: &str) -> Opt
 fn get_sanitized_url_path(
     attributes: &Object<Attribute>,
     kind: Option<&SpanV2Kind>,
-) -> (Option<String>, bool) {
+) -> Option<String> {
     // Check for http.route first (this indicates we have a route)
     if let Some(route) = attributes
         .get("http.route")
@@ -378,7 +378,7 @@ fn get_sanitized_url_path(
         .and_then(|attr_val| attr_val.value.value.value())
         .and_then(|v| v.as_str())
     {
-        return (Some(route.to_string()), true);
+        return Some(route.to_string());
     }
 
     // For server spans, check http.target
@@ -389,7 +389,7 @@ fn get_sanitized_url_path(
             .and_then(|attr_val| attr_val.value.value.value())
             .and_then(|v| v.as_str())
         {
-            return (Some(strip_url_query_and_fragment(target)), false);
+            return Some(strip_url_query_and_fragment(target));
         }
     }
 
@@ -402,7 +402,7 @@ fn get_sanitized_url_path(
         .and_then(|v| v.as_str())
     {
         if let Some(path) = extract_path_from_url(url) {
-            return (Some(path), false);
+            return Some(path);
         }
     }
 
@@ -413,10 +413,10 @@ fn get_sanitized_url_path(
         .and_then(|attr_val| attr_val.value.value.value())
         .and_then(|v| v.as_str())
     {
-        return (Some(strip_url_query_and_fragment(target)), false);
+        return Some(strip_url_query_and_fragment(target));
     }
 
-    (None, false)
+    None
 }
 
 fn strip_url_query_and_fragment(url: &str) -> String {
