@@ -4,11 +4,18 @@
 
 **Features**:
 
+- Implements a minimum sample rate dynamic sampling rule. ([#4801](https://github.com/getsentry/relay/pull/4801))
+
+
+## 25.6.0
+
+**Features**:
+
 - Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
 - Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 - Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 - Enable filtering sessions by IP address, release, and user agent. ([#4745](https://github.com/getsentry/relay/pull/4745))
-- Implements a minimum sample rate dynamic sampling rule. ([#4801](https://github.com/getsentry/relay/pull/4801))
+- Allow pii scrubbing of the `source_file` field on Csp. ([#4806](https://github.com/getsentry/relay/pull/4806))
 
 **Bug Fixes**:
 
@@ -22,6 +29,9 @@
 - Normalize AI data and measurements into new OTEL compatible fields and extracting metrics out of said fields. ([#4768](https://github.com/getsentry/relay/pull/4768))
 - Switch `sysinfo` dependency back to upstream and update to 0.35.1. ([#4776](https://github.com/getsentry/relay/pull/4776))
 - Consistently always emit session outcomes. ([#4798](https://github.com/getsentry/relay/pull/4798))
+- Set default sdk name for playstation crashes. ([#4802](https://github.com/getsentry/relay/pull/4802))
+- Skip large attachments on playstation crashes. ([#4793](https://github.com/getsentry/relay/pull/4793))
+- Use the received timestamp as observed nanos for logs. ([#4810](https://github.com/getsentry/relay/pull/4810))
 
 ## 25.5.1
 

@@ -24,6 +24,7 @@ from .fixtures.processing import (  # noqa
     processing_config,
     relay_with_processing,
     relay_with_playstation,
+    relay_processing_with_playstation,
     consumer_fixture,
     events_consumer,
     outcomes_consumer,
