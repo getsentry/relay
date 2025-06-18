@@ -1454,8 +1454,8 @@ struct SpanKafkaMessage<'a> {
     #[serde(borrow)]
     sentry_tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
     span_id: &'a str,
-    #[serde(default, skip_serializing_if = "none_or_empty_object")]
-    tags: Option<&'a RawValue>,
+    #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
+    tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
     trace_id: EventId,
 
     #[serde(default)]
@@ -1480,29 +1480,48 @@ struct SpanKafkaMessage<'a> {
 }
 
 impl SpanKafkaMessage<'_> {
-    /// Backfills `data` based on `sentry_tags`.
+    /// Backfills `data` based on `sentry_tags` and `tags`.
     ///
-    /// Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
-    /// The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    /// * Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
+    ///   The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    ///
+    /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
+    ///   is copied as `sentry.normalized_description`.
+    ///
+    /// Items in `tags` take precedence over those in `sentry_tags`.
     fn backfill_data(&mut self) {
-        let Some(sentry_tags) = self.sentry_tags.as_ref() else {
-            return;
-        };
-
         let data = self.data.get_or_insert_default();
 
-        for (key, value) in sentry_tags {
-            let Some(value) = value else {
-                continue;
-            };
+        if let Some(sentry_tags) = &self.sentry_tags {
+            for (key, value) in sentry_tags {
+                let Some(value) = value else {
+                    continue;
+                };
 
-            let key = if *key == "description" {
-                "sentry.normalized_description".to_owned()
-            } else {
-                format!("sentry.{key}")
-            };
+                let key = if *key == "description" {
+                    "sentry.normalized_description".to_owned()
+                } else {
+                    format!("sentry.{key}")
+                };
 
-            data.insert(Cow::Owned(key), Some(value));
+                data.insert(Cow::Owned(key), Some(value));
+            }
+        }
+
+        if let Some(tags) = &self.tags {
+            for (key, value) in tags {
+                let Some(value) = value else {
+                    continue;
+                };
+
+                let key = if *key == "description" {
+                    "sentry.normalized_description"
+                } else {
+                    key
+                };
+
+                data.insert(Cow::Borrowed(key), Some(value));
+            }
         }
     }
 }

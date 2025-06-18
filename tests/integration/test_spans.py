@@ -2449,6 +2449,9 @@ def test_scrubs_ip_addresses(
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
+            "tags": {
+                "extra_info": "added by user",
+            },
             "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
@@ -2471,7 +2474,8 @@ def test_scrubs_ip_addresses(
                 },
             }
         },
-        "data": {  # Backfilled from `sentry_tags`
+        "data": {
+            # Backfilled from `sentry_tags`
             "sentry.category": "http",
             "sentry.normalized_description": "GET *",
             "sentry.group": "37e3d9fab1ae9162",
@@ -2488,6 +2492,8 @@ def test_scrubs_ip_addresses(
             "sentry.user.id": "unique_id",
             "sentry.user.ip": "127.0.0.1",
             "sentry.user.username": "my_user",
+            # Backfilled from `tags`
+            "extra_info": "added by user",
         },
         "description": "GET /api/0/organizations/?member=1",
         "duration_ms": int(duration.total_seconds() * 1e3),
@@ -2518,6 +2524,9 @@ def test_scrubs_ip_addresses(
             "user.id": "unique_id",
             "user.ip": "127.0.0.1",
             "user.username": "my_user",
+        },
+        "tags": {
+            "extra_info": "added by user",
         },
         "span_id": "bbbbbbbbbbbbbbbb",
         "start_timestamp_ms": int(start.timestamp() * 1e3),
