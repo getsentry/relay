@@ -26,6 +26,7 @@
 - Skip large attachments on playstation crashes. ([#4793](https://github.com/getsentry/relay/pull/4793))
 - Use the received timestamp as observed nanos for logs. ([#4810](https://github.com/getsentry/relay/pull/4810))
 - Derive a `sentry.op` attribute for V2 spans ([#4796](https://github.com/getsentry/relay/pull/4796))
+- Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
 
 ## 25.5.1
 
