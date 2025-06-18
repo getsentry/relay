@@ -299,6 +299,14 @@ impl RateLimits {
         }
     }
 
+    /// Merges all limits from another [`RateLimits`] with this one.
+    ///
+    /// See also: [`Self::merge`].
+    pub fn merge_with(mut self, other: Self) -> Self {
+        self.merge(other);
+        self
+    }
+
     /// Returns `true` if this instance contains no active limits.
     ///
     /// This is the opposite of [`is_limited`](Self::is_limited).
@@ -468,6 +476,10 @@ impl CachedRateLimits {
     ///
     /// This is a thread-safe wrapper around [`RateLimits::merge`].
     pub fn merge(&self, limits: RateLimits) {
+        if limits.is_empty() {
+            return;
+        }
+
         let mut inner = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         let current = Arc::make_mut(&mut inner);
         for limit in limits {

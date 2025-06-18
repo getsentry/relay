@@ -1,205 +1,136 @@
-//! Contains the processing-only functionality for logs.
-
-use crate::envelope::{ContainerItems, Item, ItemContainer};
-use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{LogGroup, ProcessingError};
-use crate::services::projects::project::ProjectInfo;
-use crate::utils::{ItemAction, ManagedEnvelope, TypedEnvelope};
-use relay_dynamic_config::ProjectConfig;
+use chrono::{DateTime, Utc};
 use relay_event_normalization::{
-    ClientHints, FromUserAgentInfo, RawUserAgentInfo, SchemaProcessor,
+    ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, SchemaProcessor,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{Attribute, AttributeType, BrowserContext, OurLog};
 use relay_ourlogs::OtelLog;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, ErrorKind, Value};
+use smallvec::SmallVec;
 
-use crate::envelope::ItemType;
+use crate::envelope::{ContainerItems, Item, ItemContainer};
+use crate::extractors::RequestMeta;
+use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
+use crate::processing::{Context, Managed};
+use crate::services::outcome::DiscardReason;
 
-/// Processes logs.
-pub fn process(
-    managed_envelope: &mut TypedEnvelope<LogGroup>,
-    project_info: &ProjectInfo,
-) -> Result<(), ProcessingError> {
-    let log_items = managed_envelope
-        .envelope()
-        .items()
-        .filter(|item| ItemContainer::<OurLog>::is_container(item))
-        .count();
+pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
+    let received_at = logs.received_at();
+    logs.map(|logs, records| {
+        let mut all_logs = SmallVec::with_capacity(logs.count());
 
-    // The `Log` item must always be sent as an `ItemContainer`, currently it is not allowed to
-    // send multiple containers for logs.
-    //
-    // This restriction may be lifted in the future, this is why this validation only happens
-    // when processing is enabled, allowing it to be changed easily in the future.
-    //
-    // This limit mostly exists to incentivise SDKs to batch multiple logs into a single container,
-    // technically it can be removed without issues.
-    if log_items > 1 {
-        return Err(ProcessingError::DuplicateItem(ItemType::Log));
-    }
-
-    let normalize_config = NormalizeOurLogConfig::new(managed_envelope);
-    let received_at = managed_envelope.received_at();
-
-    managed_envelope.retain_items(|item| {
-        let mut logs = match item.ty() {
-            ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
-                Ok(otel_log) => match relay_ourlogs::otel_to_sentry_log(otel_log, received_at) {
-                    Ok(log) => ContainerItems::from_elem(Annotated::new(log), 1),
-                    Err(err) => {
-                        relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
-                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));
-                    }
-                },
-                Err(err) => {
-                    relay_log::debug!("failed to parse OTel Log: {err}");
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));
-                }
-            },
-
-            ItemType::Log => match ItemContainer::parse(item) {
-                Ok(logs) => {
-                    let mut logs = logs.into_items();
-                    for log in logs.iter_mut() {
-                        relay_ourlogs::ourlog_merge_otel(log, received_at);
-                    }
-                    logs
-                }
-                Err(err) => {
-                    relay_log::debug!("failed to parse logs: {err}");
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidLog));
-                }
-            },
-
-            _ => return ItemAction::Keep,
-        };
-
-        for log in logs.iter_mut() {
-            if let Err(e) = scrub(log, &project_info.config) {
-                relay_log::error!("failed to scrub pii from log: {}", e);
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-            }
-
-            if let Err(e) = normalize(log, &normalize_config) {
-                relay_log::debug!("failed to normalize log: {}", e);
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-            };
+        for logs in logs.logs {
+            let expanded = expand_log_container(&logs, received_at);
+            let expanded = records.or_default(expanded, logs);
+            all_logs.extend(expanded);
         }
 
-        *item = {
-            let mut item = Item::new(ItemType::Log);
-            let container = ItemContainer::from(logs);
-            if let Err(err) = container.write_to(&mut item) {
-                relay_log::debug!("failed to serialize log: {}", err);
-                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+        all_logs.reserve_exact(logs.otel_logs.len());
+        for otel_log in logs.otel_logs {
+            match expand_otel_log(&otel_log, received_at) {
+                Ok(log) => all_logs.push(log),
+                Err(err) => {
+                    records.reject_err(err, otel_log);
+                    continue;
+                }
             }
-            item
-        };
+        }
 
-        ItemAction::Keep
+        ExpandedLogs {
+            headers: logs.headers,
+            logs: all_logs,
+        }
+    })
+}
+
+fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<Annotated<OurLog>> {
+    let log = serde_json::from_slice::<OtelLog>(&item.payload())
+        .inspect_err(|err| {
+            relay_log::debug!("failed to parse OTel Log: {err}");
+        })
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
+
+    let log = relay_ourlogs::otel_to_sentry_log(log, received_at)
+        .inspect_err(|err| {
+            relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
+        })
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
+
+    Ok(Annotated::new(log))
+}
+
+fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<ContainerItems<OurLog>> {
+    let mut logs = ItemContainer::parse(item)
+        .inspect_err(|err| {
+            relay_log::debug!("failed to parse logs container: {err}");
+        })
+        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
+        .into_items();
+
+    for log in &mut logs {
+        relay_ourlogs::ourlog_merge_otel(log, received_at);
+    }
+
+    Ok(logs)
+}
+
+pub fn process(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+    logs.modify(|logs, records| {
+        let meta = logs.headers.meta();
+        logs.logs
+            .retain_mut(|log| records.or_default(process_log(log, meta, ctx).map(|_| true), &*log));
     });
+}
+
+fn process_log(log: &mut Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {
+    scrub(log, ctx).inspect_err(|err| {
+        relay_log::debug!("failed to scrub pii from log: {err}");
+    })?;
+
+    normalize(log, meta).inspect_err(|err| {
+        relay_log::debug!("failed to normalize log: {err}");
+    })?;
 
     Ok(())
 }
 
-/// Config needed to normalize a standalone log.
-#[derive(Clone, Debug)]
-struct NormalizeOurLogConfig {
-    /// The user agent parsed from the request.
-    user_agent: Option<String>,
-    /// Client hints parsed from the request.
-    client_hints: ClientHints<String>,
-}
+fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
+    let pii_config = ctx
+        .project_info
+        .config
+        .datascrubbing_settings
+        .pii_config()
+        .map_err(|e| Error::PiiConfig(e.clone()))?;
 
-impl NormalizeOurLogConfig {
-    fn new(managed_envelope: &ManagedEnvelope) -> Self {
-        Self {
-            user_agent: managed_envelope
-                .envelope()
-                .meta()
-                .user_agent()
-                .map(String::from),
-            client_hints: managed_envelope.meta().client_hints().clone(),
-        }
+    if let Some(ref config) = ctx.project_info.config.pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(log, &mut processor, ProcessingState::root())?;
     }
+
+    if let Some(config) = pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(log, &mut processor, ProcessingState::root())?;
+    }
+
+    Ok(())
 }
 
-fn normalize(
-    annotated_log: &mut Annotated<OurLog>,
-    config: &NormalizeOurLogConfig,
-) -> Result<(), ProcessingError> {
-    process_value(annotated_log, &mut SchemaProcessor, ProcessingState::root())?;
+fn normalize(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
+    process_value(log, &mut SchemaProcessor, ProcessingState::root())?;
 
-    let Some(log) = annotated_log.value_mut() else {
-        return Err(ProcessingError::NoEventPayload);
+    let Some(log) = log.value_mut() else {
+        return Err(Error::Invalid(DiscardReason::NoData));
     };
 
     process_attribute_types(log);
-    populate_ua_fields(
-        log,
-        config.user_agent.as_deref(),
-        config.client_hints.as_deref(),
-    );
+    populate_ua_fields(log, meta.user_agent(), meta.client_hints().as_deref());
 
     Ok(())
 }
 
-fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: ClientHints<&str>) {
-    let attributes = log.attributes.get_or_insert_with(Default::default);
-    if let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
-        user_agent,
-        client_hints,
-    }) {
-        if !attributes.contains_key("sentry.browser.name") {
-            if let Some(name) = context.name.value() {
-                attributes.insert(
-                    "sentry.browser.name".to_owned(),
-                    Annotated::new(Attribute::new(
-                        AttributeType::String,
-                        Value::String(name.to_owned()),
-                    )),
-                );
-            }
-        }
-
-        if !attributes.contains_key("sentry.browser.version") {
-            if let Some(version) = context.version.value() {
-                attributes.insert(
-                    "sentry.browser.version".to_owned(),
-                    Annotated::new(Attribute::new(
-                        AttributeType::String,
-                        Value::String(version.to_owned()),
-                    )),
-                );
-            }
-        }
-    }
-}
-
-fn scrub(
-    annotated_log: &mut Annotated<OurLog>,
-    project_config: &ProjectConfig,
-) -> Result<(), ProcessingError> {
-    if let Some(ref config) = project_config.pii_config {
-        let mut processor = PiiProcessor::new(config.compiled());
-        process_value(annotated_log, &mut processor, ProcessingState::root())?;
-    }
-    let pii_config = project_config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
-    if let Some(config) = pii_config {
-        let mut processor = PiiProcessor::new(config.compiled());
-        process_value(annotated_log, &mut processor, ProcessingState::root())?;
-    }
-
-    Ok(())
-}
-
-fn process_attribute_types(ourlog: &mut OurLog) {
-    let Some(attributes) = ourlog.attributes.value_mut() else {
+fn process_attribute_types(log: &mut OurLog) {
+    let Some(attributes) = log.attributes.value_mut() else {
         return;
     };
 
@@ -240,6 +171,40 @@ fn process_attribute_types(ourlog: &mut OurLog) {
                 attribute.meta_mut().add_error(ErrorKind::MissingAttribute);
                 attribute.meta_mut().set_original_value(original);
             }
+        }
+    }
+}
+
+fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: ClientHints<&str>) {
+    let attributes = log.attributes.get_or_insert_with(Default::default);
+    let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+        user_agent,
+        client_hints,
+    }) else {
+        return;
+    };
+
+    if !attributes.contains_key("sentry.browser.name") {
+        if let Some(name) = context.name.value() {
+            attributes.insert(
+                "sentry.browser.name".to_owned(),
+                Annotated::new(Attribute::new(
+                    AttributeType::String,
+                    Value::String(name.to_owned()),
+                )),
+            );
+        }
+    }
+
+    if !attributes.contains_key("sentry.browser.version") {
+        if let Some(version) = context.version.value() {
+            attributes.insert(
+                "sentry.browser.version".to_owned(),
+                Annotated::new(Attribute::new(
+                    AttributeType::String,
+                    Value::String(version.to_owned()),
+                )),
+            );
         }
     }
 }

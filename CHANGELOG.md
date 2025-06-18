@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Introduces a new processing pipeline and implements it for logs. ([#4777](https://github.com/getsentry/relay/pull/4777)
+
+
 ## 25.6.0
 
 **Features**:

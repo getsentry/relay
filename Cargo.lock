@@ -4168,6 +4168,7 @@ dependencies = [
 name = "relay-quotas"
 version = "25.6.0"
 dependencies = [
+ "async-trait",
  "hashbrown 0.14.5",
  "insta",
  "itertools 0.13.0",

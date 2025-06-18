@@ -26,6 +26,7 @@ impl PickResult {
     }
 
     /// Returns `true` if the sampling result is [`PickResult::Discard`].
+    #[cfg(feature = "processing")]
     pub fn is_discard(self) -> bool {
         !self.is_keep()
     }
