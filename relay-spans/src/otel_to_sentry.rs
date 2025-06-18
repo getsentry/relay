@@ -568,7 +568,6 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "is_remote": true,
           "status": "unknown",
-          "description": "",
           "data": {},
           "links": []
         }
@@ -599,7 +598,6 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "is_remote": false,
           "status": "unknown",
-          "description": "",
           "data": {},
           "links": []
         }
@@ -629,7 +627,6 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "description": "",
           "data": {},
           "links": [],
           "kind": "client"
@@ -689,7 +686,6 @@ mod tests {
           "span_id": "e342abb1214ca181",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "status": "unknown",
-          "description": "",
           "data": {},
           "links": [
             {
