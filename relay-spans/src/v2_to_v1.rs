@@ -303,7 +303,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
             .unwrap_or(false);
 
         if !is_cache_op {
-            return derive_db_description(attributes, span_name);
+            return derive_db_description(attributes);
         }
     }
 
@@ -360,7 +360,7 @@ fn derive_http_description(
     Some(base_description)
 }
 
-fn derive_db_description(attributes: &Object<Attribute>, span_name: &str) -> Option<String> {
+fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
     // Check for db.statement first
     if let Some(statement) = attributes
         .get("db.statement")
@@ -371,8 +371,7 @@ fn derive_db_description(attributes: &Object<Attribute>, span_name: &str) -> Opt
         return Some(statement.to_string());
     }
 
-    // Fall back to span name
-    Some(span_name.to_string())
+    None
 }
 
 fn get_server_url_path(attributes: &Object<Attribute>) -> Option<String> {
