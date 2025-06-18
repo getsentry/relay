@@ -136,7 +136,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Span => None,
         ItemType::OtelSpan => None,
         ItemType::OtelTracesData => None,
-        ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
+        ItemType::ProfileChunk => None,
         ItemType::Unknown(_) => None,
     }
 }
