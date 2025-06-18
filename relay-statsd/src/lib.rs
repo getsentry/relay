@@ -22,7 +22,6 @@
 //!
 //! ```no_run
 //! # use std::collections::BTreeMap;
-//! use statsdproxy::config::DenyTagConfig;
 //! # use relay_statsd::MetricsClientConfig;
 //!
 //! relay_statsd::init(MetricsClientConfig {
@@ -31,11 +30,7 @@
 //!     default_tags: BTreeMap::new(),
 //!     sample_rate: 1.0,
 //!     aggregate: true,
-//!     deny_tag_config: DenyTagConfig {
-//!         tags: vec![],
-//!         starts_with: vec![],
-//!         ends_with: vec![]
-//!     }
+//!     allow_high_cardinality_tags: false
 //! });
 //! ```
 //!
@@ -114,8 +109,8 @@ pub struct MetricsClientConfig<'a, A: ToSocketAddrs> {
     pub sample_rate: f32,
     /// If metrics should be batched or send immediately upstream.
     pub aggregate: bool,
-    /// Deny tags from metrics based on this configuration.
-    pub deny_tag_config: DenyTagConfig,
+    /// If high cardinality tags should be removed from metrics.
+    pub allow_high_cardinality_tags: bool,
 }
 
 impl Deref for MetricsClient {
@@ -271,20 +266,21 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
         }
     );
 
+    let deny_config = DenyTagConfig {
+        starts_with: match config.allow_high_cardinality_tags {
+            true => vec![],
+            false => vec!["hc_".to_owned()],
+        },
+        tags: vec![],
+        ends_with: vec![],
+    };
+
     let statsd_client = if config.aggregate {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
             let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
                 .expect("failed to create statsdproxy metric sink");
 
-            let deny_config = DenyTagConfig {
-                tags: config.deny_tag_config.tags.clone(),
-                starts_with: config.deny_tag_config.starts_with.clone(),
-                ends_with: config.deny_tag_config.ends_with.clone(),
-            };
-
-            let deny = DenyTag::new(deny_config, upstream);
-
-            statsdproxy::middleware::aggregate::AggregateMetrics::new(
+            let aggregate = statsdproxy::middleware::aggregate::AggregateMetrics::new(
                 AggregateMetricsConfig {
                     aggregate_gauges: true,
                     aggregate_counters: true,
@@ -292,8 +288,10 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
                     flush_offset: 0,
                     max_map_size: None,
                 },
-                deny,
-            )
+                upstream,
+            );
+
+            DenyTag::new(deny_config.clone(), aggregate)
         });
 
         StatsdClient::from_sink(config.prefix, statsdproxy_sink)
@@ -302,13 +300,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
             let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
                 .expect("failed to create statsdproxy metric sind");
 
-            let deny_config = DenyTagConfig {
-                tags: config.deny_tag_config.tags.clone(),
-                starts_with: config.deny_tag_config.starts_with.clone(),
-                ends_with: config.deny_tag_config.ends_with.clone(),
-            };
-
-            DenyTag::new(deny_config, upstream)
+            DenyTag::new(deny_config.clone(), upstream)
         });
         StatsdClient::from_sink(config.prefix, statsdproxy_sink)
     };

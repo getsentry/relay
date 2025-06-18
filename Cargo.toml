@@ -186,7 +186,7 @@ smallvec = { version = "1.13.2", features = ["serde"] }
 socket2 = "0.5.8"
 sqlparser = "0.44.0"
 sqlx = { version = "0.8.2", default-features = false }
-statsdproxy = { version = "0.4.0", default-features = false }
+statsdproxy = { version = "0.4.1", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
 syn = { version = "2.0.90" }

@@ -557,10 +557,14 @@ pub struct Metrics {
     ///
     /// Defaults to `true`.
     pub aggregate: bool,
-    /// Removes tags from all metrics based on the configuration.
+    /// Allows emission of metrics with high cardinality tags.
     ///
-    /// By default, no tags are removed.
-    pub deny_tags: DenyMetricTags,
+    /// High cardinality tags are dynamic values attached to metrics,
+    /// such as project IDs. When enabled, these tags will be included
+    /// in the emitted metrics. When disabled, the tags will be omitted.
+    ///
+    /// Defaults to `false`.
+    pub allow_high_cardinality_tags: bool,
 }
 
 impl Default for Metrics {
@@ -573,7 +577,7 @@ impl Default for Metrics {
             sample_rate: 1.0,
             periodic_secs: 5,
             aggregate: true,
-            deny_tags: Default::default(),
+            allow_high_cardinality_tags: false,
         }
     }
 }
@@ -2108,19 +2112,9 @@ impl Config {
         self.values.metrics.aggregate
     }
 
-    /// Returns a list of tags that should be removed from metrics.
-    pub fn metrics_deny_list(&self) -> &[String] {
-        &self.values.metrics.deny_tags.tags
-    }
-
-    /// Returns a list of prefixes to removes tags that matches them.
-    pub fn metrics_starts_with_deny_list(&self) -> &[String] {
-        &self.values.metrics.deny_tags.starts_with
-    }
-
-    /// Returns a list of suffixes to removes tags that matches them.
-    pub fn metrics_ends_with_deny_list(&self) -> &[String] {
-        &self.values.metrics.deny_tags.ends_with
+    /// Returns whether high cardinality tags should be removed before sending metrics.
+    pub fn metrics_allow_high_cardinality_tags(&self) -> bool {
+        self.values.metrics.allow_high_cardinality_tags
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.

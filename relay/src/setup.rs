@@ -117,11 +117,7 @@ pub fn init_metrics(config: &Config) -> Result<()> {
         default_tags,
         sample_rate: config.metrics_sample_rate(),
         aggregate: config.metrics_aggregate(),
-        deny_tag_config: DenyTagConfig {
-            tags: config.metrics_deny_list().to_owned(),
-            starts_with: config.metrics_starts_with_deny_list().to_owned(),
-            ends_with: config.metrics_ends_with_deny_list().to_owned(),
-        },
+        allow_high_cardinality_tags: config.metrics_allow_high_cardinality_tags(),
     });
 
     Ok(())
