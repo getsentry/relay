@@ -288,7 +288,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
 
     // Check for HTTP spans
     if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
-        return derive_http_description(span, attributes, span_name);
+        return derive_http_description(span, attributes);
     }
 
     // Check for database spans (but not cache operations)
@@ -318,11 +318,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
     Some(span_name.to_string())
 }
 
-fn derive_http_description(
-    span: &SpanV2,
-    attributes: &Object<Attribute>,
-    span_name: &str,
-) -> Option<String> {
+fn derive_http_description(span: &SpanV2, attributes: &Object<Attribute>) -> Option<String> {
     // Get HTTP method
     let http_method = attributes
         .get("http.request.method")
@@ -335,7 +331,7 @@ fn derive_http_description(
     let (url_path, _has_route) = get_sanitized_url_path(attributes, span.kind.value());
 
     if url_path.is_none() {
-        return Some(span_name.to_string());
+        return None;
     }
 
     let url_path = url_path.unwrap();
@@ -774,7 +770,6 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "description": "",
           "data": {
             "http.request_method": "GET"
           },
@@ -812,7 +807,6 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "description": "",
           "data": {
             "http.request_method": "GET"
           },
