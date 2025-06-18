@@ -39,6 +39,7 @@
 - Use the received timestamp as observed nanos for logs. ([#4810](https://github.com/getsentry/relay/pull/4810))
 - Strip out profiler_id from profile context for short transactions. ([#4818](https://github.com/getsentry/relay/pull/4818))
 - Derive a `sentry.op` attribute for V2 spans ([#4796](https://github.com/getsentry/relay/pull/4796))
+- Add `ModelCostsV2` struct which is used for LLM model cost calculation ([#4825](https://github.com/getsentry/relay/pull/4825))
 
 ## 25.5.1
 
