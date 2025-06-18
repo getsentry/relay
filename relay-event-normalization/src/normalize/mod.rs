@@ -281,7 +281,7 @@ impl<'de> serde::Deserialize<'de> for ModelCosts {
     {
         use serde_json::Value;
 
-        let value = Value::deserialize(deserializer)?;
+        let mut value = Value::deserialize(deserializer)?;
 
         // Try to extract version, handling both string and integer
         let version = match value.get("version") {
@@ -294,15 +294,15 @@ impl<'de> serde::Deserialize<'de> for ModelCosts {
         match version {
             "1" => {
                 let costs = value
-                    .get("costs")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .get_mut("costs")
+                    .and_then(|v| serde_json::from_value(v.take()).ok())
                     .unwrap_or_default();
                 Ok(ModelCosts::V1 { costs })
             }
             "2" => {
                 let costs = value
-                    .get("costs")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    .get_mut("costs")
+                    .and_then(|v| serde_json::from_value(v.take()).ok())
                     .unwrap_or_default();
                 Ok(ModelCosts::V2 { costs })
             }
@@ -372,7 +372,7 @@ impl ModelCost {
 
 /// Version 2 of a mapping of AI model types (like GPT-4) to their respective costs.
 /// Version 1 had some limitations, so we're moving to a more flexible format.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCostV2 {
     pub(crate) input_per_token: f64,
