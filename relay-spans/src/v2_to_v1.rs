@@ -288,7 +288,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
 
     // Check for HTTP spans
     if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
-        return derive_http_description(span, attributes);
+        return derive_http_description(attributes, &span.kind.value());
     }
 
     // Check for database spans (but not cache operations)
@@ -318,7 +318,10 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
     Some(span_name.to_string())
 }
 
-fn derive_http_description(span: &SpanV2, attributes: &Object<Attribute>) -> Option<String> {
+fn derive_http_description(
+    attributes: &Object<Attribute>,
+    kind: &Option<&SpanV2Kind>,
+) -> Option<String> {
     // Get HTTP method
     let http_method = attributes
         .get("http.request.method")
@@ -330,7 +333,7 @@ fn derive_http_description(span: &SpanV2, attributes: &Object<Attribute>) -> Opt
     let description = http_method.to_owned();
 
     // Get URL path information
-    let url_path = get_sanitized_url_path(attributes, span.kind.value());
+    let url_path = get_sanitized_url_path(attributes, kind);
 
     if url_path.is_none() {
         return Some(description);
@@ -369,7 +372,7 @@ fn derive_db_description(attributes: &Object<Attribute>, span_name: &str) -> Opt
 
 fn get_sanitized_url_path(
     attributes: &Object<Attribute>,
-    kind: Option<&SpanV2Kind>,
+    kind: &Option<&SpanV2Kind>,
 ) -> Option<String> {
     // Check for http.route first (this indicates we have a route)
     if let Some(route) = attributes
