@@ -861,6 +861,8 @@ def test_span_ingestion(
                 "sentry.file_extension": "js",
                 "sentry.group": "8a97a9e43588e2bd",
                 "sentry.op": "resource.script",
+                # Backfilled from `measurements`:
+                "score.total": 0.12121616,
             },
             "description": "https://example.com/p/blah.js",
             "duration_ms": 1500,
@@ -1757,6 +1759,28 @@ def test_span_ingestion_with_performance_scores(
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "ui.interaction.click",
+                # Backfilled from `measurements`:
+                "score.fcp": 0.14999972769539766,
+                "score.fid": 0.14999999985,
+                "score.lcp": 0.29986141375718806,
+                "score.ratio.cls": 0.0,
+                "score.ratio.fcp": 0.9999981846359844,
+                "score.ratio.fid": 0.4999999995,
+                "score.ratio.lcp": 0.9995380458572936,
+                "score.ratio.ttfb": 0.0,
+                "score.total": 0.5998611413025857,
+                "score.ttfb": 0.0,
+                "score.weight.cls": 0.25,
+                "score.weight.fcp": 0.15,
+                "score.weight.fid": 0.3,
+                "score.weight.lcp": 0.3,
+                "score.weight.ttfb": 0.0,
+                "cls": 100.0,
+                "fcp": 200.0,
+                "fid": 300.0,
+                "lcp": 400.0,
+                "ttfb": 500.0,
+                "score.cls": 0.0,
             },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -1830,6 +1854,12 @@ def test_span_ingestion_with_performance_scores(
                 "sentry.transaction": "/page/with/click/interaction/*/*",
                 "sentry.replay_id": "8477286c8e5148b386b71ade38374d58",
                 "sentry.user": "[email]",
+                # Backfilled from `measurements`:
+                "inp": 100.0,
+                "score.inp": 0.9948129113413748,
+                "score.ratio.inp": 0.9948129113413748,
+                "score.total": 0.9948129113413748,
+                "score.weight.inp": 1.0,
             },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -2534,6 +2564,9 @@ def test_scrubs_ip_addresses(
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
             "status": "success",
+            "tags": {
+                "extra_info": "added by user",
+            },
             "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
@@ -2556,7 +2589,8 @@ def test_scrubs_ip_addresses(
                 },
             }
         },
-        "data": {  # Backfilled from `sentry_tags`
+        "data": {
+            # Backfilled from `sentry_tags`
             "sentry.category": "http",
             "sentry.normalized_description": "GET *",
             "sentry.group": "37e3d9fab1ae9162",
@@ -2573,6 +2607,8 @@ def test_scrubs_ip_addresses(
             "sentry.user.id": "unique_id",
             "sentry.user.ip": "127.0.0.1",
             "sentry.user.username": "my_user",
+            # Backfilled from `tags`
+            "extra_info": "added by user",
         },
         "description": "GET /api/0/organizations/?member=1",
         "duration_ms": int(duration.total_seconds() * 1e3),
@@ -2603,6 +2639,9 @@ def test_scrubs_ip_addresses(
             "user.id": "unique_id",
             "user.ip": "127.0.0.1",
             "user.username": "my_user",
+        },
+        "tags": {
+            "extra_info": "added by user",
         },
         "span_id": "bbbbbbbbbbbbbbbb",
         "start_timestamp_ms": int(start.timestamp() * 1e3),
