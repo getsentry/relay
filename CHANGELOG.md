@@ -4,7 +4,7 @@
 
 **Internal**:
 
-- Add layer to send `tracing` events above `INFO` to Sentry logs, and stop sending breadcrumbs. ([#4753](https://github.com/getsentry/relay/pull/4753))
+- Add layer to send `tracing` events above `INFO` to Sentry logs, and stop sending breadcrumbs. ([#4820](https://github.com/getsentry/relay/pull/4820))
 
 ## 25.6.0
 
