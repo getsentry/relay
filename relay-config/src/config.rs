@@ -582,18 +582,6 @@ impl Default for Metrics {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-#[serde(default)]
-/// Controls which tags are removed from all metrics.
-pub struct DenyMetricTags {
-    /// A list of tag names that will be removed when they exactly match any value specified.
-    pub tags: Vec<String>,
-    /// A list of prefixes. Any tag that begins with any of these prefixes will be removed.
-    pub starts_with: Vec<String>,
-    /// A list of suffixes. Any tag that ends with any of these suffixes will be removed.
-    pub ends_with: Vec<String>,
-}
-
 /// Controls processing of Sentry metrics and metric metadata.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]

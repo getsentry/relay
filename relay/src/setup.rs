@@ -1,9 +1,9 @@
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use anyhow::Result;
-use relay_config::{Config, DenyMetricTags, RelayMode};
+use relay_config::{Config, RelayMode};
 use relay_server::MemoryStat;
-use relay_statsd::{DenyTagConfig, MetricsClientConfig};
+use relay_statsd::MetricsClientConfig;
 
 /// Validates that the `batch_size_bytes` of the configuration is correct and doesn't lead to
 /// deadlocks in the buffer.
