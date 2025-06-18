@@ -464,6 +464,17 @@ class AttachmentsConsumer(EventsConsumer):
         assert v["type"] == "user_report", v["type"]
         return v
 
+    def get_event_only(self):
+        """
+        Unlike `get_event` which only polls once and checks if the message is an event, this polls
+        until an event is found (or there is nothing more to poll) ignoring anything that is not an
+        event.
+        """
+        while True:
+            _, message = self.get_message()
+            if message.get("type") == "event":
+                return message, json.loads(message["payload"])
+
 
 class ReplayRecordingsConsumer(EventsConsumer):
     def get_chunked_replay_chunk(self):

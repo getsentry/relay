@@ -279,10 +279,7 @@ impl StoreService {
                     replay_recording = Some(item);
                 }
                 ItemType::ReplayEvent => {
-                    if item.replay_combined_payload() {
-                        replay_event = Some(item);
-                    }
-
+                    replay_event = Some(item);
                     self.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
@@ -916,6 +913,11 @@ impl StoreService {
             }
         };
 
+        if let Some(measurements) = &mut span.measurements {
+            measurements
+                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
+        }
+
         span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
@@ -924,11 +926,6 @@ impl StoreService {
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
-
-        if let Some(measurements) = &mut span.measurements {
-            measurements
-                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
-        }
 
         if self.config.produce_protobuf_spans() {
             self.inner_produce_protobuf_span(
@@ -1003,22 +1000,14 @@ impl StoreService {
                 .to_le_bytes()
                 .to_vec(),
             attributes: Default::default(),
-            client_sample_rate: span.client_sample_rate,
-            server_sample_rate: span.server_sample_rate,
+            client_sample_rate: span.client_sample_rate.unwrap_or_default(),
+            server_sample_rate: span.server_sample_rate.unwrap_or_default(),
         };
 
         if let Some(data) = span.data {
             for (key, raw_value) in data {
-                let Some(raw_value) = raw_value else { continue };
-                let json_value = match serde_json::Value::deserialize(raw_value) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        relay_log::error!(
-                            error = &err as &dyn std::error::Error,
-                            "failed to deserialize span data value: {key}"
-                        );
-                        continue;
-                    }
+                let Some(json_value) = raw_value else {
+                    continue;
                 };
                 let any_value = match json_value {
                     JsonValue::String(string) => AnyValue {
@@ -1040,8 +1029,15 @@ impl StoreService {
                     JsonValue::Bool(bool) => AnyValue {
                         value: Some(Value::BoolValue(bool)),
                     },
-                    JsonValue::Array(_) | JsonValue::Object(_) => AnyValue {
-                        value: Some(Value::StringValue(raw_value.get().to_owned())),
+                    JsonValue::Array(array) => AnyValue {
+                        value: Some(Value::StringValue(
+                            serde_json::to_string(&array).unwrap_or_default(),
+                        )),
+                    },
+                    JsonValue::Object(object) => AnyValue {
+                        value: Some(Value::StringValue(
+                            serde_json::to_string(&object).unwrap_or_default(),
+                        )),
                     },
                     _ => continue,
                 };
@@ -1649,7 +1645,7 @@ struct SpanKafkaMessage<'a> {
     is_remote: bool,
 
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
+    data: Option<BTreeMap<Cow<'a, str>, Option<serde_json::Value>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
@@ -1680,10 +1676,10 @@ struct SpanKafkaMessage<'a> {
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
     #[serde(borrow)]
-    sentry_tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
+    sentry_tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
     span_id: &'a str,
-    #[serde(default, skip_serializing_if = "none_or_empty_map")]
-    tags: Option<BTreeMap<&'a str, Option<String>>>,
+    #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
+    tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
     trace_id: EventId,
 
     #[serde(default)]
@@ -1695,6 +1691,11 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client_sample_rate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    server_sample_rate: Option<f64>,
 
     #[serde(
         default,
@@ -1708,29 +1709,72 @@ struct SpanKafkaMessage<'a> {
 }
 
 impl SpanKafkaMessage<'_> {
-    /// Backfills `data` based on `sentry_tags`.
+    /// Backfills `data` based on `sentry_tags`, `tags`, and `measurements`.
     ///
-    /// Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
-    /// The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    /// * Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
+    ///   The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    ///
+    /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
+    ///   is copied as `sentry.normalized_description`.
+    ///
+    /// * The value of every item in `measurements` is copied to `data` with the same key, with the exceptions
+    ///   of `client_sample_rate` and `server_sample_rate`. Those measurements are instead written to the top-level
+    ///   fields of the same names.
+    ///
+    /// From highest to lowest, the order of precedence is
+    /// * `measurements`
+    /// * `tags`
+    /// * `sentry_tags`
+    /// * existing values in `tags`
     fn backfill_data(&mut self) {
-        let Some(sentry_tags) = self.sentry_tags.as_ref() else {
-            return;
-        };
-
         let data = self.data.get_or_insert_default();
 
-        for (key, value) in sentry_tags {
-            let Some(value) = value else {
-                continue;
-            };
+        if let Some(sentry_tags) = &self.sentry_tags {
+            for (key, value) in sentry_tags {
+                let Some(value) = value else {
+                    continue;
+                };
 
-            let key = if *key == "description" {
-                "sentry.normalized_description".to_owned()
-            } else {
-                format!("sentry.{key}")
-            };
+                let key = if *key == "description" {
+                    "sentry.normalized_description".to_owned()
+                } else {
+                    format!("sentry.{key}")
+                };
 
-            data.insert(Cow::Owned(key), Some(value));
+                data.insert(Cow::Owned(key), Some(value.clone()));
+            }
+        }
+
+        if let Some(tags) = &self.tags {
+            for (key, value) in tags {
+                let Some(value) = value else {
+                    continue;
+                };
+
+                let key = if *key == "description" {
+                    "sentry.normalized_description"
+                } else {
+                    key
+                };
+
+                data.insert(Cow::Borrowed(key), Some(value.clone()));
+            }
+        }
+
+        if let Some(measurements) = &self.measurements {
+            for (key, value) in measurements {
+                let Some(value) = value.as_ref().and_then(|v| v.value) else {
+                    continue;
+                };
+
+                match &key[..] {
+                    "client_sample_rate" => self.client_sample_rate = Some(value),
+                    "server_sample_rate" => self.server_sample_rate = Some(value),
+                    _ => {
+                        data.insert(key.clone(), Some(value.into()));
+                    }
+                }
+            }
         }
     }
 }

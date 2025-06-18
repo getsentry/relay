@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
+
+## 25.6.0
+
 **Features**:
 
 - Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
@@ -24,6 +30,8 @@
 - Consistently always emit session outcomes. ([#4798](https://github.com/getsentry/relay/pull/4798))
 - Set default sdk name for playstation crashes. ([#4802](https://github.com/getsentry/relay/pull/4802))
 - Skip large attachments on playstation crashes. ([#4793](https://github.com/getsentry/relay/pull/4793))
+- Use the received timestamp as observed nanos for logs. ([#4810](https://github.com/getsentry/relay/pull/4810))
+- Derive a `sentry.op` attribute for V2 spans ([#4796](https://github.com/getsentry/relay/pull/4796))
 
 ## 25.5.1
 
