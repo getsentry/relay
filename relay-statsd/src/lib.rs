@@ -22,8 +22,16 @@
 //!
 //! ```no_run
 //! # use std::collections::BTreeMap;
+//! # use relay_statsd::MetricsClientConfig;
 //!
-//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), 1.0, true);
+//! relay_statsd::init(MetricsClientConfig {
+//!     prefix: "myprefix",
+//!     host: "localhost:8125",
+//!     default_tags: BTreeMap::new(),
+//!     sample_rate: 1.0,
+//!     aggregate: true,
+//!     allow_high_cardinality_tags: false
+//! });
 //! ```
 //!
 //! ## Macro Usage
@@ -56,11 +64,14 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
+pub use statsdproxy::config::DenyTagConfig;
+
 use cadence::{Metric, MetricBuilder, StatsdClient};
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 use statsdproxy::cadence::StatsdProxyMetricSink;
 use statsdproxy::config::AggregateMetricsConfig;
+use statsdproxy::middleware::deny_tag::DenyTag;
 use std::collections::BTreeMap;
 use std::net::ToSocketAddrs;
 use std::ops::{Deref, DerefMut};
@@ -83,6 +94,23 @@ pub struct MetricsClient {
     ///
     /// Only available when the client was initialized with `init_basic`.
     pub rx: Option<crossbeam_channel::Receiver<Vec<u8>>>,
+}
+
+/// Client configuration used for initialization of [`MetricsClient`].
+#[derive(Debug)]
+pub struct MetricsClientConfig<'a, A: ToSocketAddrs> {
+    /// Prefix which is appended to all metric names.
+    pub prefix: &'a str,
+    /// Host of the metrics upstream.
+    pub host: A,
+    /// Tags that are added to all metrics.
+    pub default_tags: BTreeMap<String, String>,
+    /// Sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
+    pub sample_rate: f32,
+    /// If metrics should be batched or send immediately upstream.
+    pub aggregate: bool,
+    /// If high cardinality tags should be removed from metrics.
+    pub allow_high_cardinality_tags: bool,
 }
 
 impl Deref for MetricsClient {
@@ -221,20 +249,14 @@ pub fn disable() {
 }
 
 /// Tell the metrics system to report to statsd.
-pub fn init<A: ToSocketAddrs>(
-    prefix: &str,
-    host: A,
-    default_tags: BTreeMap<String, String>,
-    sample_rate: f32,
-    aggregate: bool,
-) {
-    let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
+pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
+    let addrs: Vec<_> = config.host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
         relay_log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
 
     // Normalize sample_rate
-    let sample_rate = sample_rate.clamp(0., 1.);
+    let sample_rate = config.sample_rate.clamp(0., 1.);
     relay_log::debug!(
         "metrics sample rate is set to {sample_rate}{}",
         if sample_rate == 0.0 {
@@ -244,12 +266,21 @@ pub fn init<A: ToSocketAddrs>(
         }
     );
 
-    let statsd_client = if aggregate {
+    let deny_config = DenyTagConfig {
+        starts_with: match config.allow_high_cardinality_tags {
+            true => vec![],
+            false => vec!["hc_".to_owned()],
+        },
+        tags: vec![],
+        ends_with: vec![],
+    };
+
+    let statsd_client = if config.aggregate {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
             let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
                 .expect("failed to create statsdproxy metric sink");
 
-            statsdproxy::middleware::aggregate::AggregateMetrics::new(
+            let aggregate = statsdproxy::middleware::aggregate::AggregateMetrics::new(
                 AggregateMetricsConfig {
                     aggregate_gauges: true,
                     aggregate_counters: true,
@@ -258,21 +289,25 @@ pub fn init<A: ToSocketAddrs>(
                     max_map_size: None,
                 },
                 upstream,
-            )
+            );
+
+            DenyTag::new(deny_config.clone(), aggregate)
         });
 
-        StatsdClient::from_sink(prefix, statsdproxy_sink)
+        StatsdClient::from_sink(config.prefix, statsdproxy_sink)
     } else {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
-            statsdproxy::middleware::upstream::Upstream::new(addrs[0])
-                .expect("failed to create statsdproxy metric sind")
+            let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
+                .expect("failed to create statsdproxy metric sind");
+
+            DenyTag::new(deny_config.clone(), upstream)
         });
-        StatsdClient::from_sink(prefix, statsdproxy_sink)
+        StatsdClient::from_sink(config.prefix, statsdproxy_sink)
     };
 
     set_client(MetricsClient {
         statsd_client,
-        default_tags,
+        default_tags: config.default_tags,
         sample_rate,
         rx: None,
     });
