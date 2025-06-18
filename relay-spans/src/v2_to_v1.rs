@@ -16,7 +16,7 @@ use url::Url;
 /// * The V1 span's `op` field will be set based on the V2 span's `sentry.op` attribute, or
 ///   inferred from other attributes if the `sentry.op` attribute is not set.
 /// * The V1 span's `description` field will be set based on the V2 span's `sentry.description`
-/// attribute, or inferred from other attributes if the `sentry.description` attribute is not set.
+///   attribute, or inferred from other attributes if the `sentry.description` attribute is not set.
 /// * The V1 span's `description` field is set based on the V2 span's `sentry.description` attribute.
 /// * The V1 span's `status` field is set based on the V2 span's `status` field and
 ///   `http.status_code` and `rpc.grpc.status_code` attributes.

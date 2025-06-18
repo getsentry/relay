@@ -12,8 +12,8 @@ use relay_protocol::Error;
 /// * The Sentry span's `op` field will be inferred based on the OTEL span's `sentry.op` attribute,
 ///   or other available attributes if `sentry.op` is not provided.
 /// * The Sentry span's `description` field will be inferred based on the OTEL span's
-/// `sentry.description` attribute, or other available attributes if `sentry.description` is not
-/// provided.
+///   `sentry.description` attribute, or other available attributes if `sentry.description` is not
+///   provided.
 /// * The Sentry span's `description` field may be set based on `db` or `http` attributes
 ///   if the OTEL span's `sentry.description` attribute is empty.
 /// * The Sentry span's `status` field is set based on the OTEL span's `status` field and
