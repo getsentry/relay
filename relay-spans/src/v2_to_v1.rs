@@ -281,18 +281,17 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
 /// the SDK might have sent. This works well for HTTP and database spans, but doesn't have a
 /// thorough implementation for other types of spans for now.
 fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
+    // `name` is a low-cardinality description of the span, so it makes for a good fallback.
+    let description = span.name.value().map(|v| v.to_owned());
+
     let Some(attributes) = span.attributes.value() else {
-        return span.name.value().map(|name| name.to_string());
+        return description;
     };
 
-    let span_name = span.name.value().map(|n| n.as_str()).unwrap_or("");
-
-    // Check for HTTP spans
     if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
         return derive_http_description(attributes, &span.kind.value());
     }
 
-    // Check for database spans (but not cache operations)
     if attributes.contains_key("db.system") || attributes.contains_key("db.system.name") {
         let is_cache_op = attributes
             .get("sentry.op")
@@ -307,16 +306,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
         }
     }
 
-    // For RPC, messaging, and FaaS spans, use the original name
-    if attributes.contains_key("rpc.service")
-        || attributes.contains_key("messaging.system")
-        || attributes.contains_key("faas.trigger")
-    {
-        return Some(span_name.to_string());
-    }
-
-    // Default to span name
-    Some(span_name.to_string())
+    description
 }
 
 fn derive_http_description(
