@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
+
 ## 25.6.0
 
 **Features**:
