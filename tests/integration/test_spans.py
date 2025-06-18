@@ -548,6 +548,10 @@ def envelope_with_spans(
                                     "type": "string",
                                     "value": "https://example.com/p/blah.js",
                                 },
+                                "sentry.op": {
+                                    "type": "string",
+                                    "value": "resource.script",
+                                },
                                 "sentry.exclusive_time_nano": {
                                     "type": "integer",
                                     "value": 161 * 1e6,
@@ -768,7 +772,7 @@ def test_span_ingestion(
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
                 # Backfilled from `sentry_tags`:
-                "sentry.op": "my 1st otel span",
+                "sentry.op": "default",
                 "sentry.browser.name": "Chrome",
                 "sentry.status": "unknown",
             },
@@ -791,7 +795,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "db",
-                "op": "my 1st otel span",
+                "op": "default",
                 "status": "unknown",
             },
             "span_id": "a342abb1214ca181",
@@ -811,7 +815,7 @@ def test_span_ingestion(
                 "Chrome/111.0.0.0 Safari/537.36",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Chrome",
-                "sentry.op": "my 1st v2 span",
+                "sentry.op": "default",
                 "sentry.status": "unknown",
             },
             "duration_ms": 500,
@@ -833,7 +837,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "db",
-                "op": "my 1st v2 span",
+                "op": "default",
                 "status": "unknown",
             },
             "span_id": "a342abb1214ca182",
@@ -983,7 +987,7 @@ def test_span_ingestion(
                 "user_agent.original": "python-requests/2.32.2",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
-                "sentry.op": "my 2nd otel span",
+                "sentry.op": "default",
                 "sentry.status": "unknown",
             },
             "duration_ms": 500,
@@ -1007,7 +1011,7 @@ def test_span_ingestion(
             "segment_id": "d342abb1214ca182",
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "op": "my 2nd otel span",
+                "op": "default",
                 "status": "unknown",
             },
             "span_id": "d342abb1214ca182",
@@ -1054,7 +1058,7 @@ def test_span_ingestion(
                 "user_agent.original": "python-requests/2.32.2",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
-                "sentry.op": "my 3rd protobuf otel span",
+                "sentry.op": "default",
                 "sentry.category": "ui",
                 "sentry.status": "unknown",
             },
@@ -1079,7 +1083,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "op": "my 3rd protobuf otel span",
+                "op": "default",
                 "category": "ui",
                 "status": "unknown",
             },
@@ -1174,25 +1178,11 @@ def test_span_ingestion(
             "retention_days": 90,
             "tags": {
                 "span.category": "db",
-                "span.op": "my 1st otel span",
+                "span.op": "default",
             },
             "timestamp": expected_timestamp,
             "type": "d",
-            "value": [500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "span.category": "db",
-                "span.op": "my 1st v2 span",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
+            "value": [500.0, 500.0],
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1203,33 +1193,20 @@ def test_span_ingestion(
             "tags": {
                 "span.op": "default",
             },
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "d:spans/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.op": "default"},
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [1500.0, 1500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "span.op": "my 2nd otel span",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "my 3rd protobuf otel span"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1256,21 +1233,10 @@ def test_span_ingestion(
             "project_id": 42,
             "received_at": time_after(now_timestamp),
             "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "my 1st otel span"},
+            "tags": {"span.category": "db", "span.op": "default"},
             "timestamp": expected_timestamp,
             "type": "d",
-            "value": [500.0],
-        },
-        {
-            "name": "d:spans/duration_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_after(now_timestamp),
-            "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "my 1st v2 span"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
+            "value": [500.0, 500.0],
         },
         {
             "org_id": 1,
@@ -1295,21 +1261,21 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
             "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "my 1st otel span"},
+            "tags": {"span.category": "db", "span.op": "default"},
             "timestamp": expected_timestamp,
             "type": "d",
-            "value": [500.0],
+            "value": [500.0, 500.0],
             "received_at": time_after(now_timestamp),
         },
         {
+            "name": "d:spans/exclusive_time@millisecond",
             "org_id": 1,
             "project_id": 42,
-            "name": "d:spans/exclusive_time@millisecond",
             "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "my 1st v2 span"},
+            "tags": {"span.op": "default"},
             "timestamp": expected_timestamp,
             "type": "d",
-            "value": [500.0],
+            "value": [500.0, 500.0],
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1324,28 +1290,6 @@ def test_span_ingestion(
             "received_at": time_after(now_timestamp),
         },
         {
-            "name": "d:spans/exclusive_time@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "my 2nd otel span"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/exclusive_time@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "my 3rd protobuf otel span"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
             "org_id": 1,
             "project_id": 42,
             "name": "d:spans/exclusive_time_light@millisecond",
@@ -1368,21 +1312,10 @@ def test_span_ingestion(
             "org_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "my 1st otel span"},
+            "tags": {"span.category": "db", "span.op": "default"},
             "timestamp": expected_timestamp,
             "type": "d",
-            "value": [500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/exclusive_time_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "my 1st v2 span"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
+            "value": [500.0, 500.0],
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1412,6 +1345,158 @@ def test_span_ingestion(
     ]
     assert len(score_total_metrics) == 1, score_total_metrics
     assert len(score_total_metrics[0]["value"]) == 1
+
+    metrics_consumer.assert_empty()
+
+
+def test_standalone_span_ingestion_metric_extraction(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "max_secs_in_past": 2**64 - 1,
+                "shift_key": "none",
+            }
+        }
+    )
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-metrics-extraction",
+        # "projects:relay-otel-endpoint",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = Envelope()
+
+    envelope.add_item(
+        Item(
+            type="span",
+            headers={"metrics_extracted": True, "item_count": 1},
+            content_type="application/vnd.sentry.items.span.v2+json",
+            payload=PayloadRef(
+                json={
+                    "items": [
+                        {
+                            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+                            "span_id": "a342abb1214ca182",
+                            "name": "SELECT from users",
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": end.timestamp(),
+                            "attributes": {
+                                "db.system": {
+                                    "type": "string",
+                                    "value": "mysql",
+                                },
+                            },
+                        },
+                    ]
+                }
+            ),
+        )
+    )
+
+    relay.send_envelope(
+        project_id,
+        envelope,
+    )
+
+    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+
+    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
+
+    for metric in metrics:
+        try:
+            metric["value"].sort()
+        except AttributeError:
+            pass
+
+    expected_timestamp = int(end.timestamp())
+    expected_received = time_after(int(now.timestamp()))
+
+    expected_metrics = [
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": expected_received,
+            "retention_days": 90,
+            "tags": {"decision": "keep", "target_project_id": "42"},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "c:spans/usage@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": expected_received,
+            "retention_days": 90,
+            "tags": {},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
+            "name": "d:spans/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": expected_received,
+            "retention_days": 90,
+            "tags": {"span.op": "db", "span.category": "db"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+        {
+            "name": "d:spans/duration_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": expected_received,
+            "retention_days": 90,
+            "tags": {"span.op": "db", "span.category": "db"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+        {
+            "name": "d:spans/exclusive_time@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": expected_received,
+            "retention_days": 90,
+            "tags": {"span.op": "db", "span.category": "db"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+        {
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": expected_received,
+            "retention_days": 90,
+            "tags": {"span.op": "db", "span.category": "db"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+    ]
+
+    assert metrics == expected_metrics
 
     metrics_consumer.assert_empty()
 
@@ -1544,7 +1629,7 @@ def test_span_reject_invalid_timestamps(
 
     spans = spans_consumer.get_spans(timeout=10.0, n=1)
     assert len(spans) == 1
-    assert spans[0]["sentry_tags"]["op"] == "span with valid timestamps"
+    assert spans[0]["sentry_tags"]["op"] == "default"
 
 
 def test_span_ingestion_with_performance_scores(
