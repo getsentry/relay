@@ -483,6 +483,11 @@ impl Item {
             ItemType::Unknown(_) => false,
         }
     }
+
+    /// Determines if this item is an `ItemContainer` based on its content type.
+    pub fn is_container(&self) -> bool {
+        self.content_type().is_some_and(ContentType::is_container)
+    }
 }
 
 pub type Items = SmallVec<[Item; 3]>;

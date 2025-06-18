@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 25.6.0
 
 **Features**:
 
@@ -8,7 +8,7 @@
 - Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 - Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 - Enable filtering sessions by IP address, release, and user agent. ([#4745](https://github.com/getsentry/relay/pull/4745))
-- Add configuration to deny tags based on prefix/suffix or exact match. ([#4805](https://github.com/getsentry/relay/pull/4805))
+- Allow pii scrubbing of the `source_file` field on Csp. ([#4806](https://github.com/getsentry/relay/pull/4806))
 
 **Bug Fixes**:
 
@@ -24,6 +24,8 @@
 - Consistently always emit session outcomes. ([#4798](https://github.com/getsentry/relay/pull/4798))
 - Set default sdk name for playstation crashes. ([#4802](https://github.com/getsentry/relay/pull/4802))
 - Skip large attachments on playstation crashes. ([#4793](https://github.com/getsentry/relay/pull/4793))
+- Use the received timestamp as observed nanos for logs. ([#4810](https://github.com/getsentry/relay/pull/4810))
+- Derive a `sentry.op` attribute for V2 spans ([#4796](https://github.com/getsentry/relay/pull/4796))
 
 ## 25.5.1
 
