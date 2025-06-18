@@ -248,12 +248,7 @@ def test_processing_normalizes_unreal_event(
         project_id, envelope, headers={"X-Sentry-Relay-Id": credentials["id"]}
     )
 
-    while True:
-        _, message = attachments_consumer.get_message()
-        # Skip attachment-related messages
-        if message.get("type") == "event":
-            event = json.loads(message["payload"])
-            break
+    _, event = attachments_consumer.get_event_only()
 
     assert event["exception"]["values"] is not None
     assert event["type"] == "error"
@@ -302,12 +297,7 @@ def test_processing_normalizes_minidump_events(
     processing.send_envelope(
         project_id, envelope, headers={"X-Sentry-Relay-Id": credentials["id"]}
     )
-    while True:
-        _, message = attachments_consumer.get_message()
-        # Skip attachment-related messages
-        if message.get("type") == "event":
-            event = json.loads(message["payload"])
-            break
+    _, event = attachments_consumer.get_event_only()
 
     assert event["exception"]["values"] is not None
     assert event["type"] == "error"
@@ -367,12 +357,7 @@ def test_relay_chain_normalizes_minidump_events(
     )
 
     relay.send_envelope(project_id, envelope)
-    while True:
-        _, message = attachments_consumer.get_message()
-        # Skip attachment-related messages
-        if message.get("type") == "event":
-            event = json.loads(message["payload"])
-            break
+    _, event = attachments_consumer.get_event_only()
 
     assert event["exception"]["values"] is not None
     assert event["type"] == "error"
