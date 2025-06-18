@@ -9,7 +9,9 @@ use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileError, ProfileId};
-use relay_protocol::{Annotated, Getter, Remark, RemarkType};
+use relay_protocol::Annotated;
+#[cfg(feature = "processing")]
+use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -98,6 +100,7 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
 ///
 /// This is necessary because if the transaction lasts less than 20ms, we know that the respective
 /// profile data won't have enough samples to be of any use, hence we "unlink" the profile from the transaction.
+#[cfg(feature = "processing")]
 pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
     let Some(event) = event.value_mut() else {
         return;
@@ -206,8 +209,10 @@ fn expand_profile(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "processing")]
     use chrono::{Duration, TimeZone, Utc};
     use std::sync::Arc;
+    #[cfg(feature = "processing")]
     use uuid::Uuid;
 
     #[cfg(feature = "processing")]
@@ -216,6 +221,7 @@ mod tests {
     #[cfg(not(feature = "processing"))]
     use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::EventId;
+    #[cfg(feature = "processing")]
     use relay_protocol::get_value;
     use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
