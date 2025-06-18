@@ -1461,11 +1461,8 @@ def test_standalone_span_ingestion_metric_extraction(
             "received_at": expected_received,
             "retention_days": 90,
             "tags": {
-                "span.op": "db",
                 "span.category": "db",
-                "span.action": "SELECT",
-                "span.description": "SELECT from",
-                "span.group": "e7ef86adbb98803e",
+                "span.op": "db",
             },
             "timestamp": expected_timestamp,
             "type": "d",
@@ -1480,9 +1477,6 @@ def test_standalone_span_ingestion_metric_extraction(
             "tags": {
                 "span.op": "db",
                 "span.category": "db",
-                "span.action": "SELECT",
-                "span.description": "SELECT from",
-                "span.group": "e7ef86adbb98803e",
             },
             "timestamp": expected_timestamp,
             "type": "d",
@@ -1497,9 +1491,6 @@ def test_standalone_span_ingestion_metric_extraction(
             "tags": {
                 "span.op": "db",
                 "span.category": "db",
-                "span.action": "SELECT",
-                "span.description": "SELECT from",
-                "span.group": "e7ef86adbb98803e",
             },
             "timestamp": expected_timestamp,
             "type": "d",
@@ -1514,9 +1505,6 @@ def test_standalone_span_ingestion_metric_extraction(
             "tags": {
                 "span.op": "db",
                 "span.category": "db",
-                "span.action": "SELECT",
-                "span.description": "SELECT from",
-                "span.group": "e7ef86adbb98803e",
             },
             "timestamp": expected_timestamp,
             "type": "d",
