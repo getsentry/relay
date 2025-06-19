@@ -291,7 +291,9 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
     };
 
     if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
-        return derive_http_description(attributes, &span.kind.value());
+        if let Some(http_description) = derive_http_description(attributes, &span.kind.value()) {
+            return Some(http_description);
+        }
     }
 
     if attributes.contains_key("db.system") || attributes.contains_key("db.system.name") {
@@ -304,7 +306,9 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
             .unwrap_or(false);
 
         if !is_cache_op {
-            return derive_db_description(attributes);
+            if let Some(database_description) = derive_db_description(attributes) {
+                return Some(database_description);
+            }
         }
     }
 
@@ -920,6 +924,7 @@ mod tests {
             "span_id": "e342abb1214ca181",
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
+            "name": "SELECT users",
             "end_timestamp": 123.5,
             "kind": "client",
             "attributes": {
@@ -942,8 +947,10 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "SELECT users",
           "data": {
-            "db.system": "postgres"
+            "db.system": "postgres",
+            "sentry.name": "SELECT users"
           },
           "kind": "client"
         }
