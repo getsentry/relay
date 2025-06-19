@@ -98,7 +98,7 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
 
 /// Strip out the profiler_id from the transaction's profile context if the transaction lasts less than 20ms.
 ///
-/// This is necessary because if the transaction lasts less than 20ms, we know that the respective
+/// This is necessary because if the transaction lasts less than 19.8ms, we know that the respective
 /// profile data won't have enough samples to be of any use, hence we "unlink" the profile from the transaction.
 #[cfg(feature = "processing")]
 pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
@@ -109,7 +109,7 @@ pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
         .get_value("event.duration")
         .and_then(|duration| duration.as_f64());
 
-    if !transaction_duration.is_some_and(|duration| duration < 20f64) {
+    if !transaction_duration.is_some_and(|duration| duration < 19.8) {
         return;
     }
     if let Some(contexts) = event.contexts.value_mut().as_mut() {
