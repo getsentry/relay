@@ -258,7 +258,7 @@ fn normalize_os_context(os: &mut OsContext) {
                 .map(|m| m.as_str().to_string())
                 .into();
         } else if raw_description == "Nintendo Switch" {
-            os.name = "Nintendo".to_string().into();
+            os.name = "Nintendo OS".to_string().into();
         }
     }
 
@@ -754,7 +754,7 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Nintendo"), os.name.as_str());
+        assert_eq!(Some("Nintendo OS"), os.name.as_str());
         assert_eq!(None, os.version.value());
         assert_eq!(None, os.build.value());
     }

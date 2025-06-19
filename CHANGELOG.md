@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
+- Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo OS"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
 
 **Internal**:
 
