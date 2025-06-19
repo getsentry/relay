@@ -357,7 +357,18 @@ fn derive_http_description(
 }
 
 fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
-    // Check for db.statement first
+    // `db.query.text` is a recommended attribute, and it contains the full query text if available.
+    // This is the ideal description.
+    if let Some(query_text) = attributes
+        .get("db.query.text")
+        .and_then(|attr| attr.value())
+        .and_then(|attr_val| attr_val.value.value.value())
+        .and_then(|v| v.as_str())
+    {
+        return Some(query_text.to_string());
+    }
+
+    // Other SDKs check for `db.statement`, it's a legacy OTel attribute, useful as a fallback in some cases.
     if let Some(statement) = attributes
         .get("db.statement")
         .and_then(|attr| attr.value())
