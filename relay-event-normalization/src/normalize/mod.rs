@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use relay_base_schema::metrics::MetricUnit;
+use relay_common::glob2::LazyGlob;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
@@ -358,7 +359,7 @@ impl ModelCosts {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCost {
-    pub(crate) model_id: String,
+    pub(crate) model_id: LazyGlob,
     pub(crate) for_completion: bool,
     pub(crate) cost_per_1k_tokens: f64,
 }
@@ -366,7 +367,7 @@ pub struct ModelCost {
 impl ModelCost {
     /// `true` if this cost definition matches the given model.
     pub fn matches(&self, model_id: &str, for_completion: bool) -> bool {
-        self.for_completion == for_completion && self.model_id == model_id
+        self.for_completion == for_completion && self.model_id.compiled().is_match(model_id)
     }
 }
 
@@ -417,17 +418,17 @@ mod tests {
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
         assert_debug_snapshot!(
             deserialized,
-            @r###"
-            V1 {
-                costs: [
-                    ModelCost {
-                        model_id: "babbage-002.ft",
-                        for_completion: false,
-                        cost_per_1k_tokens: 0.0016,
-                    },
-                ],
-            }
-            "###,
+            @r#"
+        V1 {
+            costs: [
+                ModelCost {
+                    model_id: LazyGlob("babbage-002.ft"),
+                    for_completion: false,
+                    cost_per_1k_tokens: 0.0016,
+                },
+            ],
+        }
+        "#,
         );
 
         // Test integer version 2
@@ -466,7 +467,7 @@ mod tests {
         V1 {
             costs: [
                 ModelCost {
-                    model_id: "babbage-002.ft",
+                    model_id: LazyGlob("babbage-002.ft"),
                     for_completion: false,
                     cost_per_1k_tokens: 0.0016,
                 },
@@ -504,14 +505,13 @@ mod tests {
         // Test V1 functionality
         let v1_config = ModelCosts::V1 {
             costs: vec![ModelCost {
-                model_id: "gpt-4".to_string(),
+                model_id: LazyGlob::new("gpt-4*"),
                 for_completion: false,
                 cost_per_1k_tokens: 0.03,
             }],
         };
         assert!(v1_config.is_enabled());
-        assert!(v1_config.cost_per_token("gpt-4-turbo").is_none()); // unknown model
-        let costs = v1_config.cost_per_token("gpt-4").unwrap();
+        let costs = v1_config.cost_per_token("gpt-4-turbo").unwrap();
         assert_eq!(costs.input_per_token * 1000.0, 0.03); // multiplying by 1000 to avoid floating point errors
         assert_eq!(costs.output_per_token, 0.0); // output tokens are not defined
     }
@@ -521,12 +521,12 @@ mod tests {
         let v1_config = ModelCosts::V1 {
             costs: vec![
                 ModelCost {
-                    model_id: "gpt-4".to_string(),
+                    model_id: LazyGlob::new("gpt-4*"),
                     for_completion: false,
                     cost_per_1k_tokens: 0.03,
                 },
                 ModelCost {
-                    model_id: "gpt-4".to_string(),
+                    model_id: LazyGlob::new("gpt-4*"),
                     for_completion: true,
                     cost_per_1k_tokens: 0.06,
                 },
