@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo OS"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
+
 **Internal**:
 
 - Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
