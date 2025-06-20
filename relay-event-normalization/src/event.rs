@@ -1501,8 +1501,10 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
+    use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
     use relay_protocol::{SerializableAnnotated, get_value};
+
     use serde_json::json;
 
     use super::*;
@@ -2244,17 +2246,17 @@ mod tests {
                 ai_model_costs: Some(&ModelCosts::V1 {
                     costs: vec![
                         ModelCost {
-                            model_id: "claude-2.1".to_string(),
+                            model_id: LazyGlob::new("claude-2*"),
                             for_completion: false,
                             cost_per_1k_tokens: 1.0,
                         },
                         ModelCost {
-                            model_id: "gpt4-21-04".to_string(),
+                            model_id: LazyGlob::new("gpt4-21*"),
                             for_completion: false,
                             cost_per_1k_tokens: 2.0,
                         },
                         ModelCost {
-                            model_id: "gpt4-21-04".to_string(),
+                            model_id: LazyGlob::new("gpt4-21*"),
                             for_completion: true,
                             cost_per_1k_tokens: 20.0,
                         },
@@ -2330,17 +2332,17 @@ mod tests {
                 ai_model_costs: Some(&ModelCosts::V1 {
                     costs: vec![
                         ModelCost {
-                            model_id: "claude-2.1".to_string(),
+                            model_id: LazyGlob::new("claude-2*"),
                             for_completion: false,
                             cost_per_1k_tokens: 1.0,
                         },
                         ModelCost {
-                            model_id: "gpt4-21-04".to_string(),
+                            model_id: LazyGlob::new("gpt4-21*"),
                             for_completion: false,
                             cost_per_1k_tokens: 2.0,
                         },
                         ModelCost {
-                            model_id: "gpt4-21-04".to_string(),
+                            model_id: LazyGlob::new("gpt4-21*"),
                             for_completion: true,
                             cost_per_1k_tokens: 20.0,
                         },
