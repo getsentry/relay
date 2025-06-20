@@ -19,9 +19,9 @@ use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::Minidump;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::extractors::{RawContentType, Remote, RequestMeta};
+use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
-use crate::utils;
+use crate::utils::{self, ConstrainedMultipart};
 
 /// The field name of a minidump in the multipart form-data upload.
 ///
@@ -164,11 +164,11 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
 }
 
 async fn extract_multipart(
-    multipart: Multipart<'static>,
+    multipart: ConstrainedMultipart,
     meta: RequestMeta,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = utils::multipart_items(multipart, infer_attachment_type, config, false).await?;
+    let mut items = multipart.items(infer_attachment_type, config).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -226,7 +226,7 @@ async fn handle(
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta)?
     } else {
-        let Remote(multipart) = request.extract_with_state(&state).await?;
+        let multipart = request.extract_with_state(&state).await?;
         extract_multipart(multipart, meta, state.config()).await?
     };
 
@@ -252,7 +252,7 @@ pub fn route(config: &Config) -> MethodRouter<ServiceState> {
 #[cfg(test)]
 mod tests {
     use crate::envelope::ContentType;
-    use crate::utils::{FormDataIter, multipart_items};
+    use crate::utils::FormDataIter;
     use axum::body::Body;
     use bzip2::Compression as BzCompression;
     use bzip2::write::BzEncoder;
@@ -395,8 +395,11 @@ mod tests {
 
         let config = Config::default();
 
-        let multipart = utils::multipart_from_request(request, &config)?;
-        let items = multipart_items(multipart, infer_attachment_type, &config, false).await?;
+        let multipart = ConstrainedMultipart(utils::multipart_from_request(
+            request,
+            multer::Constraints::new(),
+        )?);
+        let items = multipart.items(infer_attachment_type, &config).await?;
 
         // we expect the multipart body to contain
         // * one arbitrary attachment from the user (a `config.json`)

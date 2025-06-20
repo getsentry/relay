@@ -26,8 +26,15 @@ use crate::protocol::{OperationType, OriginType, SpanData, SpanLink, SpanStatus}
 /// though the original spec only allows lowercase hexadecimal characters.
 ///
 /// See: <https://www.w3.org/TR/trace-context/#trace-id>
-#[derive(Clone, Copy, Default, PartialEq, Empty, ProcessValue)]
+#[derive(Clone, Copy, PartialEq, Empty, ProcessValue)]
 pub struct TraceId(Uuid);
+
+impl TraceId {
+    /// Creates a new, random, trace id.
+    pub fn random() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
 
 relay_common::impl_str_serde!(TraceId, "a trace identifier");
 

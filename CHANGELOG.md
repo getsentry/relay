@@ -2,9 +2,15 @@
 
 ## Unreleased
 
+**Features**:
+
+- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813)
+- Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo OS"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
+
 **Internal**:
 
-- Add layer to send `tracing` events above `INFO` to Sentry logs, and stop sending breadcrumbs. ([#4820](https://github.com/getsentry/relay/pull/4820))
+- Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
+- Send `tracing` events at or above `INFO` to Sentry as logs instead of breadcrumbs. ([#4820](https://github.com/getsentry/relay/pull/4820))
 
 ## 25.6.0
 
@@ -31,6 +37,8 @@
 - Set default sdk name for playstation crashes. ([#4802](https://github.com/getsentry/relay/pull/4802))
 - Skip large attachments on playstation crashes. ([#4793](https://github.com/getsentry/relay/pull/4793))
 - Use the received timestamp as observed nanos for logs. ([#4810](https://github.com/getsentry/relay/pull/4810))
+- Strip out profiler_id from profile context for short transactions. ([#4818](https://github.com/getsentry/relay/pull/4818))
+- Derive a `sentry.op` attribute for V2 spans ([#4796](https://github.com/getsentry/relay/pull/4796))
 
 ## 25.5.1
 
