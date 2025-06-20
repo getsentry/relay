@@ -114,7 +114,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Event => Some(DataCategory::Error),
         ItemType::Transaction => Some(DataCategory::Transaction),
         ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
-        ItemType::Nel => Some(DataCategory::Error),
         ItemType::UnrealReport => Some(DataCategory::Error),
         ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
         ItemType::Attachment if item.creates_event() => Some(DataCategory::Error),
@@ -131,12 +130,13 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ReplayVideo => None,
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
+        ItemType::Nel => None,
         ItemType::Log => None,
         ItemType::OtelLog => None,
         ItemType::Span => None,
         ItemType::OtelSpan => None,
         ItemType::OtelTracesData => None,
-        ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
+        ItemType::ProfileChunk => None,
         ItemType::Unknown(_) => None,
     }
 }
