@@ -51,7 +51,7 @@ impl FromRequest<ServiceState> for Remote<Multipart<'static>> {
         request: Request,
         _state: &ServiceState,
     ) -> Result<Self, Self::Rejection> {
-        utils::multipart_from_request(request)
+        utils::multipart_from_request(request, multer::Constraints::new())
             .map(Remote)
             .map_err(Remote)
     }
