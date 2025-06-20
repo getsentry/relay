@@ -297,11 +297,23 @@ pub struct ConstrainedMultipart(pub Multipart<'static>);
 impl FromRequest<ServiceState> for ConstrainedMultipart {
     type Rejection = Remote<multer::Error>;
 
-    async fn from_request(
-        request: Request,
-        _state: &ServiceState,
-    ) -> Result<Self, Self::Rejection> {
-        multipart_from_request(request).map(Self).map_err(Remote)
+    async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
+        let content_type = request
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        let boundary = multer::parse_boundary(content_type)?;
+
+        // Still want to enforce multer limits here so that we avoid parsing large fields.
+        let limits =
+            multer::SizeLimit::new().whole_stream(state.config().max_attachments_size() as u64);
+
+        Ok(ConstrainedMultipart(Multipart::with_constraints(
+            request.into_body().into_data_stream(),
+            boundary,
+            multer::Constraints::new().size_limit(limits),
+        )))
     }
 }
 
