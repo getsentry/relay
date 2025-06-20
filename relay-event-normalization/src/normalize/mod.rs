@@ -219,10 +219,9 @@ pub struct PerformanceScoreConfig {
 
 /// A mapping of AI model types (like GPT-4) to their respective costs.
 ///
-/// Uses internally tagged representation with version field as the tag:
-/// - V1: Array-based costs with glob pattern matching for model IDs
-/// - V2: Dictionary-based costs with exact model ID keys and granular token pricing
-/// - Unknown versions: Forward compatibility for future versions
+/// This struct supports multiple versions with different cost structures:
+/// - Version 1: Array-based costs with glob pattern matching for model IDs (uses `costs` field)
+/// - Version 2: Dictionary-based costs with exact model ID keys and granular token pricing (uses `models` field)
 ///
 /// Example V1 JSON:
 /// ```json
@@ -242,7 +241,7 @@ pub struct PerformanceScoreConfig {
 /// ```json
 /// {
 ///   "version": 2,
-///   "costs": {
+///   "models": {
 ///     "gpt-4": {
 ///       "inputPerToken": 0.03,
 ///       "outputPerToken": 0.06,
@@ -252,89 +251,35 @@ pub struct PerformanceScoreConfig {
 ///   }
 /// }
 /// ```
-#[derive(Clone, Debug, Serialize)]
-#[serde(tag = "version", rename_all = "camelCase")]
-pub enum ModelCosts {
-    /// Version 1 of the model costs.
-    #[serde(rename = "1")]
-    V1 {
-        /// The mappings of model ID => cost (version 1)
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        costs: Vec<ModelCost>,
-    },
-    /// Version 2 of the model costs.
-    #[serde(rename = "2")]
-    V2 {
-        /// The mappings of model ID => cost as a dictionary (version 2)
-        #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-        costs: HashMap<String, ModelCostV2>,
-    },
-    /// Unknown version, for forward compatibility.
-    Unknown,
-}
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCosts {
+    /// The version of the model cost struct
+    pub version: u16,
 
-impl<'de> serde::Deserialize<'de> for ModelCosts {
-    /// Custom implementation to handle the transitive period in the version field.
-    /// Field type was changed from number to string, and serde expects strings as tags.
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde_json::Value;
+    /// The mappings of model ID => cost (used in version 1)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub costs: Vec<ModelCost>,
 
-        let mut value = Value::deserialize(deserializer)?;
-
-        // Try to extract version, handling both string and integer
-        let version = match value.get("version") {
-            Some(Value::String(s)) => s.as_str(),
-            Some(Value::Number(n)) if n.as_u64() == Some(1) => "1",
-            Some(Value::Number(n)) if n.as_u64() == Some(2) => "2",
-            _ => return Ok(ModelCosts::Unknown),
-        };
-
-        match version {
-            "1" => {
-                let costs = value
-                    .get_mut("costs")
-                    .and_then(|v| serde_json::from_value(v.take()).ok())
-                    .unwrap_or_default();
-                Ok(ModelCosts::V1 { costs })
-            }
-            "2" => {
-                let costs = value
-                    .get_mut("costs")
-                    .and_then(|v| serde_json::from_value(v.take()).ok())
-                    .unwrap_or_default();
-                Ok(ModelCosts::V2 { costs })
-            }
-            _ => Ok(ModelCosts::Unknown),
-        }
-    }
-}
-
-impl Default for ModelCosts {
-    fn default() -> Self {
-        Self::V2 {
-            costs: HashMap::new(),
-        }
-    }
+    /// The mappings of model ID => cost as a dictionary (version 2)
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub models: HashMap<String, ModelCostV2>,
 }
 
 impl ModelCosts {
+    const MAX_SUPPORTED_VERSION: u16 = 2;
+
     /// `false` if measurement and metrics extraction should be skipped.
     pub fn is_enabled(&self) -> bool {
-        match self {
-            ModelCosts::V1 { .. } | ModelCosts::V2 { .. } => true,
-            ModelCosts::Unknown => false,
-        }
+        self.version > 0 && self.version <= ModelCosts::MAX_SUPPORTED_VERSION
     }
 
     /// Gets the cost per token, if defined for the given model.
     pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
-        match self {
-            ModelCosts::V1 { costs } => {
-                let input_cost = costs.iter().find(|cost| cost.matches(model_id, false));
-                let output_cost = costs.iter().find(|cost| cost.matches(model_id, true));
+        match self.version {
+            1 => {
+                let input_cost = self.costs.iter().find(|cost| cost.matches(model_id, false));
+                let output_cost = self.costs.iter().find(|cost| cost.matches(model_id, true));
 
                 // V1 costs were defined per 1k tokens, so we need to convert to per token.
                 if input_cost.is_some() || output_cost.is_some() {
@@ -349,7 +294,7 @@ impl ModelCosts {
                     None
                 }
             }
-            ModelCosts::V2 { costs } => costs.get(model_id).cloned(),
+            2 => self.models.get(model_id).cloned(),
             _ => None,
         }
     }
@@ -409,8 +354,7 @@ mod tests {
 
     use super::*;
 
-    /// Version type was changed from number to string, this test ensures that integer versions
-    /// are handled gracefully by falling back to the appropriate variant
+    /// Test that integer versions are handled correctly in the struct format
     #[test]
     fn test_model_cost_version_sent_as_number() {
         // Test integer version 1
@@ -419,7 +363,8 @@ mod tests {
         assert_debug_snapshot!(
             deserialized,
             @r#"
-        V1 {
+        ModelCosts {
+            version: 1,
             costs: [
                 ModelCost {
                     model_id: LazyGlob("babbage-002.ft"),
@@ -427,18 +372,21 @@ mod tests {
                     cost_per_1k_tokens: 0.0016,
                 },
             ],
+            models: {},
         }
         "#,
         );
 
         // Test integer version 2
-        let original_v2 = r#"{"version":2,"costs":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
         let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
         assert_debug_snapshot!(
             deserialized_v2,
             @r###"
-            V2 {
-                costs: {
+            ModelCosts {
+                version: 2,
+                costs: [],
+                models: {
                     "gpt-4": ModelCostV2 {
                         input_per_token: 0.03,
                         output_per_token: 0.06,
@@ -451,20 +399,19 @@ mod tests {
         );
 
         // Test unknown integer version
-        let original_unknown = r#"{"version":99,"costs":{}}"#;
+        let original_unknown = r#"{"version":99,"costs":[]}"#;
         let deserialized_unknown: ModelCosts = serde_json::from_str(original_unknown).unwrap();
-        assert_debug_snapshot!(
-            deserialized_unknown,
-            @"Unknown",
-        );
+        assert_eq!(deserialized_unknown.version, 99);
+        assert!(!deserialized_unknown.is_enabled());
     }
 
     #[test]
     fn test_model_cost_config_v1() {
-        let original = r#"{"version":"1","costs":[{"modelId":"babbage-002.ft","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
+        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
         assert_debug_snapshot!(deserialized, @r#"
-        V1 {
+        ModelCosts {
+            version: 1,
             costs: [
                 ModelCost {
                     model_id: LazyGlob("babbage-002.ft"),
@@ -472,6 +419,7 @@ mod tests {
                     cost_per_1k_tokens: 0.0016,
                 },
             ],
+            models: {},
         }
         "#);
 
@@ -481,11 +429,13 @@ mod tests {
 
     #[test]
     fn test_model_cost_config_v2() {
-        let original = r#"{"version":"2","costs":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
         assert_debug_snapshot!(deserialized, @r###"
-        V2 {
-            costs: {
+        ModelCosts {
+            version: 2,
+            costs: [],
+            models: {
                 "gpt-4": ModelCostV2 {
                     input_per_token: 0.03,
                     output_per_token: 0.06,
@@ -503,12 +453,14 @@ mod tests {
     #[test]
     fn test_model_cost_functionality_v1_only_input_tokens() {
         // Test V1 functionality
-        let v1_config = ModelCosts::V1 {
+        let v1_config = ModelCosts {
+            version: 1,
             costs: vec![ModelCost {
                 model_id: LazyGlob::new("gpt-4*"),
                 for_completion: false,
                 cost_per_1k_tokens: 0.03,
             }],
+            models: HashMap::new(),
         };
         assert!(v1_config.is_enabled());
         let costs = v1_config.cost_per_token("gpt-4-turbo").unwrap();
@@ -518,7 +470,8 @@ mod tests {
 
     #[test]
     fn test_model_cost_functionality_v1() {
-        let v1_config = ModelCosts::V1 {
+        let v1_config = ModelCosts {
+            version: 1,
             costs: vec![
                 ModelCost {
                     model_id: LazyGlob::new("gpt-4*"),
@@ -531,6 +484,7 @@ mod tests {
                     cost_per_1k_tokens: 0.06,
                 },
             ],
+            models: HashMap::new(),
         };
         assert!(v1_config.is_enabled());
         let costs = v1_config.cost_per_token("gpt-4").unwrap();
@@ -541,8 +495,8 @@ mod tests {
     #[test]
     fn test_model_cost_functionality_v2() {
         // Test V2 functionality
-        let mut costs_map = HashMap::new();
-        costs_map.insert(
+        let mut models_map = HashMap::new();
+        models_map.insert(
             "gpt-4".to_string(),
             ModelCostV2 {
                 input_per_token: 0.03,
@@ -551,7 +505,11 @@ mod tests {
                 input_cached_per_token: 0.015,
             },
         );
-        let v2_config = ModelCosts::V2 { costs: costs_map };
+        let v2_config = ModelCosts {
+            version: 2,
+            costs: vec![],
+            models: models_map,
+        };
         assert!(v2_config.is_enabled());
         let cost = v2_config.cost_per_token("gpt-4").unwrap();
         assert_eq!(
@@ -567,16 +525,18 @@ mod tests {
 
     #[test]
     fn test_model_cost_unknown_version() {
-        // Test that unknown versions deserialize to Unknown variant
-        let unknown_version_json = r#"{"version":"3","costs":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005}}}"#;
+        // Test that unknown versions are handled properly
+        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(unknown_version_json).unwrap();
-        assert!(matches!(deserialized, ModelCosts::Unknown));
+        assert_eq!(deserialized.version, 3);
         assert!(!deserialized.is_enabled());
+        assert_eq!(deserialized.cost_per_token("some-model"), None);
 
-        // Test that malformed JSON also deserializes to Unknown
-        let malformed_json = r#"{"version":"unknown","someField":"value"}"#;
-        let deserialized: ModelCosts = serde_json::from_str(malformed_json).unwrap();
-        assert!(matches!(deserialized, ModelCosts::Unknown));
+        // Test version 0 (invalid)
+        let version_zero_json = r#"{"version":0,"models":{}}"#;
+        let deserialized: ModelCosts = serde_json::from_str(version_zero_json).unwrap();
+        assert_eq!(deserialized.version, 0);
+        assert!(!deserialized.is_enabled());
     }
 
     #[test]

@@ -1498,6 +1498,7 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 mod tests {
 
     use std::collections::BTreeMap;
+    use std::collections::HashMap;
 
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
@@ -2243,7 +2244,8 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts::V1 {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 1,
                     costs: vec![
                         ModelCost {
                             model_id: LazyGlob::new("claude-2*"),
@@ -2261,6 +2263,7 @@ mod tests {
                             cost_per_1k_tokens: 20.0,
                         },
                     ],
+                    models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
             },
@@ -2329,7 +2332,8 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                ai_model_costs: Some(&ModelCosts::V1 {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 1,
                     costs: vec![
                         ModelCost {
                             model_id: LazyGlob::new("claude-2*"),
@@ -2347,6 +2351,7 @@ mod tests {
                             cost_per_1k_tokens: 20.0,
                         },
                     ],
+                    models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
             },
