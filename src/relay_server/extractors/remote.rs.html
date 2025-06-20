@@ -51,7 +51,7 @@
 <a href=#51 id=51 data-nosnippet>51</a>        request: Request,
 <a href=#52 id=52 data-nosnippet>52</a>        _state: <span class="kw-2">&amp;</span>ServiceState,
 <a href=#53 id=53 data-nosnippet>53</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
-<a href=#54 id=54 data-nosnippet>54</a>        utils::multipart_from_request(request)
+<a href=#54 id=54 data-nosnippet>54</a>        utils::multipart_from_request(request, multer::Constraints::new())
 <a href=#55 id=55 data-nosnippet>55</a>            .map(Remote)
 <a href=#56 id=56 data-nosnippet>56</a>            .map_err(Remote)
 <a href=#57 id=57 data-nosnippet>57</a>    }
