@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813)
 - Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo OS"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
 
 **Internal**:
