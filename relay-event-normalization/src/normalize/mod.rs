@@ -497,7 +497,7 @@ mod tests {
         // Test V2 functionality
         let mut models_map = HashMap::new();
         models_map.insert(
-            "gpt-4".to_string(),
+            "gpt-4".to_owned(),
             ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
