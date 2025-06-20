@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["enrich_event"]};
+window.SIDEBAR_ITEMS = {"fn":["create_log"]};

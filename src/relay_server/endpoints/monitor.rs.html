@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>    } <span class="kw">else </span>{
 <a href=#43 id=43 data-nosnippet>43</a>        <span class="kw">let </span>Query(query): Query&lt;MonitorQuery&gt; = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#44 id=44 data-nosnippet>44</a>        CheckIn {
-<a href=#45 id=45 data-nosnippet>45</a>            check_in_id: query.check_in_id.unwrap_or_default().into(),
+<a href=#45 id=45 data-nosnippet>45</a>            check_in_id: query.check_in_id.map(EventId).unwrap_or_else(EventId::nil),
 <a href=#46 id=46 data-nosnippet>46</a>            monitor_slug: path.monitor_slug,
 <a href=#47 id=47 data-nosnippet>47</a>            status: query.status,
 <a href=#48 id=48 data-nosnippet>48</a>            environment: query.environment,
