@@ -90,7 +90,7 @@ pub fn check_envelope_size_limits(
         // For item containers, we want to check that the contained items obey
         // the size limits *on average*.
         // For standalone items, this is just the item size itself.
-        let avg_item_size = item.len() / (item.item_count().unwrap_or(1) as usize);
+        let avg_item_size = item.len() / (item.item_count().unwrap_or(1).max(1) as usize);
         if avg_item_size > max_size {
             return Err(item
                 .attachment_type()

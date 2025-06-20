@@ -2,7 +2,6 @@ use axum::RequestExt;
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{MethodRouter, post};
-use multer::Multipart;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
@@ -10,9 +9,9 @@ use relay_event_schema::protocol::EventId;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::OctetStream;
 use crate::envelope::{AttachmentType, Envelope};
-use crate::extractors::{RawContentType, Remote, RequestMeta};
+use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
-use crate::utils;
+use crate::utils::UnconstrainedMultipart;
 
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
@@ -41,11 +40,11 @@ fn infer_attachment_type(_field_name: Option<&str>, file_name: &str) -> Attachme
 }
 
 async fn extract_multipart(
-    multipart: Multipart<'static>,
+    multipart: UnconstrainedMultipart,
     meta: RequestMeta,
     config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = utils::multipart_items(multipart, infer_attachment_type, config, true).await?;
+    let mut items = multipart.items(infer_attachment_type, config).await?;
 
     let prosperodump_item = items
         .iter_mut()
@@ -73,7 +72,7 @@ async fn handle(
     request: Request,
 ) -> axum::response::Result<impl IntoResponse> {
     // The crash dumps are transmitted as `...` in a multipart form-data/ request.
-    let Remote(multipart) = request.extract_with_state(&state).await?;
+    let multipart = request.extract_with_state(&state).await?;
     let mut envelope = extract_multipart(multipart, meta, state.config()).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
