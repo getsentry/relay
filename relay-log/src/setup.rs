@@ -334,7 +334,7 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
             // breadcrumbs
             sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
                 tracing::Level::ERROR => EventFilter::Event,
-                tracing::Level::INFO | tracing::Level::WARN  => EventFilter::Log,
+                tracing::Level::INFO | tracing::Level::WARN => EventFilter::Log,
                 tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
             }),
         )
