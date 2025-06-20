@@ -47,8 +47,11 @@ impl<T> From<T> for Remote<T> {
 impl FromRequest<ServiceState> for Remote<Multipart<'static>> {
     type Rejection = Remote<multer::Error>;
 
-    async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
-        utils::multipart_from_request(request, state.config())
+    async fn from_request(
+        request: Request,
+        _state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
+        utils::multipart_from_request(request)
             .map(Remote)
             .map_err(Remote)
     }

@@ -10,6 +10,8 @@ use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::Annotated;
+#[cfg(feature = "processing")]
+use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -90,6 +92,35 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
                     profile_context.profile_id = Annotated::empty();
                 }
             }
+        }
+    }
+}
+
+/// Strip out the profiler_id from the transaction's profile context if the transaction lasts less than 20ms.
+///
+/// This is necessary because if the transaction lasts less than 19.8ms, we know that the respective
+/// profile data won't have enough samples to be of any use, hence we "unlink" the profile from the transaction.
+#[cfg(feature = "processing")]
+pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
+    let Some(event) = event.value_mut() else {
+        return;
+    };
+    let transaction_duration = event
+        .get_value("event.duration")
+        .and_then(|duration| duration.as_f64());
+
+    if !transaction_duration.is_some_and(|duration| duration < 19.8) {
+        return;
+    }
+    if let Some(contexts) = event.contexts.value_mut().as_mut() {
+        if let Some(profiler_id) = contexts
+            .get_mut::<ProfileContext>()
+            .map(|ctx| &mut ctx.profiler_id)
+        {
+            let id = std::mem::take(profiler_id.value_mut());
+            let remark = Remark::new(RemarkType::Removed, "transaction_duration");
+            profiler_id.meta_mut().add_remark(remark);
+            profiler_id.meta_mut().set_original_value(id);
         }
     }
 }
@@ -178,7 +209,11 @@ fn expand_profile(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "processing")]
+    use chrono::{Duration, TimeZone, Utc};
     use std::sync::Arc;
+    #[cfg(feature = "processing")]
+    use uuid::Uuid;
 
     #[cfg(feature = "processing")]
     use insta::assert_debug_snapshot;
@@ -186,6 +221,8 @@ mod tests {
     #[cfg(not(feature = "processing"))]
     use relay_dynamic_config::Feature;
     use relay_event_schema::protocol::EventId;
+    #[cfg(feature = "processing")]
+    use relay_protocol::get_value;
     use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
 
@@ -617,5 +654,91 @@ mod tests {
             ),
         }
         "###);
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_scrub_profiler_id_should_be_stripped() {
+        let mut contexts = Contexts::new();
+        contexts.add(ProfileContext {
+            profiler_id: Annotated::new(EventId(
+                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
+            )),
+            ..Default::default()
+        });
+        let mut event: Annotated<Event> = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
+                    .unwrap()
+                    .checked_add_signed(Duration::milliseconds(15))
+                    .unwrap()
+                    .into(),
+            ),
+            contexts: Annotated::new(contexts),
+            ..Default::default()
+        });
+
+        scrub_profiler_id(&mut event);
+
+        let profile_context = get_value!(event.contexts)
+            .unwrap()
+            .get::<ProfileContext>()
+            .unwrap();
+
+        assert!(
+            profile_context
+                .profiler_id
+                .meta()
+                .iter_remarks()
+                .any(|remark| remark.rule_id == *"transaction_duration"
+                    && remark.ty == RemarkType::Removed)
+        )
+    }
+
+    #[cfg(feature = "processing")]
+    #[test]
+    fn test_scrub_profiler_id_should_not_be_stripped() {
+        let mut contexts = Contexts::new();
+        contexts.add(ProfileContext {
+            profiler_id: Annotated::new(EventId(
+                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
+            )),
+            ..Default::default()
+        });
+        let mut event: Annotated<Event> = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0)
+                    .unwrap()
+                    .checked_add_signed(Duration::milliseconds(20))
+                    .unwrap()
+                    .into(),
+            ),
+            contexts: Annotated::new(contexts),
+            ..Default::default()
+        });
+
+        scrub_profiler_id(&mut event);
+
+        let profile_context = get_value!(event.contexts)
+            .unwrap()
+            .get::<ProfileContext>()
+            .unwrap();
+
+        assert!(
+            !profile_context
+                .profiler_id
+                .meta()
+                .iter_remarks()
+                .any(|remark| remark.rule_id == *"transaction_duration"
+                    && remark.ty == RemarkType::Removed)
+        )
     }
 }

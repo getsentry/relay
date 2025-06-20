@@ -33,7 +33,6 @@ impl Item {
                 filename: None,
                 routing_hint: None,
                 rate_limited: false,
-                replay_combined_payload: false,
                 source_quantities: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
@@ -280,17 +279,6 @@ impl Item {
     /// Sets new source quantities.
     pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
         self.headers.source_quantities = Some(source_quantities);
-    }
-
-    /// Returns if the payload's replay items should be combined into one kafka message.
-    #[cfg(feature = "processing")]
-    pub fn replay_combined_payload(&self) -> bool {
-        self.headers.replay_combined_payload
-    }
-
-    /// Sets the replay_combined_payload for this item.
-    pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
-        self.headers.replay_combined_payload = combined_payload;
     }
 
     /// Returns the metrics extracted flag.
@@ -770,11 +758,6 @@ pub struct ItemHeaders {
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
     rate_limited: bool,
-
-    /// Indicates that this item should be combined into one payload with other replay item.
-    /// NOTE: This is internal-only and not exposed into the Envelope.
-    #[serde(default, skip)]
-    replay_combined_payload: bool,
 
     /// Contains the amount of events this item was generated and aggregated from.
     ///

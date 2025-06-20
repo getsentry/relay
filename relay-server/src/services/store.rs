@@ -279,10 +279,7 @@ impl StoreService {
                     replay_recording = Some(item);
                 }
                 ItemType::ReplayEvent => {
-                    if item.replay_combined_payload() {
-                        replay_event = Some(item);
-                    }
-
+                    replay_event = Some(item);
                     self.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
@@ -915,6 +912,11 @@ impl StoreService {
             }
         };
 
+        if let Some(measurements) = &mut span.measurements {
+            measurements
+                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
+        }
+
         span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
@@ -923,11 +925,6 @@ impl StoreService {
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
-
-        if let Some(measurements) = &mut span.measurements {
-            measurements
-                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
-        }
 
         self.produce(
             KafkaTopic::Spans,
@@ -1421,7 +1418,7 @@ struct SpanKafkaMessage<'a> {
     is_remote: bool,
 
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
+    data: Option<BTreeMap<Cow<'a, str>, Option<serde_json::Value>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
@@ -1452,10 +1449,10 @@ struct SpanKafkaMessage<'a> {
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
     #[serde(borrow)]
-    sentry_tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
+    sentry_tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
     span_id: &'a str,
-    #[serde(default, skip_serializing_if = "none_or_empty_object")]
-    tags: Option<&'a RawValue>,
+    #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
+    tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
     trace_id: EventId,
 
     #[serde(default)]
@@ -1467,6 +1464,11 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client_sample_rate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    server_sample_rate: Option<f64>,
 
     #[serde(
         default,
@@ -1480,29 +1482,75 @@ struct SpanKafkaMessage<'a> {
 }
 
 impl SpanKafkaMessage<'_> {
-    /// Backfills `data` based on `sentry_tags`.
+    /// Backfills `data` based on `sentry_tags`, `tags`, and `measurements`.
     ///
-    /// Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
-    /// The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    /// * Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
+    ///   The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    ///
+    /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
+    ///   is copied as `sentry.normalized_description`.
+    ///
+    /// * The value of every item in `measurements` is copied to `data` with the same key, with the exceptions
+    ///   of `client_sample_rate` and `server_sample_rate`. Those measurements are instead written to the top-level
+    ///   fields of the same names.
+    ///
+    /// In no case are existing keys overwritten. Thus, from highest to lowest, the order of precedence is
+    /// * existing values in `data`
+    /// * `measurements`
+    /// * `tags`
+    /// * `sentry_tags`
     fn backfill_data(&mut self) {
-        let Some(sentry_tags) = self.sentry_tags.as_ref() else {
-            return;
-        };
-
         let data = self.data.get_or_insert_default();
 
-        for (key, value) in sentry_tags {
-            let Some(value) = value else {
-                continue;
-            };
+        if let Some(measurements) = &self.measurements {
+            for (key, value) in measurements {
+                let Some(value) = value.as_ref().and_then(|v| v.value) else {
+                    continue;
+                };
 
-            let key = if *key == "description" {
-                "sentry.normalized_description".to_owned()
-            } else {
-                format!("sentry.{key}")
-            };
+                match &key[..] {
+                    "client_sample_rate" => self.client_sample_rate = Some(value),
+                    "server_sample_rate" => self.server_sample_rate = Some(value),
+                    _ => {
+                        data.entry(key.clone())
+                            .or_insert_with(|| Some(value.into()));
+                    }
+                }
+            }
+        }
 
-            data.insert(Cow::Owned(key), Some(value));
+        if let Some(tags) = &self.tags {
+            for (key, value) in tags {
+                let Some(value) = value else {
+                    continue;
+                };
+
+                let key = if *key == "description" {
+                    "sentry.normalized_description"
+                } else {
+                    key
+                };
+
+                data.entry(Cow::Borrowed(key))
+                    .or_insert_with(|| Some(value.clone()));
+            }
+        }
+
+        if let Some(sentry_tags) = &self.sentry_tags {
+            for (key, value) in sentry_tags {
+                let Some(value) = value else {
+                    continue;
+                };
+
+                let key = if *key == "description" {
+                    "sentry.normalized_description".to_owned()
+                } else {
+                    format!("sentry.{key}")
+                };
+
+                data.entry(Cow::Owned(key))
+                    .or_insert_with(|| Some(value.clone()));
+            }
         }
     }
 }
