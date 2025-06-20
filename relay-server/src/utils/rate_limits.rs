@@ -124,7 +124,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Statsd => None,
         ItemType::MetricBuckets => None,
         ItemType::FormData => None,
-        ItemType::UserReport => Some(DataCategory::UserReportV2),
+        ItemType::UserReport => None,
         ItemType::Profile => None,
         ItemType::ReplayEvent => None,
         ItemType::ReplayRecording => None,
