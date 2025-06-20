@@ -1505,7 +1505,6 @@ mod tests {
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
     use relay_protocol::{SerializableAnnotated, get_value};
-
     use serde_json::json;
 
     use super::*;
