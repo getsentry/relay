@@ -10,6 +10,7 @@
 **Internal**:
 
 - Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
+- Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
 
 ## 25.6.0
 
