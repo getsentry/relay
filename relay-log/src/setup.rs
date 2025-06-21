@@ -330,11 +330,11 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
     tracing_subscriber::registry()
         .with(format.with_filter(config.level_filter()))
         .with(
-            // Same as the default filter, except it converts warnings into events instead of breadcrumbs.
+            // Same as the default filter, except it converts INFO and DEBUG to logs instead of
+            // breadcrumbs
             sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
-                tracing::Level::ERROR => EventFilter::Exception,
-                tracing::Level::WARN => EventFilter::Event,
-                tracing::Level::INFO => EventFilter::Breadcrumb,
+                tracing::Level::ERROR => EventFilter::Event,
+                tracing::Level::INFO | tracing::Level::WARN => EventFilter::Log,
                 tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
             }),
         )
