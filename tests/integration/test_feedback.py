@@ -1,5 +1,4 @@
 import json
-import uuid
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
@@ -208,7 +207,6 @@ def test_feedback_quota(
     outcomes_consumer,
 ):
     project_id = 42
-    event_id = uuid.uuid1().hex
     relay = relay_with_processing()
     outcomes_consumer = outcomes_consumer(timeout=10)
     feedback_consumer = feedback_consumer()
@@ -216,7 +214,7 @@ def test_feedback_quota(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {
-            "id": f"test_rate_limiting_{event_id}",
+            "id": "test_feedback_quota",
             "categories": ["user_report_v2"],
             "window": 3600,
             "limit": 0,
@@ -231,11 +229,11 @@ def test_feedback_quota(
 
     # We must have 1 outcome with provided reason.
     outcomes = outcomes_consumer.get_outcomes()
-    # assert len(outcomes) == 1
-    print(outcomes[0]["reason"])
-    print(outcomes[0]["category"])
-    print(outcomes[0]["quantity"])
-    print(outcomes[1]["reason"])
-    print(outcomes[1]["category"])
-    print(outcomes[1]["quantity"])
-    # assert outcomes[0]["reason"] == "feedback_quota"
+    assert len(outcomes) == 1
+    assert outcomes[0]["reason"] == "feedback_quota"
+    # print(outcomes[0]["reason"])
+    # print(outcomes[0]["category"])
+    # print(outcomes[0]["quantity"])
+    # print(outcomes[1]["reason"])
+    # print(outcomes[1]["category"])
+    # print(outcomes[1]["quantity"])
