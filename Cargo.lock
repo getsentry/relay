@@ -3704,6 +3704,7 @@ dependencies = [
 name = "relay-auth"
 version = "25.6.1"
 dependencies = [
+ "bytes",
  "chrono",
  "data-encoding",
  "ed25519-dalek",

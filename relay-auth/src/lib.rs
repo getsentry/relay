@@ -22,9 +22,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::fmt;
-use std::str::FromStr;
-
+use bytes::Bytes;
 use chrono::{DateTime, Duration, Utc};
 use data_encoding::BASE64URL_NOPAD;
 use ed25519_dalek::{Signer, Verifier};
@@ -35,6 +33,8 @@ use relay_common::time::UnixTimestamp;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
+use std::fmt;
+use std::str::FromStr;
 use uuid::Uuid;
 
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
@@ -145,6 +145,17 @@ pub enum UnpackError {
     /// Raised on unpacking if the data is too old.
     #[error("signature is too old")]
     SignatureExpired,
+}
+
+/// Errors during the signature or verification process.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum SignatureError {
+    /// The signature from the header could not be converted to a String.
+    #[error("invalid relay signature")]
+    MalformedSignature,
+    /// Credentials for a required signature were missing.
+    #[error("missing credentials")]
+    MissingCredentials,
 }
 
 /// A wrapper around packed data that adds a timestamp.
@@ -687,6 +698,147 @@ impl RegisterResponse {
     }
 }
 
+/// Signature within relay which can be valid or invalid.
+///
+/// Invalid does not refer to a failed verification but rather to a signature
+/// that is not well formatted.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RelaySignature {
+    /// The signature has a valid format. It does not mean that it is verified.
+    Valid(RelaySignatureData),
+    /// The signature could not be converted into the proper signature format.
+    Invalid(SignatureError),
+}
+
+impl From<SignatureError> for RelaySignature {
+    fn from(value: SignatureError) -> Self {
+        Self::Invalid(value)
+    }
+}
+
+/// Represents whether credentials are required for signing a request.
+pub enum TrySign {
+    /// Credentials are required for signing. If no credentials are available,
+    /// signature creation will fail.
+    Required(SignatureType),
+    /// Credentials are optional for signing. If no credentials are available,
+    /// signature creation will be skipped.
+    Optional(SignatureType),
+}
+
+impl TrySign {
+    /// Creates a signature based on the [`TrySign`] variant.
+    ///
+    /// This method signs the input data and returns an optional signature string.
+    ///
+    /// If credentials are required but none are provided, it will fail with
+    /// [`SignatureError::MissingCredentials`].
+    pub fn create_signature(
+        self,
+        secret_key: Option<&SecretKey>,
+    ) -> Result<Option<String>, SignatureError> {
+        match self {
+            TrySign::Required(signature_type) => {
+                let Some(secret_key) = secret_key else {
+                    return Err(SignatureError::MissingCredentials);
+                };
+                Ok(Some(signature_type.create_signature(secret_key)))
+            }
+            TrySign::Optional(signature_type) => {
+                let Some(secret_key) = secret_key else {
+                    return Ok(None);
+                };
+                Ok(Some(signature_type.create_signature(secret_key)))
+            }
+        }
+    }
+}
+
+/// Types of signatures that are supported by Relay.
+#[derive(Debug)]
+pub enum SignatureType {
+    /// Bytes of an envelope body that are used to produce a signature.
+    Body(Bytes),
+    /// No data is needed for this signature because we only want to see if
+    /// the receiving relay can verify the signature correctly.
+    RequestSign,
+}
+
+impl SignatureType {
+    /// Creates a signature data based on the variant.
+    pub fn create_signature(self, secret_key: &SecretKey) -> String {
+        match self {
+            SignatureType::Body(data) => secret_key.sign(data.as_ref()),
+            SignatureType::RequestSign => secret_key.sign(&[]),
+        }
+    }
+}
+
+/// Contains information necessary to verify the correctness of the signature.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RelaySignatureData {
+    /// The signature string.
+    pub signature: String,
+    /// The data which the signature will be checked against.
+    pub data: Bytes,
+}
+
+impl RelaySignatureData {
+    /// Creates a new [`RelaySignatureData`] container.
+    pub fn new(signature: String, signature_data: Bytes) -> Self {
+        Self {
+            signature,
+            data: signature_data,
+        }
+    }
+
+    /// Verifies the signature against a public key and checks its timestamp validity.
+    ///
+    /// This function performs two checks:
+    /// 1. It verifies that the signature is valid for the given data and public key.
+    /// 2. If `max_age` is specified, it checks that the signature's embedded timestamp
+    ///    is not older than `max_age` compared to the provided `start_time`.
+    pub fn verify(
+        &self,
+        public_key: &PublicKey,
+        start_time: DateTime<Utc>,
+        max_age: Option<Duration>,
+    ) -> bool {
+        let Some(header) = public_key.verify_meta(&self.data, &self.signature) else {
+            return false;
+        };
+        let Some(timestamp) = header.timestamp else {
+            return false;
+        };
+        match max_age {
+            Some(age) => {
+                let elapsed = start_time - timestamp;
+                elapsed >= Duration::zero() && elapsed <= age
+            }
+            None => true,
+        }
+    }
+
+    /// Verifies the signature against a list of public keys and returns `true`
+    /// if any of them can successfully verify it.
+    ///
+    /// This method attempts to verify the signature using each provided `PublicKey`.
+    /// The signature is considered valid if one key verifies it and the
+    /// timestamp check (if `max_age` is specified) passes.
+    ///
+    /// See [`RelaySignatureData::verify`] for details on how each verification is performed.
+    pub fn verify_any(
+        &self,
+        public_keys: &[PublicKey],
+        start_time: DateTime<Utc>,
+        max_age: Option<Duration>,
+    ) -> bool {
+        public_keys
+            .iter()
+            .any(|public_key| self.verify(public_key, start_time, max_age))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -905,5 +1057,96 @@ mod tests {
     #[test]
     fn test_relay_version_from_str() {
         assert_eq!(RelayVersion::new(20, 7, 0), "20.7.0".parse().unwrap());
+    }
+
+    #[test]
+    fn test_verify_any() {
+        let pair1 = generate_key_pair();
+        let pair2 = generate_key_pair();
+        let pair3 = generate_key_pair();
+
+        let data = Bytes::new();
+        let signature = pair3.0.sign(&data);
+        let signature_data = RelaySignatureData::new(signature, data);
+        assert!(signature_data.verify_any(&[pair1.1, pair2.1, pair3.1], Utc::now(), None));
+    }
+
+    #[test]
+    fn test_required_credentials_missing() {
+        let result = TrySign::Required(SignatureType::Body(Bytes::new())).create_signature(None);
+        assert_eq!(result, Err(SignatureError::MissingCredentials))
+    }
+
+    #[test]
+    fn test_required_credentials() {
+        let (secret, _) = generate_key_pair();
+        let result =
+            TrySign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+        assert!(result.unwrap().is_some())
+    }
+
+    #[test]
+    fn test_optional_credentials() {
+        let (secret, _) = generate_key_pair();
+        let result =
+            TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+        assert!(result.unwrap().is_some())
+    }
+
+    #[test]
+    fn test_optional_credentials_missing() {
+        let result = TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(None);
+        assert_eq!(result, Ok(None))
+    }
+
+    #[test]
+    fn test_verify_max_age() {
+        let start_time = Utc::now();
+        let pair = generate_key_pair();
+        let data = Bytes::new();
+        let signature = pair.0.sign(&data);
+        let signature_data = RelaySignatureData::new(signature, data);
+        // The signature is valid in general
+        assert!(signature_data.verify(&pair.1, start_time, None));
+        // Signature is no longer valid because too much time elapsed
+        assert!(!signature_data.verify(
+            &pair.1,
+            start_time - Duration::seconds(1),
+            Some(Duration::milliseconds(500))
+        ))
+    }
+
+    #[test]
+    fn test_verify_any_max_age() {
+        let start_time = Utc::now();
+        let pair1 = generate_key_pair();
+        let pair2 = generate_key_pair();
+        let pair3 = generate_key_pair();
+
+        let data = Bytes::new();
+        let header = SignatureHeader {
+            timestamp: Some(start_time),
+        };
+        let signature = pair3.0.sign_with_header(&data, &header);
+        let signature_data = RelaySignatureData::new(signature, data);
+
+        let public_keys = &[pair1.1, pair2.1, pair3.1];
+
+        // Signature is valid in general
+        assert!(signature_data.verify_any(public_keys, start_time, None));
+        // Signature still valid
+        assert!(signature_data.verify_any(public_keys, start_time, Some(Duration::seconds(2))));
+        // Signature still valid after 1 second
+        assert!(signature_data.verify_any(
+            public_keys,
+            start_time + Duration::seconds(1),
+            Some(Duration::seconds(2))
+        ));
+        // Signature is no longer valid because too much time elapsed
+        assert!(!signature_data.verify_any(
+            public_keys,
+            start_time + Duration::seconds(3),
+            Some(Duration::seconds(2))
+        ))
     }
 }

@@ -469,6 +469,12 @@ pub enum DiscardReason {
 
     /// An attachment was submitted with a transaction.
     TransactionAttachment,
+
+    /// (Relay) The signature from a trusted relay was invalid.
+    InvalidSignature,
+
+    /// (Relay) The signature from a trusted relay was missing.
+    MissingSignature,
 }
 
 impl DiscardReason {
@@ -489,6 +495,8 @@ impl DiscardReason {
             DiscardReason::SecurityReport => "security_report",
             DiscardReason::Cors => "cors",
             DiscardReason::ProcessUnreal => "process_unreal",
+            DiscardReason::InvalidSignature => "invalid_signature",
+            DiscardReason::MissingSignature => "missing_signature",
 
             // Relay specific reasons (not present in Sentry)
             DiscardReason::Payload => "payload",

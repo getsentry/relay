@@ -1,3 +1,6 @@
+use crate::service::ServiceState;
+use crate::services::relays::GetRelay;
+use crate::utils::ApiErrorResponse;
 use axum::extract::rejection::BytesRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
@@ -6,10 +9,6 @@ use bytes::Bytes;
 use relay_auth::{RelayId, UnpackError};
 use relay_config::RelayInfo;
 use serde::de::DeserializeOwned;
-
-use crate::service::ServiceState;
-use crate::services::relays::GetRelay;
-use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SignatureError {
@@ -90,6 +89,7 @@ impl FromRequest<ServiceState> for SignedBytes {
             .ok_or(SignatureError::UnknownRelay)?;
 
         let body = Bytes::from_request(request, state).await?;
+
         if !relay.public_key.verify(&body, &signature) {
             Err(SignatureError::BadSignature(UnpackError::BadSignature))
         } else {
