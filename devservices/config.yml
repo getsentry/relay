@@ -21,6 +21,10 @@ x-sentry-service-config:
     default: [redis, kafka]
     containerized: [redis, kafka, relay]
 
+x-programs:
+  devserver:
+    command: cargo run
+
 services:
   relay:
     image: us-central1-docker.pkg.dev/sentryio/relay/relay:nightly
