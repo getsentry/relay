@@ -166,6 +166,9 @@ pub struct EnvelopeSummary {
     /// The number of replays.
     pub replay_quantity: usize,
 
+    /// The number of user reports (legacy item type for user feedback).
+    pub user_report_quantity: usize,
+
     /// The number of monitor check-ins.
     pub monitor_quantity: usize,
 
@@ -250,6 +253,7 @@ impl EnvelopeSummary {
             DataCategory::Session => &mut self.session_quantity,
             DataCategory::Profile => &mut self.profile_quantity,
             DataCategory::Replay => &mut self.replay_quantity,
+            DataCategory::UserReportV2 => &mut self.user_report_quantity,
             DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
             DataCategory::Monitor => &mut self.monitor_quantity,
             DataCategory::Span => &mut self.span_quantity,
@@ -842,6 +846,21 @@ where
                 replay_limits.longest(),
             );
             rate_limits.merge(replay_limits);
+        }
+
+        // Handle user reports (legacy item type for user feedback), which share limits with v2.
+        if summary.user_report_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::UserReportV2);
+            let user_report_v2_limits = self
+                .check
+                .apply(item_scoping, summary.user_report_quantity)
+                .await?;
+            enforcement.user_reports_v2 = CategoryLimit::new(
+                DataCategory::UserReportV2,
+                summary.user_report_quantity,
+                user_report_v2_limits.longest(),
+            );
+            rate_limits.merge(user_report_v2_limits);
         }
 
         // Handle monitor checkins.
