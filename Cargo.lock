@@ -4344,6 +4344,7 @@ dependencies = [
  "relay-event-schema",
  "relay-protocol",
  "serde_json",
+ "url",
 ]
 
 [[package]]
