@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use relay_common::time;
 use relay_protocol::{
-    Annotated, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
+    Annotated, Array, Empty, FiniteF64, FromValue, Getter, GetterIter, IntoValue, Object, Val,
+    Value,
 };
 use sentry_release_parser::Release as ParsedRelease;
 use uuid::Uuid;
@@ -600,13 +601,13 @@ impl Event {
     /// Returns the numeric measurement value.
     ///
     /// The name is provided without a prefix, for example `"lcp"` loads `event.measurements.lcp`.
-    pub fn measurement(&self, name: &str) -> Option<f64> {
+    pub fn measurement(&self, name: &str) -> Option<FiniteF64> {
         let annotated = self.measurements.value()?.get(name)?;
         Some(*annotated.value()?.value.value()?)
     }
 
     /// Returns the numeric breakdown value.
-    pub fn breakdown(&self, breakdown: &str, measurement: &str) -> Option<f64> {
+    pub fn breakdown(&self, breakdown: &str, measurement: &str) -> Option<FiniteF64> {
         let breakdown = self.breakdowns.value()?.get(breakdown)?.value()?;
         Some(*breakdown.get(measurement)?.value()?.value.value()?)
     }

@@ -3,10 +3,8 @@ use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
-use relay_metrics::{
-    Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
-};
-use relay_protocol::{Getter, Val};
+use relay_metrics::{Bucket, BucketMetadata, BucketValue, MetricResourceIdentifier, MetricType};
+use relay_protocol::{FiniteF64, Getter, Val};
 use relay_quotas::DataCategory;
 
 /// Item from which metrics can be extracted.

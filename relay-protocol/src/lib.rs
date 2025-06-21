@@ -19,6 +19,7 @@
 pub mod condition;
 
 mod annotated;
+mod finite;
 mod impls;
 mod macros;
 mod meta;
@@ -28,6 +29,7 @@ mod value;
 
 pub use self::annotated::*;
 pub use self::condition::RuleCondition;
+pub use self::finite::*;
 pub use self::impls::*;
 pub use self::meta::*;
 pub use self::size::*;

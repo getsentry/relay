@@ -21,7 +21,8 @@ use relay_event_schema::protocol::{
     SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Getter, Meta, Object, Remark, RemarkType, Value,
+    Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
+    RemarkType, Value,
 };
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -910,8 +911,8 @@ pub fn normalize_performance_score(
                     // a measurement with weight is missing.
                     continue;
                 }
-                let mut score_total = 0.0f64;
-                let mut weight_total = 0.0f64;
+                let mut score_total = FiniteF64::new(0.0).unwrap();
+                let mut weight_total = FiniteF64::new(0.0).unwrap();
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
@@ -928,11 +929,11 @@ pub fn normalize_performance_score(
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
-                    let mut normalized_component_weight = 0.0;
+                    let mut normalized_component_weight = FiniteF64::new(0.0).unwrap();
                     if let Some(value) = measurements.get_value(component.measurement.as_str()) {
-                        normalized_component_weight = component.weight / weight_total;
+                        normalized_component_weight = component.weight.saturating_div(weight_total);
                         let cdf = utils::calculate_cdf_score(
-                            value.max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
+                            value.to_f64().max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
                             component.p10,
                             component.p50,
                         );
@@ -2051,7 +2052,7 @@ mod tests {
     fn test_keeps_valid_measurement() {
         let name = "lcp";
         let measurement = Measurement {
-            value: Annotated::new(420.69),
+            value: Annotated::new(420.69.try_into().unwrap()),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
@@ -2062,7 +2063,7 @@ mod tests {
     fn test_drops_too_long_measurement_names() {
         let name = "lcpppppppppppppppppppppppppppp";
         let measurement = Measurement {
-            value: Annotated::new(420.69),
+            value: Annotated::new(420.69.try_into().unwrap()),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
@@ -2073,7 +2074,7 @@ mod tests {
     fn test_drops_measurements_with_invalid_characters() {
         let name = "i æm frøm nørwåy";
         let measurement = Measurement {
-            value: Annotated::new(420.69),
+            value: Annotated::new(420.69.try_into().unwrap()),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
