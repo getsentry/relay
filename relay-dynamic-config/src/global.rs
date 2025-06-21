@@ -381,7 +381,8 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
 fn is_missing(value: &ErrorBoundary<ModelCosts>) -> bool {
     matches!(
         value,
-        &ErrorBoundary::Ok(ModelCosts{ version, ref costs }) if version == 0 && costs.is_empty()
+        &ErrorBoundary::Ok(ModelCosts { ref models, ref costs, .. })
+            if models.is_empty() && costs.is_empty()
     )
 }
 

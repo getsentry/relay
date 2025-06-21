@@ -10,6 +10,7 @@
 **Internal**:
 
 - Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
+- Add `ModelCostsV2` struct which is used for LLM model cost calculation ([#4825](https://github.com/getsentry/relay/pull/4825))
 
 ## 25.6.0
 
