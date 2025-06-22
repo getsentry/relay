@@ -331,7 +331,7 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
         .with(format.with_filter(config.level_filter()))
         .with(
             // Same as the default filter, except it converts warnings into events
-            // and also sends everything at or above INFO as a log.
+            // and also sends everything at or above INFO as logs instead of breadcrumbs.
             sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
                 tracing::Level::ERROR | tracing::Level::WARN => {
                     EventFilter::Event | EventFilter::Log
