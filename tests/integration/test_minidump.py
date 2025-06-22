@@ -574,3 +574,62 @@ def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_co
         "annotations": ["dyld2 mode"],
         "type": "crashpad",
     }
+
+
+def test_chromium_stability_report(
+    mini_sentry, relay_with_processing, attachments_consumer
+):
+    dmp_path = os.path.join(
+        os.path.dirname(__file__), "fixtures/native/stability_report.dmp"
+    )
+    with open(dmp_path, "rb") as f:
+        content = f.read()
+
+    relay = relay_with_processing(
+        {
+            # Prevent normalization from overwriting the minidump timestamp
+            "processing": {"max_secs_in_past": 2**32 - 1}
+        }
+    )
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+
+    # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
+    # will modify the minidump since it contains user paths in the module list.  This breaks
+    # get_attachment_chunk() below.
+    del project_config["config"]["piiConfig"]
+
+    attachments_consumer = attachments_consumer()
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    relay.send_minidump(project_id=project_id, files=attachments)
+
+    # Only one attachment chunk expected
+    attachments_consumer.get_attachment_chunk()
+    event, _ = attachments_consumer.get_event()
+
+    # Check the stability_report context
+    assert event["contexts"]["stability_report"] == {
+        "process_states": [
+            {
+                "file_system_state": {
+                    "windows_file_system_state": {"process_handle_count": 302}
+                },
+                "memory_state": {
+                    "windows_memory": {
+                        "process_peak_pagefile_usage": 44146688,
+                        "process_peak_workingset_size": 84172800,
+                        "process_private_usage": 44101632,
+                    }
+                },
+                "process_id": 15212,
+            }
+        ],
+        "system_memory_state": {
+            "windows_memory": {
+                "system_commit_limit": 26557411328,
+                "system_commit_remaining": 14468075520,
+                "system_handle_count": 119009,
+            }
+        },
+    }

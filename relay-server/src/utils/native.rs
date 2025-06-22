@@ -7,7 +7,9 @@ use std::collections::BTreeMap;
 use std::error::Error;
 
 use chrono::{TimeZone, Utc};
-use minidump::{MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module};
+use minidump::{
+    MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module, StabilityReport,
+};
 use relay_event_schema::protocol::{
     ClientSdkInfo, Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
 };
@@ -75,6 +77,172 @@ fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
     }));
 }
 
+fn get_stability_report_context(stability_report: StabilityReport) -> Context {
+    let mut context = BTreeMap::new();
+
+    let mut process_states = Vec::new();
+    for process_state in stability_report.process_states.iter() {
+        let mut process_obj = BTreeMap::new();
+
+        if let Some(process_id) = process_state.process_id {
+            process_obj.insert(
+                "process_id".to_string(),
+                Annotated::new(Value::from(process_id)),
+            );
+        }
+
+        if let Some(memory_state) = &process_state.memory_state {
+            let mut memory_state_obj = BTreeMap::new();
+
+            if let Some(windows_memory) = &memory_state.windows_memory {
+                let mut windows_memory_obj = BTreeMap::new();
+
+                if let Some(process_private_usage) = &windows_memory.process_private_usage {
+                    windows_memory_obj.insert(
+                        "process_private_usage".to_string(),
+                        Annotated::new(Value::from((*process_private_usage as i64) * 4096)),
+                    );
+                }
+                if let Some(process_peak_workingset_size) =
+                    &windows_memory.process_peak_workingset_size
+                {
+                    windows_memory_obj.insert(
+                        "process_peak_workingset_size".to_string(),
+                        Annotated::new(Value::from((*process_peak_workingset_size as i64) * 4096)),
+                    );
+                }
+                if let Some(process_peak_pagefile_usage) =
+                    &windows_memory.process_peak_pagefile_usage
+                {
+                    windows_memory_obj.insert(
+                        "process_peak_pagefile_usage".to_string(),
+                        Annotated::new(Value::from((*process_peak_pagefile_usage as i64) * 4096)),
+                    );
+                }
+                if let Some(process_allocation_attempt) = &windows_memory.process_allocation_attempt
+                {
+                    windows_memory_obj.insert(
+                        "process_allocation_attempt".to_string(),
+                        Annotated::new(Value::from(*process_allocation_attempt as i64)),
+                    );
+                }
+
+                if !windows_memory_obj.is_empty() {
+                    memory_state_obj.insert(
+                        "windows_memory".to_string(),
+                        Annotated::new(Value::Object(windows_memory_obj)),
+                    );
+                }
+            }
+
+            if !memory_state_obj.is_empty() {
+                process_obj.insert(
+                    "memory_state".to_string(),
+                    Annotated::new(Value::Object(memory_state_obj)),
+                );
+            }
+        }
+
+        if let Some(file_system_state) = &process_state.file_system_state {
+            let mut file_system_state_obj = BTreeMap::new();
+
+            if let Some(posix_file_system_state) = &file_system_state.posix_file_system_state {
+                let mut posix_obj = BTreeMap::new();
+                if let Some(open_file_descriptors) = posix_file_system_state.open_file_descriptors {
+                    posix_obj.insert(
+                        "open_file_descriptors".to_string(),
+                        Annotated::new(Value::from(open_file_descriptors as i64)),
+                    );
+                }
+                if !posix_obj.is_empty() {
+                    file_system_state_obj.insert(
+                        "posix_file_system_state".to_string(),
+                        Annotated::new(Value::Object(posix_obj)),
+                    );
+                }
+            }
+
+            if let Some(windows_file_system_state) = &file_system_state.windows_file_system_state {
+                let mut windows_fs_obj = BTreeMap::new();
+                if let Some(process_handle_count) = &windows_file_system_state.process_handle_count
+                {
+                    windows_fs_obj.insert(
+                        "process_handle_count".to_string(),
+                        Annotated::new(Value::from(*process_handle_count as i64)),
+                    );
+                }
+                if !windows_fs_obj.is_empty() {
+                    file_system_state_obj.insert(
+                        "windows_file_system_state".to_string(),
+                        Annotated::new(Value::Object(windows_fs_obj)),
+                    );
+                }
+            }
+
+            if !file_system_state_obj.is_empty() {
+                process_obj.insert(
+                    "file_system_state".to_string(),
+                    Annotated::new(Value::Object(file_system_state_obj)),
+                );
+            }
+        }
+
+        if !process_obj.is_empty() {
+            process_states.push(Annotated::new(Value::Object(process_obj)));
+        }
+    }
+
+    if !process_states.is_empty() {
+        context.insert(
+            "process_states".to_string(),
+            Annotated::new(Value::Array(process_states)),
+        );
+    }
+
+    if let Some(system_memory_state) = &stability_report.system_memory_state {
+        let mut system_memory_obj = BTreeMap::new();
+
+        if let Some(windows_memory) = &system_memory_state.windows_memory {
+            let mut windows_memory_obj = BTreeMap::new();
+
+            if let Some(system_commit_limit) = &windows_memory.system_commit_limit {
+                windows_memory_obj.insert(
+                    "system_commit_limit".to_string(),
+                    Annotated::new(Value::from((*system_commit_limit as i64) * 4096)),
+                );
+            }
+            if let Some(system_commit_remaining) = &windows_memory.system_commit_remaining {
+                windows_memory_obj.insert(
+                    "system_commit_remaining".to_string(),
+                    Annotated::new(Value::from((*system_commit_remaining as i64) * 4096)),
+                );
+            }
+            if let Some(system_handle_count) = &windows_memory.system_handle_count {
+                windows_memory_obj.insert(
+                    "system_handle_count".to_string(),
+                    Annotated::new(Value::from(*system_handle_count as i64)),
+                );
+            }
+
+            if !windows_memory_obj.is_empty() {
+                system_memory_obj.insert(
+                    "windows_memory".to_string(),
+                    Annotated::new(Value::Object(windows_memory_obj)),
+                );
+            }
+        }
+
+        if !system_memory_obj.is_empty() {
+            context.insert(
+                "system_memory_state".to_string(),
+                Annotated::new(Value::Object(system_memory_obj)),
+            );
+        }
+    }
+
+    Context::Other(context)
+}
+
 /// Generates crashpad contexts for annotations stored in the minidump.
 ///
 /// Returns an error if either the minidump module list or the crashpad information stream cannot be
@@ -106,6 +274,13 @@ fn write_crashpad_annotations(
             .collect();
 
         contexts.insert("crashpad".to_string(), Context::Other(crashpad_context));
+    }
+
+    if let Ok(stability_report) = minidump.get_stream::<StabilityReport>() {
+        contexts.insert(
+            "stability_report".to_string(),
+            get_stability_report_context(stability_report),
+        );
     }
 
     if crashpad_info.module_list.is_empty() {
