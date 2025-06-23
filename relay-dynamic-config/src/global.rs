@@ -47,7 +47,7 @@ pub struct GlobalConfig {
     pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
 
     /// Configuration for AI span measurements.
-    #[serde(skip_serializing_if = "is_missing")]
+    #[serde(skip_serializing_if = "is_model_costs_empty")]
     pub ai_model_costs: ErrorBoundary<ModelCosts>,
 
     /// Configuration to derive the `span.op` from other span fields.
@@ -378,11 +378,8 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
     )
 }
 
-fn is_missing(value: &ErrorBoundary<ModelCosts>) -> bool {
-    matches!(
-        value,
-        &ErrorBoundary::Ok(ModelCosts{ version, ref costs }) if version == 0 && costs.is_empty()
-    )
+fn is_model_costs_empty(value: &ErrorBoundary<ModelCosts>) -> bool {
+    matches!(value, ErrorBoundary::Ok(model_costs) if model_costs.is_empty())
 }
 
 #[cfg(test)]

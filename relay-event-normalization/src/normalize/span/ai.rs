@@ -12,25 +12,32 @@ fn calculate_ai_model_cost(
     total_tokens_used: Option<f64>,
     ai_model_costs: &ModelCosts,
 ) -> Option<f64> {
-    if let Some(prompt_tokens) = prompt_tokens_used {
-        if let Some(completion_tokens) = completion_tokens_used {
-            let mut result = 0.0;
-            if let Some(cost_per_1k) = ai_model_costs.cost_per_1k_tokens(model_id, false) {
-                result += cost_per_1k * (prompt_tokens / 1000.0)
-            }
-            if let Some(cost_per_1k) = ai_model_costs.cost_per_1k_tokens(model_id, true) {
-                result += cost_per_1k * (completion_tokens / 1000.0)
-            }
-            return Some(result);
+    if let Some(cost_per_token) = ai_model_costs.cost_per_token(model_id) {
+        let mut result = 0.0;
+
+        // If we have separate input/output token counts, use those
+        if let Some(prompt_tokens) = prompt_tokens_used {
+            result += cost_per_token.input_per_token * prompt_tokens;
         }
+        if let Some(completion_tokens) = completion_tokens_used {
+            result += cost_per_token.output_per_token * completion_tokens;
+        }
+
+        // If we only have total tokens and no breakdown, use input cost for all tokens
+        // (assuming it's more common to have input cost defined in V1 configs)
+        if prompt_tokens_used.is_none() && completion_tokens_used.is_none() {
+            if let Some(total_tokens) = total_tokens_used {
+                if cost_per_token.input_per_token > 0.0 {
+                    result += cost_per_token.input_per_token * total_tokens;
+                } else if cost_per_token.output_per_token > 0.0 {
+                    result += cost_per_token.output_per_token * total_tokens;
+                }
+            }
+        }
+
+        return Some(result);
     }
-    if let Some(total_tokens) = total_tokens_used {
-        ai_model_costs
-            .cost_per_1k_tokens(model_id, false)
-            .map(|cost| cost * (total_tokens / 1000.0))
-    } else {
-        None
-    }
+    None
 }
 
 /// Maps AI-related measurements (legacy) to span data.
