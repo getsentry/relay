@@ -275,7 +275,7 @@ impl ModelCosts {
     }
 
     /// Gets the cost per token, if defined for the given model.
-    pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
+    pub(crate) fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
         match self.version {
             1 => {
                 let input_cost = self.costs.iter().find(|cost| cost.matches(model_id, false));
