@@ -335,11 +335,9 @@ fn derive_http_description(
         _ => None,
     };
 
-    if url_path.is_none() {
+   let Some(url_path) = url_path else {
         return Some(description);
-    }
-
-    let url_path = url_path.unwrap();
+    };
     let base_description = format!("{} {}", http_method, url_path);
 
     // Check for GraphQL operations
