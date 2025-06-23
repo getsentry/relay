@@ -2,8 +2,10 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue};
 
 use crate::processor::ProcessValue;
 
-// Some stability report fields are measured in 4K blocks, so we define a constant for that.
-const _4KIB: u64 = 4096;
+/// Some stability report fields are measured in 4K pages which we convert to bytes.
+fn bytes_from_4k_pages(value: u32) -> u64 {
+    (value as u64) * 4096
+}
 
 /// The state of a process.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -165,13 +167,10 @@ impl From<minidump::system_memory_state::WindowsMemory>
 {
     fn from(memory: minidump::system_memory_state::WindowsMemory) -> Self {
         Self {
-            system_commit_limit: memory
-                .system_commit_limit
-                .and_then(|v| (v as u64).checked_mul(_4KIB))
-                .into(),
+            system_commit_limit: memory.system_commit_limit.map(bytes_from_4k_pages).into(),
             system_commit_remaining: memory
                 .system_commit_remaining
-                .and_then(|v| (v as u64).checked_mul(_4KIB))
+                .map(bytes_from_4k_pages)
                 .into(),
             system_handle_count: memory.system_handle_count.map(|v| v as u64).into(),
         }
@@ -191,17 +190,14 @@ impl From<minidump::process_state::memory_state::WindowsMemory>
 {
     fn from(memory: minidump::process_state::memory_state::WindowsMemory) -> Self {
         Self {
-            process_private_usage: memory
-                .process_private_usage
-                .and_then(|v| (v as u64).checked_mul(_4KIB))
-                .into(),
+            process_private_usage: memory.process_private_usage.map(bytes_from_4k_pages).into(),
             process_peak_workingset_size: memory
                 .process_peak_workingset_size
-                .and_then(|v| (v as u64).checked_mul(_4KIB))
+                .map(bytes_from_4k_pages)
                 .into(),
             process_peak_pagefile_usage: memory
                 .process_peak_pagefile_usage
-                .and_then(|v| (v as u64).checked_mul(_4KIB))
+                .map(bytes_from_4k_pages)
                 .into(),
             process_allocation_attempt: memory.process_allocation_attempt.map(|v| v as u64).into(),
         }
