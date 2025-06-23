@@ -1,4 +1,6 @@
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
+use relay_protocol::{
+    Annotated, DeepValue, Empty, FromValue, IntoValue, Object, SkipSerialization, Value,
+};
 use std::fmt;
 
 use crate::processor::ProcessValue;
@@ -157,5 +159,15 @@ impl IntoValue for AttributeType {
         S: serde::Serializer,
     {
         serde::ser::Serialize::serialize(self.as_str(), s)
+    }
+}
+
+impl DeepValue for Attribute {
+    fn deep_value_ref(&self) -> Option<&Value> {
+        self.value.value.value()
+    }
+
+    fn deep_value(self) -> Option<Value> {
+        self.value.value.into_value()
     }
 }

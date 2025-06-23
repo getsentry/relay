@@ -329,3 +329,11 @@ pub trait Getter {
         None
     }
 }
+
+/// Helper trait for retrieving `Value`s from deeply nested structures.
+pub trait DeepValue {
+    /// Returns the contained `Value`.
+    fn deep_value(self) -> Option<Value>;
+    /// Returns a reference to the contained `Value`.
+    fn deep_value_ref(&self) -> Option<&Value>;
+}

@@ -3,6 +3,7 @@ use std::fmt;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::DeepValue;
 use crate::meta::{Error, Meta};
 use crate::traits::{Empty, FromValue, IntoValue, SkipSerialization};
 use crate::value::{Map, Value};
@@ -410,5 +411,15 @@ impl<T> From<Option<T>> for Annotated<T> {
 impl<T> Default for Annotated<T> {
     fn default() -> Annotated<T> {
         Annotated::empty()
+    }
+}
+
+impl<T: DeepValue> DeepValue for Annotated<T> {
+    fn deep_value_ref(&self) -> Option<&Value> {
+        self.value()?.deep_value_ref()
+    }
+
+    fn deep_value(self) -> Option<Value> {
+        self.into_value()?.deep_value()
     }
 }

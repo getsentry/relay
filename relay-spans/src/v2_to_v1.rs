@@ -7,7 +7,7 @@ use relay_event_schema::protocol::{
     EventId, Span as SpanV1, SpanData, SpanId, SpanLink, SpanStatus, SpanV2, SpanV2Kind,
     SpanV2Status,
 };
-use relay_protocol::{Annotated, FromValue, Object, Value};
+use relay_protocol::{Annotated, DeepValue, FromValue, Object, Value};
 
 /// Transforms a Sentry span V2 to a Sentry span V1.
 ///
@@ -195,12 +195,7 @@ fn span_v2_link_to_span_v1_link(link: SpanV2Link) -> SpanLink {
     let attributes = attributes.map_value(|attributes| {
         attributes
             .into_iter()
-            .map(|(key, attribute)| {
-                (
-                    key,
-                    attribute.and_then(|attribute| attribute.value.value.into_value()),
-                )
-            })
+            .map(|(key, attribute)| (key, attribute.and_then(|attr| attr.deep_value())))
             .collect()
     });
     SpanLink {
@@ -258,9 +253,7 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
 
     if let Some(faas_trigger) = attributes
         .get("faas.trigger")
-        .and_then(|faas_trigger| faas_trigger.value())
-        .and_then(|trigger_value| trigger_value.value.value.value())
-        .and_then(|v| v.as_str())
+        .and_then(|attr| attr.deep_value_ref()?.as_str())
     {
         return faas_trigger.to_owned();
     }
