@@ -302,8 +302,7 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
             .and_then(|attr| attr.value())
             .and_then(|attr_val| attr_val.value.value.value())
             .and_then(|v| v.as_str())
-            .map(|op| op.starts_with("cache."))
-            .unwrap_or(false);
+            .is_some_and(|op| op.starts_with("cache."));
 
         if !is_cache_op {
             if let Some(database_description) = derive_db_description(attributes) {
