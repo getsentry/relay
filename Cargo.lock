@@ -3922,6 +3922,7 @@ dependencies = [
  "debugid",
  "enumset",
  "insta",
+ "minidump",
  "opentelemetry-proto",
  "relay-base-schema",
  "relay-common",

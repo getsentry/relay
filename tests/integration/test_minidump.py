@@ -609,7 +609,8 @@ def test_chromium_stability_report(
     event, _ = attachments_consumer.get_event()
 
     # Check the stability_report context
-    assert event["contexts"]["stability_report"] == {
+    assert event["contexts"]["chromium_stability_report"] == {
+        "type": "chromiumstabilityreport",
         "process_states": [
             {
                 "file_system_state": {
