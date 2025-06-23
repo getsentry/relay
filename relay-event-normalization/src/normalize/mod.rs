@@ -271,7 +271,7 @@ impl ModelCosts {
 
     /// `true` if the model costs are empty and the version is supported.
     pub fn is_empty(&self) -> bool {
-        self.costs.is_empty() && self.models.is_empty() && self.is_enabled()
+        (self.costs.is_empty() && self.models.is_empty()) || !self.is_enabled()
     }
 
     /// `false` if measurement and metrics extraction should be skipped.
