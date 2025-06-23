@@ -162,6 +162,17 @@ pub enum SamplingValue {
         /// The limit of how many times this rule will be sampled before this rule is invalid.
         limit: i64,
     },
+
+    /// A minimum sample rate.
+    ///
+    /// The sample rate specified in the rule will be used as a minimum over the otherwise used
+    /// sample rate.
+    ///
+    /// Only the first matching minimum sample rate will be applied.
+    MinimumSampleRate {
+        /// The minimum sample rate used to raise the chosen sample rate.
+        value: f64,
+    },
 }
 
 /// Defines what a dynamic sampling rule applies to.
