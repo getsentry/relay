@@ -429,26 +429,23 @@ fn strip_url_query_and_fragment(url: &str) -> String {
 }
 
 fn get_client_url_path(attributes: &Object<Attribute>) -> Option<String> {
-    // `url.full` is a new required attribute for client spans. This is the full URL and should be
-    // safe to parse. `http.url` is its old name
-    if let Some(url) = attributes
+    let url = attributes
         .get("url.full")
-        .or_else(|| attributes.get("http.url"))
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
-        .and_then(|v| v.as_str())
-    {
-        if let Ok(parsed_url) = Url::parse(url) {
-            return Some(format!(
-                "{}://{}{}",
-                parsed_url.scheme(),
-                parsed_url.domain().unwrap_or(""),
-                parsed_url.path()
-            ));
-        }
-    }
+        .or_else(|| attributes.get("http.url"))?
+        .value()?
+        .value
+        .value
+        .value()?
+        .as_str()?;
 
-    None
+    let parsed_url = Url::parse(url).ok()?;
+
+    Some(format!(
+        "{}://{}{}",
+        parsed_url.scheme(),
+        parsed_url.domain().unwrap_or(""),
+        parsed_url.path()
+    ))
 }
 
 #[cfg(test)]
