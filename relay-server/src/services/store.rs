@@ -279,10 +279,7 @@ impl StoreService {
                     replay_recording = Some(item);
                 }
                 ItemType::ReplayEvent => {
-                    if item.replay_combined_payload() {
-                        replay_event = Some(item);
-                    }
-
+                    replay_event = Some(item);
                     self.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
@@ -1497,27 +1494,28 @@ impl SpanKafkaMessage<'_> {
     ///   of `client_sample_rate` and `server_sample_rate`. Those measurements are instead written to the top-level
     ///   fields of the same names.
     ///
-    /// From highest to lowest, the order of precedence is
+    /// In no case are existing keys overwritten. Thus, from highest to lowest, the order of precedence is
+    /// * existing values in `data`
     /// * `measurements`
     /// * `tags`
     /// * `sentry_tags`
-    /// * existing values in `tags`
     fn backfill_data(&mut self) {
         let data = self.data.get_or_insert_default();
 
-        if let Some(sentry_tags) = &self.sentry_tags {
-            for (key, value) in sentry_tags {
-                let Some(value) = value else {
+        if let Some(measurements) = &self.measurements {
+            for (key, value) in measurements {
+                let Some(value) = value.as_ref().and_then(|v| v.value) else {
                     continue;
                 };
 
-                let key = if *key == "description" {
-                    "sentry.normalized_description".to_owned()
-                } else {
-                    format!("sentry.{key}")
-                };
-
-                data.insert(Cow::Owned(key), Some(value.clone()));
+                match &key[..] {
+                    "client_sample_rate" => self.client_sample_rate = Some(value),
+                    "server_sample_rate" => self.server_sample_rate = Some(value),
+                    _ => {
+                        data.entry(key.clone())
+                            .or_insert_with(|| Some(value.into()));
+                    }
+                }
             }
         }
 
@@ -1533,23 +1531,25 @@ impl SpanKafkaMessage<'_> {
                     key
                 };
 
-                data.insert(Cow::Borrowed(key), Some(value.clone()));
+                data.entry(Cow::Borrowed(key))
+                    .or_insert_with(|| Some(value.clone()));
             }
         }
 
-        if let Some(measurements) = &self.measurements {
-            for (key, value) in measurements {
-                let Some(value) = value.as_ref().and_then(|v| v.value) else {
+        if let Some(sentry_tags) = &self.sentry_tags {
+            for (key, value) in sentry_tags {
+                let Some(value) = value else {
                     continue;
                 };
 
-                match &key[..] {
-                    "client_sample_rate" => self.client_sample_rate = Some(value),
-                    "server_sample_rate" => self.server_sample_rate = Some(value),
-                    _ => {
-                        data.insert(key.clone(), Some(value.into()));
-                    }
-                }
+                let key = if *key == "description" {
+                    "sentry.normalized_description".to_owned()
+                } else {
+                    format!("sentry.{key}")
+                };
+
+                data.entry(Cow::Owned(key))
+                    .or_insert_with(|| Some(value.clone()));
             }
         }
     }

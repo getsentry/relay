@@ -8,11 +8,11 @@ use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
-use relay_event_normalization::{ClockDriftProcessor, nel};
+use relay_event_normalization::ClockDriftProcessor;
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
-    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
-    NetworkReportError, OtelContext, RelayInfo, SecurityReportType, Values,
+    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics, OtelContext,
+    RelayInfo, SecurityReportType, Values,
 };
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
@@ -62,7 +62,6 @@ pub fn extract<Group: EventProcessing>(
     let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
     let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
     let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
-    let nel_item = envelope.take_item_by(|item| item.ty() == &ItemType::Nel);
     let user_report_v2_item = envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
     let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
     let attachment_item =
@@ -120,11 +119,6 @@ pub fn extract<Group: EventProcessing>(
                 );
             }
             error
-        })?
-    } else if let Some(item) = nel_item {
-        relay_log::trace!("processing nel report");
-        event_from_nel_item(item, envelope.meta()).inspect_err(|error| {
-            relay_log::error!(error = error as &dyn Error, "failed to extract NEL report");
         })?
     } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
         relay_log::trace!("extracting attached event data");
@@ -557,35 +551,6 @@ fn event_from_security_report(
     // Explicitly set the event type. This is required so that a `Security` item can be created
     // instead of a regular `Event` item.
     event.ty = Annotated::new(event_type);
-
-    Ok((Annotated::new(event), len))
-}
-
-fn event_from_nel_item(item: Item, _meta: &RequestMeta) -> Result<ExtractedEvent, ProcessingError> {
-    let len = item.len();
-    let mut event = Event {
-        ty: Annotated::new(EventType::Nel),
-        ..Default::default()
-    };
-    let data: &[u8] = &item.payload();
-
-    // Try to get the raw network report.
-    let report = Annotated::from_json_bytes(data).map_err(NetworkReportError::InvalidJson);
-
-    match report {
-        // If the incoming payload could be converted into the raw network error, try
-        // to use it to normalize the event.
-        Ok(report) => {
-            nel::enrich_event(&mut event, report);
-        }
-        Err(err) => {
-            // logged in extract_event
-            relay_log::configure_scope(|scope| {
-                scope.set_extra("payload", String::from_utf8_lossy(data).into());
-            });
-            return Err(ProcessingError::InvalidNelReport(err));
-        }
-    }
 
     Ok((Annotated::new(event), len))
 }

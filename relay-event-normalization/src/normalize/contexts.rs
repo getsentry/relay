@@ -257,6 +257,8 @@ fn normalize_os_context(os: &mut OsContext) {
                 .name("version")
                 .map(|m| m.as_str().to_string())
                 .into();
+        } else if raw_description == "Nintendo Switch" {
+            os.name = "Nintendo OS".to_string().into();
         }
     }
 
@@ -740,6 +742,20 @@ mod tests {
         assert_eq!(Some("Ubuntu"), os.name.as_str());
         assert_eq!(Some("20.04"), os.version.as_str());
         assert_eq!(Some("5.11"), os.kernel_version.as_str());
+        assert_eq!(None, os.build.value());
+    }
+
+    #[test]
+    fn test_unity_nintendo_switch() {
+        // Format sent by Unity on Nintendo Switch
+        let mut os = OsContext {
+            raw_description: "Nintendo Switch".to_string().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Nintendo OS"), os.name.as_str());
+        assert_eq!(None, os.version.value());
         assert_eq!(None, os.build.value());
     }
 
