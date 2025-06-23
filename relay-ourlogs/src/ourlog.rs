@@ -360,12 +360,13 @@ mod tests {
         let observed_timestamp = our_log
             .attributes
             .value()
-            .unwrap()
-            .get_value("sentry.observed_timestamp_nanos")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .parse::<u64>()
+            .and_then(|attrs| {
+                attrs
+                    .get_value("sentry.observed_timestamp_nanos")?
+                    .as_str()?
+                    .parse::<u64>()
+                    .ok()
+            })
             .unwrap();
 
         assert_eq!(observed_timestamp, 946684800000000000);
@@ -394,12 +395,13 @@ mod tests {
         let observed_timestamp = our_log
             .attributes
             .value()
-            .unwrap()
-            .get_value("sentry.observed_timestamp_nanos")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .parse::<u64>()
+            .and_then(|attrs| {
+                attrs
+                    .get_value("sentry.observed_timestamp_nanos")?
+                    .as_str()?
+                    .parse::<u64>()
+                    .ok()
+            })
             .unwrap();
 
         assert_ne!(observed_timestamp, 1544712660300000000);
