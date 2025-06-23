@@ -234,6 +234,8 @@ fn process_attribute_types(ourlog: &mut OurLog) {
 
 #[cfg(test)]
 mod tests {
+    use relay_protocol::SerializableAnnotated;
+
     use super::*;
 
     #[test]
@@ -305,174 +307,103 @@ mod tests {
             process_attribute_types(log);
         }
 
-        insta::assert_debug_snapshot!(data.value().unwrap().attributes, @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes), @r###"
         {
-            "double_with_i64": Attribute {
-                value: I64(
-                    -42,
-                ),
-                type: Double,
-                other: {},
-            },
-            "invalid_int_from_invalid_string": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: InvalidData,
-                        data: {},
-                    },
+          "double_with_i64": {
+            "type": "double",
+            "value": -42
+          },
+          "invalid_int_from_invalid_string": null,
+          "missing_type": null,
+          "missing_value": null,
+          "unknown_type": null,
+          "valid_bool": {
+            "type": "boolean",
+            "value": true
+          },
+          "valid_double": {
+            "type": "double",
+            "value": 42.5
+          },
+          "valid_double_with_u64": {
+            "type": "double",
+            "value": 42
+          },
+          "valid_int_from_string": null,
+          "valid_int_i64": {
+            "type": "integer",
+            "value": -42
+          },
+          "valid_int_u64": {
+            "type": "integer",
+            "value": 42
+          },
+          "valid_string": {
+            "type": "string",
+            "value": "test"
+          },
+          "valid_string_with_other": {
+            "type": "string",
+            "value": "test",
+            "some_other_field": "some_other_value"
+          },
+          "_meta": {
+            "invalid_int_from_invalid_string": {
+              "": {
+                "err": [
+                  "invalid_data"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "integer",
-                            ),
-                            "value": String(
-                                "abc",
-                            ),
-                        },
-                    ),
-                ),
+                "val": {
+                  "type": "integer",
+                  "value": "abc"
+                }
+              }
             },
-            "missing_type": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: MissingAttribute,
-                        data: {},
-                    },
+            "missing_type": {
+              "": {
+                "err": [
+                  "missing_attribute"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": ~,
-                            "value": String(
-                                "value with missing type",
-                            ),
-                        },
-                    ),
-                ),
+                "val": {
+                  "type": null,
+                  "value": "value with missing type"
+                }
+              }
             },
-            "missing_value": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: MissingAttribute,
-                        data: {},
-                    },
+            "missing_value": {
+              "": {
+                "err": [
+                  "missing_attribute"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "string",
-                            ),
-                            "value": ~,
-                        },
-                    ),
-                ),
+                "val": {
+                  "type": "string",
+                  "value": null
+                }
+              }
             },
-            "unknown_type": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: InvalidData,
-                        data: {},
-                    },
+            "unknown_type": {
+              "": {
+                "err": [
+                  "invalid_data"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "custom",
-                            ),
-                            "value": String(
-                                "test",
-                            ),
-                        },
-                    ),
-                ),
+                "val": {
+                  "type": "custom",
+                  "value": "test"
+                }
+              }
             },
-            "valid_bool": Attribute {
-                value: Bool(
-                    true,
-                ),
-                type: Boolean,
-                other: {},
-            },
-            "valid_double": Attribute {
-                value: F64(
-                    42.5,
-                ),
-                type: Double,
-                other: {},
-            },
-            "valid_double_with_u64": Attribute {
-                value: I64(
-                    42,
-                ),
-                type: Double,
-                other: {},
-            },
-            "valid_int_from_string": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: InvalidData,
-                        data: {},
-                    },
+            "valid_int_from_string": {
+              "": {
+                "err": [
+                  "invalid_data"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "integer",
-                            ),
-                            "value": String(
-                                "42",
-                            ),
-                        },
-                    ),
-                ),
-            },
-            "valid_int_i64": Attribute {
-                value: I64(
-                    -42,
-                ),
-                type: Integer,
-                other: {},
-            },
-            "valid_int_u64": Attribute {
-                value: I64(
-                    42,
-                ),
-                type: Integer,
-                other: {},
-            },
-            "valid_string": Attribute {
-                value: String(
-                    "test",
-                ),
-                type: String,
-                other: {},
-            },
-            "valid_string_with_other": Attribute {
-                value: String(
-                    "test",
-                ),
-                type: String,
-                other: {
-                    "some_other_field": String(
-                        "some_other_value",
-                    ),
-                },
-            },
+                "val": {
+                  "type": "integer",
+                  "value": "42"
+                }
+              }
+            }
+          }
         }
         "###);
     }
