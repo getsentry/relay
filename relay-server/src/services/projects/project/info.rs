@@ -134,9 +134,16 @@ impl ProjectInfo {
             return Err(DiscardReason::FeatureDisabled(*disabled_feature));
         }
 
-        self.check_envelope_signature(&envelope, &config)
+        self.check_envelope_signature(envelope, config)
     }
 
+    /// Checks if the envelope signature is valid given the configuration.
+    ///
+    /// Based on [`SignatureVerification`], it will perform different checks on
+    /// the signature and return a [`DiscardReason`] if it is invalid.
+    ///
+    /// NOTE: It will only check signatures coming from external relays, if the
+    /// envelope was received from an internal relay, the check will always succeed.
     fn check_envelope_signature(
         &self,
         envelope: &Envelope,
