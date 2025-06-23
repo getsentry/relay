@@ -1498,6 +1498,7 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 mod tests {
 
     use std::collections::BTreeMap;
+    use std::collections::HashMap;
 
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
@@ -2261,6 +2262,7 @@ mod tests {
                             cost_per_1k_tokens: 20.0,
                         },
                     ],
+                    models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
             },
@@ -2348,6 +2350,7 @@ mod tests {
                             cost_per_1k_tokens: 20.0,
                         },
                     ],
+                    models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
             },
