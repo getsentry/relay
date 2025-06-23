@@ -134,26 +134,29 @@ impl ProjectInfo {
             return Err(DiscardReason::FeatureDisabled(*disabled_feature));
         }
 
-        Self::check_envelope_signature(&envelope, &self.config)
+        self.check_envelope_signature(&envelope, &config)
     }
 
     fn check_envelope_signature(
+        &self,
         envelope: &Envelope,
-        config: &ProjectConfig,
+        config: &Config,
     ) -> Result<(), DiscardReason> {
         if envelope.meta().is_from_internal_relay() {
             return Ok(());
         }
-        match config.trusted_relay_settings.verify_signature {
+        match self.config.trusted_relay_settings.verify_signature {
             SignatureVerification::Disabled => Ok(()),
             SignatureVerification::WithTimestamp => match envelope.meta().signature() {
                 Some(RelaySignature::Valid(signature)) => {
                     if !signature.verify_any(
-                        &config.trusted_relays,
+                        &self.config.trusted_relays,
                         envelope.received_at(),
                         Some(Duration::seconds(config.signature_max_age() as i64)),
                     ) {
                         Err(DiscardReason::InvalidSignature)
+                    } else {
+                        Ok(())
                     }
                 }
                 Some(RelaySignature::Invalid(_)) => Err(DiscardReason::InvalidSignature),

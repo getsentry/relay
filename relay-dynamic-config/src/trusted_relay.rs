@@ -10,6 +10,9 @@ pub struct TrustedRelayConfig {
 }
 
 impl TrustedRelayConfig {
+    /// Checks whether the config can be considered empty.
+    ///
+    /// Empty here means that all values are equal to their default values.
     pub fn is_empty(&self) -> bool {
         self.verify_signature == SignatureVerification::default()
     }
