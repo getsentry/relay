@@ -28,16 +28,9 @@ pub enum SignatureVerification {
 }
 
 impl SignatureVerification {
+    /// Checks if it is the default variant.
     pub fn is_default(&self) -> bool {
         *self == SignatureVerification::default()
-    }
-
-    pub fn is_verify_timestamp(&self) -> bool {
-        *self == SignatureVerification::WithTimestamp
-    }
-
-    pub fn is_disabled(&self) -> bool {
-        *self == SignatureVerification::Disabled
     }
 }
 

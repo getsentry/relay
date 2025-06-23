@@ -58,14 +58,14 @@ use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
-    SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+    SendRequest, TrySign, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
     SamplingResult, TypedEnvelope,
 };
-use relay_auth::{SignatureType, TrySign};
+use relay_auth::SignatureType;
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]

@@ -13,7 +13,7 @@ use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_dynamic_config::ErrorBoundary;
-use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
+use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig, SignatureVerification};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
 use serde::{Deserialize, Serialize};
@@ -134,31 +134,32 @@ impl ProjectInfo {
             return Err(DiscardReason::FeatureDisabled(*disabled_feature));
         }
 
-        if !envelope.meta().is_from_internal_relay()
-            && self
-                .config()
-                .trusted_relay_settings
-                .verify_signature
-                .is_verify_timestamp()
-        {
-            match envelope.meta().signature() {
+        Self::check_envelope_signature(&envelope, &self.config)
+    }
+
+    fn check_envelope_signature(
+        envelope: &Envelope,
+        config: &ProjectConfig,
+    ) -> Result<(), DiscardReason> {
+        if envelope.meta().is_from_internal_relay() {
+            return Ok(());
+        }
+        match config.trusted_relay_settings.verify_signature {
+            SignatureVerification::Disabled => Ok(()),
+            SignatureVerification::WithTimestamp => match envelope.meta().signature() {
                 Some(RelaySignature::Valid(signature)) => {
                     if !signature.verify_any(
-                        &self.config.trusted_relays,
+                        &config.trusted_relays,
                         envelope.received_at(),
                         Some(Duration::seconds(config.signature_max_age() as i64)),
                     ) {
-                        return Err(DiscardReason::InvalidSignature);
+                        Err(DiscardReason::InvalidSignature)
                     }
                 }
-                Some(RelaySignature::Invalid(_)) => {
-                    return Err(DiscardReason::InvalidSignature);
-                }
-                None => return Err(DiscardReason::MissingSignature),
-            }
+                Some(RelaySignature::Invalid(_)) => Err(DiscardReason::InvalidSignature),
+                None => Err(DiscardReason::MissingSignature),
+            },
         }
-
-        Ok(())
     }
 
     /// Returns `true` if the given project ID matches this project.

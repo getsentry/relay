@@ -1,12 +1,3 @@
-use std::convert::Infallible;
-use std::fmt;
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
-
-use crate::extractors::{ForwardedFor, ReceivedAt};
-use crate::service::ServiceState;
-use crate::statsd::{ClientName, RelayCounters};
-use crate::utils::ApiErrorResponse;
 use axum::RequestPartsExt;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{ConnectInfo, FromRequestParts, Path};
@@ -24,7 +15,16 @@ use relay_config::UpstreamDescriptor;
 use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+use std::fmt;
+use std::net::{IpAddr, SocketAddr};
+use std::str::FromStr;
 use url::Url;
+
+use crate::extractors::{ForwardedFor, ReceivedAt};
+use crate::service::ServiceState;
+use crate::statsd::{ClientName, RelayCounters};
+use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BadEventMeta {

@@ -18,7 +18,8 @@ use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
-    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SignatureType, TrySign,
+    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, SignatureError,
+    SignatureType,
 };
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
@@ -247,6 +248,44 @@ impl RequestPriority {
 impl fmt::Display for RequestPriority {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
+    }
+}
+
+/// Represents whether credentials are required for signing a request.
+pub enum TrySign {
+    /// Credentials are required for signing. If no credentials are available,
+    /// signature creation will fail.
+    Required(SignatureType),
+    /// Credentials are optional for signing. If no credentials are available,
+    /// signature creation will be skipped.
+    Optional(SignatureType),
+}
+
+impl TrySign {
+    /// Creates a signature based on the [`TrySign`] variant.
+    ///
+    /// This method signs the input data and returns an optional signature string.
+    ///
+    /// If credentials are required but none are provided, it will fail with
+    /// [`SignatureError::MissingCredentials`].
+    pub fn create_signature(
+        self,
+        secret_key: Option<&SecretKey>,
+    ) -> Result<Option<String>, SignatureError> {
+        match self {
+            TrySign::Required(signature_type) => {
+                let Some(secret_key) = secret_key else {
+                    return Err(SignatureError::MissingCredentials);
+                };
+                Ok(Some(signature_type.create_signature(secret_key)))
+            }
+            TrySign::Optional(signature_type) => {
+                let Some(secret_key) = secret_key else {
+                    return Ok(None);
+                };
+                Ok(Some(signature_type.create_signature(secret_key)))
+            }
+        }
     }
 }
 
@@ -1542,5 +1581,39 @@ impl Service for UpstreamRelayService {
                 else => break,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use relay_auth::generate_key_pair;
+
+    #[test]
+    fn test_required_credentials_missing() {
+        let result = TrySign::Required(SignatureType::Body(Bytes::new())).create_signature(None);
+        assert_eq!(result, Err(SignatureError::MissingCredentials))
+    }
+
+    #[test]
+    fn test_required_credentials() {
+        let (secret, _) = generate_key_pair();
+        let result =
+            TrySign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+        assert!(result.unwrap().is_some())
+    }
+
+    #[test]
+    fn test_optional_credentials() {
+        let (secret, _) = generate_key_pair();
+        let result =
+            TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+        assert!(result.unwrap().is_some())
+    }
+
+    #[test]
+    fn test_optional_credentials_missing() {
+        let result = TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(None);
+        assert_eq!(result, Ok(None))
     }
 }

@@ -716,44 +716,6 @@ impl From<SignatureError> for RelaySignature {
     }
 }
 
-/// Represents whether credentials are required for signing a request.
-pub enum TrySign {
-    /// Credentials are required for signing. If no credentials are available,
-    /// signature creation will fail.
-    Required(SignatureType),
-    /// Credentials are optional for signing. If no credentials are available,
-    /// signature creation will be skipped.
-    Optional(SignatureType),
-}
-
-impl TrySign {
-    /// Creates a signature based on the [`TrySign`] variant.
-    ///
-    /// This method signs the input data and returns an optional signature string.
-    ///
-    /// If credentials are required but none are provided, it will fail with
-    /// [`SignatureError::MissingCredentials`].
-    pub fn create_signature(
-        self,
-        secret_key: Option<&SecretKey>,
-    ) -> Result<Option<String>, SignatureError> {
-        match self {
-            TrySign::Required(signature_type) => {
-                let Some(secret_key) = secret_key else {
-                    return Err(SignatureError::MissingCredentials);
-                };
-                Ok(Some(signature_type.create_signature(secret_key)))
-            }
-            TrySign::Optional(signature_type) => {
-                let Some(secret_key) = secret_key else {
-                    return Ok(None);
-                };
-                Ok(Some(signature_type.create_signature(secret_key)))
-            }
-        }
-    }
-}
-
 /// Types of signatures that are supported by Relay.
 #[derive(Debug)]
 pub enum SignatureType {
@@ -1069,34 +1031,6 @@ mod tests {
         let signature = pair3.0.sign(&data);
         let signature_data = RelaySignatureData::new(signature, data);
         assert!(signature_data.verify_any(&[pair1.1, pair2.1, pair3.1], Utc::now(), None));
-    }
-
-    #[test]
-    fn test_required_credentials_missing() {
-        let result = TrySign::Required(SignatureType::Body(Bytes::new())).create_signature(None);
-        assert_eq!(result, Err(SignatureError::MissingCredentials))
-    }
-
-    #[test]
-    fn test_required_credentials() {
-        let (secret, _) = generate_key_pair();
-        let result =
-            TrySign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
-        assert!(result.unwrap().is_some())
-    }
-
-    #[test]
-    fn test_optional_credentials() {
-        let (secret, _) = generate_key_pair();
-        let result =
-            TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
-        assert!(result.unwrap().is_some())
-    }
-
-    #[test]
-    fn test_optional_credentials_missing() {
-        let result = TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(None);
-        assert_eq!(result, Ok(None))
     }
 
     #[test]
