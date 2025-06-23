@@ -98,7 +98,7 @@ pub struct MetricsClient {
 
 /// Client configuration used for initialization of [`MetricsClient`].
 #[derive(Debug)]
-pub struct MetricsClientConfig<'a, A: ToSocketAddrs> {
+pub struct MetricsClientConfig<'a, A> {
     /// Prefix which is appended to all metric names.
     pub prefix: &'a str,
     /// Host of the metrics upstream.
