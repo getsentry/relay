@@ -269,6 +269,11 @@ pub struct ModelCosts {
 impl ModelCosts {
     const MAX_SUPPORTED_VERSION: u16 = 2;
 
+    /// `true` if the model costs are empty and the version is supported.
+    pub fn is_empty(&self) -> bool {
+        self.costs.is_empty() && self.models.is_empty() && self.is_enabled()
+    }
+
     /// `false` if measurement and metrics extraction should be skipped.
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= ModelCosts::MAX_SUPPORTED_VERSION
