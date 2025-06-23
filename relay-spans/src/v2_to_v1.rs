@@ -32,6 +32,8 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut data = Object::new();
 
     let inferred_op = derive_op_for_v2_span(&span_v2);
+    // NOTE: Inferring the description should happen after inferring the op, since the op may affect
+    // how we infer the description.
     let inferred_description = derive_description_for_v2_span(&span_v2);
 
     let SpanV2 {
@@ -290,25 +292,12 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
         return description;
     };
 
-    if attributes.contains_key("http.request.method") || attributes.contains_key("http.method") {
-        if let Some(http_description) = derive_http_description(attributes, &span.kind.value()) {
-            return Some(http_description);
-        }
+    if let Some(http_description) = derive_http_description(attributes, &span.kind.value()) {
+        return Some(http_description);
     }
 
-    if attributes.contains_key("db.system") || attributes.contains_key("db.system.name") {
-        let is_cache_op = attributes
-            .get("sentry.op")
-            .and_then(|attr| attr.value())
-            .and_then(|attr_val| attr_val.value.value.value())
-            .and_then(|v| v.as_str())
-            .is_some_and(|op| op.starts_with("cache."));
-
-        if !is_cache_op {
-            if let Some(database_description) = derive_db_description(attributes) {
-                return Some(database_description);
-            }
-        }
+    if let Some(database_description) = derive_db_description(attributes) {
+        return Some(database_description);
     }
 
     description
@@ -335,7 +324,7 @@ fn derive_http_description(
         _ => None,
     };
 
-   let Some(url_path) = url_path else {
+    let Some(url_path) = url_path else {
         return Some(description);
     };
     let base_description = format!("{} {}", http_method, url_path);
@@ -354,6 +343,28 @@ fn derive_http_description(
 }
 
 fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
+    // Check if this is a cache operation. Cache operations look very similar to database
+    // operations, since they have a `db.system` attribute, but should be treated differently, since
+    // we don't want their statements to end up in description for now.
+    if attributes
+        .get("sentry.op")
+        .and_then(|attr| attr.value())
+        .and_then(|attr_val| attr_val.value.value.value())
+        .and_then(|v| v.as_str())
+        .is_some_and(|op| op.starts_with("cache."))
+    {
+        return None;
+    }
+
+    // Check the `db.system` attribute. It's mandatory, so if it's missing, return `None` right
+    // away, since there's not much point trying to derive a description.
+    attributes
+        .get("db.system")
+        .or_else(|| attributes.get("db.system.name"))
+        .and_then(|attr| attr.value())
+        .and_then(|attr_val| attr_val.value.value.value())
+        .and_then(|v| v.as_str())?;
+
     // `db.query.text` is a recommended attribute, and it contains the full query text if available.
     // This is the ideal description.
     if let Some(query_text) = attributes
@@ -953,6 +964,55 @@ mod tests {
           "data": {
             "db.system": "postgres",
             "sentry.name": "SELECT users"
+          },
+          "kind": "client"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_cache_span() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "name": "CACHE HIT",
+            "end_timestamp": 123.1,
+            "kind": "client",
+            "attributes": {
+                "db.system": {
+                    "value": "redis",
+                    "type": "string"
+                },
+                "db.statement": {
+                    "value": "GET s:user:123",
+                    "type": "string"
+                },
+                "sentry.op": {
+                    "value": "cache.hit",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.1,
+          "start_timestamp": 123.0,
+          "exclusive_time": 99.999999,
+          "op": "cache.hit",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "CACHE HIT",
+          "data": {
+            "db.system": "redis",
+            "db.statement": "GET s:user:123",
+            "sentry.name": "CACHE HIT"
           },
           "kind": "client"
         }
