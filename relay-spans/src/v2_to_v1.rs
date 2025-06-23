@@ -362,7 +362,7 @@ fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
         .and_then(|attr_val| attr_val.value.value.value())
         .and_then(|v| v.as_str())
     {
-        return Some(query_text.to_string());
+        return Some(query_text.to_owned());
     }
 
     // Other SDKs check for `db.statement`, it's a legacy OTel attribute, useful as a fallback in some cases.
