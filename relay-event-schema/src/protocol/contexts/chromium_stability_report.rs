@@ -93,9 +93,6 @@ pub struct StabilityReportContext {
     pub process_states: Annotated<Array<ProcessStateContext>>,
     /// System-wide resource usage.
     pub system_memory_state: Annotated<SystemMemoryStateContext>,
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = true, pii = "maybe")]
-    pub other: Object<Value>,
 }
 
 impl super::DefaultContext for StabilityReportContext {
@@ -141,7 +138,6 @@ impl From<minidump::StabilityReport> for StabilityReportContext {
                     .collect::<Vec<_>>(),
             ),
             system_memory_state: report.system_memory_state.map(Into::into).into(),
-            ..Default::default()
         }
     }
 }
