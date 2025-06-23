@@ -11,7 +11,7 @@
 **Internal**:
 
 - Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
-- Added version 2 of LLM cost specification ([#4825](https://github.com/getsentry/relay/pull/4825))
+- Added version 2 of LLM cost specification. ([#4825](https://github.com/getsentry/relay/pull/4825))
 
 ## 25.6.0
 

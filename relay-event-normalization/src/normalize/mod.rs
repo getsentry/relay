@@ -275,7 +275,7 @@ impl ModelCosts {
     }
 
     /// Gets the cost per token, if defined for the given model.
-    pub(crate) fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
+    pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
         match self.version {
             1 => {
                 let input_cost = self.costs.iter().find(|cost| cost.matches(model_id, false));
@@ -294,7 +294,7 @@ impl ModelCosts {
                     None
                 }
             }
-            2 => self.models.get(model_id).cloned(),
+            2 => self.models.get(model_id).copied(),
             _ => None,
         }
     }
@@ -321,10 +321,14 @@ impl ModelCost {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCostV2 {
-    pub(crate) input_per_token: f64,
-    pub(crate) output_per_token: f64,
-    pub(crate) output_reasoning_per_token: f64,
-    pub(crate) input_cached_per_token: f64,
+    /// The cost per input token
+    pub input_per_token: f64,
+    /// The cost per output token
+    pub output_per_token: f64,
+    /// The cost per output reasoning token
+    pub output_reasoning_per_token: f64,
+    /// The cost per input cached token
+    pub input_cached_per_token: f64,
 }
 
 #[cfg(test)]
