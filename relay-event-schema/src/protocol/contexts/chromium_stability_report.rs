@@ -1,4 +1,4 @@
-use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue};
 
 use crate::processor::ProcessValue;
 
@@ -167,11 +167,11 @@ impl From<minidump::system_memory_state::WindowsMemory>
         Self {
             system_commit_limit: memory
                 .system_commit_limit
-                .map(|v| (v as u64) * _4KIB)
+                .and_then(|v| (v as u64).checked_mul(_4KIB))
                 .into(),
             system_commit_remaining: memory
                 .system_commit_remaining
-                .map(|v| (v as u64) * _4KIB)
+                .and_then(|v| (v as u64).checked_mul(_4KIB))
                 .into(),
             system_handle_count: memory.system_handle_count.map(|v| v as u64).into(),
         }
@@ -193,15 +193,15 @@ impl From<minidump::process_state::memory_state::WindowsMemory>
         Self {
             process_private_usage: memory
                 .process_private_usage
-                .map(|v| (v as u64) * _4KIB)
+                .and_then(|v| (v as u64).checked_mul(_4KIB))
                 .into(),
             process_peak_workingset_size: memory
                 .process_peak_workingset_size
-                .map(|v| (v as u64) * _4KIB)
+                .and_then(|v| (v as u64).checked_mul(_4KIB))
                 .into(),
             process_peak_pagefile_usage: memory
                 .process_peak_pagefile_usage
-                .map(|v| (v as u64) * _4KIB)
+                .and_then(|v| (v as u64).checked_mul(_4KIB))
                 .into(),
             process_allocation_attempt: memory.process_allocation_attempt.map(|v| v as u64).into(),
         }
