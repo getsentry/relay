@@ -414,13 +414,7 @@ fn get_server_url_path(attributes: &Object<Attribute>) -> Option<String> {
 }
 
 fn strip_url_query_and_fragment(url: &str) -> String {
-    url.split('?')
-        .next()
-        .unwrap_or(url)
-        .split('#')
-        .next()
-        .unwrap_or(url)
-        .to_string()
+    url.split(&['?', '#']).next().unwrap_or(url).to_owned()
 }
 
 fn get_client_url_path(attributes: &Object<Attribute>) -> Option<String> {
