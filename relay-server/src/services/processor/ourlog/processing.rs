@@ -10,7 +10,7 @@ use relay_event_normalization::{
     ClientHints, FromUserAgentInfo, RawUserAgentInfo, SchemaProcessor,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
-use relay_event_schema::protocol::{Attribute, AttributeType, BrowserContext, OurLog};
+use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog};
 use relay_ourlogs::OtelLog;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, ErrorKind, Value};
@@ -154,25 +154,13 @@ fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: 
     }) {
         if !attributes.contains_key("sentry.browser.name") {
             if let Some(name) = context.name.value() {
-                attributes.insert(
-                    "sentry.browser.name".to_owned(),
-                    Annotated::new(Attribute::new(
-                        AttributeType::String,
-                        Value::String(name.to_owned()),
-                    )),
-                );
+                attributes.insert("sentry.browser.name".to_owned(), name.to_owned());
             }
         }
 
         if !attributes.contains_key("sentry.browser.version") {
             if let Some(version) = context.version.value() {
-                attributes.insert(
-                    "sentry.browser.version".to_owned(),
-                    Annotated::new(Attribute::new(
-                        AttributeType::String,
-                        Value::String(version.to_owned()),
-                    )),
-                );
+                attributes.insert("sentry.browser.version".to_owned(), version.to_owned());
             }
         }
     }
@@ -502,24 +490,12 @@ mod tests {
 
         let attributes = log.attributes.value().unwrap();
         assert_eq!(
-            attributes
-                .get("sentry.browser.name")
-                .unwrap()
-                .value()
-                .unwrap()
-                .value
-                .value,
-            Value::String("Chrome".to_owned()).into(),
+            attributes.get_value("sentry.browser.name").unwrap(),
+            &Value::String("Chrome".to_owned()),
         );
         assert_eq!(
-            attributes
-                .get("sentry.browser.version")
-                .unwrap()
-                .value()
-                .unwrap()
-                .value
-                .value,
-            Value::String("131.0.0".to_owned()).into(),
+            attributes.get_value("sentry.browser.version").unwrap(),
+            &Value::String("131.0.0".to_owned()),
         );
     }
 }
