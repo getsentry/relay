@@ -651,7 +651,7 @@ macro_rules! metric {
     (timer($id:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
-        $crate::metric!(timer($id) = now.elapsed() $(, $k = $v)*);
+        $crate::metric!(timer($id) = now.elapsed() $(, $($k).* = $v)*);
         rv
     }};
 }
@@ -828,6 +828,22 @@ mod tests {
             captures,
             ["timer:100000|h|#hc.project_id:567,server:server1"]
         );
+    }
+
+    #[test]
+    fn test_timed_block_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                timer(TestTimer),
+                hc.project_id = "567",
+                server = "server1",
+                {
+                    // your code could be here
+                }
+            )
+        });
+        // just check the tags to not make this flaky
+        assert!(captures[0].ends_with("|h|#hc.project_id:567,server:server1"));
     }
 
     #[test]
