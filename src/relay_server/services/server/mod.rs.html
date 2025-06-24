@@ -76,7 +76,7 @@
 <a href=#76 id=76 data-nosnippet>76</a>            HeaderValue::from_static(<span class="string">"cross-origin"</span>),
 <a href=#77 id=77 data-nosnippet>77</a>        ))
 <a href=#78 id=78 data-nosnippet>78</a>        .layer(NewSentryLayer::new_from_top())
-<a href=#79 id=79 data-nosnippet>79</a>        .layer(SentryHttpLayer::with_transaction())
+<a href=#79 id=79 data-nosnippet>79</a>        .layer(SentryHttpLayer::new().enable_transaction())
 <a href=#80 id=80 data-nosnippet>80</a>        .layer(middlewares::trace_http_layer())
 <a href=#81 id=81 data-nosnippet>81</a>        .map_request(middlewares::remove_empty_encoding)
 <a href=#82 id=82 data-nosnippet>82</a>        .layer(RequestDecompressionLayer::new())
