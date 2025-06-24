@@ -3,7 +3,7 @@ use crate::services::relays::GetRelay;
 use crate::utils::ApiErrorResponse;
 use axum::RequestExt;
 use axum::extract::rejection::BytesRejection;
-use axum::extract::{FromRequest, FromRequestParts, Request};
+use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
@@ -90,12 +90,10 @@ impl FromRequest<ServiceState> for SignedBytes {
             .await?
             .ok_or(SignatureError::UnknownRelay)?;
 
-        let mut parts = request.extract_parts().await.unwrap();
-
+        let signature = request
+            .extract_parts_with_state::<Signature, ServiceState>(state)
+            .await?;
         let body = Bytes::from_request(request, state).await?;
-
-        let signature = Signature::from_request_parts(&mut parts, state).await?;
-
         if signature.verify_bytes(body.as_ref(), &relay.public_key) {
             Ok(SignedBytes { body, relay })
         } else {
