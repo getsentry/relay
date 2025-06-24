@@ -381,7 +381,7 @@ fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
         .and_then(|attr_val| attr_val.value.value.value())
         .and_then(|v| v.as_str())
     {
-        return Some(statement.to_string());
+        return Some(statement.to_owned());
     }
 
     None
@@ -396,7 +396,7 @@ fn get_server_url_path(attributes: &Object<Attribute>) -> Option<String> {
         .and_then(|attr_val| attr_val.value.value.value())
         .and_then(|v| v.as_str())
     {
-        return Some(route.to_string());
+        return Some(route.to_owned());
     }
 
     // `url.path` is the path of the HTTP request for server spans. This is required for server spans.
@@ -406,7 +406,7 @@ fn get_server_url_path(attributes: &Object<Attribute>) -> Option<String> {
         .and_then(|attr_val| attr_val.value.value.value())
         .and_then(|v| v.as_str())
     {
-        return Some(path.to_string());
+        return Some(path.to_owned());
     }
 
     // `http.target` is deprecated, but might be present in older data. Here as a fallback
