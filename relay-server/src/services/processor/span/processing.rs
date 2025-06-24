@@ -264,7 +264,7 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
     };
 
     let measurement = Annotated::new(Measurement {
-        value: value.into(),
+        value: Annotated::try_from(value),
         unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
     });
 

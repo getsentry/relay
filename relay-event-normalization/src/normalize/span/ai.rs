@@ -54,7 +54,7 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
         if let Some(measurements) = measurements {
             if target_field.value().is_none() {
                 if let Some(value) = measurements.get_value(measurement_key) {
-                    target_field.set_value(Value::F64(value).into());
+                    target_field.set_value(Value::F64(value.to_f64()).into());
                 }
             }
         }
