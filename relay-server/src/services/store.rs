@@ -1047,7 +1047,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.raw_description".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(description.to_owned())),
+                    value: Some(Value::StringValue(description.into())),
                 },
             );
         }
@@ -1627,8 +1627,8 @@ struct SpanMeasurement<'a> {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanKafkaMessage<'a> {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    description: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    description: Option<Cow<'a, str>>,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
