@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use relay_base_schema::metrics::{DurationUnit, MetricUnit};
 use relay_event_schema::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Error, FiniteF64, Meta};
 use serde::{Deserialize, Serialize};
 
 /// A time window declared by its start and end timestamp.
@@ -139,7 +139,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
             };
 
             let op_value = Measurement {
-                value: Annotated::new(relay_common::time::duration_to_millis(op_duration)),
+                value: Annotated::try_from(relay_common::time::duration_to_millis(op_duration)),
                 unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
             };
 
@@ -148,7 +148,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
         }
 
         let total_time_value = Annotated::new(Measurement {
-            value: Annotated::new(relay_common::time::duration_to_millis(total_time)),
+            value: Annotated::try_from(relay_common::time::duration_to_millis(total_time)),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         });
         breakdown.insert("total.time".to_string(), total_time_value);

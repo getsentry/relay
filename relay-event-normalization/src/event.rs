@@ -22,7 +22,7 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
-    RemarkType, Value,
+    RemarkType, TryFromFloatError, Value,
 };
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -867,10 +867,9 @@ pub fn normalize_measurements(
     normalize_mobile_measurements(measurements);
     normalize_units(measurements);
 
-    let duration_millis = match (start_timestamp, end_timestamp) {
-        (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
-        _ => 0.0,
-    };
+    let duration_millis = start_timestamp.zip(end_timestamp).and_then(|(start, end)| {
+        FiniteF64::new(relay_common::time::chrono_to_positive_millis(end - start))
+    });
 
     compute_measurements(duration_millis, measurements);
     if let Some(measurements_config) = measurements_config {
@@ -911,8 +910,8 @@ pub fn normalize_performance_score(
                     // a measurement with weight is missing.
                     continue;
                 }
-                let mut score_total = FiniteF64::new(0.0).unwrap();
-                let mut weight_total = FiniteF64::new(0.0).unwrap();
+                let mut score_total = FiniteF64::ZERO;
+                let mut weight_total = FiniteF64::ZERO;
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
@@ -922,44 +921,55 @@ pub fn normalize_performance_score(
                     }
                     weight_total += component.weight;
                 }
-                if weight_total.abs() < f64::EPSILON {
+                if weight_total.abs() < FiniteF64::EPSILON {
                     // All components are optional or have a weight of `0`. We cannot compute
                     // component weights, so we bail.
                     continue;
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
-                    let mut normalized_component_weight = FiniteF64::new(0.0).unwrap();
+                    let mut normalized_component_weight = FiniteF64::ZERO;
+
                     if let Some(value) = measurements.get_value(component.measurement.as_str()) {
                         normalized_component_weight = component.weight.saturating_div(weight_total);
                         let cdf = utils::calculate_cdf_score(
                             value.to_f64().max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
-                            component.p10,
-                            component.p50,
+                            component.p10.into(),
+                            component.p50.into(),
                         );
+
+                        let cdf = Annotated::try_from(cdf);
 
                         measurements.insert(
                             format!("score.ratio.{}", component.measurement),
                             Measurement {
-                                value: cdf.into(),
+                                value: cdf.clone(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                             }
                             .into(),
                         );
 
-                        let component_score = cdf * normalized_component_weight;
-                        score_total += component_score;
-                        should_add_total = true;
+                        let component_score =
+                            cdf.and_then(|cdf| match cdf * normalized_component_weight {
+                                Some(v) => Annotated::new(v),
+                                None => Annotated::from_error(TryFromFloatError, None),
+                            });
+
+                        if let Some(component_score) = component_score.value() {
+                            score_total += *component_score;
+                            should_add_total = true;
+                        }
 
                         measurements.insert(
                             format!("score.{}", component.measurement),
                             Measurement {
-                                value: component_score.into(),
+                                value: component_score,
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                             }
                             .into(),
                         );
                     }
+
                     measurements.insert(
                         format!("score.weight.{}", component.measurement),
                         Measurement {
@@ -1043,7 +1053,10 @@ impl MutMeasurements for Span {
 /// frames_frozen_rate := measurements.frames_frozen / measurements.frames_total
 /// stall_percentage := measurements.stall_total_time / transaction.duration
 /// ```
-fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Measurements) {
+fn compute_measurements(
+    transaction_duration_ms: Option<FiniteF64>,
+    measurements: &mut Measurements,
+) {
     if let Some(frames_total) = measurements.get_value("frames_total") {
         if frames_total > 0.0 {
             if let Some(frames_frozen) = measurements.get_value("frames_frozen") {
@@ -1064,22 +1077,25 @@ fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Measure
     }
 
     // Get stall_percentage
-    if transaction_duration_ms > 0.0 {
-        if let Some(stall_total_time) = measurements
-            .get("stall_total_time")
-            .and_then(Annotated::value)
-        {
-            if matches!(
-                stall_total_time.unit.value(),
-                // Accept milliseconds or None, but not other units
-                Some(&MetricUnit::Duration(DurationUnit::MilliSecond) | &MetricUnit::None) | None
-            ) {
-                if let Some(stall_total_time) = stall_total_time.value.0 {
-                    let stall_percentage = Measurement {
-                        value: (stall_total_time / transaction_duration_ms).into(),
-                        unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                    };
-                    measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
+    if let Some(transaction_duration_ms) = transaction_duration_ms {
+        if transaction_duration_ms > 0.0 {
+            if let Some(stall_total_time) = measurements
+                .get("stall_total_time")
+                .and_then(Annotated::value)
+            {
+                if matches!(
+                    stall_total_time.unit.value(),
+                    // Accept milliseconds or None, but not other units
+                    Some(&MetricUnit::Duration(DurationUnit::MilliSecond) | &MetricUnit::None)
+                        | None
+                ) {
+                    if let Some(stall_total_time) = stall_total_time.value.0 {
+                        let stall_percentage = Measurement {
+                            value: (stall_total_time / transaction_duration_ms).into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        };
+                        measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
+                    }
                 }
             }
         }
@@ -1410,7 +1426,7 @@ fn remove_invalid_measurements(
         // Check if this is a builtin measurement:
         for builtin_measurement in measurements_config.builtin_measurement_keys() {
             if builtin_measurement.name() == name {
-                let value = measurement.value.value().unwrap_or(&0.0);
+                let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
                 // Drop negative values if the builtin measurement does not allow them.
                 if !builtin_measurement.allow_negative() && *value < 0.0 {
                     meta.add_error(Error::invalid(format!(

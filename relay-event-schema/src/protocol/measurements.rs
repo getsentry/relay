@@ -170,7 +170,7 @@ mod tests {
               [
                 "invalid_data",
                 {
-                  "reason": "expected a floating point number"
+                  "reason": "expected a finite floating point number"
                 }
               ]
             ],
@@ -229,7 +229,7 @@ mod tests {
                 "fp".to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::from_error(
-                        Error::expected("a floating point number"),
+                        Error::expected("a finite floating point number"),
                         Some("im a first paint".into()),
                     ),
                     unit: Annotated::empty(),

@@ -301,14 +301,6 @@ impl TransactionExtractor<'_> {
                     continue;
                 };
 
-                let Some(value) = FiniteF64::new(value) else {
-                    relay_log::error!(
-                        tags.field = format_args!("measurements.{name}"),
-                        "non-finite float value in transaction metric extraction"
-                    );
-                    continue;
-                };
-
                 // We treat a measurement as "performance score" if its name is the name of another
                 // measurement prefixed by `score.`.
                 let is_performance_score = name == "score.total"
@@ -363,15 +355,6 @@ impl TransactionExtractor<'_> {
                         };
 
                         let Some(value) = measurement.value.value().copied() else {
-                            continue;
-                        };
-
-                        let Some(value) = FiniteF64::new(value) else {
-                            relay_log::error!(
-                                tags.field =
-                                    format_args!("breakdowns.{breakdown}.{measurement_name}"),
-                                "non-finite float value in transaction metric extraction"
-                            );
                             continue;
                         };
 
@@ -588,9 +571,9 @@ mod tests {
                         name: Some("".into()),
                         score_components: vec![PerformanceScoreWeightedComponent {
                             measurement: "lcp".into(),
-                            weight: 0.5,
-                            p10: 2.0,
-                            p50: 3.0,
+                            weight: 0.5.try_into().unwrap(),
+                            p10: 2.0.try_into().unwrap(),
+                            p50: 3.0.try_into().unwrap(),
                             optional: false,
                         }],
                         condition: Some(RuleCondition::all()),
