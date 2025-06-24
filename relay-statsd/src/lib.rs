@@ -269,7 +269,7 @@ pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
     let deny_config = DenyTagConfig {
         starts_with: match config.allow_high_cardinality_tags {
             true => vec![],
-            false => vec!["hc_".to_owned()],
+            false => vec!["hc.".to_owned()],
         },
         tags: vec![],
         ends_with: vec![],
@@ -570,14 +570,14 @@ pub trait GaugeMetric {
 #[macro_export]
 macro_rules! metric {
     // counter increment
-    (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (counter($id:expr) += $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         match $value {
             value if value != 0 => {
                 $crate::with_client(|client| {
                     use $crate::_pred::*;
                     client.send_metric(
                         client.count_with_tags(&$crate::CounterMetric::name(&$id), value)
-                        $(.with_tag(stringify!($k), $v))*
+                        $(.with_tag(stringify!($($k).*), $v))*
                     )
                 })
             },
@@ -586,14 +586,14 @@ macro_rules! metric {
     };
 
     // counter decrement
-    (counter($id:expr) -= $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (counter($id:expr) -= $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         match $value {
             value if value != 0 => {
                 $crate::with_client(|client| {
                     use $crate::_pred::*;
                     client.send_metric(
                         client.count_with_tags(&$crate::CounterMetric::name(&$id), -value)
-                            $(.with_tag(stringify!($k), $v))*
+                            $(.with_tag(stringify!($($k).*), $v))*
                     )
                 })
             },
@@ -602,53 +602,53 @@ macro_rules! metric {
     };
 
     // gauge set
-    (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (gauge($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
                 client.gauge_with_tags(&$crate::GaugeMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
+                    $(.with_tag(stringify!($($k).*), $v))*
             )
         })
     };
 
     // histogram
-    (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (histogram($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
                 client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
+                    $(.with_tag(stringify!($($k).*), $v))*
             )
         })
     };
 
     // sets (count unique occurrences of a value per time interval)
-    (set($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (set($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
                 client.set_with_tags(&$crate::SetMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
+                    $(.with_tag(stringify!($($k).*), $v))*
             )
         })
     };
 
     // timer value (duration)
-    (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (timer($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
                 // NOTE: cadence histograms support Duration out of the box and converts it to nanos,
                 // but we want milliseconds for historical reasons.
                 client.histogram_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
-                    $(.with_tag(stringify!($k), $v))*
+                    $(.with_tag(stringify!($($k).*), $v))*
             )
         })
     };
 
     // timed block
-    (timer($id:expr), $($k:ident = $v:expr,)* $block:block) => {{
+    (timer($id:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
         $crate::metric!(timer($id) = now.elapsed() $(, $k = $v)*);
@@ -663,8 +663,8 @@ mod tests {
     use cadence::{NopMetricSink, StatsdClient};
 
     use crate::{
-        GaugeMetric, MetricsClient, TimerMetric, set_client, with_capturing_test_client,
-        with_client,
+        CounterMetric, GaugeMetric, HistogramMetric, MetricsClient, SetMetric, TimerMetric,
+        set_client, with_capturing_test_client, with_client,
     };
 
     enum TestGauges {
@@ -678,6 +678,38 @@ mod tests {
                 Self::Foo => "foo",
                 Self::Bar => "bar",
             }
+        }
+    }
+
+    struct TestCounter;
+
+    impl CounterMetric for TestCounter {
+        fn name(&self) -> &'static str {
+            "counter"
+        }
+    }
+
+    struct TestHistogram;
+
+    impl HistogramMetric for TestHistogram {
+        fn name(&self) -> &'static str {
+            "histogram"
+        }
+    }
+
+    struct TestSet;
+
+    impl SetMetric for TestSet {
+        fn name(&self) -> &'static str {
+            "set"
+        }
+    }
+
+    struct TestTimer;
+
+    impl TimerMetric for TestTimer {
+        fn name(&self) -> &'static str {
+            "timer"
         }
     }
 
@@ -720,12 +752,82 @@ mod tests {
         assert_ne!(client1, client2);
     }
 
-    struct TestTimer;
+    #[test]
+    fn test_counter_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                counter(TestCounter) += 10,
+                hc.project_id = "567",
+                server = "server1",
+            );
+            metric!(
+                counter(TestCounter) -= 5,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(
+            captures,
+            [
+                "counter:10|c|#hc.project_id:567,server:server1",
+                "counter:-5|c|#hc.project_id:567,server:server1"
+            ]
+        );
+    }
 
-    impl TimerMetric for TestTimer {
-        fn name(&self) -> &'static str {
-            "timer"
-        }
+    #[test]
+    fn test_gauge_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                gauge(TestGauges::Foo) = 123,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(captures, ["foo:123|g|#hc.project_id:567,server:server1"]);
+    }
+
+    #[test]
+    fn test_histogram_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                histogram(TestHistogram) = 123,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(
+            captures,
+            ["histogram:123|h|#hc.project_id:567,server:server1"]
+        );
+    }
+
+    #[test]
+    fn test_set_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                set(TestSet) = 123,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(captures, ["set:123|s|#hc.project_id:567,server:server1"]);
+    }
+
+    #[test]
+    fn test_timer_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            let duration = Duration::from_secs(100);
+            metric!(
+                timer(TestTimer) = duration,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(
+            captures,
+            ["timer:100000|h|#hc.project_id:567,server:server1"]
+        );
     }
 
     #[test]
