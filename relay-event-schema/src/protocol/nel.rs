@@ -135,7 +135,7 @@ pub enum NetworkReportError {
 #[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
 pub struct BodyRaw {
     /// The time between the start of the resource fetch and when it was completed or aborted.
-    pub elapsed_time: Annotated<u64>,
+    pub elapsed_time: Annotated<i64>,
     /// HTTP method.
     pub method: Annotated<String>,
     /// If request failed, the phase of its network error. If request succeeded, "application".

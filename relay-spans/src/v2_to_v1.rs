@@ -99,10 +99,8 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         }
     }
 
-    // Note: This writes the incoming `name` field to a the `sentry.name` attribute. This creates a
-    // bit of duplication, since the attribute `sentry.name` will have the same value as the `op`
-    // field. This duplication is temporary, since we will soon generate a proper `op` field that will
-    // be different from the name.
+    // Write the incoming `name` field to a the `sentry.name` attribute, since the V1
+    // Span schema doesn't have a top-level `name` field.
     if let Some(name) = name.value() {
         data.insert(
             "sentry.name".to_owned(),
@@ -259,9 +257,7 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
     }
 
     if let Some(faas_trigger) = attributes
-        .get("faas.trigger")
-        .and_then(|faas_trigger| faas_trigger.value())
-        .and_then(|trigger_value| trigger_value.value.value.value())
+        .get_value("faas.trigger")
         .and_then(|v| v.as_str())
     {
         return faas_trigger.to_owned();

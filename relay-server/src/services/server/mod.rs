@@ -76,7 +76,7 @@ fn make_app(service: ServiceState) -> App {
             HeaderValue::from_static("cross-origin"),
         ))
         .layer(NewSentryLayer::new_from_top())
-        .layer(SentryHttpLayer::with_transaction())
+        .layer(SentryHttpLayer::new().enable_transaction())
         .layer(middlewares::trace_http_layer())
         .map_request(middlewares::remove_empty_encoding)
         .layer(RequestDecompressionLayer::new())

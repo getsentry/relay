@@ -395,7 +395,10 @@ mod tests {
 
         let config = Config::default();
 
-        let multipart = ConstrainedMultipart(utils::multipart_from_request(request)?);
+        let multipart = ConstrainedMultipart(utils::multipart_from_request(
+            request,
+            multer::Constraints::new(),
+        )?);
         let items = multipart.items(infer_attachment_type, &config).await?;
 
         // we expect the multipart body to contain

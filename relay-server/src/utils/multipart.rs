@@ -297,11 +297,14 @@ pub struct ConstrainedMultipart(pub Multipart<'static>);
 impl FromRequest<ServiceState> for ConstrainedMultipart {
     type Rejection = Remote<multer::Error>;
 
-    async fn from_request(
-        request: Request,
-        _state: &ServiceState,
-    ) -> Result<Self, Self::Rejection> {
-        multipart_from_request(request).map(Self).map_err(Remote)
+    async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
+        // Still want to enforce multer limits here so that we avoid parsing large fields.
+        let limits =
+            multer::SizeLimit::new().whole_stream(state.config().max_attachments_size() as u64);
+
+        multipart_from_request(request, multer::Constraints::new().size_limit(limits))
+            .map(Self)
+            .map_err(Remote)
     }
 }
 
@@ -327,7 +330,9 @@ impl FromRequest<ServiceState> for UnconstrainedMultipart {
         request: Request,
         _state: &ServiceState,
     ) -> Result<Self, Self::Rejection> {
-        multipart_from_request(request).map(Self).map_err(Remote)
+        multipart_from_request(request, multer::Constraints::new())
+            .map(Self)
+            .map_err(Remote)
     }
 }
 
@@ -341,7 +346,10 @@ impl UnconstrainedMultipart {
     }
 }
 
-pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, multer::Error> {
+pub fn multipart_from_request(
+    request: Request,
+    constraints: multer::Constraints,
+) -> Result<Multipart<'static>, multer::Error> {
     let content_type = request
         .headers()
         .get("content-type")
@@ -349,9 +357,10 @@ pub fn multipart_from_request(request: Request) -> Result<Multipart<'static>, mu
         .unwrap_or("");
     let boundary = multer::parse_boundary(content_type)?;
 
-    Ok(Multipart::new(
+    Ok(Multipart::with_constraints(
         request.into_body().into_data_stream(),
         boundary,
+        constraints,
     ))
 }
 
