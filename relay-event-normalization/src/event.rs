@@ -934,8 +934,8 @@ pub fn normalize_performance_score(
                         normalized_component_weight = component.weight.saturating_div(weight_total);
                         let cdf = utils::calculate_cdf_score(
                             value.to_f64().max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
-                            component.p10.into(),
-                            component.p50.into(),
+                            component.p10.to_f64(),
+                            component.p50.to_f64(),
                         );
 
                         let cdf = Annotated::try_from(cdf);
