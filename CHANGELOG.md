@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
+
 **Internal**:
 
 - Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
