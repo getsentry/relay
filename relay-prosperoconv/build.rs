@@ -4,6 +4,21 @@ use std::process::Command;
 use dircpy::CopyBuilder;
 use tempfile::tempdir;
 
+fn git_clone_with_retry(repo_url: &str, temp_dir: &str, retries: u64) -> bool {
+    for _ in 0..retries {
+        if Command::new("git")
+            .args(["clone", repo_url, temp_dir])
+            .status()
+            .map(|x| x.success())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+    false
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=RUSTFLAGS");
@@ -35,24 +50,10 @@ fn main() {
         .trim()
         .to_owned();
 
-    if !Command::new("git")
-        .args([
-            "clone",
-            "git@github.com:getsentry/tempest.git",
-            &temp_dir_str,
-        ])
-        .status()
-        .map(|x| x.success())
-        .unwrap_or(false)
+    if !git_clone_with_retry("git@github.com:getsentry/tempest.git", &temp_dir_str, 3)
+        && !git_clone_with_retry("https://github.com/getsentry/tempest.git", &temp_dir_str, 3)
     {
-        Command::new("git")
-            .args([
-                "clone",
-                "https://github.com/getsentry/tempest.git",
-                &temp_dir_str,
-            ])
-            .status()
-            .expect("Failed to clone tempest repository");
+        panic!("Failed to clone tempest repository after all retries");
     }
 
     Command::new("git")
