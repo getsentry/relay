@@ -140,7 +140,7 @@ multer = "3.1.0"
 num-traits = "0.2.19"
 num_cpus = "1.13.1"
 once_cell = "1.13.1"
-opentelemetry-proto = { version = "0.28.0", default-features = false }
+opentelemetry-proto = { version = "0.30.0", default-features = false }
 papaya = "0.1.6"
 parking_lot = "0.12.3"
 path-slash = "0.2.1"
@@ -176,7 +176,7 @@ sentry-core = "0.41.0"
 sentry-kafka-schemas = { version = "1.3.2", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.41.0"
-sentry_protos = "0.2.0"
+sentry_protos = "0.3.0"
 serde = { version = "1.0.215", features = ["derive", "rc"] }
 serde-transcode = "1.1.1"
 serde-vars = "0.2"
