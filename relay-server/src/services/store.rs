@@ -1,8 +1,6 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
-use relay_base_schema::organization::OrganizationId;
-use serde::ser::SerializeMap;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -12,31 +10,34 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use futures::future::BoxFuture;
-use relay_base_schema::data_category::DataCategory;
-use relay_base_schema::project::ProjectId;
-use relay_common::time::UnixTimestamp;
-use relay_config::Config;
-use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
-
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use prost::Message as _;
 use prost_types::Timestamp;
-use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
-use relay_metrics::{
-    Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, FiniteF64, GaugeValue,
-    MetricName, MetricNamespace, SetView,
-};
-use relay_quotas::Scoping;
-use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
-use relay_threading::AsyncPool;
 use sentry_protos::snuba::v1::any_value::Value;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType};
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::{Deserializer, Value as JsonValue};
 use uuid::Uuid;
 
+use relay_base_schema::data_category::DataCategory;
+use relay_base_schema::organization::OrganizationId;
+use relay_base_schema::project::ProjectId;
+use relay_common::time::UnixTimestamp;
+use relay_config::Config;
+use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
+use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
+use relay_metrics::{
+    Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
+    MetricNamespace, SetView,
+};
+use relay_protocol::FiniteF64;
+use relay_quotas::Scoping;
+use relay_statsd::metric;
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use relay_threading::AsyncPool;
+
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;

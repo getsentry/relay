@@ -4007,6 +4007,7 @@ dependencies = [
  "relay-cogs",
  "relay-common",
  "relay-log",
+ "relay-protocol",
  "relay-redis",
  "relay-statsd",
  "relay-system",
@@ -4150,6 +4151,7 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "smallvec",
+ "thiserror 1.0.69",
  "unicase",
  "uuid",
 ]
