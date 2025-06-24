@@ -18,12 +18,13 @@
 
 - Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
 - Added version 2 of LLM cost specification. ([#4825](https://github.com/getsentry/relay/pull/4825))
+- Send `tracing` events at or above `INFO` to Sentry as logs. ([#4820](https://github.com/getsentry/relay/pull/4820))
 
 ## 25.6.0
 
 **Features**:
 
-- Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
+- Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755))
 - Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 - Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 - Enable filtering sessions by IP address, release, and user agent. ([#4745](https://github.com/getsentry/relay/pull/4745))
