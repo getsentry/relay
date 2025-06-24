@@ -1152,6 +1152,9 @@ pub struct Processing {
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
+    /// Configure what span format to produce.
+    #[serde(default)]
+    pub span_producers: SpanProducers,
     /// Additional kafka producer configurations.
     ///
     /// The `kafka_config` is the default producer configuration used for all topics. A secondary
@@ -1209,6 +1212,26 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            span_producers: Default::default(),
+        }
+    }
+}
+
+/// Configuration for span producers.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SpanProducers {
+    /// Send JSON spans to `ingest-spans`.
+    pub produce_json: bool,
+    /// Send Protobuf (TraceItem) to `snuba-items`.
+    pub produce_protobuf: bool,
+}
+
+impl Default for SpanProducers {
+    fn default() -> Self {
+        Self {
+            produce_json: true,
+            produce_protobuf: false,
         }
     }
 }
@@ -2605,6 +2628,16 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
+    }
+
+    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
+    pub fn produce_protobuf_spans(&self) -> bool {
+        self.values.processing.span_producers.produce_protobuf
+    }
+
+    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
+    pub fn produce_json_spans(&self) -> bool {
+        self.values.processing.span_producers.produce_json
     }
 }
 

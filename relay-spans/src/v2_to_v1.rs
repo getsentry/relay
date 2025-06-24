@@ -257,9 +257,7 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
     }
 
     if let Some(faas_trigger) = attributes
-        .get("faas.trigger")
-        .and_then(|faas_trigger| faas_trigger.value())
-        .and_then(|trigger_value| trigger_value.value.value.value())
+        .get_value("faas.trigger")
         .and_then(|v| v.as_str())
     {
         return faas_trigger.to_owned();
