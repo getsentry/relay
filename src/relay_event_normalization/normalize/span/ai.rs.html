@@ -54,7 +54,7 @@
 <a href=#54 id=54 data-nosnippet>54</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = measurements {
 <a href=#55 id=55 data-nosnippet>55</a>            <span class="kw">if </span>target_field.value().is_none() {
 <a href=#56 id=56 data-nosnippet>56</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = measurements.get_value(measurement_key) {
-<a href=#57 id=57 data-nosnippet>57</a>                    target_field.set_value(Value::F64(value).into());
+<a href=#57 id=57 data-nosnippet>57</a>                    target_field.set_value(Value::F64(value.to_f64()).into());
 <a href=#58 id=58 data-nosnippet>58</a>                }
 <a href=#59 id=59 data-nosnippet>59</a>            }
 <a href=#60 id=60 data-nosnippet>60</a>        }

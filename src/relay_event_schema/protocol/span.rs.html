@@ -1108,7 +1108,7 @@
 <a href=#1108 id=1108 data-nosnippet>1108</a>        measurements.insert(
 <a href=#1109 id=1109 data-nosnippet>1109</a>            <span class="string">"memory"</span>.into(),
 <a href=#1110 id=1110 data-nosnippet>1110</a>            Annotated::new(Measurement {
-<a href=#1111 id=1111 data-nosnippet>1111</a>                value: Annotated::new(<span class="number">9001.0</span>),
+<a href=#1111 id=1111 data-nosnippet>1111</a>                value: Annotated::new(<span class="number">9001.0</span>.try_into().unwrap()),
 <a href=#1112 id=1112 data-nosnippet>1112</a>                unit: Annotated::new(MetricUnit::Information(InformationUnit::Byte)),
 <a href=#1113 id=1113 data-nosnippet>1113</a>            }),
 <a href=#1114 id=1114 data-nosnippet>1114</a>        );

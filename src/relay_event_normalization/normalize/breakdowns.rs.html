@@ -139,7 +139,7 @@
 <a href=#139 id=139 data-nosnippet>139</a>            };
 <a href=#140 id=140 data-nosnippet>140</a>
 <a href=#141 id=141 data-nosnippet>141</a>            <span class="kw">let </span>op_value = Measurement {
-<a href=#142 id=142 data-nosnippet>142</a>                value: Annotated::new(relay_common::time::duration_to_millis(op_duration)),
+<a href=#142 id=142 data-nosnippet>142</a>                value: Annotated::try_from(relay_common::time::duration_to_millis(op_duration)),
 <a href=#143 id=143 data-nosnippet>143</a>                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
 <a href=#144 id=144 data-nosnippet>144</a>            };
 <a href=#145 id=145 data-nosnippet>145</a>
@@ -148,7 +148,7 @@
 <a href=#148 id=148 data-nosnippet>148</a>        }
 <a href=#149 id=149 data-nosnippet>149</a>
 <a href=#150 id=150 data-nosnippet>150</a>        <span class="kw">let </span>total_time_value = Annotated::new(Measurement {
-<a href=#151 id=151 data-nosnippet>151</a>            value: Annotated::new(relay_common::time::duration_to_millis(total_time)),
+<a href=#151 id=151 data-nosnippet>151</a>            value: Annotated::try_from(relay_common::time::duration_to_millis(total_time)),
 <a href=#152 id=152 data-nosnippet>152</a>            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
 <a href=#153 id=153 data-nosnippet>153</a>        });
 <a href=#154 id=154 data-nosnippet>154</a>        breakdown.insert(<span class="string">"total.time"</span>.to_string(), total_time_value);
@@ -264,7 +264,7 @@
 <a href=#264 id=264 data-nosnippet>264</a>            span_ops_breakdown.insert(
 <a href=#265 id=265 data-nosnippet>265</a>                <span class="string">"lcp"</span>.to_owned(),
 <a href=#266 id=266 data-nosnippet>266</a>                Annotated::new(Measurement {
-<a href=#267 id=267 data-nosnippet>267</a>                    value: Annotated::new(<span class="number">420.69</span>),
+<a href=#267 id=267 data-nosnippet>267</a>                    value: Annotated::new(<span class="number">420.69</span>.try_into().unwrap()),
 <a href=#268 id=268 data-nosnippet>268</a>                    unit: Annotated::empty(),
 <a href=#269 id=269 data-nosnippet>269</a>                }),
 <a href=#270 id=270 data-nosnippet>270</a>            );
@@ -366,7 +366,7 @@
 <a href=#366 id=366 data-nosnippet>366</a>                <span class="string">"ops.http"</span>.to_owned(),
 <a href=#367 id=367 data-nosnippet>367</a>                Annotated::new(Measurement {
 <a href=#368 id=368 data-nosnippet>368</a>                    <span class="comment">// 1 hour in milliseconds
-<a href=#369 id=369 data-nosnippet>369</a>                    </span>value: Annotated::new(<span class="number">3_600_000.0</span>),
+<a href=#369 id=369 data-nosnippet>369</a>                    </span>value: Annotated::new(<span class="number">3_600_000.0</span>.try_into().unwrap()),
 <a href=#370 id=370 data-nosnippet>370</a>                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
 <a href=#371 id=371 data-nosnippet>371</a>                }),
 <a href=#372 id=372 data-nosnippet>372</a>            );
@@ -375,7 +375,7 @@
 <a href=#375 id=375 data-nosnippet>375</a>                <span class="string">"ops.db"</span>.to_owned(),
 <a href=#376 id=376 data-nosnippet>376</a>                Annotated::new(Measurement {
 <a href=#377 id=377 data-nosnippet>377</a>                    <span class="comment">// 2 hours in milliseconds
-<a href=#378 id=378 data-nosnippet>378</a>                    </span>value: Annotated::new(<span class="number">7_200_000.0</span>),
+<a href=#378 id=378 data-nosnippet>378</a>                    </span>value: Annotated::new(<span class="number">7_200_000.0</span>.try_into().unwrap()),
 <a href=#379 id=379 data-nosnippet>379</a>                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
 <a href=#380 id=380 data-nosnippet>380</a>                }),
 <a href=#381 id=381 data-nosnippet>381</a>            );
@@ -384,7 +384,7 @@
 <a href=#384 id=384 data-nosnippet>384</a>                <span class="string">"total.time"</span>.to_owned(),
 <a href=#385 id=385 data-nosnippet>385</a>                Annotated::new(Measurement {
 <a href=#386 id=386 data-nosnippet>386</a>                    <span class="comment">// 4 hours and 10 microseconds in milliseconds
-<a href=#387 id=387 data-nosnippet>387</a>                    </span>value: Annotated::new(<span class="number">14_400_000.01</span>),
+<a href=#387 id=387 data-nosnippet>387</a>                    </span>value: Annotated::new(<span class="number">14_400_000.01</span>.try_into().unwrap()),
 <a href=#388 id=388 data-nosnippet>388</a>                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
 <a href=#389 id=389 data-nosnippet>389</a>                }),
 <a href=#390 id=390 data-nosnippet>390</a>            );

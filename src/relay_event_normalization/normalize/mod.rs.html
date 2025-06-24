@@ -4,7 +4,7 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_base_schema::metrics::MetricUnit;
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_common::glob2::LazyGlob;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>relay_event_schema::protocol::{Event, VALID_PLATFORMS};
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_protocol::RuleCondition;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>relay_protocol::{FiniteF64, RuleCondition};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>serde::{Deserialize, Serialize};
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">pub mod </span>breakdowns;
@@ -176,11 +176,11 @@
 <a href=#176 id=176 data-nosnippet>176</a>    /// profile will be discarded.
 <a href=#177 id=177 data-nosnippet>177</a>    </span><span class="kw">pub </span>measurement: String,
 <a href=#178 id=178 data-nosnippet>178</a>    <span class="doccomment">/// Weight [0,1.0] of this component in the performance score
-<a href=#179 id=179 data-nosnippet>179</a>    </span><span class="kw">pub </span>weight: f64,
+<a href=#179 id=179 data-nosnippet>179</a>    </span><span class="kw">pub </span>weight: FiniteF64,
 <a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// p10 used to define the log-normal for calculation
-<a href=#181 id=181 data-nosnippet>181</a>    </span><span class="kw">pub </span>p10: f64,
+<a href=#181 id=181 data-nosnippet>181</a>    </span><span class="kw">pub </span>p10: FiniteF64,
 <a href=#182 id=182 data-nosnippet>182</a>    <span class="doccomment">/// Median used to define the log-normal for calculation
-<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="kw">pub </span>p50: f64,
+<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="kw">pub </span>p50: FiniteF64,
 <a href=#184 id=184 data-nosnippet>184</a>    <span class="doccomment">/// Whether the measurement is optional. If the measurement is missing, performance score processing
 <a href=#185 id=185 data-nosnippet>185</a>    /// may still continue, and the weight will be 0.
 <a href=#186 id=186 data-nosnippet>186</a>    </span><span class="attr">#[serde(default)]
