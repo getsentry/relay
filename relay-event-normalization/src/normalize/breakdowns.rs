@@ -139,7 +139,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
             };
 
             let op_value = Measurement {
-                value: Annotated::new(relay_common::time::duration_to_millis(op_duration)),
+                value: Annotated::try_from(relay_common::time::duration_to_millis(op_duration)),
                 unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
             };
 
@@ -148,7 +148,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
         }
 
         let total_time_value = Annotated::new(Measurement {
-            value: Annotated::new(relay_common::time::duration_to_millis(total_time)),
+            value: Annotated::try_from(relay_common::time::duration_to_millis(total_time)),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         });
         breakdown.insert("total.time".to_string(), total_time_value);
@@ -264,7 +264,7 @@ mod tests {
             span_ops_breakdown.insert(
                 "lcp".to_owned(),
                 Annotated::new(Measurement {
-                    value: Annotated::new(420.69),
+                    value: Annotated::new(420.69.try_into().unwrap()),
                     unit: Annotated::empty(),
                 }),
             );
@@ -366,7 +366,7 @@ mod tests {
                 "ops.http".to_owned(),
                 Annotated::new(Measurement {
                     // 1 hour in milliseconds
-                    value: Annotated::new(3_600_000.0),
+                    value: Annotated::new(3_600_000.0.try_into().unwrap()),
                     unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );
@@ -375,7 +375,7 @@ mod tests {
                 "ops.db".to_owned(),
                 Annotated::new(Measurement {
                     // 2 hours in milliseconds
-                    value: Annotated::new(7_200_000.0),
+                    value: Annotated::new(7_200_000.0.try_into().unwrap()),
                     unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );
@@ -384,7 +384,7 @@ mod tests {
                 "total.time".to_owned(),
                 Annotated::new(Measurement {
                     // 4 hours and 10 microseconds in milliseconds
-                    value: Annotated::new(14_400_000.01),
+                    value: Annotated::new(14_400_000.01.try_into().unwrap()),
                     unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );

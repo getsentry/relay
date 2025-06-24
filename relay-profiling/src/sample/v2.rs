@@ -10,12 +10,11 @@
 //! Spans are expected to carry the profiler ID to know which samples are associated with them.
 //!
 use hashbrown::HashMap;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 
-use serde::{Deserialize, Serialize};
-
 use relay_event_schema::protocol::EventId;
-use relay_metrics::FiniteF64;
+use relay_protocol::FiniteF64;
 
 use crate::MAX_PROFILE_CHUNK_DURATION;
 use crate::error::ProfileError;
@@ -220,7 +219,7 @@ pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
 
 #[cfg(test)]
 mod tests {
-    use relay_metrics::FiniteF64;
+    use relay_protocol::FiniteF64;
 
     use crate::sample::v2::{ProfileData, Sample, parse};
 

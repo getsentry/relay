@@ -4,7 +4,7 @@ use std::hash::Hash;
 use relay_base_schema::metrics::MetricUnit;
 use relay_common::glob2::LazyGlob;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
-use relay_protocol::RuleCondition;
+use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
 
 pub mod breakdowns;
@@ -176,11 +176,11 @@ pub struct PerformanceScoreWeightedComponent {
     /// profile will be discarded.
     pub measurement: String,
     /// Weight [0,1.0] of this component in the performance score
-    pub weight: f64,
+    pub weight: FiniteF64,
     /// p10 used to define the log-normal for calculation
-    pub p10: f64,
+    pub p10: FiniteF64,
     /// Median used to define the log-normal for calculation
-    pub p50: f64,
+    pub p50: FiniteF64,
     /// Whether the measurement is optional. If the measurement is missing, performance score processing
     /// may still continue, and the weight will be 0.
     #[serde(default)]
