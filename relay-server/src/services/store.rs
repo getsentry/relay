@@ -914,11 +914,6 @@ impl StoreService {
             }
         };
 
-        if let Some(measurements) = &mut span.measurements {
-            measurements
-                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
-        }
-
         span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
@@ -1007,7 +1002,8 @@ impl StoreService {
 
         if let Some(data) = span.data {
             for (key, raw_value) in data {
-                let Some(json_value) = raw_value else {
+                let Some(json_value) = raw_value.and_then(|raw| Deserialize::deserialize(raw).ok())
+                else {
                     continue;
                 };
                 let any_value = match json_value {
@@ -1051,7 +1047,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.raw_description".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(description)),
+                    value: Some(Value::StringValue(description.to_owned())),
                 },
             );
         }
@@ -1624,15 +1620,15 @@ struct SpanLink<'a> {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-struct SpanMeasurement {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    value: Option<f64>,
+struct SpanMeasurement<'a> {
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    value: Option<&'a RawValue>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    description: Option<&'a str>,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
@@ -1646,17 +1642,17 @@ struct SpanKafkaMessage<'a> {
     is_remote: bool,
 
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    data: Option<BTreeMap<Cow<'a, str>, Option<serde_json::Value>>>,
+    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
     links: Option<Vec<SpanLink<'a>>>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
+    measurements: Option<BTreeMap<&'a str, Option<SpanMeasurement<'a>>>>,
     #[serde(default)]
     organization_id: u64,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    origin: Option<Cow<'a, str>>,
+    origin: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1677,10 +1673,10 @@ struct SpanKafkaMessage<'a> {
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
     #[serde(borrow)]
-    sentry_tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
+    sentry_tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
     span_id: &'a str,
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
+    tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
     trace_id: EventId,
 
     #[serde(default)]
@@ -1691,7 +1687,7 @@ struct SpanKafkaMessage<'a> {
     end_timestamp_precise: f64,
 
     #[serde(borrow, default, skip_serializing)]
-    platform: Cow<'a, str>, // We only use this for logging for now
+    platform: &'a str, // We only use this for logging for now
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     client_sample_rate: Option<f64>,
@@ -1737,11 +1733,18 @@ impl SpanKafkaMessage<'_> {
                 };
 
                 match &key[..] {
-                    "client_sample_rate" => self.client_sample_rate = Some(value),
-                    "server_sample_rate" => self.server_sample_rate = Some(value),
+                    "client_sample_rate" => {
+                        if let Ok(client_sample_rate) = Deserialize::deserialize(value) {
+                            self.client_sample_rate = Some(client_sample_rate);
+                        }
+                    }
+                    "server_sample_rate" => {
+                        if let Ok(server_sample_rate) = Deserialize::deserialize(value) {
+                            self.server_sample_rate = Some(server_sample_rate);
+                        }
+                    }
                     _ => {
-                        data.entry(key.clone())
-                            .or_insert_with(|| Some(value.into()));
+                        data.entry(Cow::Borrowed(key)).or_insert(Some(value));
                     }
                 }
             }
@@ -1759,8 +1762,7 @@ impl SpanKafkaMessage<'_> {
                     key
                 };
 
-                data.entry(Cow::Borrowed(key))
-                    .or_insert_with(|| Some(value.clone()));
+                data.entry(Cow::Borrowed(key)).or_insert(Some(value));
             }
         }
 
@@ -1771,13 +1773,12 @@ impl SpanKafkaMessage<'_> {
                 };
 
                 let key = if *key == "description" {
-                    "sentry.normalized_description".to_owned()
+                    Cow::Borrowed("sentry.normalized_description")
                 } else {
-                    format!("sentry.{key}")
+                    Cow::Owned(format!("sentry.{key}"))
                 };
 
-                data.entry(Cow::Owned(key))
-                    .or_insert_with(|| Some(value.clone()));
+                data.entry(key).or_insert(Some(value));
             }
         }
     }
