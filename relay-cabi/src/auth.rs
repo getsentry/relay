@@ -1,6 +1,6 @@
 use chrono::Duration;
 use relay_auth::{
-    PublicKey, RegisterRequest, RegisterResponse, RelayId, RelayVersion, SecretKey, Signature,
+    PublicKey, RegisterRequest, RegisterResponse, RelayId, RelayVersion, SecretKey, SignatureRef,
     generate_key_pair, generate_relay_id,
 };
 use serde::Serialize;
@@ -60,8 +60,8 @@ pub unsafe extern "C" fn relay_publickey_verify(
     sig: *const RelayStr,
 ) -> bool {
     let pk = spk as *const PublicKey;
-    let signature = unsafe { Signature((*sig).as_bytes().to_vec()) };
-    unsafe { (*pk).verify((*data).as_bytes(), &signature) }
+    let signature = unsafe { SignatureRef((*sig).as_bytes()) };
+    unsafe { (*pk).verify((*data).as_bytes(), signature) }
 }
 
 /// Verifies a signature
@@ -75,8 +75,8 @@ pub unsafe extern "C" fn relay_publickey_verify_timestamp(
 ) -> bool {
     let pk = spk as *const PublicKey;
     let max_age = Some(Duration::seconds(i64::from(max_age)));
-    let signature = unsafe { Signature((*sig).as_bytes().to_vec()) };
-    unsafe { (*pk).verify_timestamp((*data).as_bytes(), &signature, max_age) }
+    let signature = unsafe { SignatureRef((*sig).as_bytes()) };
+    unsafe { (*pk).verify_timestamp((*data).as_bytes(), signature, max_age) }
 }
 
 /// Parses a secret key from a string.
@@ -151,10 +151,10 @@ pub unsafe extern "C" fn relay_create_register_challenge(
         0 => None,
         m => Some(Duration::seconds(i64::from(m))),
     };
-    let signature = unsafe { Signature((*signature).as_bytes().to_vec()) };
+    let signature = unsafe { SignatureRef((*signature).as_bytes()) };
 
     let challenge = unsafe {
-        let req = RegisterRequest::bootstrap_unpack((*data).as_bytes(), &signature, max_age)?;
+        let req = RegisterRequest::bootstrap_unpack((*data).as_bytes(), signature, max_age)?;
 
         req.into_challenge((*secret).as_str().as_bytes())
     };
@@ -184,11 +184,10 @@ pub unsafe extern "C" fn relay_validate_register_response(
         m => Some(Duration::seconds(i64::from(m))),
     };
 
-    let signature = unsafe { Signature((*signature).as_bytes().to_vec()) };
-
+    let signature = unsafe { SignatureRef((*signature).as_bytes()) };
     let (response, state) = RegisterResponse::unpack(
         unsafe { (*data).as_bytes() },
-        &signature,
+        signature,
         unsafe { (*secret).as_str().as_bytes() },
         max_age,
     )?;

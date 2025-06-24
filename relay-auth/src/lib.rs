@@ -151,9 +151,6 @@ pub enum UnpackError {
 /// Errors during the signature or verification process.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum SignatureError {
-    /// The signature from the header could not be converted to a String.
-    #[error("invalid relay signature")]
-    MalformedSignature,
     /// Credentials for a required signature were missing.
     #[error("missing credentials")]
     MissingCredentials,
@@ -314,7 +311,7 @@ pub struct PublicKey {
 impl PublicKey {
     /// Verifies the signature and returns the embedded signature
     /// header.
-    pub fn verify_meta(&self, data: &[u8], sig: &Signature) -> Option<SignatureHeader> {
+    pub fn verify_meta(&self, data: &[u8], sig: SignatureRef) -> Option<SignatureHeader> {
         let mut iter = sig.0.splitn(2, |b| *b == b'.');
         let sig_bytes = match iter.next() {
             Some(sig_encoded) => BASE64URL_NOPAD.decode(sig_encoded).ok()?,
@@ -337,7 +334,7 @@ impl PublicKey {
     }
 
     /// Verifies a signature but discards the header.
-    pub fn verify(&self, data: &[u8], sig: &Signature) -> bool {
+    pub fn verify(&self, data: &[u8], sig: SignatureRef) -> bool {
         self.verify_meta(data, sig).is_some()
     }
 
@@ -345,7 +342,7 @@ impl PublicKey {
     pub fn verify_timestamp(
         &self,
         data: &[u8],
-        sig: &Signature,
+        sig: SignatureRef,
         max_age: Option<Duration>,
     ) -> bool {
         self.verify_meta(data, sig)
@@ -357,7 +354,7 @@ impl PublicKey {
     pub fn unpack_meta<D: DeserializeOwned>(
         &self,
         data: &[u8],
-        signature: &Signature,
+        signature: SignatureRef,
     ) -> Result<(SignatureHeader, D), UnpackError> {
         if let Some(header) = self.verify_meta(data, signature) {
             serde_json::from_slice(data)
@@ -375,7 +372,7 @@ impl PublicKey {
     pub fn unpack<D: DeserializeOwned>(
         &self,
         data: &[u8],
-        signature: &Signature,
+        signature: SignatureRef,
         max_age: Option<Duration>,
     ) -> Result<D, UnpackError> {
         let (header, data) = self.unpack_meta(data, signature)?;
@@ -592,7 +589,7 @@ impl RegisterRequest {
     /// the data is returned.
     pub fn bootstrap_unpack(
         data: &[u8],
-        signature: &Signature,
+        signature: SignatureRef,
         max_age: Option<Duration>,
     ) -> Result<RegisterRequest, UnpackError> {
         let req: RegisterRequest = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
@@ -670,7 +667,7 @@ impl RegisterResponse {
     /// Unpacks the register response and validates signatures.
     pub fn unpack(
         data: &[u8],
-        signature: &Signature,
+        signature: SignatureRef,
         secret: &[u8],
         max_age: Option<Duration>,
     ) -> Result<(Self, RegisterState), UnpackError> {
@@ -704,12 +701,16 @@ impl RegisterResponse {
     }
 }
 
-/// Wrapper around bytes that represent the signature.
+/// A wrapper around a byte vector that represents a signature.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature(pub Vec<u8>);
 
 impl Signature {
-    /// Verifies the signature against all public keys.
+    /// Verifies the signature against any of the provided public keys.
+    ///
+    /// Returns `true` if the signature is valid with one of the given
+    /// public keys and satisfies the timestamp constraints defined by `start_time`
+    /// and `max_age`.
     pub fn verify_signature_any(
         &self,
         public_key: &[PublicKey],
@@ -721,15 +722,18 @@ impl Signature {
             .any(|p| self.verify_signature(p, start_time, max_age))
     }
 
-    /// Checks if the signature can be verified with the public key and if the embedded timestamp
-    /// is still valid.
+    /// Verifies the signature using the specified public key.
+    ///
+    /// The signature is considered valid if it can be verified using the given
+    /// public key and its embedded timestamp falls within the valid time range,
+    /// starting from `start_time` and not exceeding `max_age`.
     pub fn verify_signature(
         &self,
         public_key: &PublicKey,
         start_time: DateTime<Utc>,
         max_age: Duration,
     ) -> bool {
-        let Some(header) = public_key.verify_meta(&[], self) else {
+        let Some(header) = public_key.verify_meta(&[], self.as_signature_ref()) else {
             return false;
         };
         let Some(timestamp) = header.timestamp else {
@@ -739,18 +743,41 @@ impl Signature {
         elapsed >= Duration::zero() && elapsed <= max_age
     }
 
-    /// Checks if the signature is valid for the given bytes and public key.
+    /// Verifies the signature against the given data and public key.
+    ///
+    /// Returns `true` if the signature is valid for the provided `data`
+    /// when verified with the given public key.
     pub fn verify_bytes(&self, data: &[u8], public_key: &PublicKey) -> bool {
-        public_key.verify_meta(data, self).is_some()
+        public_key
+            .verify_meta(data, self.as_signature_ref())
+            .is_some()
+    }
+
+    /// Returns a borrowed view of the signature as a `SignatureRef`.
+    ///
+    /// This method provides a lightweight reference wrapper over the internal
+    /// signature data.
+    pub fn as_signature_ref(&self) -> SignatureRef {
+        SignatureRef(self.0.as_slice())
     }
 }
 
 impl Display for Signature {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        // Bytes in Signature are already encoded as Base64 so this should never allocate.
         let s = String::from_utf8_lossy(&self.0);
         write!(f, "{s}")
     }
 }
+
+/// A borrowed reference to a byte slice used for signature validation.
+///
+/// `SignatureRef` provides a view into the raw bytes of a signature and is
+/// the primary type used in signature validation and verification routines.
+/// It enables working with either owned or borrowed signature data without
+/// unnecessary allocations, typically by borrowing from a [`Signature`] or
+/// directly from a byte slice.
+pub struct SignatureRef<'a>(pub &'a [u8]);
 
 /// Types of signatures that are supported by Relay.
 #[derive(Debug)]
@@ -838,10 +865,10 @@ mod tests {
         let data = b"Hello World!";
 
         let sig = sk.sign(data);
-        assert!(pk.verify(data, &sig));
+        assert!(pk.verify(data, sig.as_signature_ref()));
 
         let bad_sig = "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
-        assert!(!pk.verify(data, &Signature(bad_sig.as_bytes().to_vec())));
+        assert!(!pk.verify(data, SignatureRef(bad_sig.as_bytes())));
     }
 
     #[test]
@@ -859,8 +886,12 @@ mod tests {
         let (request_bytes, request_sig) = sk.pack(request);
 
         // attempt to get the data through bootstrap unpacking.
-        let request =
-            RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
+        let request = RegisterRequest::bootstrap_unpack(
+            &request_bytes,
+            request_sig.as_signature_ref(),
+            Some(max_age),
+        )
+        .unwrap();
         assert_eq!(request.relay_id(), relay_id);
         assert_eq!(request.public_key(), &pk);
 
@@ -885,7 +916,7 @@ mod tests {
         let (response_bytes, response_sig) = sk.pack(response);
         let (response, _) = RegisterResponse::unpack(
             &response_bytes,
-            &response_sig,
+            response_sig.as_signature_ref(),
             upstream_secret,
             Some(max_age),
         )
@@ -921,8 +952,12 @@ mod tests {
         println!("REQUEST_SIG = \"{request_sig}\"");
 
         // attempt to get the data through bootstrap unpacking.
-        let request =
-            RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
+        let request = RegisterRequest::bootstrap_unpack(
+            &request_bytes,
+            request_sig.as_signature_ref(),
+            Some(max_age),
+        )
+        .unwrap();
 
         let upstream_secret = b"secret";
 
