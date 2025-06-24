@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use enumset::EnumSet;
-use relay_protocol::{Annotated, Array, Meta, Object, Value};
+use relay_protocol::{Annotated, Array, FiniteF64, Meta, Object, Value};
 use uuid::Uuid;
 
 use crate::processor::{
@@ -105,6 +105,26 @@ impl ProcessValue for f64 {
         P: Processor,
     {
         processor.process_f64(self, meta, state)
+    }
+}
+
+impl ProcessValue for FiniteF64 {
+    #[inline]
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Number)
+    }
+
+    #[inline]
+    fn process_value<P>(
+        &mut self,
+        meta: &mut Meta,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        processor.process_finite_f64(self, meta, state)
     }
 }
 

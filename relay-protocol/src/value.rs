@@ -6,6 +6,7 @@ use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use uuid::Uuid;
 
+use crate::FiniteF64;
 use crate::annotated::Annotated;
 use crate::meta::Meta;
 
@@ -65,6 +66,16 @@ impl Value {
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Value::String(string) => Some(string.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Returns a f64 if the value can be converted to it, otherwise `None`.
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Value::F64(f) => Some(*f),
+            Value::I64(i) => Some(*i as f64),
+            Value::U64(u) => Some(*u as f64),
             _ => None,
         }
     }
@@ -465,6 +476,12 @@ impl From<u64> for Val<'_> {
 impl From<f64> for Val<'_> {
     fn from(value: f64) -> Self {
         Self::F64(value)
+    }
+}
+
+impl From<FiniteF64> for Val<'_> {
+    fn from(value: FiniteF64) -> Self {
+        Self::F64(value.to_f64())
     }
 }
 

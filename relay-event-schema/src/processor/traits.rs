@@ -3,7 +3,7 @@
 
 use std::fmt::Debug;
 
-use relay_protocol::{FromValue, IntoValue, Meta};
+use relay_protocol::{FiniteF64, FromValue, IntoValue, Meta};
 
 use crate::processor::{ProcessingState, ValueType, process_value};
 
@@ -76,6 +76,7 @@ pub trait Processor: Sized {
     process_method!(process_u64, u64);
     process_method!(process_i64, i64);
     process_method!(process_f64, f64);
+    process_method!(process_finite_f64, FiniteF64);
     process_method!(process_bool, bool);
 
     process_method!(process_value, relay_protocol::Value);

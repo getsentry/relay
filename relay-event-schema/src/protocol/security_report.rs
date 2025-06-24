@@ -573,6 +573,7 @@ pub struct Csp {
     /// The name of the policy section that was violated.
     pub violated_directive: Annotated<String>,
     /// The URL of the resource where the violation occurred.
+    #[metastructure(pii = "maybe")]
     pub source_file: Annotated<String>,
     /// The line number in source-file on which the violation occurred.
     pub line_number: Annotated<u64>,

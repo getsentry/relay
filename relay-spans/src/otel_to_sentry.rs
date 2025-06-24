@@ -9,6 +9,8 @@ use relay_protocol::Error;
 /// This uses attributes in the OTEL span to populate various fields in the Sentry span.
 /// * The Sentry span's `name` field may be set based on `db` or `http` attributes
 ///   if the OTEL span's `name` is empty.
+/// * The Sentry span's `op` field will be inferred based on the OTEL span's `sentry.op` attribute,
+///   or other available attributes if `sentry.op` is not provided.
 /// * The Sentry span's `description` field may be set based on `db` or `http` attributes
 ///   if the OTEL span's `sentry.description` attribute is empty.
 /// * The Sentry span's `status` field is set based on the OTEL span's `status` field and
@@ -41,6 +43,17 @@ mod tests {
             "startTimeUnixNano": "1697620454980000000",
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
+                {
+                    "key": "http.route", "value": {
+                        "stringValue": "/home"
+                    }
+                },
+                {
+                    "key": "http.request.method",
+                    "value": {
+                        "stringValue": "GET"
+                        }
+                    },
                 {
                     "key": "sentry.environment",
                     "value": {
@@ -102,16 +115,20 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 1000.0,
-          "op": "middleware - fastify -> @fastify/multipart",
+          "op": "http",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "ok",
+          "description": "GET /home",
           "data": {
             "sentry.environment": "test",
             "fastify.type": "middleware",
             "hook.name": "onResponse",
+            "http.request.method": "GET",
+            "http.route": "/home",
             "plugin.name": "fastify -> @fastify/multipart",
+            "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
             "sentry.sample_rate": 1
           },
@@ -148,12 +165,14 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 3200.0,
-          "op": "middleware - fastify -> @fastify/multipart",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.name": "middleware - fastify -> @fastify/multipart"
+          },
           "links": [],
           "kind": "internal"
         }
@@ -179,12 +198,14 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 0.0788,
-          "op": "middleware - fastify -> @fastify/multipart",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
-          "data": {},
+          "data": {
+            "sentry.name": "middleware - fastify -> @fastify/multipart"
+          },
           "links": [],
           "kind": "internal"
         }
@@ -230,13 +251,18 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 0.0788,
-          "op": "database query",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
-          "data": {},
+          "data": {
+            "db.name": "database",
+            "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            "db.type": "sql",
+            "sentry.name": "database query"
+          },
           "links": [],
           "kind": "client"
         }
@@ -288,13 +314,18 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 0.0788,
-          "op": "database query",
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "index view query",
-          "data": {},
+          "data": {
+            "db.name": "database",
+            "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            "db.type": "sql",
+            "sentry.name": "database query"
+          },
           "links": [],
           "kind": "client"
         }
@@ -334,13 +365,17 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 0.0788,
-          "op": "http client request",
+          "op": "http.client",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "GET /api/search?q=foobar",
-          "data": {},
+          "data": {
+            "http.request.method": "GET",
+            "sentry.name": "http client request",
+            "url.path": "/api/search?q=foobar"
+          },
           "links": [],
           "kind": "client"
         }
@@ -485,7 +520,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
-          "op": "myname",
+          "op": "myop",
           "span_id": "fa90fdead5f74052",
           "parent_span_id": "fa90fdead5f74051",
           "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
@@ -499,7 +534,7 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
-            "sentry.op": "myop"
+            "sentry.name": "myname"
           },
           "links": [],
           "platform": "php"
@@ -525,6 +560,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -554,6 +590,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -583,6 +620,7 @@ mod tests {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
           "exclusive_time": 500.0,
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -642,6 +680,7 @@ mod tests {
           "timestamp": 0.0,
           "start_timestamp": 0.0,
           "exclusive_time": 0.0,
+          "op": "default",
           "span_id": "e342abb1214ca181",
           "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
           "status": "unknown",

@@ -5,11 +5,12 @@ use std::net;
 
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use relay_config::Config;
-use relay_dynamic_config::SessionMetricsConfig;
+use relay_dynamic_config::{GlobalConfig, SessionMetricsConfig};
 use relay_event_normalization::ClockDriftProcessor;
 use relay_event_schema::protocol::{
     IpAddr, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
 };
+use relay_filter::ProjectFiltersConfig;
 use relay_metrics::Bucket;
 use relay_statsd::metric;
 
@@ -19,18 +20,30 @@ use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayTimers;
 use crate::utils::{ItemAction, TypedEnvelope};
 
+#[derive(Debug, Clone, Copy)]
+struct SessionProcessingConfig<'a> {
+    pub global_config: &'a GlobalConfig,
+    pub config: &'a Config,
+    pub filters_config: &'a ProjectFiltersConfig,
+    pub metrics_config: &'a SessionMetricsConfig,
+    pub client: Option<&'a str>,
+    pub client_addr: Option<std::net::IpAddr>,
+    pub received: DateTime<Utc>,
+    pub clock_drift_processor: &'a ClockDriftProcessor,
+}
+
 /// Validates all sessions and session aggregates in the envelope, if any.
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
 pub fn process(
     managed_envelope: &mut TypedEnvelope<SessionGroup>,
+    global_config: &GlobalConfig,
+    config: &Config,
     extracted_metrics: &mut ProcessingExtractedMetrics,
     project_info: &ProjectInfo,
-    config: &Config,
 ) {
     let received = managed_envelope.received_at();
-    let metrics_config = project_info.config().session_metrics;
     let envelope = managed_envelope.envelope_mut();
     let client = envelope.meta().client().map(|x| x.to_owned());
     let client_addr = envelope.meta().client_addr();
@@ -38,29 +51,24 @@ pub fn process(
     let clock_drift_processor =
         ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
+    let spc = SessionProcessingConfig {
+        global_config,
+        config,
+        filters_config: &project_info.config().filter_settings,
+        metrics_config: &project_info.config().session_metrics,
+        client: client.as_deref(),
+        client_addr,
+        received,
+        clock_drift_processor: &clock_drift_processor,
+    };
+
     let mut session_extracted_metrics = Vec::new();
     managed_envelope.retain_items(|item| {
         let should_keep = match item.ty() {
-            ItemType::Session => process_session(
-                item,
-                config,
-                received,
-                client.as_deref(),
-                client_addr,
-                metrics_config,
-                &clock_drift_processor,
-                &mut session_extracted_metrics,
-            ),
-            ItemType::Sessions => process_session_aggregates(
-                item,
-                config,
-                received,
-                client.as_deref(),
-                client_addr,
-                metrics_config,
-                &clock_drift_processor,
-                &mut session_extracted_metrics,
-            ),
+            ItemType::Session => process_session(item, spc, &mut session_extracted_metrics),
+            ItemType::Sessions => {
+                process_session_aggregates(item, spc, &mut session_extracted_metrics)
+            }
             _ => true, // Keep all other item types
         };
         if should_keep {
@@ -141,14 +149,20 @@ fn is_valid_session_timestamp(
 #[allow(clippy::too_many_arguments)]
 fn process_session(
     item: &mut Item,
-    config: &Config,
-    received: DateTime<Utc>,
-    client: Option<&str>,
-    client_addr: Option<net::IpAddr>,
-    metrics_config: SessionMetricsConfig,
-    clock_drift_processor: &ClockDriftProcessor,
+    session_processing_config: SessionProcessingConfig,
     extracted_metrics: &mut Vec<Bucket>,
 ) -> bool {
+    let SessionProcessingConfig {
+        global_config,
+        config,
+        filters_config,
+        metrics_config,
+        client,
+        client_addr,
+        received,
+        clock_drift_processor,
+    } = session_processing_config;
+
     let mut changed = false;
     let payload = item.payload();
     let max_secs_in_future = config.max_secs_in_future();
@@ -212,6 +226,17 @@ fn process_session(
         return false;
     }
 
+    if relay_filter::should_filter(
+        &session,
+        client_addr,
+        filters_config,
+        global_config.filters(),
+    )
+    .is_err()
+    {
+        return false;
+    };
+
     // Extract metrics if they haven't been extracted by a prior Relay
     if metrics_config.is_enabled()
         && !item.metrics_extracted()
@@ -257,14 +282,20 @@ fn process_session(
 #[allow(clippy::too_many_arguments)]
 fn process_session_aggregates(
     item: &mut Item,
-    config: &Config,
-    received: DateTime<Utc>,
-    client: Option<&str>,
-    client_addr: Option<net::IpAddr>,
-    metrics_config: SessionMetricsConfig,
-    clock_drift_processor: &ClockDriftProcessor,
+    session_processing_config: SessionProcessingConfig,
     extracted_metrics: &mut Vec<Bucket>,
 ) -> bool {
+    let SessionProcessingConfig {
+        global_config,
+        config,
+        filters_config,
+        metrics_config,
+        client,
+        client_addr,
+        received,
+        clock_drift_processor,
+    } = session_processing_config;
+
     let mut changed = false;
     let payload = item.payload();
     let max_secs_in_future = config.max_secs_in_future();
@@ -311,6 +342,17 @@ fn process_session_aggregates(
             changed |= changed_attributes;
         }
     }
+
+    if relay_filter::should_filter(
+        &session,
+        client_addr,
+        filters_config,
+        global_config.filters(),
+    )
+    .is_err()
+    {
+        return false;
+    };
 
     // Extract metrics if they haven't been extracted by a prior Relay
     if metrics_config.is_enabled() && !item.metrics_extracted() {
@@ -364,16 +406,17 @@ mod tests {
 
     impl TestProcessSessionArguments<'_> {
         fn run_session_producer(&mut self) -> bool {
-            process_session(
-                &mut self.item,
-                &Config::default(),
-                self.received,
-                self.client,
-                self.client_addr,
-                self.metrics_config,
-                &self.clock_drift_processor,
-                &mut self.extracted_metrics,
-            )
+            let spc = SessionProcessingConfig {
+                global_config: &Default::default(),
+                config: &Default::default(),
+                filters_config: &Default::default(),
+                metrics_config: &self.metrics_config,
+                client: self.client,
+                client_addr: self.client_addr,
+                received: self.received,
+                clock_drift_processor: &self.clock_drift_processor,
+            };
+            process_session(&mut self.item, spc, &mut self.extracted_metrics)
         }
 
         fn default() -> Self {

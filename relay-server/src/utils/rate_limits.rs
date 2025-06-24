@@ -8,7 +8,7 @@ use relay_quotas::{
     ReasonCode, Scoping,
 };
 
-use crate::envelope::{CountFor, Envelope, Item, ItemType};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::services::outcome::Outcome;
 use crate::utils::ManagedEnvelope;
 
@@ -114,7 +114,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Event => Some(DataCategory::Error),
         ItemType::Transaction => Some(DataCategory::Transaction),
         ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
-        ItemType::Nel => Some(DataCategory::Error),
         ItemType::UnrealReport => Some(DataCategory::Error),
         ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
         ItemType::Attachment if item.creates_event() => Some(DataCategory::Error),
@@ -131,12 +130,13 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ReplayVideo => None,
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
+        ItemType::Nel => None,
         ItemType::Log => None,
         ItemType::OtelLog => None,
         ItemType::Span => None,
         ItemType::OtelSpan => None,
         ItemType::OtelTracesData => None,
-        ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
+        ItemType::ProfileChunk => None,
         ItemType::Unknown(_) => None,
     }
 }
@@ -235,7 +235,7 @@ impl EnvelopeSummary {
 
             summary.payload_size += item.len();
 
-            for (category, quantity) in item.quantities(CountFor::RateLimits) {
+            for (category, quantity) in item.quantities() {
                 summary.add_quantity(category, quantity);
             }
         }

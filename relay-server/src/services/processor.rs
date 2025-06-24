@@ -90,6 +90,7 @@ mod attachment;
 mod dynamic_sampling;
 mod event;
 mod metrics;
+mod nel;
 mod ourlog;
 mod profile;
 mod profile_chunk;
@@ -145,7 +146,7 @@ impl Display for GroupTypeError {
 impl std::error::Error for GroupTypeError {}
 
 macro_rules! processing_group {
-    ($ty:ident, $variant:ident) => {
+    ($ty:ident, $variant:ident$(, $($other:ident),+)?) => {
         #[derive(Clone, Copy, Debug)]
         pub struct $ty;
 
@@ -162,6 +163,11 @@ macro_rules! processing_group {
                 if matches!(value, ProcessingGroup::$variant) {
                     return Ok($ty);
                 }
+                $($(
+                    if matches!(value, ProcessingGroup::$other) {
+                        return Ok($ty);
+                    }
+                )+)?
                 return Err(GroupTypeError);
             }
         }
@@ -204,7 +210,7 @@ processing_group!(StandaloneGroup, Standalone);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
-processing_group!(LogGroup, Log);
+processing_group!(LogGroup, Log, Nel);
 processing_group!(SpanGroup, Span);
 
 impl Sampling for SpanGroup {
@@ -252,6 +258,8 @@ pub enum ProcessingGroup {
     Replay,
     /// Crons.
     CheckIn,
+    /// NEL reports.
+    Nel,
     /// Logs.
     Log,
     /// Spans.
@@ -272,19 +280,6 @@ impl ProcessingGroup {
     pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
         let headers = envelope.headers().clone();
         let mut grouped_envelopes = smallvec![];
-
-        // Each NEL item *must* have a dedicated envelope.
-        let nel_envelopes = envelope
-            .take_items_by(|item| matches!(item.ty(), &ItemType::Nel))
-            .into_iter()
-            .map(|item| {
-                let headers = headers.clone();
-                let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
-                let mut envelope = Envelope::from_parts(headers, items);
-                envelope.set_event_id(EventId::new());
-                (ProcessingGroup::Error, envelope)
-            });
-        grouped_envelopes.extend(nel_envelopes);
 
         // Extract replays.
         let replay_items = envelope.take_items_by(|item| {
@@ -333,6 +328,15 @@ impl ProcessingGroup {
             grouped_envelopes.push((
                 ProcessingGroup::Log,
                 Envelope::from_parts(headers.clone(), logs_items),
+            ))
+        }
+
+        // NEL items are transformed into logs in their own processing step.
+        let nel_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Nel));
+        if !nel_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Nel,
+                Envelope::from_parts(headers.clone(), nel_items),
             ))
         }
 
@@ -438,6 +442,7 @@ impl ProcessingGroup {
             ProcessingGroup::Replay => "replay",
             ProcessingGroup::CheckIn => "check_in",
             ProcessingGroup::Log => "log",
+            ProcessingGroup::Nel => "nel",
             ProcessingGroup::Span => "span",
             ProcessingGroup::Metrics => "metrics",
             ProcessingGroup::ProfileChunk => "profile_chunk",
@@ -458,6 +463,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
             ProcessingGroup::Log => AppFeature::Logs,
+            ProcessingGroup::Nel => AppFeature::Logs,
             ProcessingGroup::Span => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
             ProcessingGroup::ProfileChunk => AppFeature::Profiles,
@@ -1390,7 +1396,7 @@ impl EnvelopeProcessorService {
         // If spans were already extracted for an event, we rely on span processing to extract metrics.
         let extract_spans = !spans_extracted.0
             && project_info.config.features.produces_spans()
-            && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0));
+            && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0)).is_keep();
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
@@ -1585,6 +1591,8 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
+            #[cfg(sentry)]
+            playstation::expand(managed_envelope, &self.inner.config, &project_info)?;
             nnswitch::expand(managed_envelope)?;
         });
 
@@ -1602,13 +1610,10 @@ impl EnvelopeProcessorService {
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }
-            #[cfg(all(sentry, feature = "processing"))]
-            if let Some(inner_event_fully_normalized) = playstation::process(
-                managed_envelope,
-                &mut event,
-                &self.inner.config,
-                &project_info,
-            )? {
+            #[cfg(sentry)]
+            if let Some(inner_event_fully_normalized) =
+                playstation::process(managed_envelope, &mut event, &project_info)?
+            {
                 event_fully_normalized = inner_event_fully_normalized;
             }
             if let Some(inner_event_fully_normalized) =
@@ -1881,6 +1886,7 @@ impl EnvelopeProcessorService {
                 project_info.clone(),
             );
             profile::transfer_id(&mut event, profile_id);
+            profile::scrub_profiler_id(&mut event);
 
             // Always extract metrics in processing Relays for sampled items.
             event_metrics_extracted = self.extract_transaction_metrics(
@@ -2012,24 +2018,26 @@ impl EnvelopeProcessorService {
     async fn process_sessions(
         &self,
         managed_envelope: &mut TypedEnvelope<SessionGroup>,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        config: &Config,
+        project_info: &ProjectInfo,
+        rate_limits: &RateLimits,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         session::process(
             managed_envelope,
+            &self.inner.global_config.current(),
+            config,
             &mut extracted_metrics,
-            &project_info,
-            &self.inner.config,
+            project_info,
         );
 
         self.enforce_quotas(
             managed_envelope,
             Annotated::empty(),
             &mut extracted_metrics,
-            &project_info,
-            &rate_limits,
+            project_info,
+            rate_limits,
         )
         .await?;
 
@@ -2119,6 +2127,17 @@ impl EnvelopeProcessorService {
         Ok(None)
     }
 
+    async fn process_nel(
+        &self,
+        managed_envelope: &mut TypedEnvelope<LogGroup>,
+        project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
+    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+        nel::convert_to_logs(managed_envelope);
+        self.process_logs(managed_envelope, project_info, rate_limits)
+            .await
+    }
+
     /// Process logs
     ///
     async fn process_logs(
@@ -2168,6 +2187,7 @@ impl EnvelopeProcessorService {
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
+        span::expand_v2_spans(managed_envelope)?;
         span::filter(managed_envelope, config.clone(), project_info.clone());
         span::convert_otel_traces_data(managed_envelope);
 
@@ -2288,7 +2308,12 @@ impl EnvelopeProcessorService {
                     reservoir_counters
                 )
             }
-            ProcessingGroup::Session => run!(process_sessions, project_info, rate_limits),
+            ProcessingGroup::Session => run!(
+                process_sessions,
+                &self.inner.config.clone(),
+                &project_info,
+                &rate_limits
+            ),
             ProcessingGroup::Standalone => run!(
                 process_standalone,
                 self.inner.config.clone(),
@@ -2314,6 +2339,7 @@ impl EnvelopeProcessorService {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
             ProcessingGroup::Log => run!(process_logs, project_info, rate_limits),
+            ProcessingGroup::Nel => run!(process_nel, project_info, rate_limits),
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
@@ -2927,7 +2953,7 @@ impl EnvelopeProcessorService {
         };
 
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate) {
+        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate).is_keep() {
             for limit in limits.exceeded_limits() {
                 relay_log::with_scope(
                     |scope| {
@@ -3793,6 +3819,7 @@ mod tests {
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
         use relay_base_schema::organization::OrganizationId;
+        use relay_protocol::FiniteF64;
 
         let rate_limited_org = Scoping {
             organization_id: OrganizationId::new(1),
@@ -3833,7 +3860,7 @@ mod tests {
             let project_metrics = |scoping| ProjectBuckets {
                 buckets: vec![Bucket {
                     name: "d:transactions/bar".into(),
-                    value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
+                    value: BucketValue::Counter(FiniteF64::new(1.0).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,

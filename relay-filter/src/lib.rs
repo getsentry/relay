@@ -44,6 +44,10 @@ pub use interface::Filterable;
 ///
 /// If the event should be filtered, the `Err` returned contains a filter reason.
 /// The reason is the message returned by the first filter that didn't pass.
+///
+/// The `client_ip` parameter is the "client IP" extracted from the envelope. It's
+/// used for client IP filtering and should not be confused with a "user IP" that may
+/// be contained in the item, which is used for localhost filtering.
 pub fn should_filter<F: Filterable + Getter>(
     item: &F,
     client_ip: Option<IpAddr>,

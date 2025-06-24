@@ -250,13 +250,13 @@ class SentryLike:
         response.raise_for_status()
         return response
 
-    def send_session(self, project_id, payload, item_headers=None):
+    def send_session(self, project_id, payload, item_headers=None, headers=None):
         envelope = Envelope()
         envelope.add_session(payload)
         if item_headers:
             item = envelope.items[0]
             item.headers = {**item.headers, **item_headers}
-        self.send_envelope(project_id, envelope)
+        self.send_envelope(project_id, envelope, headers=headers)
 
     def send_transaction(
         self,
@@ -292,10 +292,10 @@ class SentryLike:
 
         self.send_envelope(project_id, envelope)
 
-    def send_session_aggregates(self, project_id, payload):
+    def send_session_aggregates(self, project_id, payload, headers=None):
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="sessions"))
-        self.send_envelope(project_id, envelope)
+        self.send_envelope(project_id, envelope, headers=headers)
 
     def send_client_report(self, project_id, payload):
         envelope = Envelope()
@@ -423,23 +423,37 @@ class SentryLike:
         response.raise_for_status()
         return response
 
-    def send_playstation_request(self, project_id, file_content, dsn_key_idx=0):
+    def send_playstation_request(
+        self,
+        project_id,
+        crash_file_content,
+        crash_video_content=None,
+        dsn_key_idx=0,
+    ):
         """
         Sends a request to the playstation endpoint
         :param project_id: the project id
         :param file_content: the unreal file content
         """
+        files = {}
+        if crash_video_content:
+            files["upload_file_crash_video"] = (
+                "crash-video.webm",
+                crash_video_content,
+                "video/webm",
+            )
+
+        files["upload_file_minidump"] = (
+            "playstation.prosperodmp",
+            crash_file_content,
+            "application/octet-stream",
+        )
+
         response = self.post(
             "/api/{}/playstation/?sentry_key={}".format(
                 project_id, self.get_dsn_public_key(project_id, dsn_key_idx)
             ),
-            files={
-                "upload_file_minidump": (
-                    "playstation.prosperodmp",
-                    file_content,
-                    "application/octet-stream",
-                )
-            },
+            files=files,
         )
 
         response.raise_for_status()

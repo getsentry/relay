@@ -20,7 +20,7 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
-use relay_event_normalization::span::ai::extract_ai_measurements;
+use relay_event_normalization::span::ai::{extract_ai_data, map_ai_measurements_to_data};
 use relay_event_normalization::{
     BorrowedSpanOpDefaults, ClientHints, CombinedMeasurementsConfig, FromUserAgentInfo,
     GeoIpLookup, MeasurementsConfig, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo,
@@ -264,7 +264,7 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
     };
 
     let measurement = Annotated::new(Measurement {
-        value: value.into(),
+        value: Annotated::try_from(value),
         unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
     });
 
@@ -293,7 +293,7 @@ pub fn extract_from_event(
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
-        if !sample(sample_rate) {
+        if sample(sample_rate).is_discard() {
             return spans_extracted;
         }
     }
@@ -647,8 +647,10 @@ fn normalize(
     span.sentry_tags = Annotated::new(tags);
 
     normalize_performance_score(span, performance_score);
+
+    map_ai_measurements_to_data(span);
     if let Some(model_costs_config) = ai_model_costs {
-        extract_ai_measurements(span, model_costs_config);
+        extract_ai_data(span, model_costs_config);
     }
 
     tag_extraction::extract_measurements(span, is_mobile);
