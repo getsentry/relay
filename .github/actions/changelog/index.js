@@ -47,7 +47,7 @@ module.exports = async ({github, context, core}) => {
     });
     const buf = Buffer.alloc(data.content.length, data.content, data.encoding);
     const fileContent = buf.toString();
-    return fileContent.includes(PR_LINK);
+    return fileContent.match(/## Unreleased(.*?)##/ms)?.[1]?.includes(PR_LINK) || false;
   }
 
   async function checkChangelog(pr) {

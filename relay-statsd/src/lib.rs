@@ -22,8 +22,16 @@
 //!
 //! ```no_run
 //! # use std::collections::BTreeMap;
+//! # use relay_statsd::MetricsClientConfig;
 //!
-//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), 1.0, true);
+//! relay_statsd::init(MetricsClientConfig {
+//!     prefix: "myprefix",
+//!     host: "localhost:8125",
+//!     default_tags: BTreeMap::new(),
+//!     sample_rate: 1.0,
+//!     aggregate: true,
+//!     allow_high_cardinality_tags: false
+//! });
 //! ```
 //!
 //! ## Macro Usage
@@ -56,11 +64,14 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
+pub use statsdproxy::config::DenyTagConfig;
+
 use cadence::{Metric, MetricBuilder, StatsdClient};
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 use statsdproxy::cadence::StatsdProxyMetricSink;
 use statsdproxy::config::AggregateMetricsConfig;
+use statsdproxy::middleware::deny_tag::DenyTag;
 use std::collections::BTreeMap;
 use std::net::ToSocketAddrs;
 use std::ops::{Deref, DerefMut};
@@ -83,6 +94,23 @@ pub struct MetricsClient {
     ///
     /// Only available when the client was initialized with `init_basic`.
     pub rx: Option<crossbeam_channel::Receiver<Vec<u8>>>,
+}
+
+/// Client configuration used for initialization of [`MetricsClient`].
+#[derive(Debug)]
+pub struct MetricsClientConfig<'a, A> {
+    /// Prefix which is appended to all metric names.
+    pub prefix: &'a str,
+    /// Host of the metrics upstream.
+    pub host: A,
+    /// Tags that are added to all metrics.
+    pub default_tags: BTreeMap<String, String>,
+    /// Sample rate for metrics, between 0.0 (= 0%) and 1.0 (= 100%)
+    pub sample_rate: f32,
+    /// If metrics should be batched or send immediately upstream.
+    pub aggregate: bool,
+    /// If high cardinality tags should be removed from metrics.
+    pub allow_high_cardinality_tags: bool,
 }
 
 impl Deref for MetricsClient {
@@ -221,20 +249,14 @@ pub fn disable() {
 }
 
 /// Tell the metrics system to report to statsd.
-pub fn init<A: ToSocketAddrs>(
-    prefix: &str,
-    host: A,
-    default_tags: BTreeMap<String, String>,
-    sample_rate: f32,
-    aggregate: bool,
-) {
-    let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
+pub fn init<A: ToSocketAddrs>(config: MetricsClientConfig<A>) {
+    let addrs: Vec<_> = config.host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
         relay_log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
 
     // Normalize sample_rate
-    let sample_rate = sample_rate.clamp(0., 1.);
+    let sample_rate = config.sample_rate.clamp(0., 1.);
     relay_log::debug!(
         "metrics sample rate is set to {sample_rate}{}",
         if sample_rate == 0.0 {
@@ -244,12 +266,21 @@ pub fn init<A: ToSocketAddrs>(
         }
     );
 
-    let statsd_client = if aggregate {
+    let deny_config = DenyTagConfig {
+        starts_with: match config.allow_high_cardinality_tags {
+            true => vec![],
+            false => vec!["hc.".to_owned()],
+        },
+        tags: vec![],
+        ends_with: vec![],
+    };
+
+    let statsd_client = if config.aggregate {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
             let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
                 .expect("failed to create statsdproxy metric sink");
 
-            statsdproxy::middleware::aggregate::AggregateMetrics::new(
+            let aggregate = statsdproxy::middleware::aggregate::AggregateMetrics::new(
                 AggregateMetricsConfig {
                     aggregate_gauges: true,
                     aggregate_counters: true,
@@ -258,21 +289,25 @@ pub fn init<A: ToSocketAddrs>(
                     max_map_size: None,
                 },
                 upstream,
-            )
+            );
+
+            DenyTag::new(deny_config.clone(), aggregate)
         });
 
-        StatsdClient::from_sink(prefix, statsdproxy_sink)
+        StatsdClient::from_sink(config.prefix, statsdproxy_sink)
     } else {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
-            statsdproxy::middleware::upstream::Upstream::new(addrs[0])
-                .expect("failed to create statsdproxy metric sind")
+            let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
+                .expect("failed to create statsdproxy metric sind");
+
+            DenyTag::new(deny_config.clone(), upstream)
         });
-        StatsdClient::from_sink(prefix, statsdproxy_sink)
+        StatsdClient::from_sink(config.prefix, statsdproxy_sink)
     };
 
     set_client(MetricsClient {
         statsd_client,
-        default_tags,
+        default_tags: config.default_tags,
         sample_rate,
         rx: None,
     });
@@ -535,14 +570,14 @@ pub trait GaugeMetric {
 #[macro_export]
 macro_rules! metric {
     // counter increment
-    (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (counter($id:expr) += $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         match $value {
             value if value != 0 => {
                 $crate::with_client(|client| {
                     use $crate::_pred::*;
                     client.send_metric(
                         client.count_with_tags(&$crate::CounterMetric::name(&$id), value)
-                        $(.with_tag(stringify!($k), $v))*
+                        $(.with_tag(stringify!($($k).*), $v))*
                     )
                 })
             },
@@ -551,14 +586,14 @@ macro_rules! metric {
     };
 
     // counter decrement
-    (counter($id:expr) -= $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (counter($id:expr) -= $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         match $value {
             value if value != 0 => {
                 $crate::with_client(|client| {
                     use $crate::_pred::*;
                     client.send_metric(
                         client.count_with_tags(&$crate::CounterMetric::name(&$id), -value)
-                            $(.with_tag(stringify!($k), $v))*
+                            $(.with_tag(stringify!($($k).*), $v))*
                     )
                 })
             },
@@ -567,56 +602,56 @@ macro_rules! metric {
     };
 
     // gauge set
-    (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (gauge($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
                 client.gauge_with_tags(&$crate::GaugeMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
+                    $(.with_tag(stringify!($($k).*), $v))*
             )
         })
     };
 
     // histogram
-    (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (histogram($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
                 client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
+                    $(.with_tag(stringify!($($k).*), $v))*
             )
         })
     };
 
     // sets (count unique occurrences of a value per time interval)
-    (set($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (set($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
                 client.set_with_tags(&$crate::SetMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
+                    $(.with_tag(stringify!($($k).*), $v))*
             )
         })
     };
 
     // timer value (duration)
-    (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+    (timer($id:expr) = $value:expr $(, $($k:ident).* = $v:expr)* $(,)?) => {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
                 // NOTE: cadence histograms support Duration out of the box and converts it to nanos,
                 // but we want milliseconds for historical reasons.
                 client.histogram_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
-                    $(.with_tag(stringify!($k), $v))*
+                    $(.with_tag(stringify!($($k).*), $v))*
             )
         })
     };
 
     // timed block
-    (timer($id:expr), $($k:ident = $v:expr,)* $block:block) => {{
+    (timer($id:expr), $($($k:ident).* = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
-        $crate::metric!(timer($id) = now.elapsed() $(, $k = $v)*);
+        $crate::metric!(timer($id) = now.elapsed() $(, $($k).* = $v)*);
         rv
     }};
 }
@@ -628,8 +663,8 @@ mod tests {
     use cadence::{NopMetricSink, StatsdClient};
 
     use crate::{
-        GaugeMetric, MetricsClient, TimerMetric, set_client, with_capturing_test_client,
-        with_client,
+        CounterMetric, GaugeMetric, HistogramMetric, MetricsClient, SetMetric, TimerMetric,
+        set_client, with_capturing_test_client, with_client,
     };
 
     enum TestGauges {
@@ -643,6 +678,38 @@ mod tests {
                 Self::Foo => "foo",
                 Self::Bar => "bar",
             }
+        }
+    }
+
+    struct TestCounter;
+
+    impl CounterMetric for TestCounter {
+        fn name(&self) -> &'static str {
+            "counter"
+        }
+    }
+
+    struct TestHistogram;
+
+    impl HistogramMetric for TestHistogram {
+        fn name(&self) -> &'static str {
+            "histogram"
+        }
+    }
+
+    struct TestSet;
+
+    impl SetMetric for TestSet {
+        fn name(&self) -> &'static str {
+            "set"
+        }
+    }
+
+    struct TestTimer;
+
+    impl TimerMetric for TestTimer {
+        fn name(&self) -> &'static str {
+            "timer"
         }
     }
 
@@ -685,12 +752,98 @@ mod tests {
         assert_ne!(client1, client2);
     }
 
-    struct TestTimer;
+    #[test]
+    fn test_counter_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                counter(TestCounter) += 10,
+                hc.project_id = "567",
+                server = "server1",
+            );
+            metric!(
+                counter(TestCounter) -= 5,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(
+            captures,
+            [
+                "counter:10|c|#hc.project_id:567,server:server1",
+                "counter:-5|c|#hc.project_id:567,server:server1"
+            ]
+        );
+    }
 
-    impl TimerMetric for TestTimer {
-        fn name(&self) -> &'static str {
-            "timer"
-        }
+    #[test]
+    fn test_gauge_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                gauge(TestGauges::Foo) = 123,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(captures, ["foo:123|g|#hc.project_id:567,server:server1"]);
+    }
+
+    #[test]
+    fn test_histogram_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                histogram(TestHistogram) = 123,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(
+            captures,
+            ["histogram:123|h|#hc.project_id:567,server:server1"]
+        );
+    }
+
+    #[test]
+    fn test_set_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                set(TestSet) = 123,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(captures, ["set:123|s|#hc.project_id:567,server:server1"]);
+    }
+
+    #[test]
+    fn test_timer_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            let duration = Duration::from_secs(100);
+            metric!(
+                timer(TestTimer) = duration,
+                hc.project_id = "567",
+                server = "server1",
+            );
+        });
+        assert_eq!(
+            captures,
+            ["timer:100000|h|#hc.project_id:567,server:server1"]
+        );
+    }
+
+    #[test]
+    fn test_timed_block_tags_with_dots() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                timer(TestTimer),
+                hc.project_id = "567",
+                server = "server1",
+                {
+                    // your code could be here
+                }
+            )
+        });
+        // just check the tags to not make this flaky
+        assert!(captures[0].ends_with("|h|#hc.project_id:567,server:server1"));
     }
 
     #[test]
