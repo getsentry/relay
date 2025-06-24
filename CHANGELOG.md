@@ -5,6 +5,7 @@
 **Features**:
 
 - Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
+- Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
 
 **Internal**:
 
@@ -61,7 +62,6 @@
 
 - Cached projects can now be refreshed regularly, instead of only on demand. ([#4773](https://github.com/getsentry/relay/pull/4773))
 - Allow environment references in Relay configuration. ([#4750](https://github.com/getsentry/relay/pull/4750))
-- Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
 
 **Internal**:
 
