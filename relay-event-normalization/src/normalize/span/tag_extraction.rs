@@ -2086,6 +2086,76 @@ LIMIT 1
     }
 
     #[test]
+    fn test_ai_legacy_field_mappings() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1694732408.3145,
+                        "start_timestamp": 1694732407.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "OpenAI Chat Completion",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "ai.model_id": "gpt-4",
+                            "ai.total_cost.used": 0.05,
+                            "ai.toolCall.args": "{\"query\": \"test\"}",
+                            "ai.toolCall.result": "success",
+                            "ai.prompt.messages": [{"role": "user", "content": "Hello"}],
+                            "ai.response.toolCalls": [{"name": "search", "args": {}}],
+                            "ai.response.text": "Hello world",
+                            "ai.toolCall.name": "search"
+                        },
+                        "hash": "e2fae740cccd3781"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200, &[]);
+
+        let span = &event
+            .spans
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .value()
+            .unwrap();
+
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
+        {
+          "gen_ai.request.model": "gpt-4",
+          "gen_ai.request.messages": [
+            {
+              "content": "Hello",
+              "role": "user"
+            }
+          ],
+          "gen_ai.response.text": "Hello world",
+          "gen_ai.response.tool_calls": [
+            {
+              "args": {},
+              "name": "search"
+            }
+          ],
+          "gen_ai.tool.name": "search",
+          "gen_ai.tool.input": "{\"query\": \"test\"}",
+          "gen_ai.tool.output": "success",
+          "ai.total_cost.used": 0.05
+        }
+        "#);
+    }
+
+    #[test]
     fn test_cache_extraction() {
         let json = r#"
             {

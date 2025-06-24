@@ -98,9 +98,6 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
         .gen_ai_request_model
         .value()
         .and_then(|val| val.as_str())
-        // xxx (vgrozdanic): temporal fallback to legacy field, until we fix
-        // sentry conventions and standardize what SDKs send
-        .or_else(|| data.ai_model_id.value().and_then(|val| val.as_str()))
     {
         if let Some(total_cost) =
             calculate_ai_model_cost(ai_model_costs.cost_per_token(model_id), data)
