@@ -166,24 +166,7 @@ impl ProjectInfo {
                     }
                 }
                 None => Err(DiscardReason::MissingSignature),
-            }, // SignatureVerification::WithTimestamp => match envelope.meta().signature() {
-               //     Some(RelaySignature::Valid(signature)) => {
-               //         if !signature.verify_any_with_timestamp(
-               //             &self.config.trusted_relays,
-               //             envelope.received_at(),
-               //             Some(
-               //                 Duration::from_std(config.signature_max_age())
-               //                     .map_err(|_| DiscardReason::Internal)?,
-               //             ),
-               //         ) {
-               //             Err(DiscardReason::InvalidSignature)
-               //         } else {
-               //             Ok(())
-               //         }
-               //     }
-               //     Some(RelaySignature::Invalid(_)) => Err(DiscardReason::InvalidSignature),
-               //     None => Err(DiscardReason::MissingSignature),
-               // },
+            },
         }
     }
 

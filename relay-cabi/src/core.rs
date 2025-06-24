@@ -62,7 +62,7 @@ impl RelayStr {
 
     /// Returns a borrowed byte slice.
     pub(crate) unsafe fn as_bytes(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.data as *const u8, self.len) }
+        unsafe { slice::from_raw_parts(self.data as *const _, self.len) }
     }
 }
 
