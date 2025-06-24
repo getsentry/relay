@@ -40,6 +40,8 @@ fn main() {
             "clone",
             "git@github.com:getsentry/tempest.git",
             &temp_dir_str,
+            &format!("--revision='{}'", version),
+            "--depth=1",
         ])
         .status()
         .map(|x| x.success())
@@ -50,16 +52,12 @@ fn main() {
                 "clone",
                 "https://github.com/getsentry/tempest.git",
                 &temp_dir_str,
+                &format!("--revision='{}'", version),
+                "--depth=1",
             ])
             .status()
-            .expect("Failed to clone tempest repository");
+            .expect("Failed to clone tempest revision");
     }
-
-    Command::new("git")
-        .args(["checkout", &version])
-        .current_dir(temp_dir_path)
-        .status()
-        .expect("Failed to checkout branch");
 
     CopyBuilder::new(temp_dir_path.join("crates/prosperoconv/src"), "src")
         .overwrite(true)
