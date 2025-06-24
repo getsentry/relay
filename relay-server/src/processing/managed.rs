@@ -61,7 +61,8 @@ impl OutcomeError for Infallible {
 
 /// A wrapper type which ensures outcomes have been emitted for an error.
 ///
-/// Errors are marked by [`Managed`], when outcomes have been emitted.
+/// [`Managed`] wraps an error in [`Rejected`] once outcomes for have been emitted for the managed
+/// item.
 #[derive(Debug, Clone, Copy)]
 #[must_use = "a rejection must be propagated"]
 pub struct Rejected<T>(T);
@@ -208,11 +209,10 @@ impl<T: Counted> Managed<T> {
     {
         debug_assert!(!self.is_done());
 
-        let (outcome, error) = match error.consume() {
-            (Some(outcome), error) => (outcome, error),
-            (None, error) => return Rejected(error),
-        };
-        self.do_reject(outcome);
+        let (outcome, error) = error.consume();
+        if let Some(outcome) = outcome {
+            self.do_reject(outcome);
+        }
         Rejected(error)
     }
 
@@ -341,24 +341,29 @@ impl<'a> RecordKeeper<'a> {
         }
     }
 
-    /// Defuses the drop guard and emits outcomes for the original quantities provided.
+    /// Finalizes all records and emits the necessary outcomes.
+    ///
+    /// This uses the quantities of the original item.
     fn failure<E>(mut self, error: E) -> Rejected<E::Error>
     where
         E: OutcomeError,
     {
-        let (outcome, error) = match error.consume() {
-            (Some(outcome), error) => (outcome, error),
-            (None, error) => return Rejected(error),
-        };
+        let (outcome, error) = error.consume();
 
-        for (category, quantity) in std::mem::take(&mut self.on_drop) {
-            self.meta.track_outcome(outcome.clone(), category, quantity);
+        if let Some(outcome) = outcome {
+            for (category, quantity) in std::mem::take(&mut self.on_drop) {
+                self.meta.track_outcome(outcome.clone(), category, quantity);
+            }
         }
 
         Rejected(error)
     }
 
-    /// Defuses the drop guard and emits the collected outcomes.
+    /// Finalizes all records and emits the created outcomes.
+    ///
+    /// This only emits the outcomes that have been explicitly registered.
+    /// In a debug build, the function also ensure no outcomes have been missed by comparing
+    /// quantities of the item before and after.
     fn success(mut self, new: Quantities) {
         let original = std::mem::take(&mut self.on_drop);
         self.assert_quantities(original, new);

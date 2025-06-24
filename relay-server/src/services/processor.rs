@@ -2145,11 +2145,11 @@ impl EnvelopeProcessorService {
     ///
     async fn process_logs(
         &self,
-        managed_envelope: &mut ManagedEnvelope,
+        mut managed_envelope: ManagedEnvelope,
         ctx: processing::Context<'_>,
     ) -> Result<ProcessingResult, ProcessingError> {
         let processor = &self.inner.processing.logs;
-        let Some(logs) = processor.prepare_envelope(managed_envelope) else {
+        let Some(logs) = processor.prepare_envelope(&mut managed_envelope) else {
             debug_assert!(
                 false,
                 "there must be work for the logs processor in the logs processing group"
@@ -2159,7 +2159,7 @@ impl EnvelopeProcessorService {
 
         managed_envelope.update();
         match managed_envelope.envelope().is_empty() {
-            true => managed_envelope.reject(Outcome::RateLimited(None)),
+            true => managed_envelope.accept(),
             false => managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal)),
         }
 
@@ -2356,7 +2356,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log => self.process_logs(&mut managed_envelope, ctx).await,
+            ProcessingGroup::Log => self.process_logs(managed_envelope, ctx).await,
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),

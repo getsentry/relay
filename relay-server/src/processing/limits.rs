@@ -84,7 +84,9 @@ pub trait RateLimiter {
     async fn try_consume(&mut self, scope: ItemScoping, quantity: usize) -> RateLimits;
 }
 
-/// An item which can be rate limited by the [`QuotaRateLimiter`].
+/// An item which can be rate limited with a [`RateLimiter`].
+///
+/// A [`RateLimiter`] is usually created by the [`QuotaRateLimiter`].
 pub trait RateLimited {
     /// Error returned when rejecting the entire item.
     type Error;

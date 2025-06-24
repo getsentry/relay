@@ -231,9 +231,9 @@ impl RateLimited for Managed<SerializedLogs> {
             .try_consume(scoping.item(DataCategory::LogByte), self.bytes())
             .await;
 
-        let total_limits = items.merge_with(bytes);
-        if !total_limits.is_empty() {
-            return Err(self.reject_err(Error::RateLimited(total_limits)));
+        let limits = items.merge_with(bytes);
+        if !limits.is_empty() {
+            return Err(self.reject_err(Error::RateLimited(limits)));
         }
 
         Ok(())

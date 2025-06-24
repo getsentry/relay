@@ -26,7 +26,6 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
             all_logs.extend(expanded);
         }
 
-        all_logs.reserve_exact(logs.otel_logs.len());
         for otel_log in logs.otel_logs {
             match expand_otel_log(&otel_log, received_at) {
                 Ok(log) => all_logs.push(log),
@@ -45,27 +44,25 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
 }
 
 fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<Annotated<OurLog>> {
-    let log = serde_json::from_slice::<OtelLog>(&item.payload())
-        .inspect_err(|err| {
-            relay_log::debug!("failed to parse OTel Log: {err}");
-        })
-        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?;
+    let log = serde_json::from_slice::<OtelLog>(&item.payload()).map_err(|err| {
+        relay_log::debug!("failed to parse OTel Log: {err}");
+        Error::Invalid(DiscardReason::InvalidJson)
+    })?;
 
-    let log = relay_ourlogs::otel_to_sentry_log(log, received_at)
-        .inspect_err(|err| {
-            relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
-        })
-        .map_err(|_| Error::Invalid(DiscardReason::InvalidLog))?;
+    let log = relay_ourlogs::otel_to_sentry_log(log, received_at).map_err(|err| {
+        relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
+        Error::Invalid(DiscardReason::InvalidLog)
+    })?;
 
     Ok(Annotated::new(log))
 }
 
 fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<ContainerItems<OurLog>> {
     let mut logs = ItemContainer::parse(item)
-        .inspect_err(|err| {
+        .map_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
-        })
-        .map_err(|_| Error::Invalid(DiscardReason::InvalidJson))?
+            Error::Invalid(DiscardReason::InvalidJson)
+        })?
         .into_items();
 
     for log in &mut logs {
