@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
+
 **Internal**:
 
 - Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
+- Take into account more types of tokens when doing AI cost calculation. ([#4840](https://github.com/getsentry/relay/pull/4840))
 - Use the `FiniteF64` type for measurements. ([#4828](https://github.com/getsentry/relay/pull/4828))
 
 ## 25.6.1

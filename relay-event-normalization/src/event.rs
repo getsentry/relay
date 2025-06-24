@@ -1519,13 +1519,12 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
-    use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
     use relay_protocol::{SerializableAnnotated, get_value};
     use serde_json::json;
 
     use super::*;
-    use crate::{ClientHints, MeasurementsConfig, ModelCost};
+    use crate::{ClientHints, MeasurementsConfig, ModelCostV2};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {
@@ -2221,8 +2220,11 @@ mod tests {
                         "parent_span_id": "a1e13f3f06239d69",
                         "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                         "measurements": {
-                            "ai_total_tokens_used": {
-                                "value": 1230
+                            "ai_prompt_tokens_used": {
+                                "value": 1000
+                            },
+                            "ai_completion_tokens_used": {
+                                "value": 2000
                             }
                         },
                         "data": {
@@ -2261,25 +2263,28 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
-                    version: 1,
-                    costs: vec![
-                        ModelCost {
-                            model_id: LazyGlob::new("claude-2*"),
-                            for_completion: false,
-                            cost_per_1k_tokens: 1.0,
-                        },
-                        ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*"),
-                            for_completion: false,
-                            cost_per_1k_tokens: 2.0,
-                        },
-                        ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*"),
-                            for_completion: true,
-                            cost_per_1k_tokens: 20.0,
-                        },
-                    ],
-                    models: HashMap::new(),
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::from([
+                        (
+                            "claude-2.1".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.01,
+                                output_per_token: 0.02,
+                                output_reasoning_per_token: 0.03,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                        (
+                            "gpt4-21-04".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.02,
+                                output_per_token: 0.03,
+                                output_reasoning_per_token: 0.04,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                    ]),
                 }),
                 ..NormalizationConfig::default()
             },
@@ -2293,7 +2298,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(1.23))
+            Some(&Value::F64(50.0))
         );
         assert_eq!(
             spans
@@ -2301,7 +2306,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(20.0 * 2.0 + 2.0))
+            Some(&Value::F64(80.0))
         );
     }
 
@@ -2319,9 +2324,11 @@ mod tests {
                         "parent_span_id": "a1e13f3f06239d69",
                         "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                         "data": {
-                            "gen_ai.usage.total_tokens": 1230,
-                            "ai.pipeline.name": "Autofix Pipeline",
-                            "ai.model_id": "claude-2.1"
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "gen_ai.usage.output_tokens.reasoning": 3000,
+                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.request.model": "claude-2.1"
                         }
                     },
                     {
@@ -2335,8 +2342,7 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "ai.pipeline.name": "Autofix Pipeline",
-                            "ai.model_id": "gpt4-21-04"
+                            "gen_ai.request.model": "gpt4-21-04"
                         }
                     }
                 ]
@@ -2349,25 +2355,28 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
-                    version: 1,
-                    costs: vec![
-                        ModelCost {
-                            model_id: LazyGlob::new("claude-2*"),
-                            for_completion: false,
-                            cost_per_1k_tokens: 1.0,
-                        },
-                        ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*"),
-                            for_completion: false,
-                            cost_per_1k_tokens: 2.0,
-                        },
-                        ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*"),
-                            for_completion: true,
-                            cost_per_1k_tokens: 20.0,
-                        },
-                    ],
-                    models: HashMap::new(),
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::from([
+                        (
+                            "claude-2.1".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.01,
+                                output_per_token: 0.02,
+                                output_reasoning_per_token: 0.03,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                        (
+                            "gpt4-21-04".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.09,
+                                output_per_token: 0.05,
+                                output_reasoning_per_token: 0.06,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                    ]),
                 }),
                 ..NormalizationConfig::default()
             },
@@ -2381,7 +2390,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(1.23))
+            Some(&Value::F64(140.0))
         );
         assert_eq!(
             spans
@@ -2389,7 +2398,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(20.0 * 2.0 + 2.0))
+            Some(&Value::F64(190.0))
         );
         assert_eq!(
             spans
