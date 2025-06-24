@@ -1,10 +1,8 @@
-use std::collections::BTreeMap;
-
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_event_schema::protocol::{Attribute, AttributeType, SpanV2Kind};
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, SpanV2Kind};
 use relay_protocol::ErrorKind;
 
 use crate::otel_trace::{
@@ -13,7 +11,7 @@ use crate::otel_trace::{
 use relay_event_schema::protocol::{
     SpanId, SpanV2 as SentrySpanV2, SpanV2Link, SpanV2Status, Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, Error, Object, Value};
+use relay_protocol::{Annotated, Error, Value};
 
 /// Transform an OTEL span to a Sentry span V2.
 ///
@@ -54,7 +52,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         bytes => Some(SpanId::try_from(bytes)?),
     };
 
-    let mut sentry_attributes = Object::default();
+    let mut sentry_attributes = Attributes::new();
     let mut name = if name.is_empty() { None } else { Some(name) };
 
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
@@ -77,7 +75,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         }
 
         if let Some(v) = otel_value_to_attr(value) {
-            sentry_attributes.insert(key, Annotated::new(v));
+            sentry_attributes.insert_raw(key, Annotated::new(v));
         }
     }
 
@@ -155,7 +153,7 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
     // <https://www.w3.org/TR/trace-context-2/#sampled-flag>
     const W3C_TRACE_CONTEXT_SAMPLED: u32 = 1 << 0;
 
-    let attributes = BTreeMap::from_iter(otel_link.attributes.into_iter().filter_map(|kv| {
+    let attributes = Attributes::from_iter(otel_link.attributes.into_iter().filter_map(|kv| {
         let value = kv.value?.value?;
         let attr_value = otel_value_to_attr(value)?;
         Some((kv.key, Annotated::new(attr_value)))

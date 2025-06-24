@@ -4,8 +4,8 @@ use relay_event_schema::protocol::{SpanKind, SpanV2Link};
 
 use crate::status_codes;
 use relay_event_schema::protocol::{
-    Attribute, EventId, Span as SpanV1, SpanData, SpanId, SpanLink, SpanStatus, SpanV2, SpanV2Kind,
-    SpanV2Status,
+    Attributes, EventId, Span as SpanV1, SpanData, SpanId, SpanLink, SpanStatus, SpanV2,
+    SpanV2Kind, SpanV2Status,
 };
 use relay_protocol::{Annotated, FromValue, Object, Value};
 use url::Url;
@@ -266,9 +266,7 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
     }
 
     if let Some(faas_trigger) = attributes
-        .get("faas.trigger")
-        .and_then(|faas_trigger| faas_trigger.value())
-        .and_then(|trigger_value| trigger_value.value.value.value())
+        .get_value("faas.trigger")
         .and_then(|v| v.as_str())
     {
         return faas_trigger.to_owned();
@@ -301,16 +299,11 @@ fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
     description
 }
 
-fn derive_http_description(
-    attributes: &Object<Attribute>,
-    kind: &Option<&SpanV2Kind>,
-) -> Option<String> {
+fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanV2Kind>) -> Option<String> {
     // Get HTTP method
     let http_method = attributes
-        .get("http.request.method")
-        .or_else(|| attributes.get("http.method"))
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
+        .get_value("http.request.method")
+        .or_else(|| attributes.get_value("http.method"))
         .and_then(|v| v.as_str())?;
 
     let description = http_method.to_owned();
@@ -329,9 +322,7 @@ fn derive_http_description(
 
     // Check for GraphQL operations
     if let Some(graphql_ops) = attributes
-        .get("sentry.graphql.operation")
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
+        .get_value("sentry.graphql.operation")
         .and_then(|v| v.as_str())
     {
         return Some(format!("{} ({})", base_description, graphql_ops));
@@ -340,14 +331,12 @@ fn derive_http_description(
     Some(base_description)
 }
 
-fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
+fn derive_db_description(attributes: &Attributes) -> Option<String> {
     // Check if this is a cache operation. Cache operations look very similar to database
     // operations, since they have a `db.system` attribute, but should be treated differently, since
     // we don't want their statements to end up in description for now.
     if attributes
-        .get("sentry.op")
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
+        .get_value("sentry.op")
         .and_then(|v| v.as_str())
         .is_some_and(|op| op.starts_with("cache."))
     {
@@ -357,18 +346,14 @@ fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
     // Check the `db.system` attribute. It's mandatory, so if it's missing, return `None` right
     // away, since there's not much point trying to derive a description.
     attributes
-        .get("db.system")
-        .or_else(|| attributes.get("db.system.name"))
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
+        .get_value("db.system")
+        .or_else(|| attributes.get_value("db.system.name"))
         .and_then(|v| v.as_str())?;
 
     // `db.query.text` is a recommended attribute, and it contains the full query text if available.
     // This is the ideal description.
     if let Some(query_text) = attributes
-        .get("db.query.text")
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
+        .get_value("db.query.text")
         .and_then(|v| v.as_str())
     {
         return Some(query_text.to_owned());
@@ -376,9 +361,7 @@ fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
 
     // Other SDKs check for `db.statement`, it's a legacy OTel attribute, useful as a fallback in some cases.
     if let Some(statement) = attributes
-        .get("db.statement")
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
+        .get_value("db.statement")
         .and_then(|v| v.as_str())
     {
         return Some(statement.to_owned());
@@ -387,35 +370,20 @@ fn derive_db_description(attributes: &Object<Attribute>) -> Option<String> {
     None
 }
 
-fn get_server_url_path(attributes: &Object<Attribute>) -> Option<String> {
+fn get_server_url_path(attributes: &Attributes) -> Option<String> {
     // `http.route` takes precedence. If available, this is the matched route of the server
     // framework for server spans. Not always available, even for server spans.
-    if let Some(route) = attributes
-        .get("http.route")
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
-        .and_then(|v| v.as_str())
-    {
+    if let Some(route) = attributes.get_value("http.route").and_then(|v| v.as_str()) {
         return Some(route.to_owned());
     }
 
     // `url.path` is the path of the HTTP request for server spans. This is required for server spans.
-    if let Some(path) = attributes
-        .get("url.path")
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
-        .and_then(|v| v.as_str())
-    {
+    if let Some(path) = attributes.get_value("url.path").and_then(|v| v.as_str()) {
         return Some(path.to_owned());
     }
 
     // `http.target` is deprecated, but might be present in older data. Here as a fallback
-    if let Some(target) = attributes
-        .get("http.target")
-        .and_then(|attr| attr.value())
-        .and_then(|attr_val| attr_val.value.value.value())
-        .and_then(|v| v.as_str())
-    {
+    if let Some(target) = attributes.get_value("http.target").and_then(|v| v.as_str()) {
         return Some(strip_url_query_and_fragment(target));
     }
 
@@ -426,14 +394,10 @@ fn strip_url_query_and_fragment(url: &str) -> String {
     url.split(&['?', '#']).next().unwrap_or(url).to_owned()
 }
 
-fn get_client_url_path(attributes: &Object<Attribute>) -> Option<String> {
+fn get_client_url_path(attributes: &Attributes) -> Option<String> {
     let url = attributes
-        .get("url.full")
-        .or_else(|| attributes.get("http.url"))?
-        .value()?
-        .value
-        .value
-        .value()?
+        .get_value("url.full")
+        .or_else(|| attributes.get_value("http.url"))?
         .as_str()?;
 
     let parsed_url = Url::parse(url).ok()?;
