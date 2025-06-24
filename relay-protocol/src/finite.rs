@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// This is a restricted version of [`f64`] that does not allow NaN or infinity.
 #[derive(Clone, Copy, Default, PartialEq, Deserialize, Serialize)]
-#[serde(try_from = "f64")]
+#[serde(try_from = "f64", into = "f64")]
 #[repr(transparent)]
 pub struct FiniteF64(f64);
 
@@ -22,6 +22,8 @@ impl FiniteF64 {
     pub const MIN: Self = Self(f64::MIN);
     /// Smallest positive normal value.
     pub const EPSILON: Self = Self(f64::EPSILON);
+    /// Zero.
+    pub const ZERO: Self = Self(0.0);
 
     /// Creates a finite float without checking whether the value is finte. This results in
     /// undefined behavior if the value is non-finite.
@@ -105,6 +107,18 @@ impl Ord for FiniteF64 {
     }
 }
 
+impl PartialEq<f64> for FiniteF64 {
+    fn eq(&self, other: &f64) -> bool {
+        &self.0 == other
+    }
+}
+
+impl PartialOrd<f64> for FiniteF64 {
+    fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+
 impl Hash for FiniteF64 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Safety: NaN and infinity cannot be constructed from a finite f64.
@@ -161,6 +175,12 @@ impl ops::Rem for FiniteF64 {
 
     fn rem(self, other: Self) -> Option<Self> {
         Self::new(self.0 % other.0)
+    }
+}
+
+impl ops::AddAssign for FiniteF64 {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.saturating_add(rhs)
     }
 }
 
@@ -224,6 +244,12 @@ impl From<u32> for FiniteF64 {
 impl From<FiniteF64> for f64 {
     fn from(value: FiniteF64) -> Self {
         value.to_f64()
+    }
+}
+
+impl From<TryFromFloatError> for crate::Error {
+    fn from(value: TryFromFloatError) -> Self {
+        Self::invalid(value)
     }
 }
 

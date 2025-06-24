@@ -3847,6 +3847,7 @@ mod tests {
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
         use relay_base_schema::organization::OrganizationId;
+        use relay_protocol::FiniteF64;
 
         let rate_limited_org = Scoping {
             organization_id: OrganizationId::new(1),
@@ -3887,7 +3888,7 @@ mod tests {
             let project_metrics = |scoping| ProjectBuckets {
                 buckets: vec![Bucket {
                     name: "d:transactions/bar".into(),
-                    value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
+                    value: BucketValue::Counter(FiniteF64::new(1.0).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,

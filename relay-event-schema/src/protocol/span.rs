@@ -494,6 +494,10 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.response.model")]
     pub gen_ai_response_model: Annotated<Value>,
 
+    /// The name of the GenAI model a request is being made to (e.g. gpt-4)
+    #[metastructure(field = "gen_ai.request.model")]
+    pub gen_ai_request_model: Annotated<Value>,
+
     /// The total cost for the tokens used
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
@@ -1104,7 +1108,7 @@ mod tests {
         measurements.insert(
             "memory".into(),
             Annotated::new(Measurement {
-                value: Annotated::new(9001.0),
+                value: Annotated::new(9001.0.try_into().unwrap()),
                 unit: Annotated::new(MetricUnit::Information(InformationUnit::Byte)),
             }),
         );
@@ -1286,6 +1290,7 @@ mod tests {
             gen_ai_usage_output_tokens: ~,
             gen_ai_usage_output_tokens_reasoning: ~,
             gen_ai_response_model: ~,
+            gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
             browser_name: ~,
             code_filepath: String(

@@ -162,6 +162,7 @@ mod tests {
                 gen_ai_usage_output_tokens: ~,
                 gen_ai_usage_output_tokens_reasoning: ~,
                 gen_ai_response_model: ~,
+                gen_ai_request_model: ~,
                 gen_ai_usage_total_cost: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
