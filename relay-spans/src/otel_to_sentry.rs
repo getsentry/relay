@@ -11,8 +11,9 @@ use relay_protocol::Error;
 ///   if the OTEL span's `name` is empty.
 /// * The Sentry span's `op` field will be inferred based on the OTEL span's `sentry.op` attribute,
 ///   or other available attributes if `sentry.op` is not provided.
-/// * The Sentry span's `description` field may be set based on `db` or `http` attributes
-///   if the OTEL span's `sentry.description` attribute is empty.
+/// * The Sentry span's `description` field will be inferred based on the OTEL span's
+///   `sentry.description` attribute, or other available attributes if `sentry.description` is not
+///   provided.
 /// * The Sentry span's `status` field is set based on the OTEL span's `status` field and
 ///   `http.status_code` and `rpc.grpc.status_code` attributes.
 /// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
@@ -39,7 +40,7 @@ mod tests {
             "spanId": "e342abb1214ca181",
             "parentSpanId": "0c7a7dea069bf5a6",
             "name": "middleware - fastify -> @fastify/multipart",
-            "kind": 1,
+            "kind": 2,
             "startTimeUnixNano": "1697620454980000000",
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
@@ -115,7 +116,7 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 1000.0,
-          "op": "http",
+          "op": "http.server",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -133,7 +134,7 @@ mod tests {
             "sentry.sample_rate": 1
           },
           "links": [],
-          "kind": "internal"
+          "kind": "server"
         }
         "###);
     }
@@ -170,6 +171,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "middleware - fastify -> @fastify/multipart",
           "data": {
             "sentry.name": "middleware - fastify -> @fastify/multipart"
           },
@@ -203,6 +205,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "middleware - fastify -> @fastify/multipart",
           "data": {
             "sentry.name": "middleware - fastify -> @fastify/multipart"
           },
@@ -223,6 +226,12 @@ mod tests {
             "startTimeUnixNano": "1697620454980000000",
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
+                {
+                    "key" : "db.system",
+                    "value": {
+                        "stringValue": "mysql"
+                    }
+                },
                 {
                     "key" : "db.name",
                     "value": {
@@ -251,13 +260,14 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 0.0788,
-          "op": "default",
+          "op": "db",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
           "data": {
+            "db.system": "mysql",
             "db.name": "database",
             "db.statement": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
             "db.type": "sql",
@@ -339,7 +349,7 @@ mod tests {
             "spanId": "e342abb1214ca181",
             "parentSpanId": "0c7a7dea069bf5a6",
             "name": "http client request",
-            "kind": 3,
+            "kind": 2,
             "startTimeUnixNano": "1697620454980000000",
             "endTimeUnixNano": "1697620454980078800",
             "attributes": [
@@ -365,7 +375,7 @@ mod tests {
           "timestamp": 1697620454.980079,
           "start_timestamp": 1697620454.98,
           "exclusive_time": 0.0788,
-          "op": "http.client",
+          "op": "http.server",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -377,7 +387,7 @@ mod tests {
             "url.path": "/api/search?q=foobar"
           },
           "links": [],
-          "kind": "client"
+          "kind": "server"
         }
         "###);
     }
