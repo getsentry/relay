@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use relay_base_schema::metrics::{DurationUnit, MetricUnit};
 use relay_event_schema::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
-use relay_protocol::{Annotated, Error, FiniteF64, Meta};
+use relay_protocol::Annotated;
 use serde::{Deserialize, Serialize};
 
 /// A time window declared by its start and end timestamp.
