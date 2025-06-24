@@ -28,6 +28,11 @@ impl EventId {
         Self(Uuid::new_v4())
     }
 
+    /// Creates a new completely zeroed event id.
+    pub fn nil() -> Self {
+        Self(Uuid::nil())
+    }
+
     /// Tests if the UUID is nil.
     #[inline]
     pub fn is_nil(&self) -> bool {

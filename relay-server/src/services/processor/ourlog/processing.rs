@@ -10,7 +10,7 @@ use relay_event_normalization::{
     ClientHints, FromUserAgentInfo, RawUserAgentInfo, SchemaProcessor,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
-use relay_event_schema::protocol::{Attribute, AttributeType, BrowserContext, OurLog};
+use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog};
 use relay_ourlogs::OtelLog;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, ErrorKind, Value};
@@ -41,11 +41,12 @@ pub fn process(
     }
 
     let normalize_config = NormalizeOurLogConfig::new(managed_envelope);
+    let received_at = managed_envelope.received_at();
 
     managed_envelope.retain_items(|item| {
         let mut logs = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
-                Ok(otel_log) => match relay_ourlogs::otel_to_sentry_log(otel_log) {
+                Ok(otel_log) => match relay_ourlogs::otel_to_sentry_log(otel_log, received_at) {
                     Ok(log) => ContainerItems::from_elem(Annotated::new(log), 1),
                     Err(err) => {
                         relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
@@ -62,7 +63,7 @@ pub fn process(
                 Ok(logs) => {
                     let mut logs = logs.into_items();
                     for log in logs.iter_mut() {
-                        relay_ourlogs::ourlog_merge_otel(log);
+                        relay_ourlogs::ourlog_merge_otel(log, received_at);
                     }
                     logs
                 }
@@ -153,25 +154,13 @@ fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: 
     }) {
         if !attributes.contains_key("sentry.browser.name") {
             if let Some(name) = context.name.value() {
-                attributes.insert(
-                    "sentry.browser.name".to_owned(),
-                    Annotated::new(Attribute::new(
-                        AttributeType::String,
-                        Value::String(name.to_owned()),
-                    )),
-                );
+                attributes.insert("sentry.browser.name".to_owned(), name.to_owned());
             }
         }
 
         if !attributes.contains_key("sentry.browser.version") {
             if let Some(version) = context.version.value() {
-                attributes.insert(
-                    "sentry.browser.version".to_owned(),
-                    Annotated::new(Attribute::new(
-                        AttributeType::String,
-                        Value::String(version.to_owned()),
-                    )),
-                );
+                attributes.insert("sentry.browser.version".to_owned(), version.to_owned());
             }
         }
     }
@@ -245,6 +234,8 @@ fn process_attribute_types(ourlog: &mut OurLog) {
 
 #[cfg(test)]
 mod tests {
+    use relay_protocol::SerializableAnnotated;
+
     use super::*;
 
     #[test]
@@ -316,174 +307,103 @@ mod tests {
             process_attribute_types(log);
         }
 
-        insta::assert_debug_snapshot!(data.value().unwrap().attributes, @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes), @r###"
         {
-            "double_with_i64": Attribute {
-                value: I64(
-                    -42,
-                ),
-                type: Double,
-                other: {},
-            },
-            "invalid_int_from_invalid_string": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: InvalidData,
-                        data: {},
-                    },
+          "double_with_i64": {
+            "type": "double",
+            "value": -42
+          },
+          "invalid_int_from_invalid_string": null,
+          "missing_type": null,
+          "missing_value": null,
+          "unknown_type": null,
+          "valid_bool": {
+            "type": "boolean",
+            "value": true
+          },
+          "valid_double": {
+            "type": "double",
+            "value": 42.5
+          },
+          "valid_double_with_u64": {
+            "type": "double",
+            "value": 42
+          },
+          "valid_int_from_string": null,
+          "valid_int_i64": {
+            "type": "integer",
+            "value": -42
+          },
+          "valid_int_u64": {
+            "type": "integer",
+            "value": 42
+          },
+          "valid_string": {
+            "type": "string",
+            "value": "test"
+          },
+          "valid_string_with_other": {
+            "type": "string",
+            "value": "test",
+            "some_other_field": "some_other_value"
+          },
+          "_meta": {
+            "invalid_int_from_invalid_string": {
+              "": {
+                "err": [
+                  "invalid_data"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "integer",
-                            ),
-                            "value": String(
-                                "abc",
-                            ),
-                        },
-                    ),
-                ),
+                "val": {
+                  "type": "integer",
+                  "value": "abc"
+                }
+              }
             },
-            "missing_type": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: MissingAttribute,
-                        data: {},
-                    },
+            "missing_type": {
+              "": {
+                "err": [
+                  "missing_attribute"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": ~,
-                            "value": String(
-                                "value with missing type",
-                            ),
-                        },
-                    ),
-                ),
+                "val": {
+                  "type": null,
+                  "value": "value with missing type"
+                }
+              }
             },
-            "missing_value": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: MissingAttribute,
-                        data: {},
-                    },
+            "missing_value": {
+              "": {
+                "err": [
+                  "missing_attribute"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "string",
-                            ),
-                            "value": ~,
-                        },
-                    ),
-                ),
+                "val": {
+                  "type": "string",
+                  "value": null
+                }
+              }
             },
-            "unknown_type": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: InvalidData,
-                        data: {},
-                    },
+            "unknown_type": {
+              "": {
+                "err": [
+                  "invalid_data"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "custom",
-                            ),
-                            "value": String(
-                                "test",
-                            ),
-                        },
-                    ),
-                ),
+                "val": {
+                  "type": "custom",
+                  "value": "test"
+                }
+              }
             },
-            "valid_bool": Attribute {
-                value: Bool(
-                    true,
-                ),
-                type: Boolean,
-                other: {},
-            },
-            "valid_double": Attribute {
-                value: F64(
-                    42.5,
-                ),
-                type: Double,
-                other: {},
-            },
-            "valid_double_with_u64": Attribute {
-                value: I64(
-                    42,
-                ),
-                type: Double,
-                other: {},
-            },
-            "valid_int_from_string": Meta {
-                remarks: [],
-                errors: [
-                    Error {
-                        kind: InvalidData,
-                        data: {},
-                    },
+            "valid_int_from_string": {
+              "": {
+                "err": [
+                  "invalid_data"
                 ],
-                original_length: None,
-                original_value: Some(
-                    Object(
-                        {
-                            "type": String(
-                                "integer",
-                            ),
-                            "value": String(
-                                "42",
-                            ),
-                        },
-                    ),
-                ),
-            },
-            "valid_int_i64": Attribute {
-                value: I64(
-                    -42,
-                ),
-                type: Integer,
-                other: {},
-            },
-            "valid_int_u64": Attribute {
-                value: I64(
-                    42,
-                ),
-                type: Integer,
-                other: {},
-            },
-            "valid_string": Attribute {
-                value: String(
-                    "test",
-                ),
-                type: String,
-                other: {},
-            },
-            "valid_string_with_other": Attribute {
-                value: String(
-                    "test",
-                ),
-                type: String,
-                other: {
-                    "some_other_field": String(
-                        "some_other_value",
-                    ),
-                },
-            },
+                "val": {
+                  "type": "integer",
+                  "value": "42"
+                }
+              }
+            }
+          }
         }
         "###);
     }
@@ -501,24 +421,12 @@ mod tests {
 
         let attributes = log.attributes.value().unwrap();
         assert_eq!(
-            attributes
-                .get("sentry.browser.name")
-                .unwrap()
-                .value()
-                .unwrap()
-                .value
-                .value,
-            Value::String("Chrome".to_owned()).into(),
+            attributes.get_value("sentry.browser.name").unwrap(),
+            &Value::String("Chrome".to_owned()),
         );
         assert_eq!(
-            attributes
-                .get("sentry.browser.version")
-                .unwrap()
-                .value()
-                .unwrap()
-                .value
-                .value,
-            Value::String("131.0.0".to_owned()).into(),
+            attributes.get_value("sentry.browser.version").unwrap(),
+            &Value::String("131.0.0".to_owned()),
         );
     }
 }
