@@ -7,7 +7,7 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
 use data_encoding::BASE64;
-use relay_auth::{RelayId, RelaySignature, RelaySignatureData, SignatureError};
+use relay_auth::{RelayId, Signature};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
@@ -236,7 +236,7 @@ pub struct RequestMeta<D = PartialDsn> {
     ///
     /// NOTE: This is internal only.
     #[serde(skip)]
-    signature: Option<RelaySignature>,
+    signature: Option<Signature>,
 
     /// Whether the request is coming from an statically configured internal Relay.
     ///
@@ -337,7 +337,7 @@ impl<D> RequestMeta<D> {
     }
 
     /// Returns the trusted relay signature.
-    pub fn signature(&self) -> Option<&RelaySignature> {
+    pub fn signature(&self) -> Option<&Signature> {
         self.signature.as_ref()
     }
 }
@@ -503,17 +503,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
-        let signature =
-            parts
-                .headers
-                .get("x-sentry-relay-signature")
-                .map(|sig| match sig.to_str() {
-                    Ok(sig) => RelaySignature::Valid(RelaySignatureData::new(
-                        sig.to_owned(),
-                        bytes::Bytes::new(),
-                    )),
-                    Err(_) => RelaySignature::Invalid(SignatureError::MalformedSignature),
-                });
+        let signature = Signature::from_request_parts(parts, state).await.ok();
 
         Ok(RequestMeta {
             dsn: None,
@@ -779,10 +769,7 @@ mod tests {
             .unwrap();
         let without_signature = RequestMeta::new(dsn.clone());
         let mut with_signature = RequestMeta::new(dsn);
-        with_signature.signature = Some(RelaySignature::Valid(RelaySignatureData::new(
-            "test-signature".to_owned(),
-            bytes::Bytes::from("signature-data"),
-        )));
+        with_signature.signature = Some(Signature("test-signature".as_bytes().to_vec()));
 
         let serialized_without_signature = serde_json::to_string(&without_signature).unwrap();
         let serialized_with_signature = serde_json::to_string(&with_signature).unwrap();

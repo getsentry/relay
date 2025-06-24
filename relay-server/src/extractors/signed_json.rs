@@ -1,12 +1,13 @@
 use crate::service::ServiceState;
 use crate::services::relays::GetRelay;
 use crate::utils::ApiErrorResponse;
+use axum::RequestExt;
 use axum::extract::rejection::BytesRejection;
-use axum::extract::{FromRequest, Request};
+use axum::extract::{FromRequest, FromRequestParts, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
-use relay_auth::{RelayId, UnpackError};
+use relay_auth::{RelayId, Signature, UnpackError};
 use relay_config::RelayInfo;
 use serde::de::DeserializeOwned;
 
@@ -73,14 +74,15 @@ pub struct SignedBytes {
 impl FromRequest<ServiceState> for SignedBytes {
     type Rejection = SignatureError;
 
-    async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
+    async fn from_request(
+        mut request: Request,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
         let relay_id = get_header(&request, "x-sentry-relay-id")?
             .parse::<RelayId>()
             .map_err(|_| SignatureError::MalformedHeader("x-sentry-relay-id"))?;
 
         relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id));
-
-        let signature = get_header(&request, "x-sentry-relay-signature")?.to_owned();
 
         let relay = state
             .relay_cache()
@@ -88,12 +90,16 @@ impl FromRequest<ServiceState> for SignedBytes {
             .await?
             .ok_or(SignatureError::UnknownRelay)?;
 
+        let mut parts = request.extract_parts().await.unwrap();
+
         let body = Bytes::from_request(request, state).await?;
 
-        if !relay.public_key.verify(&body, &signature) {
-            Err(SignatureError::BadSignature(UnpackError::BadSignature))
-        } else {
+        let signature = Signature::from_request_parts(&mut parts, state).await?;
+
+        if signature.verify_bytes(body.as_ref(), &relay.public_key) {
             Ok(SignedBytes { body, relay })
+        } else {
+            Err(SignatureError::BadSignature(UnpackError::BadSignature))
         }
     }
 }

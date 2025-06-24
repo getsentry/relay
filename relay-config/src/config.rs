@@ -1448,10 +1448,10 @@ pub struct AuthConfig {
     ///
     /// Defaults to 5 minutes.
     #[serde(default = "default_max_age")]
-    pub signature_max_age: u32,
+    pub signature_max_age: u64,
 }
 
-fn default_max_age() -> u32 {
+fn default_max_age() -> u64 {
     300
 }
 
@@ -2574,8 +2574,8 @@ impl Config {
     }
 
     /// Returns the max age a signature is considered valid, in seconds.
-    pub fn signature_max_age(&self) -> u32 {
-        self.values.auth.signature_max_age
+    pub fn signature_max_age(&self) -> Duration {
+        Duration::from_secs(self.values.auth.signature_max_age)
     }
 
     /// Returns `true` if unknown items should be accepted and forwarded.

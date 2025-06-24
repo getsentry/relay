@@ -1,6 +1,6 @@
 use chrono::Duration;
 use relay_auth::{
-    PublicKey, RegisterRequest, RegisterResponse, RelayId, RelayVersion, SecretKey,
+    PublicKey, RegisterRequest, RegisterResponse, RelayId, RelayVersion, SecretKey, Signature,
     generate_key_pair, generate_relay_id,
 };
 use serde::Serialize;
@@ -60,7 +60,8 @@ pub unsafe extern "C" fn relay_publickey_verify(
     sig: *const RelayStr,
 ) -> bool {
     let pk = spk as *const PublicKey;
-    unsafe { (*pk).verify((*data).as_bytes(), (*sig).as_str()) }
+    let signature = unsafe { Signature((*sig).as_bytes().to_vec()) };
+    unsafe { (*pk).verify((*data).as_bytes(), &signature) }
 }
 
 /// Verifies a signature
@@ -74,7 +75,8 @@ pub unsafe extern "C" fn relay_publickey_verify_timestamp(
 ) -> bool {
     let pk = spk as *const PublicKey;
     let max_age = Some(Duration::seconds(i64::from(max_age)));
-    unsafe { (*pk).verify_timestamp((*data).as_bytes(), (*sig).as_str(), max_age) }
+    let signature = unsafe { Signature((*sig).as_bytes().to_vec()) };
+    unsafe { (*pk).verify_timestamp((*data).as_bytes(), &signature, max_age) }
 }
 
 /// Parses a secret key from a string.
@@ -111,7 +113,10 @@ pub unsafe extern "C" fn relay_secretkey_sign(
     data: *const RelayBuf,
 ) -> RelayStr {
     let pk = spk as *const SecretKey;
-    unsafe { RelayStr::from_string((*pk).sign((*data).as_bytes())) }
+    unsafe {
+        let signature = (*pk).sign((*data).as_bytes()).to_string();
+        RelayStr::from_string(signature)
+    }
 }
 
 /// Generates a secret, public key pair.
@@ -146,10 +151,10 @@ pub unsafe extern "C" fn relay_create_register_challenge(
         0 => None,
         m => Some(Duration::seconds(i64::from(m))),
     };
+    let signature = unsafe { Signature((*signature).as_bytes().to_vec()) };
 
     let challenge = unsafe {
-        let req =
-            RegisterRequest::bootstrap_unpack((*data).as_bytes(), (*signature).as_str(), max_age)?;
+        let req = RegisterRequest::bootstrap_unpack((*data).as_bytes(), &signature, max_age)?;
 
         req.into_challenge((*secret).as_str().as_bytes())
     };
@@ -179,9 +184,11 @@ pub unsafe extern "C" fn relay_validate_register_response(
         m => Some(Duration::seconds(i64::from(m))),
     };
 
+    let signature = unsafe { Signature((*signature).as_bytes().to_vec()) };
+
     let (response, state) = RegisterResponse::unpack(
         unsafe { (*data).as_bytes() },
-        unsafe { (*signature).as_str() },
+        &signature,
         unsafe { (*secret).as_str().as_bytes() },
         max_age,
     )?;

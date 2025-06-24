@@ -34,6 +34,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
 use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -207,7 +208,7 @@ impl SecretKey {
     /// Signs some data with the secret key and returns the signature.
     ///
     /// This is will sign with the default header.
-    pub fn sign(&self, data: &[u8]) -> String {
+    pub fn sign(&self, data: &[u8]) -> Signature {
         self.sign_with_header(data, &SignatureHeader::default())
     }
 
@@ -216,7 +217,7 @@ impl SecretKey {
     ///
     /// The default behavior is to attach the timestamp in the header to the
     /// signature so that old signatures on verification can be rejected.
-    pub fn sign_with_header(&self, data: &[u8], header: &SignatureHeader) -> String {
+    pub fn sign_with_header(&self, data: &[u8], header: &SignatureHeader) -> Signature {
         let mut header =
             serde_json::to_vec(&header).expect("attempted to pack non json safe header");
         let header_encoded = BASE64URL_NOPAD.encode(&header);
@@ -226,11 +227,11 @@ impl SecretKey {
         let mut sig_encoded = BASE64URL_NOPAD.encode(&sig.to_bytes());
         sig_encoded.push('.');
         sig_encoded.push_str(&header_encoded);
-        sig_encoded
+        Signature(sig_encoded.into_bytes())
     }
 
     /// Packs some serializable data into JSON and signs it with the default header.
-    pub fn pack<S: Serialize>(&self, data: S) -> (Vec<u8>, String) {
+    pub fn pack<S: Serialize>(&self, data: S) -> (Vec<u8>, Signature) {
         self.pack_with_header(data, &SignatureHeader::default())
     }
 
@@ -239,7 +240,7 @@ impl SecretKey {
         &self,
         data: S,
         header: &SignatureHeader,
-    ) -> (Vec<u8>, String) {
+    ) -> (Vec<u8>, Signature) {
         // this can only fail if we deal with badly formed data.  In that case we
         // consider that a panic.  Should not happen.
         let json = serde_json::to_vec(&data).expect("attempted to pack non json safe data");
@@ -313,16 +314,16 @@ pub struct PublicKey {
 impl PublicKey {
     /// Verifies the signature and returns the embedded signature
     /// header.
-    pub fn verify_meta(&self, data: &[u8], sig: &str) -> Option<SignatureHeader> {
-        let mut iter = sig.splitn(2, '.');
+    pub fn verify_meta(&self, data: &[u8], sig: &Signature) -> Option<SignatureHeader> {
+        let mut iter = sig.0.splitn(2, |b| *b == b'.');
         let sig_bytes = match iter.next() {
-            Some(sig_encoded) => BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()?,
+            Some(sig_encoded) => BASE64URL_NOPAD.decode(sig_encoded).ok()?,
             None => return None,
         };
         let sig = ed25519_dalek::Signature::from_slice(&sig_bytes).ok()?;
 
         let header = match iter.next() {
-            Some(header_encoded) => BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()?,
+            Some(header_encoded) => BASE64URL_NOPAD.decode(header_encoded).ok()?,
             None => return None,
         };
         let mut to_verify = header.clone();
@@ -336,12 +337,17 @@ impl PublicKey {
     }
 
     /// Verifies a signature but discards the header.
-    pub fn verify(&self, data: &[u8], sig: &str) -> bool {
+    pub fn verify(&self, data: &[u8], sig: &Signature) -> bool {
         self.verify_meta(data, sig).is_some()
     }
 
     /// Verifies a signature and checks the timestamp.
-    pub fn verify_timestamp(&self, data: &[u8], sig: &str, max_age: Option<Duration>) -> bool {
+    pub fn verify_timestamp(
+        &self,
+        data: &[u8],
+        sig: &Signature,
+        max_age: Option<Duration>,
+    ) -> bool {
         self.verify_meta(data, sig)
             .map(|header| max_age.is_none() || !header.expired(max_age.unwrap()))
             .unwrap_or(false)
@@ -351,7 +357,7 @@ impl PublicKey {
     pub fn unpack_meta<D: DeserializeOwned>(
         &self,
         data: &[u8],
-        signature: &str,
+        signature: &Signature,
     ) -> Result<(SignatureHeader, D), UnpackError> {
         if let Some(header) = self.verify_meta(data, signature) {
             serde_json::from_slice(data)
@@ -369,7 +375,7 @@ impl PublicKey {
     pub fn unpack<D: DeserializeOwned>(
         &self,
         data: &[u8],
-        signature: &str,
+        signature: &Signature,
         max_age: Option<Duration>,
     ) -> Result<D, UnpackError> {
         let (header, data) = self.unpack_meta(data, signature)?;
@@ -586,7 +592,7 @@ impl RegisterRequest {
     /// the data is returned.
     pub fn bootstrap_unpack(
         data: &[u8],
-        signature: &str,
+        signature: &Signature,
         max_age: Option<Duration>,
     ) -> Result<RegisterRequest, UnpackError> {
         let req: RegisterRequest = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
@@ -664,7 +670,7 @@ impl RegisterResponse {
     /// Unpacks the register response and validates signatures.
     pub fn unpack(
         data: &[u8],
-        signature: &str,
+        signature: &Signature,
         secret: &[u8],
         max_age: Option<Duration>,
     ) -> Result<(Self, RegisterState), UnpackError> {
@@ -698,21 +704,51 @@ impl RegisterResponse {
     }
 }
 
-/// Signature within relay which can be valid or invalid.
-///
-/// Invalid does not refer to a failed verification but rather to a signature
-/// that is not well formatted.
+/// Wrapper around bytes that represent the signature.
 #[derive(Debug, Clone, PartialEq)]
-pub enum RelaySignature {
-    /// The signature has a valid format. It does not mean that it is verified.
-    Valid(RelaySignatureData),
-    /// The signature could not be converted into the proper signature format.
-    Invalid(SignatureError),
+pub struct Signature(pub Vec<u8>);
+
+impl Signature {
+    /// Verifies the signature against all public keys.
+    pub fn verify_signature_any(
+        &self,
+        public_key: &[PublicKey],
+        start_time: DateTime<Utc>,
+        max_age: Duration,
+    ) -> bool {
+        public_key
+            .iter()
+            .any(|p| self.verify_signature(p, start_time, max_age))
+    }
+
+    /// Checks if the signature can be verified with the public key and if the embedded timestamp
+    /// is still valid.
+    pub fn verify_signature(
+        &self,
+        public_key: &PublicKey,
+        start_time: DateTime<Utc>,
+        max_age: Duration,
+    ) -> bool {
+        let Some(header) = public_key.verify_meta(&[], self) else {
+            return false;
+        };
+        let Some(timestamp) = header.timestamp else {
+            return false;
+        };
+        let elapsed = start_time - timestamp;
+        elapsed >= Duration::zero() && elapsed <= max_age
+    }
+
+    /// Checks if the signature is valid for the given bytes and public key.
+    pub fn verify_bytes(&self, data: &[u8], public_key: &PublicKey) -> bool {
+        public_key.verify_meta(data, self).is_some()
+    }
 }
 
-impl From<SignatureError> for RelaySignature {
-    fn from(value: SignatureError) -> Self {
-        Self::Invalid(value)
+impl Display for Signature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let s = String::from_utf8_lossy(&self.0);
+        write!(f, "{s}")
     }
 }
 
@@ -728,76 +764,11 @@ pub enum SignatureType {
 
 impl SignatureType {
     /// Creates a signature data based on the variant.
-    pub fn create_signature(self, secret_key: &SecretKey) -> String {
+    pub fn create_signature(self, secret_key: &SecretKey) -> Signature {
         match self {
             SignatureType::Body(data) => secret_key.sign(data.as_ref()),
             SignatureType::RequestSign => secret_key.sign(&[]),
         }
-    }
-}
-
-/// Contains information necessary to verify the correctness of the signature.
-#[derive(Debug, Clone, PartialEq)]
-pub struct RelaySignatureData {
-    /// The signature string.
-    pub signature: String,
-    /// The data which the signature will be checked against.
-    pub data: Bytes,
-}
-
-impl RelaySignatureData {
-    /// Creates a new [`RelaySignatureData`] container.
-    pub fn new(signature: String, signature_data: Bytes) -> Self {
-        Self {
-            signature,
-            data: signature_data,
-        }
-    }
-
-    /// Verifies the signature against a public key and checks its timestamp validity.
-    ///
-    /// This function performs two checks:
-    /// 1. It verifies that the signature is valid for the given data and public key.
-    /// 2. If `max_age` is specified, it checks that the signature's embedded timestamp
-    ///    is not older than `max_age` compared to the provided `start_time`.
-    pub fn verify(
-        &self,
-        public_key: &PublicKey,
-        start_time: DateTime<Utc>,
-        max_age: Option<Duration>,
-    ) -> bool {
-        let Some(header) = public_key.verify_meta(&self.data, &self.signature) else {
-            return false;
-        };
-        let Some(timestamp) = header.timestamp else {
-            return false;
-        };
-        match max_age {
-            Some(age) => {
-                let elapsed = start_time - timestamp;
-                elapsed >= Duration::zero() && elapsed <= age
-            }
-            None => true,
-        }
-    }
-
-    /// Verifies the signature against a list of public keys and returns `true`
-    /// if any of them can successfully verify it.
-    ///
-    /// This method attempts to verify the signature using each provided `PublicKey`.
-    /// The signature is considered valid if one key verifies it and the
-    /// timestamp check (if `max_age` is specified) passes.
-    ///
-    /// See [`RelaySignatureData::verify`] for details on how each verification is performed.
-    pub fn verify_any(
-        &self,
-        public_keys: &[PublicKey],
-        start_time: DateTime<Utc>,
-        max_age: Option<Duration>,
-    ) -> bool {
-        public_keys
-            .iter()
-            .any(|public_key| self.verify(public_key, start_time, max_age))
     }
 }
 
@@ -870,7 +841,7 @@ mod tests {
         assert!(pk.verify(data, &sig));
 
         let bad_sig = "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
-        assert!(!pk.verify(data, bad_sig));
+        assert!(!pk.verify(data, &Signature(bad_sig.as_bytes().to_vec())));
     }
 
     #[test]
@@ -1029,24 +1000,25 @@ mod tests {
 
         let data = Bytes::new();
         let signature = pair3.0.sign(&data);
-        let signature_data = RelaySignatureData::new(signature, data);
-        assert!(signature_data.verify_any(&[pair1.1, pair2.1, pair3.1], Utc::now(), None));
+        assert!(signature.verify_signature_any(
+            &[pair1.1, pair2.1, pair3.1],
+            Utc::now(),
+            Duration::seconds(10)
+        ));
     }
 
     #[test]
     fn test_verify_max_age() {
-        let start_time = Utc::now();
         let pair = generate_key_pair();
-        let data = Bytes::new();
-        let signature = pair.0.sign(&data);
-        let signature_data = RelaySignatureData::new(signature, data);
+        let signature = pair.0.sign(&[]);
+        let start_time = Utc::now();
         // The signature is valid in general
-        assert!(signature_data.verify(&pair.1, start_time, None));
+        assert!(signature.verify_signature(&pair.1, start_time, Duration::seconds(10)));
         // Signature is no longer valid because too much time elapsed
-        assert!(!signature_data.verify(
+        assert!(!signature.verify_signature(
             &pair.1,
             start_time - Duration::seconds(1),
-            Some(Duration::milliseconds(500))
+            Duration::milliseconds(500)
         ))
     }
 
@@ -1062,25 +1034,20 @@ mod tests {
             timestamp: Some(start_time),
         };
         let signature = pair3.0.sign_with_header(&data, &header);
-        let signature_data = RelaySignatureData::new(signature, data);
 
         let public_keys = &[pair1.1, pair2.1, pair3.1];
 
-        // Signature is valid in general
-        assert!(signature_data.verify_any(public_keys, start_time, None));
-        // Signature still valid
-        assert!(signature_data.verify_any(public_keys, start_time, Some(Duration::seconds(2))));
         // Signature still valid after 1 second
-        assert!(signature_data.verify_any(
+        assert!(signature.verify_signature_any(
             public_keys,
             start_time + Duration::seconds(1),
-            Some(Duration::seconds(2))
+            Duration::seconds(2)
         ));
         // Signature is no longer valid because too much time elapsed
-        assert!(!signature_data.verify_any(
+        assert!(!signature.verify_signature_any(
             public_keys,
             start_time + Duration::seconds(3),
-            Some(Duration::seconds(2))
+            Duration::seconds(2)
         ))
     }
 }

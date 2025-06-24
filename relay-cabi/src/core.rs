@@ -59,6 +59,11 @@ impl RelayStr {
     pub(crate) unsafe fn as_str(&self) -> &str {
         unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.data as *const _, self.len)) }
     }
+
+    /// Returns a borrowed byte slice.
+    pub(crate) unsafe fn as_bytes(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.data as *const u8, self.len) }
+    }
 }
 
 // RelayStr is immutable, thus it can be Send + Sync

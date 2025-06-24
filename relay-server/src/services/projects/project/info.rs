@@ -5,7 +5,6 @@ use chrono::{DateTime, Duration, Utc};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::services::outcome::DiscardReason;
-use relay_auth::RelaySignature;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
@@ -155,20 +154,36 @@ impl ProjectInfo {
         match self.config.trusted_relay_settings.verify_signature {
             SignatureVerification::Disabled => Ok(()),
             SignatureVerification::WithTimestamp => match envelope.meta().signature() {
-                Some(RelaySignature::Valid(signature)) => {
-                    if !signature.verify_any(
+                Some(signature) => {
+                    if signature.verify_signature_any(
                         &self.config.trusted_relays,
                         envelope.received_at(),
-                        Some(Duration::seconds(config.signature_max_age() as i64)),
+                        Duration::from_std(config.signature_max_age()).unwrap(),
                     ) {
-                        Err(DiscardReason::InvalidSignature)
-                    } else {
                         Ok(())
+                    } else {
+                        Err(DiscardReason::InvalidSignature)
                     }
                 }
-                Some(RelaySignature::Invalid(_)) => Err(DiscardReason::InvalidSignature),
                 None => Err(DiscardReason::MissingSignature),
-            },
+            }, // SignatureVerification::WithTimestamp => match envelope.meta().signature() {
+               //     Some(RelaySignature::Valid(signature)) => {
+               //         if !signature.verify_any_with_timestamp(
+               //             &self.config.trusted_relays,
+               //             envelope.received_at(),
+               //             Some(
+               //                 Duration::from_std(config.signature_max_age())
+               //                     .map_err(|_| DiscardReason::Internal)?,
+               //             ),
+               //         ) {
+               //             Err(DiscardReason::InvalidSignature)
+               //         } else {
+               //             Ok(())
+               //         }
+               //     }
+               //     Some(RelaySignature::Invalid(_)) => Err(DiscardReason::InvalidSignature),
+               //     None => Err(DiscardReason::MissingSignature),
+               // },
         }
     }
 

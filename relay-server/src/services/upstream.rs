@@ -18,8 +18,8 @@ use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
-    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, SignatureError,
-    SignatureType,
+    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
+    SignatureError, SignatureType,
 };
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
@@ -271,7 +271,7 @@ impl TrySign {
     pub fn create_signature(
         self,
         secret_key: Option<&SecretKey>,
-    ) -> Result<Option<String>, SignatureError> {
+    ) -> Result<Option<Signature>, SignatureError> {
         match self {
             TrySign::Required(signature_type) => {
                 let Some(secret_key) = secret_key else {
@@ -831,7 +831,7 @@ impl SharedClient {
                     .create_signature(self.config.credentials().map(|cred| &cred.secret_key))
                     .map_err(|_| UpstreamRequestError::NoCredentials)?
                 {
-                    builder.header("x-sentry-relay-signature", signature);
+                    builder.header("x-sentry-relay-signature", signature.to_string());
                 }
             }
 
