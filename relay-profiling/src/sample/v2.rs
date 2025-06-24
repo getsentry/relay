@@ -21,7 +21,6 @@ use crate::error::ProfileError;
 use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::types::ClientSdk;
-use crate::utils::default_client_sdk;
 
 const MAX_PROFILE_CHUNK_DURATION_SECS: f64 = MAX_PROFILE_CHUNK_DURATION.as_secs_f64();
 #[derive(Debug, Serialize, Deserialize)]
