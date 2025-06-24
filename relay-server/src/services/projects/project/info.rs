@@ -158,7 +158,9 @@ impl ProjectInfo {
                     if signature.verify_signature_any(
                         &self.config.trusted_relays,
                         envelope.received_at(),
-                        Duration::from_std(config.signature_max_age()).unwrap(),
+                        // conversion should never fail here
+                        Duration::from_std(config.signature_max_age())
+                            .map_err(|_| DiscardReason::Internal)?,
                     ) {
                         Ok(())
                     } else {
