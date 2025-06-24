@@ -5,6 +5,7 @@
 **Features**:
 
 - Parse Chromium stability report from minidumps into context ([#4837](https://github.com/getsentry/relay/pull/4837))
+- Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
 
 ## 25.6.1
 
@@ -17,6 +18,8 @@
 **Internal**:
 
 - Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
+- Added version 2 of LLM cost specification. ([#4825](https://github.com/getsentry/relay/pull/4825))
+- Send `tracing` events at or above `INFO` to Sentry as logs. ([#4820](https://github.com/getsentry/relay/pull/4820))
 
 ## 25.6.0
 
