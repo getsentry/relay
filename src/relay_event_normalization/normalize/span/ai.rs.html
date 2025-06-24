@@ -1,44 +1,44 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/span/ai.rs`."><title>ai.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0 (17067e9ac 2025-05-09)" data-channel="1.87.0" data-search-js="search-e7298875.js" data-settings-js="settings-d72f25bb.js" ><script src="../../../../static.files/storage-82c7156e.js"></script><script defer src="../../../../static.files/src-script-63605ae7.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-fb8c74a8.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-893ab5e7.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_event_normalization/normalize/span/</div>ai.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! AI cost calculation.
 <a href=#2 id=2 data-nosnippet>2</a>
-<a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use </span><span class="kw">crate</span>::ModelCosts;
+<a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use crate</span>::{ModelCostV2, ModelCosts};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>relay_event_schema::protocol::{Event, Span, SpanData};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>relay_protocol::{Annotated, Value};
 <a href=#6 id=6 data-nosnippet>6</a>
-<a href=#7 id=7 data-nosnippet>7</a><span class="doccomment">/// Calculated cost is in US dollars.
-<a href=#8 id=8 data-nosnippet>8</a></span><span class="kw">fn </span>calculate_ai_model_cost(
-<a href=#9 id=9 data-nosnippet>9</a>    model_id: <span class="kw-2">&amp;</span>str,
-<a href=#10 id=10 data-nosnippet>10</a>    prompt_tokens_used: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-<a href=#11 id=11 data-nosnippet>11</a>    completion_tokens_used: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-<a href=#12 id=12 data-nosnippet>12</a>    total_tokens_used: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-<a href=#13 id=13 data-nosnippet>13</a>    ai_model_costs: <span class="kw-2">&amp;</span>ModelCosts,
-<a href=#14 id=14 data-nosnippet>14</a>) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
-<a href=#15 id=15 data-nosnippet>15</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(cost_per_token) = ai_model_costs.cost_per_token(model_id) {
-<a href=#16 id=16 data-nosnippet>16</a>        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="number">0.0</span>;
-<a href=#17 id=17 data-nosnippet>17</a>
-<a href=#18 id=18 data-nosnippet>18</a>        <span class="comment">// If we have separate input/output token counts, use those
-<a href=#19 id=19 data-nosnippet>19</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(prompt_tokens) = prompt_tokens_used {
-<a href=#20 id=20 data-nosnippet>20</a>            result += cost_per_token.input_per_token * prompt_tokens;
-<a href=#21 id=21 data-nosnippet>21</a>        }
-<a href=#22 id=22 data-nosnippet>22</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(completion_tokens) = completion_tokens_used {
-<a href=#23 id=23 data-nosnippet>23</a>            result += cost_per_token.output_per_token * completion_tokens;
-<a href=#24 id=24 data-nosnippet>24</a>        }
-<a href=#25 id=25 data-nosnippet>25</a>
-<a href=#26 id=26 data-nosnippet>26</a>        <span class="comment">// If we only have total tokens and no breakdown, use input cost for all tokens
-<a href=#27 id=27 data-nosnippet>27</a>        // (assuming it's more common to have input cost defined in V1 configs)
-<a href=#28 id=28 data-nosnippet>28</a>        </span><span class="kw">if </span>prompt_tokens_used.is_none() &amp;&amp; completion_tokens_used.is_none() {
-<a href=#29 id=29 data-nosnippet>29</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(total_tokens) = total_tokens_used {
-<a href=#30 id=30 data-nosnippet>30</a>                <span class="kw">if </span>cost_per_token.input_per_token &gt; <span class="number">0.0 </span>{
-<a href=#31 id=31 data-nosnippet>31</a>                    result += cost_per_token.input_per_token * total_tokens;
-<a href=#32 id=32 data-nosnippet>32</a>                } <span class="kw">else if </span>cost_per_token.output_per_token &gt; <span class="number">0.0 </span>{
-<a href=#33 id=33 data-nosnippet>33</a>                    result += cost_per_token.output_per_token * total_tokens;
-<a href=#34 id=34 data-nosnippet>34</a>                }
-<a href=#35 id=35 data-nosnippet>35</a>            }
-<a href=#36 id=36 data-nosnippet>36</a>        }
-<a href=#37 id=37 data-nosnippet>37</a>
-<a href=#38 id=38 data-nosnippet>38</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(result);
-<a href=#39 id=39 data-nosnippet>39</a>    }
-<a href=#40 id=40 data-nosnippet>40</a>    <span class="prelude-val">None
-<a href=#41 id=41 data-nosnippet>41</a></span>}
+<a href=#7 id=7 data-nosnippet>7</a><span class="doccomment">/// Calculates the cost of an AI model based on the model cost and the tokens used.
+<a href=#8 id=8 data-nosnippet>8</a>/// Calculated cost is in US dollars.
+<a href=#9 id=9 data-nosnippet>9</a></span><span class="kw">fn </span>calculate_ai_model_cost(model_cost: <span class="prelude-ty">Option</span>&lt;ModelCostV2&gt;, data: <span class="kw-2">&amp;</span>SpanData) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+<a href=#10 id=10 data-nosnippet>10</a>    <span class="kw">let </span>cost_per_token = model_cost<span class="question-mark">?</span>;
+<a href=#11 id=11 data-nosnippet>11</a>    <span class="kw">let </span>input_tokens_used = data
+<a href=#12 id=12 data-nosnippet>12</a>        .gen_ai_usage_input_tokens
+<a href=#13 id=13 data-nosnippet>13</a>        .value()
+<a href=#14 id=14 data-nosnippet>14</a>        .and_then(Value::as_f64)
+<a href=#15 id=15 data-nosnippet>15</a>        .unwrap_or(<span class="number">0.0</span>);
+<a href=#16 id=16 data-nosnippet>16</a>
+<a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">let </span>output_tokens_used = data
+<a href=#18 id=18 data-nosnippet>18</a>        .gen_ai_usage_output_tokens
+<a href=#19 id=19 data-nosnippet>19</a>        .value()
+<a href=#20 id=20 data-nosnippet>20</a>        .and_then(Value::as_f64)
+<a href=#21 id=21 data-nosnippet>21</a>        .unwrap_or(<span class="number">0.0</span>);
+<a href=#22 id=22 data-nosnippet>22</a>    <span class="kw">let </span>output_reasoning_tokens_used = data
+<a href=#23 id=23 data-nosnippet>23</a>        .gen_ai_usage_output_tokens_reasoning
+<a href=#24 id=24 data-nosnippet>24</a>        .value()
+<a href=#25 id=25 data-nosnippet>25</a>        .and_then(Value::as_f64)
+<a href=#26 id=26 data-nosnippet>26</a>        .unwrap_or(<span class="number">0.0</span>);
+<a href=#27 id=27 data-nosnippet>27</a>    <span class="kw">let </span>input_cached_tokens_used = data
+<a href=#28 id=28 data-nosnippet>28</a>        .gen_ai_usage_input_tokens_cached
+<a href=#29 id=29 data-nosnippet>29</a>        .value()
+<a href=#30 id=30 data-nosnippet>30</a>        .and_then(Value::as_f64)
+<a href=#31 id=31 data-nosnippet>31</a>        .unwrap_or(<span class="number">0.0</span>);
+<a href=#32 id=32 data-nosnippet>32</a>
+<a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="number">0.0</span>;
+<a href=#34 id=34 data-nosnippet>34</a>
+<a href=#35 id=35 data-nosnippet>35</a>    result += cost_per_token.input_per_token * input_tokens_used;
+<a href=#36 id=36 data-nosnippet>36</a>    result += cost_per_token.output_per_token * output_tokens_used;
+<a href=#37 id=37 data-nosnippet>37</a>    result += cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used;
+<a href=#38 id=38 data-nosnippet>38</a>    result += cost_per_token.input_cached_per_token * input_cached_tokens_used;
+<a href=#39 id=39 data-nosnippet>39</a>
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="prelude-val">Some</span>(result)
+<a href=#41 id=41 data-nosnippet>41</a>}
 <a href=#42 id=42 data-nosnippet>42</a>
 <a href=#43 id=43 data-nosnippet>43</a><span class="doccomment">/// Maps AI-related measurements (legacy) to span data.
 <a href=#44 id=44 data-nosnippet>44</a></span><span class="kw">pub fn </span>map_ai_measurements_to_data(span: <span class="kw-2">&amp;mut </span>Span) {
@@ -94,42 +94,32 @@
 <a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">return</span>;
 <a href=#95 id=95 data-nosnippet>95</a>    };
 <a href=#96 id=96 data-nosnippet>96</a>
-<a href=#97 id=97 data-nosnippet>97</a>    <span class="kw">let </span>total_tokens_used = data
-<a href=#98 id=98 data-nosnippet>98</a>        .gen_ai_usage_total_tokens
+<a href=#97 id=97 data-nosnippet>97</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(model_id) = data
+<a href=#98 id=98 data-nosnippet>98</a>        .gen_ai_request_model
 <a href=#99 id=99 data-nosnippet>99</a>        .value()
-<a href=#100 id=100 data-nosnippet>100</a>        .and_then(Value::as_f64);
-<a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">let </span>prompt_tokens_used = data
-<a href=#102 id=102 data-nosnippet>102</a>        .gen_ai_usage_input_tokens
-<a href=#103 id=103 data-nosnippet>103</a>        .value()
-<a href=#104 id=104 data-nosnippet>104</a>        .and_then(Value::as_f64);
-<a href=#105 id=105 data-nosnippet>105</a>    <span class="kw">let </span>completion_tokens_used = data
-<a href=#106 id=106 data-nosnippet>106</a>        .gen_ai_usage_output_tokens
-<a href=#107 id=107 data-nosnippet>107</a>        .value()
-<a href=#108 id=108 data-nosnippet>108</a>        .and_then(Value::as_f64);
-<a href=#109 id=109 data-nosnippet>109</a>
-<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(model_id) = data.ai_model_id.value().and_then(|val| val.as_str()) {
-<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(total_cost) = calculate_ai_model_cost(
-<a href=#112 id=112 data-nosnippet>112</a>            model_id,
-<a href=#113 id=113 data-nosnippet>113</a>            prompt_tokens_used,
-<a href=#114 id=114 data-nosnippet>114</a>            completion_tokens_used,
-<a href=#115 id=115 data-nosnippet>115</a>            total_tokens_used,
-<a href=#116 id=116 data-nosnippet>116</a>            ai_model_costs,
-<a href=#117 id=117 data-nosnippet>117</a>        ) {
-<a href=#118 id=118 data-nosnippet>118</a>            data.gen_ai_usage_total_cost
-<a href=#119 id=119 data-nosnippet>119</a>                .set_value(Value::F64(total_cost).into());
-<a href=#120 id=120 data-nosnippet>120</a>        }
-<a href=#121 id=121 data-nosnippet>121</a>    }
-<a href=#122 id=122 data-nosnippet>122</a>}
-<a href=#123 id=123 data-nosnippet>123</a>
-<a href=#124 id=124 data-nosnippet>124</a><span class="doccomment">/// Extract the ai data from all of an event's spans
-<a href=#125 id=125 data-nosnippet>125</a></span><span class="kw">pub fn </span>enrich_ai_span_data(event: <span class="kw-2">&amp;mut </span>Event, model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ModelCosts&gt;) {
-<a href=#126 id=126 data-nosnippet>126</a>    <span class="kw">let </span>spans = event.spans.value_mut().iter_mut().flatten();
-<a href=#127 id=127 data-nosnippet>127</a>    <span class="kw">let </span>spans = spans.filter_map(|span| span.value_mut().as_mut());
-<a href=#128 id=128 data-nosnippet>128</a>
-<a href=#129 id=129 data-nosnippet>129</a>    <span class="kw">for </span>span <span class="kw">in </span>spans {
-<a href=#130 id=130 data-nosnippet>130</a>        map_ai_measurements_to_data(span);
-<a href=#131 id=131 data-nosnippet>131</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(model_costs) = model_costs {
-<a href=#132 id=132 data-nosnippet>132</a>            extract_ai_data(span, model_costs);
-<a href=#133 id=133 data-nosnippet>133</a>        }
-<a href=#134 id=134 data-nosnippet>134</a>    }
-<a href=#135 id=135 data-nosnippet>135</a>}</code></pre></div></section></main></body></html>
+<a href=#100 id=100 data-nosnippet>100</a>        .and_then(|val| val.as_str())
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="comment">// xxx (vgrozdanic): temporal fallback to legacy field, until we fix
+<a href=#102 id=102 data-nosnippet>102</a>        // sentry conventions and standardize what SDKs send
+<a href=#103 id=103 data-nosnippet>103</a>        </span>.or_else(|| data.ai_model_id.value().and_then(|val| val.as_str()))
+<a href=#104 id=104 data-nosnippet>104</a>    {
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(total_cost) =
+<a href=#106 id=106 data-nosnippet>106</a>            calculate_ai_model_cost(ai_model_costs.cost_per_token(model_id), data)
+<a href=#107 id=107 data-nosnippet>107</a>        {
+<a href=#108 id=108 data-nosnippet>108</a>            data.gen_ai_usage_total_cost
+<a href=#109 id=109 data-nosnippet>109</a>                .set_value(Value::F64(total_cost).into());
+<a href=#110 id=110 data-nosnippet>110</a>        }
+<a href=#111 id=111 data-nosnippet>111</a>    }
+<a href=#112 id=112 data-nosnippet>112</a>}
+<a href=#113 id=113 data-nosnippet>113</a>
+<a href=#114 id=114 data-nosnippet>114</a><span class="doccomment">/// Extract the ai data from all of an event's spans
+<a href=#115 id=115 data-nosnippet>115</a></span><span class="kw">pub fn </span>enrich_ai_span_data(event: <span class="kw-2">&amp;mut </span>Event, model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ModelCosts&gt;) {
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">let </span>spans = event.spans.value_mut().iter_mut().flatten();
+<a href=#117 id=117 data-nosnippet>117</a>    <span class="kw">let </span>spans = spans.filter_map(|span| span.value_mut().as_mut());
+<a href=#118 id=118 data-nosnippet>118</a>
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">for </span>span <span class="kw">in </span>spans {
+<a href=#120 id=120 data-nosnippet>120</a>        map_ai_measurements_to_data(span);
+<a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(model_costs) = model_costs {
+<a href=#122 id=122 data-nosnippet>122</a>            extract_ai_data(span, model_costs);
+<a href=#123 id=123 data-nosnippet>123</a>        }
+<a href=#124 id=124 data-nosnippet>124</a>    }
+<a href=#125 id=125 data-nosnippet>125</a>}</code></pre></div></section></main></body></html>
