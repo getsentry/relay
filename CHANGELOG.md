@@ -12,6 +12,7 @@
 - Update opentelemetry-proto and sentry-protos dependencies. ([#4847](https://github.com/getsentry/relay/pull/4847))
 - Take into account more types of tokens when doing AI cost calculation. ([#4840](https://github.com/getsentry/relay/pull/4840))
 - Use the `FiniteF64` type for measurements. ([#4828](https://github.com/getsentry/relay/pull/4828))
+- Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
 
 ## 25.6.1
 
@@ -54,7 +55,6 @@
 - Use the received timestamp as observed nanos for logs. ([#4810](https://github.com/getsentry/relay/pull/4810))
 - Strip out profiler_id from profile context for short transactions. ([#4818](https://github.com/getsentry/relay/pull/4818))
 - Derive a `sentry.op` attribute for V2 spans ([#4796](https://github.com/getsentry/relay/pull/4796))
-- Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
 
 ## 25.5.1
 
