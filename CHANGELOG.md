@@ -5,6 +5,7 @@
 **Internal**:
 
 - Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
+- Take into account more types of tokens when doing AI cost calculation. ([#4840](https://github.com/getsentry/relay/pull/4840))
 
 ## 25.6.1
 
