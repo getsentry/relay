@@ -2,9 +2,9 @@
 
 use chrono::{DateTime, Duration, Utc};
 use relay_event_schema::protocol::{
-    Attribute, AttributeValue, NetworkReportRaw, OurLog, OurLogLevel, Timestamp, TraceId,
+    Attributes, NetworkReportRaw, OurLog, OurLogLevel, Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, Object};
+use relay_protocol::Annotated;
 
 /// Creates a [`OurLog`] from the provided [`NetworkReportRaw`].
 pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) -> Option<OurLog> {
@@ -30,18 +30,12 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
         .checked_sub_signed(Duration::milliseconds(*nel.age.value().unwrap_or(&0)))
         .unwrap_or(received_at);
 
-    let mut attributes: Object<Attribute> = Default::default();
+    let mut attributes: Attributes = Default::default();
 
     macro_rules! add_attribute {
         ($name:literal, $value:expr) => {{
             if let Some(value) = $value.into_value() {
-                attributes.insert(
-                    $name.to_owned(),
-                    Annotated::new(Attribute {
-                        value: AttributeValue::from(value),
-                        other: Default::default(),
-                    }),
-                );
+                attributes.insert($name.to_owned(), value);
             }
         }};
     }
