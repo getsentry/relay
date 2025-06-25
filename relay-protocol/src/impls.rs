@@ -2,6 +2,7 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
+use crate::FiniteF64;
 use crate::annotated::{Annotated, MetaMap, MetaTree};
 use crate::macros::derive_string_meta_structure;
 use crate::meta::{Error, Meta};
@@ -117,6 +118,43 @@ derive_numeric_meta_structure!(u64, U64, "an unsigned integer");
 derive_numeric_meta_structure!(i64, I64, "a signed integer");
 derive_numeric_meta_structure!(f64, F64, "a floating point number");
 
+impl FromValue for FiniteF64 {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        value.and_then(|value| {
+            let number: Option<f64> = match value {
+                Value::U64(x) => num_traits::cast(x),
+                Value::I64(x) => num_traits::cast(x),
+                Value::F64(x) => num_traits::cast(x),
+                _ => None,
+            };
+
+            match number.and_then(FiniteF64::new) {
+                Some(x) => Annotated::new(x),
+                None => {
+                    let mut meta = Meta::default();
+                    meta.add_error(Error::expected("a finite floating point number"));
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            }
+        })
+    }
+}
+
+impl IntoValue for FiniteF64 {
+    fn into_value(self) -> Value {
+        Value::F64(self.to_f64())
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: Serializer,
+    {
+        self.serialize(s)
+    }
+}
+
 impl Empty for u64 {
     #[inline]
     fn is_empty(&self) -> bool {
@@ -135,6 +173,13 @@ impl Empty for f64 {
     #[inline]
     fn is_empty(&self) -> bool {
         false
+    }
+}
+
+impl Empty for FiniteF64 {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.to_f64().is_empty()
     }
 }
 

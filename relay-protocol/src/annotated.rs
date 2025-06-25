@@ -134,6 +134,19 @@ impl<T> Annotated<T> {
         })
     }
 
+    /// Tries to convert a `U` value into `Annotated<T>`.
+    pub fn try_from<U>(value: U) -> Self
+    where
+        T: TryFrom<U>,
+        Error: From<<T as TryFrom<U>>::Error>,
+        U: Into<Value> + Copy,
+    {
+        match value.try_into() {
+            Ok(value) => Self::new(value),
+            Err(err) => Self::from_error(err, Some(value.into())),
+        }
+    }
+
     /// Returns a reference to the value.
     ///
     /// Returns `None` if this value is not initialized, missing, or invalid.

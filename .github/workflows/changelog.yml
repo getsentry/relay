@@ -2,6 +2,7 @@ name: "Changelog"
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, ready_for_review]
+  merge_group:
 
 jobs:
   build:
@@ -14,5 +15,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
-            const changelog = require('./.github/actions/changelog/index.js')
-            await changelog({github, context, core})
+            if (context.payload.pull_request) {
+              const changelog = require('./.github/actions/changelog/index.js')
+              await changelog({github, context, core})
+            }

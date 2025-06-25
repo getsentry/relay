@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::hash::Hash;
 
 use relay_base_schema::metrics::MetricUnit;
 use relay_common::glob2::LazyGlob;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
-use relay_protocol::RuleCondition;
+use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
 
 pub mod breakdowns;
@@ -175,11 +176,11 @@ pub struct PerformanceScoreWeightedComponent {
     /// profile will be discarded.
     pub measurement: String,
     /// Weight [0,1.0] of this component in the performance score
-    pub weight: f64,
+    pub weight: FiniteF64,
     /// p10 used to define the log-normal for calculation
-    pub p10: f64,
+    pub p10: FiniteF64,
     /// Median used to define the log-normal for calculation
-    pub p50: f64,
+    pub p50: FiniteF64,
     /// Whether the measurement is optional. If the measurement is missing, performance score processing
     /// may still continue, and the weight will be 0.
     #[serde(default)]
@@ -217,35 +218,94 @@ pub struct PerformanceScoreConfig {
 }
 
 /// A mapping of AI model types (like GPT-4) to their respective costs.
+///
+/// This struct supports multiple versions with different cost structures:
+/// - Version 1: Array-based costs with glob pattern matching for model IDs (uses `costs` field)
+/// - Version 2: Dictionary-based costs with exact model ID keys and granular token pricing (uses `models` field)
+///
+/// Example V1 JSON:
+/// ```json
+/// {
+///   "version": 1,
+///   "costs": [
+///     {
+///       "modelId": "gpt-4*",
+///       "forCompletion": false,
+///       "costPer1kTokens": 0.03
+///     }
+///   ]
+/// }
+/// ```
+///
+/// Example V2 JSON:
+/// ```json
+/// {
+///   "version": 2,
+///   "models": {
+///     "gpt-4": {
+///       "inputPerToken": 0.03,
+///       "outputPerToken": 0.06,
+///       "outputReasoningPerToken": 0.12,
+///       "inputCachedPerToken": 0.015
+///     }
+///   }
+/// }
+/// ```
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCosts {
     /// The version of the model cost struct
     pub version: u16,
 
-    /// The mappings of model ID => cost
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    /// The mappings of model ID => cost (used in version 1)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<ModelCost>,
+
+    /// The mappings of model ID => cost as a dictionary (version 2)
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub models: HashMap<String, ModelCostV2>,
 }
 
 impl ModelCosts {
-    const MAX_SUPPORTED_VERSION: u16 = 1;
+    const MAX_SUPPORTED_VERSION: u16 = 2;
+
+    /// `true` if the model costs are empty and the version is supported.
+    pub fn is_empty(&self) -> bool {
+        (self.costs.is_empty() && self.models.is_empty()) || !self.is_enabled()
+    }
 
     /// `false` if measurement and metrics extraction should be skipped.
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= ModelCosts::MAX_SUPPORTED_VERSION
     }
 
-    /// Gets the cost per 1000 tokens, if defined for the given model.
-    pub fn cost_per_1k_tokens(&self, model_id: &str, for_completion: bool) -> Option<f64> {
-        self.costs
-            .iter()
-            .find(|cost| cost.matches(model_id, for_completion))
-            .map(|c| c.cost_per_1k_tokens)
+    /// Gets the cost per token, if defined for the given model.
+    pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
+        match self.version {
+            1 => {
+                let input_cost = self.costs.iter().find(|cost| cost.matches(model_id, false));
+                let output_cost = self.costs.iter().find(|cost| cost.matches(model_id, true));
+
+                // V1 costs were defined per 1k tokens, so we need to convert to per token.
+                if input_cost.is_some() || output_cost.is_some() {
+                    Some(ModelCostV2 {
+                        input_per_token: input_cost.map_or(0.0, |c| c.cost_per_1k_tokens / 1000.0),
+                        output_per_token: output_cost
+                            .map_or(0.0, |c| c.cost_per_1k_tokens / 1000.0),
+                        output_reasoning_per_token: 0.0, // in v1 this info is not available
+                        input_cached_per_token: 0.0,     // in v1 this info is not available
+                    })
+                } else {
+                    None
+                }
+            }
+            2 => self.models.get(model_id).copied(),
+            _ => None,
+        }
     }
 }
 
-/// A single mapping of (AI model ID, input/output, cost)
+/// A mapping of AI model types (like GPT-4) to their respective costs.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCost {
@@ -259,6 +319,21 @@ impl ModelCost {
     pub fn matches(&self, model_id: &str, for_completion: bool) -> bool {
         self.for_completion == for_completion && self.model_id.compiled().is_match(model_id)
     }
+}
+
+/// Version 2 of a mapping of AI model types (like GPT-4) to their respective costs.
+/// Version 1 had some limitations, so we're moving to a more flexible format.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCostV2 {
+    /// The cost per input token
+    pub input_per_token: f64,
+    /// The cost per output token
+    pub output_per_token: f64,
+    /// The cost per output reasoning token
+    pub output_reasoning_per_token: f64,
+    /// The cost per input cached token
+    pub input_cached_per_token: f64,
 }
 
 #[cfg(test)]
@@ -288,25 +363,189 @@ mod tests {
 
     use super::*;
 
+    /// Test that integer versions are handled correctly in the struct format
     #[test]
-    fn test_model_cost_config() {
-        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft-*","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
+    fn test_model_cost_version_sent_as_number() {
+        // Test integer version 1
+        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
-        assert_debug_snapshot!(deserialized, @r###"
+        assert_debug_snapshot!(
+            deserialized,
+            @r#"
         ModelCosts {
             version: 1,
             costs: [
                 ModelCost {
-                    model_id: LazyGlob("babbage-002.ft-*"),
+                    model_id: LazyGlob("babbage-002.ft"),
                     for_completion: false,
                     cost_per_1k_tokens: 0.0016,
                 },
             ],
+            models: {},
+        }
+        "#,
+        );
+
+        // Test integer version 2
+        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
+        assert_debug_snapshot!(
+            deserialized_v2,
+            @r###"
+            ModelCosts {
+                version: 2,
+                costs: [],
+                models: {
+                    "gpt-4": ModelCostV2 {
+                        input_per_token: 0.03,
+                        output_per_token: 0.06,
+                        output_reasoning_per_token: 0.12,
+                        input_cached_per_token: 0.015,
+                    },
+                },
+            }
+            "###,
+        );
+
+        // Test unknown integer version
+        let original_unknown = r#"{"version":99,"costs":[]}"#;
+        let deserialized_unknown: ModelCosts = serde_json::from_str(original_unknown).unwrap();
+        assert_eq!(deserialized_unknown.version, 99);
+        assert!(!deserialized_unknown.is_enabled());
+    }
+
+    #[test]
+    fn test_model_cost_config_v1() {
+        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
+        let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
+        assert_debug_snapshot!(deserialized, @r#"
+        ModelCosts {
+            version: 1,
+            costs: [
+                ModelCost {
+                    model_id: LazyGlob("babbage-002.ft"),
+                    for_completion: false,
+                    cost_per_1k_tokens: 0.0016,
+                },
+            ],
+            models: {},
+        }
+        "#);
+
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        assert_eq!(&serialized, original);
+    }
+
+    #[test]
+    fn test_model_cost_config_v2() {
+        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
+        assert_debug_snapshot!(deserialized, @r###"
+        ModelCosts {
+            version: 2,
+            costs: [],
+            models: {
+                "gpt-4": ModelCostV2 {
+                    input_per_token: 0.03,
+                    output_per_token: 0.06,
+                    output_reasoning_per_token: 0.12,
+                    input_cached_per_token: 0.015,
+                },
+            },
         }
         "###);
 
         let serialized = serde_json::to_string(&deserialized).unwrap();
         assert_eq!(&serialized, original);
+    }
+
+    #[test]
+    fn test_model_cost_functionality_v1_only_input_tokens() {
+        // Test V1 functionality
+        let v1_config = ModelCosts {
+            version: 1,
+            costs: vec![ModelCost {
+                model_id: LazyGlob::new("gpt-4*"),
+                for_completion: false,
+                cost_per_1k_tokens: 0.03,
+            }],
+            models: HashMap::new(),
+        };
+        assert!(v1_config.is_enabled());
+        let costs = v1_config.cost_per_token("gpt-4-turbo").unwrap();
+        assert_eq!(costs.input_per_token * 1000.0, 0.03); // multiplying by 1000 to avoid floating point errors
+        assert_eq!(costs.output_per_token, 0.0); // output tokens are not defined
+    }
+
+    #[test]
+    fn test_model_cost_functionality_v1() {
+        let v1_config = ModelCosts {
+            version: 1,
+            costs: vec![
+                ModelCost {
+                    model_id: LazyGlob::new("gpt-4*"),
+                    for_completion: false,
+                    cost_per_1k_tokens: 0.03,
+                },
+                ModelCost {
+                    model_id: LazyGlob::new("gpt-4*"),
+                    for_completion: true,
+                    cost_per_1k_tokens: 0.06,
+                },
+            ],
+            models: HashMap::new(),
+        };
+        assert!(v1_config.is_enabled());
+        let costs = v1_config.cost_per_token("gpt-4").unwrap();
+        assert_eq!(costs.input_per_token * 1000.0, 0.03); // multiplying by 1000 to avoid floating point errors
+        assert_eq!(costs.output_per_token * 1000.0, 0.06); // multiplying by 1000 to avoid floating point errors
+    }
+
+    #[test]
+    fn test_model_cost_functionality_v2() {
+        // Test V2 functionality
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            "gpt-4".to_owned(),
+            ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            },
+        );
+        let v2_config = ModelCosts {
+            version: 2,
+            costs: vec![],
+            models: models_map,
+        };
+        assert!(v2_config.is_enabled());
+        let cost = v2_config.cost_per_token("gpt-4").unwrap();
+        assert_eq!(
+            cost,
+            ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            }
+        );
+    }
+
+    #[test]
+    fn test_model_cost_unknown_version() {
+        // Test that unknown versions are handled properly
+        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005}}}"#;
+        let deserialized: ModelCosts = serde_json::from_str(unknown_version_json).unwrap();
+        assert_eq!(deserialized.version, 3);
+        assert!(!deserialized.is_enabled());
+        assert_eq!(deserialized.cost_per_token("some-model"), None);
+
+        // Test version 0 (invalid)
+        let version_zero_json = r#"{"version":0,"models":{}}"#;
+        let deserialized: ModelCosts = serde_json::from_str(version_zero_json).unwrap();
+        assert_eq!(deserialized.version, 0);
+        assert!(!deserialized.is_enabled());
     }
 
     #[test]
