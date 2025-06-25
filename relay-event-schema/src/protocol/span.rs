@@ -502,6 +502,34 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
 
+    /// Prompt passed to LLM (Vercel AI SDK)
+    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
+    pub gen_ai_prompt: Annotated<Value>,
+
+    /// Prompt passed to LLM
+    #[metastructure(field = "gen_ai.request.messages", pii = "maybe")]
+    pub gen_ai_request_messages: Annotated<Value>,
+
+    /// Tool call arguments
+    #[metastructure(field = "gen_ai.tool.input", pii = "maybe")]
+    pub gen_ai_tool_input: Annotated<Value>,
+
+    /// Tool call result
+    #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
+    pub gen_ai_tool_output: Annotated<Value>,
+
+    /// LLM decisions to use calls
+    #[metastructure(field = "gen_ai.response.tool_calls", pii = "maybe")]
+    pub gen_ai_response_tool_calls: Annotated<Value>,
+
+    /// LLM response text (Vercel AI, generateText)
+    #[metastructure(field = "gen_ai.response.text", pii = "maybe")]
+    pub gen_ai_response_text: Annotated<Value>,
+
+    /// LLM response object (Vercel AI, generateObject)
+    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
+    pub gen_ai_response_object: Annotated<Value>,
+
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
     pub browser_name: Annotated<String>,
