@@ -24,6 +24,7 @@ from .fixtures.processing import (  # noqa
     processing_config,
     relay_with_processing,
     relay_with_playstation,
+    relay_processing_with_playstation,
     consumer_fixture,
     events_consumer,
     outcomes_consumer,
@@ -45,7 +46,7 @@ from .fixtures.processing import (  # noqa
 def random_port():
     def inner():
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         s.bind(("127.0.0.1", 0))
         s.listen(1)
         port = s.getsockname()[1]

@@ -557,6 +557,14 @@ pub struct Metrics {
     ///
     /// Defaults to `true`.
     pub aggregate: bool,
+    /// Allows emission of metrics with high cardinality tags.
+    ///
+    /// High cardinality tags are dynamic values attached to metrics,
+    /// such as project IDs. When enabled, these tags will be included
+    /// in the emitted metrics. When disabled, the tags will be omitted.
+    ///
+    /// Defaults to `false`.
+    pub allow_high_cardinality_tags: bool,
 }
 
 impl Default for Metrics {
@@ -569,6 +577,7 @@ impl Default for Metrics {
             sample_rate: 1.0,
             periodic_secs: 5,
             aggregate: true,
+            allow_high_cardinality_tags: false,
         }
     }
 }
@@ -616,6 +625,10 @@ pub struct Limits {
     pub max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
     pub max_session_count: usize,
+    /// The maximum number of standalone span items per envelope.
+    pub max_span_count: usize,
+    /// The maximum number of log items per envelope.
+    pub max_log_count: usize,
     /// The maximum payload size for general API requests.
     pub max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -628,6 +641,8 @@ pub struct Limits {
     pub max_log_size: ByteSize,
     /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
+    /// The maximum payload size for an item container.
+    pub max_container_size: ByteSize,
     /// The maximum payload size for a statsd metric.
     pub max_statsd_size: ByteSize,
     /// The maximum payload size for metric buckets.
@@ -696,12 +711,15 @@ impl Default for Limits {
             max_check_in_size: ByteSize::kibibytes(100),
             max_envelope_size: ByteSize::mebibytes(100),
             max_session_count: 100,
+            max_span_count: 1000,
+            max_log_count: 1000,
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
             max_log_size: ByteSize::mebibytes(1),
             max_span_size: ByteSize::mebibytes(1),
+            max_container_size: ByteSize::mebibytes(3),
             max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
@@ -1134,6 +1152,9 @@ pub struct Processing {
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
+    /// Configure what span format to produce.
+    #[serde(default)]
+    pub span_producers: SpanProducers,
     /// Additional kafka producer configurations.
     ///
     /// The `kafka_config` is the default producer configuration used for all topics. A secondary
@@ -1191,6 +1212,26 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            span_producers: Default::default(),
+        }
+    }
+}
+
+/// Configuration for span producers.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SpanProducers {
+    /// Send JSON spans to `ingest-spans`.
+    pub produce_json: bool,
+    /// Send Protobuf (TraceItem) to `snuba-items`.
+    pub produce_protobuf: bool,
+}
+
+impl Default for SpanProducers {
+    fn default() -> Self {
+        Self {
+            produce_json: true,
+            produce_protobuf: false,
         }
     }
 }
@@ -2091,6 +2132,11 @@ impl Config {
         self.values.metrics.aggregate
     }
 
+    /// Returns whether high cardinality tags should be removed before sending metrics.
+    pub fn metrics_allow_high_cardinality_tags(&self) -> bool {
+        self.values.metrics.allow_high_cardinality_tags
+    }
+
     /// Returns the interval for periodic metrics emitted from Relay.
     ///
     /// `None` if periodic metrics are disabled.
@@ -2279,6 +2325,11 @@ impl Config {
         self.values.limits.max_span_size.as_bytes()
     }
 
+    /// Returns the maximum payload size of an item container in bytes.
+    pub fn max_container_size(&self) -> usize {
+        self.values.limits.max_container_size.as_bytes()
+    }
+
     /// Returns the maximum size of an envelope payload in bytes.
     ///
     /// Individual item size limits still apply.
@@ -2289,6 +2340,16 @@ impl Config {
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
         self.values.limits.max_session_count
+    }
+
+    /// Returns the maximum number of standalone spans per envelope.
+    pub fn max_span_count(&self) -> usize {
+        self.values.limits.max_span_count
+    }
+
+    /// Returns the maximum number of logs per envelope.
+    pub fn max_log_count(&self) -> usize {
+        self.values.limits.max_log_count
     }
 
     /// Returns the maximum payload size of a statsd metric in bytes.
@@ -2567,6 +2628,16 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
+    }
+
+    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
+    pub fn produce_protobuf_spans(&self) -> bool {
+        self.values.processing.span_producers.produce_protobuf
+    }
+
+    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
+    pub fn produce_json_spans(&self) -> bool {
+        self.values.processing.span_producers.produce_json
     }
 }
 
