@@ -242,6 +242,7 @@ jobs:
     env:
       FULL_CI: "${{
         github.ref == 'refs/heads/master'
+        || github.event_name == 'merge_group'
         || startsWith(github.ref, 'refs/heads/release/')
         || contains(github.event.pull_request.labels.*.name, 'Trigger: Full-CI')
       }}"
