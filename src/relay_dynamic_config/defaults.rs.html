@@ -112,7 +112,7 @@
 <a href=#112 id=112 data-nosnippet>112</a>/// These metrics are added to [`crate::GlobalConfig`] by the service and enabled
 <a href=#113 id=113 data-nosnippet>113</a>/// by project configs in sentry.
 <a href=#114 id=114 data-nosnippet>114</a></span><span class="kw">pub fn </span>hardcoded_span_metrics() -&gt; Vec&lt;(GroupKey, Vec&lt;MetricSpec&gt;, Vec&lt;TagMapping&gt;)&gt; {
-<a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">let </span>is_ai = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"ai.*"</span>);
+<a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">let </span>is_ai = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"ai.*"</span>) | RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"gen_ai.*"</span>);
 <a href=#116 id=116 data-nosnippet>116</a>
 <a href=#117 id=117 data-nosnippet>117</a>    <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">"span.sentry_tags.category"</span>, <span class="string">"db"</span>)
 <a href=#118 id=118 data-nosnippet>118</a>        &amp; !RuleCondition::glob(<span class="string">"span.op"</span>, DISABLED_DATABASES)
