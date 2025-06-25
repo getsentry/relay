@@ -21,7 +21,6 @@ use crate::error::ProfileError;
 use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::types::ClientSdk;
-use crate::utils::default_client_sdk;
 
 const MAX_PROFILE_CHUNK_DURATION_SECS: f64 = MAX_PROFILE_CHUNK_DURATION.as_secs_f64();
 #[derive(Debug, Serialize, Deserialize)]
@@ -39,8 +38,7 @@ pub struct ProfileMetadata {
     pub platform: String,
     pub release: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_sdk: Option<ClientSdk>,
+    pub client_sdk: ClientSdk,
 
     /// Hard-coded string containing "2" to indicate the format version.
     pub version: Version,
@@ -72,10 +70,6 @@ pub struct ProfileChunk {
 impl ProfileChunk {
     pub fn normalize(&mut self) -> Result<(), ProfileError> {
         let platform = self.metadata.platform.as_str();
-
-        if self.metadata.client_sdk.is_none() {
-            self.metadata.client_sdk = default_client_sdk(platform);
-        }
 
         self.profile.normalize(platform)
     }
