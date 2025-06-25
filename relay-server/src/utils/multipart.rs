@@ -155,14 +155,16 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
         .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
 }
 
-async fn multipart_items<F>(
+async fn multipart_items<F, G>(
     mut multipart: Multipart<'_>,
     mut infer_type: F,
     config: &Config,
+    mut emit_outcome: G,
     ignore_large_fields: bool,
 ) -> Result<Items, multer::Error>
 where
     F: FnMut(Option<&str>, &str) -> AttachmentType,
+    G: FnMut(u32),
 {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
@@ -177,7 +179,10 @@ where
             let content_type = field.content_type().cloned();
             let field = LimitedField::new(field, config.max_attachment_size());
             match field.bytes().await {
-                Err(multer::Error::FieldSizeExceeded { .. }) if ignore_large_fields => continue,
+                Err(multer::Error::FieldSizeExceeded { limit, .. }) if ignore_large_fields => {
+                    emit_outcome(limit as u32);
+                    continue;
+                }
                 Err(err) => return Err(err),
                 Ok(bytes) => {
                     attachments_size += bytes.len();
@@ -276,7 +281,7 @@ impl futures::Stream for LimitedField<'_> {
             Poll::Ready(None) if self.consumed_size > self.size_limit => {
                 self.inner_finished = true;
                 Poll::Ready(Some(Err(multer::Error::FieldSizeExceeded {
-                    limit: self.size_limit as u64,
+                    limit: self.consumed_size as u64,
                     field_name: self.field.name().map(Into::into),
                 })))
             }
@@ -313,7 +318,8 @@ impl ConstrainedMultipart {
     where
         F: FnMut(Option<&str>, &str) -> AttachmentType,
     {
-        multipart_items(self.0, infer_type, config, false).await
+        // We don't emit an outcome in this code branch since we return an error to the request
+        multipart_items(self.0, infer_type, config, |_x| {}, false).await
     }
 }
 
@@ -338,11 +344,17 @@ impl FromRequest<ServiceState> for UnconstrainedMultipart {
 
 #[cfg_attr(not(any(test, sentry)), expect(dead_code))]
 impl UnconstrainedMultipart {
-    pub async fn items<F>(self, infer_type: F, config: &Config) -> Result<Items, multer::Error>
+    pub async fn items<F, G>(
+        self,
+        infer_type: F,
+        config: &Config,
+        emit_outcome: G,
+    ) -> Result<Items, multer::Error>
     where
         F: FnMut(Option<&str>, &str) -> AttachmentType,
+        G: FnMut(u32),
     {
-        multipart_items(self.0, infer_type, config, true).await
+        multipart_items(self.0, infer_type, config, emit_outcome, true).await
     }
 }
 
@@ -460,8 +472,13 @@ mod tests {
             }
         }))?;
 
+        let mut mock_outcomes = vec![];
         let items = UnconstrainedMultipart(multipart)
-            .items(|_, _| AttachmentType::Attachment, &config)
+            .items(
+                |_, _| AttachmentType::Attachment,
+                &config,
+                |x| (mock_outcomes.push(x)),
+            )
             .await?;
 
         // The large field is skipped so only the small one should make it through.
@@ -469,6 +486,7 @@ mod tests {
         let item = &items[0];
         assert_eq!(item.filename(), Some("small.txt"));
         assert_eq!(item.payload(), Bytes::from("ok"));
+        assert_eq!(mock_outcomes, vec![27]);
 
         Ok(())
     }
@@ -498,7 +516,7 @@ mod tests {
         let multipart = Multipart::new(stream, "X-BOUNDARY");
 
         let result = UnconstrainedMultipart(multipart)
-            .items(|_, _| AttachmentType::Attachment, &config)
+            .items(|_, _| AttachmentType::Attachment, &config, |_| ())
             .await;
 
         // Should be warned if the overall stream limit is being breached.

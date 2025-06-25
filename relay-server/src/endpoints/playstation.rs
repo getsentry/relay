@@ -5,12 +5,17 @@ use axum::routing::{MethodRouter, post};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
+use relay_quotas::{DataCategory, Scoping};
+use relay_system::Addr;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::OctetStream;
 use crate::envelope::{AttachmentType, Envelope};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
+use crate::services::outcome::{
+    DiscardAttachmentType, DiscardItemType, DiscardReason, Outcome, TrackOutcome,
+};
 use crate::utils::UnconstrainedMultipart;
 
 /// The extension of a prosperodump in the multipart form-data upload.
@@ -39,12 +44,40 @@ fn infer_attachment_type(_field_name: Option<&str>, file_name: &str) -> Attachme
     }
 }
 
+fn emit_outcome(
+    aggregator: &Addr<TrackOutcome>,
+    meta: &RequestMeta,
+    scoping: Scoping,
+    quanity: u32,
+) {
+    aggregator.send(TrackOutcome {
+        timestamp: meta.received_at(),
+        scoping,
+        outcome: Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+            DiscardAttachmentType::Attachment,
+        ))),
+        event_id: None,
+        remote_addr: meta.remote_addr(),
+        category: DataCategory::Attachment,
+        quantity: quanity,
+    });
+}
+
 async fn extract_multipart(
     multipart: UnconstrainedMultipart,
     meta: RequestMeta,
-    config: &Config,
+    state: &ServiceState,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let mut items = multipart.items(infer_attachment_type, config).await?;
+    let mut items = multipart
+        .items(infer_attachment_type, state.config(), |quantity| {
+            emit_outcome(
+                state.outcome_aggregator(),
+                &meta,
+                meta.get_partial_scoping(),
+                quantity,
+            )
+        })
+        .await?;
 
     let prosperodump_item = items
         .iter_mut()
@@ -73,7 +106,7 @@ async fn handle(
 ) -> axum::response::Result<impl IntoResponse> {
     // The crash dumps are transmitted as `...` in a multipart form-data/ request.
     let multipart = request.extract_with_state(&state).await?;
-    let mut envelope = extract_multipart(multipart, meta, state.config()).await?;
+    let mut envelope = extract_multipart(multipart, meta, &state).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
 
     let id = envelope.event_id();
