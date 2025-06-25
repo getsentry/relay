@@ -194,7 +194,7 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields(Some("test_pii_docs::SubStruct"), &vec!["true".to_string()])
+            .find_pii_fields(Some("test_pii_docs::SubStruct"), &vec!["true".to_owned()])
             .unwrap();
 
         let output = Output::from_btreeset(pii_types);
@@ -214,7 +214,7 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields(None, &vec!["true".to_string()])
+            .find_pii_fields(None, &vec!["true".to_owned()])
             .unwrap();
 
         let output = Output::from_btreeset(pii_types);
@@ -226,7 +226,7 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields(None, &vec!["false".to_string()])
+            .find_pii_fields(None, &vec!["false".to_owned()])
             .unwrap();
 
         let output = Output::from_btreeset(pii_types);
@@ -240,7 +240,7 @@ mod tests {
         let pii_types = types_and_use_statements
             .find_pii_fields(
                 None,
-                &vec!["true".to_string(), "false".to_string(), "maybe".to_string()],
+                &vec!["true".to_owned(), "false".to_owned(), "maybe".to_owned()],
             )
             .unwrap();
 
@@ -275,7 +275,7 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields(None, &vec!["truth_table_test".to_string()])
+            .find_pii_fields(None, &vec!["truth_table_test".to_owned()])
             .unwrap();
 
         let output = Output::from_btreeset(pii_types);

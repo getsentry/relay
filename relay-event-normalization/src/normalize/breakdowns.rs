@@ -151,7 +151,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
             value: Annotated::try_from(relay_common::time::duration_to_millis(total_time)),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         });
-        breakdown.insert("total.time".to_string(), total_time_value);
+        breakdown.insert("total.time".to_owned(), total_time_value);
 
         Some(breakdown)
     }
@@ -307,23 +307,23 @@ mod tests {
             make_span(
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap().into()),
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 1, 0, 0).unwrap().into()),
-                "http".to_string(),
+                "http".to_owned(),
             ),
             // overlapping spans
             make_span(
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 2, 0, 0).unwrap().into()),
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 3, 0, 0).unwrap().into()),
-                "db".to_string(),
+                "db".to_owned(),
             ),
             make_span(
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 2, 30, 0).unwrap().into()),
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 3, 30, 0).unwrap().into()),
-                "db.postgres".to_string(),
+                "db.postgres".to_owned(),
             ),
             make_span(
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 4, 0, 0).unwrap().into()),
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 4, 30, 0).unwrap().into()),
-                "db.mongo".to_string(),
+                "db.mongo".to_owned(),
             ),
             make_span(
                 Annotated::new(Utc.with_ymd_and_hms(2020, 1, 1, 5, 0, 0).unwrap().into()),
@@ -334,7 +334,7 @@ mod tests {
                         .unwrap()
                         .into(),
                 ),
-                "browser".to_string(),
+                "browser".to_owned(),
             ),
         ];
 
@@ -348,11 +348,11 @@ mod tests {
             let mut config = HashMap::new();
 
             let span_ops_config = BreakdownConfig::SpanOperations(SpanOperationsConfig {
-                matches: vec!["http".to_string(), "db".to_string()],
+                matches: vec!["http".to_owned(), "db".to_owned()],
             });
 
-            config.insert("span_ops".to_string(), span_ops_config.clone());
-            config.insert("span_ops_2".to_string(), span_ops_config);
+            config.insert("span_ops".to_owned(), span_ops_config.clone());
+            config.insert("span_ops_2".to_owned(), span_ops_config);
 
             config
         });

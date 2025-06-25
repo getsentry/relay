@@ -956,18 +956,18 @@ mod tests {
         "#;
 
         let rule1 = TransactionNameRule {
-            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };
         let rule2 = TransactionNameRule {
-            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            pattern: LazyGlob::new("/foo/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };
         // This should not happend, such rules shouldn't be sent to relay at all.
         let rule3 = TransactionNameRule {
-            pattern: LazyGlob::new("/*/**".to_string()),
+            pattern: LazyGlob::new("/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };
@@ -1039,18 +1039,18 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         let rule1 = TransactionNameRule {
-            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_owned()),
             expiry: Utc::now() - Duration::hours(1), // Expired rule
             redaction: Default::default(),
         };
         let rule2 = TransactionNameRule {
-            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            pattern: LazyGlob::new("/foo/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };
         // This should not happend, such rules shouldn't be sent to relay at all.
         let rule3 = TransactionNameRule {
-            pattern: LazyGlob::new("/*/**".to_string()),
+            pattern: LazyGlob::new("/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };
@@ -1117,7 +1117,7 @@ mod tests {
         "#;
 
         let rules = vec![TransactionNameRule {
-            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         }];
@@ -1224,13 +1224,13 @@ mod tests {
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
         let rule1 = TransactionNameRule {
-            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            pattern: LazyGlob::new("/foo/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };
         // This should not happend, such rules shouldn't be sent to relay at all.
         let rule2 = TransactionNameRule {
-            pattern: LazyGlob::new("/*/**".to_string()),
+            pattern: LazyGlob::new("/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };
@@ -1374,7 +1374,7 @@ mod tests {
         "#;
 
         let rule = TransactionNameRule {
-            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            pattern: LazyGlob::new("/foo/*/**".to_owned()),
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };

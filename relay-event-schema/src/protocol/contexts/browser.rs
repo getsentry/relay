@@ -66,13 +66,13 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Browser(Box::new(BrowserContext {
             browser: Annotated::new(String::from("Google Chrome 67.0.3396.99")),
-            name: Annotated::new("Google Chrome".to_string()),
-            version: Annotated::new("67.0.3396.99".to_string()),
+            name: Annotated::new("Google Chrome".to_owned()),
+            version: Annotated::new("67.0.3396.99".to_owned()),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },

@@ -107,15 +107,15 @@ mod tests {
   "other": "value"
 }"#;
         let geo = Annotated::new(Geo {
-            country_code: Annotated::new("US".to_string()),
-            city: Annotated::new("San Francisco".to_string()),
-            subdivision: Annotated::new("California".to_string()),
-            region: Annotated::new("CA".to_string()),
+            country_code: Annotated::new("US".to_owned()),
+            city: Annotated::new("San Francisco".to_owned()),
+            subdivision: Annotated::new("California".to_owned()),
+            region: Annotated::new("CA".to_owned()),
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -155,26 +155,26 @@ mod tests {
   "other": "value"
 }"#;
         let user = Annotated::new(User {
-            id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_string().into()),
-            email: Annotated::new("mail@example.org".to_string()),
+            id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_owned().into()),
+            email: Annotated::new("mail@example.org".to_owned()),
             ip_address: Annotated::new(IpAddr::auto()),
-            name: Annotated::new("John Doe".to_string()),
+            name: Annotated::new("John Doe".to_owned()),
             username: Annotated::new(LenientString("john_doe".to_owned())),
             geo: Annotated::empty(),
-            segment: Annotated::new("vip".to_string()),
+            segment: Annotated::new("vip".to_owned()),
             data: {
                 let mut map = Object::new();
                 map.insert(
-                    "data".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "data".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 Annotated::new(map)
             },
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -190,7 +190,7 @@ mod tests {
         let input = r#"{"id":42}"#;
         let output = r#"{"id":"42"}"#;
         let user = Annotated::new(User {
-            id: Annotated::new("42".to_string().into()),
+            id: Annotated::new("42".to_owned().into()),
             ..User::default()
         });
 
@@ -203,7 +203,7 @@ mod tests {
         let input = r#"{"username":42}"#;
         let output = r#"{"username":"42"}"#;
         let user = Annotated::new(User {
-            username: Annotated::new("42".to_string().into()),
+            username: Annotated::new("42".to_owned().into()),
             ..User::default()
         });
 

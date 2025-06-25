@@ -5,14 +5,18 @@
 **Features**:
 
 - Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
+- Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
 
 **Internal**:
 
+- Introduces a new processing pipeline and implements it for logs. ([#4777](https://github.com/getsentry/relay/pull/4777))
 - Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
 - Update opentelemetry-proto and sentry-protos dependencies. ([#4847](https://github.com/getsentry/relay/pull/4847))
 - Take into account more types of tokens when doing AI cost calculation. ([#4840](https://github.com/getsentry/relay/pull/4840))
 - Use the `FiniteF64` type for measurements. ([#4828](https://github.com/getsentry/relay/pull/4828))
 - Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
+- Consider `gen_ai` also as AI span op prefix. ([#4859](https://github.com/getsentry/relay/pull/4859))
+- Change pii scrubbing on some AI attributes to optional ([#4860](https://github.com/getsentry/relay/pull/4860))
 
 ## 25.6.1
 

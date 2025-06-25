@@ -172,7 +172,7 @@ fn derive_enum_metastructure(
 
     let type_name = &s.ast().ident;
     let tag_key_str = LitStr::new(
-        &type_attrs.tag_key.unwrap_or_else(|| "type".to_string()),
+        &type_attrs.tag_key.unwrap_or_else(|| "type".to_owned()),
         Span::call_site(),
     );
 

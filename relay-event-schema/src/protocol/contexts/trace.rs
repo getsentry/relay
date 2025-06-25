@@ -395,7 +395,7 @@ mod tests {
                     params: Annotated::new({
                         let mut map = Object::new();
                         map.insert(
-                            "tok".to_string(),
+                            "tok".to_owned(),
                             Annotated::new(Value::String("test".into())),
                         );
                         map
@@ -429,8 +429,8 @@ mod tests {
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
