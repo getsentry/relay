@@ -354,7 +354,8 @@ impl ConstrainedMultipart {
     where
         F: FnMut(Option<&str>, &str) -> AttachmentType,
     {
-        // We don't emit an outcome in this code branch since we return an error to the request
+        // The emit outcome closure here does nothing since in this code branch we don't want to
+        // emit outcomes as we already return an error to the request.
         multipart_items(self.0, infer_type, |_| (), config, false).await
     }
 }
