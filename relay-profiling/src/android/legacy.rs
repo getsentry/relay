@@ -336,8 +336,8 @@ mod tests {
         let transaction_metadata = BTreeMap::from([
             ("release".to_owned(), "some-random-release".to_owned()),
             (
-                            "transaction".to_owned(),
-            "some-random-transaction".to_owned(),
+                "transaction".to_owned(),
+                "some-random-transaction".to_owned(),
             ),
         ]);
 

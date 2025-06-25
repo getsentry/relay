@@ -723,7 +723,7 @@ impl StoreService {
             received: safe_timestamp(received_at),
             retention_days,
             headers: BTreeMap::from([(
-                                    "sampled".to_owned(),
+                "sampled".to_owned(),
                 if item.sampled() { "true" } else { "false" }.to_owned(),
             )]),
             payload: item.payload(),

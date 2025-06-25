@@ -330,10 +330,10 @@ pub fn scrub_graphql(event: &mut Event) {
                 if let Some(Annotated(Some(Value::Object(variables)), _)) =
                     data.get_mut("variables")
                 {
-                                    for (key, value) in variables.iter_mut() {
-                    keys.insert(key);
-                    value.set_value(Some(Value::String("[Filtered]".to_owned())));
-                }
+                    for (key, value) in variables.iter_mut() {
+                        keys.insert(key);
+                        value.set_value(Some(Value::String("[Filtered]".to_owned())));
+                    }
                 }
             }
         }
