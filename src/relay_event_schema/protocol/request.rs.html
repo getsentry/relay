@@ -27,8 +27,8 @@
 <a href=#27 id=27 data-nosnippet>27</a>    <span class="kw">fn </span>parse_cookie(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;CookieEntry, Error&gt; {
 <a href=#28 id=28 data-nosnippet>28</a>        <span class="kw">match </span>Cookie::parse_encoded(string) {
 <a href=#29 id=29 data-nosnippet>29</a>            <span class="prelude-val">Ok</span>(cookie) =&gt; <span class="prelude-val">Ok</span>(Annotated::from((
-<a href=#30 id=30 data-nosnippet>30</a>                cookie.name().to_string().into(),
-<a href=#31 id=31 data-nosnippet>31</a>                cookie.value().to_string().into(),
+<a href=#30 id=30 data-nosnippet>30</a>                cookie.name().to_owned().into(),
+<a href=#31 id=31 data-nosnippet>31</a>                cookie.value().to_owned().into(),
 <a href=#32 id=32 data-nosnippet>32</a>            ))),
 <a href=#33 id=33 data-nosnippet>33</a>            <span class="prelude-val">Err</span>(error) =&gt; <span class="prelude-val">Err</span>(Error::invalid(error)),
 <a href=#34 id=34 data-nosnippet>34</a>        }
@@ -751,7 +751,7 @@
 <a href=#751 id=751 data-nosnippet>751</a>            <span class="macro">vec!</span>[
 <a href=#752 id=752 data-nosnippet>752</a>                Annotated::new((
 <a href=#753 id=753 data-nosnippet>753</a>                    Annotated::new(<span class="string">"baz"</span>.to_owned()),
-<a href=#754 id=754 data-nosnippet>754</a>                    Annotated::new(<span class="string">r#"{"a":42}"#</span>.to_string().into()),
+<a href=#754 id=754 data-nosnippet>754</a>                    Annotated::new(<span class="string">r#"{"a":42}"#</span>.to_owned().into()),
 <a href=#755 id=755 data-nosnippet>755</a>                )),
 <a href=#756 id=756 data-nosnippet>756</a>                Annotated::new((
 <a href=#757 id=757 data-nosnippet>757</a>                    Annotated::new(<span class="string">"foo"</span>.to_owned()),

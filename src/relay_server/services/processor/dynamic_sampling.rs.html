@@ -304,8 +304,8 @@
 <a href=#304 id=304 data-nosnippet>304</a>        Event {
 <a href=#305 id=305 data-nosnippet>305</a>            id: Annotated::new(EventId::new()),
 <a href=#306 id=306 data-nosnippet>306</a>            ty: Annotated::new(event_type),
-<a href=#307 id=307 data-nosnippet>307</a>            transaction: Annotated::new(transaction.to_string()),
-<a href=#308 id=308 data-nosnippet>308</a>            release: Annotated::new(LenientString(release.to_string())),
+<a href=#307 id=307 data-nosnippet>307</a>            transaction: Annotated::new(transaction.to_owned()),
+<a href=#308 id=308 data-nosnippet>308</a>            release: Annotated::new(LenientString(release.to_owned())),
 <a href=#309 id=309 data-nosnippet>309</a>            ..Event::default()
 <a href=#310 id=310 data-nosnippet>310</a>        }
 <a href=#311 id=311 data-nosnippet>311</a>    }

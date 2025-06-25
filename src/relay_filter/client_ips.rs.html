@@ -103,7 +103,7 @@
 <a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>(ip_addr, blacklisted_ips, expected) <span class="kw">in </span>examples {
 <a href=#104 id=104 data-nosnippet>104</a>            <span class="kw">let </span>ip_addr = ip_addr.parse::&lt;IpAddr&gt;().ok();
 <a href=#105 id=105 data-nosnippet>105</a>            <span class="kw">let </span>config = ClientIpsFilterConfig {
-<a href=#106 id=106 data-nosnippet>106</a>                blacklisted_ips: blacklisted_ips.iter().map(|<span class="kw-2">&amp;</span>ip| ip.to_string()).collect(),
+<a href=#106 id=106 data-nosnippet>106</a>                blacklisted_ips: blacklisted_ips.iter().map(|<span class="kw-2">&amp;</span>ip| ip.to_owned()).collect(),
 <a href=#107 id=107 data-nosnippet>107</a>            };
 <a href=#108 id=108 data-nosnippet>108</a>
 <a href=#109 id=109 data-nosnippet>109</a>            <span class="kw">let </span>actual = should_filter(ip_addr, <span class="kw-2">&amp;</span>config) != <span class="prelude-val">Ok</span>(());

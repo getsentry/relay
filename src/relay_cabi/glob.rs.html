@@ -98,7 +98,7 @@
 <a href=#98 id=98 data-nosnippet>98</a>            pat.replace(<span class="string">'\\'</span>, <span class="string">"/"</span>),
 <a href=#99 id=99 data-nosnippet>99</a>        )
 <a href=#100 id=100 data-nosnippet>100</a>    } <span class="kw">else </span>{
-<a href=#101 id=101 data-nosnippet>101</a>        (Cow::Borrowed(value), pat.to_string())
+<a href=#101 id=101 data-nosnippet>101</a>        (Cow::Borrowed(value), pat.to_owned())
 <a href=#102 id=102 data-nosnippet>102</a>    };
 <a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">let </span>key = (options, pat);
 <a href=#104 id=104 data-nosnippet>104</a>    <span class="kw">let </span><span class="kw-2">mut </span>cache = GLOB_CACHE.lock().unwrap_or_else(PoisonError::into_inner);

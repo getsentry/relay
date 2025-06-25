@@ -94,10 +94,10 @@
 <a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">if </span>runtime.name.value().is_empty() &amp;&amp; runtime.version.value().is_empty() {
 <a href=#95 id=95 data-nosnippet>95</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(raw_description) = runtime.raw_description.as_str() {
 <a href=#96 id=96 data-nosnippet>96</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
-<a href=#97 id=97 data-nosnippet>97</a>                runtime.name = captures.name(<span class="string">"name"</span>).map(|m| m.as_str().to_string()).into();
+<a href=#97 id=97 data-nosnippet>97</a>                runtime.name = captures.name(<span class="string">"name"</span>).map(|m| m.as_str().to_owned()).into();
 <a href=#98 id=98 data-nosnippet>98</a>                runtime.version = captures
 <a href=#99 id=99 data-nosnippet>99</a>                    .name(<span class="string">"version"</span>)
-<a href=#100 id=100 data-nosnippet>100</a>                    .map(|m| m.as_str().to_string())
+<a href=#100 id=100 data-nosnippet>100</a>                    .map(|m| m.as_str().to_owned())
 <a href=#101 id=101 data-nosnippet>101</a>                    .into();
 <a href=#102 id=102 data-nosnippet>102</a>            }
 <a href=#103 id=103 data-nosnippet>103</a>        }
@@ -200,62 +200,62 @@
 <a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(raw_description) = os.raw_description.as_str() {
 <a href=#201 id=201 data-nosnippet>201</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((version, build_number)) = get_windows_version(raw_description) {
 <a href=#202 id=202 data-nosnippet>202</a>            os.name = <span class="string">"Windows"</span>.to_owned().into();
-<a href=#203 id=203 data-nosnippet>203</a>            os.version = version.to_string().into();
+<a href=#203 id=203 data-nosnippet>203</a>            os.version = version.to_owned().into();
 <a href=#204 id=204 data-nosnippet>204</a>            <span class="kw">if </span>os.build.is_empty() {
 <a href=#205 id=205 data-nosnippet>205</a>                <span class="comment">// Keep raw version as build
-<a href=#206 id=206 data-nosnippet>206</a>                </span>os.build.set_value(<span class="prelude-val">Some</span>(build_number.to_string().into()));
+<a href=#206 id=206 data-nosnippet>206</a>                </span>os.build.set_value(<span class="prelude-val">Some</span>(build_number.to_owned().into()));
 <a href=#207 id=207 data-nosnippet>207</a>            }
 <a href=#208 id=208 data-nosnippet>208</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_MACOS_REGEX.captures(raw_description) {
 <a href=#209 id=209 data-nosnippet>209</a>            os.name = <span class="string">"macOS"</span>.to_owned().into();
 <a href=#210 id=210 data-nosnippet>210</a>            os.version = captures
 <a href=#211 id=211 data-nosnippet>211</a>                .name(<span class="string">"version"</span>)
-<a href=#212 id=212 data-nosnippet>212</a>                .map(|m| m.as_str().to_string())
+<a href=#212 id=212 data-nosnippet>212</a>                .map(|m| m.as_str().to_owned())
 <a href=#213 id=213 data-nosnippet>213</a>                .into();
 <a href=#214 id=214 data-nosnippet>214</a>            os.build = captures
 <a href=#215 id=215 data-nosnippet>215</a>                .name(<span class="string">"build"</span>)
-<a href=#216 id=216 data-nosnippet>216</a>                .map(|m| m.as_str().to_string().into())
+<a href=#216 id=216 data-nosnippet>216</a>                .map(|m| m.as_str().to_owned().into())
 <a href=#217 id=217 data-nosnippet>217</a>                .into();
 <a href=#218 id=218 data-nosnippet>218</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_IOS_REGEX.captures(raw_description) {
 <a href=#219 id=219 data-nosnippet>219</a>            os.name = <span class="string">"iOS"</span>.to_owned().into();
 <a href=#220 id=220 data-nosnippet>220</a>            os.version = captures
 <a href=#221 id=221 data-nosnippet>221</a>                .name(<span class="string">"version"</span>)
-<a href=#222 id=222 data-nosnippet>222</a>                .map(|m| m.as_str().to_string())
+<a href=#222 id=222 data-nosnippet>222</a>                .map(|m| m.as_str().to_owned())
 <a href=#223 id=223 data-nosnippet>223</a>                .into();
 <a href=#224 id=224 data-nosnippet>224</a>            os.build = captures
 <a href=#225 id=225 data-nosnippet>225</a>                .name(<span class="string">"build"</span>)
-<a href=#226 id=226 data-nosnippet>226</a>                .map(|m| m.as_str().to_string().into())
+<a href=#226 id=226 data-nosnippet>226</a>                .map(|m| m.as_str().to_owned().into())
 <a href=#227 id=227 data-nosnippet>227</a>                .into();
 <a href=#228 id=228 data-nosnippet>228</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_IPADOS_REGEX.captures(raw_description) {
 <a href=#229 id=229 data-nosnippet>229</a>            os.name = <span class="string">"iPadOS"</span>.to_owned().into();
 <a href=#230 id=230 data-nosnippet>230</a>            os.version = captures
 <a href=#231 id=231 data-nosnippet>231</a>                .name(<span class="string">"version"</span>)
-<a href=#232 id=232 data-nosnippet>232</a>                .map(|m| m.as_str().to_string())
+<a href=#232 id=232 data-nosnippet>232</a>                .map(|m| m.as_str().to_owned())
 <a href=#233 id=233 data-nosnippet>233</a>                .into();
 <a href=#234 id=234 data-nosnippet>234</a>            os.build = captures
 <a href=#235 id=235 data-nosnippet>235</a>                .name(<span class="string">"build"</span>)
-<a href=#236 id=236 data-nosnippet>236</a>                .map(|m| m.as_str().to_string().into())
+<a href=#236 id=236 data-nosnippet>236</a>                .map(|m| m.as_str().to_owned().into())
 <a href=#237 id=237 data-nosnippet>237</a>                .into();
 <a href=#238 id=238 data-nosnippet>238</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_LINUX_DISTRO_UNAME_REGEX.captures(raw_description) {
-<a href=#239 id=239 data-nosnippet>239</a>            os.name = captures.name(<span class="string">"name"</span>).map(|m| m.as_str().to_string()).into();
+<a href=#239 id=239 data-nosnippet>239</a>            os.name = captures.name(<span class="string">"name"</span>).map(|m| m.as_str().to_owned()).into();
 <a href=#240 id=240 data-nosnippet>240</a>            os.version = captures
 <a href=#241 id=241 data-nosnippet>241</a>                .name(<span class="string">"version"</span>)
-<a href=#242 id=242 data-nosnippet>242</a>                .map(|m| m.as_str().to_string())
+<a href=#242 id=242 data-nosnippet>242</a>                .map(|m| m.as_str().to_owned())
 <a href=#243 id=243 data-nosnippet>243</a>                .into();
 <a href=#244 id=244 data-nosnippet>244</a>            os.kernel_version = captures
 <a href=#245 id=245 data-nosnippet>245</a>                .name(<span class="string">"kernel_version"</span>)
-<a href=#246 id=246 data-nosnippet>246</a>                .map(|m| m.as_str().to_string())
+<a href=#246 id=246 data-nosnippet>246</a>                .map(|m| m.as_str().to_owned())
 <a href=#247 id=247 data-nosnippet>247</a>                .into();
 <a href=#248 id=248 data-nosnippet>248</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_UNAME_REGEX.captures(raw_description) {
-<a href=#249 id=249 data-nosnippet>249</a>            os.name = captures.name(<span class="string">"name"</span>).map(|m| m.as_str().to_string()).into();
+<a href=#249 id=249 data-nosnippet>249</a>            os.name = captures.name(<span class="string">"name"</span>).map(|m| m.as_str().to_owned()).into();
 <a href=#250 id=250 data-nosnippet>250</a>            os.kernel_version = captures
 <a href=#251 id=251 data-nosnippet>251</a>                .name(<span class="string">"kernel_version"</span>)
-<a href=#252 id=252 data-nosnippet>252</a>                .map(|m| m.as_str().to_string())
+<a href=#252 id=252 data-nosnippet>252</a>                .map(|m| m.as_str().to_owned())
 <a href=#253 id=253 data-nosnippet>253</a>                .into();
 <a href=#254 id=254 data-nosnippet>254</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_ANDROID_REGEX.captures(raw_description) {
 <a href=#255 id=255 data-nosnippet>255</a>            os.name = <span class="string">"Android"</span>.to_owned().into();
 <a href=#256 id=256 data-nosnippet>256</a>            os.version = captures
 <a href=#257 id=257 data-nosnippet>257</a>                .name(<span class="string">"version"</span>)
-<a href=#258 id=258 data-nosnippet>258</a>                .map(|m| m.as_str().to_string())
+<a href=#258 id=258 data-nosnippet>258</a>                .map(|m| m.as_str().to_owned())
 <a href=#259 id=259 data-nosnippet>259</a>                .into();
 <a href=#260 id=260 data-nosnippet>260</a>        } <span class="kw">else if </span>raw_description == <span class="string">"Nintendo Switch" </span>{
 <a href=#261 id=261 data-nosnippet>261</a>            os.name = <span class="string">"Nintendo OS"</span>.to_owned().into();
@@ -302,13 +302,13 @@
 <a href=#302 id=302 data-nosnippet>302</a>        <span class="comment">// Retain meta data on the body (e.g. trimming annotations) but remove anything on the
 <a href=#303 id=303 data-nosnippet>303</a>        // inferred content type.
 <a href=#304 id=304 data-nosnippet>304</a>        </span>response.data.set_value(<span class="prelude-val">Some</span>(parsed_data));
-<a href=#305 id=305 data-nosnippet>305</a>        response.inferred_content_type = Annotated::from(content_type.to_string());
+<a href=#305 id=305 data-nosnippet>305</a>        response.inferred_content_type = Annotated::from(content_type.to_owned());
 <a href=#306 id=306 data-nosnippet>306</a>    } <span class="kw">else </span>{
 <a href=#307 id=307 data-nosnippet>307</a>        response.inferred_content_type = response
 <a href=#308 id=308 data-nosnippet>308</a>            .headers
 <a href=#309 id=309 data-nosnippet>309</a>            .value()
 <a href=#310 id=310 data-nosnippet>310</a>            .and_then(|headers| headers.get_header(<span class="string">"Content-Type"</span>))
-<a href=#311 id=311 data-nosnippet>311</a>            .map(|value| value.split(<span class="string">';'</span>).next().unwrap_or(value).to_string())
+<a href=#311 id=311 data-nosnippet>311</a>            .map(|value| value.split(<span class="string">';'</span>).next().unwrap_or(value).to_owned())
 <a href=#312 id=312 data-nosnippet>312</a>            .into();
 <a href=#313 id=313 data-nosnippet>313</a>    }
 <a href=#314 id=314 data-nosnippet>314</a>}
@@ -451,7 +451,7 @@
 <a href=#451 id=451 data-nosnippet>451</a>        <span class="comment">// Environment.OSVersion on Windows 7 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
 <a href=#452 id=452 data-nosnippet>452</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
 <a href=#453 id=453 data-nosnippet>453</a>            raw_description: <span class="string">"Microsoft Windows NT 6.1.7601 Service Pack 1"
-<a href=#454 id=454 data-nosnippet>454</a>                </span>.to_string()
+<a href=#454 id=454 data-nosnippet>454</a>                </span>.to_owned()
 <a href=#455 id=455 data-nosnippet>455</a>                .into(),
 <a href=#456 id=456 data-nosnippet>456</a>            ..OsContext::default()
 <a href=#457 id=457 data-nosnippet>457</a>        };
@@ -574,7 +574,7 @@
 <a href=#574 id=574 data-nosnippet>574</a>        <span class="comment">// RuntimeInformation.OSDescription on CentOS 7 (CoreCLR 2.0+, Mono 5.4+)
 <a href=#575 id=575 data-nosnippet>575</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
 <a href=#576 id=576 data-nosnippet>576</a>            raw_description: <span class="string">"Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018"
-<a href=#577 id=577 data-nosnippet>577</a>                </span>.to_string()
+<a href=#577 id=577 data-nosnippet>577</a>                </span>.to_owned()
 <a href=#578 id=578 data-nosnippet>578</a>                .into(),
 <a href=#579 id=579 data-nosnippet>579</a>            ..OsContext::default()
 <a href=#580 id=580 data-nosnippet>580</a>        };
@@ -590,7 +590,7 @@
 <a href=#590 id=590 data-nosnippet>590</a>        // (CoreCLR 2.0+, Mono 5.4+)
 <a href=#591 id=591 data-nosnippet>591</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
 <a href=#592 id=592 data-nosnippet>592</a>            raw_description: <span class="string">"Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014"
-<a href=#593 id=593 data-nosnippet>593</a>                </span>.to_string()
+<a href=#593 id=593 data-nosnippet>593</a>                </span>.to_owned()
 <a href=#594 id=594 data-nosnippet>594</a>                .into(),
 <a href=#595 id=595 data-nosnippet>595</a>            ..OsContext::default()
 <a href=#596 id=596 data-nosnippet>596</a>        };
@@ -716,7 +716,7 @@
 <a href=#716 id=716 data-nosnippet>716</a>    </span><span class="kw">fn </span>test_unity_android_os() {
 <a href=#717 id=717 data-nosnippet>717</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
 <a href=#718 id=718 data-nosnippet>718</a>            raw_description: <span class="string">"Android OS 11 / API-30 (RP1A.201005.001/2107031736)"
-<a href=#719 id=719 data-nosnippet>719</a>                </span>.to_string()
+<a href=#719 id=719 data-nosnippet>719</a>                </span>.to_owned()
 <a href=#720 id=720 data-nosnippet>720</a>                .into(),
 <a href=#721 id=721 data-nosnippet>721</a>            ..OsContext::default()
 <a href=#722 id=722 data-nosnippet>722</a>        };
@@ -763,7 +763,7 @@
 <a href=#763 id=763 data-nosnippet>763</a>    </span><span class="kw">fn </span>test_android_4_4_2() {
 <a href=#764 id=764 data-nosnippet>764</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
 <a href=#765 id=765 data-nosnippet>765</a>            raw_description: <span class="string">"Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)"
-<a href=#766 id=766 data-nosnippet>766</a>                </span>.to_string()
+<a href=#766 id=766 data-nosnippet>766</a>                </span>.to_owned()
 <a href=#767 id=767 data-nosnippet>767</a>                .into(),
 <a href=#768 id=768 data-nosnippet>768</a>            ..OsContext::default()
 <a href=#769 id=769 data-nosnippet>769</a>        };
@@ -776,7 +776,7 @@
 <a href=#776 id=776 data-nosnippet>776</a>    <span class="attr">#[test]
 <a href=#777 id=777 data-nosnippet>777</a>    </span><span class="kw">fn </span>test_infer_json() {
 <a href=#778 id=778 data-nosnippet>778</a>        <span class="kw">let </span><span class="kw-2">mut </span>response = ResponseContext {
-<a href=#779 id=779 data-nosnippet>779</a>            data: Annotated::from(Value::String(<span class="string">r#"{"foo":"bar"}"#</span>.to_string())),
+<a href=#779 id=779 data-nosnippet>779</a>            data: Annotated::from(Value::String(<span class="string">r#"{"foo":"bar"}"#</span>.to_owned())),
 <a href=#780 id=780 data-nosnippet>780</a>            ..ResponseContext::default()
 <a href=#781 id=781 data-nosnippet>781</a>        };
 <a href=#782 id=782 data-nosnippet>782</a>
@@ -797,7 +797,7 @@
 <a href=#797 id=797 data-nosnippet>797</a>    <span class="attr">#[test]
 <a href=#798 id=798 data-nosnippet>798</a>    </span><span class="kw">fn </span>test_broken_json_with_fallback() {
 <a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">let </span><span class="kw-2">mut </span>response = ResponseContext {
-<a href=#800 id=800 data-nosnippet>800</a>            data: Annotated::from(Value::String(<span class="string">r#"{"foo":"b"#</span>.to_string())),
+<a href=#800 id=800 data-nosnippet>800</a>            data: Annotated::from(Value::String(<span class="string">r#"{"foo":"b"#</span>.to_owned())),
 <a href=#801 id=801 data-nosnippet>801</a>            headers: Annotated::from(Headers(PairList(<span class="macro">vec!</span>[Annotated::new((
 <a href=#802 id=802 data-nosnippet>802</a>                Annotated::new(<span class="string">"Content-Type"</span>.to_owned().into()),
 <a href=#803 id=803 data-nosnippet>803</a>                Annotated::new(<span class="string">"text/plain; encoding=utf-8"</span>.to_owned().into()),
@@ -813,7 +813,7 @@
 <a href=#813 id=813 data-nosnippet>813</a>    <span class="attr">#[test]
 <a href=#814 id=814 data-nosnippet>814</a>    </span><span class="kw">fn </span>test_broken_json_without_fallback() {
 <a href=#815 id=815 data-nosnippet>815</a>        <span class="kw">let </span><span class="kw-2">mut </span>response = ResponseContext {
-<a href=#816 id=816 data-nosnippet>816</a>            data: Annotated::from(Value::String(<span class="string">r#"{"foo":"b"#</span>.to_string())),
+<a href=#816 id=816 data-nosnippet>816</a>            data: Annotated::from(Value::String(<span class="string">r#"{"foo":"b"#</span>.to_owned())),
 <a href=#817 id=817 data-nosnippet>817</a>            ..ResponseContext::default()
 <a href=#818 id=818 data-nosnippet>818</a>        };
 <a href=#819 id=819 data-nosnippet>819</a>

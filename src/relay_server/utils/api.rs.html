@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>    <span class="doccomment">/// Creates an error response with a detail message
 <a href=#36 id=36 data-nosnippet>36</a>    </span><span class="kw">pub fn </span>with_detail&lt;S: AsRef&lt;str&gt;&gt;(s: S) -&gt; ApiErrorResponse {
 <a href=#37 id=37 data-nosnippet>37</a>        ApiErrorResponse {
-<a href=#38 id=38 data-nosnippet>38</a>            detail: <span class="prelude-val">Some</span>(s.as_ref().to_string()),
+<a href=#38 id=38 data-nosnippet>38</a>            detail: <span class="prelude-val">Some</span>(s.as_ref().to_owned()),
 <a href=#39 id=39 data-nosnippet>39</a>            causes: Vec::new(),
 <a href=#40 id=40 data-nosnippet>40</a>            relay: RelayErrorAction::None,
 <a href=#41 id=41 data-nosnippet>41</a>        }

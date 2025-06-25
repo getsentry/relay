@@ -604,7 +604,7 @@
 <a href=#604 id=604 data-nosnippet>604</a>            meta.add_error(Error::new(ErrorKind::ValueTooLong));
 <a href=#605 id=605 data-nosnippet>605</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft);
 <a href=#606 id=606 data-nosnippet>606</a>        } <span class="kw">else if </span>trimmed != dist {
-<a href=#607 id=607 data-nosnippet>607</a>            <span class="kw-2">*</span>dist = trimmed.to_string();
+<a href=#607 id=607 data-nosnippet>607</a>            <span class="kw-2">*</span>dist = trimmed.to_owned();
 <a href=#608 id=608 data-nosnippet>608</a>        }
 <a href=#609 id=609 data-nosnippet>609</a>        <span class="prelude-val">Ok</span>(())
 <a href=#610 id=610 data-nosnippet>610</a>    });
@@ -808,7 +808,7 @@
 <a href=#808 id=808 data-nosnippet>808</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(value_str) = exception.value.value_mut() {
 <a href=#809 id=809 data-nosnippet>809</a>                <span class="kw">let </span>new_values = regex
 <a href=#810 id=810 data-nosnippet>810</a>                    .captures(value_str)
-<a href=#811 id=811 data-nosnippet>811</a>                    .map(|cap| (cap[<span class="number">1</span>].to_string(), cap[<span class="number">2</span>].trim().to_string().into()));
+<a href=#811 id=811 data-nosnippet>811</a>                    .map(|cap| (cap[<span class="number">1</span>].to_string(), cap[<span class="number">2</span>].trim().to_owned().into()));
 <a href=#812 id=812 data-nosnippet>812</a>
 <a href=#813 id=813 data-nosnippet>813</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>((new_type, new_value)) = new_values {
 <a href=#814 id=814 data-nosnippet>814</a>                    exception.ty.set_value(<span class="prelude-val">Some</span>(new_type));
@@ -1245,7 +1245,7 @@
 <a href=#1245 id=1245 data-nosnippet>1245</a>                });
 <a href=#1246 id=1246 data-nosnippet>1246</a>            }
 <a href=#1247 id=1247 data-nosnippet>1247</a>            meta.set_original_length(<span class="prelude-val">Some</span>(original_len));
-<a href=#1248 id=1248 data-nosnippet>1248</a>            <span class="kw">return </span>trimmed.to_string();
+<a href=#1248 id=1248 data-nosnippet>1248</a>            <span class="kw">return </span>trimmed.to_owned();
 <a href=#1249 id=1249 data-nosnippet>1249</a>        };
 <a href=#1250 id=1250 data-nosnippet>1250</a>    }
 <a href=#1251 id=1251 data-nosnippet>1251</a>
@@ -2101,7 +2101,7 @@
 <a href=#2101 id=2101 data-nosnippet>2101</a>        <span class="kw">let </span>max_name_and_unit_len = <span class="prelude-val">Some</span>(<span class="number">30</span>);
 <a href=#2102 id=2102 data-nosnippet>2102</a>
 <a href=#2103 id=2103 data-nosnippet>2103</a>        <span class="kw">let </span><span class="kw-2">mut </span>measurements: BTreeMap&lt;String, Annotated&lt;Measurement&gt;&gt; = Object::new();
-<a href=#2104 id=2104 data-nosnippet>2104</a>        measurements.insert(name.to_string(), Annotated::new(measurement));
+<a href=#2104 id=2104 data-nosnippet>2104</a>        measurements.insert(name.to_owned(), Annotated::new(measurement));
 <a href=#2105 id=2105 data-nosnippet>2105</a>
 <a href=#2106 id=2106 data-nosnippet>2106</a>        <span class="kw">let </span><span class="kw-2">mut </span>measurements = Measurements(measurements);
 <a href=#2107 id=2107 data-nosnippet>2107</a>        <span class="kw">let </span><span class="kw-2">mut </span>meta = Meta::default();
@@ -4289,7 +4289,7 @@
 <a href=#4289 id=4289 data-nosnippet>4289</a>    <span class="attr">#[test]
 <a href=#4290 id=4290 data-nosnippet>4290</a>    </span><span class="kw">fn </span>test_json_value() {
 <a href=#4291 id=4291 data-nosnippet>4291</a>        <span class="kw">let </span><span class="kw-2">mut </span>exception = Annotated::new(Exception {
-<a href=#4292 id=4292 data-nosnippet>4292</a>            value: Annotated::new(<span class="string">r#"{"unauthorized":true}"#</span>.to_string().into()),
+<a href=#4292 id=4292 data-nosnippet>4292</a>            value: Annotated::new(<span class="string">r#"{"unauthorized":true}"#</span>.to_owned().into()),
 <a href=#4293 id=4293 data-nosnippet>4293</a>            ..Exception::default()
 <a href=#4294 id=4294 data-nosnippet>4294</a>        });
 <a href=#4295 id=4295 data-nosnippet>4295</a>

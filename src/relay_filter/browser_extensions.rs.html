@@ -190,7 +190,7 @@
 <a href=#190 id=190 data-nosnippet>190</a>
 <a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">fn </span>get_event_with_exception_value(val: <span class="kw-2">&amp;</span>str) -&gt; Event {
 <a href=#192 id=192 data-nosnippet>192</a>        <span class="kw">let </span>ex = Exception {
-<a href=#193 id=193 data-nosnippet>193</a>            value: Annotated::from(JsonLenientString::from(val.to_string())),
+<a href=#193 id=193 data-nosnippet>193</a>            value: Annotated::from(JsonLenientString::from(val.to_owned())),
 <a href=#194 id=194 data-nosnippet>194</a>            ..Exception::default()
 <a href=#195 id=195 data-nosnippet>195</a>        };
 <a href=#196 id=196 data-nosnippet>196</a>

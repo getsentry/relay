@@ -715,7 +715,7 @@
 <a href=#715 id=715 data-nosnippet>715</a>
 <a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">for </span>(date, message) <span class="kw">in </span>breadcrumbs {
 <a href=#717 id=717 data-nosnippet>717</a>            <span class="kw">let </span><span class="kw-2">mut </span>breadcrumb = BTreeMap::new();
-<a href=#718 id=718 data-nosnippet>718</a>            breadcrumb.insert(<span class="string">"message"</span>, (<span class="kw-2">*</span>message).to_string());
+<a href=#718 id=718 data-nosnippet>718</a>            breadcrumb.insert(<span class="string">"message"</span>, (<span class="kw-2">*</span>message).to_owned());
 <a href=#719 id=719 data-nosnippet>719</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(date) = date {
 <a href=#720 id=720 data-nosnippet>720</a>                breadcrumb.insert(<span class="string">"timestamp"</span>, date.to_rfc3339());
 <a href=#721 id=721 data-nosnippet>721</a>            }

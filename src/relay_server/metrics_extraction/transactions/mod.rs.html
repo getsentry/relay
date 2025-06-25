@@ -146,13 +146,13 @@
 <a href=#146 id=146 data-nosnippet>146</a></span><span class="kw">fn </span>extract_universal_tags(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>TransactionMetricsConfig) -&gt; CommonTags {
 <a href=#147 id=147 data-nosnippet>147</a>    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
 <a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
-<a href=#149 id=149 data-nosnippet>149</a>        tags.insert(CommonTag::Release, release.to_string());
+<a href=#149 id=149 data-nosnippet>149</a>        tags.insert(CommonTag::Release, release.to_owned());
 <a href=#150 id=150 data-nosnippet>150</a>    }
 <a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = event.dist.value() {
 <a href=#152 id=152 data-nosnippet>152</a>        tags.insert(CommonTag::Dist, dist.to_string());
 <a href=#153 id=153 data-nosnippet>153</a>    }
 <a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {
-<a href=#155 id=155 data-nosnippet>155</a>        tags.insert(CommonTag::Environment, environment.to_string());
+<a href=#155 id=155 data-nosnippet>155</a>        tags.insert(CommonTag::Environment, environment.to_owned());
 <a href=#156 id=156 data-nosnippet>156</a>    }
 <a href=#157 id=157 data-nosnippet>157</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = get_transaction_name(event) {
 <a href=#158 id=158 data-nosnippet>158</a>        tags.insert(CommonTag::Transaction, transaction_name);
@@ -167,7 +167,7 @@
 <a href=#167 id=167 data-nosnippet>167</a>        <span class="kw">_ </span>=&gt; <span class="string">"other"</span>,
 <a href=#168 id=168 data-nosnippet>168</a>    };
 <a href=#169 id=169 data-nosnippet>169</a>
-<a href=#170 id=170 data-nosnippet>170</a>    tags.insert(CommonTag::Platform, platform.to_string());
+<a href=#170 id=170 data-nosnippet>170</a>    tags.insert(CommonTag::Platform, platform.to_owned());
 <a href=#171 id=171 data-nosnippet>171</a>
 <a href=#172 id=172 data-nosnippet>172</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() {
 <a href=#173 id=173 data-nosnippet>173</a>        <span class="comment">// We assume that the trace context status is automatically set to unknown inside of the
@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>                    <span class="kw">let </span>(key, value) = entry.as_pair();
 <a href=#227 id=227 data-nosnippet>227</a>                    <span class="kw">if let </span>(<span class="prelude-val">Some</span>(key), <span class="prelude-val">Some</span>(value)) = (key.as_str(), value.as_str()) {
 <a href=#228 id=228 data-nosnippet>228</a>                        <span class="kw">if </span>custom_tags.contains(key) {
-<a href=#229 id=229 data-nosnippet>229</a>                            tags.insert(CommonTag::Custom(key.to_string()), value.to_string());
+<a href=#229 id=229 data-nosnippet>229</a>                            tags.insert(CommonTag::Custom(key.to_owned()), value.to_owned());
 <a href=#230 id=230 data-nosnippet>230</a>                        }
 <a href=#231 id=231 data-nosnippet>231</a>                    }
 <a href=#232 id=232 data-nosnippet>232</a>                }
@@ -409,7 +409,7 @@
 <a href=#409 id=409 data-nosnippet>409</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_from_dsc) = <span class="self">self</span>.transaction_from_dsc {
 <a href=#410 id=410 data-nosnippet>410</a>                universal_tags
 <a href=#411 id=411 data-nosnippet>411</a>                    .<span class="number">0
-<a href=#412 id=412 data-nosnippet>412</a>                    </span>.insert(CommonTag::Transaction, transaction_from_dsc.to_string());
+<a href=#412 id=412 data-nosnippet>412</a>                    </span>.insert(CommonTag::Transaction, transaction_from_dsc.to_owned());
 <a href=#413 id=413 data-nosnippet>413</a>            }
 <a href=#414 id=414 data-nosnippet>414</a>
 <a href=#415 id=415 data-nosnippet>415</a>            TransactionCPRTags {

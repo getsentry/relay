@@ -73,7 +73,7 @@
 <a href=#73 id=73 data-nosnippet>73</a>    <span class="kw">fn </span>get_event_with_ip_addr(val: <span class="kw-2">&amp;</span>str) -&gt; Event {
 <a href=#74 id=74 data-nosnippet>74</a>        Event {
 <a href=#75 id=75 data-nosnippet>75</a>            user: Annotated::from(User {
-<a href=#76 id=76 data-nosnippet>76</a>                ip_address: Annotated::from(IpAddr(val.to_string())),
+<a href=#76 id=76 data-nosnippet>76</a>                ip_address: Annotated::from(IpAddr(val.to_owned())),
 <a href=#77 id=77 data-nosnippet>77</a>                ..User::default()
 <a href=#78 id=78 data-nosnippet>78</a>            }),
 <a href=#79 id=79 data-nosnippet>79</a>            ..Event::default()
@@ -93,7 +93,7 @@
 <a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">fn </span>get_event_with_url(val: <span class="kw-2">&amp;</span>str) -&gt; Event {
 <a href=#94 id=94 data-nosnippet>94</a>        Event {
 <a href=#95 id=95 data-nosnippet>95</a>            request: Annotated::from(Request {
-<a href=#96 id=96 data-nosnippet>96</a>                url: Annotated::from(val.to_string()),
+<a href=#96 id=96 data-nosnippet>96</a>                url: Annotated::from(val.to_owned()),
 <a href=#97 id=97 data-nosnippet>97</a>                ..Request::default()
 <a href=#98 id=98 data-nosnippet>98</a>            }),
 <a href=#99 id=99 data-nosnippet>99</a>            ..Event::default()

@@ -146,7 +146,7 @@
 <a href=#146 id=146 data-nosnippet>146</a>
 <a href=#147 id=147 data-nosnippet>147</a>        <span class="prelude-val">Ok</span>(UpstreamDescriptor {
 <a href=#148 id=148 data-nosnippet>148</a>            host: <span class="kw">match </span>url.host_str() {
-<a href=#149 id=149 data-nosnippet>149</a>                <span class="prelude-val">Some</span>(host) =&gt; Cow::Owned(host.to_string()),
+<a href=#149 id=149 data-nosnippet>149</a>                <span class="prelude-val">Some</span>(host) =&gt; Cow::Owned(host.to_owned()),
 <a href=#150 id=150 data-nosnippet>150</a>                <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UpstreamParseError::NoHost),
 <a href=#151 id=151 data-nosnippet>151</a>            },
 <a href=#152 id=152 data-nosnippet>152</a>            port: url.port().unwrap_or_else(|| scheme.default_port()),

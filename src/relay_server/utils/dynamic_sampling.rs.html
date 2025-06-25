@@ -140,8 +140,8 @@
 <a href=#140 id=140 data-nosnippet>140</a>        Event {
 <a href=#141 id=141 data-nosnippet>141</a>            id: Annotated::new(EventId::new()),
 <a href=#142 id=142 data-nosnippet>142</a>            ty: Annotated::new(event_type),
-<a href=#143 id=143 data-nosnippet>143</a>            transaction: Annotated::new(transaction.to_string()),
-<a href=#144 id=144 data-nosnippet>144</a>            release: Annotated::new(LenientString(release.to_string())),
+<a href=#143 id=143 data-nosnippet>143</a>            transaction: Annotated::new(transaction.to_owned()),
+<a href=#144 id=144 data-nosnippet>144</a>            release: Annotated::new(LenientString(release.to_owned())),
 <a href=#145 id=145 data-nosnippet>145</a>            ..Event::default()
 <a href=#146 id=146 data-nosnippet>146</a>        }
 <a href=#147 id=147 data-nosnippet>147</a>    }
@@ -158,9 +158,9 @@
 <a href=#158 id=158 data-nosnippet>158</a>        DynamicSamplingContext {
 <a href=#159 id=159 data-nosnippet>159</a>            trace_id: <span class="string">"67e5504410b1426f9247bb680e5fe0c8"</span>.parse().unwrap(),
 <a href=#160 id=160 data-nosnippet>160</a>            public_key: <span class="string">"12345678901234567890123456789012"</span>.parse().unwrap(),
-<a href=#161 id=161 data-nosnippet>161</a>            release: release.map(|value| value.to_string()),
-<a href=#162 id=162 data-nosnippet>162</a>            environment: environment.map(|value| value.to_string()),
-<a href=#163 id=163 data-nosnippet>163</a>            transaction: transaction.map(|value| value.to_string()),
+<a href=#161 id=161 data-nosnippet>161</a>            release: release.map(|value| value.to_owned()),
+<a href=#162 id=162 data-nosnippet>162</a>            environment: environment.map(|value| value.to_owned()),
+<a href=#163 id=163 data-nosnippet>163</a>            transaction: transaction.map(|value| value.to_owned()),
 <a href=#164 id=164 data-nosnippet>164</a>            sample_rate,
 <a href=#165 id=165 data-nosnippet>165</a>            user: Default::default(),
 <a href=#166 id=166 data-nosnippet>166</a>            other: Default::default(),

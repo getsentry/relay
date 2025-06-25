@@ -474,7 +474,7 @@
 <a href=#474 id=474 data-nosnippet>474</a>            )),
 <a href=#475 id=475 data-nosnippet>475</a>            Annotated::new((
 <a href=#476 id=476 data-nosnippet>476</a>                Annotated::new(<span class="string">"UsEr-AgeNT"</span>.to_owned().into()),
-<a href=#477 id=477 data-nosnippet>477</a>                Annotated::new(user_agent.to_string().into()),
+<a href=#477 id=477 data-nosnippet>477</a>                Annotated::new(user_agent.to_owned().into()),
 <a href=#478 id=478 data-nosnippet>478</a>            )),
 <a href=#479 id=479 data-nosnippet>479</a>            Annotated::new((
 <a href=#480 id=480 data-nosnippet>480</a>                Annotated::new(<span class="string">"WWW-Authenticate"</span>.to_owned().into()),
@@ -726,7 +726,7 @@
 <a href=#726 id=726 data-nosnippet>726</a>        <span class="kw">let </span>headers = Headers([
 <a href=#727 id=727 data-nosnippet>727</a>            Annotated::new((
 <a href=#728 id=728 data-nosnippet>728</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#729 id=729 data-nosnippet>729</a>                Annotated::new(<span class="string">r#""Mozilla/5.0 (Linux; Android 11; foo g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36""#</span>.to_string().into()),
+<a href=#729 id=729 data-nosnippet>729</a>                Annotated::new(<span class="string">r#""Mozilla/5.0 (Linux; Android 11; foo g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36""#</span>.to_owned().into()),
 <a href=#730 id=730 data-nosnippet>730</a>            )),
 <a href=#731 id=731 data-nosnippet>731</a>            Annotated::new((
 <a href=#732 id=732 data-nosnippet>732</a>                Annotated::new(<span class="string">"invalid header"</span>.to_owned().into()),
@@ -742,7 +742,7 @@
 <a href=#742 id=742 data-nosnippet>742</a>        <span class="kw">let </span>headers = Headers([
 <a href=#743 id=743 data-nosnippet>743</a>            Annotated::new((
 <a href=#744 id=744 data-nosnippet>744</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#745 id=745 data-nosnippet>745</a>                Annotated::new(<span class="string">r#""Mozilla/5.0 (Linux; Android 11; foo g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36""#</span>.to_string().into()),
+<a href=#745 id=745 data-nosnippet>745</a>                Annotated::new(<span class="string">r#""Mozilla/5.0 (Linux; Android 11; foo g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36""#</span>.to_owned().into()),
 <a href=#746 id=746 data-nosnippet>746</a>            )),
 <a href=#747 id=747 data-nosnippet>747</a>            Annotated::new((
 <a href=#748 id=748 data-nosnippet>748</a>                Annotated::new(<span class="string">"SEC-CH-UA-MODEL"</span>.to_owned().into()),
@@ -816,11 +816,11 @@
 <a href=#816 id=816 data-nosnippet>816</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
 <a href=#817 id=817 data-nosnippet>817</a>            Annotated::new((
 <a href=#818 id=818 data-nosnippet>818</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#819 id=819 data-nosnippet>819</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_string().into()),
+<a href=#819 id=819 data-nosnippet>819</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_owned().into()),
 <a href=#820 id=820 data-nosnippet>820</a>            )),
 <a href=#821 id=821 data-nosnippet>821</a>            Annotated::new((
 <a href=#822 id=822 data-nosnippet>822</a>                Annotated::new(<span class="string">"SEC-CH-UA"</span>.to_owned().into()),
-<a href=#823 id=823 data-nosnippet>823</a>                Annotated::new(<span class="string">r#"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"#</span>.to_string().into()),
+<a href=#823 id=823 data-nosnippet>823</a>                Annotated::new(<span class="string">r#"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"#</span>.to_owned().into()),
 <a href=#824 id=824 data-nosnippet>824</a>            )),
 <a href=#825 id=825 data-nosnippet>825</a>        ];
 <a href=#826 id=826 data-nosnippet>826</a>            PairList(headers)
@@ -847,7 +847,7 @@
 <a href=#847 id=847 data-nosnippet>847</a>                Annotated::new(
 <a href=#848 id=848 data-nosnippet>848</a>                    <span class="comment">// browser field missing
 <a href=#849 id=849 data-nosnippet>849</a>                    </span><span class="string">r#"Not_A Brand";v="99", " ";v="109", "Chromium";v="109"#
-<a href=#850 id=850 data-nosnippet>850</a>                        </span>.to_string()
+<a href=#850 id=850 data-nosnippet>850</a>                        </span>.to_owned()
 <a href=#851 id=851 data-nosnippet>851</a>                        .into(),
 <a href=#852 id=852 data-nosnippet>852</a>                ),
 <a href=#853 id=853 data-nosnippet>853</a>            ))];
@@ -865,11 +865,11 @@
 <a href=#865 id=865 data-nosnippet>865</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
 <a href=#866 id=866 data-nosnippet>866</a>            Annotated::new((
 <a href=#867 id=867 data-nosnippet>867</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#868 id=868 data-nosnippet>868</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_string().into()),
+<a href=#868 id=868 data-nosnippet>868</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_owned().into()),
 <a href=#869 id=869 data-nosnippet>869</a>            )),
 <a href=#870 id=870 data-nosnippet>870</a>            Annotated::new((
 <a href=#871 id=871 data-nosnippet>871</a>                Annotated::new(<span class="string">"SEC-CH-UA"</span>.to_owned().into()),
-<a href=#872 id=872 data-nosnippet>872</a>                Annotated::new(<span class="string">r#"Not_A Brand";v="99", "weird browser";v="109", "Chromium";v="109"#</span>.to_string().into()),
+<a href=#872 id=872 data-nosnippet>872</a>                Annotated::new(<span class="string">r#"Not_A Brand";v="99", "weird browser";v="109", "Chromium";v="109"#</span>.to_owned().into()),
 <a href=#873 id=873 data-nosnippet>873</a>            )),
 <a href=#874 id=874 data-nosnippet>874</a>            Annotated::new((
 <a href=#875 id=875 data-nosnippet>875</a>                Annotated::new(<span class="string">"SEC-CH-UA-FULL-VERSION"</span>.to_owned().into()),
@@ -898,11 +898,11 @@
 <a href=#898 id=898 data-nosnippet>898</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
 <a href=#899 id=899 data-nosnippet>899</a>            Annotated::new((
 <a href=#900 id=900 data-nosnippet>900</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#901 id=901 data-nosnippet>901</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_string().into()),
+<a href=#901 id=901 data-nosnippet>901</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_owned().into()),
 <a href=#902 id=902 data-nosnippet>902</a>            )),
 <a href=#903 id=903 data-nosnippet>903</a>            Annotated::new((
 <a href=#904 id=904 data-nosnippet>904</a>                Annotated::new(<span class="string">"SEC-CH-UA"</span>.to_owned().into()),
-<a href=#905 id=905 data-nosnippet>905</a>                Annotated::new(<span class="string">r#"Not_A Brand";v="99", "Chromium";v="108"#</span>.to_string().into()), <span class="comment">// no browser field here
+<a href=#905 id=905 data-nosnippet>905</a>                Annotated::new(<span class="string">r#"Not_A Brand";v="99", "Chromium";v="108"#</span>.to_owned().into()), <span class="comment">// no browser field here
 <a href=#906 id=906 data-nosnippet>906</a>            </span>)),
 <a href=#907 id=907 data-nosnippet>907</a>        ];
 <a href=#908 id=908 data-nosnippet>908</a>            PairList(headers)
@@ -946,11 +946,11 @@
 <a href=#946 id=946 data-nosnippet>946</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
 <a href=#947 id=947 data-nosnippet>947</a>            Annotated::new((
 <a href=#948 id=948 data-nosnippet>948</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#949 id=949 data-nosnippet>949</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_string().into()),
+<a href=#949 id=949 data-nosnippet>949</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_owned().into()),
 <a href=#950 id=950 data-nosnippet>950</a>            )),
 <a href=#951 id=951 data-nosnippet>951</a>            Annotated::new((
 <a href=#952 id=952 data-nosnippet>952</a>                Annotated::new(<span class="string">"SEC-CH-UA-PLATFORM"</span>.to_owned().into()),
-<a href=#953 id=953 data-nosnippet>953</a>                Annotated::new(<span class="string">r#"macOS"#</span>.to_string().into()), <span class="comment">// no browser field here
+<a href=#953 id=953 data-nosnippet>953</a>                Annotated::new(<span class="string">r#"macOS"#</span>.to_owned().into()), <span class="comment">// no browser field here
 <a href=#954 id=954 data-nosnippet>954</a>            </span>)),
 <a href=#955 id=955 data-nosnippet>955</a>            Annotated::new((
 <a href=#956 id=956 data-nosnippet>956</a>                Annotated::new(<span class="string">"SEC-CH-UA-PLATFORM-VERSION"</span>.to_owned().into()),
@@ -984,7 +984,7 @@
 <a href=#984 id=984 data-nosnippet>984</a>        <span class="kw">let </span>headers = Headers({
 <a href=#985 id=985 data-nosnippet>985</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[Annotated::new((
 <a href=#986 id=986 data-nosnippet>986</a>                Annotated::new(<span class="string">"SEC-CH-UA-PLATFORM"</span>.to_owned().into()),
-<a href=#987 id=987 data-nosnippet>987</a>                Annotated::new(<span class="string">r#""#</span>.to_string().into()),
+<a href=#987 id=987 data-nosnippet>987</a>                Annotated::new(<span class="string">r#""#</span>.to_owned().into()),
 <a href=#988 id=988 data-nosnippet>988</a>            ))];
 <a href=#989 id=989 data-nosnippet>989</a>            PairList(headers)
 <a href=#990 id=990 data-nosnippet>990</a>        });
@@ -1000,7 +1000,7 @@
 <a href=#1000 id=1000 data-nosnippet>1000</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
 <a href=#1001 id=1001 data-nosnippet>1001</a>                Annotated::new((
 <a href=#1002 id=1002 data-nosnippet>1002</a>                    Annotated::new(<span class="string">"SEC-CH-UA-PLATFORM"</span>.to_owned().into()),
-<a href=#1003 id=1003 data-nosnippet>1003</a>                    Annotated::new(<span class="string">r#"macOs"#</span>.to_string().into()),
+<a href=#1003 id=1003 data-nosnippet>1003</a>                    Annotated::new(<span class="string">r#"macOs"#</span>.to_owned().into()),
 <a href=#1004 id=1004 data-nosnippet>1004</a>                )),
 <a href=#1005 id=1005 data-nosnippet>1005</a>                Annotated::new((
 <a href=#1006 id=1006 data-nosnippet>1006</a>                    Annotated::new(<span class="string">"SEC-CH-UA-PLATFORM-VERSION"</span>.to_owned().into()),
@@ -1021,11 +1021,11 @@
 <a href=#1021 id=1021 data-nosnippet>1021</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
 <a href=#1022 id=1022 data-nosnippet>1022</a>            Annotated::new((
 <a href=#1023 id=1023 data-nosnippet>1023</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#1024 id=1024 data-nosnippet>1024</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_string().into()),
+<a href=#1024 id=1024 data-nosnippet>1024</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_owned().into()),
 <a href=#1025 id=1025 data-nosnippet>1025</a>            )),
 <a href=#1026 id=1026 data-nosnippet>1026</a>            Annotated::new((
 <a href=#1027 id=1027 data-nosnippet>1027</a>                Annotated::new(<span class="string">"invalid header"</span>.to_owned().into()),
-<a href=#1028 id=1028 data-nosnippet>1028</a>                Annotated::new(<span class="string">r#"macOS"#</span>.to_string().into()),
+<a href=#1028 id=1028 data-nosnippet>1028</a>                Annotated::new(<span class="string">r#"macOS"#</span>.to_owned().into()),
 <a href=#1029 id=1029 data-nosnippet>1029</a>            )),
 <a href=#1030 id=1030 data-nosnippet>1030</a>            Annotated::new((
 <a href=#1031 id=1031 data-nosnippet>1031</a>                Annotated::new(<span class="string">"SEC-CH-UA-PLATFORM-VERSION"</span>.to_owned().into()),
@@ -1060,7 +1060,7 @@
 <a href=#1060 id=1060 data-nosnippet>1060</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
 <a href=#1061 id=1061 data-nosnippet>1061</a>            Annotated::new((
 <a href=#1062 id=1062 data-nosnippet>1062</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#1063 id=1063 data-nosnippet>1063</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"#</span>.to_string().into()),
+<a href=#1063 id=1063 data-nosnippet>1063</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"#</span>.to_owned().into()),
 <a href=#1064 id=1064 data-nosnippet>1064</a>            )),
 <a href=#1065 id=1065 data-nosnippet>1065</a>        ];
 <a href=#1066 id=1066 data-nosnippet>1066</a>            PairList(headers)
@@ -1078,7 +1078,7 @@
 <a href=#1078 id=1078 data-nosnippet>1078</a>            <span class="kw">let </span>headers = <span class="macro">vec!</span>[
 <a href=#1079 id=1079 data-nosnippet>1079</a>            Annotated::new((
 <a href=#1080 id=1080 data-nosnippet>1080</a>                Annotated::new(<span class="string">"user-agent"</span>.to_owned().into()),
-<a href=#1081 id=1081 data-nosnippet>1081</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_string().into()),
+<a href=#1081 id=1081 data-nosnippet>1081</a>                Annotated::new(<span class="string">r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#</span>.to_owned().into()),
 <a href=#1082 id=1082 data-nosnippet>1082</a>            )),
 <a href=#1083 id=1083 data-nosnippet>1083</a>        ];
 <a href=#1084 id=1084 data-nosnippet>1084</a>            PairList(headers)

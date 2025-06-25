@@ -160,7 +160,7 @@
 <a href=#160 id=160 data-nosnippet>160</a>                <span class="kw">continue</span>;
 <a href=#161 id=161 data-nosnippet>161</a>            }
 <a href=#162 id=162 data-nosnippet>162</a>
-<a href=#163 id=163 data-nosnippet>163</a>            <span class="kw">let </span>id = <span class="kw-2">&amp;</span>state.id().to_string();
+<a href=#163 id=163 data-nosnippet>163</a>            <span class="kw">let </span>id = <span class="kw-2">&amp;</span>state.id().to_owned();
 <a href=#164 id=164 data-nosnippet>164</a>            <span class="kw">let </span>scopes = num_scopes_tag(<span class="kw-2">&amp;</span>state);
 <a href=#165 id=165 data-nosnippet>165</a>            <span class="kw">let </span>results = <span class="macro">metric!</span>(
 <a href=#166 id=166 data-nosnippet>166</a>                timer(CardinalityLimiterTimers::Redis),

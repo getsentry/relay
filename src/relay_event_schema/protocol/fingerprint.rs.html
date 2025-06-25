@@ -132,7 +132,7 @@
 <a href=#132 id=132 data-nosnippet>132</a>    <span class="attr">#[test]
 <a href=#133 id=133 data-nosnippet>133</a>    </span><span class="kw">fn </span>test_fingerprint_bool() {
 <a href=#134 id=134 data-nosnippet>134</a>        <span class="macro">assert_eq!</span>(
-<a href=#135 id=135 data-nosnippet>135</a>            Annotated::new(<span class="macro">vec!</span>[<span class="string">"True"</span>.to_owned(), <span class="string">"False"</span>.to_string()].into()),
+<a href=#135 id=135 data-nosnippet>135</a>            Annotated::new(<span class="macro">vec!</span>[<span class="string">"True"</span>.to_owned(), <span class="string">"False"</span>.to_owned()].into()),
 <a href=#136 id=136 data-nosnippet>136</a>            Annotated::&lt;Fingerprint&gt;::from_json(<span class="string">"[true, false]"</span>).unwrap()
 <a href=#137 id=137 data-nosnippet>137</a>        );
 <a href=#138 id=138 data-nosnippet>138</a>    }
@@ -198,7 +198,7 @@
 <a href=#198 id=198 data-nosnippet>198</a>    </span><span class="kw">fn </span>test_fingerprint_invalid_fallback() {
 <a href=#199 id=199 data-nosnippet>199</a>        <span class="comment">// XXX: review, this was changed after refactor
 <a href=#200 id=200 data-nosnippet>200</a>        </span><span class="macro">assert_eq!</span>(
-<a href=#201 id=201 data-nosnippet>201</a>            Annotated::new(Fingerprint(<span class="macro">vec!</span>[<span class="string">"a"</span>.to_owned(), <span class="string">"d"</span>.to_string()])),
+<a href=#201 id=201 data-nosnippet>201</a>            Annotated::new(Fingerprint(<span class="macro">vec!</span>[<span class="string">"a"</span>.to_owned(), <span class="string">"d"</span>.to_owned()])),
 <a href=#202 id=202 data-nosnippet>202</a>            Annotated::&lt;Fingerprint&gt;::from_json(<span class="string">"[\"a\", null, \"d\"]"</span>).unwrap()
 <a href=#203 id=203 data-nosnippet>203</a>        );
 <a href=#204 id=204 data-nosnippet>204</a>    }
