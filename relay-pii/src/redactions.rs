@@ -63,7 +63,7 @@ mod tests {
 
         let deser: Redaction = serde_json::from_str(json).unwrap();
         let redaction = Redaction::Replace(ReplaceRedaction {
-            text: "[filter]".to_string(),
+            text: "[filter]".to_owned(),
         });
         assert!(deser == redaction);
     }

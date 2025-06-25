@@ -803,7 +803,7 @@ mod tests {
     async fn test_limited_with_unlimited_quota() {
         let quotas = &[
             Quota {
-                id: Some("q0".to_string()),
+                id: Some("q0".to_owned()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -813,7 +813,7 @@ mod tests {
                 namespace: None,
             },
             Quota {
-                id: Some("q1".to_string()),
+                id: Some("q1".to_owned()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,

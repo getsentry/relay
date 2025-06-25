@@ -229,7 +229,7 @@ impl Processor for PiiProcessor<'_> {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
             user.ip_address.meta_mut().add_remark(Remark::new(
                 RemarkType::Removed,
-                "pii:ip_address".to_string(),
+                "pii:ip_address".to_owned(),
             ));
         }
 
@@ -330,10 +330,10 @@ pub fn scrub_graphql(event: &mut Event) {
                 if let Some(Annotated(Some(Value::Object(variables)), _)) =
                     data.get_mut("variables")
                 {
-                    for (key, value) in variables.iter_mut() {
-                        keys.insert(key);
-                        value.set_value(Some(Value::String("[Filtered]".to_string())));
-                    }
+                                    for (key, value) in variables.iter_mut() {
+                    keys.insert(key);
+                    value.set_value(Some(Value::String("[Filtered]".to_owned())));
+                }
                 }
             }
         }
@@ -371,7 +371,7 @@ fn scrub_graphql_data(keys: &BTreeSet<&str>, data: &mut BTreeMap<String, Annotat
             }
             _ => {
                 if keys.contains(key.as_str()) {
-                    value.set_value(Some(Value::String("[Filtered]".to_string())));
+                    value.set_value(Some(Value::String("[Filtered]".to_owned())));
                 }
             }
         }
@@ -674,14 +674,14 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
-                formatted: Annotated::new("Hello world!".to_string().into()),
+                formatted: Annotated::new("Hello world!".to_owned().into()),
                 ..Default::default()
             }),
             request: Annotated::new(Request {
                 env: {
                     let mut rv = Object::new();
                     rv.insert(
-                        "SECRET_KEY".to_string(),
+                        "SECRET_KEY".to_owned(),
                         Annotated::new(Value::String("134141231231231231231312".into())),
                     );
                     Annotated::new(rv)
@@ -689,12 +689,12 @@ mod tests {
                 headers: {
                     let rv = vec![
                         Annotated::new((
-                            Annotated::new("Cookie".to_string().into()),
-                            Annotated::new("super secret".to_string().into()),
+                            Annotated::new("Cookie".to_owned().into()),
+                            Annotated::new("super secret".to_owned().into()),
                         )),
                         Annotated::new((
-                            Annotated::new("X-Forwarded-For".to_string().into()),
-                            Annotated::new("127.0.0.1".to_string().into()),
+                            Annotated::new("X-Forwarded-For".to_owned().into()),
+                            Annotated::new("127.0.0.1".to_owned().into()),
                         )),
                     ];
                     Annotated::new(Headers(PairList(rv)))
@@ -703,8 +703,8 @@ mod tests {
             }),
             tags: Annotated::new(Tags(
                 vec![Annotated::new(TagEntry(
-                    Annotated::new("forwarded_for".to_string()),
-                    Annotated::new("127.0.0.1".to_string()),
+                    Annotated::new("forwarded_for".to_owned()),
+                    Annotated::new("127.0.0.1".to_owned()),
                 ))]
                 .into(),
             )),
@@ -733,8 +733,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "foo".to_string(),
-                    Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                    "foo".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("bar".to_owned()))),
                 );
                 Annotated::new(map)
             },

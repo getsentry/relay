@@ -701,7 +701,7 @@ impl StoreService {
             }
             _ => KafkaTopic::MetricsGeneric,
         };
-        let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
+        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
 
         self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
@@ -723,7 +723,7 @@ impl StoreService {
             received: safe_timestamp(received_at),
             retention_days,
             headers: BTreeMap::from([(
-                "sampled".to_string(),
+                                    "sampled".to_owned(),
                 if item.sampled() { "true" } else { "false" }.to_owned(),
             )]),
             payload: item.payload(),
@@ -964,7 +964,7 @@ impl StoreService {
             KafkaTopic::Spans,
             KafkaMessage::Span {
                 headers: BTreeMap::from([(
-                    "project_id".to_string(),
+                    "project_id".to_owned(),
                     scoping.project_id.to_string(),
                 )]),
                 message: span,
