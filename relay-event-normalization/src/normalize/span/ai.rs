@@ -42,7 +42,7 @@ fn calculate_ai_model_cost(model_cost: Option<ModelCostV2>, data: &SpanData) -> 
 
 /// Maps AI-related measurements (legacy) to span data.
 pub fn map_ai_measurements_to_data(span: &mut Span) {
-    if !span.op.value().is_some_and(|op| op.starts_with("ai.")) {
+    if !is_ai_span(span) {
         return;
     };
 
@@ -86,7 +86,7 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
 
 /// Extract the gen_ai_usage_total_cost data into the span
 pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
-    if !span.op.value().is_some_and(|op| op.starts_with("ai.")) {
+    if !is_ai_span(span) {
         return;
     }
 
@@ -122,4 +122,12 @@ pub fn enrich_ai_span_data(event: &mut Event, model_costs: Option<&ModelCosts>) 
             extract_ai_data(span, model_costs);
         }
     }
+}
+
+/// Returns true if the span is an AI span.
+/// AI spans are spans with op starting with "ai." (legacy) or "gen_ai." (new).
+pub fn is_ai_span(span: &Span) -> bool {
+    span.op
+        .value()
+        .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."))
 }
