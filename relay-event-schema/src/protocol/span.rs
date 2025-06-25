@@ -1320,6 +1320,13 @@ mod tests {
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
+            gen_ai_prompt: ~,
+            gen_ai_request_messages: ~,
+            gen_ai_tool_input: ~,
+            gen_ai_tool_output: ~,
+            gen_ai_response_tool_calls: ~,
+            gen_ai_response_text: ~,
+            gen_ai_response_object: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
