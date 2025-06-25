@@ -52,7 +52,7 @@ pub fn check_config(config: &Config) -> Result<()> {
 
         for topic in relay_kafka::KafkaTopic::iter() {
             let _ = config
-                .kafka_config(*topic)
+                .kafka_configs(*topic)
                 .with_context(|| format!("invalid kafka configuration for topic '{topic:?}'"))?;
         }
     }

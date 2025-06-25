@@ -147,8 +147,8 @@ define_topic_assignments! {
 /// Configuration for a "logical" topic/datasink that Relay should forward data into.
 ///
 /// Can be either a string containing the kafka topic name to produce into (using the default
-/// `kafka_config`), or an object containing keys `topic_name` and `kafka_config_name` for using a
-/// custom kafka cluster.
+/// `kafka_config`), an object containing keys `topic_name` and `kafka_config_name` for using a
+/// custom kafka cluster, or an array of topic names/configs for sharded topics.
 ///
 /// See documentation for `secondary_kafka_configs` for more information.
 #[derive(Serialize, Deserialize, Debug)]
@@ -157,9 +157,26 @@ pub enum TopicAssignment {
     /// String containing the kafka topic name. In this case the default kafka cluster configured
     /// in `kafka_config` will be used.
     Primary(String),
+    /// Array of topic configs for sharded topics. Messages will be distributed across
+    /// these topics based on partition key or randomly if no key is available.
+    ///
+    /// The order of shards in this array is critical for consistent hash-based routing. Changing
+    /// the order will cause messages to be routed to different shards, breaking semantic
+    /// partitioning. Appending new shards also breaks semantic partitioning.
+    Sharded(Vec<ShardConfig>),
     /// Object containing topic name and string identifier of one of the clusters configured in
     /// `secondary_kafka_configs`. In this case that custom kafka config will be used to produce
     /// data to the given topic name.
+    Secondary(KafkaTopicConfig),
+}
+
+/// Configuration for a shard within a sharded topic assignment.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum ShardConfig {
+    /// String containing the kafka topic name. Uses the default kafka cluster.
+    Primary(String),
+    /// Object containing topic name and kafka config for custom cluster.
     Secondary(KafkaTopicConfig),
 }
 
@@ -192,8 +209,8 @@ pub struct KeyRateLimit {
 /// Config for creating a Kafka producer.
 #[derive(Debug)]
 pub struct KafkaParams<'a> {
-    /// The topic name to use.
-    pub topic_name: &'a str,
+    /// The topic names to use. Can be a single topic or multiple topics for sharding.
+    pub topic_names: Vec<String>,
     /// The Kafka config name will be used to produce data.
     pub config_name: Option<&'a str>,
     /// Parameters for the Kafka producer configuration.
@@ -209,39 +226,72 @@ impl From<String> for TopicAssignment {
 }
 
 impl TopicAssignment {
-    /// Get the kafka config for the current topic assignment.
+    /// Get the kafka configs for the current topic assignment.
     ///
     /// # Errors
     /// Returns [`ConfigError`] if the configuration for the current topic assignment is invalid.
-    pub fn kafka_config<'a>(
+    pub fn kafka_configs<'a>(
         &'a self,
         default_config: &'a Vec<KafkaConfigParam>,
         secondary_configs: &'a BTreeMap<String, Vec<KafkaConfigParam>>,
-    ) -> Result<KafkaParams<'a>, ConfigError> {
-        let kafka_config = match self {
-            Self::Primary(topic_name) => KafkaParams {
-                topic_name,
+    ) -> Result<Vec<KafkaParams<'a>>, ConfigError> {
+        let kafka_configs = match self {
+            Self::Primary(topic_name) => vec![KafkaParams {
+                topic_names: vec![topic_name.clone()],
                 config_name: None,
                 params: default_config.as_slice(),
                 // XXX: Rate limits can only be set if the non-default kafka broker config is used,
                 // i.e. in the Secondary codepath
                 key_rate_limit: None,
-            },
+            }],
+            Self::Sharded(shard_configs) => {
+                if shard_configs.is_empty() {
+                    return Err(ConfigError::InvalidShard);
+                }
+
+                shard_configs
+                    .iter()
+                    .map(|shard_config| match shard_config {
+                        ShardConfig::Primary(topic_name) => Ok(KafkaParams {
+                            topic_names: vec![topic_name.clone()],
+                            config_name: None,
+                            params: default_config.as_slice(),
+                            key_rate_limit: None,
+                        }),
+                        ShardConfig::Secondary(KafkaTopicConfig {
+                            topic_name,
+                            kafka_config_name,
+                            key_rate_limit,
+                        }) => {
+                            let params = secondary_configs
+                                .get(kafka_config_name)
+                                .ok_or(ConfigError::UnknownKafkaConfigName)?;
+
+                            Ok(KafkaParams {
+                                topic_names: vec![topic_name.clone()],
+                                config_name: Some(kafka_config_name.as_str()),
+                                params: params.as_slice(),
+                                key_rate_limit: *key_rate_limit,
+                            })
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            }
             Self::Secondary(KafkaTopicConfig {
                 topic_name,
                 kafka_config_name,
                 key_rate_limit,
-            }) => KafkaParams {
+            }) => vec![KafkaParams {
+                topic_names: vec![topic_name.clone()],
                 config_name: Some(kafka_config_name),
-                topic_name,
                 params: secondary_configs
                     .get(kafka_config_name)
                     .ok_or(ConfigError::UnknownKafkaConfigName)?,
                 key_rate_limit: *key_rate_limit,
-            },
+            }],
         };
 
-        Ok(kafka_config)
+        Ok(kafka_configs)
     }
 }
 
@@ -294,51 +344,37 @@ transactions: "ingest-transactions-kafka-topic"
         assert!(matches!(metrics_sessions, TopicAssignment::Primary(_)));
         assert!(matches!(transactions, TopicAssignment::Primary(_)));
 
-        let events_config = events
-            .kafka_config(&def_config, &second_config)
+        let events_configs = events
+            .kafka_configs(&def_config, &second_config)
             .expect("Kafka config for events topic");
-        assert!(matches!(
-            events_config,
-            KafkaParams {
-                topic_name: "ingest-events-kafka-topic",
-                ..
-            }
-        ));
+        assert_eq!(events_configs.len(), 1);
+        assert_eq!(
+            events_configs[0].topic_names,
+            vec!["ingest-events-kafka-topic"]
+        );
 
-        let events_config = profiles
-            .kafka_config(&def_config, &second_config)
+        let profiles_configs = profiles
+            .kafka_configs(&def_config, &second_config)
             .expect("Kafka config for profiles topic");
-        assert!(matches!(
-            events_config,
-            KafkaParams {
-                topic_name: "ingest-profiles",
-                config_name: Some("profiles"),
-                ..
-            }
-        ));
+        assert_eq!(profiles_configs.len(), 1);
+        assert_eq!(profiles_configs[0].topic_names, vec!["ingest-profiles"]);
+        assert_eq!(profiles_configs[0].config_name, Some("profiles"));
 
-        let events_config = metrics_sessions
-            .kafka_config(&def_config, &second_config)
+        let metrics_configs = metrics_sessions
+            .kafka_configs(&def_config, &second_config)
             .expect("Kafka config for metrics topic");
-        assert!(matches!(
-            events_config,
-            KafkaParams {
-                topic_name: "ingest-metrics-3",
-                ..
-            }
-        ));
+        assert_eq!(metrics_configs.len(), 1);
+        assert_eq!(metrics_configs[0].topic_names, vec!["ingest-metrics-3"]);
 
         // Legacy keys are still supported
-        let transactions_config = transactions
-            .kafka_config(&def_config, &second_config)
+        let transactions_configs = transactions
+            .kafka_configs(&def_config, &second_config)
             .expect("Kafka config for transactions topic");
-        assert!(matches!(
-            transactions_config,
-            KafkaParams {
-                topic_name: "ingest-transactions-kafka-topic",
-                ..
-            }
-        ));
+        assert_eq!(transactions_configs.len(), 1);
+        assert_eq!(
+            transactions_configs[0].topic_names,
+            vec!["ingest-transactions-kafka-topic"]
+        );
     }
 
     #[test]
@@ -363,5 +399,174 @@ transactions: "ingest-transactions-kafka-topic"
                 _ => panic!("invalid default"),
             }
         }
+    }
+
+    #[test]
+    fn test_sharded_kafka_config() {
+        let yaml = r#"
+events: ["ingest-events-1", "ingest-events-2"]
+profiles:
+  - name: "ingest-profiles-1"
+    config: "profiles"
+  - name: "ingest-profiles-2"
+    config: "profiles"
+"#;
+
+        let def_config = vec![KafkaConfigParam {
+            name: "test".to_string(),
+            value: "test-value".to_string(),
+        }];
+        let mut second_config = BTreeMap::new();
+        second_config.insert(
+            "profiles".to_string(),
+            vec![KafkaConfigParam {
+                name: "test".to_string(),
+                value: "test-value".to_string(),
+            }],
+        );
+
+        let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
+        let events = topics.events;
+        let profiles = topics.profiles;
+
+        assert!(matches!(events, TopicAssignment::Sharded(_)));
+        assert!(matches!(profiles, TopicAssignment::Sharded(_)));
+
+        let events_configs = events
+            .kafka_configs(&def_config, &second_config)
+            .expect("Kafka config for sharded events topic");
+
+        assert_eq!(events_configs.len(), 2); // One config per shard
+        assert_eq!(events_configs[0].topic_names, vec!["ingest-events-1"]);
+        assert_eq!(events_configs[1].topic_names, vec!["ingest-events-2"]);
+        assert_eq!(events_configs[0].config_name, None); // Both use default config
+        assert_eq!(events_configs[1].config_name, None);
+
+        let profiles_configs = profiles
+            .kafka_configs(&def_config, &second_config)
+            .expect("Kafka config for sharded profiles topic");
+
+        assert_eq!(profiles_configs.len(), 2); // One config per shard
+        assert_eq!(profiles_configs[0].topic_names, vec!["ingest-profiles-1"]);
+        assert_eq!(profiles_configs[1].topic_names, vec!["ingest-profiles-2"]);
+        assert_eq!(profiles_configs[0].config_name, Some("profiles")); // Both use profiles config
+        assert_eq!(profiles_configs[1].config_name, Some("profiles"));
+    }
+
+    #[test]
+    fn test_mixed_broker_sharded_config() {
+        let yaml = r#"
+events:
+  - "ingest-events-1"
+  - name: "ingest-events-2"
+    config: "secondary"
+"#;
+
+        let def_config = vec![KafkaConfigParam {
+            name: "bootstrap.servers".to_string(),
+            value: "primary:9092".to_string(),
+        }];
+        let mut second_config = BTreeMap::new();
+        second_config.insert(
+            "secondary".to_string(),
+            vec![KafkaConfigParam {
+                name: "bootstrap.servers".to_string(),
+                value: "secondary:9092".to_string(),
+            }],
+        );
+
+        let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
+        let events = topics.events;
+
+        assert!(matches!(events, TopicAssignment::Sharded(_)));
+
+        // Mixed configs now return separate KafkaParams for each broker
+        let events_configs = events
+            .kafka_configs(&def_config, &second_config)
+            .expect("Kafka config for mixed broker sharded topic");
+
+        assert_eq!(events_configs.len(), 2); // Two different broker configs
+
+        // Find the configs by checking config_name
+        let primary_config = events_configs
+            .iter()
+            .find(|c| c.config_name.is_none())
+            .unwrap();
+        let secondary_config = events_configs
+            .iter()
+            .find(|c| c.config_name == Some("secondary"))
+            .unwrap();
+
+        assert_eq!(primary_config.topic_names, vec!["ingest-events-1"]);
+        assert_eq!(secondary_config.topic_names, vec!["ingest-events-2"]);
+        assert_eq!(secondary_config.config_name, Some("secondary"));
+    }
+
+    #[test]
+    fn test_per_shard_rate_limits() {
+        let yaml = r#"
+events:
+  - name: "shard-0"
+    config: "cluster1"
+    key_rate_limit:
+      limit_per_window: 100
+      window_secs: 60
+  - name: "shard-1"
+    config: "cluster2"
+    key_rate_limit:
+      limit_per_window: 200
+      window_secs: 120
+  - "shard-2"  # No rate limit (Primary variant)
+"#;
+
+        let def_config = vec![KafkaConfigParam {
+            name: "bootstrap.servers".to_string(),
+            value: "primary:9092".to_string(),
+        }];
+        let mut second_config = BTreeMap::new();
+        second_config.insert(
+            "cluster1".to_string(),
+            vec![KafkaConfigParam {
+                name: "bootstrap.servers".to_string(),
+                value: "cluster1:9092".to_string(),
+            }],
+        );
+        second_config.insert(
+            "cluster2".to_string(),
+            vec![KafkaConfigParam {
+                name: "bootstrap.servers".to_string(),
+                value: "cluster2:9092".to_string(),
+            }],
+        );
+
+        let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
+        let events = topics.events;
+
+        let events_configs = events
+            .kafka_configs(&def_config, &second_config)
+            .expect("Kafka config for per-shard rate limits");
+
+        assert_eq!(events_configs.len(), 3);
+
+        // Shard 0: rate limit 100/60s with cluster1
+        assert_eq!(events_configs[0].topic_names[0], "shard-0");
+        assert_eq!(events_configs[0].config_name, Some("cluster1"));
+        assert!(events_configs[0].key_rate_limit.is_some());
+        let rate_limit_0 = events_configs[0].key_rate_limit.unwrap();
+        assert_eq!(rate_limit_0.limit_per_window, 100);
+        assert_eq!(rate_limit_0.window_secs, 60);
+
+        // Shard 1: rate limit 200/120s with custom broker
+        assert_eq!(events_configs[1].topic_names[0], "shard-1");
+        assert_eq!(events_configs[1].config_name, Some("cluster2"));
+        assert!(events_configs[1].key_rate_limit.is_some());
+        let rate_limit_1 = events_configs[1].key_rate_limit.unwrap();
+        assert_eq!(rate_limit_1.limit_per_window, 200);
+        assert_eq!(rate_limit_1.window_secs, 120);
+
+        // Shard 2: no rate limit
+        assert_eq!(events_configs[2].topic_names[0], "shard-2");
+        assert_eq!(events_configs[2].config_name, None);
+        assert!(events_configs[2].key_rate_limit.is_none());
     }
 }

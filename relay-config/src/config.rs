@@ -2443,8 +2443,8 @@ impl Config {
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaParams, KafkaConfigError> {
-        self.values.processing.topics.get(topic).kafka_config(
+    pub fn kafka_configs(&self, topic: KafkaTopic) -> Result<Vec<KafkaParams>, KafkaConfigError> {
+        self.values.processing.topics.get(topic).kafka_configs(
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
         )
