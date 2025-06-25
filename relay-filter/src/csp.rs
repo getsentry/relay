@@ -180,7 +180,7 @@ mod tests {
         fn annotated_string_or_none(val: Option<&str>) -> Annotated<String> {
             match val {
                 None => Annotated::empty(),
-                Some(val) => Annotated::from(val.to_string()),
+                Some(val) => Annotated::from(val.to_owned()),
             }
         }
         Event {
@@ -245,9 +245,9 @@ mod tests {
             assert_eq!(
                 (actual.scheme, actual.domain, actual.port),
                 (
-                    scheme.map(|x| x.to_string()),
-                    domain.map(|x| x.to_string()),
-                    port.map(|x| x.to_string())
+                    scheme.map(|x| x.to_owned()),
+                    domain.map(|x| x.to_owned()),
+                    port.map(|x| x.to_owned())
                 )
             );
         }
@@ -312,9 +312,9 @@ mod tests {
             assert_eq!(
                 (actual.scheme, actual.domain, actual.port),
                 (
-                    scheme.map(|x| x.to_string()),
-                    domain.map(|x| x.to_string()),
-                    port.map(|x| x.to_string())
+                    scheme.map(|x| x.to_owned()),
+                    domain.map(|x| x.to_owned()),
+                    port.map(|x| x.to_owned())
                 )
             );
         }

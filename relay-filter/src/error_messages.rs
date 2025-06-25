@@ -151,7 +151,7 @@ mod tests {
                         ..Default::default()
                     })])),
                     logentry: Annotated::new(LogEntry {
-                        formatted: Annotated::new(logentry_formatted.to_string().into()),
+                        formatted: Annotated::new(logentry_formatted.to_owned().into()),
                         ..Default::default()
                     }),
                     ..Default::default()

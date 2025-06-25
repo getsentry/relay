@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn test_fingerprint_bool() {
         assert_eq!(
-            Annotated::new(vec!["True".to_owned(), "False".to_string()].into()),
+            Annotated::new(vec!["True".to_owned(), "False".to_owned()].into()),
             Annotated::<Fingerprint>::from_json("[true, false]").unwrap()
         );
     }
@@ -198,7 +198,7 @@ mod tests {
     fn test_fingerprint_invalid_fallback() {
         // XXX: review, this was changed after refactor
         assert_eq!(
-            Annotated::new(Fingerprint(vec!["a".to_owned(), "d".to_string()])),
+            Annotated::new(Fingerprint(vec!["a".to_owned(), "d".to_owned()])),
             Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
         );
     }

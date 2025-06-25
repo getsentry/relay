@@ -94,10 +94,10 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
         if let Some(raw_description) = runtime.raw_description.as_str() {
             if let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
-                runtime.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+                runtime.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
                 runtime.version = captures
                     .name("version")
-                    .map(|m| m.as_str().to_string())
+                    .map(|m| m.as_str().to_owned())
                     .into();
             }
         }
@@ -200,62 +200,62 @@ fn normalize_os_context(os: &mut OsContext) {
     if let Some(raw_description) = os.raw_description.as_str() {
         if let Some((version, build_number)) = get_windows_version(raw_description) {
             os.name = "Windows".to_owned().into();
-            os.version = version.to_string().into();
+            os.version = version.to_owned().into();
             if os.build.is_empty() {
                 // Keep raw version as build
-                os.build.set_value(Some(build_number.to_string().into()));
+                os.build.set_value(Some(build_number.to_owned().into()));
             }
         } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
             os.name = "macOS".to_owned().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_IOS_REGEX.captures(raw_description) {
             os.name = "iOS".to_owned().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_IPADOS_REGEX.captures(raw_description) {
             os.name = "iPadOS".to_owned().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_LINUX_DISTRO_UNAME_REGEX.captures(raw_description) {
-            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.kernel_version = captures
                 .name("kernel_version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
-            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
             os.kernel_version = captures
                 .name("kernel_version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if let Some(captures) = OS_ANDROID_REGEX.captures(raw_description) {
             os.name = "Android".to_owned().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if raw_description == "Nintendo Switch" {
             os.name = "Nintendo OS".to_owned().into();
@@ -302,13 +302,13 @@ fn normalize_response_data(response: &mut ResponseContext) {
         // Retain meta data on the body (e.g. trimming annotations) but remove anything on the
         // inferred content type.
         response.data.set_value(Some(parsed_data));
-        response.inferred_content_type = Annotated::from(content_type.to_string());
+        response.inferred_content_type = Annotated::from(content_type.to_owned());
     } else {
         response.inferred_content_type = response
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.split(';').next().unwrap_or(value).to_string())
+            .map(|value| value.split(';').next().unwrap_or(value).to_owned())
             .into();
     }
 }
@@ -451,7 +451,7 @@ mod tests {
         // Environment.OSVersion on Windows 7 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
         let mut os = OsContext {
             raw_description: "Microsoft Windows NT 6.1.7601 Service Pack 1"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -574,7 +574,7 @@ mod tests {
         // RuntimeInformation.OSDescription on CentOS 7 (CoreCLR 2.0+, Mono 5.4+)
         let mut os = OsContext {
             raw_description: "Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -590,7 +590,7 @@ mod tests {
         // (CoreCLR 2.0+, Mono 5.4+)
         let mut os = OsContext {
             raw_description: "Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -716,7 +716,7 @@ mod tests {
     fn test_unity_android_os() {
         let mut os = OsContext {
             raw_description: "Android OS 11 / API-30 (RP1A.201005.001/2107031736)"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -763,7 +763,7 @@ mod tests {
     fn test_android_4_4_2() {
         let mut os = OsContext {
             raw_description: "Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -776,7 +776,7 @@ mod tests {
     #[test]
     fn test_infer_json() {
         let mut response = ResponseContext {
-            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_owned())),
             ..ResponseContext::default()
         };
 
@@ -797,7 +797,7 @@ mod tests {
     #[test]
     fn test_broken_json_with_fallback() {
         let mut response = ResponseContext {
-            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_owned())),
             headers: Annotated::from(Headers(PairList(vec![Annotated::new((
                 Annotated::new("Content-Type".to_owned().into()),
                 Annotated::new("text/plain; encoding=utf-8".to_owned().into()),
@@ -813,7 +813,7 @@ mod tests {
     #[test]
     fn test_broken_json_without_fallback() {
         let mut response = ResponseContext {
-            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_owned())),
             ..ResponseContext::default()
         };
 

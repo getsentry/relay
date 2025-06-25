@@ -604,7 +604,7 @@ fn normalize_dist(distribution: &mut Annotated<String>) {
             meta.add_error(Error::new(ErrorKind::ValueTooLong));
             return Err(ProcessingAction::DeleteValueSoft);
         } else if trimmed != dist {
-            *dist = trimmed.to_string();
+            *dist = trimmed.to_owned();
         }
         Ok(())
     });
@@ -808,7 +808,7 @@ fn normalize_exception(exception: &mut Annotated<Exception>) {
             if let Some(value_str) = exception.value.value_mut() {
                 let new_values = regex
                     .captures(value_str)
-                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
+                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_owned().into()));
 
                 if let Some((new_type, new_value)) = new_values {
                     exception.ty.set_value(Some(new_type));
@@ -1245,7 +1245,7 @@ fn shorten_logger(logger: String, meta: &mut Meta) -> String {
                 });
             }
             meta.set_original_length(Some(original_len));
-            return trimmed.to_string();
+            return trimmed.to_owned();
         };
     }
 
@@ -2101,7 +2101,7 @@ mod tests {
         let max_name_and_unit_len = Some(30);
 
         let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
-        measurements.insert(name.to_string(), Annotated::new(measurement));
+        measurements.insert(name.to_owned(), Annotated::new(measurement));
 
         let mut measurements = Measurements(measurements);
         let mut meta = Meta::default();
@@ -4289,7 +4289,7 @@ mod tests {
     #[test]
     fn test_json_value() {
         let mut exception = Annotated::new(Exception {
-            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
+            value: Annotated::new(r#"{"unauthorized":true}"#.to_owned().into()),
             ..Exception::default()
         });
 

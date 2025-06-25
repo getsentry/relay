@@ -45,7 +45,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     let common_tags = CommonTags {
         release: attributes.release.clone(),
         environment: attributes.environment.clone(),
-        sdk: client.map(|s| s.to_string()),
+        sdk: client.map(|s| s.to_owned()),
     };
 
     // Always capture with "init" tag for the first session update of a session. This is used

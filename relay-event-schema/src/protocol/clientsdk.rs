@@ -134,7 +134,7 @@ impl FromValue for AutoInferSetting {
 
 impl IntoValue for AutoInferSetting {
     fn into_value(self) -> Value {
-        Value::String(self.as_str().to_string())
+        Value::String(self.as_str().to_owned())
     }
 
     fn serialize_payload<S>(&self, s: S, _: SkipSerialization) -> Result<S::Ok, S::Error>

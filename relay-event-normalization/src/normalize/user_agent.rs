@@ -474,7 +474,7 @@ mod tests {
             )),
             Annotated::new((
                 Annotated::new("UsEr-AgeNT".to_owned().into()),
-                Annotated::new(user_agent.to_string().into()),
+                Annotated::new(user_agent.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("WWW-Authenticate".to_owned().into()),
@@ -726,7 +726,7 @@ mod tests {
         let headers = Headers([
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#""Mozilla/5.0 (Linux; Android 11; foo g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36""#.to_string().into()),
+                Annotated::new(r#""Mozilla/5.0 (Linux; Android 11; foo g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36""#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("invalid header".to_owned().into()),
@@ -742,7 +742,7 @@ mod tests {
         let headers = Headers([
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#""Mozilla/5.0 (Linux; Android 11; foo g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36""#.to_string().into()),
+                Annotated::new(r#""Mozilla/5.0 (Linux; Android 11; foo g31(w)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Mobile Safari/537.36""#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA-MODEL".to_owned().into()),
@@ -816,11 +816,11 @@ mod tests {
             let headers = vec![
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA".to_owned().into()),
-                Annotated::new(r#"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"#.to_string().into()),
+                Annotated::new(r#"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"#.to_owned().into()),
             )),
         ];
             PairList(headers)
@@ -847,7 +847,7 @@ mod tests {
                 Annotated::new(
                     // browser field missing
                     r#"Not_A Brand";v="99", " ";v="109", "Chromium";v="109"#
-                        .to_string()
+                        .to_owned()
                         .into(),
                 ),
             ))];
@@ -865,11 +865,11 @@ mod tests {
             let headers = vec![
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA".to_owned().into()),
-                Annotated::new(r#"Not_A Brand";v="99", "weird browser";v="109", "Chromium";v="109"#.to_string().into()),
+                Annotated::new(r#"Not_A Brand";v="99", "weird browser";v="109", "Chromium";v="109"#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA-FULL-VERSION".to_owned().into()),
@@ -898,11 +898,11 @@ mod tests {
             let headers = vec![
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA".to_owned().into()),
-                Annotated::new(r#"Not_A Brand";v="99", "Chromium";v="108"#.to_string().into()), // no browser field here
+                Annotated::new(r#"Not_A Brand";v="99", "Chromium";v="108"#.to_owned().into()), // no browser field here
             )),
         ];
             PairList(headers)
@@ -946,11 +946,11 @@ mod tests {
             let headers = vec![
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA-PLATFORM".to_owned().into()),
-                Annotated::new(r#"macOS"#.to_string().into()), // no browser field here
+                Annotated::new(r#"macOS"#.to_owned().into()), // no browser field here
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_owned().into()),
@@ -984,7 +984,7 @@ mod tests {
         let headers = Headers({
             let headers = vec![Annotated::new((
                 Annotated::new("SEC-CH-UA-PLATFORM".to_owned().into()),
-                Annotated::new(r#""#.to_string().into()),
+                Annotated::new(r#""#.to_owned().into()),
             ))];
             PairList(headers)
         });
@@ -1000,7 +1000,7 @@ mod tests {
             let headers = vec![
                 Annotated::new((
                     Annotated::new("SEC-CH-UA-PLATFORM".to_owned().into()),
-                    Annotated::new(r#"macOs"#.to_string().into()),
+                    Annotated::new(r#"macOs"#.to_owned().into()),
                 )),
                 Annotated::new((
                     Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_owned().into()),
@@ -1021,11 +1021,11 @@ mod tests {
             let headers = vec![
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("invalid header".to_owned().into()),
-                Annotated::new(r#"macOS"#.to_string().into()),
+                Annotated::new(r#"macOS"#.to_owned().into()),
             )),
             Annotated::new((
                 Annotated::new("SEC-CH-UA-PLATFORM-VERSION".to_owned().into()),
@@ -1060,7 +1060,7 @@ mod tests {
             let headers = vec![
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"#.to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"#.to_owned().into()),
             )),
         ];
             PairList(headers)
@@ -1078,7 +1078,7 @@ mod tests {
             let headers = vec![
             Annotated::new((
                 Annotated::new("user-agent".to_owned().into()),
-                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_string().into()),
+                Annotated::new(r#"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"#.to_owned().into()),
             )),
         ];
             PairList(headers)

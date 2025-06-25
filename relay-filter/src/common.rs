@@ -100,7 +100,7 @@ impl<'a> TryFrom<&'a str> for FilterStatKey {
             "web-crawlers" => FilterStatKey::WebCrawlers,
             "invalid-csp" => FilterStatKey::InvalidCsp,
             "filtered-transaction" => FilterStatKey::FilteredTransactions,
-            other => FilterStatKey::GenericFilter(other.to_string()),
+            other => FilterStatKey::GenericFilter(other.to_owned()),
         })
     }
 }

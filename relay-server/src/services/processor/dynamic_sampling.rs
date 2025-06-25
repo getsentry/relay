@@ -304,8 +304,8 @@ mod tests {
         Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(event_type),
-            transaction: Annotated::new(transaction.to_string()),
-            release: Annotated::new(LenientString(release.to_string())),
+            transaction: Annotated::new(transaction.to_owned()),
+            release: Annotated::new(LenientString(release.to_owned())),
             ..Event::default()
         }
     }

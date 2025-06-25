@@ -27,8 +27,8 @@ impl Cookies {
     fn parse_cookie(string: &str) -> Result<CookieEntry, Error> {
         match Cookie::parse_encoded(string) {
             Ok(cookie) => Ok(Annotated::from((
-                cookie.name().to_string().into(),
-                cookie.value().to_string().into(),
+                cookie.name().to_owned().into(),
+                cookie.value().to_owned().into(),
             ))),
             Err(error) => Err(Error::invalid(error)),
         }
@@ -751,7 +751,7 @@ mod tests {
             vec![
                 Annotated::new((
                     Annotated::new("baz".to_owned()),
-                    Annotated::new(r#"{"a":42}"#.to_string().into()),
+                    Annotated::new(r#"{"a":42}"#.to_owned().into()),
                 )),
                 Annotated::new((
                     Annotated::new("foo".to_owned()),

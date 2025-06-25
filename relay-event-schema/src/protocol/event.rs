@@ -899,7 +899,7 @@ mod tests {
             logger: Annotated::new("mylogger".to_owned()),
             modules: {
                 let mut map = Map::new();
-                map.insert("mymodule".to_owned(), Annotated::new("1.0.0".to_string()));
+                map.insert("mymodule".to_owned(), Annotated::new("1.0.0".to_owned()));
                 Annotated::new(map)
             },
             platform: Annotated::new("myplatform".to_owned()),

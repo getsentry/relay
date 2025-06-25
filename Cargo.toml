@@ -30,6 +30,7 @@ strip = true
 dbg_macro = "warn"
 print_stdout = "warn"
 print_stderr = "warn"
+str_to_string = "warn"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }

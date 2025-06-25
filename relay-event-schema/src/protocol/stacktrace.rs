@@ -419,7 +419,7 @@ impl FromStr for InstructionAddrAdjustment {
             "all_but_first" => Ok(Self::AllButFirst),
             "all" => Ok(Self::All),
             "none" => Ok(Self::None),
-            s => Ok(Self::Unknown(s.to_string())),
+            s => Ok(Self::Unknown(s.to_owned())),
         }
     }
 }
@@ -780,9 +780,9 @@ mod tests {
         let frame = Annotated::new(Frame {
             vars: Annotated::new({
                 let mut vars = Object::new();
-                vars.insert("0".to_owned(), Annotated::new("foo".to_string().into()));
-                vars.insert("1".to_owned(), Annotated::new("bar".to_string().into()));
-                vars.insert("2".to_owned(), Annotated::new("baz".to_string().into()));
+                vars.insert("0".to_owned(), Annotated::new("foo".to_owned().into()));
+                vars.insert("1".to_owned(), Annotated::new("bar".to_owned().into()));
+                vars.insert("2".to_owned(), Annotated::new("baz".to_owned().into()));
                 vars.insert("3".to_owned(), Annotated::empty());
                 vars.into()
             }),

@@ -35,7 +35,7 @@ impl ApiErrorResponse {
     /// Creates an error response with a detail message
     pub fn with_detail<S: AsRef<str>>(s: S) -> ApiErrorResponse {
         ApiErrorResponse {
-            detail: Some(s.as_ref().to_string()),
+            detail: Some(s.as_ref().to_owned()),
             causes: Vec::new(),
             relay: RelayErrorAction::None,
         }

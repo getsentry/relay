@@ -146,13 +146,13 @@ fn extract_light_transaction_tags(tags: &CommonTags) -> LightTransactionTags {
 fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> CommonTags {
     let mut tags = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
-        tags.insert(CommonTag::Release, release.to_string());
+        tags.insert(CommonTag::Release, release.to_owned());
     }
     if let Some(dist) = event.dist.value() {
         tags.insert(CommonTag::Dist, dist.to_string());
     }
     if let Some(environment) = event.environment.as_str() {
-        tags.insert(CommonTag::Environment, environment.to_string());
+        tags.insert(CommonTag::Environment, environment.to_owned());
     }
     if let Some(transaction_name) = get_transaction_name(event) {
         tags.insert(CommonTag::Transaction, transaction_name);
@@ -167,7 +167,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         _ => "other",
     };
 
-    tags.insert(CommonTag::Platform, platform.to_string());
+    tags.insert(CommonTag::Platform, platform.to_owned());
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         // We assume that the trace context status is automatically set to unknown inside of the
@@ -226,7 +226,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
                     let (key, value) = entry.as_pair();
                     if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
                         if custom_tags.contains(key) {
-                            tags.insert(CommonTag::Custom(key.to_string()), value.to_string());
+                            tags.insert(CommonTag::Custom(key.to_owned()), value.to_owned());
                         }
                     }
                 }
@@ -409,7 +409,7 @@ impl TransactionExtractor<'_> {
             if let Some(transaction_from_dsc) = self.transaction_from_dsc {
                 universal_tags
                     .0
-                    .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
+                    .insert(CommonTag::Transaction, transaction_from_dsc.to_owned());
             }
 
             TransactionCPRTags {
