@@ -1625,8 +1625,8 @@ mod tests {
         assert_eq!(
             duration_metric.tags,
             BTreeMap::from([
-                ("transaction.status".to_string(), "ok".to_string()),
-                ("platform".to_string(), "other".to_string())
+                            ("transaction.status".to_owned(), "ok".to_owned()),
+            ("platform".to_owned(), "other".to_owned())
             ])
         );
     }

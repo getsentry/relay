@@ -187,7 +187,7 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
                 .clone()
                 .ident
                 .map(|x| x.to_string())
-                .unwrap_or_else(|| "{{Unnamed}}".to_string()),
+                .unwrap_or_else(|| "{{Unnamed}}".to_owned()),
         });
 
         let mut all_attributes = BTreeMap::new();
