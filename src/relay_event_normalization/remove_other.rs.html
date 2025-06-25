@@ -87,10 +87,10 @@
 <a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
 <a href=#88 id=88 data-nosnippet>88</a>            other: {
 <a href=#89 id=89 data-nosnippet>89</a>                <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
-<a href=#90 id=90 data-nosnippet>90</a>                other.insert(<span class="string">"applecrashreport"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
-<a href=#91 id=91 data-nosnippet>91</a>                other.insert(<span class="string">"device"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
-<a href=#92 id=92 data-nosnippet>92</a>                other.insert(<span class="string">"repos"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
-<a href=#93 id=93 data-nosnippet>93</a>                other.insert(<span class="string">"query"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+<a href=#90 id=90 data-nosnippet>90</a>                other.insert(<span class="string">"applecrashreport"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
+<a href=#91 id=91 data-nosnippet>91</a>                other.insert(<span class="string">"device"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
+<a href=#92 id=92 data-nosnippet>92</a>                other.insert(<span class="string">"repos"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
+<a href=#93 id=93 data-nosnippet>93</a>                other.insert(<span class="string">"query"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
 <a href=#94 id=94 data-nosnippet>94</a>                other
 <a href=#95 id=95 data-nosnippet>95</a>            },
 <a href=#96 id=96 data-nosnippet>96</a>            ..Default::default()
@@ -111,8 +111,8 @@
 <a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
 <a href=#112 id=112 data-nosnippet>112</a>            other: {
 <a href=#113 id=113 data-nosnippet>113</a>                <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
-<a href=#114 id=114 data-nosnippet>114</a>                other.insert(<span class="string">"foo"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
-<a href=#115 id=115 data-nosnippet>115</a>                other.insert(<span class="string">"bar"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+<a href=#114 id=114 data-nosnippet>114</a>                other.insert(<span class="string">"foo"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
+<a href=#115 id=115 data-nosnippet>115</a>                other.insert(<span class="string">"bar"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
 <a href=#116 id=116 data-nosnippet>116</a>                other
 <a href=#117 id=117 data-nosnippet>117</a>            },
 <a href=#118 id=118 data-nosnippet>118</a>            ..Default::default()
@@ -142,8 +142,8 @@
 <a href=#142 id=142 data-nosnippet>142</a>            user: Annotated::from(User {
 <a href=#143 id=143 data-nosnippet>143</a>                other: {
 <a href=#144 id=144 data-nosnippet>144</a>                    <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
-<a href=#145 id=145 data-nosnippet>145</a>                    other.insert(<span class="string">"foo"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
-<a href=#146 id=146 data-nosnippet>146</a>                    other.insert(<span class="string">"bar"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+<a href=#145 id=145 data-nosnippet>145</a>                    other.insert(<span class="string">"foo"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
+<a href=#146 id=146 data-nosnippet>146</a>                    other.insert(<span class="string">"bar"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
 <a href=#147 id=147 data-nosnippet>147</a>                    other
 <a href=#148 id=148 data-nosnippet>148</a>                },
 <a href=#149 id=149 data-nosnippet>149</a>                ..Default::default()
@@ -165,10 +165,10 @@
 <a href=#165 id=165 data-nosnippet>165</a>    </span><span class="kw">fn </span>test_retain_context_other() {
 <a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext::default();
 <a href=#167 id=167 data-nosnippet>167</a>        os.other
-<a href=#168 id=168 data-nosnippet>168</a>            .insert(<span class="string">"foo"</span>.to_string(), Annotated::from(Value::U64(<span class="number">42</span>)));
+<a href=#168 id=168 data-nosnippet>168</a>            .insert(<span class="string">"foo"</span>.to_owned(), Annotated::from(Value::U64(<span class="number">42</span>)));
 <a href=#169 id=169 data-nosnippet>169</a>
 <a href=#170 id=170 data-nosnippet>170</a>        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
-<a href=#171 id=171 data-nosnippet>171</a>        contexts.insert(<span class="string">"renamed"</span>.to_string(), Context::Os(Box::new(os)));
+<a href=#171 id=171 data-nosnippet>171</a>        contexts.insert(<span class="string">"renamed"</span>.to_owned(), Context::Os(Box::new(os)));
 <a href=#172 id=172 data-nosnippet>172</a>
 <a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
 <a href=#174 id=174 data-nosnippet>174</a>            contexts: Annotated::new(contexts.clone()),
@@ -191,8 +191,8 @@
 <a href=#191 id=191 data-nosnippet>191</a>            breadcrumbs: Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Breadcrumb {
 <a href=#192 id=192 data-nosnippet>192</a>                other: {
 <a href=#193 id=193 data-nosnippet>193</a>                    <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
-<a href=#194 id=194 data-nosnippet>194</a>                    other.insert(<span class="string">"foo"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
-<a href=#195 id=195 data-nosnippet>195</a>                    other.insert(<span class="string">"bar"</span>.to_string(), Value::U64(<span class="number">42</span>).into());
+<a href=#194 id=194 data-nosnippet>194</a>                    other.insert(<span class="string">"foo"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
+<a href=#195 id=195 data-nosnippet>195</a>                    other.insert(<span class="string">"bar"</span>.to_owned(), Value::U64(<span class="number">42</span>).into());
 <a href=#196 id=196 data-nosnippet>196</a>                    other
 <a href=#197 id=197 data-nosnippet>197</a>                },
 <a href=#198 id=198 data-nosnippet>198</a>                ..Breadcrumb::default()

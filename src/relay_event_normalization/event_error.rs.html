@@ -100,8 +100,8 @@
 <a href=#100 id=100 data-nosnippet>100</a>        <span class="macro">assert_eq!</span>(
 <a href=#101 id=101 data-nosnippet>101</a>            <span class="kw-2">*</span>event.value().unwrap().errors.value().unwrap(),
 <a href=#102 id=102 data-nosnippet>102</a>            <span class="macro">vec!</span>[Annotated::from(EventProcessingError {
-<a href=#103 id=103 data-nosnippet>103</a>                ty: Annotated::from(<span class="string">"invalid_data"</span>.to_string()),
-<a href=#104 id=104 data-nosnippet>104</a>                name: Annotated::from(<span class="string">"event_id"</span>.to_string()),
+<a href=#103 id=103 data-nosnippet>103</a>                ty: Annotated::from(<span class="string">"invalid_data"</span>.to_owned()),
+<a href=#104 id=104 data-nosnippet>104</a>                name: Annotated::from(<span class="string">"event_id"</span>.to_owned()),
 <a href=#105 id=105 data-nosnippet>105</a>                value: Annotated::empty(),
 <a href=#106 id=106 data-nosnippet>106</a>                other: Object::default(),
 <a href=#107 id=107 data-nosnippet>107</a>            })]
@@ -114,7 +114,7 @@
 <a href=#114 id=114 data-nosnippet>114</a>            other: {
 <a href=#115 id=115 data-nosnippet>115</a>                <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
 <a href=#116 id=116 data-nosnippet>116</a>                other.insert(
-<a href=#117 id=117 data-nosnippet>117</a>                    <span class="string">"foo"</span>.to_string(),
+<a href=#117 id=117 data-nosnippet>117</a>                    <span class="string">"foo"</span>.to_owned(),
 <a href=#118 id=118 data-nosnippet>118</a>                    Annotated::from_error(ErrorKind::InvalidData, <span class="prelude-val">None</span>),
 <a href=#119 id=119 data-nosnippet>119</a>                );
 <a href=#120 id=120 data-nosnippet>120</a>                other
@@ -132,8 +132,8 @@
 <a href=#132 id=132 data-nosnippet>132</a>        <span class="macro">assert_eq!</span>(
 <a href=#133 id=133 data-nosnippet>133</a>            <span class="kw-2">*</span>event.value().unwrap().errors.value().unwrap(),
 <a href=#134 id=134 data-nosnippet>134</a>            <span class="macro">vec!</span>[Annotated::from(EventProcessingError {
-<a href=#135 id=135 data-nosnippet>135</a>                ty: Annotated::from(<span class="string">"invalid_data"</span>.to_string()),
-<a href=#136 id=136 data-nosnippet>136</a>                name: Annotated::from(<span class="string">"foo"</span>.to_string()),
+<a href=#135 id=135 data-nosnippet>135</a>                ty: Annotated::from(<span class="string">"invalid_data"</span>.to_owned()),
+<a href=#136 id=136 data-nosnippet>136</a>                name: Annotated::from(<span class="string">"foo"</span>.to_owned()),
 <a href=#137 id=137 data-nosnippet>137</a>                value: Annotated::empty(),
 <a href=#138 id=138 data-nosnippet>138</a>                other: Object::default(),
 <a href=#139 id=139 data-nosnippet>139</a>            })]
@@ -160,8 +160,8 @@
 <a href=#160 id=160 data-nosnippet>160</a>        <span class="macro">assert_eq!</span>(
 <a href=#161 id=161 data-nosnippet>161</a>            <span class="kw-2">*</span>event.value().unwrap().errors.value().unwrap(),
 <a href=#162 id=162 data-nosnippet>162</a>            <span class="macro">vec!</span>[Annotated::from(EventProcessingError {
-<a href=#163 id=163 data-nosnippet>163</a>                ty: Annotated::from(<span class="string">"invalid_data"</span>.to_string()),
-<a href=#164 id=164 data-nosnippet>164</a>                name: Annotated::from(<span class="string">"breadcrumbs.values.0.type"</span>.to_string()),
+<a href=#163 id=163 data-nosnippet>163</a>                ty: Annotated::from(<span class="string">"invalid_data"</span>.to_owned()),
+<a href=#164 id=164 data-nosnippet>164</a>                name: Annotated::from(<span class="string">"breadcrumbs.values.0.type"</span>.to_owned()),
 <a href=#165 id=165 data-nosnippet>165</a>                value: Annotated::empty(),
 <a href=#166 id=166 data-nosnippet>166</a>                other: Object::default(),
 <a href=#167 id=167 data-nosnippet>167</a>            })]
@@ -189,14 +189,14 @@
 <a href=#189 id=189 data-nosnippet>189</a>            <span class="kw-2">*</span>event.value().unwrap().errors.value().unwrap(),
 <a href=#190 id=190 data-nosnippet>190</a>            <span class="macro">vec!</span>[
 <a href=#191 id=191 data-nosnippet>191</a>                Annotated::from(EventProcessingError {
-<a href=#192 id=192 data-nosnippet>192</a>                    ty: Annotated::from(<span class="string">"invalid_data"</span>.to_string()),
-<a href=#193 id=193 data-nosnippet>193</a>                    name: Annotated::from(<span class="string">"event_id"</span>.to_string()),
+<a href=#192 id=192 data-nosnippet>192</a>                    ty: Annotated::from(<span class="string">"invalid_data"</span>.to_owned()),
+<a href=#193 id=193 data-nosnippet>193</a>                    name: Annotated::from(<span class="string">"event_id"</span>.to_owned()),
 <a href=#194 id=194 data-nosnippet>194</a>                    value: Annotated::empty(),
 <a href=#195 id=195 data-nosnippet>195</a>                    other: Object::default(),
 <a href=#196 id=196 data-nosnippet>196</a>                }),
 <a href=#197 id=197 data-nosnippet>197</a>                Annotated::from(EventProcessingError {
-<a href=#198 id=198 data-nosnippet>198</a>                    ty: Annotated::from(<span class="string">"missing_attribute"</span>.to_string()),
-<a href=#199 id=199 data-nosnippet>199</a>                    name: Annotated::from(<span class="string">"event_id"</span>.to_string()),
+<a href=#198 id=198 data-nosnippet>198</a>                    ty: Annotated::from(<span class="string">"missing_attribute"</span>.to_owned()),
+<a href=#199 id=199 data-nosnippet>199</a>                    name: Annotated::from(<span class="string">"event_id"</span>.to_owned()),
 <a href=#200 id=200 data-nosnippet>200</a>                    value: Annotated::empty(),
 <a href=#201 id=201 data-nosnippet>201</a>                    other: Object::default(),
 <a href=#202 id=202 data-nosnippet>202</a>                })
@@ -226,14 +226,14 @@
 <a href=#226 id=226 data-nosnippet>226</a>            <span class="kw-2">*</span>event.value().unwrap().errors.value().unwrap(),
 <a href=#227 id=227 data-nosnippet>227</a>            <span class="macro">vec!</span>[
 <a href=#228 id=228 data-nosnippet>228</a>                Annotated::from(EventProcessingError {
-<a href=#229 id=229 data-nosnippet>229</a>                    ty: Annotated::from(<span class="string">"invalid_data"</span>.to_string()),
-<a href=#230 id=230 data-nosnippet>230</a>                    name: Annotated::from(<span class="string">"event_id"</span>.to_string()),
+<a href=#229 id=229 data-nosnippet>229</a>                    ty: Annotated::from(<span class="string">"invalid_data"</span>.to_owned()),
+<a href=#230 id=230 data-nosnippet>230</a>                    name: Annotated::from(<span class="string">"event_id"</span>.to_owned()),
 <a href=#231 id=231 data-nosnippet>231</a>                    value: Annotated::from(Value::I64(<span class="number">42</span>)),
 <a href=#232 id=232 data-nosnippet>232</a>                    other: Object::default(),
 <a href=#233 id=233 data-nosnippet>233</a>                }),
 <a href=#234 id=234 data-nosnippet>234</a>                Annotated::from(EventProcessingError {
-<a href=#235 id=235 data-nosnippet>235</a>                    ty: Annotated::from(<span class="string">"missing_attribute"</span>.to_string()),
-<a href=#236 id=236 data-nosnippet>236</a>                    name: Annotated::from(<span class="string">"event_id"</span>.to_string()),
+<a href=#235 id=235 data-nosnippet>235</a>                    ty: Annotated::from(<span class="string">"missing_attribute"</span>.to_owned()),
+<a href=#236 id=236 data-nosnippet>236</a>                    name: Annotated::from(<span class="string">"event_id"</span>.to_owned()),
 <a href=#237 id=237 data-nosnippet>237</a>                    value: Annotated::empty(),
 <a href=#238 id=238 data-nosnippet>238</a>                    other: Object::default(),
 <a href=#239 id=239 data-nosnippet>239</a>                })

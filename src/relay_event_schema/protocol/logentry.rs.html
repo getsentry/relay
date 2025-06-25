@@ -149,17 +149,17 @@
 <a href=#149 id=149 data-nosnippet>149</a>}"#</span>;
 <a href=#150 id=150 data-nosnippet>150</a>
 <a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">let </span>entry = Annotated::new(LogEntry {
-<a href=#152 id=152 data-nosnippet>152</a>            message: Annotated::new(<span class="string">"Hello, %s %s!"</span>.to_string().into()),
+<a href=#152 id=152 data-nosnippet>152</a>            message: Annotated::new(<span class="string">"Hello, %s %s!"</span>.to_owned().into()),
 <a href=#153 id=153 data-nosnippet>153</a>            formatted: Annotated::empty(),
 <a href=#154 id=154 data-nosnippet>154</a>            params: Annotated::new(Value::Array(<span class="macro">vec!</span>[
-<a href=#155 id=155 data-nosnippet>155</a>                Annotated::new(Value::String(<span class="string">"World"</span>.to_string())),
+<a href=#155 id=155 data-nosnippet>155</a>                Annotated::new(Value::String(<span class="string">"World"</span>.to_owned())),
 <a href=#156 id=156 data-nosnippet>156</a>                Annotated::new(Value::I64(<span class="number">1</span>)),
 <a href=#157 id=157 data-nosnippet>157</a>            ])),
 <a href=#158 id=158 data-nosnippet>158</a>            other: {
 <a href=#159 id=159 data-nosnippet>159</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
 <a href=#160 id=160 data-nosnippet>160</a>                map.insert(
-<a href=#161 id=161 data-nosnippet>161</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#162 id=162 data-nosnippet>162</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#161 id=161 data-nosnippet>161</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#162 id=162 data-nosnippet>162</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#163 id=163 data-nosnippet>163</a>                );
 <a href=#164 id=164 data-nosnippet>164</a>                map
 <a href=#165 id=165 data-nosnippet>165</a>            },
@@ -177,7 +177,7 @@
 <a href=#177 id=177 data-nosnippet>177</a>}"#</span>;
 <a href=#178 id=178 data-nosnippet>178</a>
 <a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>entry = Annotated::new(LogEntry {
-<a href=#180 id=180 data-nosnippet>180</a>            formatted: Annotated::new(<span class="string">"hi"</span>.to_string().into()),
+<a href=#180 id=180 data-nosnippet>180</a>            formatted: Annotated::new(<span class="string">"hi"</span>.to_owned().into()),
 <a href=#181 id=181 data-nosnippet>181</a>            ..Default::default()
 <a href=#182 id=182 data-nosnippet>182</a>        });
 <a href=#183 id=183 data-nosnippet>183</a>
@@ -207,12 +207,12 @@
 <a href=#207 id=207 data-nosnippet>207</a>}"#</span>;
 <a href=#208 id=208 data-nosnippet>208</a>
 <a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">let </span>entry = Annotated::new(LogEntry {
-<a href=#210 id=210 data-nosnippet>210</a>            message: Annotated::new(<span class="string">"Hello, %s!"</span>.to_string().into()),
+<a href=#210 id=210 data-nosnippet>210</a>            message: Annotated::new(<span class="string">"Hello, %s!"</span>.to_owned().into()),
 <a href=#211 id=211 data-nosnippet>211</a>            params: Annotated::new(Value::Object({
 <a href=#212 id=212 data-nosnippet>212</a>                <span class="kw">let </span><span class="kw-2">mut </span>object = Object::new();
 <a href=#213 id=213 data-nosnippet>213</a>                object.insert(
-<a href=#214 id=214 data-nosnippet>214</a>                    <span class="string">"name"</span>.to_string(),
-<a href=#215 id=215 data-nosnippet>215</a>                    Annotated::new(Value::String(<span class="string">"World"</span>.to_string())),
+<a href=#214 id=214 data-nosnippet>214</a>                    <span class="string">"name"</span>.to_owned(),
+<a href=#215 id=215 data-nosnippet>215</a>                    Annotated::new(Value::String(<span class="string">"World"</span>.to_owned())),
 <a href=#216 id=216 data-nosnippet>216</a>                );
 <a href=#217 id=217 data-nosnippet>217</a>                object
 <a href=#218 id=218 data-nosnippet>218</a>            })),
@@ -231,7 +231,7 @@
 <a href=#231 id=231 data-nosnippet>231</a>}"#</span>;
 <a href=#232 id=232 data-nosnippet>232</a>
 <a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span>entry = Annotated::new(LogEntry {
-<a href=#234 id=234 data-nosnippet>234</a>            message: Annotated::new(<span class="string">"Hello, %s!"</span>.to_string().into()),
+<a href=#234 id=234 data-nosnippet>234</a>            message: Annotated::new(<span class="string">"Hello, %s!"</span>.to_owned().into()),
 <a href=#235 id=235 data-nosnippet>235</a>            params: Annotated::from_error(
 <a href=#236 id=236 data-nosnippet>236</a>                Error::expected(<span class="string">"message parameters"</span>),
 <a href=#237 id=237 data-nosnippet>237</a>                <span class="prelude-val">Some</span>(Value::I64(<span class="number">42</span>)),

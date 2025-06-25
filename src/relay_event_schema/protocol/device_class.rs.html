@@ -213,8 +213,8 @@
 <a href=#213 id=213 data-nosnippet>213</a>    </span><span class="kw">fn </span>test_iphone17_5_returns_device_class_high() {
 <a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#215 id=215 data-nosnippet>215</a>        contexts.add(DeviceContext {
-<a href=#216 id=216 data-nosnippet>216</a>            family: Annotated::new(<span class="string">"iOS"</span>.to_string()),
-<a href=#217 id=217 data-nosnippet>217</a>            model: Annotated::new(<span class="string">"iPhone17,5"</span>.to_string()),
+<a href=#216 id=216 data-nosnippet>216</a>            family: Annotated::new(<span class="string">"iOS"</span>.to_owned()),
+<a href=#217 id=217 data-nosnippet>217</a>            model: Annotated::new(<span class="string">"iPhone17,5"</span>.to_owned()),
 <a href=#218 id=218 data-nosnippet>218</a>            ..DeviceContext::default()
 <a href=#219 id=219 data-nosnippet>219</a>        });
 <a href=#220 id=220 data-nosnippet>220</a>        <span class="macro">assert_eq!</span>(
@@ -227,8 +227,8 @@
 <a href=#227 id=227 data-nosnippet>227</a>    </span><span class="kw">fn </span>test_iphone99_1_returns_device_class_high() {
 <a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#229 id=229 data-nosnippet>229</a>        contexts.add(DeviceContext {
-<a href=#230 id=230 data-nosnippet>230</a>            family: Annotated::new(<span class="string">"iOS"</span>.to_string()),
-<a href=#231 id=231 data-nosnippet>231</a>            model: Annotated::new(<span class="string">"iPhone99,1"</span>.to_string()),
+<a href=#230 id=230 data-nosnippet>230</a>            family: Annotated::new(<span class="string">"iOS"</span>.to_owned()),
+<a href=#231 id=231 data-nosnippet>231</a>            model: Annotated::new(<span class="string">"iPhone99,1"</span>.to_owned()),
 <a href=#232 id=232 data-nosnippet>232</a>            ..DeviceContext::default()
 <a href=#233 id=233 data-nosnippet>233</a>        });
 <a href=#234 id=234 data-nosnippet>234</a>        <span class="macro">assert_eq!</span>(
@@ -241,8 +241,8 @@
 <a href=#241 id=241 data-nosnippet>241</a>    </span><span class="kw">fn </span>test_ipad99_1_returns_device_class_high() {
 <a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#243 id=243 data-nosnippet>243</a>        contexts.add(DeviceContext {
-<a href=#244 id=244 data-nosnippet>244</a>            family: Annotated::new(<span class="string">"iOS"</span>.to_string()),
-<a href=#245 id=245 data-nosnippet>245</a>            model: Annotated::new(<span class="string">"iPad99,1"</span>.to_string()),
+<a href=#244 id=244 data-nosnippet>244</a>            family: Annotated::new(<span class="string">"iOS"</span>.to_owned()),
+<a href=#245 id=245 data-nosnippet>245</a>            model: Annotated::new(<span class="string">"iPad99,1"</span>.to_owned()),
 <a href=#246 id=246 data-nosnippet>246</a>            ..DeviceContext::default()
 <a href=#247 id=247 data-nosnippet>247</a>        });
 <a href=#248 id=248 data-nosnippet>248</a>        <span class="macro">assert_eq!</span>(
@@ -255,8 +255,8 @@
 <a href=#255 id=255 data-nosnippet>255</a>    </span><span class="kw">fn </span>test_garbage_device_model_returns_device_class_high() {
 <a href=#256 id=256 data-nosnippet>256</a>        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#257 id=257 data-nosnippet>257</a>        contexts.add(DeviceContext {
-<a href=#258 id=258 data-nosnippet>258</a>            family: Annotated::new(<span class="string">"iOS"</span>.to_string()),
-<a href=#259 id=259 data-nosnippet>259</a>            model: Annotated::new(<span class="string">"garbage-device-model"</span>.to_string()),
+<a href=#258 id=258 data-nosnippet>258</a>            family: Annotated::new(<span class="string">"iOS"</span>.to_owned()),
+<a href=#259 id=259 data-nosnippet>259</a>            model: Annotated::new(<span class="string">"garbage-device-model"</span>.to_owned()),
 <a href=#260 id=260 data-nosnippet>260</a>            ..DeviceContext::default()
 <a href=#261 id=261 data-nosnippet>261</a>        });
 <a href=#262 id=262 data-nosnippet>262</a>        <span class="macro">assert_eq!</span>(
@@ -269,8 +269,8 @@
 <a href=#269 id=269 data-nosnippet>269</a>    </span><span class="kw">fn </span>test_wrong_family_returns_none() {
 <a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#271 id=271 data-nosnippet>271</a>        contexts.add(DeviceContext {
-<a href=#272 id=272 data-nosnippet>272</a>            family: Annotated::new(<span class="string">"iOSS"</span>.to_string()),
-<a href=#273 id=273 data-nosnippet>273</a>            model: Annotated::new(<span class="string">"iPhone17,5"</span>.to_string()),
+<a href=#272 id=272 data-nosnippet>272</a>            family: Annotated::new(<span class="string">"iOSS"</span>.to_owned()),
+<a href=#273 id=273 data-nosnippet>273</a>            model: Annotated::new(<span class="string">"iPhone17,5"</span>.to_owned()),
 <a href=#274 id=274 data-nosnippet>274</a>            ..DeviceContext::default()
 <a href=#275 id=275 data-nosnippet>275</a>        });
 <a href=#276 id=276 data-nosnippet>276</a>        <span class="macro">assert_eq!</span>(DeviceClass::from_contexts(<span class="kw-2">&amp;</span>contexts), <span class="prelude-val">None</span>);

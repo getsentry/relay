@@ -66,9 +66,9 @@
 <a href=#66 id=66 data-nosnippet>66</a>  "type": "otaupdates"
 <a href=#67 id=67 data-nosnippet>67</a>}"#</span>;
 <a href=#68 id=68 data-nosnippet>68</a>        <span class="kw">let </span>context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
-<a href=#69 id=69 data-nosnippet>69</a>            channel: Annotated::new(<span class="string">"production"</span>.to_string()),
-<a href=#70 id=70 data-nosnippet>70</a>            runtime_version: Annotated::new(<span class="string">"1.0.0"</span>.to_string()),
-<a href=#71 id=71 data-nosnippet>71</a>            update_id: Annotated::new(<span class="string">"12345678-1234-1234-1234-1234567890ab"</span>.to_string()),
+<a href=#69 id=69 data-nosnippet>69</a>            channel: Annotated::new(<span class="string">"production"</span>.to_owned()),
+<a href=#70 id=70 data-nosnippet>70</a>            runtime_version: Annotated::new(<span class="string">"1.0.0"</span>.to_owned()),
+<a href=#71 id=71 data-nosnippet>71</a>            update_id: Annotated::new(<span class="string">"12345678-1234-1234-1234-1234567890ab"</span>.to_owned()),
 <a href=#72 id=72 data-nosnippet>72</a>            other: Object::default(),
 <a href=#73 id=73 data-nosnippet>73</a>        })));
 <a href=#74 id=74 data-nosnippet>74</a>
@@ -91,32 +91,32 @@
 <a href=#91 id=91 data-nosnippet>91</a>  "type": "otaupdates"
 <a href=#92 id=92 data-nosnippet>92</a>}"#</span>;
 <a href=#93 id=93 data-nosnippet>93</a>        <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
-<a href=#94 id=94 data-nosnippet>94</a>        other.insert(<span class="string">"is_enabled"</span>.to_string(), Annotated::new(Value::Bool(<span class="bool-val">true</span>)));
+<a href=#94 id=94 data-nosnippet>94</a>        other.insert(<span class="string">"is_enabled"</span>.to_owned(), Annotated::new(Value::Bool(<span class="bool-val">true</span>)));
 <a href=#95 id=95 data-nosnippet>95</a>        other.insert(
-<a href=#96 id=96 data-nosnippet>96</a>            <span class="string">"is_embedded_launch"</span>.to_string(),
+<a href=#96 id=96 data-nosnippet>96</a>            <span class="string">"is_embedded_launch"</span>.to_owned(),
 <a href=#97 id=97 data-nosnippet>97</a>            Annotated::new(Value::Bool(<span class="bool-val">false</span>)),
 <a href=#98 id=98 data-nosnippet>98</a>        );
 <a href=#99 id=99 data-nosnippet>99</a>        other.insert(
-<a href=#100 id=100 data-nosnippet>100</a>            <span class="string">"is_emergency_launch"</span>.to_string(),
+<a href=#100 id=100 data-nosnippet>100</a>            <span class="string">"is_emergency_launch"</span>.to_owned(),
 <a href=#101 id=101 data-nosnippet>101</a>            Annotated::new(Value::Bool(<span class="bool-val">true</span>)),
 <a href=#102 id=102 data-nosnippet>102</a>        );
 <a href=#103 id=103 data-nosnippet>103</a>        other.insert(
-<a href=#104 id=104 data-nosnippet>104</a>            <span class="string">"emergency_launch_reason"</span>.to_string(),
-<a href=#105 id=105 data-nosnippet>105</a>            Annotated::new(Value::String(<span class="string">"some reason"</span>.to_string())),
+<a href=#104 id=104 data-nosnippet>104</a>            <span class="string">"emergency_launch_reason"</span>.to_owned(),
+<a href=#105 id=105 data-nosnippet>105</a>            Annotated::new(Value::String(<span class="string">"some reason"</span>.to_owned())),
 <a href=#106 id=106 data-nosnippet>106</a>        );
 <a href=#107 id=107 data-nosnippet>107</a>        other.insert(
-<a href=#108 id=108 data-nosnippet>108</a>            <span class="string">"launch_duration"</span>.to_string(),
+<a href=#108 id=108 data-nosnippet>108</a>            <span class="string">"launch_duration"</span>.to_owned(),
 <a href=#109 id=109 data-nosnippet>109</a>            Annotated::new(Value::I64(<span class="number">1000</span>)),
 <a href=#110 id=110 data-nosnippet>110</a>        );
 <a href=#111 id=111 data-nosnippet>111</a>        other.insert(
-<a href=#112 id=112 data-nosnippet>112</a>            <span class="string">"created_at"</span>.to_string(),
-<a href=#113 id=113 data-nosnippet>113</a>            Annotated::new(Value::String(<span class="string">"2023-01-01T00:00:00.000Z"</span>.to_string())),
+<a href=#112 id=112 data-nosnippet>112</a>            <span class="string">"created_at"</span>.to_owned(),
+<a href=#113 id=113 data-nosnippet>113</a>            Annotated::new(Value::String(<span class="string">"2023-01-01T00:00:00.000Z"</span>.to_owned())),
 <a href=#114 id=114 data-nosnippet>114</a>        );
 <a href=#115 id=115 data-nosnippet>115</a>
 <a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">let </span>context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
-<a href=#117 id=117 data-nosnippet>117</a>            channel: Annotated::new(<span class="string">"production"</span>.to_string()),
-<a href=#118 id=118 data-nosnippet>118</a>            runtime_version: Annotated::new(<span class="string">"1.0.0"</span>.to_string()),
-<a href=#119 id=119 data-nosnippet>119</a>            update_id: Annotated::new(<span class="string">"12345678-1234-1234-1234-1234567890ab"</span>.to_string()),
+<a href=#117 id=117 data-nosnippet>117</a>            channel: Annotated::new(<span class="string">"production"</span>.to_owned()),
+<a href=#118 id=118 data-nosnippet>118</a>            runtime_version: Annotated::new(<span class="string">"1.0.0"</span>.to_owned()),
+<a href=#119 id=119 data-nosnippet>119</a>            update_id: Annotated::new(<span class="string">"12345678-1234-1234-1234-1234567890ab"</span>.to_owned()),
 <a href=#120 id=120 data-nosnippet>120</a>            other,
 <a href=#121 id=121 data-nosnippet>121</a>        })));
 <a href=#122 id=122 data-nosnippet>122</a>
@@ -131,7 +131,7 @@
 <a href=#131 id=131 data-nosnippet>131</a>  "type": "otaupdates"
 <a href=#132 id=132 data-nosnippet>132</a>}"#</span>;
 <a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">let </span><span class="kw-2">mut </span>other = Object::new();
-<a href=#134 id=134 data-nosnippet>134</a>        other.insert(<span class="string">"is_enabled"</span>.to_string(), Annotated::new(Value::Bool(<span class="bool-val">false</span>)));
+<a href=#134 id=134 data-nosnippet>134</a>        other.insert(<span class="string">"is_enabled"</span>.to_owned(), Annotated::new(Value::Bool(<span class="bool-val">false</span>)));
 <a href=#135 id=135 data-nosnippet>135</a>
 <a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">let </span>context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
 <a href=#137 id=137 data-nosnippet>137</a>            channel: Annotated::empty(),

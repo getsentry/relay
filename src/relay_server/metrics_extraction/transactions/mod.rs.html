@@ -1585,7 +1585,7 @@
 <a href=#1585 id=1585 data-nosnippet>1585</a>
 <a href=#1586 id=1586 data-nosnippet>1586</a>        <span class="macro">assert_eq!</span>(
 <a href=#1587 id=1587 data-nosnippet>1587</a>            duration_metric.tags,
-<a href=#1588 id=1588 data-nosnippet>1588</a>            BTreeMap::from([(<span class="string">"platform"</span>.to_string(), <span class="string">"other"</span>.to_string())])
+<a href=#1588 id=1588 data-nosnippet>1588</a>            BTreeMap::from([(<span class="string">"platform"</span>.to_owned(), <span class="string">"other"</span>.to_owned())])
 <a href=#1589 id=1589 data-nosnippet>1589</a>        );
 <a href=#1590 id=1590 data-nosnippet>1590</a>    }
 <a href=#1591 id=1591 data-nosnippet>1591</a>
@@ -1625,8 +1625,8 @@
 <a href=#1625 id=1625 data-nosnippet>1625</a>        <span class="macro">assert_eq!</span>(
 <a href=#1626 id=1626 data-nosnippet>1626</a>            duration_metric.tags,
 <a href=#1627 id=1627 data-nosnippet>1627</a>            BTreeMap::from([
-<a href=#1628 id=1628 data-nosnippet>1628</a>                (<span class="string">"transaction.status"</span>.to_string(), <span class="string">"ok"</span>.to_string()),
-<a href=#1629 id=1629 data-nosnippet>1629</a>                (<span class="string">"platform"</span>.to_string(), <span class="string">"other"</span>.to_string())
+<a href=#1628 id=1628 data-nosnippet>1628</a>                (<span class="string">"transaction.status"</span>.to_owned(), <span class="string">"ok"</span>.to_owned()),
+<a href=#1629 id=1629 data-nosnippet>1629</a>                (<span class="string">"platform"</span>.to_owned(), <span class="string">"other"</span>.to_owned())
 <a href=#1630 id=1630 data-nosnippet>1630</a>            ])
 <a href=#1631 id=1631 data-nosnippet>1631</a>        );
 <a href=#1632 id=1632 data-nosnippet>1632</a>    }

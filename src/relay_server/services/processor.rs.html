@@ -4215,7 +4215,7 @@
 <a href=#4215 id=4215 data-nosnippet>4215</a>        <span class="kw">let </span>hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
 <a href=#4216 id=4216 data-nosnippet>4216</a>
 <a href=#4217 id=4217 data-nosnippet>4217</a>        <span class="kw">let </span>derived_value = {
-<a href=#4218 id=4218 data-nosnippet>4218</a>            <span class="kw">let </span>name = <span class="string">"foobar"</span>.to_string();
+<a href=#4218 id=4218 data-nosnippet>4218</a>            <span class="kw">let </span>name = <span class="string">"foobar"</span>.to_owned();
 <a href=#4219 id=4219 data-nosnippet>4219</a>            <span class="kw">let </span>value = <span class="number">5</span>.into(); <span class="comment">// Arbitrary value.
 <a href=#4220 id=4220 data-nosnippet>4220</a>            </span><span class="kw">let </span>unit = MetricUnit::Duration(DurationUnit::default());
 <a href=#4221 id=4221 data-nosnippet>4221</a>            <span class="kw">let </span>tags = TransactionMeasurementTags {

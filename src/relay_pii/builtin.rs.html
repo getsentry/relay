@@ -908,7 +908,7 @@
 <a href=#908 id=908 data-nosnippet>908</a>    <span class="doccomment">/// To prevent too aggressive scrubbing, we don't scrub valid ibans found inside of a word.
 <a href=#909 id=909 data-nosnippet>909</a>    </span><span class="attr">#[test]
 <a href=#910 id=910 data-nosnippet>910</a>    </span><span class="kw">fn </span>test_iban_scrubbing_word_boundaries() {
-<a href=#911 id=911 data-nosnippet>911</a>        <span class="kw">let </span>valid_norwegian_iban = <span class="string">"NO9386011117945"</span>.to_string();
+<a href=#911 id=911 data-nosnippet>911</a>        <span class="kw">let </span>valid_norwegian_iban = <span class="string">"NO9386011117945"</span>.to_owned();
 <a href=#912 id=912 data-nosnippet>912</a>
 <a href=#913 id=913 data-nosnippet>913</a>        <span class="macro">assert_text_rule!</span>(
 <a href=#914 id=914 data-nosnippet>914</a>            rule = <span class="string">"@iban"</span>;
@@ -926,7 +926,7 @@
 <a href=#926 id=926 data-nosnippet>926</a>
 <a href=#927 id=927 data-nosnippet>927</a>    <span class="attr">#[test]
 <a href=#928 id=928 data-nosnippet>928</a>    </span><span class="kw">fn </span>test_invalid_iban_codes() {
-<a href=#929 id=929 data-nosnippet>929</a>        <span class="kw">let </span><span class="kw-2">mut </span>valid_norwegian_iban = <span class="string">"NO9386011117945"</span>.to_string();
+<a href=#929 id=929 data-nosnippet>929</a>        <span class="kw">let </span><span class="kw-2">mut </span>valid_norwegian_iban = <span class="string">"NO9386011117945"</span>.to_owned();
 <a href=#930 id=930 data-nosnippet>930</a>
 <a href=#931 id=931 data-nosnippet>931</a>        <span class="macro">assert_text_rule!</span>(
 <a href=#932 id=932 data-nosnippet>932</a>            rule = <span class="string">"@iban"</span>;
@@ -946,7 +946,7 @@
 <a href=#946 id=946 data-nosnippet>946</a>            input = <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"some iban: {invalid_norwegian_iban}!"</span>);
 <a href=#947 id=947 data-nosnippet>947</a>        );
 <a href=#948 id=948 data-nosnippet>948</a>
-<a href=#949 id=949 data-nosnippet>949</a>        <span class="kw">let </span><span class="kw-2">mut </span>valid_russian_iban = <span class="string">"RU0204452560040702810412345678901"</span>.to_string();
+<a href=#949 id=949 data-nosnippet>949</a>        <span class="kw">let </span><span class="kw-2">mut </span>valid_russian_iban = <span class="string">"RU0204452560040702810412345678901"</span>.to_owned();
 <a href=#950 id=950 data-nosnippet>950</a>
 <a href=#951 id=951 data-nosnippet>951</a>        <span class="macro">assert_text_rule!</span>(
 <a href=#952 id=952 data-nosnippet>952</a>            rule = <span class="string">"@iban"</span>;

@@ -394,7 +394,7 @@
 <a href=#394 id=394 data-nosnippet>394</a>        </span><span class="kw">return</span>;
 <a href=#395 id=395 data-nosnippet>395</a>    }
 <a href=#396 id=396 data-nosnippet>396</a>
-<a href=#397 id=397 data-nosnippet>397</a>    event.logger.get_or_insert_with(|| <span class="string">"csp"</span>.to_string());
+<a href=#397 id=397 data-nosnippet>397</a>    event.logger.get_or_insert_with(|| <span class="string">"csp"</span>.to_owned());
 <a href=#398 id=398 data-nosnippet>398</a>
 <a href=#399 id=399 data-nosnippet>399</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(client_ip) = client_ip {
 <a href=#400 id=400 data-nosnippet>400</a>        <span class="kw">let </span>user = event.user.value_mut().get_or_insert_with(User::default);
@@ -582,7 +582,7 @@
 <a href=#582 id=582 data-nosnippet>582</a>        };
 <a href=#583 id=583 data-nosnippet>583</a>
 <a href=#584 id=584 data-nosnippet>584</a>        <span class="kw">if </span>breadcrumb.ty.value().is_empty() {
-<a href=#585 id=585 data-nosnippet>585</a>            breadcrumb.ty.set_value(<span class="prelude-val">Some</span>(<span class="string">"default"</span>.to_string()));
+<a href=#585 id=585 data-nosnippet>585</a>            breadcrumb.ty.set_value(<span class="prelude-val">Some</span>(<span class="string">"default"</span>.to_owned()));
 <a href=#586 id=586 data-nosnippet>586</a>        }
 <a href=#587 id=587 data-nosnippet>587</a>        <span class="kw">if </span>breadcrumb.level.value().is_none() {
 <a href=#588 id=588 data-nosnippet>588</a>            breadcrumb.level.set_value(<span class="prelude-val">Some</span>(Level::Info));
@@ -683,13 +683,13 @@
 <a href=#683 id=683 data-nosnippet>683</a>
 <a href=#684 id=684 data-nosnippet>684</a>    <span class="kw">let </span>server_name = std::mem::take(<span class="kw-2">&amp;mut </span>event.server_name);
 <a href=#685 id=685 data-nosnippet>685</a>    <span class="kw">if </span>server_name.value().is_some() {
-<a href=#686 id=686 data-nosnippet>686</a>        <span class="kw">let </span>tag_name = <span class="string">"server_name"</span>.to_string();
+<a href=#686 id=686 data-nosnippet>686</a>        <span class="kw">let </span>tag_name = <span class="string">"server_name"</span>.to_owned();
 <a href=#687 id=687 data-nosnippet>687</a>        tags.insert(tag_name, server_name);
 <a href=#688 id=688 data-nosnippet>688</a>    }
 <a href=#689 id=689 data-nosnippet>689</a>
 <a href=#690 id=690 data-nosnippet>690</a>    <span class="kw">let </span>site = std::mem::take(<span class="kw-2">&amp;mut </span>event.site);
 <a href=#691 id=691 data-nosnippet>691</a>    <span class="kw">if </span>site.value().is_some() {
-<a href=#692 id=692 data-nosnippet>692</a>        <span class="kw">let </span>tag_name = <span class="string">"site"</span>.to_string();
+<a href=#692 id=692 data-nosnippet>692</a>        <span class="kw">let </span>tag_name = <span class="string">"site"</span>.to_owned();
 <a href=#693 id=693 data-nosnippet>693</a>        tags.insert(tag_name, site);
 <a href=#694 id=694 data-nosnippet>694</a>    }
 <a href=#695 id=695 data-nosnippet>695</a>}
@@ -1005,24 +1005,24 @@
 <a href=#1005 id=1005 data-nosnippet>1005</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = trace_context.data.value() {
 <a href=#1006 id=1006 data-nosnippet>1006</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(lcp_element) = data.lcp_element.value() {
 <a href=#1007 id=1007 data-nosnippet>1007</a>                    <span class="kw">if </span>!tags.contains(<span class="string">"lcp.element"</span>) {
-<a href=#1008 id=1008 data-nosnippet>1008</a>                        <span class="kw">let </span>tag_name = <span class="string">"lcp.element"</span>.to_string();
+<a href=#1008 id=1008 data-nosnippet>1008</a>                        <span class="kw">let </span>tag_name = <span class="string">"lcp.element"</span>.to_owned();
 <a href=#1009 id=1009 data-nosnippet>1009</a>                        tags.insert(tag_name, Annotated::new(lcp_element.clone()));
 <a href=#1010 id=1010 data-nosnippet>1010</a>                    }
 <a href=#1011 id=1011 data-nosnippet>1011</a>                }
 <a href=#1012 id=1012 data-nosnippet>1012</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(lcp_size) = data.lcp_size.value() {
 <a href=#1013 id=1013 data-nosnippet>1013</a>                    <span class="kw">if </span>!tags.contains(<span class="string">"lcp.size"</span>) {
-<a href=#1014 id=1014 data-nosnippet>1014</a>                        <span class="kw">let </span>tag_name = <span class="string">"lcp.size"</span>.to_string();
+<a href=#1014 id=1014 data-nosnippet>1014</a>                        <span class="kw">let </span>tag_name = <span class="string">"lcp.size"</span>.to_owned();
 <a href=#1015 id=1015 data-nosnippet>1015</a>                        tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
 <a href=#1016 id=1016 data-nosnippet>1016</a>                    }
 <a href=#1017 id=1017 data-nosnippet>1017</a>                }
 <a href=#1018 id=1018 data-nosnippet>1018</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(lcp_id) = data.lcp_id.value() {
-<a href=#1019 id=1019 data-nosnippet>1019</a>                    <span class="kw">let </span>tag_name = <span class="string">"lcp.id"</span>.to_string();
+<a href=#1019 id=1019 data-nosnippet>1019</a>                    <span class="kw">let </span>tag_name = <span class="string">"lcp.id"</span>.to_owned();
 <a href=#1020 id=1020 data-nosnippet>1020</a>                    <span class="kw">if </span>!tags.contains(<span class="string">"lcp.id"</span>) {
 <a href=#1021 id=1021 data-nosnippet>1021</a>                        tags.insert(tag_name, Annotated::new(lcp_id.clone()));
 <a href=#1022 id=1022 data-nosnippet>1022</a>                    }
 <a href=#1023 id=1023 data-nosnippet>1023</a>                }
 <a href=#1024 id=1024 data-nosnippet>1024</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(lcp_url) = data.lcp_url.value() {
-<a href=#1025 id=1025 data-nosnippet>1025</a>                    <span class="kw">let </span>tag_name = <span class="string">"lcp.url"</span>.to_string();
+<a href=#1025 id=1025 data-nosnippet>1025</a>                    <span class="kw">let </span>tag_name = <span class="string">"lcp.url"</span>.to_owned();
 <a href=#1026 id=1026 data-nosnippet>1026</a>                    <span class="kw">if </span>!tags.contains(<span class="string">"lcp.url"</span>) {
 <a href=#1027 id=1027 data-nosnippet>1027</a>                        tags.insert(tag_name, Annotated::new(lcp_url.clone()));
 <a href=#1028 id=1028 data-nosnippet>1028</a>                    }
@@ -1134,7 +1134,7 @@
 <a href=#1134 id=1134 data-nosnippet>1134</a>    <span class="comment">// Default required attributes, even if they have errors
 <a href=#1135 id=1135 data-nosnippet>1135</a>    </span>event.errors.get_or_insert_with(Vec::new);
 <a href=#1136 id=1136 data-nosnippet>1136</a>    event.id.get_or_insert_with(EventId::new);
-<a href=#1137 id=1137 data-nosnippet>1137</a>    event.platform.get_or_insert_with(|| <span class="string">"other"</span>.to_string());
+<a href=#1137 id=1137 data-nosnippet>1137</a>    event.platform.get_or_insert_with(|| <span class="string">"other"</span>.to_owned());
 <a href=#1138 id=1138 data-nosnippet>1138</a>    event.logger.get_or_insert_with(String::new);
 <a href=#1139 id=1139 data-nosnippet>1139</a>    event.extra.get_or_insert_with(Object::new);
 <a href=#1140 id=1140 data-nosnippet>1140</a>    event.level.get_or_insert_with(|| <span class="kw">match </span>event_type {
@@ -1504,10 +1504,10 @@
 <a href=#1504 id=1504 data-nosnippet>1504</a>/// The snake_case is the key expected by the Sentry UI to aggregate and display in graphs.
 <a href=#1505 id=1505 data-nosnippet>1505</a></span><span class="kw">fn </span>normalize_app_start_measurements(measurements: <span class="kw-2">&amp;mut </span>Measurements) {
 <a href=#1506 id=1506 data-nosnippet>1506</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_start_cold_value) = measurements.remove(<span class="string">"app.start.cold"</span>) {
-<a href=#1507 id=1507 data-nosnippet>1507</a>        measurements.insert(<span class="string">"app_start_cold"</span>.to_string(), app_start_cold_value);
+<a href=#1507 id=1507 data-nosnippet>1507</a>        measurements.insert(<span class="string">"app_start_cold"</span>.to_owned(), app_start_cold_value);
 <a href=#1508 id=1508 data-nosnippet>1508</a>    }
 <a href=#1509 id=1509 data-nosnippet>1509</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_start_warm_value) = measurements.remove(<span class="string">"app.start.warm"</span>) {
-<a href=#1510 id=1510 data-nosnippet>1510</a>        measurements.insert(<span class="string">"app_start_warm"</span>.to_string(), app_start_warm_value);
+<a href=#1510 id=1510 data-nosnippet>1510</a>        measurements.insert(<span class="string">"app_start_warm"</span>.to_owned(), app_start_warm_value);
 <a href=#1511 id=1511 data-nosnippet>1511</a>    }
 <a href=#1512 id=1512 data-nosnippet>1512</a>}
 <a href=#1513 id=1513 data-nosnippet>1513</a>
@@ -1585,16 +1585,16 @@
 <a href=#1585 id=1585 data-nosnippet>1585</a>
 <a href=#1586 id=1586 data-nosnippet>1586</a>    <span class="attr">#[test]
 <a href=#1587 id=1587 data-nosnippet>1587</a>    </span><span class="kw">fn </span>test_normalize_dist_empty() {
-<a href=#1588 id=1588 data-nosnippet>1588</a>        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">""</span>.to_string());
+<a href=#1588 id=1588 data-nosnippet>1588</a>        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">""</span>.to_owned());
 <a href=#1589 id=1589 data-nosnippet>1589</a>        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
 <a href=#1590 id=1590 data-nosnippet>1590</a>        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
 <a href=#1591 id=1591 data-nosnippet>1591</a>    }
 <a href=#1592 id=1592 data-nosnippet>1592</a>
 <a href=#1593 id=1593 data-nosnippet>1593</a>    <span class="attr">#[test]
 <a href=#1594 id=1594 data-nosnippet>1594</a>    </span><span class="kw">fn </span>test_normalize_dist_trim() {
-<a href=#1595 id=1595 data-nosnippet>1595</a>        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">" foo  "</span>.to_string());
+<a href=#1595 id=1595 data-nosnippet>1595</a>        <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">" foo  "</span>.to_owned());
 <a href=#1596 id=1596 data-nosnippet>1596</a>        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
-<a href=#1597 id=1597 data-nosnippet>1597</a>        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"foo"</span>.to_string()));
+<a href=#1597 id=1597 data-nosnippet>1597</a>        <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"foo"</span>.to_owned()));
 <a href=#1598 id=1598 data-nosnippet>1598</a>    }
 <a href=#1599 id=1599 data-nosnippet>1599</a>
 <a href=#1600 id=1600 data-nosnippet>1600</a>    <span class="attr">#[test]
@@ -1842,7 +1842,7 @@
 <a href=#1842 id=1842 data-nosnippet>1842</a>            csp: Annotated::from(Csp::default()),
 <a href=#1843 id=1843 data-nosnippet>1843</a>            ..Default::default()
 <a href=#1844 id=1844 data-nosnippet>1844</a>        };
-<a href=#1845 id=1845 data-nosnippet>1845</a>        <span class="kw">let </span>ipaddr = IpAddr(<span class="string">"213.164.1.114"</span>.to_string());
+<a href=#1845 id=1845 data-nosnippet>1845</a>        <span class="kw">let </span>ipaddr = IpAddr(<span class="string">"213.164.1.114"</span>.to_owned());
 <a href=#1846 id=1846 data-nosnippet>1846</a>
 <a href=#1847 id=1847 data-nosnippet>1847</a>        <span class="kw">let </span>client_ip = <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ipaddr);
 <a href=#1848 id=1848 data-nosnippet>1848</a>
@@ -1919,8 +1919,8 @@
 <a href=#1919 id=1919 data-nosnippet>1919</a>            contexts: {
 <a href=#1920 id=1920 data-nosnippet>1920</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#1921 id=1921 data-nosnippet>1921</a>                contexts.add(DeviceContext {
-<a href=#1922 id=1922 data-nosnippet>1922</a>                    family: <span class="string">"iPhone"</span>.to_string().into(),
-<a href=#1923 id=1923 data-nosnippet>1923</a>                    model: <span class="string">"iPhone8,4"</span>.to_string().into(),
+<a href=#1922 id=1922 data-nosnippet>1922</a>                    family: <span class="string">"iPhone"</span>.to_owned().into(),
+<a href=#1923 id=1923 data-nosnippet>1923</a>                    model: <span class="string">"iPhone8,4"</span>.to_owned().into(),
 <a href=#1924 id=1924 data-nosnippet>1924</a>                    ..Default::default()
 <a href=#1925 id=1925 data-nosnippet>1925</a>                });
 <a href=#1926 id=1926 data-nosnippet>1926</a>                Annotated::new(contexts)
@@ -1948,8 +1948,8 @@
 <a href=#1948 id=1948 data-nosnippet>1948</a>            contexts: {
 <a href=#1949 id=1949 data-nosnippet>1949</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#1950 id=1950 data-nosnippet>1950</a>                contexts.add(DeviceContext {
-<a href=#1951 id=1951 data-nosnippet>1951</a>                    family: <span class="string">"iPhone"</span>.to_string().into(),
-<a href=#1952 id=1952 data-nosnippet>1952</a>                    model: <span class="string">"iPhone12,8"</span>.to_string().into(),
+<a href=#1951 id=1951 data-nosnippet>1951</a>                    family: <span class="string">"iPhone"</span>.to_owned().into(),
+<a href=#1952 id=1952 data-nosnippet>1952</a>                    model: <span class="string">"iPhone12,8"</span>.to_owned().into(),
 <a href=#1953 id=1953 data-nosnippet>1953</a>                    ..Default::default()
 <a href=#1954 id=1954 data-nosnippet>1954</a>                });
 <a href=#1955 id=1955 data-nosnippet>1955</a>                Annotated::new(contexts)
@@ -1977,7 +1977,7 @@
 <a href=#1977 id=1977 data-nosnippet>1977</a>            contexts: {
 <a href=#1978 id=1978 data-nosnippet>1978</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#1979 id=1979 data-nosnippet>1979</a>                contexts.add(DeviceContext {
-<a href=#1980 id=1980 data-nosnippet>1980</a>                    family: <span class="string">"android"</span>.to_string().into(),
+<a href=#1980 id=1980 data-nosnippet>1980</a>                    family: <span class="string">"android"</span>.to_owned().into(),
 <a href=#1981 id=1981 data-nosnippet>1981</a>                    processor_frequency: <span class="number">1000</span>.into(),
 <a href=#1982 id=1982 data-nosnippet>1982</a>                    processor_count: <span class="number">6</span>.into(),
 <a href=#1983 id=1983 data-nosnippet>1983</a>                    memory_size: (<span class="number">2 </span>* <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>).into(),
@@ -2008,7 +2008,7 @@
 <a href=#2008 id=2008 data-nosnippet>2008</a>            contexts: {
 <a href=#2009 id=2009 data-nosnippet>2009</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#2010 id=2010 data-nosnippet>2010</a>                contexts.add(DeviceContext {
-<a href=#2011 id=2011 data-nosnippet>2011</a>                    family: <span class="string">"android"</span>.to_string().into(),
+<a href=#2011 id=2011 data-nosnippet>2011</a>                    family: <span class="string">"android"</span>.to_owned().into(),
 <a href=#2012 id=2012 data-nosnippet>2012</a>                    processor_frequency: <span class="number">2000</span>.into(),
 <a href=#2013 id=2013 data-nosnippet>2013</a>                    processor_count: <span class="number">8</span>.into(),
 <a href=#2014 id=2014 data-nosnippet>2014</a>                    memory_size: (<span class="number">6 </span>* <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>).into(),
@@ -2039,7 +2039,7 @@
 <a href=#2039 id=2039 data-nosnippet>2039</a>            contexts: {
 <a href=#2040 id=2040 data-nosnippet>2040</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#2041 id=2041 data-nosnippet>2041</a>                contexts.add(DeviceContext {
-<a href=#2042 id=2042 data-nosnippet>2042</a>                    family: <span class="string">"android"</span>.to_string().into(),
+<a href=#2042 id=2042 data-nosnippet>2042</a>                    family: <span class="string">"android"</span>.to_owned().into(),
 <a href=#2043 id=2043 data-nosnippet>2043</a>                    processor_frequency: <span class="number">2500</span>.into(),
 <a href=#2044 id=2044 data-nosnippet>2044</a>                    processor_count: <span class="number">8</span>.into(),
 <a href=#2045 id=2045 data-nosnippet>2045</a>                    memory_size: (<span class="number">6 </span>* <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>).into(),
@@ -2416,8 +2416,8 @@
 <a href=#2416 id=2416 data-nosnippet>2416</a>            contexts: {
 <a href=#2417 id=2417 data-nosnippet>2417</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#2418 id=2418 data-nosnippet>2418</a>                contexts.add(DeviceContext {
-<a href=#2419 id=2419 data-nosnippet>2419</a>                    family: <span class="string">"iPhone"</span>.to_string().into(),
-<a href=#2420 id=2420 data-nosnippet>2420</a>                    model: <span class="string">"iPhone15,3"</span>.to_string().into(),
+<a href=#2419 id=2419 data-nosnippet>2419</a>                    family: <span class="string">"iPhone"</span>.to_owned().into(),
+<a href=#2420 id=2420 data-nosnippet>2420</a>                    model: <span class="string">"iPhone15,3"</span>.to_owned().into(),
 <a href=#2421 id=2421 data-nosnippet>2421</a>                    ..Default::default()
 <a href=#2422 id=2422 data-nosnippet>2422</a>                });
 <a href=#2423 id=2423 data-nosnippet>2423</a>                Annotated::new(contexts)
@@ -4236,20 +4236,20 @@
 <a href=#4236 id=4236 data-nosnippet>4236</a>        <span class="macro">assert_eq!</span>(user.data, {
 <a href=#4237 id=4237 data-nosnippet>4237</a>            <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
 <a href=#4238 id=4238 data-nosnippet>4238</a>            map.insert(
-<a href=#4239 id=4239 data-nosnippet>4239</a>                <span class="string">"other"</span>.to_string(),
+<a href=#4239 id=4239 data-nosnippet>4239</a>                <span class="string">"other"</span>.to_owned(),
 <a href=#4240 id=4240 data-nosnippet>4240</a>                Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#4241 id=4241 data-nosnippet>4241</a>            );
 <a href=#4242 id=4242 data-nosnippet>4242</a>            Annotated::new(map)
 <a href=#4243 id=4243 data-nosnippet>4243</a>        });
 <a href=#4244 id=4244 data-nosnippet>4244</a>        <span class="macro">assert_eq!</span>(user.other, Object::new());
-<a href=#4245 id=4245 data-nosnippet>4245</a>        <span class="macro">assert_eq!</span>(user.username, Annotated::new(<span class="string">"john"</span>.to_string().into()));
-<a href=#4246 id=4246 data-nosnippet>4246</a>        <span class="macro">assert_eq!</span>(user.sentry_user, Annotated::new(<span class="string">"id:123456"</span>.to_string()));
+<a href=#4245 id=4245 data-nosnippet>4245</a>        <span class="macro">assert_eq!</span>(user.username, Annotated::new(<span class="string">"john"</span>.to_owned().into()));
+<a href=#4246 id=4246 data-nosnippet>4246</a>        <span class="macro">assert_eq!</span>(user.sentry_user, Annotated::new(<span class="string">"id:123456"</span>.to_owned()));
 <a href=#4247 id=4247 data-nosnippet>4247</a>    }
 <a href=#4248 id=4248 data-nosnippet>4248</a>
 <a href=#4249 id=4249 data-nosnippet>4249</a>    <span class="attr">#[test]
 <a href=#4250 id=4250 data-nosnippet>4250</a>    </span><span class="kw">fn </span>test_handle_types_in_spaced_exception_values() {
 <a href=#4251 id=4251 data-nosnippet>4251</a>        <span class="kw">let </span><span class="kw-2">mut </span>exception = Annotated::new(Exception {
-<a href=#4252 id=4252 data-nosnippet>4252</a>            value: Annotated::new(<span class="string">"ValueError: unauthorized"</span>.to_string().into()),
+<a href=#4252 id=4252 data-nosnippet>4252</a>            value: Annotated::new(<span class="string">"ValueError: unauthorized"</span>.to_owned().into()),
 <a href=#4253 id=4253 data-nosnippet>4253</a>            ..Exception::default()
 <a href=#4254 id=4254 data-nosnippet>4254</a>        });
 <a href=#4255 id=4255 data-nosnippet>4255</a>        normalize_exception(<span class="kw-2">&amp;mut </span>exception);
@@ -4262,7 +4262,7 @@
 <a href=#4262 id=4262 data-nosnippet>4262</a>    <span class="attr">#[test]
 <a href=#4263 id=4263 data-nosnippet>4263</a>    </span><span class="kw">fn </span>test_handle_types_in_non_spaced_excepton_values() {
 <a href=#4264 id=4264 data-nosnippet>4264</a>        <span class="kw">let </span><span class="kw-2">mut </span>exception = Annotated::new(Exception {
-<a href=#4265 id=4265 data-nosnippet>4265</a>            value: Annotated::new(<span class="string">"ValueError:unauthorized"</span>.to_string().into()),
+<a href=#4265 id=4265 data-nosnippet>4265</a>            value: Annotated::new(<span class="string">"ValueError:unauthorized"</span>.to_owned().into()),
 <a href=#4266 id=4266 data-nosnippet>4266</a>            ..Exception::default()
 <a href=#4267 id=4267 data-nosnippet>4267</a>        });
 <a href=#4268 id=4268 data-nosnippet>4268</a>        normalize_exception(<span class="kw-2">&amp;mut </span>exception);
@@ -4275,8 +4275,8 @@
 <a href=#4275 id=4275 data-nosnippet>4275</a>    <span class="attr">#[test]
 <a href=#4276 id=4276 data-nosnippet>4276</a>    </span><span class="kw">fn </span>test_rejects_empty_exception_fields() {
 <a href=#4277 id=4277 data-nosnippet>4277</a>        <span class="kw">let </span><span class="kw-2">mut </span>exception = Annotated::new(Exception {
-<a href=#4278 id=4278 data-nosnippet>4278</a>            value: Annotated::new(<span class="string">""</span>.to_string().into()),
-<a href=#4279 id=4279 data-nosnippet>4279</a>            ty: Annotated::new(<span class="string">""</span>.to_string()),
+<a href=#4278 id=4278 data-nosnippet>4278</a>            value: Annotated::new(<span class="string">""</span>.to_owned().into()),
+<a href=#4279 id=4279 data-nosnippet>4279</a>            ty: Annotated::new(<span class="string">""</span>.to_owned()),
 <a href=#4280 id=4280 data-nosnippet>4280</a>            ..Default::default()
 <a href=#4281 id=4281 data-nosnippet>4281</a>        });
 <a href=#4282 id=4282 data-nosnippet>4282</a>

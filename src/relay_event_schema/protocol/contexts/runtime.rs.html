@@ -84,16 +84,16 @@
 <a href=#84 id=84 data-nosnippet>84</a>  "type": "runtime"
 <a href=#85 id=85 data-nosnippet>85</a>}"#</span>;
 <a href=#86 id=86 data-nosnippet>86</a>        <span class="kw">let </span>context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
-<a href=#87 id=87 data-nosnippet>87</a>            runtime: Annotated::new(<span class="string">"rustc 1.27.0"</span>.to_string()),
-<a href=#88 id=88 data-nosnippet>88</a>            name: Annotated::new(<span class="string">"rustc"</span>.to_string()),
-<a href=#89 id=89 data-nosnippet>89</a>            version: Annotated::new(<span class="string">"1.27.0"</span>.to_string()),
-<a href=#90 id=90 data-nosnippet>90</a>            build: Annotated::new(LenientString(<span class="string">"stable"</span>.to_string())),
-<a href=#91 id=91 data-nosnippet>91</a>            raw_description: Annotated::new(<span class="string">"rustc 1.27.0 stable"</span>.to_string()),
+<a href=#87 id=87 data-nosnippet>87</a>            runtime: Annotated::new(<span class="string">"rustc 1.27.0"</span>.to_owned()),
+<a href=#88 id=88 data-nosnippet>88</a>            name: Annotated::new(<span class="string">"rustc"</span>.to_owned()),
+<a href=#89 id=89 data-nosnippet>89</a>            version: Annotated::new(<span class="string">"1.27.0"</span>.to_owned()),
+<a href=#90 id=90 data-nosnippet>90</a>            build: Annotated::new(LenientString(<span class="string">"stable"</span>.to_owned())),
+<a href=#91 id=91 data-nosnippet>91</a>            raw_description: Annotated::new(<span class="string">"rustc 1.27.0 stable"</span>.to_owned()),
 <a href=#92 id=92 data-nosnippet>92</a>            other: {
 <a href=#93 id=93 data-nosnippet>93</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
 <a href=#94 id=94 data-nosnippet>94</a>                map.insert(
-<a href=#95 id=95 data-nosnippet>95</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#96 id=96 data-nosnippet>96</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#95 id=95 data-nosnippet>95</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#96 id=96 data-nosnippet>96</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#97 id=97 data-nosnippet>97</a>                );
 <a href=#98 id=98 data-nosnippet>98</a>                map
 <a href=#99 id=99 data-nosnippet>99</a>            },

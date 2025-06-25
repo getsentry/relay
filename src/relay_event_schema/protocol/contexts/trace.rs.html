@@ -395,7 +395,7 @@
 <a href=#395 id=395 data-nosnippet>395</a>                    params: Annotated::new({
 <a href=#396 id=396 data-nosnippet>396</a>                        <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
 <a href=#397 id=397 data-nosnippet>397</a>                        map.insert(
-<a href=#398 id=398 data-nosnippet>398</a>                            <span class="string">"tok"</span>.to_string(),
+<a href=#398 id=398 data-nosnippet>398</a>                            <span class="string">"tok"</span>.to_owned(),
 <a href=#399 id=399 data-nosnippet>399</a>                            Annotated::new(Value::String(<span class="string">"test"</span>.into())),
 <a href=#400 id=400 data-nosnippet>400</a>                        );
 <a href=#401 id=401 data-nosnippet>401</a>                        map
@@ -429,8 +429,8 @@
 <a href=#429 id=429 data-nosnippet>429</a>            other: {
 <a href=#430 id=430 data-nosnippet>430</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
 <a href=#431 id=431 data-nosnippet>431</a>                map.insert(
-<a href=#432 id=432 data-nosnippet>432</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#433 id=433 data-nosnippet>433</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#432 id=432 data-nosnippet>432</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#433 id=433 data-nosnippet>433</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#434 id=434 data-nosnippet>434</a>                );
 <a href=#435 id=435 data-nosnippet>435</a>                map
 <a href=#436 id=436 data-nosnippet>436</a>            },

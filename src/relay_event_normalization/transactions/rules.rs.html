@@ -17,7 +17,7 @@
 <a href=#17 id=17 data-nosnippet>17</a>
 <a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// Default value for substitution in [`RedactionRule`].
 <a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">fn </span>default_substitution() -&gt; String {
-<a href=#20 id=20 data-nosnippet>20</a>    <span class="string">"*"</span>.to_string()
+<a href=#20 id=20 data-nosnippet>20</a>    <span class="string">"*"</span>.to_owned()
 <a href=#21 id=21 data-nosnippet>21</a>}
 <a href=#22 id=22 data-nosnippet>22</a>
 <a href=#23 id=23 data-nosnippet>23</a><span class="doccomment">/// Describes what to do with the matched pattern.
@@ -191,7 +191,7 @@
 <a href=#191 id=191 data-nosnippet>191</a>
 <a href=#192 id=192 data-nosnippet>192</a>        <span class="kw">let </span>parsed_time = DateTime::parse_from_rfc3339(<span class="string">"2022-11-30T00:00:00Z"</span>).unwrap();
 <a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span>result = TransactionNameRule {
-<a href=#194 id=194 data-nosnippet>194</a>            pattern: LazyGlob::new(<span class="string">"/auth/login/*/**"</span>.to_string()),
+<a href=#194 id=194 data-nosnippet>194</a>            pattern: LazyGlob::new(<span class="string">"/auth/login/*/**"</span>.to_owned()),
 <a href=#195 id=195 data-nosnippet>195</a>            expiry: DateTime::from_naive_utc_and_offset(parsed_time.naive_utc(), Utc),
 <a href=#196 id=196 data-nosnippet>196</a>            redaction: RedactionRule::Replace {
 <a href=#197 id=197 data-nosnippet>197</a>                substitution: String::from(<span class="string">":id"</span>),
@@ -217,7 +217,7 @@
 <a href=#217 id=217 data-nosnippet>217</a>
 <a href=#218 id=218 data-nosnippet>218</a>        <span class="kw">let </span>parsed_time = DateTime::parse_from_rfc3339(<span class="string">"2022-11-30T00:00:00Z"</span>).unwrap();
 <a href=#219 id=219 data-nosnippet>219</a>        <span class="kw">let </span>result = TransactionNameRule {
-<a href=#220 id=220 data-nosnippet>220</a>            pattern: LazyGlob::new(<span class="string">"/auth/login/*/**"</span>.to_string()),
+<a href=#220 id=220 data-nosnippet>220</a>            pattern: LazyGlob::new(<span class="string">"/auth/login/*/**"</span>.to_owned()),
 <a href=#221 id=221 data-nosnippet>221</a>            expiry: DateTime::from_naive_utc_and_offset(parsed_time.naive_utc(), Utc),
 <a href=#222 id=222 data-nosnippet>222</a>            redaction: RedactionRule::Replace {
 <a href=#223 id=223 data-nosnippet>223</a>                substitution: default_substitution(),
@@ -242,7 +242,7 @@
 <a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">let </span>rule: TransactionNameRule = serde_json::from_str(json).unwrap();
 <a href=#243 id=243 data-nosnippet>243</a>        <span class="kw">let </span>result = rule.apply(<span class="string">"/auth/login/test/"</span>);
 <a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="macro">assert_eq!</span>(result, <span class="string">"/auth/login/test/"</span>.to_string());
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="macro">assert_eq!</span>(result, <span class="string">"/auth/login/test/"</span>.to_owned());
 <a href=#246 id=246 data-nosnippet>246</a>    }
 <a href=#247 id=247 data-nosnippet>247</a>
 <a href=#248 id=248 data-nosnippet>248</a>    <span class="attr">#[test]

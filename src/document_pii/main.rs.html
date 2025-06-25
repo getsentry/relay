@@ -194,7 +194,7 @@
 <a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 <a href=#195 id=195 data-nosnippet>195</a>
 <a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">let </span>pii_types = types_and_use_statements
-<a href=#197 id=197 data-nosnippet>197</a>            .find_pii_fields(<span class="prelude-val">Some</span>(<span class="string">"test_pii_docs::SubStruct"</span>), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_string()])
+<a href=#197 id=197 data-nosnippet>197</a>            .find_pii_fields(<span class="prelude-val">Some</span>(<span class="string">"test_pii_docs::SubStruct"</span>), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_owned()])
 <a href=#198 id=198 data-nosnippet>198</a>            .unwrap();
 <a href=#199 id=199 data-nosnippet>199</a>
 <a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">let </span>output = Output::from_btreeset(pii_types);
@@ -214,7 +214,7 @@
 <a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 <a href=#215 id=215 data-nosnippet>215</a>
 <a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">let </span>pii_types = types_and_use_statements
-<a href=#217 id=217 data-nosnippet>217</a>            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_string()])
+<a href=#217 id=217 data-nosnippet>217</a>            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_owned()])
 <a href=#218 id=218 data-nosnippet>218</a>            .unwrap();
 <a href=#219 id=219 data-nosnippet>219</a>
 <a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">let </span>output = Output::from_btreeset(pii_types);
@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 <a href=#227 id=227 data-nosnippet>227</a>
 <a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">let </span>pii_types = types_and_use_statements
-<a href=#229 id=229 data-nosnippet>229</a>            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"false"</span>.to_string()])
+<a href=#229 id=229 data-nosnippet>229</a>            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"false"</span>.to_owned()])
 <a href=#230 id=230 data-nosnippet>230</a>            .unwrap();
 <a href=#231 id=231 data-nosnippet>231</a>
 <a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">let </span>output = Output::from_btreeset(pii_types);
@@ -240,7 +240,7 @@
 <a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">let </span>pii_types = types_and_use_statements
 <a href=#241 id=241 data-nosnippet>241</a>            .find_pii_fields(
 <a href=#242 id=242 data-nosnippet>242</a>                <span class="prelude-val">None</span>,
-<a href=#243 id=243 data-nosnippet>243</a>                <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_string(), <span class="string">"false"</span>.to_string(), <span class="string">"maybe"</span>.to_string()],
+<a href=#243 id=243 data-nosnippet>243</a>                <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_owned(), <span class="string">"false"</span>.to_owned(), <span class="string">"maybe"</span>.to_owned()],
 <a href=#244 id=244 data-nosnippet>244</a>            )
 <a href=#245 id=245 data-nosnippet>245</a>            .unwrap();
 <a href=#246 id=246 data-nosnippet>246</a>
@@ -275,7 +275,7 @@
 <a href=#275 id=275 data-nosnippet>275</a>        <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 <a href=#276 id=276 data-nosnippet>276</a>
 <a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let </span>pii_types = types_and_use_statements
-<a href=#278 id=278 data-nosnippet>278</a>            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"truth_table_test"</span>.to_string()])
+<a href=#278 id=278 data-nosnippet>278</a>            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"truth_table_test"</span>.to_owned()])
 <a href=#279 id=279 data-nosnippet>279</a>            .unwrap();
 <a href=#280 id=280 data-nosnippet>280</a>
 <a href=#281 id=281 data-nosnippet>281</a>        <span class="kw">let </span>output = Output::from_btreeset(pii_types);

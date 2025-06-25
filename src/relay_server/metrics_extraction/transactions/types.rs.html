@@ -186,9 +186,9 @@
 <a href=#186 id=186 data-nosnippet>186</a><span class="kw">impl </span>From&lt;TransactionCPRTags&gt; <span class="kw">for </span>BTreeMap&lt;String, String&gt; {
 <a href=#187 id=187 data-nosnippet>187</a>    <span class="kw">fn </span>from(value: TransactionCPRTags) -&gt; <span class="self">Self </span>{
 <a href=#188 id=188 data-nosnippet>188</a>        <span class="kw">let </span><span class="kw-2">mut </span>map: BTreeMap&lt;String, String&gt; = value.universal_tags.into();
-<a href=#189 id=189 data-nosnippet>189</a>        map.insert(<span class="string">"decision"</span>.to_string(), value.decision);
+<a href=#189 id=189 data-nosnippet>189</a>        map.insert(<span class="string">"decision"</span>.to_owned(), value.decision);
 <a href=#190 id=190 data-nosnippet>190</a>        map.insert(
-<a href=#191 id=191 data-nosnippet>191</a>            <span class="string">"target_project_id"</span>.to_string(),
+<a href=#191 id=191 data-nosnippet>191</a>            <span class="string">"target_project_id"</span>.to_owned(),
 <a href=#192 id=192 data-nosnippet>192</a>            value.target_project_id.to_string(),
 <a href=#193 id=193 data-nosnippet>193</a>        );
 <a href=#194 id=194 data-nosnippet>194</a>        map

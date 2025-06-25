@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a>            <span class="kw">let </span>waker = noop_waker_ref();
 <a href=#200 id=200 data-nosnippet>200</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = Context::from_waker(waker);
 <a href=#201 id=201 data-nosnippet>201</a>
-<a href=#202 id=202 data-nosnippet>202</a>            <span class="kw">let </span>body = Body::new(<span class="string">"cool test"</span>.to_string());
+<a href=#202 id=202 data-nosnippet>202</a>            <span class="kw">let </span>body = Body::new(<span class="string">"cool test"</span>.to_owned());
 <a href=#203 id=203 data-nosnippet>203</a>            <span class="kw">let </span><span class="kw-2">mut </span>timed_body = TimedBody::new(body, <span class="prelude-val">None</span>);
 <a href=#204 id=204 data-nosnippet>204</a>            <span class="kw">let </span><span class="kw-2">mut </span>pinned = Pin::new(<span class="kw-2">&amp;mut </span>timed_body);
 <a href=#205 id=205 data-nosnippet>205</a>
@@ -218,7 +218,7 @@
 <a href=#218 id=218 data-nosnippet>218</a>            <span class="kw">let </span>waker = noop_waker_ref();
 <a href=#219 id=219 data-nosnippet>219</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = Context::from_waker(waker);
 <a href=#220 id=220 data-nosnippet>220</a>
-<a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">let </span>body = Body::new(<span class="string">"just calling this once"</span>.to_string());
+<a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">let </span>body = Body::new(<span class="string">"just calling this once"</span>.to_owned());
 <a href=#222 id=222 data-nosnippet>222</a>            <span class="kw">let </span><span class="kw-2">mut </span>timed_body = TimedBody::new(body, <span class="prelude-val">None</span>);
 <a href=#223 id=223 data-nosnippet>223</a>            <span class="kw">let </span>pinned = Pin::new(<span class="kw-2">&amp;mut </span>timed_body);
 <a href=#224 id=224 data-nosnippet>224</a>
@@ -234,7 +234,7 @@
 <a href=#234 id=234 data-nosnippet>234</a>    <span class="attr">#[test]
 <a href=#235 id=235 data-nosnippet>235</a>    </span><span class="kw">fn </span>test_dropped_before_reading() {
 <a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">let </span>captures = with_capturing_test_client(|| {
-<a href=#237 id=237 data-nosnippet>237</a>            <span class="kw">let </span>body = Body::new(<span class="string">"dropped"</span>.to_string());
+<a href=#237 id=237 data-nosnippet>237</a>            <span class="kw">let </span>body = Body::new(<span class="string">"dropped"</span>.to_owned());
 <a href=#238 id=238 data-nosnippet>238</a>            <span class="kw">let _ </span>= TimedBody::new(body, <span class="prelude-val">None</span>);
 <a href=#239 id=239 data-nosnippet>239</a>        });
 <a href=#240 id=240 data-nosnippet>240</a>        <span class="macro">assert_eq!</span>(captures.len(), <span class="number">0</span>);

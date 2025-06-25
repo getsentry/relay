@@ -105,24 +105,24 @@
 <a href=#105 id=105 data-nosnippet>105</a>  "type": "app"
 <a href=#106 id=106 data-nosnippet>106</a>}"#</span>;
 <a href=#107 id=107 data-nosnippet>107</a>        <span class="kw">let </span>context = Annotated::new(Context::App(Box::new(AppContext {
-<a href=#108 id=108 data-nosnippet>108</a>            app_start_time: Annotated::new(<span class="string">"2018-02-08T22:21:57Z"</span>.to_string()),
-<a href=#109 id=109 data-nosnippet>109</a>            device_app_hash: Annotated::new(<span class="string">"4c793e3776474877ae30618378e9662a"</span>.to_string()),
-<a href=#110 id=110 data-nosnippet>110</a>            build_type: Annotated::new(<span class="string">"testflight"</span>.to_string()),
-<a href=#111 id=111 data-nosnippet>111</a>            app_identifier: Annotated::new(<span class="string">"foo.bar.baz"</span>.to_string()),
-<a href=#112 id=112 data-nosnippet>112</a>            app_name: Annotated::new(<span class="string">"Baz App"</span>.to_string()),
-<a href=#113 id=113 data-nosnippet>113</a>            app_version: Annotated::new(<span class="string">"1.0"</span>.to_string()),
-<a href=#114 id=114 data-nosnippet>114</a>            app_build: Annotated::new(<span class="string">"100001"</span>.to_string().into()),
+<a href=#108 id=108 data-nosnippet>108</a>            app_start_time: Annotated::new(<span class="string">"2018-02-08T22:21:57Z"</span>.to_owned()),
+<a href=#109 id=109 data-nosnippet>109</a>            device_app_hash: Annotated::new(<span class="string">"4c793e3776474877ae30618378e9662a"</span>.to_owned()),
+<a href=#110 id=110 data-nosnippet>110</a>            build_type: Annotated::new(<span class="string">"testflight"</span>.to_owned()),
+<a href=#111 id=111 data-nosnippet>111</a>            app_identifier: Annotated::new(<span class="string">"foo.bar.baz"</span>.to_owned()),
+<a href=#112 id=112 data-nosnippet>112</a>            app_name: Annotated::new(<span class="string">"Baz App"</span>.to_owned()),
+<a href=#113 id=113 data-nosnippet>113</a>            app_version: Annotated::new(<span class="string">"1.0"</span>.to_owned()),
+<a href=#114 id=114 data-nosnippet>114</a>            app_build: Annotated::new(<span class="string">"100001"</span>.to_owned().into()),
 <a href=#115 id=115 data-nosnippet>115</a>            app_memory: Annotated::new(<span class="number">22883948</span>),
 <a href=#116 id=116 data-nosnippet>116</a>            in_foreground: Annotated::new(<span class="bool-val">true</span>),
 <a href=#117 id=117 data-nosnippet>117</a>            view_names: Annotated::new(<span class="macro">vec!</span>[
-<a href=#118 id=118 data-nosnippet>118</a>                Annotated::new(<span class="string">"FooViewController"</span>.to_string()),
-<a href=#119 id=119 data-nosnippet>119</a>                Annotated::new(<span class="string">"BarViewController"</span>.to_string()),
+<a href=#118 id=118 data-nosnippet>118</a>                Annotated::new(<span class="string">"FooViewController"</span>.to_owned()),
+<a href=#119 id=119 data-nosnippet>119</a>                Annotated::new(<span class="string">"BarViewController"</span>.to_owned()),
 <a href=#120 id=120 data-nosnippet>120</a>            ]),
 <a href=#121 id=121 data-nosnippet>121</a>            other: {
 <a href=#122 id=122 data-nosnippet>122</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
 <a href=#123 id=123 data-nosnippet>123</a>                map.insert(
-<a href=#124 id=124 data-nosnippet>124</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#125 id=125 data-nosnippet>125</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#124 id=124 data-nosnippet>124</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#125 id=125 data-nosnippet>125</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#126 id=126 data-nosnippet>126</a>                );
 <a href=#127 id=127 data-nosnippet>127</a>                map
 <a href=#128 id=128 data-nosnippet>128</a>            },

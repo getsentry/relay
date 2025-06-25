@@ -40,7 +40,7 @@
 <a href=#40 id=40 data-nosnippet>40</a>            .into_iter()
 <a href=#41 id=41 data-nosnippet>41</a>            .filter(|pii| {
 <a href=#42 id=42 data-nosnippet>42</a>                pii.has_attribute(<span class="string">"pii"</span>, <span class="prelude-val">Some</span>(pii_values))
-<a href=#43 id=43 data-nosnippet>43</a>                    &amp;&amp; (pii.has_attribute(<span class="string">"retain"</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_string()]))
+<a href=#43 id=43 data-nosnippet>43</a>                    &amp;&amp; (pii.has_attribute(<span class="string">"retain"</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">"true"</span>.to_owned()]))
 <a href=#44 id=44 data-nosnippet>44</a>                        || !pii.has_attribute(<span class="string">"additional_properties"</span>, <span class="prelude-val">None</span>))
 <a href=#45 id=45 data-nosnippet>45</a>            })
 <a href=#46 id=46 data-nosnippet>46</a>            .collect())

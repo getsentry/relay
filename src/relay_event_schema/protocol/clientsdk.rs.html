@@ -256,18 +256,18 @@
 <a href=#256 id=256 data-nosnippet>256</a>  "other": "value"
 <a href=#257 id=257 data-nosnippet>257</a>}"#</span>;
 <a href=#258 id=258 data-nosnippet>258</a>        <span class="kw">let </span>sdk = Annotated::new(ClientSdkInfo {
-<a href=#259 id=259 data-nosnippet>259</a>            name: Annotated::new(<span class="string">"sentry.rust"</span>.to_string()),
-<a href=#260 id=260 data-nosnippet>260</a>            version: Annotated::new(<span class="string">"1.0.0"</span>.to_string()),
-<a href=#261 id=261 data-nosnippet>261</a>            integrations: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"actix"</span>.to_string())]),
-<a href=#262 id=262 data-nosnippet>262</a>            features: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"feature1"</span>.to_string())]),
+<a href=#259 id=259 data-nosnippet>259</a>            name: Annotated::new(<span class="string">"sentry.rust"</span>.to_owned()),
+<a href=#260 id=260 data-nosnippet>260</a>            version: Annotated::new(<span class="string">"1.0.0"</span>.to_owned()),
+<a href=#261 id=261 data-nosnippet>261</a>            integrations: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"actix"</span>.to_owned())]),
+<a href=#262 id=262 data-nosnippet>262</a>            features: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"feature1"</span>.to_owned())]),
 <a href=#263 id=263 data-nosnippet>263</a>            packages: Annotated::new(<span class="macro">vec!</span>[
 <a href=#264 id=264 data-nosnippet>264</a>                Annotated::new(ClientSdkPackage {
-<a href=#265 id=265 data-nosnippet>265</a>                    name: Annotated::new(<span class="string">"cargo:sentry"</span>.to_string()),
-<a href=#266 id=266 data-nosnippet>266</a>                    version: Annotated::new(<span class="string">"0.10.0"</span>.to_string()),
+<a href=#265 id=265 data-nosnippet>265</a>                    name: Annotated::new(<span class="string">"cargo:sentry"</span>.to_owned()),
+<a href=#266 id=266 data-nosnippet>266</a>                    version: Annotated::new(<span class="string">"0.10.0"</span>.to_owned()),
 <a href=#267 id=267 data-nosnippet>267</a>                }),
 <a href=#268 id=268 data-nosnippet>268</a>                Annotated::new(ClientSdkPackage {
-<a href=#269 id=269 data-nosnippet>269</a>                    name: Annotated::new(<span class="string">"cargo:sentry-actix"</span>.to_string()),
-<a href=#270 id=270 data-nosnippet>270</a>                    version: Annotated::new(<span class="string">"0.10.0"</span>.to_string()),
+<a href=#269 id=269 data-nosnippet>269</a>                    name: Annotated::new(<span class="string">"cargo:sentry-actix"</span>.to_owned()),
+<a href=#270 id=270 data-nosnippet>270</a>                    version: Annotated::new(<span class="string">"0.10.0"</span>.to_owned()),
 <a href=#271 id=271 data-nosnippet>271</a>                }),
 <a href=#272 id=272 data-nosnippet>272</a>            ]),
 <a href=#273 id=273 data-nosnippet>273</a>            client_ip: Annotated::new(IpAddr(<span class="string">"127.0.0.1"</span>.to_owned())),
@@ -275,8 +275,8 @@
 <a href=#275 id=275 data-nosnippet>275</a>            other: {
 <a href=#276 id=276 data-nosnippet>276</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
 <a href=#277 id=277 data-nosnippet>277</a>                map.insert(
-<a href=#278 id=278 data-nosnippet>278</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#279 id=279 data-nosnippet>279</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#278 id=278 data-nosnippet>278</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#279 id=279 data-nosnippet>279</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#280 id=280 data-nosnippet>280</a>                );
 <a href=#281 id=281 data-nosnippet>281</a>                map
 <a href=#282 id=282 data-nosnippet>282</a>            },
@@ -294,8 +294,8 @@
 <a href=#294 id=294 data-nosnippet>294</a>  "client_ip": "127.0.0.1"
 <a href=#295 id=295 data-nosnippet>295</a>}"#</span>;
 <a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span>sdk = Annotated::new(ClientSdkInfo {
-<a href=#297 id=297 data-nosnippet>297</a>            name: Annotated::new(<span class="string">"sentry.rust"</span>.to_string()),
-<a href=#298 id=298 data-nosnippet>298</a>            version: Annotated::new(<span class="string">"1.0.0"</span>.to_string()),
+<a href=#297 id=297 data-nosnippet>297</a>            name: Annotated::new(<span class="string">"sentry.rust"</span>.to_owned()),
+<a href=#298 id=298 data-nosnippet>298</a>            version: Annotated::new(<span class="string">"1.0.0"</span>.to_owned()),
 <a href=#299 id=299 data-nosnippet>299</a>            integrations: Annotated::empty(),
 <a href=#300 id=300 data-nosnippet>300</a>            features: Annotated::empty(),
 <a href=#301 id=301 data-nosnippet>301</a>            packages: Annotated::empty(),

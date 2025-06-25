@@ -956,18 +956,18 @@
 <a href=#956 id=956 data-nosnippet>956</a>        "#</span>;
 <a href=#957 id=957 data-nosnippet>957</a>
 <a href=#958 id=958 data-nosnippet>958</a>        <span class="kw">let </span>rule1 = TransactionNameRule {
-<a href=#959 id=959 data-nosnippet>959</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/user/*/**"</span>.to_string()),
+<a href=#959 id=959 data-nosnippet>959</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/user/*/**"</span>.to_owned()),
 <a href=#960 id=960 data-nosnippet>960</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#961 id=961 data-nosnippet>961</a>            redaction: Default::default(),
 <a href=#962 id=962 data-nosnippet>962</a>        };
 <a href=#963 id=963 data-nosnippet>963</a>        <span class="kw">let </span>rule2 = TransactionNameRule {
-<a href=#964 id=964 data-nosnippet>964</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_string()),
+<a href=#964 id=964 data-nosnippet>964</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_owned()),
 <a href=#965 id=965 data-nosnippet>965</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#966 id=966 data-nosnippet>966</a>            redaction: Default::default(),
 <a href=#967 id=967 data-nosnippet>967</a>        };
 <a href=#968 id=968 data-nosnippet>968</a>        <span class="comment">// This should not happend, such rules shouldn't be sent to relay at all.
 <a href=#969 id=969 data-nosnippet>969</a>        </span><span class="kw">let </span>rule3 = TransactionNameRule {
-<a href=#970 id=970 data-nosnippet>970</a>            pattern: LazyGlob::new(<span class="string">"/*/**"</span>.to_string()),
+<a href=#970 id=970 data-nosnippet>970</a>            pattern: LazyGlob::new(<span class="string">"/*/**"</span>.to_owned()),
 <a href=#971 id=971 data-nosnippet>971</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#972 id=972 data-nosnippet>972</a>            redaction: Default::default(),
 <a href=#973 id=973 data-nosnippet>973</a>        };
@@ -1039,18 +1039,18 @@
 <a href=#1039 id=1039 data-nosnippet>1039</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 <a href=#1040 id=1040 data-nosnippet>1040</a>
 <a href=#1041 id=1041 data-nosnippet>1041</a>        <span class="kw">let </span>rule1 = TransactionNameRule {
-<a href=#1042 id=1042 data-nosnippet>1042</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/user/*/**"</span>.to_string()),
+<a href=#1042 id=1042 data-nosnippet>1042</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/user/*/**"</span>.to_owned()),
 <a href=#1043 id=1043 data-nosnippet>1043</a>            expiry: Utc::now() - Duration::hours(<span class="number">1</span>), <span class="comment">// Expired rule
 <a href=#1044 id=1044 data-nosnippet>1044</a>            </span>redaction: Default::default(),
 <a href=#1045 id=1045 data-nosnippet>1045</a>        };
 <a href=#1046 id=1046 data-nosnippet>1046</a>        <span class="kw">let </span>rule2 = TransactionNameRule {
-<a href=#1047 id=1047 data-nosnippet>1047</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_string()),
+<a href=#1047 id=1047 data-nosnippet>1047</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_owned()),
 <a href=#1048 id=1048 data-nosnippet>1048</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#1049 id=1049 data-nosnippet>1049</a>            redaction: Default::default(),
 <a href=#1050 id=1050 data-nosnippet>1050</a>        };
 <a href=#1051 id=1051 data-nosnippet>1051</a>        <span class="comment">// This should not happend, such rules shouldn't be sent to relay at all.
 <a href=#1052 id=1052 data-nosnippet>1052</a>        </span><span class="kw">let </span>rule3 = TransactionNameRule {
-<a href=#1053 id=1053 data-nosnippet>1053</a>            pattern: LazyGlob::new(<span class="string">"/*/**"</span>.to_string()),
+<a href=#1053 id=1053 data-nosnippet>1053</a>            pattern: LazyGlob::new(<span class="string">"/*/**"</span>.to_owned()),
 <a href=#1054 id=1054 data-nosnippet>1054</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#1055 id=1055 data-nosnippet>1055</a>            redaction: Default::default(),
 <a href=#1056 id=1056 data-nosnippet>1056</a>        };
@@ -1117,7 +1117,7 @@
 <a href=#1117 id=1117 data-nosnippet>1117</a>        "#</span>;
 <a href=#1118 id=1118 data-nosnippet>1118</a>
 <a href=#1119 id=1119 data-nosnippet>1119</a>        <span class="kw">let </span>rules = <span class="macro">vec!</span>[TransactionNameRule {
-<a href=#1120 id=1120 data-nosnippet>1120</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/user/*/**"</span>.to_string()),
+<a href=#1120 id=1120 data-nosnippet>1120</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/user/*/**"</span>.to_owned()),
 <a href=#1121 id=1121 data-nosnippet>1121</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#1122 id=1122 data-nosnippet>1122</a>            redaction: Default::default(),
 <a href=#1123 id=1123 data-nosnippet>1123</a>        }];
@@ -1224,13 +1224,13 @@
 <a href=#1224 id=1224 data-nosnippet>1224</a>        "#</span>;
 <a href=#1225 id=1225 data-nosnippet>1225</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 <a href=#1226 id=1226 data-nosnippet>1226</a>        <span class="kw">let </span>rule1 = TransactionNameRule {
-<a href=#1227 id=1227 data-nosnippet>1227</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_string()),
+<a href=#1227 id=1227 data-nosnippet>1227</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_owned()),
 <a href=#1228 id=1228 data-nosnippet>1228</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#1229 id=1229 data-nosnippet>1229</a>            redaction: Default::default(),
 <a href=#1230 id=1230 data-nosnippet>1230</a>        };
 <a href=#1231 id=1231 data-nosnippet>1231</a>        <span class="comment">// This should not happend, such rules shouldn't be sent to relay at all.
 <a href=#1232 id=1232 data-nosnippet>1232</a>        </span><span class="kw">let </span>rule2 = TransactionNameRule {
-<a href=#1233 id=1233 data-nosnippet>1233</a>            pattern: LazyGlob::new(<span class="string">"/*/**"</span>.to_string()),
+<a href=#1233 id=1233 data-nosnippet>1233</a>            pattern: LazyGlob::new(<span class="string">"/*/**"</span>.to_owned()),
 <a href=#1234 id=1234 data-nosnippet>1234</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#1235 id=1235 data-nosnippet>1235</a>            redaction: Default::default(),
 <a href=#1236 id=1236 data-nosnippet>1236</a>        };
@@ -1374,7 +1374,7 @@
 <a href=#1374 id=1374 data-nosnippet>1374</a>        "#</span>;
 <a href=#1375 id=1375 data-nosnippet>1375</a>
 <a href=#1376 id=1376 data-nosnippet>1376</a>        <span class="kw">let </span>rule = TransactionNameRule {
-<a href=#1377 id=1377 data-nosnippet>1377</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_string()),
+<a href=#1377 id=1377 data-nosnippet>1377</a>            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_owned()),
 <a href=#1378 id=1378 data-nosnippet>1378</a>            expiry: Utc::now() + Duration::hours(<span class="number">1</span>),
 <a href=#1379 id=1379 data-nosnippet>1379</a>            redaction: Default::default(),
 <a href=#1380 id=1380 data-nosnippet>1380</a>        };

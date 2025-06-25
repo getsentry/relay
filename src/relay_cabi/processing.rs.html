@@ -401,9 +401,9 @@
 <a href=#401 id=401 data-nosnippet>401</a>    <span class="kw">let </span>ret_val = <span class="kw">match </span>serde_json::from_str::&lt;RuleCondition&gt;(<span class="kw">unsafe </span>{ (<span class="kw-2">*</span>value).as_str() }) {
 <a href=#402 id=402 data-nosnippet>402</a>        <span class="prelude-val">Ok</span>(condition) =&gt; {
 <a href=#403 id=403 data-nosnippet>403</a>            <span class="kw">if </span>condition.supported() {
-<a href=#404 id=404 data-nosnippet>404</a>                <span class="string">""</span>.to_string()
+<a href=#404 id=404 data-nosnippet>404</a>                <span class="string">""</span>.to_owned()
 <a href=#405 id=405 data-nosnippet>405</a>            } <span class="kw">else </span>{
-<a href=#406 id=406 data-nosnippet>406</a>                <span class="string">"unsupported condition"</span>.to_string()
+<a href=#406 id=406 data-nosnippet>406</a>                <span class="string">"unsupported condition"</span>.to_owned()
 <a href=#407 id=407 data-nosnippet>407</a>            }
 <a href=#408 id=408 data-nosnippet>408</a>        }
 <a href=#409 id=409 data-nosnippet>409</a>        <span class="prelude-val">Err</span>(e) =&gt; e.to_string(),

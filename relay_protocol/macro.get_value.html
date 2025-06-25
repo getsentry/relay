@@ -35,7 +35,7 @@ instance: <code>data.field!</code>.</p>
 
 <span class="kw">let </span>outer = Annotated::new(Outer {
     inners: Annotated::new(Object::from([(
-        <span class="string">"key"</span>.to_string(),
+        <span class="string">"key"</span>.to_owned(),
         Annotated::new(Inner {
             value: Annotated::new(<span class="number">1</span>),
         }),

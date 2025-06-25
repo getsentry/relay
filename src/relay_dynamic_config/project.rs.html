@@ -126,7 +126,7 @@
 <a href=#126 id=126 data-nosnippet>126</a><span class="kw">impl </span>Default <span class="kw">for </span>ProjectConfig {
 <a href=#127 id=127 data-nosnippet>127</a>    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
 <a href=#128 id=128 data-nosnippet>128</a>        ProjectConfig {
-<a href=#129 id=129 data-nosnippet>129</a>            allowed_domains: <span class="macro">vec!</span>[<span class="string">"*"</span>.to_string()],
+<a href=#129 id=129 data-nosnippet>129</a>            allowed_domains: <span class="macro">vec!</span>[<span class="string">"*"</span>.to_owned()],
 <a href=#130 id=130 data-nosnippet>130</a>            trusted_relays: <span class="macro">vec!</span>[],
 <a href=#131 id=131 data-nosnippet>131</a>            pii_config: <span class="prelude-val">None</span>,
 <a href=#132 id=132 data-nosnippet>132</a>            grouping_config: <span class="prelude-val">None</span>,

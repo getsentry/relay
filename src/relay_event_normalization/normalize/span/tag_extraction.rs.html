@@ -2493,7 +2493,7 @@
 <a href=#2493 id=2493 data-nosnippet>2493</a>            .unwrap();
 <a href=#2494 id=2494 data-nosnippet>2494</a>        <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[]);
 <a href=#2495 id=2495 data-nosnippet>2495</a>
-<a href=#2496 id=2496 data-nosnippet>2496</a>        <span class="macro">assert_eq!</span>(tags.browser_name.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"Chrome"</span>.to_string()));
+<a href=#2496 id=2496 data-nosnippet>2496</a>        <span class="macro">assert_eq!</span>(tags.browser_name.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"Chrome"</span>.to_owned()));
 <a href=#2497 id=2497 data-nosnippet>2497</a>    }
 <a href=#2498 id=2498 data-nosnippet>2498</a>
 <a href=#2499 id=2499 data-nosnippet>2499</a>    <span class="attr">#[test]
@@ -2562,19 +2562,19 @@
 <a href=#2562 id=2562 data-nosnippet>2562</a>
 <a href=#2563 id=2563 data-nosnippet>2563</a>        <span class="macro">assert_eq!</span>(
 <a href=#2564 id=2564 data-nosnippet>2564</a>            tags.messaging_destination_name.value(),
-<a href=#2565 id=2565 data-nosnippet>2565</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"default"</span>.to_string())
+<a href=#2565 id=2565 data-nosnippet>2565</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"default"</span>.to_owned())
 <a href=#2566 id=2566 data-nosnippet>2566</a>        );
 <a href=#2567 id=2567 data-nosnippet>2567</a>        <span class="macro">assert_eq!</span>(
 <a href=#2568 id=2568 data-nosnippet>2568</a>            tags.messaging_message_id.value(),
-<a href=#2569 id=2569 data-nosnippet>2569</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"abc123"</span>.to_string())
+<a href=#2569 id=2569 data-nosnippet>2569</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"abc123"</span>.to_owned())
 <a href=#2570 id=2570 data-nosnippet>2570</a>        );
 <a href=#2571 id=2571 data-nosnippet>2571</a>        <span class="macro">assert_eq!</span>(
 <a href=#2572 id=2572 data-nosnippet>2572</a>            tags.messaging_operation_name.value(),
-<a href=#2573 id=2573 data-nosnippet>2573</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"publish"</span>.to_string())
+<a href=#2573 id=2573 data-nosnippet>2573</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"publish"</span>.to_owned())
 <a href=#2574 id=2574 data-nosnippet>2574</a>        );
 <a href=#2575 id=2575 data-nosnippet>2575</a>        <span class="macro">assert_eq!</span>(
 <a href=#2576 id=2576 data-nosnippet>2576</a>            tags.messaging_operation_type.value(),
-<a href=#2577 id=2577 data-nosnippet>2577</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"create"</span>.to_string())
+<a href=#2577 id=2577 data-nosnippet>2577</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"create"</span>.to_owned())
 <a href=#2578 id=2578 data-nosnippet>2578</a>        );
 <a href=#2579 id=2579 data-nosnippet>2579</a>    }
 <a href=#2580 id=2580 data-nosnippet>2580</a>
@@ -2921,9 +2921,9 @@
 <a href=#2921 id=2921 data-nosnippet>2921</a>            .unwrap();
 <a href=#2922 id=2922 data-nosnippet>2922</a>        <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[]);
 <a href=#2923 id=2923 data-nosnippet>2923</a>
-<a href=#2924 id=2924 data-nosnippet>2924</a>        <span class="macro">assert_eq!</span>(tags.action.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"FIND"</span>.to_string()));
+<a href=#2924 id=2924 data-nosnippet>2924</a>        <span class="macro">assert_eq!</span>(tags.action.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"FIND"</span>.to_owned()));
 <a href=#2925 id=2925 data-nosnippet>2925</a>
-<a href=#2926 id=2926 data-nosnippet>2926</a>        <span class="macro">assert_eq!</span>(tags.domain.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"documents"</span>.to_string()));
+<a href=#2926 id=2926 data-nosnippet>2926</a>        <span class="macro">assert_eq!</span>(tags.domain.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"documents"</span>.to_owned()));
 <a href=#2927 id=2927 data-nosnippet>2927</a>    }
 <a href=#2928 id=2928 data-nosnippet>2928</a>
 <a href=#2929 id=2929 data-nosnippet>2929</a>    <span class="attr">#[test]
@@ -2948,7 +2948,7 @@
 <a href=#2948 id=2948 data-nosnippet>2948</a>            .unwrap();
 <a href=#2949 id=2949 data-nosnippet>2949</a>        <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[]);
 <a href=#2950 id=2950 data-nosnippet>2950</a>
-<a href=#2951 id=2951 data-nosnippet>2951</a>        <span class="macro">assert_eq!</span>(tags.domain.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"documents_{%s}"</span>.to_string()));
+<a href=#2951 id=2951 data-nosnippet>2951</a>        <span class="macro">assert_eq!</span>(tags.domain.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"documents_{%s}"</span>.to_owned()));
 <a href=#2952 id=2952 data-nosnippet>2952</a>    }
 <a href=#2953 id=2953 data-nosnippet>2953</a>
 <a href=#2954 id=2954 data-nosnippet>2954</a>    <span class="attr">#[test]

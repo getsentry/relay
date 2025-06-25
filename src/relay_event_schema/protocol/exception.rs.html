@@ -97,15 +97,15 @@
 <a href=#97 id=97 data-nosnippet>97</a>  "other": "value"
 <a href=#98 id=98 data-nosnippet>98</a>}"#</span>;
 <a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">let </span>exception = Annotated::new(Exception {
-<a href=#100 id=100 data-nosnippet>100</a>            ty: Annotated::new(<span class="string">"mytype"</span>.to_string()),
-<a href=#101 id=101 data-nosnippet>101</a>            value: Annotated::new(<span class="string">"myvalue"</span>.to_string().into()),
-<a href=#102 id=102 data-nosnippet>102</a>            module: Annotated::new(<span class="string">"mymodule"</span>.to_string()),
+<a href=#100 id=100 data-nosnippet>100</a>            ty: Annotated::new(<span class="string">"mytype"</span>.to_owned()),
+<a href=#101 id=101 data-nosnippet>101</a>            value: Annotated::new(<span class="string">"myvalue"</span>.to_owned().into()),
+<a href=#102 id=102 data-nosnippet>102</a>            module: Annotated::new(<span class="string">"mymodule"</span>.to_owned()),
 <a href=#103 id=103 data-nosnippet>103</a>            thread_id: Annotated::new(ThreadId::Int(<span class="number">42</span>)),
 <a href=#104 id=104 data-nosnippet>104</a>            other: {
 <a href=#105 id=105 data-nosnippet>105</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
 <a href=#106 id=106 data-nosnippet>106</a>                map.insert(
-<a href=#107 id=107 data-nosnippet>107</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#108 id=108 data-nosnippet>108</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#107 id=107 data-nosnippet>107</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#108 id=108 data-nosnippet>108</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#109 id=109 data-nosnippet>109</a>                );
 <a href=#110 id=110 data-nosnippet>110</a>                map
 <a href=#111 id=111 data-nosnippet>111</a>            },
@@ -120,7 +120,7 @@
 <a href=#120 id=120 data-nosnippet>120</a>    </span><span class="kw">fn </span>test_exception_default_values() {
 <a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">let </span>json = <span class="string">r#"{"type":"mytype"}"#</span>;
 <a href=#122 id=122 data-nosnippet>122</a>        <span class="kw">let </span>exception = Annotated::new(Exception {
-<a href=#123 id=123 data-nosnippet>123</a>            ty: Annotated::new(<span class="string">"mytype"</span>.to_string()),
+<a href=#123 id=123 data-nosnippet>123</a>            ty: Annotated::new(<span class="string">"mytype"</span>.to_owned()),
 <a href=#124 id=124 data-nosnippet>124</a>            ..Default::default()
 <a href=#125 id=125 data-nosnippet>125</a>        });
 <a href=#126 id=126 data-nosnippet>126</a>
@@ -132,8 +132,8 @@
 <a href=#132 id=132 data-nosnippet>132</a>    </span><span class="kw">fn </span>test_exception_empty_fields() {
 <a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">let </span>json = <span class="string">r#"{"type":"","value":""}"#</span>;
 <a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span>exception = Annotated::new(Exception {
-<a href=#135 id=135 data-nosnippet>135</a>            ty: Annotated::new(<span class="string">""</span>.to_string()),
-<a href=#136 id=136 data-nosnippet>136</a>            value: Annotated::new(<span class="string">""</span>.to_string().into()),
+<a href=#135 id=135 data-nosnippet>135</a>            ty: Annotated::new(<span class="string">""</span>.to_owned()),
+<a href=#136 id=136 data-nosnippet>136</a>            value: Annotated::new(<span class="string">""</span>.to_owned().into()),
 <a href=#137 id=137 data-nosnippet>137</a>            ..Default::default()
 <a href=#138 id=138 data-nosnippet>138</a>        });
 <a href=#139 id=139 data-nosnippet>139</a>
@@ -163,7 +163,7 @@
 <a href=#163 id=163 data-nosnippet>163</a>}"#</span>;
 <a href=#164 id=164 data-nosnippet>164</a>
 <a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">let </span>exception = Annotated::new(Exception {
-<a href=#166 id=166 data-nosnippet>166</a>            ty: Annotated::new(<span class="string">"ZeroDivisionError"</span>.to_string()),
+<a href=#166 id=166 data-nosnippet>166</a>            ty: Annotated::new(<span class="string">"ZeroDivisionError"</span>.to_owned()),
 <a href=#167 id=167 data-nosnippet>167</a>            ..Default::default()
 <a href=#168 id=168 data-nosnippet>168</a>        });
 <a href=#169 id=169 data-nosnippet>169</a>

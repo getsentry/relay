@@ -58,18 +58,18 @@
 <a href=#58 id=58 data-nosnippet>58</a>  "other": "value"
 <a href=#59 id=59 data-nosnippet>59</a>}"#</span>;
 <a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span>template_info = Annotated::new(TemplateInfo {
-<a href=#61 id=61 data-nosnippet>61</a>            filename: Annotated::new(<span class="string">"myfile.rs"</span>.to_string()),
-<a href=#62 id=62 data-nosnippet>62</a>            abs_path: Annotated::new(<span class="string">"/path/to"</span>.to_string()),
+<a href=#61 id=61 data-nosnippet>61</a>            filename: Annotated::new(<span class="string">"myfile.rs"</span>.to_owned()),
+<a href=#62 id=62 data-nosnippet>62</a>            abs_path: Annotated::new(<span class="string">"/path/to"</span>.to_owned()),
 <a href=#63 id=63 data-nosnippet>63</a>            lineno: Annotated::new(<span class="number">2</span>),
 <a href=#64 id=64 data-nosnippet>64</a>            colno: Annotated::new(<span class="number">42</span>),
-<a href=#65 id=65 data-nosnippet>65</a>            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"fn main() {"</span>.to_string())]),
-<a href=#66 id=66 data-nosnippet>66</a>            context_line: Annotated::new(<span class="string">"unimplemented!()"</span>.to_string()),
-<a href=#67 id=67 data-nosnippet>67</a>            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"}"</span>.to_string())]),
+<a href=#65 id=65 data-nosnippet>65</a>            pre_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"fn main() {"</span>.to_owned())]),
+<a href=#66 id=66 data-nosnippet>66</a>            context_line: Annotated::new(<span class="string">"unimplemented!()"</span>.to_owned()),
+<a href=#67 id=67 data-nosnippet>67</a>            post_context: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"}"</span>.to_owned())]),
 <a href=#68 id=68 data-nosnippet>68</a>            other: {
 <a href=#69 id=69 data-nosnippet>69</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
 <a href=#70 id=70 data-nosnippet>70</a>                map.insert(
-<a href=#71 id=71 data-nosnippet>71</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#72 id=72 data-nosnippet>72</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#71 id=71 data-nosnippet>71</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#72 id=72 data-nosnippet>72</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#73 id=73 data-nosnippet>73</a>                );
 <a href=#74 id=74 data-nosnippet>74</a>                map
 <a href=#75 id=75 data-nosnippet>75</a>            },

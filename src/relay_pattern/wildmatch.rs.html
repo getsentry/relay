@@ -592,7 +592,7 @@
 <a href=#592 id=592 data-nosnippet>592</a>            case_insensitive: <span class="bool-val">true</span>,
 <a href=#593 id=593 data-nosnippet>593</a>        };
 <a href=#594 id=594 data-nosnippet>594</a>        <span class="kw">let </span><span class="kw-2">mut </span>tokens = Tokens::default();
-<a href=#595 id=595 data-nosnippet>595</a>        tokens.push(Token::Literal(Literal::new(<span class="string">"İ"</span>.to_string(), options)));
+<a href=#595 id=595 data-nosnippet>595</a>        tokens.push(Token::Literal(Literal::new(<span class="string">"İ"</span>.to_owned(), options)));
 <a href=#596 id=596 data-nosnippet>596</a>        tokens.push(Token::Wildcard);
 <a href=#597 id=597 data-nosnippet>597</a>
 <a href=#598 id=598 data-nosnippet>598</a>        <span class="macro">assert!</span>(is_match(<span class="string">"İ___"</span>, <span class="kw-2">&amp;</span>tokens, options));

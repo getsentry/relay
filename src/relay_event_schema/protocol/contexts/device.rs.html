@@ -265,17 +265,17 @@
 <a href=#265 id=265 data-nosnippet>265</a>  "type": "device"
 <a href=#266 id=266 data-nosnippet>266</a>}"#</span>;
 <a href=#267 id=267 data-nosnippet>267</a>        <span class="kw">let </span>context = Annotated::new(Context::Device(Box::new(DeviceContext {
-<a href=#268 id=268 data-nosnippet>268</a>            name: Annotated::new(<span class="string">"iphone"</span>.to_string()),
-<a href=#269 id=269 data-nosnippet>269</a>            family: Annotated::new(<span class="string">"iphone"</span>.to_string()),
-<a href=#270 id=270 data-nosnippet>270</a>            model: Annotated::new(<span class="string">"iphone7,3"</span>.to_string()),
-<a href=#271 id=271 data-nosnippet>271</a>            model_id: Annotated::new(<span class="string">"AH223"</span>.to_string()),
-<a href=#272 id=272 data-nosnippet>272</a>            arch: Annotated::new(<span class="string">"arm64"</span>.to_string()),
+<a href=#268 id=268 data-nosnippet>268</a>            name: Annotated::new(<span class="string">"iphone"</span>.to_owned()),
+<a href=#269 id=269 data-nosnippet>269</a>            family: Annotated::new(<span class="string">"iphone"</span>.to_owned()),
+<a href=#270 id=270 data-nosnippet>270</a>            model: Annotated::new(<span class="string">"iphone7,3"</span>.to_owned()),
+<a href=#271 id=271 data-nosnippet>271</a>            model_id: Annotated::new(<span class="string">"AH223"</span>.to_owned()),
+<a href=#272 id=272 data-nosnippet>272</a>            arch: Annotated::new(<span class="string">"arm64"</span>.to_owned()),
 <a href=#273 id=273 data-nosnippet>273</a>            battery_level: Annotated::new(<span class="number">58.5</span>),
-<a href=#274 id=274 data-nosnippet>274</a>            orientation: Annotated::new(<span class="string">"landscape"</span>.to_string()),
+<a href=#274 id=274 data-nosnippet>274</a>            orientation: Annotated::new(<span class="string">"landscape"</span>.to_owned()),
 <a href=#275 id=275 data-nosnippet>275</a>            simulator: Annotated::new(<span class="bool-val">true</span>),
-<a href=#276 id=276 data-nosnippet>276</a>            manufacturer: Annotated::new(<span class="string">"Apple"</span>.to_string()),
-<a href=#277 id=277 data-nosnippet>277</a>            brand: Annotated::new(<span class="string">"iphone"</span>.to_string()),
-<a href=#278 id=278 data-nosnippet>278</a>            screen_resolution: Annotated::new(<span class="string">"800x600"</span>.to_string()),
+<a href=#276 id=276 data-nosnippet>276</a>            manufacturer: Annotated::new(<span class="string">"Apple"</span>.to_owned()),
+<a href=#277 id=277 data-nosnippet>277</a>            brand: Annotated::new(<span class="string">"iphone"</span>.to_owned()),
+<a href=#278 id=278 data-nosnippet>278</a>            screen_resolution: Annotated::new(<span class="string">"800x600"</span>.to_owned()),
 <a href=#279 id=279 data-nosnippet>279</a>            screen_width_pixels: Annotated::new(<span class="number">1920</span>),
 <a href=#280 id=280 data-nosnippet>280</a>            screen_height_pixels: Annotated::new(<span class="number">1080</span>),
 <a href=#281 id=281 data-nosnippet>281</a>            screen_density: Annotated::new(<span class="number">1.1</span>),
@@ -290,17 +290,17 @@
 <a href=#290 id=290 data-nosnippet>290</a>            free_storage: Annotated::new(<span class="number">31_994_734_592</span>),
 <a href=#291 id=291 data-nosnippet>291</a>            external_storage_size: Annotated::new(<span class="number">2_097_152</span>),
 <a href=#292 id=292 data-nosnippet>292</a>            external_free_storage: Annotated::new(<span class="number">2_097_152</span>),
-<a href=#293 id=293 data-nosnippet>293</a>            boot_time: Annotated::new(<span class="string">"2018-02-08T12:52:12Z"</span>.to_string()),
-<a href=#294 id=294 data-nosnippet>294</a>            timezone: Annotated::new(<span class="string">"Europe/Vienna"</span>.to_string()),
-<a href=#295 id=295 data-nosnippet>295</a>            locale: Annotated::new(<span class="string">"de-AT"</span>.to_string()),
+<a href=#293 id=293 data-nosnippet>293</a>            boot_time: Annotated::new(<span class="string">"2018-02-08T12:52:12Z"</span>.to_owned()),
+<a href=#294 id=294 data-nosnippet>294</a>            timezone: Annotated::new(<span class="string">"Europe/Vienna"</span>.to_owned()),
+<a href=#295 id=295 data-nosnippet>295</a>            locale: Annotated::new(<span class="string">"de-AT"</span>.to_owned()),
 <a href=#296 id=296 data-nosnippet>296</a>            processor_count: Annotated::new(<span class="number">8</span>),
 <a href=#297 id=297 data-nosnippet>297</a>            cpu_description: Annotated::new(
-<a href=#298 id=298 data-nosnippet>298</a>                <span class="string">"Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz"</span>.to_string(),
+<a href=#298 id=298 data-nosnippet>298</a>                <span class="string">"Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz"</span>.to_owned(),
 <a href=#299 id=299 data-nosnippet>299</a>            ),
 <a href=#300 id=300 data-nosnippet>300</a>            processor_frequency: Annotated::new(<span class="number">2400</span>),
-<a href=#301 id=301 data-nosnippet>301</a>            device_type: Annotated::new(<span class="string">"Handheld"</span>.to_string()),
-<a href=#302 id=302 data-nosnippet>302</a>            battery_status: Annotated::new(<span class="string">"Charging"</span>.to_string()),
-<a href=#303 id=303 data-nosnippet>303</a>            device_unique_identifier: Annotated::new(<span class="string">"1234567"</span>.to_string()),
+<a href=#301 id=301 data-nosnippet>301</a>            device_type: Annotated::new(<span class="string">"Handheld"</span>.to_owned()),
+<a href=#302 id=302 data-nosnippet>302</a>            battery_status: Annotated::new(<span class="string">"Charging"</span>.to_owned()),
+<a href=#303 id=303 data-nosnippet>303</a>            device_unique_identifier: Annotated::new(<span class="string">"1234567"</span>.to_owned()),
 <a href=#304 id=304 data-nosnippet>304</a>            supports_vibration: Annotated::new(<span class="bool-val">true</span>),
 <a href=#305 id=305 data-nosnippet>305</a>            supports_accelerometer: Annotated::new(<span class="bool-val">true</span>),
 <a href=#306 id=306 data-nosnippet>306</a>            supports_gyroscope: Annotated::new(<span class="bool-val">true</span>),
@@ -310,8 +310,8 @@
 <a href=#310 id=310 data-nosnippet>310</a>            other: {
 <a href=#311 id=311 data-nosnippet>311</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
 <a href=#312 id=312 data-nosnippet>312</a>                map.insert(
-<a href=#313 id=313 data-nosnippet>313</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#314 id=314 data-nosnippet>314</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#313 id=313 data-nosnippet>313</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#314 id=314 data-nosnippet>314</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#315 id=315 data-nosnippet>315</a>                );
 <a href=#316 id=316 data-nosnippet>316</a>                map
 <a href=#317 id=317 data-nosnippet>317</a>            },

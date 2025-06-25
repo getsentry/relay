@@ -238,7 +238,7 @@
 <a href=#238 id=238 data-nosnippet>238</a>                },
 <a href=#239 id=239 data-nosnippet>239</a>                Sample {
 <a href=#240 id=240 data-nosnippet>240</a>                    stack_id: <span class="number">0</span>,
-<a href=#241 id=241 data-nosnippet>241</a>                    thread_id: <span class="string">"1"</span>.to_string(),
+<a href=#241 id=241 data-nosnippet>241</a>                    thread_id: <span class="string">"1"</span>.to_owned(),
 <a href=#242 id=242 data-nosnippet>242</a>                    timestamp: FiniteF64::new(<span class="number">30.0</span>).unwrap(),
 <a href=#243 id=243 data-nosnippet>243</a>                },
 <a href=#244 id=244 data-nosnippet>244</a>            ],
@@ -267,7 +267,7 @@
 <a href=#267 id=267 data-nosnippet>267</a>
 <a href=#268 id=268 data-nosnippet>268</a>        <span class="kw">let </span>test_cases = [
 <a href=#269 id=269 data-nosnippet>269</a>            TestStruct {
-<a href=#270 id=270 data-nosnippet>270</a>                name: <span class="string">"not above max duration"</span>.to_string(),
+<a href=#270 id=270 data-nosnippet>270</a>                name: <span class="string">"not above max duration"</span>.to_owned(),
 <a href=#271 id=271 data-nosnippet>271</a>                profile: ProfileData {
 <a href=#272 id=272 data-nosnippet>272</a>                    samples: <span class="macro">vec!</span>[
 <a href=#273 id=273 data-nosnippet>273</a>                        Sample {
@@ -277,7 +277,7 @@
 <a href=#277 id=277 data-nosnippet>277</a>                        },
 <a href=#278 id=278 data-nosnippet>278</a>                        Sample {
 <a href=#279 id=279 data-nosnippet>279</a>                            stack_id: <span class="number">0</span>,
-<a href=#280 id=280 data-nosnippet>280</a>                            thread_id: <span class="string">"1"</span>.to_string(),
+<a href=#280 id=280 data-nosnippet>280</a>                            thread_id: <span class="string">"1"</span>.to_owned(),
 <a href=#281 id=281 data-nosnippet>281</a>                            timestamp: FiniteF64::new(<span class="number">60.0</span>).unwrap(),
 <a href=#282 id=282 data-nosnippet>282</a>                        },
 <a href=#283 id=283 data-nosnippet>283</a>                    ],
@@ -288,7 +288,7 @@
 <a href=#288 id=288 data-nosnippet>288</a>                want: <span class="bool-val">false</span>,
 <a href=#289 id=289 data-nosnippet>289</a>            },
 <a href=#290 id=290 data-nosnippet>290</a>            TestStruct {
-<a href=#291 id=291 data-nosnippet>291</a>                name: <span class="string">"above max duration"</span>.to_string(),
+<a href=#291 id=291 data-nosnippet>291</a>                name: <span class="string">"above max duration"</span>.to_owned(),
 <a href=#292 id=292 data-nosnippet>292</a>                profile: ProfileData {
 <a href=#293 id=293 data-nosnippet>293</a>                    samples: <span class="macro">vec!</span>[
 <a href=#294 id=294 data-nosnippet>294</a>                        Sample {
@@ -298,7 +298,7 @@
 <a href=#298 id=298 data-nosnippet>298</a>                        },
 <a href=#299 id=299 data-nosnippet>299</a>                        Sample {
 <a href=#300 id=300 data-nosnippet>300</a>                            stack_id: <span class="number">0</span>,
-<a href=#301 id=301 data-nosnippet>301</a>                            thread_id: <span class="string">"1"</span>.to_string(),
+<a href=#301 id=301 data-nosnippet>301</a>                            thread_id: <span class="string">"1"</span>.to_owned(),
 <a href=#302 id=302 data-nosnippet>302</a>                            timestamp: FiniteF64::new(<span class="number">80.0</span>).unwrap(),
 <a href=#303 id=303 data-nosnippet>303</a>                        },
 <a href=#304 id=304 data-nosnippet>304</a>                    ],
@@ -309,7 +309,7 @@
 <a href=#309 id=309 data-nosnippet>309</a>                want: <span class="bool-val">true</span>,
 <a href=#310 id=310 data-nosnippet>310</a>            },
 <a href=#311 id=311 data-nosnippet>311</a>            TestStruct {
-<a href=#312 id=312 data-nosnippet>312</a>                name: <span class="string">"unsorted samples not above max duration"</span>.to_string(),
+<a href=#312 id=312 data-nosnippet>312</a>                name: <span class="string">"unsorted samples not above max duration"</span>.to_owned(),
 <a href=#313 id=313 data-nosnippet>313</a>                profile: ProfileData {
 <a href=#314 id=314 data-nosnippet>314</a>                    samples: <span class="macro">vec!</span>[
 <a href=#315 id=315 data-nosnippet>315</a>                        Sample {
@@ -319,7 +319,7 @@
 <a href=#319 id=319 data-nosnippet>319</a>                        },
 <a href=#320 id=320 data-nosnippet>320</a>                        Sample {
 <a href=#321 id=321 data-nosnippet>321</a>                            stack_id: <span class="number">0</span>,
-<a href=#322 id=322 data-nosnippet>322</a>                            thread_id: <span class="string">"1"</span>.to_string(),
+<a href=#322 id=322 data-nosnippet>322</a>                            thread_id: <span class="string">"1"</span>.to_owned(),
 <a href=#323 id=323 data-nosnippet>323</a>                            timestamp: FiniteF64::new(<span class="number">20.0</span>).unwrap(),
 <a href=#324 id=324 data-nosnippet>324</a>                        },
 <a href=#325 id=325 data-nosnippet>325</a>                    ],
@@ -366,7 +366,7 @@
 <a href=#366 id=366 data-nosnippet>366</a>                },
 <a href=#367 id=367 data-nosnippet>367</a>                Sample {
 <a href=#368 id=368 data-nosnippet>368</a>                    stack_id: <span class="number">0</span>,
-<a href=#369 id=369 data-nosnippet>369</a>                    thread_id: <span class="string">"2"</span>.to_string(),
+<a href=#369 id=369 data-nosnippet>369</a>                    thread_id: <span class="string">"2"</span>.to_owned(),
 <a href=#370 id=370 data-nosnippet>370</a>                    timestamp: FiniteF64::new(<span class="number">30.0</span>).unwrap(),
 <a href=#371 id=371 data-nosnippet>371</a>                },
 <a href=#372 id=372 data-nosnippet>372</a>                Sample {
@@ -381,12 +381,12 @@
 <a href=#381 id=381 data-nosnippet>381</a>                },
 <a href=#382 id=382 data-nosnippet>382</a>                Sample {
 <a href=#383 id=383 data-nosnippet>383</a>                    stack_id: <span class="number">0</span>,
-<a href=#384 id=384 data-nosnippet>384</a>                    thread_id: <span class="string">"3"</span>.to_string(),
+<a href=#384 id=384 data-nosnippet>384</a>                    thread_id: <span class="string">"3"</span>.to_owned(),
 <a href=#385 id=385 data-nosnippet>385</a>                    timestamp: FiniteF64::new(<span class="number">30.0</span>).unwrap(),
 <a href=#386 id=386 data-nosnippet>386</a>                },
 <a href=#387 id=387 data-nosnippet>387</a>                Sample {
 <a href=#388 id=388 data-nosnippet>388</a>                    stack_id: <span class="number">0</span>,
-<a href=#389 id=389 data-nosnippet>389</a>                    thread_id: <span class="string">"3"</span>.to_string(),
+<a href=#389 id=389 data-nosnippet>389</a>                    thread_id: <span class="string">"3"</span>.to_owned(),
 <a href=#390 id=390 data-nosnippet>390</a>                    timestamp: FiniteF64::new(<span class="number">30.0</span>).unwrap(),
 <a href=#391 id=391 data-nosnippet>391</a>                },
 <a href=#392 id=392 data-nosnippet>392</a>                Sample {

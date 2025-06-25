@@ -889,45 +889,45 @@
 <a href=#889 id=889 data-nosnippet>889</a>                Meta::from_error(ErrorKind::InvalidData),
 <a href=#890 id=890 data-nosnippet>890</a>            ),
 <a href=#891 id=891 data-nosnippet>891</a>            level: Annotated::new(Level::Debug),
-<a href=#892 id=892 data-nosnippet>892</a>            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">"myprint"</span>.to_string()].into()),
-<a href=#893 id=893 data-nosnippet>893</a>            culprit: Annotated::new(<span class="string">"myculprit"</span>.to_string()),
-<a href=#894 id=894 data-nosnippet>894</a>            transaction: Annotated::new(<span class="string">"mytransaction"</span>.to_string()),
+<a href=#892 id=892 data-nosnippet>892</a>            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">"myprint"</span>.to_owned()].into()),
+<a href=#893 id=893 data-nosnippet>893</a>            culprit: Annotated::new(<span class="string">"myculprit"</span>.to_owned()),
+<a href=#894 id=894 data-nosnippet>894</a>            transaction: Annotated::new(<span class="string">"mytransaction"</span>.to_owned()),
 <a href=#895 id=895 data-nosnippet>895</a>            logentry: Annotated::new(LogEntry {
-<a href=#896 id=896 data-nosnippet>896</a>                formatted: Annotated::new(<span class="string">"mymessage"</span>.to_string().into()),
+<a href=#896 id=896 data-nosnippet>896</a>                formatted: Annotated::new(<span class="string">"mymessage"</span>.to_owned().into()),
 <a href=#897 id=897 data-nosnippet>897</a>                ..Default::default()
 <a href=#898 id=898 data-nosnippet>898</a>            }),
-<a href=#899 id=899 data-nosnippet>899</a>            logger: Annotated::new(<span class="string">"mylogger"</span>.to_string()),
+<a href=#899 id=899 data-nosnippet>899</a>            logger: Annotated::new(<span class="string">"mylogger"</span>.to_owned()),
 <a href=#900 id=900 data-nosnippet>900</a>            modules: {
 <a href=#901 id=901 data-nosnippet>901</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
-<a href=#902 id=902 data-nosnippet>902</a>                map.insert(<span class="string">"mymodule"</span>.to_string(), Annotated::new(<span class="string">"1.0.0"</span>.to_string()));
+<a href=#902 id=902 data-nosnippet>902</a>                map.insert(<span class="string">"mymodule"</span>.to_owned(), Annotated::new(<span class="string">"1.0.0"</span>.to_string()));
 <a href=#903 id=903 data-nosnippet>903</a>                Annotated::new(map)
 <a href=#904 id=904 data-nosnippet>904</a>            },
-<a href=#905 id=905 data-nosnippet>905</a>            platform: Annotated::new(<span class="string">"myplatform"</span>.to_string()),
+<a href=#905 id=905 data-nosnippet>905</a>            platform: Annotated::new(<span class="string">"myplatform"</span>.to_owned()),
 <a href=#906 id=906 data-nosnippet>906</a>            timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
-<a href=#907 id=907 data-nosnippet>907</a>            server_name: Annotated::new(<span class="string">"myhost"</span>.to_string()),
-<a href=#908 id=908 data-nosnippet>908</a>            release: Annotated::new(<span class="string">"myrelease"</span>.to_string().into()),
-<a href=#909 id=909 data-nosnippet>909</a>            dist: Annotated::new(<span class="string">"mydist"</span>.to_string()),
-<a href=#910 id=910 data-nosnippet>910</a>            environment: Annotated::new(<span class="string">"myenv"</span>.to_string()),
+<a href=#907 id=907 data-nosnippet>907</a>            server_name: Annotated::new(<span class="string">"myhost"</span>.to_owned()),
+<a href=#908 id=908 data-nosnippet>908</a>            release: Annotated::new(<span class="string">"myrelease"</span>.to_owned().into()),
+<a href=#909 id=909 data-nosnippet>909</a>            dist: Annotated::new(<span class="string">"mydist"</span>.to_owned()),
+<a href=#910 id=910 data-nosnippet>910</a>            environment: Annotated::new(<span class="string">"myenv"</span>.to_owned()),
 <a href=#911 id=911 data-nosnippet>911</a>            tags: {
 <a href=#912 id=912 data-nosnippet>912</a>                <span class="kw">let </span>items = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-<a href=#913 id=913 data-nosnippet>913</a>                    Annotated::new(<span class="string">"tag"</span>.to_string()),
-<a href=#914 id=914 data-nosnippet>914</a>                    Annotated::new(<span class="string">"value"</span>.to_string()),
+<a href=#913 id=913 data-nosnippet>913</a>                    Annotated::new(<span class="string">"tag"</span>.to_owned()),
+<a href=#914 id=914 data-nosnippet>914</a>                    Annotated::new(<span class="string">"value"</span>.to_owned()),
 <a href=#915 id=915 data-nosnippet>915</a>                ))];
 <a href=#916 id=916 data-nosnippet>916</a>                Annotated::new(Tags(items.into()))
 <a href=#917 id=917 data-nosnippet>917</a>            },
 <a href=#918 id=918 data-nosnippet>918</a>            extra: {
 <a href=#919 id=919 data-nosnippet>919</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
 <a href=#920 id=920 data-nosnippet>920</a>                map.insert(
-<a href=#921 id=921 data-nosnippet>921</a>                    <span class="string">"extra"</span>.to_string(),
-<a href=#922 id=922 data-nosnippet>922</a>                    Annotated::new(ExtraValue(Value::String(<span class="string">"value"</span>.to_string()))),
+<a href=#921 id=921 data-nosnippet>921</a>                    <span class="string">"extra"</span>.to_owned(),
+<a href=#922 id=922 data-nosnippet>922</a>                    Annotated::new(ExtraValue(Value::String(<span class="string">"value"</span>.to_owned()))),
 <a href=#923 id=923 data-nosnippet>923</a>                );
 <a href=#924 id=924 data-nosnippet>924</a>                Annotated::new(map)
 <a href=#925 id=925 data-nosnippet>925</a>            },
 <a href=#926 id=926 data-nosnippet>926</a>            other: {
 <a href=#927 id=927 data-nosnippet>927</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Map::new();
 <a href=#928 id=928 data-nosnippet>928</a>                map.insert(
-<a href=#929 id=929 data-nosnippet>929</a>                    <span class="string">"other"</span>.to_string(),
-<a href=#930 id=930 data-nosnippet>930</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_string())),
+<a href=#929 id=929 data-nosnippet>929</a>                    <span class="string">"other"</span>.to_owned(),
+<a href=#930 id=930 data-nosnippet>930</a>                    Annotated::new(Value::String(<span class="string">"value"</span>.to_owned())),
 <a href=#931 id=931 data-nosnippet>931</a>                );
 <a href=#932 id=932 data-nosnippet>932</a>                map
 <a href=#933 id=933 data-nosnippet>933</a>            },
@@ -986,11 +986,11 @@
 <a href=#986 id=986 data-nosnippet>986</a>                Meta::from_error(ErrorKind::InvalidData),
 <a href=#987 id=987 data-nosnippet>987</a>            ),
 <a href=#988 id=988 data-nosnippet>988</a>            fingerprint: Annotated(
-<a href=#989 id=989 data-nosnippet>989</a>                <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">"{{ default }}"</span>.to_string()].into()),
+<a href=#989 id=989 data-nosnippet>989</a>                <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">"{{ default }}"</span>.to_owned()].into()),
 <a href=#990 id=990 data-nosnippet>990</a>                Meta::from_error(ErrorKind::InvalidData),
 <a href=#991 id=991 data-nosnippet>991</a>            ),
 <a href=#992 id=992 data-nosnippet>992</a>            platform: Annotated(
-<a href=#993 id=993 data-nosnippet>993</a>                <span class="prelude-val">Some</span>(<span class="string">"other"</span>.to_string()),
+<a href=#993 id=993 data-nosnippet>993</a>                <span class="prelude-val">Some</span>(<span class="string">"other"</span>.to_owned()),
 <a href=#994 id=994 data-nosnippet>994</a>                Meta::from_error(ErrorKind::InvalidData),
 <a href=#995 id=995 data-nosnippet>995</a>            ),
 <a href=#996 id=996 data-nosnippet>996</a>            ..Default::default()
@@ -1015,7 +1015,7 @@
 <a href=#1015 id=1015 data-nosnippet>1015</a>    </span><span class="kw">fn </span>test_fingerprint_empty_string() {
 <a href=#1016 id=1016 data-nosnippet>1016</a>        <span class="kw">let </span>json = <span class="string">r#"{"fingerprint":[""]}"#</span>;
 <a href=#1017 id=1017 data-nosnippet>1017</a>        <span class="kw">let </span>event = Annotated::new(Event {
-<a href=#1018 id=1018 data-nosnippet>1018</a>            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">""</span>.to_string()].into()),
+<a href=#1018 id=1018 data-nosnippet>1018</a>            fingerprint: Annotated::new(<span class="macro">vec!</span>[<span class="string">""</span>.to_owned()].into()),
 <a href=#1019 id=1019 data-nosnippet>1019</a>            ..Default::default()
 <a href=#1020 id=1020 data-nosnippet>1020</a>        });
 <a href=#1021 id=1021 data-nosnippet>1021</a>
@@ -1052,7 +1052,7 @@
 <a href=#1052 id=1052 data-nosnippet>1052</a>        <span class="kw">let </span>input = <span class="string">r#"{"release":42}"#</span>;
 <a href=#1053 id=1053 data-nosnippet>1053</a>        <span class="kw">let </span>output = <span class="string">r#"{"release":"42"}"#</span>;
 <a href=#1054 id=1054 data-nosnippet>1054</a>        <span class="kw">let </span>event = Annotated::new(Event {
-<a href=#1055 id=1055 data-nosnippet>1055</a>            release: Annotated::new(<span class="string">"42"</span>.to_string().into()),
+<a href=#1055 id=1055 data-nosnippet>1055</a>            release: Annotated::new(<span class="string">"42"</span>.to_owned().into()),
 <a href=#1056 id=1056 data-nosnippet>1056</a>            ..Default::default()
 <a href=#1057 id=1057 data-nosnippet>1057</a>        });
 <a href=#1058 id=1058 data-nosnippet>1058</a>
@@ -1132,8 +1132,8 @@
 <a href=#1132 id=1132 data-nosnippet>1132</a>                ..Default::default()
 <a href=#1133 id=1133 data-nosnippet>1133</a>            }),
 <a href=#1134 id=1134 data-nosnippet>1134</a>            logentry: Annotated::new(LogEntry {
-<a href=#1135 id=1135 data-nosnippet>1135</a>                formatted: Annotated::new(<span class="string">"formatted"</span>.to_string().into()),
-<a href=#1136 id=1136 data-nosnippet>1136</a>                message: Annotated::new(<span class="string">"message"</span>.to_string().into()),
+<a href=#1135 id=1135 data-nosnippet>1135</a>                formatted: Annotated::new(<span class="string">"formatted"</span>.to_owned().into()),
+<a href=#1136 id=1136 data-nosnippet>1136</a>                message: Annotated::new(<span class="string">"message"</span>.to_owned().into()),
 <a href=#1137 id=1137 data-nosnippet>1137</a>                ..Default::default()
 <a href=#1138 id=1138 data-nosnippet>1138</a>            }),
 <a href=#1139 id=1139 data-nosnippet>1139</a>            request: Annotated::new(Request {
@@ -1151,17 +1151,17 @@
 <a href=#1151 id=1151 data-nosnippet>1151</a>            }),
 <a href=#1152 id=1152 data-nosnippet>1152</a>            tags: {
 <a href=#1153 id=1153 data-nosnippet>1153</a>                <span class="kw">let </span>items = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-<a href=#1154 id=1154 data-nosnippet>1154</a>                    Annotated::new(<span class="string">"custom"</span>.to_string()),
-<a href=#1155 id=1155 data-nosnippet>1155</a>                    Annotated::new(<span class="string">"custom-value"</span>.to_string()),
+<a href=#1154 id=1154 data-nosnippet>1154</a>                    Annotated::new(<span class="string">"custom"</span>.to_owned()),
+<a href=#1155 id=1155 data-nosnippet>1155</a>                    Annotated::new(<span class="string">"custom-value"</span>.to_owned()),
 <a href=#1156 id=1156 data-nosnippet>1156</a>                ))];
 <a href=#1157 id=1157 data-nosnippet>1157</a>                Annotated::new(Tags(items.into()))
 <a href=#1158 id=1158 data-nosnippet>1158</a>            },
 <a href=#1159 id=1159 data-nosnippet>1159</a>            contexts: Annotated::new({
 <a href=#1160 id=1160 data-nosnippet>1160</a>                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
 <a href=#1161 id=1161 data-nosnippet>1161</a>                contexts.add(DeviceContext {
-<a href=#1162 id=1162 data-nosnippet>1162</a>                    name: Annotated::new(<span class="string">"iphone"</span>.to_string()),
-<a href=#1163 id=1163 data-nosnippet>1163</a>                    family: Annotated::new(<span class="string">"iphone-fam"</span>.to_string()),
-<a href=#1164 id=1164 data-nosnippet>1164</a>                    model: Annotated::new(<span class="string">"iphone7,3"</span>.to_string()),
+<a href=#1162 id=1162 data-nosnippet>1162</a>                    name: Annotated::new(<span class="string">"iphone"</span>.to_owned()),
+<a href=#1163 id=1163 data-nosnippet>1163</a>                    family: Annotated::new(<span class="string">"iphone-fam"</span>.to_owned()),
+<a href=#1164 id=1164 data-nosnippet>1164</a>                    model: Annotated::new(<span class="string">"iphone7,3"</span>.to_owned()),
 <a href=#1165 id=1165 data-nosnippet>1165</a>                    screen_dpi: Annotated::new(<span class="number">560</span>),
 <a href=#1166 id=1166 data-nosnippet>1166</a>                    screen_width_pixels: Annotated::new(<span class="number">1920</span>),
 <a href=#1167 id=1167 data-nosnippet>1167</a>                    screen_height_pixels: Annotated::new(<span class="number">1080</span>),
@@ -1171,9 +1171,9 @@
 <a href=#1171 id=1171 data-nosnippet>1171</a>                    ..DeviceContext::default()
 <a href=#1172 id=1172 data-nosnippet>1172</a>                });
 <a href=#1173 id=1173 data-nosnippet>1173</a>                contexts.add(OsContext {
-<a href=#1174 id=1174 data-nosnippet>1174</a>                    name: Annotated::new(<span class="string">"iOS"</span>.to_string()),
-<a href=#1175 id=1175 data-nosnippet>1175</a>                    version: Annotated::new(<span class="string">"11.4.2"</span>.to_string()),
-<a href=#1176 id=1176 data-nosnippet>1176</a>                    kernel_version: Annotated::new(<span class="string">"17.4.0"</span>.to_string()),
+<a href=#1174 id=1174 data-nosnippet>1174</a>                    name: Annotated::new(<span class="string">"iOS"</span>.to_owned()),
+<a href=#1175 id=1175 data-nosnippet>1175</a>                    version: Annotated::new(<span class="string">"11.4.2"</span>.to_owned()),
+<a href=#1176 id=1176 data-nosnippet>1176</a>                    kernel_version: Annotated::new(<span class="string">"17.4.0"</span>.to_owned()),
 <a href=#1177 id=1177 data-nosnippet>1177</a>                    ..OsContext::default()
 <a href=#1178 id=1178 data-nosnippet>1178</a>                });
 <a href=#1179 id=1179 data-nosnippet>1179</a>                contexts.add(ProfileContext {
@@ -1184,12 +1184,12 @@
 <a href=#1184 id=1184 data-nosnippet>1184</a>                });
 <a href=#1185 id=1185 data-nosnippet>1185</a>                <span class="kw">let </span><span class="kw-2">mut </span>monitor_context_fields = BTreeMap::new();
 <a href=#1186 id=1186 data-nosnippet>1186</a>                monitor_context_fields.insert(
-<a href=#1187 id=1187 data-nosnippet>1187</a>                    <span class="string">"id"</span>.to_string(),
-<a href=#1188 id=1188 data-nosnippet>1188</a>                    Annotated::new(Value::String(<span class="string">"123"</span>.to_string())),
+<a href=#1187 id=1187 data-nosnippet>1187</a>                    <span class="string">"id"</span>.to_owned(),
+<a href=#1188 id=1188 data-nosnippet>1188</a>                    Annotated::new(Value::String(<span class="string">"123"</span>.to_owned())),
 <a href=#1189 id=1189 data-nosnippet>1189</a>                );
 <a href=#1190 id=1190 data-nosnippet>1190</a>                monitor_context_fields.insert(
-<a href=#1191 id=1191 data-nosnippet>1191</a>                    <span class="string">"slug"</span>.to_string(),
-<a href=#1192 id=1192 data-nosnippet>1192</a>                    Annotated::new(Value::String(<span class="string">"my_monitor"</span>.to_string())),
+<a href=#1191 id=1191 data-nosnippet>1191</a>                    <span class="string">"slug"</span>.to_owned(),
+<a href=#1192 id=1192 data-nosnippet>1192</a>                    Annotated::new(Value::String(<span class="string">"my_monitor"</span>.to_owned())),
 <a href=#1193 id=1193 data-nosnippet>1193</a>                );
 <a href=#1194 id=1194 data-nosnippet>1194</a>                contexts.add(MonitorContext(monitor_context_fields));
 <a href=#1195 id=1195 data-nosnippet>1195</a>                contexts

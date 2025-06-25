@@ -724,8 +724,8 @@
 <a href=#724 id=724 data-nosnippet>724</a>        <span class="kw">match </span>value {
 <a href=#725 id=725 data-nosnippet>725</a>            Annotated(<span class="prelude-val">Some</span>(Value::String(string)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(string), meta),
 <a href=#726 id=726 data-nosnippet>726</a>            <span class="comment">// XXX: True/False instead of true/false because of old python code
-<a href=#727 id=727 data-nosnippet>727</a>            </span>Annotated(<span class="prelude-val">Some</span>(Value::Bool(<span class="bool-val">true</span>)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(<span class="string">"True"</span>.to_string()), meta),
-<a href=#728 id=728 data-nosnippet>728</a>            Annotated(<span class="prelude-val">Some</span>(Value::Bool(<span class="bool-val">false</span>)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(<span class="string">"False"</span>.to_string()), meta),
+<a href=#727 id=727 data-nosnippet>727</a>            </span>Annotated(<span class="prelude-val">Some</span>(Value::Bool(<span class="bool-val">true</span>)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(<span class="string">"True"</span>.to_owned()), meta),
+<a href=#728 id=728 data-nosnippet>728</a>            Annotated(<span class="prelude-val">Some</span>(Value::Bool(<span class="bool-val">false</span>)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(<span class="string">"False"</span>.to_owned()), meta),
 <a href=#729 id=729 data-nosnippet>729</a>            Annotated(<span class="prelude-val">Some</span>(Value::U64(num)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(num.to_string()), meta),
 <a href=#730 id=730 data-nosnippet>730</a>            Annotated(<span class="prelude-val">Some</span>(Value::I64(num)), meta) =&gt; Annotated(<span class="prelude-val">Some</span>(num.to_string()), meta),
 <a href=#731 id=731 data-nosnippet>731</a>            Annotated(<span class="prelude-val">Some</span>(Value::F64(num)), <span class="kw-2">mut </span>meta) =&gt; {
@@ -1035,8 +1035,8 @@
 <a href=#1035 id=1035 data-nosnippet>1035</a>        <span class="macro">assert_eq!</span>(
 <a href=#1036 id=1036 data-nosnippet>1036</a>            value,
 <a href=#1037 id=1037 data-nosnippet>1037</a>            Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
-<a href=#1038 id=1038 data-nosnippet>1038</a>                ty: Annotated::new(<span class="string">"Test"</span>.to_string()),
-<a href=#1039 id=1039 data-nosnippet>1039</a>                value: Annotated::new(<span class="string">"aha!"</span>.to_string()),
+<a href=#1038 id=1038 data-nosnippet>1038</a>                ty: Annotated::new(<span class="string">"Test"</span>.to_owned()),
+<a href=#1039 id=1039 data-nosnippet>1039</a>                value: Annotated::new(<span class="string">"aha!"</span>.to_owned()),
 <a href=#1040 id=1040 data-nosnippet>1040</a>            })]))
 <a href=#1041 id=1041 data-nosnippet>1041</a>        );
 <a href=#1042 id=1042 data-nosnippet>1042</a>
@@ -1046,8 +1046,8 @@
 <a href=#1046 id=1046 data-nosnippet>1046</a>        <span class="macro">assert_eq!</span>(
 <a href=#1047 id=1047 data-nosnippet>1047</a>            value,
 <a href=#1048 id=1048 data-nosnippet>1048</a>            Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
-<a href=#1049 id=1049 data-nosnippet>1049</a>                ty: Annotated::new(<span class="string">"Test"</span>.to_string()),
-<a href=#1050 id=1050 data-nosnippet>1050</a>                value: Annotated::new(<span class="string">"aha!"</span>.to_string()),
+<a href=#1049 id=1049 data-nosnippet>1049</a>                ty: Annotated::new(<span class="string">"Test"</span>.to_owned()),
+<a href=#1050 id=1050 data-nosnippet>1050</a>                value: Annotated::new(<span class="string">"aha!"</span>.to_owned()),
 <a href=#1051 id=1051 data-nosnippet>1051</a>            })]))
 <a href=#1052 id=1052 data-nosnippet>1052</a>        );
 <a href=#1053 id=1053 data-nosnippet>1053</a>
@@ -1057,8 +1057,8 @@
 <a href=#1057 id=1057 data-nosnippet>1057</a>        <span class="macro">assert_eq!</span>(
 <a href=#1058 id=1058 data-nosnippet>1058</a>            value,
 <a href=#1059 id=1059 data-nosnippet>1059</a>            Annotated::new(Values::new(<span class="macro">vec!</span>[Annotated::new(Exception {
-<a href=#1060 id=1060 data-nosnippet>1060</a>                ty: Annotated::new(<span class="string">"Test"</span>.to_string()),
-<a href=#1061 id=1061 data-nosnippet>1061</a>                value: Annotated::new(<span class="string">"aha!"</span>.to_string()),
+<a href=#1060 id=1060 data-nosnippet>1060</a>                ty: Annotated::new(<span class="string">"Test"</span>.to_owned()),
+<a href=#1061 id=1061 data-nosnippet>1061</a>                value: Annotated::new(<span class="string">"aha!"</span>.to_owned()),
 <a href=#1062 id=1062 data-nosnippet>1062</a>            })]))
 <a href=#1063 id=1063 data-nosnippet>1063</a>        );
 <a href=#1064 id=1064 data-nosnippet>1064</a>    }
@@ -1079,7 +1079,7 @@
 <a href=#1079 id=1079 data-nosnippet>1079</a>
 <a href=#1080 id=1080 data-nosnippet>1080</a>    <span class="attr">#[test]
 <a href=#1081 id=1081 data-nosnippet>1081</a>    </span><span class="kw">fn </span>test_hex_serialization() {
-<a href=#1082 id=1082 data-nosnippet>1082</a>        <span class="kw">let </span>value = Value::String(<span class="string">"0x2a"</span>.to_string());
+<a href=#1082 id=1082 data-nosnippet>1082</a>        <span class="kw">let </span>value = Value::String(<span class="string">"0x2a"</span>.to_owned());
 <a href=#1083 id=1083 data-nosnippet>1083</a>        <span class="kw">let </span>addr: Annotated&lt;Addr&gt; = FromValue::from_value(Annotated::new(value));
 <a href=#1084 id=1084 data-nosnippet>1084</a>        <span class="macro">assert_eq!</span>(addr.payload_to_json().unwrap(), <span class="string">"\"0x2a\""</span>);
 <a href=#1085 id=1085 data-nosnippet>1085</a>        <span class="kw">let </span>value = Value::U64(<span class="number">42</span>);

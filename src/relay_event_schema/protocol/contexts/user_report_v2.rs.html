@@ -64,8 +64,8 @@
 <a href=#64 id=64 data-nosnippet>64</a>  "type": "feedback"
 <a href=#65 id=65 data-nosnippet>65</a>}"#</span>;
 <a href=#66 id=66 data-nosnippet>66</a>        <span class="kw">let </span>context = Annotated::new(Context::UserReportV2(Box::new(UserReportV2Context {
-<a href=#67 id=67 data-nosnippet>67</a>            message: Annotated::new(<span class="string">"test message"</span>.to_string()),
-<a href=#68 id=68 data-nosnippet>68</a>            contact_email: Annotated::new(<span class="string">"test@test.com"</span>.to_string()),
+<a href=#67 id=67 data-nosnippet>67</a>            message: Annotated::new(<span class="string">"test message"</span>.to_owned()),
+<a href=#68 id=68 data-nosnippet>68</a>            contact_email: Annotated::new(<span class="string">"test@test.com"</span>.to_owned()),
 <a href=#69 id=69 data-nosnippet>69</a>            other: Object::default(),
 <a href=#70 id=70 data-nosnippet>70</a>        })));
 <a href=#71 id=71 data-nosnippet>71</a>

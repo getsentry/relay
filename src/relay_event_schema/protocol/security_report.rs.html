@@ -280,7 +280,7 @@
 <a href=#280 id=280 data-nosnippet>280</a>
 <a href=#281 id=281 data-nosnippet>281</a><span class="kw">impl </span>CspRaw {
 <a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">fn </span>default_blocked_uri() -&gt; String {
-<a href=#283 id=283 data-nosnippet>283</a>        <span class="string">"self"</span>.to_string()
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="string">"self"</span>.to_owned()
 <a href=#284 id=284 data-nosnippet>284</a>    }
 <a href=#285 id=285 data-nosnippet>285</a>
 <a href=#286 id=286 data-nosnippet>286</a>    <span class="kw">fn </span>effective_directive(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;CspDirective, InvalidSecurityError&gt; {
@@ -315,25 +315,25 @@
 <a href=#315 id=315 data-nosnippet>315</a>    <span class="kw">fn </span>get_message(<span class="kw-2">&amp;</span><span class="self">self</span>, effective_directive: CspDirective) -&gt; String {
 <a href=#316 id=316 data-nosnippet>316</a>        <span class="kw">if </span>is_local(<span class="kw-2">&amp;</span><span class="self">self</span>.blocked_uri) {
 <a href=#317 id=317 data-nosnippet>317</a>            <span class="kw">match </span>effective_directive {
-<a href=#318 id=318 data-nosnippet>318</a>                CspDirective::ChildSrc =&gt; <span class="string">"Blocked inline 'child'"</span>.to_string(),
-<a href=#319 id=319 data-nosnippet>319</a>                CspDirective::ConnectSrc =&gt; <span class="string">"Blocked inline 'connect'"</span>.to_string(),
-<a href=#320 id=320 data-nosnippet>320</a>                CspDirective::FontSrc =&gt; <span class="string">"Blocked inline 'font'"</span>.to_string(),
-<a href=#321 id=321 data-nosnippet>321</a>                CspDirective::ImgSrc =&gt; <span class="string">"Blocked inline 'image'"</span>.to_string(),
-<a href=#322 id=322 data-nosnippet>322</a>                CspDirective::ManifestSrc =&gt; <span class="string">"Blocked inline 'manifest'"</span>.to_string(),
-<a href=#323 id=323 data-nosnippet>323</a>                CspDirective::MediaSrc =&gt; <span class="string">"Blocked inline 'media'"</span>.to_string(),
-<a href=#324 id=324 data-nosnippet>324</a>                CspDirective::ObjectSrc =&gt; <span class="string">"Blocked inline 'object'"</span>.to_string(),
-<a href=#325 id=325 data-nosnippet>325</a>                CspDirective::ScriptSrcAttr =&gt; <span class="string">"Blocked unsafe 'script' element"</span>.to_string(),
-<a href=#326 id=326 data-nosnippet>326</a>                CspDirective::ScriptSrcElem =&gt; <span class="string">"Blocked inline script attribute"</span>.to_string(),
-<a href=#327 id=327 data-nosnippet>327</a>                CspDirective::StyleSrc =&gt; <span class="string">"Blocked inline 'style'"</span>.to_string(),
-<a href=#328 id=328 data-nosnippet>328</a>                CspDirective::StyleSrcElem =&gt; <span class="string">"Blocked 'style' or 'link' element"</span>.to_string(),
-<a href=#329 id=329 data-nosnippet>329</a>                CspDirective::StyleSrcAttr =&gt; <span class="string">"Blocked style attribute"</span>.to_string(),
+<a href=#318 id=318 data-nosnippet>318</a>                CspDirective::ChildSrc =&gt; <span class="string">"Blocked inline 'child'"</span>.to_owned(),
+<a href=#319 id=319 data-nosnippet>319</a>                CspDirective::ConnectSrc =&gt; <span class="string">"Blocked inline 'connect'"</span>.to_owned(),
+<a href=#320 id=320 data-nosnippet>320</a>                CspDirective::FontSrc =&gt; <span class="string">"Blocked inline 'font'"</span>.to_owned(),
+<a href=#321 id=321 data-nosnippet>321</a>                CspDirective::ImgSrc =&gt; <span class="string">"Blocked inline 'image'"</span>.to_owned(),
+<a href=#322 id=322 data-nosnippet>322</a>                CspDirective::ManifestSrc =&gt; <span class="string">"Blocked inline 'manifest'"</span>.to_owned(),
+<a href=#323 id=323 data-nosnippet>323</a>                CspDirective::MediaSrc =&gt; <span class="string">"Blocked inline 'media'"</span>.to_owned(),
+<a href=#324 id=324 data-nosnippet>324</a>                CspDirective::ObjectSrc =&gt; <span class="string">"Blocked inline 'object'"</span>.to_owned(),
+<a href=#325 id=325 data-nosnippet>325</a>                CspDirective::ScriptSrcAttr =&gt; <span class="string">"Blocked unsafe 'script' element"</span>.to_owned(),
+<a href=#326 id=326 data-nosnippet>326</a>                CspDirective::ScriptSrcElem =&gt; <span class="string">"Blocked inline script attribute"</span>.to_owned(),
+<a href=#327 id=327 data-nosnippet>327</a>                CspDirective::StyleSrc =&gt; <span class="string">"Blocked inline 'style'"</span>.to_owned(),
+<a href=#328 id=328 data-nosnippet>328</a>                CspDirective::StyleSrcElem =&gt; <span class="string">"Blocked 'style' or 'link' element"</span>.to_owned(),
+<a href=#329 id=329 data-nosnippet>329</a>                CspDirective::StyleSrcAttr =&gt; <span class="string">"Blocked style attribute"</span>.to_owned(),
 <a href=#330 id=330 data-nosnippet>330</a>                CspDirective::ScriptSrc =&gt; {
 <a href=#331 id=331 data-nosnippet>331</a>                    <span class="kw">if </span><span class="self">self</span>.violated_directive.contains(<span class="string">"'unsafe-inline'"</span>) {
-<a href=#332 id=332 data-nosnippet>332</a>                        <span class="string">"Blocked unsafe inline 'script'"</span>.to_string()
+<a href=#332 id=332 data-nosnippet>332</a>                        <span class="string">"Blocked unsafe inline 'script'"</span>.to_owned()
 <a href=#333 id=333 data-nosnippet>333</a>                    } <span class="kw">else if </span><span class="self">self</span>.violated_directive.contains(<span class="string">"'unsafe-eval'"</span>) {
-<a href=#334 id=334 data-nosnippet>334</a>                        <span class="string">"Blocked unsafe eval() 'script'"</span>.to_string()
+<a href=#334 id=334 data-nosnippet>334</a>                        <span class="string">"Blocked unsafe eval() 'script'"</span>.to_owned()
 <a href=#335 id=335 data-nosnippet>335</a>                    } <span class="kw">else </span>{
-<a href=#336 id=336 data-nosnippet>336</a>                        <span class="string">"Blocked unsafe (eval() or inline) 'script'"</span>.to_string()
+<a href=#336 id=336 data-nosnippet>336</a>                        <span class="string">"Blocked unsafe (eval() or inline) 'script'"</span>.to_owned()
 <a href=#337 id=337 data-nosnippet>337</a>                    }
 <a href=#338 id=338 data-nosnippet>338</a>                }
 <a href=#339 id=339 data-nosnippet>339</a>                directive =&gt; <span class="macro">format!</span>(<span class="string">"Blocked inline '{directive}'"</span>),
@@ -467,11 +467,11 @@
 <a href=#467 id=467 data-nosnippet>467</a>    <span class="kw">fn </span>get_tags(<span class="kw-2">&amp;</span><span class="self">self</span>, effective_directive: CspDirective) -&gt; Tags {
 <a href=#468 id=468 data-nosnippet>468</a>        <span class="kw">let </span><span class="kw-2">mut </span>tags = <span class="macro">vec!</span>[
 <a href=#469 id=469 data-nosnippet>469</a>            Annotated::new(TagEntry(
-<a href=#470 id=470 data-nosnippet>470</a>                Annotated::new(<span class="string">"effective-directive"</span>.to_string()),
+<a href=#470 id=470 data-nosnippet>470</a>                Annotated::new(<span class="string">"effective-directive"</span>.to_owned()),
 <a href=#471 id=471 data-nosnippet>471</a>                Annotated::new(effective_directive.to_string()),
 <a href=#472 id=472 data-nosnippet>472</a>            )),
 <a href=#473 id=473 data-nosnippet>473</a>            Annotated::new(TagEntry(
-<a href=#474 id=474 data-nosnippet>474</a>                Annotated::new(<span class="string">"blocked-uri"</span>.to_string()),
+<a href=#474 id=474 data-nosnippet>474</a>                Annotated::new(<span class="string">"blocked-uri"</span>.to_owned()),
 <a href=#475 id=475 data-nosnippet>475</a>                Annotated::new(<span class="self">self</span>.sanitized_blocked_uri()),
 <a href=#476 id=476 data-nosnippet>476</a>            )),
 <a href=#477 id=477 data-nosnippet>477</a>        ];
@@ -479,7 +479,7 @@
 <a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">if let </span><span class="prelude-val">Ok</span>(url) = Url::parse(<span class="kw-2">&amp;</span><span class="self">self</span>.blocked_uri) {
 <a href=#480 id=480 data-nosnippet>480</a>            <span class="kw">if let </span>(<span class="string">"http" </span>| <span class="string">"https"</span>, <span class="prelude-val">Some</span>(host)) = (url.scheme(), url.host_str()) {
 <a href=#481 id=481 data-nosnippet>481</a>                tags.push(Annotated::new(TagEntry(
-<a href=#482 id=482 data-nosnippet>482</a>                    Annotated::new(<span class="string">"blocked-host"</span>.to_string()),
+<a href=#482 id=482 data-nosnippet>482</a>                    Annotated::new(<span class="string">"blocked-host"</span>.to_owned()),
 <a href=#483 id=483 data-nosnippet>483</a>                    Annotated::new(host.to_owned()),
 <a href=#484 id=484 data-nosnippet>484</a>                )));
 <a href=#485 id=485 data-nosnippet>485</a>            }
@@ -771,13 +771,13 @@
 <a href=#771 id=771 data-nosnippet>771</a>
 <a href=#772 id=772 data-nosnippet>772</a>    <span class="kw">fn </span>get_tags(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Tags {
 <a href=#773 id=773 data-nosnippet>773</a>        <span class="kw">let </span><span class="kw-2">mut </span>tags = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-<a href=#774 id=774 data-nosnippet>774</a>            Annotated::new(<span class="string">"hostname"</span>.to_string()),
+<a href=#774 id=774 data-nosnippet>774</a>            Annotated::new(<span class="string">"hostname"</span>.to_owned()),
 <a href=#775 id=775 data-nosnippet>775</a>            Annotated::new(<span class="self">self</span>.hostname.clone()),
 <a href=#776 id=776 data-nosnippet>776</a>        ))];
 <a href=#777 id=777 data-nosnippet>777</a>
 <a href=#778 id=778 data-nosnippet>778</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = <span class="self">self</span>.port {
 <a href=#779 id=779 data-nosnippet>779</a>            tags.push(Annotated::new(TagEntry(
-<a href=#780 id=780 data-nosnippet>780</a>                Annotated::new(<span class="string">"port"</span>.to_string()),
+<a href=#780 id=780 data-nosnippet>780</a>                Annotated::new(<span class="string">"port"</span>.to_owned()),
 <a href=#781 id=781 data-nosnippet>781</a>                Annotated::new(port.to_string()),
 <a href=#782 id=782 data-nosnippet>782</a>            )));
 <a href=#783 id=783 data-nosnippet>783</a>        }
@@ -909,20 +909,20 @@
 <a href=#909 id=909 data-nosnippet>909</a>
 <a href=#910 id=910 data-nosnippet>910</a>    <span class="kw">fn </span>get_tags(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Tags {
 <a href=#911 id=911 data-nosnippet>911</a>        <span class="kw">let </span><span class="kw-2">mut </span>tags = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-<a href=#912 id=912 data-nosnippet>912</a>            Annotated::new(<span class="string">"hostname"</span>.to_string()),
+<a href=#912 id=912 data-nosnippet>912</a>            Annotated::new(<span class="string">"hostname"</span>.to_owned()),
 <a href=#913 id=913 data-nosnippet>913</a>            Annotated::new(<span class="self">self</span>.hostname.clone()),
 <a href=#914 id=914 data-nosnippet>914</a>        ))];
 <a href=#915 id=915 data-nosnippet>915</a>
 <a href=#916 id=916 data-nosnippet>916</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = <span class="self">self</span>.port {
 <a href=#917 id=917 data-nosnippet>917</a>            tags.push(Annotated::new(TagEntry(
-<a href=#918 id=918 data-nosnippet>918</a>                Annotated::new(<span class="string">"port"</span>.to_string()),
+<a href=#918 id=918 data-nosnippet>918</a>                Annotated::new(<span class="string">"port"</span>.to_owned()),
 <a href=#919 id=919 data-nosnippet>919</a>                Annotated::new(port.to_string()),
 <a href=#920 id=920 data-nosnippet>920</a>            )));
 <a href=#921 id=921 data-nosnippet>921</a>        }
 <a href=#922 id=922 data-nosnippet>922</a>
 <a href=#923 id=923 data-nosnippet>923</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(include_subdomains) = <span class="self">self</span>.include_subdomains {
 <a href=#924 id=924 data-nosnippet>924</a>            tags.push(Annotated::new(TagEntry(
-<a href=#925 id=925 data-nosnippet>925</a>                Annotated::new(<span class="string">"include-subdomains"</span>.to_string()),
+<a href=#925 id=925 data-nosnippet>925</a>                Annotated::new(<span class="string">"include-subdomains"</span>.to_owned()),
 <a href=#926 id=926 data-nosnippet>926</a>                Annotated::new(include_subdomains.to_string()),
 <a href=#927 id=927 data-nosnippet>927</a>            )));
 <a href=#928 id=928 data-nosnippet>928</a>        }
@@ -1093,27 +1093,27 @@
 <a href=#1093 id=1093 data-nosnippet>1093</a>
 <a href=#1094 id=1094 data-nosnippet>1094</a>    <span class="kw">fn </span>get_tags(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Tags {
 <a href=#1095 id=1095 data-nosnippet>1095</a>        <span class="kw">let </span><span class="kw-2">mut </span>tags = <span class="macro">vec!</span>[Annotated::new(TagEntry(
-<a href=#1096 id=1096 data-nosnippet>1096</a>            Annotated::new(<span class="string">"hostname"</span>.to_string()),
+<a href=#1096 id=1096 data-nosnippet>1096</a>            Annotated::new(<span class="string">"hostname"</span>.to_owned()),
 <a href=#1097 id=1097 data-nosnippet>1097</a>            Annotated::new(<span class="self">self</span>.hostname.clone()),
 <a href=#1098 id=1098 data-nosnippet>1098</a>        ))];
 <a href=#1099 id=1099 data-nosnippet>1099</a>
 <a href=#1100 id=1100 data-nosnippet>1100</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = <span class="self">self</span>.port {
 <a href=#1101 id=1101 data-nosnippet>1101</a>            tags.push(Annotated::new(TagEntry(
-<a href=#1102 id=1102 data-nosnippet>1102</a>                Annotated::new(<span class="string">"port"</span>.to_string()),
+<a href=#1102 id=1102 data-nosnippet>1102</a>                Annotated::new(<span class="string">"port"</span>.to_owned()),
 <a href=#1103 id=1103 data-nosnippet>1103</a>                Annotated::new(port.to_string()),
 <a href=#1104 id=1104 data-nosnippet>1104</a>            )));
 <a href=#1105 id=1105 data-nosnippet>1105</a>        }
 <a href=#1106 id=1106 data-nosnippet>1106</a>
 <a href=#1107 id=1107 data-nosnippet>1107</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(response_status) = <span class="self">self</span>.response_status {
 <a href=#1108 id=1108 data-nosnippet>1108</a>            tags.push(Annotated::new(TagEntry(
-<a href=#1109 id=1109 data-nosnippet>1109</a>                Annotated::new(<span class="string">"response_status"</span>.to_string()),
+<a href=#1109 id=1109 data-nosnippet>1109</a>                Annotated::new(<span class="string">"response_status"</span>.to_owned()),
 <a href=#1110 id=1110 data-nosnippet>1110</a>                Annotated::new(response_status.to_string()),
 <a href=#1111 id=1111 data-nosnippet>1111</a>            )));
 <a href=#1112 id=1112 data-nosnippet>1112</a>        }
 <a href=#1113 id=1113 data-nosnippet>1113</a>
 <a href=#1114 id=1114 data-nosnippet>1114</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(cert_status) = <span class="self">self</span>.cert_status {
 <a href=#1115 id=1115 data-nosnippet>1115</a>            tags.push(Annotated::new(TagEntry(
-<a href=#1116 id=1116 data-nosnippet>1116</a>                Annotated::new(<span class="string">"cert_status"</span>.to_string()),
+<a href=#1116 id=1116 data-nosnippet>1116</a>                Annotated::new(<span class="string">"cert_status"</span>.to_owned()),
 <a href=#1117 id=1117 data-nosnippet>1117</a>                Annotated::new(cert_status.to_string()),
 <a href=#1118 id=1118 data-nosnippet>1118</a>            )));
 <a href=#1119 id=1119 data-nosnippet>1119</a>        }

@@ -271,15 +271,15 @@
 <a href=#271 id=271 data-nosnippet>271</a>"#</span>;
 <a href=#272 id=272 data-nosnippet>272</a>
 <a href=#273 id=273 data-nosnippet>273</a>        <span class="kw">let </span>def_config = <span class="macro">vec!</span>[KafkaConfigParam {
-<a href=#274 id=274 data-nosnippet>274</a>            name: <span class="string">"test"</span>.to_string(),
-<a href=#275 id=275 data-nosnippet>275</a>            value: <span class="string">"test-value"</span>.to_string(),
+<a href=#274 id=274 data-nosnippet>274</a>            name: <span class="string">"test"</span>.to_owned(),
+<a href=#275 id=275 data-nosnippet>275</a>            value: <span class="string">"test-value"</span>.to_owned(),
 <a href=#276 id=276 data-nosnippet>276</a>        }];
 <a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let </span><span class="kw-2">mut </span>second_config = BTreeMap::new();
 <a href=#278 id=278 data-nosnippet>278</a>        second_config.insert(
-<a href=#279 id=279 data-nosnippet>279</a>            <span class="string">"profiles"</span>.to_string(),
+<a href=#279 id=279 data-nosnippet>279</a>            <span class="string">"profiles"</span>.to_owned(),
 <a href=#280 id=280 data-nosnippet>280</a>            <span class="macro">vec!</span>[KafkaConfigParam {
-<a href=#281 id=281 data-nosnippet>281</a>                name: <span class="string">"test"</span>.to_string(),
-<a href=#282 id=282 data-nosnippet>282</a>                value: <span class="string">"test-value"</span>.to_string(),
+<a href=#281 id=281 data-nosnippet>281</a>                name: <span class="string">"test"</span>.to_owned(),
+<a href=#282 id=282 data-nosnippet>282</a>                value: <span class="string">"test-value"</span>.to_owned(),
 <a href=#283 id=283 data-nosnippet>283</a>            }],
 <a href=#284 id=284 data-nosnippet>284</a>        );
 <a href=#285 id=285 data-nosnippet>285</a>
@@ -347,10 +347,10 @@
 <a href=#347 id=347 data-nosnippet>347</a>
 <a href=#348 id=348 data-nosnippet>348</a>        <span class="comment">// A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
 <a href=#349 id=349 data-nosnippet>349</a>        </span><span class="kw">let </span>currrently_undefined_topics = [
-<a href=#350 id=350 data-nosnippet>350</a>            <span class="string">"ingest-attachments"</span>.to_string(),
-<a href=#351 id=351 data-nosnippet>351</a>            <span class="string">"ingest-transactions"</span>.to_string(),
-<a href=#352 id=352 data-nosnippet>352</a>            <span class="string">"profiles"</span>.to_string(),
-<a href=#353 id=353 data-nosnippet>353</a>            <span class="string">"ingest-monitors"</span>.to_string(),
+<a href=#350 id=350 data-nosnippet>350</a>            <span class="string">"ingest-attachments"</span>.to_owned(),
+<a href=#351 id=351 data-nosnippet>351</a>            <span class="string">"ingest-transactions"</span>.to_owned(),
+<a href=#352 id=352 data-nosnippet>352</a>            <span class="string">"profiles"</span>.to_owned(),
+<a href=#353 id=353 data-nosnippet>353</a>            <span class="string">"ingest-monitors"</span>.to_owned(),
 <a href=#354 id=354 data-nosnippet>354</a>        ];
 <a href=#355 id=355 data-nosnippet>355</a>
 <a href=#356 id=356 data-nosnippet>356</a>        <span class="kw">for </span>topic <span class="kw">in </span>KafkaTopic::iter() {

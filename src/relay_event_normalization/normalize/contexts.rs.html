@@ -110,27 +110,27 @@
 <a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(build) = runtime.build.as_str() {
 <a href=#111 id=111 data-nosnippet>111</a>            <span class="kw">if </span>name.starts_with(<span class="string">".NET Framework"</span>) {
 <a href=#112 id=112 data-nosnippet>112</a>                <span class="kw">let </span>version = <span class="kw">match </span>build {
-<a href=#113 id=113 data-nosnippet>113</a>                    <span class="string">"378389" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.5"</span>.to_string()),
-<a href=#114 id=114 data-nosnippet>114</a>                    <span class="string">"378675" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.5.1"</span>.to_string()),
-<a href=#115 id=115 data-nosnippet>115</a>                    <span class="string">"378758" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.5.1"</span>.to_string()),
-<a href=#116 id=116 data-nosnippet>116</a>                    <span class="string">"379893" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.5.2"</span>.to_string()),
-<a href=#117 id=117 data-nosnippet>117</a>                    <span class="string">"393295" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6"</span>.to_string()),
-<a href=#118 id=118 data-nosnippet>118</a>                    <span class="string">"393297" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6"</span>.to_string()),
-<a href=#119 id=119 data-nosnippet>119</a>                    <span class="string">"394254" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6.1"</span>.to_string()),
-<a href=#120 id=120 data-nosnippet>120</a>                    <span class="string">"394271" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6.1"</span>.to_string()),
-<a href=#121 id=121 data-nosnippet>121</a>                    <span class="string">"394802" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6.2"</span>.to_string()),
-<a href=#122 id=122 data-nosnippet>122</a>                    <span class="string">"394806" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6.2"</span>.to_string()),
-<a href=#123 id=123 data-nosnippet>123</a>                    <span class="string">"460798" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7"</span>.to_string()),
-<a href=#124 id=124 data-nosnippet>124</a>                    <span class="string">"460805" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7"</span>.to_string()),
-<a href=#125 id=125 data-nosnippet>125</a>                    <span class="string">"461308" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7.1"</span>.to_string()),
-<a href=#126 id=126 data-nosnippet>126</a>                    <span class="string">"461310" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7.1"</span>.to_string()),
-<a href=#127 id=127 data-nosnippet>127</a>                    <span class="string">"461808" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7.2"</span>.to_string()),
-<a href=#128 id=128 data-nosnippet>128</a>                    <span class="string">"461814" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7.2"</span>.to_string()),
-<a href=#129 id=129 data-nosnippet>129</a>                    <span class="string">"528040" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_string()),
-<a href=#130 id=130 data-nosnippet>130</a>                    <span class="string">"528049" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_string()),
-<a href=#131 id=131 data-nosnippet>131</a>                    <span class="string">"528209" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_string()),
-<a href=#132 id=132 data-nosnippet>132</a>                    <span class="string">"528372" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_string()),
-<a href=#133 id=133 data-nosnippet>133</a>                    <span class="string">"528449" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_string()),
+<a href=#113 id=113 data-nosnippet>113</a>                    <span class="string">"378389" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.5"</span>.to_owned()),
+<a href=#114 id=114 data-nosnippet>114</a>                    <span class="string">"378675" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.5.1"</span>.to_owned()),
+<a href=#115 id=115 data-nosnippet>115</a>                    <span class="string">"378758" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.5.1"</span>.to_owned()),
+<a href=#116 id=116 data-nosnippet>116</a>                    <span class="string">"379893" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.5.2"</span>.to_owned()),
+<a href=#117 id=117 data-nosnippet>117</a>                    <span class="string">"393295" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6"</span>.to_owned()),
+<a href=#118 id=118 data-nosnippet>118</a>                    <span class="string">"393297" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6"</span>.to_owned()),
+<a href=#119 id=119 data-nosnippet>119</a>                    <span class="string">"394254" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6.1"</span>.to_owned()),
+<a href=#120 id=120 data-nosnippet>120</a>                    <span class="string">"394271" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6.1"</span>.to_owned()),
+<a href=#121 id=121 data-nosnippet>121</a>                    <span class="string">"394802" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6.2"</span>.to_owned()),
+<a href=#122 id=122 data-nosnippet>122</a>                    <span class="string">"394806" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.6.2"</span>.to_owned()),
+<a href=#123 id=123 data-nosnippet>123</a>                    <span class="string">"460798" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7"</span>.to_owned()),
+<a href=#124 id=124 data-nosnippet>124</a>                    <span class="string">"460805" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7"</span>.to_owned()),
+<a href=#125 id=125 data-nosnippet>125</a>                    <span class="string">"461308" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7.1"</span>.to_owned()),
+<a href=#126 id=126 data-nosnippet>126</a>                    <span class="string">"461310" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7.1"</span>.to_owned()),
+<a href=#127 id=127 data-nosnippet>127</a>                    <span class="string">"461808" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7.2"</span>.to_owned()),
+<a href=#128 id=128 data-nosnippet>128</a>                    <span class="string">"461814" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.7.2"</span>.to_owned()),
+<a href=#129 id=129 data-nosnippet>129</a>                    <span class="string">"528040" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_owned()),
+<a href=#130 id=130 data-nosnippet>130</a>                    <span class="string">"528049" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_owned()),
+<a href=#131 id=131 data-nosnippet>131</a>                    <span class="string">"528209" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_owned()),
+<a href=#132 id=132 data-nosnippet>132</a>                    <span class="string">"528372" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_owned()),
+<a href=#133 id=133 data-nosnippet>133</a>                    <span class="string">"528449" </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"4.8"</span>.to_owned()),
 <a href=#134 id=134 data-nosnippet>134</a>                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
 <a href=#135 id=135 data-nosnippet>135</a>                };
 <a href=#136 id=136 data-nosnippet>136</a>
@@ -199,14 +199,14 @@
 <a href=#199 id=199 data-nosnippet>199</a>
 <a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(raw_description) = os.raw_description.as_str() {
 <a href=#201 id=201 data-nosnippet>201</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((version, build_number)) = get_windows_version(raw_description) {
-<a href=#202 id=202 data-nosnippet>202</a>            os.name = <span class="string">"Windows"</span>.to_string().into();
+<a href=#202 id=202 data-nosnippet>202</a>            os.name = <span class="string">"Windows"</span>.to_owned().into();
 <a href=#203 id=203 data-nosnippet>203</a>            os.version = version.to_string().into();
 <a href=#204 id=204 data-nosnippet>204</a>            <span class="kw">if </span>os.build.is_empty() {
 <a href=#205 id=205 data-nosnippet>205</a>                <span class="comment">// Keep raw version as build
 <a href=#206 id=206 data-nosnippet>206</a>                </span>os.build.set_value(<span class="prelude-val">Some</span>(build_number.to_string().into()));
 <a href=#207 id=207 data-nosnippet>207</a>            }
 <a href=#208 id=208 data-nosnippet>208</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_MACOS_REGEX.captures(raw_description) {
-<a href=#209 id=209 data-nosnippet>209</a>            os.name = <span class="string">"macOS"</span>.to_string().into();
+<a href=#209 id=209 data-nosnippet>209</a>            os.name = <span class="string">"macOS"</span>.to_owned().into();
 <a href=#210 id=210 data-nosnippet>210</a>            os.version = captures
 <a href=#211 id=211 data-nosnippet>211</a>                .name(<span class="string">"version"</span>)
 <a href=#212 id=212 data-nosnippet>212</a>                .map(|m| m.as_str().to_string())
@@ -216,7 +216,7 @@
 <a href=#216 id=216 data-nosnippet>216</a>                .map(|m| m.as_str().to_string().into())
 <a href=#217 id=217 data-nosnippet>217</a>                .into();
 <a href=#218 id=218 data-nosnippet>218</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_IOS_REGEX.captures(raw_description) {
-<a href=#219 id=219 data-nosnippet>219</a>            os.name = <span class="string">"iOS"</span>.to_string().into();
+<a href=#219 id=219 data-nosnippet>219</a>            os.name = <span class="string">"iOS"</span>.to_owned().into();
 <a href=#220 id=220 data-nosnippet>220</a>            os.version = captures
 <a href=#221 id=221 data-nosnippet>221</a>                .name(<span class="string">"version"</span>)
 <a href=#222 id=222 data-nosnippet>222</a>                .map(|m| m.as_str().to_string())
@@ -226,7 +226,7 @@
 <a href=#226 id=226 data-nosnippet>226</a>                .map(|m| m.as_str().to_string().into())
 <a href=#227 id=227 data-nosnippet>227</a>                .into();
 <a href=#228 id=228 data-nosnippet>228</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_IPADOS_REGEX.captures(raw_description) {
-<a href=#229 id=229 data-nosnippet>229</a>            os.name = <span class="string">"iPadOS"</span>.to_string().into();
+<a href=#229 id=229 data-nosnippet>229</a>            os.name = <span class="string">"iPadOS"</span>.to_owned().into();
 <a href=#230 id=230 data-nosnippet>230</a>            os.version = captures
 <a href=#231 id=231 data-nosnippet>231</a>                .name(<span class="string">"version"</span>)
 <a href=#232 id=232 data-nosnippet>232</a>                .map(|m| m.as_str().to_string())
@@ -252,13 +252,13 @@
 <a href=#252 id=252 data-nosnippet>252</a>                .map(|m| m.as_str().to_string())
 <a href=#253 id=253 data-nosnippet>253</a>                .into();
 <a href=#254 id=254 data-nosnippet>254</a>        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_ANDROID_REGEX.captures(raw_description) {
-<a href=#255 id=255 data-nosnippet>255</a>            os.name = <span class="string">"Android"</span>.to_string().into();
+<a href=#255 id=255 data-nosnippet>255</a>            os.name = <span class="string">"Android"</span>.to_owned().into();
 <a href=#256 id=256 data-nosnippet>256</a>            os.version = captures
 <a href=#257 id=257 data-nosnippet>257</a>                .name(<span class="string">"version"</span>)
 <a href=#258 id=258 data-nosnippet>258</a>                .map(|m| m.as_str().to_string())
 <a href=#259 id=259 data-nosnippet>259</a>                .into();
 <a href=#260 id=260 data-nosnippet>260</a>        } <span class="kw">else if </span>raw_description == <span class="string">"Nintendo Switch" </span>{
-<a href=#261 id=261 data-nosnippet>261</a>            os.name = <span class="string">"Nintendo OS"</span>.to_string().into();
+<a href=#261 id=261 data-nosnippet>261</a>            os.name = <span class="string">"Nintendo OS"</span>.to_owned().into();
 <a href=#262 id=262 data-nosnippet>262</a>        }
 <a href=#263 id=263 data-nosnippet>263</a>    }
 <a href=#264 id=264 data-nosnippet>264</a>
@@ -386,7 +386,7 @@
 <a href=#386 id=386 data-nosnippet>386</a>    <span class="attr">#[test]
 <a href=#387 id=387 data-nosnippet>387</a>    </span><span class="kw">fn </span>test_dotnet_framework_48_without_build_id() {
 <a href=#388 id=388 data-nosnippet>388</a>        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
-<a href=#389 id=389 data-nosnippet>389</a>            raw_description: <span class="string">".NET Framework 4.8.4250.0"</span>.to_string().into(),
+<a href=#389 id=389 data-nosnippet>389</a>            raw_description: <span class="string">".NET Framework 4.8.4250.0"</span>.to_owned().into(),
 <a href=#390 id=390 data-nosnippet>390</a>            ..RuntimeContext::default()
 <a href=#391 id=391 data-nosnippet>391</a>        };
 <a href=#392 id=392 data-nosnippet>392</a>
@@ -398,8 +398,8 @@
 <a href=#398 id=398 data-nosnippet>398</a>    <span class="attr">#[test]
 <a href=#399 id=399 data-nosnippet>399</a>    </span><span class="kw">fn </span>test_dotnet_framework_472() {
 <a href=#400 id=400 data-nosnippet>400</a>        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
-<a href=#401 id=401 data-nosnippet>401</a>            raw_description: <span class="string">".NET Framework 4.7.3056.0"</span>.to_string().into(),
-<a href=#402 id=402 data-nosnippet>402</a>            build: LenientString(<span class="string">"461814"</span>.to_string()).into(),
+<a href=#401 id=401 data-nosnippet>401</a>            raw_description: <span class="string">".NET Framework 4.7.3056.0"</span>.to_owned().into(),
+<a href=#402 id=402 data-nosnippet>402</a>            build: LenientString(<span class="string">"461814"</span>.to_owned()).into(),
 <a href=#403 id=403 data-nosnippet>403</a>            ..RuntimeContext::default()
 <a href=#404 id=404 data-nosnippet>404</a>        };
 <a href=#405 id=405 data-nosnippet>405</a>
@@ -411,8 +411,8 @@
 <a href=#411 id=411 data-nosnippet>411</a>    <span class="attr">#[test]
 <a href=#412 id=412 data-nosnippet>412</a>    </span><span class="kw">fn </span>test_dotnet_framework_future_version() {
 <a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
-<a href=#414 id=414 data-nosnippet>414</a>            raw_description: <span class="string">".NET Framework 200.0"</span>.to_string().into(),
-<a href=#415 id=415 data-nosnippet>415</a>            build: LenientString(<span class="string">"999999"</span>.to_string()).into(),
+<a href=#414 id=414 data-nosnippet>414</a>            raw_description: <span class="string">".NET Framework 200.0"</span>.to_owned().into(),
+<a href=#415 id=415 data-nosnippet>415</a>            build: LenientString(<span class="string">"999999"</span>.to_owned()).into(),
 <a href=#416 id=416 data-nosnippet>416</a>            ..RuntimeContext::default()
 <a href=#417 id=417 data-nosnippet>417</a>        };
 <a href=#418 id=418 data-nosnippet>418</a>
@@ -425,7 +425,7 @@
 <a href=#425 id=425 data-nosnippet>425</a>    <span class="attr">#[test]
 <a href=#426 id=426 data-nosnippet>426</a>    </span><span class="kw">fn </span>test_dotnet_native() {
 <a href=#427 id=427 data-nosnippet>427</a>        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
-<a href=#428 id=428 data-nosnippet>428</a>            raw_description: <span class="string">".NET Native 2.0"</span>.to_string().into(),
+<a href=#428 id=428 data-nosnippet>428</a>            raw_description: <span class="string">".NET Native 2.0"</span>.to_owned().into(),
 <a href=#429 id=429 data-nosnippet>429</a>            ..RuntimeContext::default()
 <a href=#430 id=430 data-nosnippet>430</a>        };
 <a href=#431 id=431 data-nosnippet>431</a>
@@ -437,7 +437,7 @@
 <a href=#437 id=437 data-nosnippet>437</a>    <span class="attr">#[test]
 <a href=#438 id=438 data-nosnippet>438</a>    </span><span class="kw">fn </span>test_dotnet_core() {
 <a href=#439 id=439 data-nosnippet>439</a>        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
-<a href=#440 id=440 data-nosnippet>440</a>            raw_description: <span class="string">".NET Core 2.0"</span>.to_string().into(),
+<a href=#440 id=440 data-nosnippet>440</a>            raw_description: <span class="string">".NET Core 2.0"</span>.to_owned().into(),
 <a href=#441 id=441 data-nosnippet>441</a>            ..RuntimeContext::default()
 <a href=#442 id=442 data-nosnippet>442</a>        };
 <a href=#443 id=443 data-nosnippet>443</a>
@@ -468,7 +468,7 @@
 <a href=#468 id=468 data-nosnippet>468</a>        // It's a potentially really misleading API on newer platforms
 <a href=#469 id=469 data-nosnippet>469</a>        // Only used if RuntimeInformation.OSDescription is not available (old runtimes)
 <a href=#470 id=470 data-nosnippet>470</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#471 id=471 data-nosnippet>471</a>            raw_description: <span class="string">"Microsoft Windows NT 6.2.9200.0"</span>.to_string().into(),
+<a href=#471 id=471 data-nosnippet>471</a>            raw_description: <span class="string">"Microsoft Windows NT 6.2.9200.0"</span>.to_owned().into(),
 <a href=#472 id=472 data-nosnippet>472</a>            ..OsContext::default()
 <a href=#473 id=473 data-nosnippet>473</a>        };
 <a href=#474 id=474 data-nosnippet>474</a>
@@ -482,7 +482,7 @@
 <a href=#482 id=482 data-nosnippet>482</a>        <span class="comment">// RuntimeInformation.OSDescription on Windows 10 (CoreCLR 2.0+, .NET
 <a href=#483 id=483 data-nosnippet>483</a>        // Framework 4.7.1+, Mono 5.4+)
 <a href=#484 id=484 data-nosnippet>484</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#485 id=485 data-nosnippet>485</a>            raw_description: <span class="string">"Microsoft Windows 10.0.16299"</span>.to_string().into(),
+<a href=#485 id=485 data-nosnippet>485</a>            raw_description: <span class="string">"Microsoft Windows 10.0.16299"</span>.to_owned().into(),
 <a href=#486 id=486 data-nosnippet>486</a>            ..OsContext::default()
 <a href=#487 id=487 data-nosnippet>487</a>        };
 <a href=#488 id=488 data-nosnippet>488</a>
@@ -495,7 +495,7 @@
 <a href=#495 id=495 data-nosnippet>495</a>    </span><span class="kw">fn </span>test_windows_11() {
 <a href=#496 id=496 data-nosnippet>496</a>        <span class="comment">// https://github.com/getsentry/relay/issues/1201
 <a href=#497 id=497 data-nosnippet>497</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#498 id=498 data-nosnippet>498</a>            raw_description: <span class="string">"Microsoft Windows 10.0.22000"</span>.to_string().into(),
+<a href=#498 id=498 data-nosnippet>498</a>            raw_description: <span class="string">"Microsoft Windows 10.0.22000"</span>.to_owned().into(),
 <a href=#499 id=499 data-nosnippet>499</a>            ..OsContext::default()
 <a href=#500 id=500 data-nosnippet>500</a>        };
 <a href=#501 id=501 data-nosnippet>501</a>
@@ -508,7 +508,7 @@
 <a href=#508 id=508 data-nosnippet>508</a>    </span><span class="kw">fn </span>test_windows_11_future1() {
 <a href=#509 id=509 data-nosnippet>509</a>        <span class="comment">// This is fictional as of today, but let's be explicit about the behavior we expect.
 <a href=#510 id=510 data-nosnippet>510</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#511 id=511 data-nosnippet>511</a>            raw_description: <span class="string">"Microsoft Windows 10.0.22001"</span>.to_string().into(),
+<a href=#511 id=511 data-nosnippet>511</a>            raw_description: <span class="string">"Microsoft Windows 10.0.22001"</span>.to_owned().into(),
 <a href=#512 id=512 data-nosnippet>512</a>            ..OsContext::default()
 <a href=#513 id=513 data-nosnippet>513</a>        };
 <a href=#514 id=514 data-nosnippet>514</a>
@@ -521,7 +521,7 @@
 <a href=#521 id=521 data-nosnippet>521</a>    </span><span class="kw">fn </span>test_windows_11_future2() {
 <a href=#522 id=522 data-nosnippet>522</a>        <span class="comment">// This is fictional, but let's be explicit about the behavior we expect.
 <a href=#523 id=523 data-nosnippet>523</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#524 id=524 data-nosnippet>524</a>            raw_description: <span class="string">"Microsoft Windows 10.1.23456"</span>.to_string().into(),
+<a href=#524 id=524 data-nosnippet>524</a>            raw_description: <span class="string">"Microsoft Windows 10.1.23456"</span>.to_owned().into(),
 <a href=#525 id=525 data-nosnippet>525</a>            ..OsContext::default()
 <a href=#526 id=526 data-nosnippet>526</a>        };
 <a href=#527 id=527 data-nosnippet>527</a>
@@ -534,7 +534,7 @@
 <a href=#534 id=534 data-nosnippet>534</a>    </span><span class="kw">fn </span>test_macos_os_version() {
 <a href=#535 id=535 data-nosnippet>535</a>        <span class="comment">// Environment.OSVersion on macOS (CoreCLR 1.0+, Mono 1+)
 <a href=#536 id=536 data-nosnippet>536</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#537 id=537 data-nosnippet>537</a>            raw_description: <span class="string">"Unix 17.5.0.0"</span>.to_string().into(),
+<a href=#537 id=537 data-nosnippet>537</a>            raw_description: <span class="string">"Unix 17.5.0.0"</span>.to_owned().into(),
 <a href=#538 id=538 data-nosnippet>538</a>            ..OsContext::default()
 <a href=#539 id=539 data-nosnippet>539</a>        };
 <a href=#540 id=540 data-nosnippet>540</a>
@@ -547,7 +547,7 @@
 <a href=#547 id=547 data-nosnippet>547</a>    </span><span class="kw">fn </span>test_macos_runtime() {
 <a href=#548 id=548 data-nosnippet>548</a>        <span class="comment">// RuntimeInformation.OSDescription on macOS (CoreCLR 2.0+, Mono 5.4+)
 <a href=#549 id=549 data-nosnippet>549</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#550 id=550 data-nosnippet>550</a>        raw_description: <span class="string">"Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64"</span>.to_string().into(),
+<a href=#550 id=550 data-nosnippet>550</a>        raw_description: <span class="string">"Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64"</span>.to_owned().into(),
 <a href=#551 id=551 data-nosnippet>551</a>        ..OsContext::default()
 <a href=#552 id=552 data-nosnippet>552</a>    };
 <a href=#553 id=553 data-nosnippet>553</a>
@@ -560,7 +560,7 @@
 <a href=#560 id=560 data-nosnippet>560</a>    </span><span class="kw">fn </span>test_centos_os_version() {
 <a href=#561 id=561 data-nosnippet>561</a>        <span class="comment">// Environment.OSVersion on CentOS 7 (CoreCLR 1.0+, Mono 1+)
 <a href=#562 id=562 data-nosnippet>562</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#563 id=563 data-nosnippet>563</a>            raw_description: <span class="string">"Unix 3.10.0.693"</span>.to_string().into(),
+<a href=#563 id=563 data-nosnippet>563</a>            raw_description: <span class="string">"Unix 3.10.0.693"</span>.to_owned().into(),
 <a href=#564 id=564 data-nosnippet>564</a>            ..OsContext::default()
 <a href=#565 id=565 data-nosnippet>565</a>        };
 <a href=#566 id=566 data-nosnippet>566</a>
@@ -603,7 +603,7 @@
 <a href=#603 id=603 data-nosnippet>603</a>    <span class="attr">#[test]
 <a href=#604 id=604 data-nosnippet>604</a>    </span><span class="kw">fn </span>test_macos_with_build() {
 <a href=#605 id=605 data-nosnippet>605</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#606 id=606 data-nosnippet>606</a>            raw_description: <span class="string">"Mac OS X 10.14.2 (18C54)"</span>.to_string().into(),
+<a href=#606 id=606 data-nosnippet>606</a>            raw_description: <span class="string">"Mac OS X 10.14.2 (18C54)"</span>.to_owned().into(),
 <a href=#607 id=607 data-nosnippet>607</a>            ..OsContext::default()
 <a href=#608 id=608 data-nosnippet>608</a>        };
 <a href=#609 id=609 data-nosnippet>609</a>
@@ -616,7 +616,7 @@
 <a href=#616 id=616 data-nosnippet>616</a>    <span class="attr">#[test]
 <a href=#617 id=617 data-nosnippet>617</a>    </span><span class="kw">fn </span>test_macos_without_build() {
 <a href=#618 id=618 data-nosnippet>618</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#619 id=619 data-nosnippet>619</a>            raw_description: <span class="string">"Mac OS X 10.14.2"</span>.to_string().into(),
+<a href=#619 id=619 data-nosnippet>619</a>            raw_description: <span class="string">"Mac OS X 10.14.2"</span>.to_owned().into(),
 <a href=#620 id=620 data-nosnippet>620</a>            ..OsContext::default()
 <a href=#621 id=621 data-nosnippet>621</a>        };
 <a href=#622 id=622 data-nosnippet>622</a>
@@ -629,8 +629,8 @@
 <a href=#629 id=629 data-nosnippet>629</a>    <span class="attr">#[test]
 <a href=#630 id=630 data-nosnippet>630</a>    </span><span class="kw">fn </span>test_name_not_overwritten() {
 <a href=#631 id=631 data-nosnippet>631</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#632 id=632 data-nosnippet>632</a>            name: <span class="string">"Properly defined name"</span>.to_string().into(),
-<a href=#633 id=633 data-nosnippet>633</a>            raw_description: <span class="string">"Linux 4.4.0"</span>.to_string().into(),
+<a href=#632 id=632 data-nosnippet>632</a>            name: <span class="string">"Properly defined name"</span>.to_owned().into(),
+<a href=#633 id=633 data-nosnippet>633</a>            raw_description: <span class="string">"Linux 4.4.0"</span>.to_owned().into(),
 <a href=#634 id=634 data-nosnippet>634</a>            ..OsContext::default()
 <a href=#635 id=635 data-nosnippet>635</a>        };
 <a href=#636 id=636 data-nosnippet>636</a>
@@ -641,8 +641,8 @@
 <a href=#641 id=641 data-nosnippet>641</a>    <span class="attr">#[test]
 <a href=#642 id=642 data-nosnippet>642</a>    </span><span class="kw">fn </span>test_version_not_overwritten() {
 <a href=#643 id=643 data-nosnippet>643</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#644 id=644 data-nosnippet>644</a>            version: <span class="string">"Properly defined version"</span>.to_string().into(),
-<a href=#645 id=645 data-nosnippet>645</a>            raw_description: <span class="string">"Linux 4.4.0"</span>.to_string().into(),
+<a href=#644 id=644 data-nosnippet>644</a>            version: <span class="string">"Properly defined version"</span>.to_owned().into(),
+<a href=#645 id=645 data-nosnippet>645</a>            raw_description: <span class="string">"Linux 4.4.0"</span>.to_owned().into(),
 <a href=#646 id=646 data-nosnippet>646</a>            ..OsContext::default()
 <a href=#647 id=647 data-nosnippet>647</a>        };
 <a href=#648 id=648 data-nosnippet>648</a>
@@ -664,7 +664,7 @@
 <a href=#664 id=664 data-nosnippet>664</a>    <span class="attr">#[test]
 <a href=#665 id=665 data-nosnippet>665</a>    </span><span class="kw">fn </span>test_unity_mac_os() {
 <a href=#666 id=666 data-nosnippet>666</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#667 id=667 data-nosnippet>667</a>            raw_description: <span class="string">"Mac OS X 10.16.0"</span>.to_string().into(),
+<a href=#667 id=667 data-nosnippet>667</a>            raw_description: <span class="string">"Mac OS X 10.16.0"</span>.to_owned().into(),
 <a href=#668 id=668 data-nosnippet>668</a>            ..OsContext::default()
 <a href=#669 id=669 data-nosnippet>669</a>        };
 <a href=#670 id=670 data-nosnippet>670</a>        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
@@ -676,7 +676,7 @@
 <a href=#676 id=676 data-nosnippet>676</a>    <span class="attr">#[test]
 <a href=#677 id=677 data-nosnippet>677</a>    </span><span class="kw">fn </span>test_unity_ios() {
 <a href=#678 id=678 data-nosnippet>678</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#679 id=679 data-nosnippet>679</a>            raw_description: <span class="string">"iOS 17.5.1"</span>.to_string().into(),
+<a href=#679 id=679 data-nosnippet>679</a>            raw_description: <span class="string">"iOS 17.5.1"</span>.to_owned().into(),
 <a href=#680 id=680 data-nosnippet>680</a>            ..OsContext::default()
 <a href=#681 id=681 data-nosnippet>681</a>        };
 <a href=#682 id=682 data-nosnippet>682</a>
@@ -689,7 +689,7 @@
 <a href=#689 id=689 data-nosnippet>689</a>    <span class="attr">#[test]
 <a href=#690 id=690 data-nosnippet>690</a>    </span><span class="kw">fn </span>test_unity_ipados() {
 <a href=#691 id=691 data-nosnippet>691</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#692 id=692 data-nosnippet>692</a>            raw_description: <span class="string">"iPadOS 17.5.1"</span>.to_string().into(),
+<a href=#692 id=692 data-nosnippet>692</a>            raw_description: <span class="string">"iPadOS 17.5.1"</span>.to_owned().into(),
 <a href=#693 id=693 data-nosnippet>693</a>            ..OsContext::default()
 <a href=#694 id=694 data-nosnippet>694</a>        };
 <a href=#695 id=695 data-nosnippet>695</a>
@@ -703,13 +703,13 @@
 <a href=#703 id=703 data-nosnippet>703</a>    </span><span class="attr">#[test]
 <a href=#704 id=704 data-nosnippet>704</a>    </span><span class="kw">fn </span>test_unity_windows_os() {
 <a href=#705 id=705 data-nosnippet>705</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#706 id=706 data-nosnippet>706</a>            raw_description: <span class="string">"Windows 10  (10.0.19042) 64bit"</span>.to_string().into(),
+<a href=#706 id=706 data-nosnippet>706</a>            raw_description: <span class="string">"Windows 10  (10.0.19042) 64bit"</span>.to_owned().into(),
 <a href=#707 id=707 data-nosnippet>707</a>            ..OsContext::default()
 <a href=#708 id=708 data-nosnippet>708</a>        };
 <a href=#709 id=709 data-nosnippet>709</a>        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
 <a href=#710 id=710 data-nosnippet>710</a>        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"Windows"</span>), os.name.as_str());
 <a href=#711 id=711 data-nosnippet>711</a>        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"10"</span>), os.version.as_str());
-<a href=#712 id=712 data-nosnippet>712</a>        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>LenientString(<span class="string">"19042"</span>.to_string())), os.build.value());
+<a href=#712 id=712 data-nosnippet>712</a>        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>LenientString(<span class="string">"19042"</span>.to_owned())), os.build.value());
 <a href=#713 id=713 data-nosnippet>713</a>    }
 <a href=#714 id=714 data-nosnippet>714</a>
 <a href=#715 id=715 data-nosnippet>715</a>    <span class="attr">#[test]
@@ -735,7 +735,7 @@
 <a href=#735 id=735 data-nosnippet>735</a>    <span class="attr">#[test]
 <a href=#736 id=736 data-nosnippet>736</a>    </span><span class="kw">fn </span>test_linux_5_11() {
 <a href=#737 id=737 data-nosnippet>737</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#738 id=738 data-nosnippet>738</a>            raw_description: <span class="string">"Linux 5.11 Ubuntu 20.04 64bit"</span>.to_string().into(),
+<a href=#738 id=738 data-nosnippet>738</a>            raw_description: <span class="string">"Linux 5.11 Ubuntu 20.04 64bit"</span>.to_owned().into(),
 <a href=#739 id=739 data-nosnippet>739</a>            ..OsContext::default()
 <a href=#740 id=740 data-nosnippet>740</a>        };
 <a href=#741 id=741 data-nosnippet>741</a>        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
@@ -749,7 +749,7 @@
 <a href=#749 id=749 data-nosnippet>749</a>    </span><span class="kw">fn </span>test_unity_nintendo_switch() {
 <a href=#750 id=750 data-nosnippet>750</a>        <span class="comment">// Format sent by Unity on Nintendo Switch
 <a href=#751 id=751 data-nosnippet>751</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#752 id=752 data-nosnippet>752</a>            raw_description: <span class="string">"Nintendo Switch"</span>.to_string().into(),
+<a href=#752 id=752 data-nosnippet>752</a>            raw_description: <span class="string">"Nintendo Switch"</span>.to_owned().into(),
 <a href=#753 id=753 data-nosnippet>753</a>            ..OsContext::default()
 <a href=#754 id=754 data-nosnippet>754</a>        };
 <a href=#755 id=755 data-nosnippet>755</a>
@@ -782,7 +782,7 @@
 <a href=#782 id=782 data-nosnippet>782</a>
 <a href=#783 id=783 data-nosnippet>783</a>        <span class="kw">let </span><span class="kw-2">mut </span>expected_value = Object::new();
 <a href=#784 id=784 data-nosnippet>784</a>        expected_value.insert(
-<a href=#785 id=785 data-nosnippet>785</a>            <span class="string">"foo"</span>.to_string(),
+<a href=#785 id=785 data-nosnippet>785</a>            <span class="string">"foo"</span>.to_owned(),
 <a href=#786 id=786 data-nosnippet>786</a>            Annotated::from(Value::String(<span class="string">"bar"</span>.into())),
 <a href=#787 id=787 data-nosnippet>787</a>        );
 <a href=#788 id=788 data-nosnippet>788</a>
@@ -799,8 +799,8 @@
 <a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">let </span><span class="kw-2">mut </span>response = ResponseContext {
 <a href=#800 id=800 data-nosnippet>800</a>            data: Annotated::from(Value::String(<span class="string">r#"{"foo":"b"#</span>.to_string())),
 <a href=#801 id=801 data-nosnippet>801</a>            headers: Annotated::from(Headers(PairList(<span class="macro">vec!</span>[Annotated::new((
-<a href=#802 id=802 data-nosnippet>802</a>                Annotated::new(<span class="string">"Content-Type"</span>.to_string().into()),
-<a href=#803 id=803 data-nosnippet>803</a>                Annotated::new(<span class="string">"text/plain; encoding=utf-8"</span>.to_string().into()),
+<a href=#802 id=802 data-nosnippet>802</a>                Annotated::new(<span class="string">"Content-Type"</span>.to_owned().into()),
+<a href=#803 id=803 data-nosnippet>803</a>                Annotated::new(<span class="string">"text/plain; encoding=utf-8"</span>.to_owned().into()),
 <a href=#804 id=804 data-nosnippet>804</a>            ))]))),
 <a href=#805 id=805 data-nosnippet>805</a>            ..ResponseContext::default()
 <a href=#806 id=806 data-nosnippet>806</a>        };
@@ -825,8 +825,8 @@
 <a href=#825 id=825 data-nosnippet>825</a>    <span class="attr">#[test]
 <a href=#826 id=826 data-nosnippet>826</a>    </span><span class="kw">fn </span>test_os_computed_context() {
 <a href=#827 id=827 data-nosnippet>827</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#828 id=828 data-nosnippet>828</a>            name: <span class="string">"Windows"</span>.to_string().into(),
-<a href=#829 id=829 data-nosnippet>829</a>            version: <span class="string">"10"</span>.to_string().into(),
+<a href=#828 id=828 data-nosnippet>828</a>            name: <span class="string">"Windows"</span>.to_owned().into(),
+<a href=#829 id=829 data-nosnippet>829</a>            version: <span class="string">"10"</span>.to_owned().into(),
 <a href=#830 id=830 data-nosnippet>830</a>            ..OsContext::default()
 <a href=#831 id=831 data-nosnippet>831</a>        };
 <a href=#832 id=832 data-nosnippet>832</a>
@@ -837,7 +837,7 @@
 <a href=#837 id=837 data-nosnippet>837</a>    <span class="attr">#[test]
 <a href=#838 id=838 data-nosnippet>838</a>    </span><span class="kw">fn </span>test_os_computed_context_missing_version() {
 <a href=#839 id=839 data-nosnippet>839</a>        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-<a href=#840 id=840 data-nosnippet>840</a>            name: <span class="string">"Windows"</span>.to_string().into(),
+<a href=#840 id=840 data-nosnippet>840</a>            name: <span class="string">"Windows"</span>.to_owned().into(),
 <a href=#841 id=841 data-nosnippet>841</a>            ..OsContext::default()
 <a href=#842 id=842 data-nosnippet>842</a>        };
 <a href=#843 id=843 data-nosnippet>843</a>
@@ -848,8 +848,8 @@
 <a href=#848 id=848 data-nosnippet>848</a>    <span class="attr">#[test]
 <a href=#849 id=849 data-nosnippet>849</a>    </span><span class="kw">fn </span>test_runtime_computed_context() {
 <a href=#850 id=850 data-nosnippet>850</a>        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
-<a href=#851 id=851 data-nosnippet>851</a>            name: <span class="string">"Python"</span>.to_string().into(),
-<a href=#852 id=852 data-nosnippet>852</a>            version: <span class="string">"3.9.0"</span>.to_string().into(),
+<a href=#851 id=851 data-nosnippet>851</a>            name: <span class="string">"Python"</span>.to_owned().into(),
+<a href=#852 id=852 data-nosnippet>852</a>            version: <span class="string">"3.9.0"</span>.to_owned().into(),
 <a href=#853 id=853 data-nosnippet>853</a>            ..RuntimeContext::default()
 <a href=#854 id=854 data-nosnippet>854</a>        };
 <a href=#855 id=855 data-nosnippet>855</a>
@@ -860,7 +860,7 @@
 <a href=#860 id=860 data-nosnippet>860</a>    <span class="attr">#[test]
 <a href=#861 id=861 data-nosnippet>861</a>    </span><span class="kw">fn </span>test_runtime_computed_context_missing_version() {
 <a href=#862 id=862 data-nosnippet>862</a>        <span class="kw">let </span><span class="kw-2">mut </span>runtime = RuntimeContext {
-<a href=#863 id=863 data-nosnippet>863</a>            name: <span class="string">"Python"</span>.to_string().into(),
+<a href=#863 id=863 data-nosnippet>863</a>            name: <span class="string">"Python"</span>.to_owned().into(),
 <a href=#864 id=864 data-nosnippet>864</a>            ..RuntimeContext::default()
 <a href=#865 id=865 data-nosnippet>865</a>        };
 <a href=#866 id=866 data-nosnippet>866</a>
@@ -871,8 +871,8 @@
 <a href=#871 id=871 data-nosnippet>871</a>    <span class="attr">#[test]
 <a href=#872 id=872 data-nosnippet>872</a>    </span><span class="kw">fn </span>test_browser_computed_context() {
 <a href=#873 id=873 data-nosnippet>873</a>        <span class="kw">let </span><span class="kw-2">mut </span>browser = BrowserContext {
-<a href=#874 id=874 data-nosnippet>874</a>            name: <span class="string">"Firefox"</span>.to_string().into(),
-<a href=#875 id=875 data-nosnippet>875</a>            version: <span class="string">"89.0"</span>.to_string().into(),
+<a href=#874 id=874 data-nosnippet>874</a>            name: <span class="string">"Firefox"</span>.to_owned().into(),
+<a href=#875 id=875 data-nosnippet>875</a>            version: <span class="string">"89.0"</span>.to_owned().into(),
 <a href=#876 id=876 data-nosnippet>876</a>            ..BrowserContext::default()
 <a href=#877 id=877 data-nosnippet>877</a>        };
 <a href=#878 id=878 data-nosnippet>878</a>
@@ -883,7 +883,7 @@
 <a href=#883 id=883 data-nosnippet>883</a>    <span class="attr">#[test]
 <a href=#884 id=884 data-nosnippet>884</a>    </span><span class="kw">fn </span>test_browser_computed_context_missing_version() {
 <a href=#885 id=885 data-nosnippet>885</a>        <span class="kw">let </span><span class="kw-2">mut </span>browser = BrowserContext {
-<a href=#886 id=886 data-nosnippet>886</a>            name: <span class="string">"Firefox"</span>.to_string().into(),
+<a href=#886 id=886 data-nosnippet>886</a>            name: <span class="string">"Firefox"</span>.to_owned().into(),
 <a href=#887 id=887 data-nosnippet>887</a>            ..BrowserContext::default()
 <a href=#888 id=888 data-nosnippet>888</a>        };
 <a href=#889 id=889 data-nosnippet>889</a>

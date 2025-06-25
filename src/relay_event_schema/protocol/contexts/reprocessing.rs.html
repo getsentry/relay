@@ -67,12 +67,12 @@
 <a href=#67 id=67 data-nosnippet>67</a>}"#</span>;
 <a href=#68 id=68 data-nosnippet>68</a>        <span class="kw">let </span>context = Annotated::new(Context::Reprocessing(Box::new(ReprocessingContext {
 <a href=#69 id=69 data-nosnippet>69</a>            original_issue_id: Annotated::new(<span class="number">123</span>),
-<a href=#70 id=70 data-nosnippet>70</a>            original_primary_hash: Annotated::new(<span class="string">"9f3ee8ff49e6ca0a2bee80d76fee8f0c"</span>.to_string()),
+<a href=#70 id=70 data-nosnippet>70</a>            original_primary_hash: Annotated::new(<span class="string">"9f3ee8ff49e6ca0a2bee80d76fee8f0c"</span>.to_owned()),
 <a href=#71 id=71 data-nosnippet>71</a>            other: {
 <a href=#72 id=72 data-nosnippet>72</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
 <a href=#73 id=73 data-nosnippet>73</a>                map.insert(
-<a href=#74 id=74 data-nosnippet>74</a>                    <span class="string">"random"</span>.to_string(),
-<a href=#75 id=75 data-nosnippet>75</a>                    Annotated::new(Value::String(<span class="string">"stuff"</span>.to_string())),
+<a href=#74 id=74 data-nosnippet>74</a>                    <span class="string">"random"</span>.to_owned(),
+<a href=#75 id=75 data-nosnippet>75</a>                    Annotated::new(Value::String(<span class="string">"stuff"</span>.to_owned())),
 <a href=#76 id=76 data-nosnippet>76</a>                );
 <a href=#77 id=77 data-nosnippet>77</a>                map
 <a href=#78 id=78 data-nosnippet>78</a>            },
