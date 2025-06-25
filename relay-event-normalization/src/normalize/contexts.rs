@@ -186,7 +186,7 @@ fn get_marketing_name(description: &str) -> Option<(&str, &str)> {
     let version = version.trim();
 
     // Validate if it looks like a reasonable name.
-    if name.bytes().any(|c| !matches!(c, b'a'..b'z' | b'A'..b'Z')) {
+    if name.bytes().any(|c| !c.is_ascii_alphabetic()) {
         return None;
     }
 
