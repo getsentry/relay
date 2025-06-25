@@ -401,9 +401,9 @@ pub unsafe extern "C" fn relay_validate_rule_condition(value: *const RelayStr) -
     let ret_val = match serde_json::from_str::<RuleCondition>(unsafe { (*value).as_str() }) {
         Ok(condition) => {
             if condition.supported() {
-                "".to_string()
+                "".to_owned()
             } else {
-                "unsupported condition".to_string()
+                "unsupported condition".to_owned()
             }
         }
         Err(e) => e.to_string(),

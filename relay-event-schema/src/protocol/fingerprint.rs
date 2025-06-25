@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn test_fingerprint_string() {
         assert_eq!(
-            Annotated::new(vec!["fingerprint".to_string()].into()),
+            Annotated::new(vec!["fingerprint".to_owned()].into()),
             Annotated::<Fingerprint>::from_json("[\"fingerprint\"]").unwrap()
         );
     }
@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn test_fingerprint_bool() {
         assert_eq!(
-            Annotated::new(vec!["True".to_string(), "False".to_string()].into()),
+            Annotated::new(vec!["True".to_owned(), "False".to_string()].into()),
             Annotated::<Fingerprint>::from_json("[true, false]").unwrap()
         );
     }
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_fingerprint_number() {
         assert_eq!(
-            Annotated::new(vec!["-22".to_string()].into()),
+            Annotated::new(vec!["-22".to_owned()].into()),
             Annotated::<Fingerprint>::from_json("[-22]").unwrap()
         );
     }
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn test_fingerprint_float() {
         assert_eq!(
-            Annotated::new(vec!["3".to_string()].into()),
+            Annotated::new(vec!["3".to_owned()].into()),
             Annotated::<Fingerprint>::from_json("[3.0]").unwrap()
         );
     }
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn test_fingerprint_float_trunc() {
         assert_eq!(
-            Annotated::new(vec!["3".to_string()].into()),
+            Annotated::new(vec!["3".to_owned()].into()),
             Annotated::<Fingerprint>::from_json("[3.5]").unwrap()
         );
     }
@@ -198,7 +198,7 @@ mod tests {
     fn test_fingerprint_invalid_fallback() {
         // XXX: review, this was changed after refactor
         assert_eq!(
-            Annotated::new(Fingerprint(vec!["a".to_string(), "d".to_string()])),
+            Annotated::new(Fingerprint(vec!["a".to_owned(), "d".to_string()])),
             Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
         );
     }

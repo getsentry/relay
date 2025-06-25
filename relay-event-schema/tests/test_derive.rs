@@ -14,9 +14,9 @@ impl Processor for RecordingProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         self.0.push(format!("process_value({})", state.path()));
-        self.0.push("before_process_child_values".to_string());
+        self.0.push("before_process_child_values".to_owned());
         value.process_child_values(self, state)?;
-        self.0.push("after_process_child_values".to_string());
+        self.0.push("after_process_child_values".to_owned());
         Ok(())
     }
 
@@ -38,9 +38,9 @@ impl Processor for RecordingProcessor {
     ) -> ProcessingResult {
         self.0
             .push(format!("process_header_name({})", state.path()));
-        self.0.push("before_process_child_values".to_string());
+        self.0.push("before_process_child_values".to_owned());
         value.process_child_values(self, state)?;
-        self.0.push("after_process_child_values".to_string());
+        self.0.push("after_process_child_values".to_owned());
         Ok(())
     }
 }
@@ -53,7 +53,7 @@ mod tests {
     fn test_enums_processor_calls() {
         let mut processor = RecordingProcessor(vec![]);
 
-        let mut value = Annotated::new(Value::String("hi".to_string()));
+        let mut value = Annotated::new(Value::String("hi".to_owned()));
         process_value(
             &mut value,
             &mut processor,

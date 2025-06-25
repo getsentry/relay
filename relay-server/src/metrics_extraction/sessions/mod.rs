@@ -55,7 +55,7 @@ pub fn extract_session_metrics<T: SessionLike>(
             SessionMetric::Session {
                 counter: session.total_count().into(),
                 tags: SessionSessionTags {
-                    status: "init".to_string(),
+                    status: "init".to_owned(),
                     common_tags: common_tags.clone(),
                 },
             }
@@ -75,7 +75,7 @@ pub fn extract_session_metrics<T: SessionLike>(
             SessionErrored::Aggregated(count) => SessionMetric::Session {
                 counter: count.into(),
                 tags: SessionSessionTags {
-                    status: "errored_preaggr".to_string(),
+                    status: "errored_preaggr".to_owned(),
                     common_tags: common_tags.clone(),
                 },
             }
@@ -119,7 +119,7 @@ pub fn extract_session_metrics<T: SessionLike>(
             SessionMetric::Session {
                 counter: session.abnormal_count().into(),
                 tags: SessionSessionTags {
-                    status: "abnormal".to_string(),
+                    status: "abnormal".to_owned(),
                     common_tags: common_tags.clone(),
                 },
             }
@@ -153,7 +153,7 @@ pub fn extract_session_metrics<T: SessionLike>(
             SessionMetric::Session {
                 counter: session.crashed_count().into(),
                 tags: SessionSessionTags {
-                    status: "crashed".to_string(),
+                    status: "crashed".to_owned(),
                     common_tags: common_tags.clone(),
                 },
             }

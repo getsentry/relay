@@ -2493,7 +2493,7 @@ LIMIT 1
             .unwrap();
         let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
-        assert_eq!(tags.browser_name.value(), Some(&"Chrome".to_string()));
+        assert_eq!(tags.browser_name.value(), Some(&"Chrome".to_owned()));
     }
 
     #[test]
@@ -2562,19 +2562,19 @@ LIMIT 1
 
         assert_eq!(
             tags.messaging_destination_name.value(),
-            Some(&"default".to_string())
+            Some(&"default".to_owned())
         );
         assert_eq!(
             tags.messaging_message_id.value(),
-            Some(&"abc123".to_string())
+            Some(&"abc123".to_owned())
         );
         assert_eq!(
             tags.messaging_operation_name.value(),
-            Some(&"publish".to_string())
+            Some(&"publish".to_owned())
         );
         assert_eq!(
             tags.messaging_operation_type.value(),
-            Some(&"create".to_string())
+            Some(&"create".to_owned())
         );
     }
 
@@ -2921,9 +2921,9 @@ LIMIT 1
             .unwrap();
         let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
-        assert_eq!(tags.action.value(), Some(&"FIND".to_string()));
+        assert_eq!(tags.action.value(), Some(&"FIND".to_owned()));
 
-        assert_eq!(tags.domain.value(), Some(&"documents".to_string()));
+        assert_eq!(tags.domain.value(), Some(&"documents".to_owned()));
     }
 
     #[test]
@@ -2948,7 +2948,7 @@ LIMIT 1
             .unwrap();
         let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
-        assert_eq!(tags.domain.value(), Some(&"documents_{%s}".to_string()));
+        assert_eq!(tags.domain.value(), Some(&"documents_{%s}".to_owned()));
     }
 
     #[test]

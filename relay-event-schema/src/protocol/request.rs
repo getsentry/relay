@@ -498,20 +498,20 @@ mod tests {
 
         let headers = vec![
             Annotated::new((
-                Annotated::new("-Other-".to_string().into()),
-                Annotated::new("header".to_string().into()),
+                Annotated::new("-Other-".to_owned().into()),
+                Annotated::new("header".to_owned().into()),
             )),
             Annotated::new((
-                Annotated::new("Accept".to_string().into()),
-                Annotated::new("application/json".to_string().into()),
+                Annotated::new("Accept".to_owned().into()),
+                Annotated::new("application/json".to_owned().into()),
             )),
             Annotated::new((
-                Annotated::new("WWW-Authenticate".to_string().into()),
-                Annotated::new("basic".to_string().into()),
+                Annotated::new("WWW-Authenticate".to_owned().into()),
+                Annotated::new("basic".to_owned().into()),
             )),
             Annotated::new((
-                Annotated::new("X-Sentry".to_string().into()),
-                Annotated::new("version=8".to_string().into()),
+                Annotated::new("X-Sentry".to_owned().into()),
+                Annotated::new("version=8".to_owned().into()),
             )),
         ];
 
@@ -526,8 +526,8 @@ mod tests {
 ]"#;
 
         let headers = vec![Annotated::new((
-            Annotated::new("Accept".to_string().into()),
-            Annotated::new("application/json".to_string().into()),
+            Annotated::new("Accept".to_owned().into()),
+            Annotated::new("application/json".to_owned().into()),
         ))];
 
         let headers = Annotated::new(Headers(PairList(headers)));
@@ -651,32 +651,32 @@ mod tests {
 }"#;
 
         let request = Annotated::new(Request {
-            url: Annotated::new("https://google.com/search".to_string()),
-            method: Annotated::new("GET".to_string()),
+            url: Annotated::new("https://google.com/search".to_owned()),
+            method: Annotated::new("GET".to_owned()),
             protocol: Annotated::empty(),
             data: {
                 let mut map = Object::new();
-                map.insert("some".to_string(), Annotated::new(Value::I64(1)));
+                map.insert("some".to_owned(), Annotated::new(Value::I64(1)));
                 Annotated::new(Value::Object(map))
             },
             query_string: Annotated::new(Query(
                 vec![Annotated::new((
-                    Annotated::new("q".to_string()),
-                    Annotated::new("foo".to_string().into()),
+                    Annotated::new("q".to_owned()),
+                    Annotated::new("foo".to_owned().into()),
                 ))]
                 .into(),
             )),
-            fragment: Annotated::new("home".to_string()),
+            fragment: Annotated::new("home".to_owned()),
             cookies: Annotated::new(Cookies({
                 PairList(vec![Annotated::new((
-                    Annotated::new("GOOGLE".to_string()),
-                    Annotated::new("1".to_string()),
+                    Annotated::new("GOOGLE".to_owned()),
+                    Annotated::new("1".to_owned()),
                 ))])
             })),
             headers: Annotated::new(Headers({
                 let headers = vec![Annotated::new((
-                    Annotated::new("Referer".to_string().into()),
-                    Annotated::new("https://google.com/".to_string().into()),
+                    Annotated::new("Referer".to_owned().into()),
+                    Annotated::new("https://google.com/".to_owned().into()),
                 ))];
                 PairList(headers)
             })),
@@ -684,18 +684,18 @@ mod tests {
             env: Annotated::new({
                 let mut map = Object::new();
                 map.insert(
-                    "REMOTE_ADDR".to_string(),
-                    Annotated::new(Value::String("213.47.147.207".to_string())),
+                    "REMOTE_ADDR".to_owned(),
+                    Annotated::new(Value::String("213.47.147.207".to_owned())),
                 );
                 map
             }),
-            inferred_content_type: Annotated::new("application/json".to_string()),
-            api_target: Annotated::new("graphql".to_string()),
+            inferred_content_type: Annotated::new("application/json".to_owned()),
+            api_target: Annotated::new("graphql".to_owned()),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -709,8 +709,8 @@ mod tests {
     fn test_query_string() {
         let query = Annotated::new(Query(
             vec![Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string().into()),
+                Annotated::new("foo".to_owned()),
+                Annotated::new("bar".to_owned().into()),
             ))]
             .into(),
         ));
@@ -720,12 +720,12 @@ mod tests {
         let query = Annotated::new(Query(
             vec![
                 Annotated::new((
-                    Annotated::new("foo".to_string()),
-                    Annotated::new("bar".to_string().into()),
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("bar".to_owned().into()),
                 )),
                 Annotated::new((
-                    Annotated::new("baz".to_string()),
-                    Annotated::new("42".to_string().into()),
+                    Annotated::new("baz".to_owned()),
+                    Annotated::new("42".to_owned().into()),
                 )),
             ]
             .into(),
@@ -740,8 +740,8 @@ mod tests {
         // nested objects here but for legacy values we instead serialize it out as JSON.
         let query = Annotated::new(Query(
             vec![Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string().into()),
+                Annotated::new("foo".to_owned()),
+                Annotated::new("bar".to_owned().into()),
             ))]
             .into(),
         ));
@@ -750,12 +750,12 @@ mod tests {
         let query = Annotated::new(Query(
             vec![
                 Annotated::new((
-                    Annotated::new("baz".to_string()),
+                    Annotated::new("baz".to_owned()),
                     Annotated::new(r#"{"a":42}"#.to_string().into()),
                 )),
                 Annotated::new((
-                    Annotated::new("foo".to_string()),
-                    Annotated::new("bar".to_string().into()),
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("bar".to_owned().into()),
                 )),
             ]
             .into(),
@@ -789,16 +789,16 @@ mod tests {
 
         let map = vec![
             Annotated::new((
-                Annotated::new("PHPSESSID".to_string()),
-                Annotated::new("298zf09hf012fh2".to_string()),
+                Annotated::new("PHPSESSID".to_owned()),
+                Annotated::new("298zf09hf012fh2".to_owned()),
             )),
             Annotated::new((
-                Annotated::new("csrftoken".to_string()),
-                Annotated::new("u32t4o3tb3gg43".to_string()),
+                Annotated::new("csrftoken".to_owned()),
+                Annotated::new("u32t4o3tb3gg43".to_owned()),
             )),
             Annotated::new((
-                Annotated::new("_gat".to_string()),
-                Annotated::new("1".to_string()),
+                Annotated::new("_gat".to_owned()),
+                Annotated::new("1".to_owned()),
             )),
         ];
 
@@ -813,14 +813,14 @@ mod tests {
 
         let map = vec![
             Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string()),
+                Annotated::new("foo".to_owned()),
+                Annotated::new("bar".to_owned()),
             )),
             Annotated::new((
-                Annotated::new("invalid".to_string()),
+                Annotated::new("invalid".to_owned()),
                 Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
             )),
-            Annotated::new((Annotated::new("none".to_string()), Annotated::empty())),
+            Annotated::new((Annotated::new("none".to_owned()), Annotated::empty())),
         ];
 
         let cookies = Annotated::new(Cookies(PairList(map)));
@@ -838,11 +838,11 @@ mod tests {
 
         let map = vec![
             Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string()),
+                Annotated::new("foo".to_owned()),
+                Annotated::new("bar".to_owned()),
             )),
             Annotated::new((
-                Annotated::new("invalid".to_string()),
+                Annotated::new("invalid".to_owned()),
                 Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
             )),
         ];
@@ -865,12 +865,12 @@ mod tests {
         let query = Annotated::new(Query(
             vec![
                 Annotated::new((
-                    Annotated::new("foo".to_string()),
-                    Annotated::new("bar".to_string().into()),
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("bar".to_owned().into()),
                 )),
                 Annotated::new((
-                    Annotated::new("baz".to_string()),
-                    Annotated::new("".to_string().into()),
+                    Annotated::new("baz".to_owned()),
+                    Annotated::new("".to_owned().into()),
                 )),
             ]
             .into(),
@@ -904,12 +904,12 @@ mod tests {
         let request = Annotated::new(Request {
             headers: Annotated::new(Headers(PairList(vec![
                 Annotated::new((
-                    Annotated::new("X-Bar".to_string().into()),
-                    Annotated::new("42".to_string().into()),
+                    Annotated::new("X-Bar".to_owned().into()),
+                    Annotated::new("42".to_owned().into()),
                 )),
                 Annotated::new((
-                    Annotated::new("X-Foo".to_string().into()),
-                    Annotated::new("".to_string().into()),
+                    Annotated::new("X-Foo".to_owned().into()),
+                    Annotated::new("".to_owned().into()),
                 )),
             ]))),
             ..Default::default()
@@ -948,12 +948,12 @@ mod tests {
         let request = Annotated::new(Request {
             headers: Annotated::new(Headers(PairList(vec![
                 Annotated::new((
-                    Annotated::new("X-Bar".to_string().into()),
-                    Annotated::new("42,bar,baz".to_string().into()),
+                    Annotated::new("X-Bar".to_owned().into()),
+                    Annotated::new("42,bar,baz".to_owned().into()),
                 )),
                 Annotated::new((
-                    Annotated::new("X-Foo".to_string().into()),
-                    Annotated::new("".to_string().into()),
+                    Annotated::new("X-Foo".to_owned().into()),
+                    Annotated::new("".to_owned().into()),
                 )),
             ]))),
             ..Default::default()

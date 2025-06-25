@@ -271,7 +271,7 @@ impl FromValue for Contexts {
                 if let Annotated(Some(Value::Object(items)), _) = value {
                     if !items.contains_key("type") {
                         items.insert(
-                            "type".to_string(),
+                            "type".to_owned(),
                             Annotated::new(Value::String(key.to_string())),
                         );
                     }
@@ -325,12 +325,12 @@ mod tests {
         let context = Annotated::new(Context::Other({
             let mut map = Map::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".to_owned(),
+                Annotated::new(Value::String("value".to_owned())),
             );
             map.insert(
-                "type".to_string(),
-                Annotated::new(Value::String("mytype".to_string())),
+                "type".to_owned(),
+                Annotated::new(Value::String("mytype".to_owned())),
             );
             map
         }));
@@ -345,7 +345,7 @@ mod tests {
 
         let mut map = Contexts::new();
         map.add(OsContext {
-            name: Annotated::new("Linux".to_string()),
+            name: Annotated::new("Linux".to_owned()),
             ..Default::default()
         });
 
@@ -359,11 +359,11 @@ mod tests {
 
         let mut map = Contexts::new();
         map.add(OsContext {
-            name: Annotated::new("Linux".to_string()),
+            name: Annotated::new("Linux".to_owned()),
             ..Default::default()
         });
         map.add(RuntimeContext {
-            name: Annotated::new("rustc".to_string()),
+            name: Annotated::new("rustc".to_owned()),
             ..Default::default()
         });
 

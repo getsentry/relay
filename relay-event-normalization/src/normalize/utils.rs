@@ -262,6 +262,6 @@ mod tests {
 
         let result = http_status_code_from_span(&span);
 
-        assert_eq!(result, Some("400".to_string()));
+        assert_eq!(result, Some("400".to_owned()));
     }
 }

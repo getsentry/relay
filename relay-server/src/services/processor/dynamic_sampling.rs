@@ -561,7 +561,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
+            release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,
             environment: None,
@@ -721,7 +721,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
+            release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,
             environment: None,

@@ -4215,7 +4215,7 @@ mod tests {
         let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
 
         let derived_value = {
-            let name = "foobar".to_string();
+            let name = "foobar".to_owned();
             let value = 5.into(); // Arbitrary value.
             let unit = MetricUnit::Duration(DurationUnit::default());
             let tags = TransactionMeasurementTags {

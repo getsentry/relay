@@ -238,7 +238,7 @@ mod tests {
                 },
                 Sample {
                     stack_id: 0,
-                    thread_id: "1".to_string(),
+                    thread_id: "1".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
             ],
@@ -267,7 +267,7 @@ mod tests {
 
         let test_cases = [
             TestStruct {
-                name: "not above max duration".to_string(),
+                name: "not above max duration".to_owned(),
                 profile: ProfileData {
                     samples: vec![
                         Sample {
@@ -277,7 +277,7 @@ mod tests {
                         },
                         Sample {
                             stack_id: 0,
-                            thread_id: "1".to_string(),
+                            thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(60.0).unwrap(),
                         },
                     ],
@@ -288,7 +288,7 @@ mod tests {
                 want: false,
             },
             TestStruct {
-                name: "above max duration".to_string(),
+                name: "above max duration".to_owned(),
                 profile: ProfileData {
                     samples: vec![
                         Sample {
@@ -298,7 +298,7 @@ mod tests {
                         },
                         Sample {
                             stack_id: 0,
-                            thread_id: "1".to_string(),
+                            thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(80.0).unwrap(),
                         },
                     ],
@@ -309,7 +309,7 @@ mod tests {
                 want: true,
             },
             TestStruct {
-                name: "unsorted samples not above max duration".to_string(),
+                name: "unsorted samples not above max duration".to_owned(),
                 profile: ProfileData {
                     samples: vec![
                         Sample {
@@ -319,7 +319,7 @@ mod tests {
                         },
                         Sample {
                             stack_id: 0,
-                            thread_id: "1".to_string(),
+                            thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(20.0).unwrap(),
                         },
                     ],
@@ -366,7 +366,7 @@ mod tests {
                 },
                 Sample {
                     stack_id: 0,
-                    thread_id: "2".to_string(),
+                    thread_id: "2".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {
@@ -381,12 +381,12 @@ mod tests {
                 },
                 Sample {
                     stack_id: 0,
-                    thread_id: "3".to_string(),
+                    thread_id: "3".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {
                     stack_id: 0,
-                    thread_id: "3".to_string(),
+                    thread_id: "3".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {

@@ -44,7 +44,7 @@ fn test_annotated_deserialize_with_meta() {
             .iter_errors()
             .collect::<Vec<&Error>>(),
         vec![
-            &Error::new(ErrorKind::Unknown("unknown_error".to_string())),
+            &Error::new(ErrorKind::Unknown("unknown_error".to_owned())),
             &Error::expected("an unsigned integer")
         ],
     );
