@@ -33,7 +33,7 @@ impl Processor for EmitEventErrors {
                 value: Annotated::from(original_value.take()),
                 other: error
                     .data()
-                    .map(|(k, v)| (k.to_string(), Annotated::from(v.clone())))
+                    .map(|(k, v)| (k.to_owned(), Annotated::from(v.clone())))
                     .collect(),
             });
         }

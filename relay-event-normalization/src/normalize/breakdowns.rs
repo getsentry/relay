@@ -348,7 +348,7 @@ mod tests {
             let mut config = HashMap::new();
 
             let span_ops_config = BreakdownConfig::SpanOperations(SpanOperationsConfig {
-                matches: vec!["http".to_owned(), "db".to_string()],
+                matches: vec!["http".to_owned(), "db".to_owned()],
             });
 
             config.insert("span_ops".to_owned(), span_ops_config.clone());

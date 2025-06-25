@@ -7,7 +7,7 @@ use relay_protocol::Annotated;
 pub fn get_event_with_user_agent(user_agent: &str) -> Event {
     let headers = vec![Annotated::new((
         Annotated::new("UsEr-AgeNT".to_owned().into()),
-        Annotated::new(user_agent.to_string().into()),
+        Annotated::new(user_agent.to_owned().into()),
     ))];
 
     Event {

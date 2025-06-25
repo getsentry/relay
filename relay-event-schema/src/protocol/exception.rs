@@ -147,7 +147,7 @@ mod tests {
         let output = r#"{"value":"{\"unauthorized\":true}"}"#;
 
         let exception = Annotated::new(Exception {
-            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
+            value: Annotated::new(r#"{"unauthorized":true}"#.to_owned().into()),
             ..Default::default()
         });
 

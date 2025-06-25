@@ -58,7 +58,7 @@ fn normalize_url(request: &mut Request) {
             if let Some(fragment_index) = url_string.find('#') {
                 let fragment = &url_string[fragment_index + 1..];
                 if !fragment.is_empty() && request.fragment.value().is_none() {
-                    request.fragment.set_value(Some(fragment.to_string()));
+                    request.fragment.set_value(Some(fragment.to_owned()));
                 }
                 url_string.truncate(fragment_index);
             }
@@ -151,13 +151,13 @@ fn normalize_data(request: &mut Request) {
         // Retain meta data on the body (e.g. trimming annotations) but remove anything on the
         // inferred content type.
         request.data.set_value(Some(parsed_data));
-        request.inferred_content_type = Annotated::from(content_type.to_string());
+        request.inferred_content_type = Annotated::from(content_type.to_owned());
     } else {
         request.inferred_content_type = request
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.split(';').next().unwrap_or(value).to_string())
+            .map(|value| value.split(';').next().unwrap_or(value).to_owned())
             .into();
     }
 }
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn test_infer_json() {
         let mut request = Request {
-            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_owned())),
             ..Request::default()
         };
 
@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn test_broken_json_with_fallback() {
         let mut request = Request {
-            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_owned())),
             headers: Annotated::from(Headers(PairList(vec![Annotated::new((
                 Annotated::new("Content-Type".to_owned().into()),
                 Annotated::new("text/plain; encoding=utf-8".to_owned().into()),
@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn test_broken_json_without_fallback() {
         let mut request = Request {
-            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_owned())),
             ..Request::default()
         };
 
@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn test_infer_url_encoded() {
         let mut request = Request {
-            data: Annotated::from(Value::String(r#"foo=bar"#.to_string())),
+            data: Annotated::from(Value::String(r#"foo=bar"#.to_owned())),
             ..Request::default()
         };
 

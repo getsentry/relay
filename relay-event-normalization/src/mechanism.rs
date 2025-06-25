@@ -609,7 +609,7 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
             if cerror.name.value().is_none() {
                 if let Some(errno) = cerror.number.value() {
                     if let Some(name) = get_errno_name(*errno, os_hint) {
-                        cerror.name = Annotated::new(name.to_string());
+                        cerror.name = Annotated::new(name.to_owned());
                     }
                 }
             }
@@ -626,7 +626,7 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
                 if os_hint == OsHint::Darwin && signal.code_name.value().is_none() {
                     if let Some(code) = signal.code.value() {
                         if let Some(code_name) = get_signal_code_name(*signo, *code) {
-                            signal.code_name = Annotated::new(code_name.to_string());
+                            signal.code_name = Annotated::new(code_name.to_owned());
                         }
                     }
                 }
