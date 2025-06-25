@@ -110,7 +110,7 @@ fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
         let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
         tags.push(Annotated::new(TagEntry(
             Annotated::new("epic_account_id".to_owned()),
-            Annotated::new(epic_account_id.to_string()),
+            Annotated::new(epic_account_id.to_owned()),
         )));
     }
 
@@ -118,7 +118,7 @@ fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
         let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
         tags.push(Annotated::new(TagEntry::from_pair((
             Annotated::new("machine_id".to_owned()),
-            Annotated::new(machine_id.to_string()),
+            Annotated::new(machine_id.to_owned()),
         ))));
     }
 }

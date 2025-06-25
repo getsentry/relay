@@ -124,7 +124,7 @@ impl<'a> RedisQuota<'a> {
         OwnedRedisQuota {
             quota: self.quota.clone(),
             scoping: self.scoping,
-            prefix: self.prefix.to_string(),
+            prefix: self.prefix.to_owned(),
             window: self.window,
             timestamp: self.timestamp,
         }
