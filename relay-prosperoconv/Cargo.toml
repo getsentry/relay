@@ -8,10 +8,8 @@ edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
 
-
-[lints]
-workspace = true
-
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
 
 [dependencies]
 anyhow = "1.0.69"
