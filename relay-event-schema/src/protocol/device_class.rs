@@ -213,8 +213,8 @@ mod tests {
     fn test_iphone17_5_returns_device_class_high() {
         let mut contexts = Contexts::new();
         contexts.add(DeviceContext {
-            family: Annotated::new("iOS".to_string()),
-            model: Annotated::new("iPhone17,5".to_string()),
+            family: Annotated::new("iOS".to_owned()),
+            model: Annotated::new("iPhone17,5".to_owned()),
             ..DeviceContext::default()
         });
         assert_eq!(
@@ -227,8 +227,8 @@ mod tests {
     fn test_iphone99_1_returns_device_class_high() {
         let mut contexts = Contexts::new();
         contexts.add(DeviceContext {
-            family: Annotated::new("iOS".to_string()),
-            model: Annotated::new("iPhone99,1".to_string()),
+            family: Annotated::new("iOS".to_owned()),
+            model: Annotated::new("iPhone99,1".to_owned()),
             ..DeviceContext::default()
         });
         assert_eq!(
@@ -241,8 +241,8 @@ mod tests {
     fn test_ipad99_1_returns_device_class_high() {
         let mut contexts = Contexts::new();
         contexts.add(DeviceContext {
-            family: Annotated::new("iOS".to_string()),
-            model: Annotated::new("iPad99,1".to_string()),
+            family: Annotated::new("iOS".to_owned()),
+            model: Annotated::new("iPad99,1".to_owned()),
             ..DeviceContext::default()
         });
         assert_eq!(
@@ -255,8 +255,8 @@ mod tests {
     fn test_garbage_device_model_returns_device_class_high() {
         let mut contexts = Contexts::new();
         contexts.add(DeviceContext {
-            family: Annotated::new("iOS".to_string()),
-            model: Annotated::new("garbage-device-model".to_string()),
+            family: Annotated::new("iOS".to_owned()),
+            model: Annotated::new("garbage-device-model".to_owned()),
             ..DeviceContext::default()
         });
         assert_eq!(
@@ -269,8 +269,8 @@ mod tests {
     fn test_wrong_family_returns_none() {
         let mut contexts = Contexts::new();
         contexts.add(DeviceContext {
-            family: Annotated::new("iOSS".to_string()),
-            model: Annotated::new("iPhone17,5".to_string()),
+            family: Annotated::new("iOSS".to_owned()),
+            model: Annotated::new("iPhone17,5".to_owned()),
             ..DeviceContext::default()
         });
         assert_eq!(DeviceClass::from_contexts(&contexts), None);

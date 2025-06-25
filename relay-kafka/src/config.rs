@@ -139,7 +139,7 @@ define_topic_assignments! {
     replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
     ourlogs: (KafkaTopic::OurLogs, "snuba-ourlogs", "Logs from our logs product."),
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
-    spans: (KafkaTopic::Spans, "ingest-spans", "Standalone spans without a transaction."),
+    spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
     feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
     items: (KafkaTopic::Items, "snuba-items", "Items topic."),
 }
@@ -271,15 +271,15 @@ transactions: "ingest-transactions-kafka-topic"
 "#;
 
         let def_config = vec![KafkaConfigParam {
-            name: "test".to_string(),
-            value: "test-value".to_string(),
+            name: "test".to_owned(),
+            value: "test-value".to_owned(),
         }];
         let mut second_config = BTreeMap::new();
         second_config.insert(
-            "profiles".to_string(),
+            "profiles".to_owned(),
             vec![KafkaConfigParam {
-                name: "test".to_string(),
-                value: "test-value".to_string(),
+                name: "test".to_owned(),
+                value: "test-value".to_owned(),
             }],
         );
 
@@ -347,10 +347,10 @@ transactions: "ingest-transactions-kafka-topic"
 
         // A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
         let currrently_undefined_topics = [
-            "ingest-attachments".to_string(),
-            "ingest-transactions".to_string(),
-            "profiles".to_string(),
-            "ingest-monitors".to_string(),
+            "ingest-attachments".to_owned(),
+            "ingest-transactions".to_owned(),
+            "profiles".to_owned(),
+            "ingest-monitors".to_owned(),
         ];
 
         for topic in KafkaTopic::iter() {

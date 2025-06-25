@@ -557,6 +557,14 @@ pub struct Metrics {
     ///
     /// Defaults to `true`.
     pub aggregate: bool,
+    /// Allows emission of metrics with high cardinality tags.
+    ///
+    /// High cardinality tags are dynamic values attached to metrics,
+    /// such as project IDs. When enabled, these tags will be included
+    /// in the emitted metrics. When disabled, the tags will be omitted.
+    ///
+    /// Defaults to `false`.
+    pub allow_high_cardinality_tags: bool,
 }
 
 impl Default for Metrics {
@@ -569,6 +577,7 @@ impl Default for Metrics {
             sample_rate: 1.0,
             periodic_secs: 5,
             aggregate: true,
+            allow_high_cardinality_tags: false,
         }
     }
 }
@@ -2121,6 +2130,11 @@ impl Config {
     /// Returns whether local metric aggregation should be enabled.
     pub fn metrics_aggregate(&self) -> bool {
         self.values.metrics.aggregate
+    }
+
+    /// Returns whether high cardinality tags should be removed before sending metrics.
+    pub fn metrics_allow_high_cardinality_tags(&self) -> bool {
+        self.values.metrics.allow_high_cardinality_tags
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.

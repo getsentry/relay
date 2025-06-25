@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn test_cardinality_limit_json() {
         let limit = CardinalityLimit {
-            id: "some_id".to_string(),
+            id: "some_id".to_owned(),
             passive: false,
             report: false,
             window: SlidingWindow {

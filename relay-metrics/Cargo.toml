@@ -29,6 +29,7 @@ relay-cardinality = { workspace = true }
 relay-cogs = { workspace = true }
 relay-common = { workspace = true }
 relay-log = { workspace = true }
+relay-protocol = { workspace = true }
 relay-redis = { workspace = true, optional = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }

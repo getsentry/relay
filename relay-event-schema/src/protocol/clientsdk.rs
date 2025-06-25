@@ -134,7 +134,7 @@ impl FromValue for AutoInferSetting {
 
 impl IntoValue for AutoInferSetting {
     fn into_value(self) -> Value {
-        Value::String(self.as_str().to_string())
+        Value::String(self.as_str().to_owned())
     }
 
     fn serialize_payload<S>(&self, s: S, _: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -256,18 +256,18 @@ mod tests {
   "other": "value"
 }"#;
         let sdk = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
-            version: Annotated::new("1.0.0".to_string()),
-            integrations: Annotated::new(vec![Annotated::new("actix".to_string())]),
-            features: Annotated::new(vec![Annotated::new("feature1".to_string())]),
+            name: Annotated::new("sentry.rust".to_owned()),
+            version: Annotated::new("1.0.0".to_owned()),
+            integrations: Annotated::new(vec![Annotated::new("actix".to_owned())]),
+            features: Annotated::new(vec![Annotated::new("feature1".to_owned())]),
             packages: Annotated::new(vec![
                 Annotated::new(ClientSdkPackage {
-                    name: Annotated::new("cargo:sentry".to_string()),
-                    version: Annotated::new("0.10.0".to_string()),
+                    name: Annotated::new("cargo:sentry".to_owned()),
+                    version: Annotated::new("0.10.0".to_owned()),
                 }),
                 Annotated::new(ClientSdkPackage {
-                    name: Annotated::new("cargo:sentry-actix".to_string()),
-                    version: Annotated::new("0.10.0".to_string()),
+                    name: Annotated::new("cargo:sentry-actix".to_owned()),
+                    version: Annotated::new("0.10.0".to_owned()),
                 }),
             ]),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
@@ -275,8 +275,8 @@ mod tests {
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -294,8 +294,8 @@ mod tests {
   "client_ip": "127.0.0.1"
 }"#;
         let sdk = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
-            version: Annotated::new("1.0.0".to_string()),
+            name: Annotated::new("sentry.rust".to_owned()),
+            version: Annotated::new("1.0.0".to_owned()),
             integrations: Annotated::empty(),
             features: Annotated::empty(),
             packages: Annotated::empty(),

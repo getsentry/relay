@@ -126,7 +126,7 @@ impl ProjectConfig {
 impl Default for ProjectConfig {
     fn default() -> Self {
         ProjectConfig {
-            allowed_domains: vec!["*".to_string()],
+            allowed_domains: vec!["*".to_owned()],
             trusted_relays: vec![],
             pii_config: None,
             grouping_config: None,

@@ -186,9 +186,9 @@ pub struct TransactionCPRTags {
 impl From<TransactionCPRTags> for BTreeMap<String, String> {
     fn from(value: TransactionCPRTags) -> Self {
         let mut map: BTreeMap<String, String> = value.universal_tags.into();
-        map.insert("decision".to_string(), value.decision);
+        map.insert("decision".to_owned(), value.decision);
         map.insert(
-            "target_project_id".to_string(),
+            "target_project_id".to_owned(),
             value.target_project_id.to_string(),
         );
         map

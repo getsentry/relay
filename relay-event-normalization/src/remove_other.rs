@@ -87,10 +87,10 @@ mod tests {
         let mut event = Annotated::new(Event {
             other: {
                 let mut other = Object::new();
-                other.insert("applecrashreport".to_string(), Value::U64(42).into());
-                other.insert("device".to_string(), Value::U64(42).into());
-                other.insert("repos".to_string(), Value::U64(42).into());
-                other.insert("query".to_string(), Value::U64(42).into());
+                other.insert("applecrashreport".to_owned(), Value::U64(42).into());
+                other.insert("device".to_owned(), Value::U64(42).into());
+                other.insert("repos".to_owned(), Value::U64(42).into());
+                other.insert("query".to_owned(), Value::U64(42).into());
                 other
             },
             ..Default::default()
@@ -111,8 +111,8 @@ mod tests {
         let mut event = Annotated::new(Event {
             other: {
                 let mut other = Object::new();
-                other.insert("foo".to_string(), Value::U64(42).into());
-                other.insert("bar".to_string(), Value::U64(42).into());
+                other.insert("foo".to_owned(), Value::U64(42).into());
+                other.insert("bar".to_owned(), Value::U64(42).into());
                 other
             },
             ..Default::default()
@@ -142,8 +142,8 @@ mod tests {
             user: Annotated::from(User {
                 other: {
                     let mut other = Object::new();
-                    other.insert("foo".to_string(), Value::U64(42).into());
-                    other.insert("bar".to_string(), Value::U64(42).into());
+                    other.insert("foo".to_owned(), Value::U64(42).into());
+                    other.insert("bar".to_owned(), Value::U64(42).into());
                     other
                 },
                 ..Default::default()
@@ -165,10 +165,10 @@ mod tests {
     fn test_retain_context_other() {
         let mut os = OsContext::default();
         os.other
-            .insert("foo".to_string(), Annotated::from(Value::U64(42)));
+            .insert("foo".to_owned(), Annotated::from(Value::U64(42)));
 
         let mut contexts = Contexts::new();
-        contexts.insert("renamed".to_string(), Context::Os(Box::new(os)));
+        contexts.insert("renamed".to_owned(), Context::Os(Box::new(os)));
 
         let mut event = Annotated::new(Event {
             contexts: Annotated::new(contexts.clone()),
@@ -191,8 +191,8 @@ mod tests {
             breadcrumbs: Annotated::new(Values::new(vec![Annotated::new(Breadcrumb {
                 other: {
                     let mut other = Object::new();
-                    other.insert("foo".to_string(), Value::U64(42).into());
-                    other.insert("bar".to_string(), Value::U64(42).into());
+                    other.insert("foo".to_owned(), Value::U64(42).into());
+                    other.insert("bar".to_owned(), Value::U64(42).into());
                     other
                 },
                 ..Breadcrumb::default()

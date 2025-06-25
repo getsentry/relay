@@ -146,7 +146,7 @@ impl FromStr for UpstreamDescriptor<'static> {
 
         Ok(UpstreamDescriptor {
             host: match url.host_str() {
-                Some(host) => Cow::Owned(host.to_string()),
+                Some(host) => Cow::Owned(host.to_owned()),
                 None => return Err(UpstreamParseError::NoHost),
             },
             port: url.port().unwrap_or_else(|| scheme.default_port()),

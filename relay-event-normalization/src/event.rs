@@ -21,7 +21,8 @@ use relay_event_schema::protocol::{
     SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Getter, Meta, Object, Remark, RemarkType, Value,
+    Annotated, Empty, Error, ErrorKind, FiniteF64, FromValue, Getter, Meta, Object, Remark,
+    RemarkType, TryFromFloatError, Value,
 };
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -393,7 +394,7 @@ fn normalize_security_report(
         return;
     }
 
-    event.logger.get_or_insert_with(|| "csp".to_string());
+    event.logger.get_or_insert_with(|| "csp".to_owned());
 
     if let Some(client_ip) = client_ip {
         let user = event.user.value_mut().get_or_insert_with(User::default);
@@ -581,7 +582,7 @@ fn normalize_breadcrumbs(event: &mut Event) {
         };
 
         if breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(Some("default".to_string()));
+            breadcrumb.ty.set_value(Some("default".to_owned()));
         }
         if breadcrumb.level.value().is_none() {
             breadcrumb.level.set_value(Some(Level::Info));
@@ -603,7 +604,7 @@ fn normalize_dist(distribution: &mut Annotated<String>) {
             meta.add_error(Error::new(ErrorKind::ValueTooLong));
             return Err(ProcessingAction::DeleteValueSoft);
         } else if trimmed != dist {
-            *dist = trimmed.to_string();
+            *dist = trimmed.to_owned();
         }
         Ok(())
     });
@@ -682,13 +683,13 @@ fn normalize_event_tags(event: &mut Event) {
 
     let server_name = std::mem::take(&mut event.server_name);
     if server_name.value().is_some() {
-        let tag_name = "server_name".to_string();
+        let tag_name = "server_name".to_owned();
         tags.insert(tag_name, server_name);
     }
 
     let site = std::mem::take(&mut event.site);
     if site.value().is_some() {
-        let tag_name = "site".to_string();
+        let tag_name = "site".to_owned();
         tags.insert(tag_name, site);
     }
 }
@@ -807,7 +808,7 @@ fn normalize_exception(exception: &mut Annotated<Exception>) {
             if let Some(value_str) = exception.value.value_mut() {
                 let new_values = regex
                     .captures(value_str)
-                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
+                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_owned().into()));
 
                 if let Some((new_type, new_value)) = new_values {
                     exception.ty.set_value(Some(new_type));
@@ -866,10 +867,9 @@ pub fn normalize_measurements(
     normalize_mobile_measurements(measurements);
     normalize_units(measurements);
 
-    let duration_millis = match (start_timestamp, end_timestamp) {
-        (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
-        _ => 0.0,
-    };
+    let duration_millis = start_timestamp.zip(end_timestamp).and_then(|(start, end)| {
+        FiniteF64::new(relay_common::time::chrono_to_positive_millis(end - start))
+    });
 
     compute_measurements(duration_millis, measurements);
     if let Some(measurements_config) = measurements_config {
@@ -910,8 +910,8 @@ pub fn normalize_performance_score(
                     // a measurement with weight is missing.
                     continue;
                 }
-                let mut score_total = 0.0f64;
-                let mut weight_total = 0.0f64;
+                let mut score_total = FiniteF64::ZERO;
+                let mut weight_total = FiniteF64::ZERO;
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
@@ -921,44 +921,55 @@ pub fn normalize_performance_score(
                     }
                     weight_total += component.weight;
                 }
-                if weight_total.abs() < f64::EPSILON {
+                if weight_total.abs() < FiniteF64::EPSILON {
                     // All components are optional or have a weight of `0`. We cannot compute
                     // component weights, so we bail.
                     continue;
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
-                    let mut normalized_component_weight = 0.0;
+                    let mut normalized_component_weight = FiniteF64::ZERO;
+
                     if let Some(value) = measurements.get_value(component.measurement.as_str()) {
-                        normalized_component_weight = component.weight / weight_total;
+                        normalized_component_weight = component.weight.saturating_div(weight_total);
                         let cdf = utils::calculate_cdf_score(
-                            value.max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
-                            component.p10,
-                            component.p50,
+                            value.to_f64().max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
+                            component.p10.to_f64(),
+                            component.p50.to_f64(),
                         );
+
+                        let cdf = Annotated::try_from(cdf);
 
                         measurements.insert(
                             format!("score.ratio.{}", component.measurement),
                             Measurement {
-                                value: cdf.into(),
+                                value: cdf.clone(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                             }
                             .into(),
                         );
 
-                        let component_score = cdf * normalized_component_weight;
-                        score_total += component_score;
-                        should_add_total = true;
+                        let component_score =
+                            cdf.and_then(|cdf| match cdf * normalized_component_weight {
+                                Some(v) => Annotated::new(v),
+                                None => Annotated::from_error(TryFromFloatError, None),
+                            });
+
+                        if let Some(component_score) = component_score.value() {
+                            score_total += *component_score;
+                            should_add_total = true;
+                        }
 
                         measurements.insert(
                             format!("score.{}", component.measurement),
                             Measurement {
-                                value: component_score.into(),
+                                value: component_score,
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                             }
                             .into(),
                         );
                     }
+
                     measurements.insert(
                         format!("score.weight.{}", component.measurement),
                         Measurement {
@@ -994,24 +1005,24 @@ fn normalize_trace_context_tags(event: &mut Event) {
             if let Some(data) = trace_context.data.value() {
                 if let Some(lcp_element) = data.lcp_element.value() {
                     if !tags.contains("lcp.element") {
-                        let tag_name = "lcp.element".to_string();
+                        let tag_name = "lcp.element".to_owned();
                         tags.insert(tag_name, Annotated::new(lcp_element.clone()));
                     }
                 }
                 if let Some(lcp_size) = data.lcp_size.value() {
                     if !tags.contains("lcp.size") {
-                        let tag_name = "lcp.size".to_string();
+                        let tag_name = "lcp.size".to_owned();
                         tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
                     }
                 }
                 if let Some(lcp_id) = data.lcp_id.value() {
-                    let tag_name = "lcp.id".to_string();
+                    let tag_name = "lcp.id".to_owned();
                     if !tags.contains("lcp.id") {
                         tags.insert(tag_name, Annotated::new(lcp_id.clone()));
                     }
                 }
                 if let Some(lcp_url) = data.lcp_url.value() {
-                    let tag_name = "lcp.url".to_string();
+                    let tag_name = "lcp.url".to_owned();
                     if !tags.contains("lcp.url") {
                         tags.insert(tag_name, Annotated::new(lcp_url.clone()));
                     }
@@ -1042,7 +1053,10 @@ impl MutMeasurements for Span {
 /// frames_frozen_rate := measurements.frames_frozen / measurements.frames_total
 /// stall_percentage := measurements.stall_total_time / transaction.duration
 /// ```
-fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Measurements) {
+fn compute_measurements(
+    transaction_duration_ms: Option<FiniteF64>,
+    measurements: &mut Measurements,
+) {
     if let Some(frames_total) = measurements.get_value("frames_total") {
         if frames_total > 0.0 {
             if let Some(frames_frozen) = measurements.get_value("frames_frozen") {
@@ -1063,22 +1077,25 @@ fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Measure
     }
 
     // Get stall_percentage
-    if transaction_duration_ms > 0.0 {
-        if let Some(stall_total_time) = measurements
-            .get("stall_total_time")
-            .and_then(Annotated::value)
-        {
-            if matches!(
-                stall_total_time.unit.value(),
-                // Accept milliseconds or None, but not other units
-                Some(&MetricUnit::Duration(DurationUnit::MilliSecond) | &MetricUnit::None) | None
-            ) {
-                if let Some(stall_total_time) = stall_total_time.value.0 {
-                    let stall_percentage = Measurement {
-                        value: (stall_total_time / transaction_duration_ms).into(),
-                        unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                    };
-                    measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
+    if let Some(transaction_duration_ms) = transaction_duration_ms {
+        if transaction_duration_ms > 0.0 {
+            if let Some(stall_total_time) = measurements
+                .get("stall_total_time")
+                .and_then(Annotated::value)
+            {
+                if matches!(
+                    stall_total_time.unit.value(),
+                    // Accept milliseconds or None, but not other units
+                    Some(&MetricUnit::Duration(DurationUnit::MilliSecond) | &MetricUnit::None)
+                        | None
+                ) {
+                    if let Some(stall_total_time) = stall_total_time.value.0 {
+                        let stall_percentage = Measurement {
+                            value: (stall_total_time / transaction_duration_ms).into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        };
+                        measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
+                    }
                 }
             }
         }
@@ -1117,7 +1134,7 @@ fn normalize_default_attributes(event: &mut Event, meta: &mut Meta, config: &Nor
     // Default required attributes, even if they have errors
     event.errors.get_or_insert_with(Vec::new);
     event.id.get_or_insert_with(EventId::new);
-    event.platform.get_or_insert_with(|| "other".to_string());
+    event.platform.get_or_insert_with(|| "other".to_owned());
     event.logger.get_or_insert_with(String::new);
     event.extra.get_or_insert_with(Object::new);
     event.level.get_or_insert_with(|| match event_type {
@@ -1228,7 +1245,7 @@ fn shorten_logger(logger: String, meta: &mut Meta) -> String {
                 });
             }
             meta.set_original_length(Some(original_len));
-            return trimmed.to_string();
+            return trimmed.to_owned();
         };
     }
 
@@ -1409,7 +1426,7 @@ fn remove_invalid_measurements(
         // Check if this is a builtin measurement:
         for builtin_measurement in measurements_config.builtin_measurement_keys() {
             if builtin_measurement.name() == name {
-                let value = measurement.value.value().unwrap_or(&0.0);
+                let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
                 // Drop negative values if the builtin measurement does not allow them.
                 if !builtin_measurement.allow_negative() && *value < 0.0 {
                     meta.add_error(Error::invalid(format!(
@@ -1487,10 +1504,10 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
 /// The snake_case is the key expected by the Sentry UI to aggregate and display in graphs.
 fn normalize_app_start_measurements(measurements: &mut Measurements) {
     if let Some(app_start_cold_value) = measurements.remove("app.start.cold") {
-        measurements.insert("app_start_cold".to_string(), app_start_cold_value);
+        measurements.insert("app_start_cold".to_owned(), app_start_cold_value);
     }
     if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
-        measurements.insert("app_start_warm".to_string(), app_start_warm_value);
+        measurements.insert("app_start_warm".to_owned(), app_start_warm_value);
     }
 }
 
@@ -1502,13 +1519,12 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
-    use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
     use relay_protocol::{SerializableAnnotated, get_value};
     use serde_json::json;
 
     use super::*;
-    use crate::{ClientHints, MeasurementsConfig, ModelCost};
+    use crate::{ClientHints, MeasurementsConfig, ModelCostV2};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {
@@ -1569,16 +1585,16 @@ mod tests {
 
     #[test]
     fn test_normalize_dist_empty() {
-        let mut dist = Annotated::new("".to_string());
+        let mut dist = Annotated::new("".to_owned());
         normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_trim() {
-        let mut dist = Annotated::new(" foo  ".to_string());
+        let mut dist = Annotated::new(" foo  ".to_owned());
         normalize_dist(&mut dist);
-        assert_eq!(dist.value(), Some(&"foo".to_string()));
+        assert_eq!(dist.value(), Some(&"foo".to_owned()));
     }
 
     #[test]
@@ -1826,7 +1842,7 @@ mod tests {
             csp: Annotated::from(Csp::default()),
             ..Default::default()
         };
-        let ipaddr = IpAddr("213.164.1.114".to_string());
+        let ipaddr = IpAddr("213.164.1.114".to_owned());
 
         let client_ip = Some(&ipaddr);
 
@@ -1903,8 +1919,8 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "iPhone".to_string().into(),
-                    model: "iPhone8,4".to_string().into(),
+                    family: "iPhone".to_owned().into(),
+                    model: "iPhone8,4".to_owned().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1932,8 +1948,8 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "iPhone".to_string().into(),
-                    model: "iPhone12,8".to_string().into(),
+                    family: "iPhone".to_owned().into(),
+                    model: "iPhone12,8".to_owned().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1961,7 +1977,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "android".to_string().into(),
+                    family: "android".to_owned().into(),
                     processor_frequency: 1000.into(),
                     processor_count: 6.into(),
                     memory_size: (2 * 1024 * 1024 * 1024).into(),
@@ -1992,7 +2008,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "android".to_string().into(),
+                    family: "android".to_owned().into(),
                     processor_frequency: 2000.into(),
                     processor_count: 8.into(),
                     memory_size: (6 * 1024 * 1024 * 1024).into(),
@@ -2023,7 +2039,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "android".to_string().into(),
+                    family: "android".to_owned().into(),
                     processor_frequency: 2500.into(),
                     processor_count: 8.into(),
                     memory_size: (6 * 1024 * 1024 * 1024).into(),
@@ -2052,7 +2068,7 @@ mod tests {
     fn test_keeps_valid_measurement() {
         let name = "lcp";
         let measurement = Measurement {
-            value: Annotated::new(420.69),
+            value: Annotated::new(420.69.try_into().unwrap()),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
@@ -2063,7 +2079,7 @@ mod tests {
     fn test_drops_too_long_measurement_names() {
         let name = "lcpppppppppppppppppppppppppppp";
         let measurement = Measurement {
-            value: Annotated::new(420.69),
+            value: Annotated::new(420.69.try_into().unwrap()),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
@@ -2074,7 +2090,7 @@ mod tests {
     fn test_drops_measurements_with_invalid_characters() {
         let name = "i æm frøm nørwåy";
         let measurement = Measurement {
-            value: Annotated::new(420.69),
+            value: Annotated::new(420.69.try_into().unwrap()),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
 
@@ -2085,7 +2101,7 @@ mod tests {
         let max_name_and_unit_len = Some(30);
 
         let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
-        measurements.insert(name.to_string(), Annotated::new(measurement));
+        measurements.insert(name.to_owned(), Annotated::new(measurement));
 
         let mut measurements = Measurements(measurements);
         let mut meta = Meta::default();
@@ -2204,8 +2220,11 @@ mod tests {
                         "parent_span_id": "a1e13f3f06239d69",
                         "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                         "measurements": {
-                            "ai_total_tokens_used": {
-                                "value": 1230
+                            "ai_prompt_tokens_used": {
+                                "value": 1000
+                            },
+                            "ai_completion_tokens_used": {
+                                "value": 2000
                             }
                         },
                         "data": {
@@ -2244,25 +2263,28 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
-                    version: 1,
-                    costs: vec![
-                        ModelCost {
-                            model_id: LazyGlob::new("claude-2*"),
-                            for_completion: false,
-                            cost_per_1k_tokens: 1.0,
-                        },
-                        ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*"),
-                            for_completion: false,
-                            cost_per_1k_tokens: 2.0,
-                        },
-                        ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*"),
-                            for_completion: true,
-                            cost_per_1k_tokens: 20.0,
-                        },
-                    ],
-                    models: HashMap::new(),
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::from([
+                        (
+                            "claude-2.1".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.01,
+                                output_per_token: 0.02,
+                                output_reasoning_per_token: 0.03,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                        (
+                            "gpt4-21-04".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.02,
+                                output_per_token: 0.03,
+                                output_reasoning_per_token: 0.04,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                    ]),
                 }),
                 ..NormalizationConfig::default()
             },
@@ -2276,7 +2298,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(1.23))
+            Some(&Value::F64(50.0))
         );
         assert_eq!(
             spans
@@ -2284,7 +2306,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(20.0 * 2.0 + 2.0))
+            Some(&Value::F64(80.0))
         );
     }
 
@@ -2297,14 +2319,116 @@ mod tests {
                         "timestamp": 1702474613.0495,
                         "start_timestamp": 1702474613.0175,
                         "description": "OpenAI ",
+                        "op": "gen_ai.chat_completions.openai",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "gen_ai.usage.output_tokens.reasoning": 3000,
+                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.request.model": "claude-2.1"
+                        }
+                    },
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "gen_ai.chat_completions.openai",
+                        "span_id": "ac01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "gen_ai.request.model": "gpt4-21-04"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::from([
+                        (
+                            "claude-2.1".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.01,
+                                output_per_token: 0.02,
+                                output_reasoning_per_token: 0.03,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                        (
+                            "gpt4-21-04".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.09,
+                                output_per_token: 0.05,
+                                output_reasoning_per_token: 0.06,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                    ]),
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let spans = event.value().unwrap().spans.value().unwrap();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(140.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_tokens.value()),
+            Some(&Value::F64(3000.0))
+        );
+    }
+
+    #[test]
+    fn test_ai_data_with_ai_op_prefix() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
                         "op": "ai.chat_completions.openai",
                         "span_id": "9c01bd820a083e63",
                         "parent_span_id": "a1e13f3f06239d69",
                         "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                         "data": {
-                            "gen_ai.usage.total_tokens": 1230,
-                            "ai.pipeline.name": "Autofix Pipeline",
-                            "ai.model_id": "claude-2.1"
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "gen_ai.usage.output_tokens.reasoning": 3000,
+                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.request.model": "claude-2.1"
                         }
                     },
                     {
@@ -2318,8 +2442,7 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "ai.pipeline.name": "Autofix Pipeline",
-                            "ai.model_id": "gpt4-21-04"
+                            "gen_ai.request.model": "gpt4-21-04"
                         }
                     }
                 ]
@@ -2332,25 +2455,28 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
-                    version: 1,
-                    costs: vec![
-                        ModelCost {
-                            model_id: LazyGlob::new("claude-2*"),
-                            for_completion: false,
-                            cost_per_1k_tokens: 1.0,
-                        },
-                        ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*"),
-                            for_completion: false,
-                            cost_per_1k_tokens: 2.0,
-                        },
-                        ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*"),
-                            for_completion: true,
-                            cost_per_1k_tokens: 20.0,
-                        },
-                    ],
-                    models: HashMap::new(),
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::from([
+                        (
+                            "claude-2.1".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.01,
+                                output_per_token: 0.02,
+                                output_reasoning_per_token: 0.03,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                        (
+                            "gpt4-21-04".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.09,
+                                output_per_token: 0.05,
+                                output_reasoning_per_token: 0.06,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                    ]),
                 }),
                 ..NormalizationConfig::default()
             },
@@ -2364,7 +2490,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(1.23))
+            Some(&Value::F64(140.0))
         );
         assert_eq!(
             spans
@@ -2372,7 +2498,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(20.0 * 2.0 + 2.0))
+            Some(&Value::F64(190.0))
         );
         assert_eq!(
             spans
@@ -2390,8 +2516,8 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "iPhone".to_string().into(),
-                    model: "iPhone15,3".to_string().into(),
+                    family: "iPhone".to_owned().into(),
+                    model: "iPhone15,3".to_owned().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -4210,20 +4336,20 @@ mod tests {
         assert_eq!(user.data, {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
+                "other".to_owned(),
                 Annotated::new(Value::String("value".to_owned())),
             );
             Annotated::new(map)
         });
         assert_eq!(user.other, Object::new());
-        assert_eq!(user.username, Annotated::new("john".to_string().into()));
-        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
+        assert_eq!(user.username, Annotated::new("john".to_owned().into()));
+        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_owned()));
     }
 
     #[test]
     fn test_handle_types_in_spaced_exception_values() {
         let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError: unauthorized".to_string().into()),
+            value: Annotated::new("ValueError: unauthorized".to_owned().into()),
             ..Exception::default()
         });
         normalize_exception(&mut exception);
@@ -4236,7 +4362,7 @@ mod tests {
     #[test]
     fn test_handle_types_in_non_spaced_excepton_values() {
         let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError:unauthorized".to_string().into()),
+            value: Annotated::new("ValueError:unauthorized".to_owned().into()),
             ..Exception::default()
         });
         normalize_exception(&mut exception);
@@ -4249,8 +4375,8 @@ mod tests {
     #[test]
     fn test_rejects_empty_exception_fields() {
         let mut exception = Annotated::new(Exception {
-            value: Annotated::new("".to_string().into()),
-            ty: Annotated::new("".to_string()),
+            value: Annotated::new("".to_owned().into()),
+            ty: Annotated::new("".to_owned()),
             ..Default::default()
         });
 
@@ -4263,7 +4389,7 @@ mod tests {
     #[test]
     fn test_json_value() {
         let mut exception = Annotated::new(Exception {
-            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
+            value: Annotated::new(r#"{"unauthorized":true}"#.to_owned().into()),
             ..Exception::default()
         });
 

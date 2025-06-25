@@ -58,7 +58,7 @@ fn normalize_url(request: &mut Request) {
             if let Some(fragment_index) = url_string.find('#') {
                 let fragment = &url_string[fragment_index + 1..];
                 if !fragment.is_empty() && request.fragment.value().is_none() {
-                    request.fragment.set_value(Some(fragment.to_string()));
+                    request.fragment.set_value(Some(fragment.to_owned()));
                 }
                 url_string.truncate(fragment_index);
             }
@@ -151,13 +151,13 @@ fn normalize_data(request: &mut Request) {
         // Retain meta data on the body (e.g. trimming annotations) but remove anything on the
         // inferred content type.
         request.data.set_value(Some(parsed_data));
-        request.inferred_content_type = Annotated::from(content_type.to_string());
+        request.inferred_content_type = Annotated::from(content_type.to_owned());
     } else {
         request.inferred_content_type = request
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.split(';').next().unwrap_or(value).to_string())
+            .map(|value| value.split(';').next().unwrap_or(value).to_owned())
             .into();
     }
 }
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_url_truncation() {
         let mut request = Request {
-            url: Annotated::new("http://example.com/path?foo#bar".to_string()),
+            url: Annotated::new("http://example.com/path?foo#bar".to_owned()),
             ..Request::default()
         };
 
@@ -223,7 +223,7 @@ mod tests {
     fn test_url_truncation_reversed() {
         let mut request = Request {
             // The query string is empty and the fragment is "foo?bar" here
-            url: Annotated::new("http://example.com/path#foo?bar".to_string()),
+            url: Annotated::new("http://example.com/path#foo?bar".to_owned()),
             ..Request::default()
         };
 
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_url_with_ellipsis() {
         let mut request = Request {
-            url: Annotated::new("http://example.com/path…".to_string()),
+            url: Annotated::new("http://example.com/path…".to_owned()),
             ..Request::default()
         };
 
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn test_url_with_qs_and_fragment() {
         let mut request = Request {
-            url: Annotated::new("http://example.com/path?some=thing#else".to_string()),
+            url: Annotated::new("http://example.com/path?some=thing#else".to_owned()),
             ..Request::default()
         };
 
@@ -254,12 +254,12 @@ mod tests {
         assert_eq!(
             request,
             Request {
-                url: Annotated::new("http://example.com/path".to_string()),
+                url: Annotated::new("http://example.com/path".to_owned()),
                 query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                    Annotated::new("some".to_string()),
-                    Annotated::new("thing".to_string().into()),
+                    Annotated::new("some".to_owned()),
+                    Annotated::new("thing".to_owned().into()),
                 )),]))),
-                fragment: Annotated::new("else".to_string()),
+                fragment: Annotated::new("else".to_owned()),
                 ..Request::default()
             }
         );
@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn test_url_only_path() {
         let mut request = Request {
-            url: Annotated::from("metamask/popup.html#".to_string()),
+            url: Annotated::from("metamask/popup.html#".to_owned()),
             ..Request::default()
         };
 
@@ -276,7 +276,7 @@ mod tests {
         assert_eq!(
             request,
             Request {
-                url: Annotated::new("metamask/popup.html".to_string()),
+                url: Annotated::new("metamask/popup.html".to_owned()),
                 ..Request::default()
             }
         );
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn test_url_punycoded() {
         let mut request = Request {
-            url: Annotated::new("http://göögle.com/".to_string()),
+            url: Annotated::new("http://göögle.com/".to_owned()),
             ..Request::default()
         };
 
@@ -294,7 +294,7 @@ mod tests {
         assert_eq!(
             request,
             Request {
-                url: Annotated::new("http://xn--ggle-5qaa.com/".to_string()),
+                url: Annotated::new("http://xn--ggle-5qaa.com/".to_owned()),
                 ..Request::default()
             }
         );
@@ -303,12 +303,12 @@ mod tests {
     #[test]
     fn test_url_precedence() {
         let mut request = Request {
-            url: Annotated::new("http://example.com/path?completely=different#stuff".to_string()),
+            url: Annotated::new("http://example.com/path?completely=different#stuff".to_owned()),
             query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                Annotated::new("some".to_string()),
-                Annotated::new("thing".to_string().into()),
+                Annotated::new("some".to_owned()),
+                Annotated::new("thing".to_owned().into()),
             ))]))),
-            fragment: Annotated::new("else".to_string()),
+            fragment: Annotated::new("else".to_owned()),
             ..Request::default()
         };
 
@@ -317,12 +317,12 @@ mod tests {
         assert_eq!(
             request,
             Request {
-                url: Annotated::new("http://example.com/path".to_string()),
+                url: Annotated::new("http://example.com/path".to_owned()),
                 query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                    Annotated::new("some".to_string()),
-                    Annotated::new("thing".to_string().into()),
+                    Annotated::new("some".to_owned()),
+                    Annotated::new("thing".to_owned().into()),
                 )),]))),
-                fragment: Annotated::new("else".to_string()),
+                fragment: Annotated::new("else".to_owned()),
                 ..Request::default()
             }
         );
@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn test_query_string_empty_value() {
         let mut request = Request {
-            url: Annotated::new("http://example.com/path?some".to_string()),
+            url: Annotated::new("http://example.com/path?some".to_owned()),
             ..Request::default()
         };
 
@@ -340,10 +340,10 @@ mod tests {
         assert_eq!(
             request,
             Request {
-                url: Annotated::new("http://example.com/path".to_string()),
+                url: Annotated::new("http://example.com/path".to_owned()),
                 query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                    Annotated::new("some".to_string()),
-                    Annotated::new("".to_string().into()),
+                    Annotated::new("some".to_owned()),
+                    Annotated::new("".to_owned().into()),
                 )),]))),
                 ..Request::default()
             }
@@ -353,10 +353,10 @@ mod tests {
     #[test]
     fn test_cookies_in_header() {
         let mut request = Request {
-            url: Annotated::new("http://example.com".to_string()),
+            url: Annotated::new("http://example.com".to_owned()),
             headers: Annotated::new(Headers(PairList(vec![Annotated::new((
-                Annotated::new("Cookie".to_string().into()),
-                Annotated::new("a=b;c=d".to_string().into()),
+                Annotated::new("Cookie".to_owned().into()),
+                Annotated::new("a=b;c=d".to_owned().into()),
             ))]))),
             ..Request::default()
         };
@@ -367,12 +367,12 @@ mod tests {
             request.cookies,
             Annotated::new(Cookies(PairList(vec![
                 Annotated::new((
-                    Annotated::new("a".to_string()),
-                    Annotated::new("b".to_string()),
+                    Annotated::new("a".to_owned()),
+                    Annotated::new("b".to_owned()),
                 )),
                 Annotated::new((
-                    Annotated::new("c".to_string()),
-                    Annotated::new("d".to_string()),
+                    Annotated::new("c".to_owned()),
+                    Annotated::new("d".to_owned()),
                 )),
             ])))
         );
@@ -383,17 +383,17 @@ mod tests {
     #[test]
     fn test_cookies_in_header_dont_override_cookies() {
         let mut request = Request {
-            url: Annotated::new("http://example.com".to_string()),
+            url: Annotated::new("http://example.com".to_owned()),
             headers: Annotated::new(Headers(
                 vec![Annotated::new((
-                    Annotated::new("Cookie".to_string().into()),
-                    Annotated::new("a=b;c=d".to_string().into()),
+                    Annotated::new("Cookie".to_owned().into()),
+                    Annotated::new("a=b;c=d".to_owned().into()),
                 ))]
                 .into(),
             )),
             cookies: Annotated::new(Cookies(PairList(vec![Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string()),
+                Annotated::new("foo".to_owned()),
+                Annotated::new("bar".to_owned()),
             ))]))),
             ..Request::default()
         };
@@ -403,8 +403,8 @@ mod tests {
         assert_eq!(
             request.cookies,
             Annotated::new(Cookies(PairList(vec![Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string()),
+                Annotated::new("foo".to_owned()),
+                Annotated::new("bar".to_owned()),
             ))])))
         );
 
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn test_method_invalid() {
         let mut request = Request {
-            method: Annotated::new("!!!!".to_string()),
+            method: Annotated::new("!!!!".to_owned()),
             ..Request::default()
         };
 
@@ -427,7 +427,7 @@ mod tests {
     #[test]
     fn test_method_valid() {
         let mut request = Request {
-            method: Annotated::new("POST".to_string()),
+            method: Annotated::new("POST".to_owned()),
             ..Request::default()
         };
 
@@ -439,13 +439,13 @@ mod tests {
     #[test]
     fn test_infer_json() {
         let mut request = Request {
-            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_owned())),
             ..Request::default()
         };
 
         let mut expected_value = Object::new();
         expected_value.insert(
-            "foo".to_string(),
+            "foo".to_owned(),
             Annotated::from(Value::String("bar".into())),
         );
 
@@ -460,10 +460,10 @@ mod tests {
     #[test]
     fn test_broken_json_with_fallback() {
         let mut request = Request {
-            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_owned())),
             headers: Annotated::from(Headers(PairList(vec![Annotated::new((
-                Annotated::new("Content-Type".to_string().into()),
-                Annotated::new("text/plain; encoding=utf-8".to_string().into()),
+                Annotated::new("Content-Type".to_owned().into()),
+                Annotated::new("text/plain; encoding=utf-8".to_owned().into()),
             ))]))),
             ..Request::default()
         };
@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn test_broken_json_without_fallback() {
         let mut request = Request {
-            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_owned())),
             ..Request::default()
         };
 
@@ -488,13 +488,13 @@ mod tests {
     #[test]
     fn test_infer_url_encoded() {
         let mut request = Request {
-            data: Annotated::from(Value::String(r#"foo=bar"#.to_string())),
+            data: Annotated::from(Value::String(r#"foo=bar"#.to_owned())),
             ..Request::default()
         };
 
         let mut expected_value = Object::new();
         expected_value.insert(
-            "foo".to_string(),
+            "foo".to_owned(),
             Annotated::from(Value::String("bar".into())),
         );
 
@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn test_infer_url_false_positive() {
         let mut request = Request {
-            data: Annotated::from(Value::String("dGU=".to_string())),
+            data: Annotated::from(Value::String("dGU=".to_owned())),
             ..Request::default()
         };
 
@@ -521,7 +521,7 @@ mod tests {
     #[test]
     fn test_infer_url_encoded_base64() {
         let mut request = Request {
-            data: Annotated::from(Value::String("dA==".to_string())),
+            data: Annotated::from(Value::String("dA==".to_owned())),
             ..Request::default()
         };
 
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn test_infer_xml() {
         let mut request = Request {
-            data: Annotated::from(Value::String("<?xml version=\"1.0\" ?>".to_string())),
+            data: Annotated::from(Value::String("<?xml version=\"1.0\" ?>".to_owned())),
             ..Request::default()
         };
 
@@ -545,7 +545,7 @@ mod tests {
     #[test]
     fn test_infer_binary() {
         let mut request = Request {
-            data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".to_string())),
+            data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".to_owned())),
             ..Request::default()
         };
 

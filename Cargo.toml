@@ -30,6 +30,7 @@ strip = true
 dbg_macro = "warn"
 print_stdout = "warn"
 print_stderr = "warn"
+str_to_string = "warn"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
@@ -140,7 +141,7 @@ multer = "3.1.0"
 num-traits = "0.2.19"
 num_cpus = "1.13.1"
 once_cell = "1.13.1"
-opentelemetry-proto = { version = "0.28.0", default-features = false }
+opentelemetry-proto = { version = "0.30.0", default-features = false }
 papaya = "0.1.6"
 parking_lot = "0.12.3"
 path-slash = "0.2.1"
@@ -176,7 +177,7 @@ sentry-core = "0.41.0"
 sentry-kafka-schemas = { version = "1.3.2", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.41.0"
-sentry_protos = "0.2.0"
+sentry_protos = "0.3.0"
 serde = { version = "1.0.215", features = ["derive", "rc"] }
 serde-transcode = "1.1.1"
 serde-vars = "0.2"
@@ -193,7 +194,7 @@ smallvec = { version = "1.13.2", features = ["serde"] }
 socket2 = "0.5.8"
 sqlparser = "0.44.0"
 sqlx = { version = "0.8.2", default-features = false }
-statsdproxy = { version = "0.3.0", default-features = false }
+statsdproxy = { version = "0.4.1", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
 syn = { version = "2.0.90" }

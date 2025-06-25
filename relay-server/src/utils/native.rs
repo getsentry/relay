@@ -44,7 +44,7 @@ struct NativePlaceholder {
 fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
     // Events must be native platform.
     let platform = event.platform.value_mut();
-    *platform = Some("native".to_string());
+    *platform = Some("native".to_owned());
 
     // Assume that this minidump is the result of a crash and assign the fatal
     // level. Note that the use of `setdefault` here doesn't generally allow the
@@ -66,10 +66,10 @@ fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
     exceptions.clear(); // clear previous errors if any
 
     exceptions.push(Annotated::new(Exception {
-        ty: Annotated::new(placeholder.exception_type.to_string()),
-        value: Annotated::new(JsonLenientString(placeholder.exception_value.to_string())),
+        ty: Annotated::new(placeholder.exception_type.to_owned()),
+        value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
         mechanism: Annotated::new(Mechanism {
-            ty: Annotated::from(placeholder.mechanism_type.to_string()),
+            ty: Annotated::from(placeholder.mechanism_type.to_owned()),
             handled: Annotated::from(false),
             synthetic: Annotated::from(true),
             ..Mechanism::default()
@@ -108,7 +108,7 @@ fn write_crashpad_annotations(
             .map(|(key, value)| (key, Annotated::new(Value::from(value))))
             .collect();
 
-        contexts.insert("crashpad".to_string(), Context::Other(crashpad_context));
+        contexts.insert("crashpad".to_owned(), Context::Other(crashpad_context));
     }
 
     match minidump.get_stream::<StabilityReport>() {

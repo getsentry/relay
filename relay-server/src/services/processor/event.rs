@@ -715,7 +715,7 @@ mod tests {
 
         for (date, message) in breadcrumbs {
             let mut breadcrumb = BTreeMap::new();
-            breadcrumb.insert("message", (*message).to_string());
+            breadcrumb.insert("message", (*message).to_owned());
             if let Some(date) = date {
                 breadcrumb.insert("timestamp", date.to_rfc3339());
             }

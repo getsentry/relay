@@ -365,6 +365,7 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
             environment: sentry.environment.clone(),
             server_name: sentry.server_name.clone(),
             traces_sampler,
+            enable_logs: true,
             ..Default::default()
         };
 
