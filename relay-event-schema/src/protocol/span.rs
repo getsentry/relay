@@ -495,12 +495,39 @@ pub struct SpanData {
     pub gen_ai_response_model: Annotated<Value>,
 
     /// The name of the GenAI model a request is being made to (e.g. gpt-4)
-    #[metastructure(field = "gen_ai.request.model")]
+    #[metastructure(field = "gen_ai.request.model", legacy_alias = "ai.model_id")]
     pub gen_ai_request_model: Annotated<Value>,
 
     /// The total cost for the tokens used
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
+
+    /// The input messages to the AI model request
+    #[metastructure(field = "gen_ai.request.messages", legacy_alias = "ai.prompt.messages")]
+    pub gen_ai_request_messages: Annotated<Value>,
+
+    /// The response text from the AI model
+    #[metastructure(field = "gen_ai.response.text", legacy_alias = "ai.response.text")]
+    pub gen_ai_response_text: Annotated<Value>,
+
+    /// The tool calls in the AI model response
+    #[metastructure(
+        field = "gen_ai.response.tool_calls",
+        legacy_alias = "ai.response.toolCalls"
+    )]
+    pub gen_ai_response_tool_calls: Annotated<Value>,
+
+    /// The name of the tool being called
+    #[metastructure(field = "gen_ai.tool.name", legacy_alias = "ai.toolCall.name")]
+    pub gen_ai_tool_name: Annotated<Value>,
+
+    /// The input arguments for a tool call
+    #[metastructure(field = "gen_ai.tool.input", legacy_alias = "ai.toolCall.args")]
+    pub gen_ai_tool_input: Annotated<Value>,
+
+    /// The output result from a tool call
+    #[metastructure(field = "gen_ai.tool.output", legacy_alias = "ai.toolCall.result")]
+    pub gen_ai_tool_output: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -605,10 +632,6 @@ pub struct SpanData {
     /// The 'name' field of the ancestor span with op ai.pipeline.*
     #[metastructure(field = "ai.pipeline.name")]
     pub ai_pipeline_name: Annotated<Value>,
-
-    /// The Model ID of an AI pipeline, e.g., gpt-4
-    #[metastructure(field = "ai.model_id")]
-    pub ai_model_id: Annotated<Value>,
 
     /// The input messages to an AI model call
     #[metastructure(field = "ai.input_messages")]
@@ -834,6 +857,22 @@ impl Getter for SpanData {
             "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
+            "gen_ai\\.usage\\.input_tokens" => self.gen_ai_usage_input_tokens.value()?.into(),
+            "gen_ai\\.usage\\.input_tokens.cached" => {
+                self.gen_ai_usage_input_tokens_cached.value()?.into()
+            }
+            "gen_ai\\.usage\\.output_tokens" => self.gen_ai_usage_output_tokens.value()?.into(),
+            "gen_ai\\.usage\\.output_tokens.reasoning" => {
+                self.gen_ai_usage_output_tokens_reasoning.value()?.into()
+            }
+            "gen_ai\\.response\\.model" => self.gen_ai_response_model.value()?.into(),
+            "gen_ai\\.request\\.model" => self.gen_ai_request_model.value()?.into(),
+            "gen_ai\\.request\\.messages" => self.gen_ai_request_messages.value()?.into(),
+            "gen_ai\\.response\\.text" => self.gen_ai_response_text.value()?.into(),
+            "gen_ai\\.response\\.tool_calls" => self.gen_ai_response_tool_calls.value()?.into(),
+            "gen_ai\\.tool\\.name" => self.gen_ai_tool_name.value()?.into(),
+            "gen_ai\\.tool\\.input" => self.gen_ai_tool_input.value()?.into(),
+            "gen_ai\\.tool\\.output" => self.gen_ai_tool_output.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -1292,6 +1331,12 @@ mod tests {
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
+            gen_ai_request_messages: ~,
+            gen_ai_response_text: ~,
+            gen_ai_response_tool_calls: ~,
+            gen_ai_tool_name: ~,
+            gen_ai_tool_input: ~,
+            gen_ai_tool_output: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
@@ -1323,7 +1368,6 @@ mod tests {
             cache_item_size: ~,
             http_response_status_code: ~,
             ai_pipeline_name: ~,
-            ai_model_id: ~,
             ai_input_messages: ~,
             ai_responses: ~,
             thread_name: ~,

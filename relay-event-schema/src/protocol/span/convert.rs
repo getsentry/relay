@@ -134,7 +134,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
-        insta::assert_debug_snapshot!(span_from_event, @r###"
+        insta::assert_debug_snapshot!(span_from_event, @r#"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -164,6 +164,12 @@ mod tests {
                 gen_ai_response_model: ~,
                 gen_ai_request_model: ~,
                 gen_ai_usage_total_cost: ~,
+                gen_ai_request_messages: ~,
+                gen_ai_response_text: ~,
+                gen_ai_response_tool_calls: ~,
+                gen_ai_tool_name: ~,
+                gen_ai_tool_input: ~,
+                gen_ai_tool_output: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
@@ -187,7 +193,6 @@ mod tests {
                 cache_item_size: ~,
                 http_response_status_code: ~,
                 ai_pipeline_name: ~,
-                ai_model_id: ~,
                 ai_input_messages: ~,
                 ai_responses: ~,
                 thread_name: ~,
@@ -268,6 +273,6 @@ mod tests {
             _performance_issues_spans: ~,
             other: {},
         }
-        "###);
+        "#);
     }
 }
