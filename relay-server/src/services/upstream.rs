@@ -771,9 +771,13 @@ impl SharedClient {
                 .config
                 .http_host_header()
                 .unwrap_or_else(|| self.config.upstream_descriptor().host());
+            let additional_headers = self.config.http_additional_headers();
 
             let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
             builder.header("Host", host_header.as_bytes());
+            for (key, value) in additional_headers {
+                builder.header(key, value);
+            }
 
             if request.set_relay_id() {
                 if let Some(credentials) = self.config.credentials() {
