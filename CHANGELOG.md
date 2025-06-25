@@ -9,6 +9,7 @@
 
 **Internal**:
 
+- Introduces a new processing pipeline and implements it for logs. ([#4777](https://github.com/getsentry/relay/pull/4777))
 - Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
 - Update opentelemetry-proto and sentry-protos dependencies. ([#4847](https://github.com/getsentry/relay/pull/4847))
 - Take into account more types of tokens when doing AI cost calculation. ([#4840](https://github.com/getsentry/relay/pull/4840))
