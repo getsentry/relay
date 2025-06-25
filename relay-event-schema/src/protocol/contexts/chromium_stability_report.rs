@@ -12,7 +12,9 @@ fn bytes_from_4k_pages(value: u32) -> u64 {
 pub struct ProcessStateContext {
     /// The identifier of the process.
     pub process_id: Annotated<u64>,
+    /// Process memory state
     pub memory_state: Annotated<process_state::MemoryStateContext>,
+    /// Process file system state
     pub file_system_state: Annotated<process_state::FileSystemStateContext>,
 }
 
@@ -45,7 +47,9 @@ pub mod process_state {
     /// Records the state of the file system at the time of crash.
     #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
     pub struct FileSystemStateContext {
+        /// The state of the file system for POSIX systems.
         pub posix_file_system_state: Annotated<file_system_state::PosixFileSystemStateContext>,
+        /// The state of the file system for Windows systems.
         pub windows_file_system_state: Annotated<file_system_state::WindowsFileSystemStateContext>,
     }
     /// Nested message and enum types in `FileSystemState`.
