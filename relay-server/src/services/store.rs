@@ -1002,10 +1002,25 @@ impl StoreService {
 
         if let Some(data) = span.data {
             for (key, raw_value) in data {
-                let Some(json_value) = raw_value.and_then(|raw| Deserialize::deserialize(raw).ok())
-                else {
+                let Some(raw_value) = raw_value else {
                     continue;
                 };
+
+                let json_value = match Deserialize::deserialize(raw_value) {
+                    Ok(v) => v,
+                    Err(error) => {
+                        // This should not be possible: a `RawValue` is definitely valid JSON,
+                        // so deserializing it to a `json::Value` must succeed. But better safe
+                        // than sorry.
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            raw_value = %raw_value,
+                            "failed to parse JSON value"
+                        );
+                        continue;
+                    }
+                };
+
                 let any_value = match json_value {
                     JsonValue::String(string) => AnyValue {
                         value: Some(Value::StringValue(string)),
