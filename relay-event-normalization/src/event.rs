@@ -2319,6 +2319,106 @@ mod tests {
                         "timestamp": 1702474613.0495,
                         "start_timestamp": 1702474613.0175,
                         "description": "OpenAI ",
+                        "op": "gen_ai.chat_completions.openai",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "gen_ai.usage.output_tokens.reasoning": 3000,
+                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.request.model": "claude-2.1"
+                        }
+                    },
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "gen_ai.chat_completions.openai",
+                        "span_id": "ac01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "gen_ai.request.model": "gpt4-21-04"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::from([
+                        (
+                            "claude-2.1".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.01,
+                                output_per_token: 0.02,
+                                output_reasoning_per_token: 0.03,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                        (
+                            "gpt4-21-04".to_owned(),
+                            ModelCostV2 {
+                                input_per_token: 0.09,
+                                output_per_token: 0.05,
+                                output_reasoning_per_token: 0.06,
+                                input_cached_per_token: 0.0,
+                            },
+                        ),
+                    ]),
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let spans = event.value().unwrap().spans.value().unwrap();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(140.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_tokens.value()),
+            Some(&Value::F64(3000.0))
+        );
+    }
+
+    #[test]
+    fn test_ai_data_with_ai_op_prefix() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
                         "op": "ai.chat_completions.openai",
                         "span_id": "9c01bd820a083e63",
                         "parent_span_id": "a1e13f3f06239d69",

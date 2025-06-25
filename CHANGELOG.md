@@ -15,6 +15,7 @@
 - Take into account more types of tokens when doing AI cost calculation. ([#4840](https://github.com/getsentry/relay/pull/4840))
 - Use the `FiniteF64` type for measurements. ([#4828](https://github.com/getsentry/relay/pull/4828))
 - Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
+- Consider `gen_ai` also as AI span op prefix. ([#4859](https://github.com/getsentry/relay/pull/4859))
 
 ## 25.6.1
 
