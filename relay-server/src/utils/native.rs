@@ -63,10 +63,10 @@ fn write_native_placeholder(event: &mut Event, placeholder: NativePlaceholder) {
     exceptions.clear(); // clear previous errors if any
 
     exceptions.push(Annotated::new(Exception {
-        ty: Annotated::new(placeholder.exception_type.to_string()),
-        value: Annotated::new(JsonLenientString(placeholder.exception_value.to_string())),
+        ty: Annotated::new(placeholder.exception_type.to_owned()),
+        value: Annotated::new(JsonLenientString(placeholder.exception_value.to_owned())),
         mechanism: Annotated::new(Mechanism {
-            ty: Annotated::from(placeholder.mechanism_type.to_string()),
+            ty: Annotated::from(placeholder.mechanism_type.to_owned()),
             handled: Annotated::from(false),
             synthetic: Annotated::from(true),
             ..Mechanism::default()

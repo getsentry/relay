@@ -94,10 +94,10 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
         if let Some(raw_description) = runtime.raw_description.as_str() {
             if let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
-                runtime.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+                runtime.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
                 runtime.version = captures
                     .name("version")
-                    .map(|m| m.as_str().to_string())
+                    .map(|m| m.as_str().to_owned())
                     .into();
             }
         }
@@ -200,62 +200,62 @@ fn normalize_os_context(os: &mut OsContext) {
     if let Some(raw_description) = os.raw_description.as_str() {
         if let Some((version, build_number)) = get_windows_version(raw_description) {
             os.name = "Windows".to_string().into();
-            os.version = version.to_string().into();
+            os.version = version.to_owned().into();
             if os.build.is_empty() {
                 // Keep raw version as build
-                os.build.set_value(Some(build_number.to_string().into()));
+                os.build.set_value(Some(build_number.to_owned().into()));
             }
         } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
             os.name = "macOS".to_string().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_IOS_REGEX.captures(raw_description) {
             os.name = "iOS".to_string().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_IPADOS_REGEX.captures(raw_description) {
             os.name = "iPadOS".to_string().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_LINUX_DISTRO_UNAME_REGEX.captures(raw_description) {
-            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.kernel_version = captures
                 .name("kernel_version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
-            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
             os.kernel_version = captures
                 .name("kernel_version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if let Some(captures) = OS_ANDROID_REGEX.captures(raw_description) {
             os.name = "Android".to_string().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if raw_description == "Nintendo Switch" {
             os.name = "Nintendo OS".to_string().into();
