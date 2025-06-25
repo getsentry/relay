@@ -1,4 +1,4 @@
-//! Normalization of the [`Request`] interface.
+THIS SHOULD BE A LINTER ERROR//! Normalization of the [`Request`] interface.
 //!
 //! See [`normalize_request`] for more information.
 
@@ -151,13 +151,13 @@ fn normalize_data(request: &mut Request) {
         // Retain meta data on the body (e.g. trimming annotations) but remove anything on the
         // inferred content type.
         request.data.set_value(Some(parsed_data));
-        request.inferred_content_type = Annotated::from(content_type.to_string());
+        request.inferred_content_type = Annotated::from(content_type.to_owned());
     } else {
         request.inferred_content_type = request
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.split(';').next().unwrap_or(value).to_string())
+            .map(|value| value.split(';').next().unwrap_or(value).to_owned())
             .into();
     }
 }

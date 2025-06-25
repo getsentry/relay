@@ -302,13 +302,13 @@ fn normalize_response_data(response: &mut ResponseContext) {
         // Retain meta data on the body (e.g. trimming annotations) but remove anything on the
         // inferred content type.
         response.data.set_value(Some(parsed_data));
-        response.inferred_content_type = Annotated::from(content_type.to_string());
+        response.inferred_content_type = Annotated::from(content_type.to_owned());
     } else {
         response.inferred_content_type = response
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.split(';').next().unwrap_or(value).to_string())
+            .map(|value| value.split(';').next().unwrap_or(value).to_owned())
             .into();
     }
 }
@@ -351,7 +351,7 @@ pub fn normalize_context(context: &mut Context) {
                 .value()
                 .and_then(|model| ANDROID_MODEL_NAMES.get(model.as_str()))
             {
-                device.name.set_value(Some(product_name.to_string()))
+                device.name.set_value(Some(product_name.to_owned()))
             }
         }
         _ => {}
