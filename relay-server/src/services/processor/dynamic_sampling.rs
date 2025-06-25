@@ -12,7 +12,7 @@ use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::envelope::{CountFor, ItemType};
+use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, Sampling, SpansExtracted, TransactionGroup, event_category,
@@ -131,7 +131,7 @@ pub fn drop_unsampled_items(
         .take_items_by(|item| *item.ty() != ItemType::Profile);
 
     for item in dropped_items {
-        for (category, quantity) in item.quantities(CountFor::Outcomes) {
+        for (category, quantity) in item.quantities() {
             // Dynamic sampling only drops indexed items. Upgrade the category to the index
             // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
             // but attachments are still emitted as attachments.
@@ -304,8 +304,8 @@ mod tests {
         Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(event_type),
-            transaction: Annotated::new(transaction.to_string()),
-            release: Annotated::new(LenientString(release.to_string())),
+            transaction: Annotated::new(transaction.to_owned()),
+            release: Annotated::new(LenientString(release.to_owned())),
             ..Event::default()
         }
     }
@@ -561,7 +561,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
+            release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,
             environment: None,
@@ -721,7 +721,7 @@ mod tests {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
+            release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,
             environment: None,

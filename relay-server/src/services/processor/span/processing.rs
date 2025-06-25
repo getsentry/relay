@@ -264,7 +264,7 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
     };
 
     let measurement = Annotated::new(Measurement {
-        value: value.into(),
+        value: Annotated::try_from(value),
         unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
     });
 
@@ -293,7 +293,7 @@ pub fn extract_from_event(
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
-        if !sample(sample_rate) {
+        if sample(sample_rate).is_discard() {
             return spans_extracted;
         }
     }

@@ -1,5 +1,5 @@
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
-use std::fmt;
+use std::{borrow::Borrow, fmt};
 
 use crate::processor::ProcessValue;
 
@@ -43,6 +43,42 @@ pub struct AttributeValue {
     pub value: Annotated<Value>,
 }
 
+impl From<String> for AttributeValue {
+    fn from(value: String) -> Self {
+        AttributeValue {
+            ty: Annotated::new(AttributeType::String),
+            value: Annotated::new(value.into()),
+        }
+    }
+}
+
+impl From<i64> for AttributeValue {
+    fn from(value: i64) -> Self {
+        AttributeValue {
+            ty: Annotated::new(AttributeType::Integer),
+            value: Annotated::new(value.into()),
+        }
+    }
+}
+
+impl From<f64> for AttributeValue {
+    fn from(value: f64) -> Self {
+        AttributeValue {
+            ty: Annotated::new(AttributeType::Double),
+            value: Annotated::new(value.into()),
+        }
+    }
+}
+
+impl From<bool> for AttributeValue {
+    fn from(value: bool) -> Self {
+        AttributeValue {
+            ty: Annotated::new(AttributeType::Boolean),
+            value: Annotated::new(value.into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeType {
     Boolean,
@@ -66,7 +102,7 @@ impl AttributeType {
     }
 
     pub fn unknown_string() -> String {
-        "unknown".to_string()
+        "unknown".to_owned()
     }
 }
 
@@ -121,5 +157,84 @@ impl IntoValue for AttributeType {
         S: serde::Serializer,
     {
         serde::ser::Serialize::serialize(self.as_str(), s)
+    }
+}
+
+/// Wrapper struct around a collection of attributes with some convenience methods.
+#[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct Attributes(Object<Attribute>);
+
+impl Attributes {
+    /// Creates an empty collection of attributes.
+    pub fn new() -> Self {
+        Self(Object::new())
+    }
+
+    /// Returns the value of the attribute with the given key.
+    pub fn get_value<Q>(&self, key: &Q) -> Option<&Value>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.get_attribute(key)?.value.value.value()
+    }
+
+    /// Returns the attribute with the given key.
+    pub fn get_attribute<Q>(&self, key: &Q) -> Option<&Attribute>
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.0.get(key)?.value()
+    }
+
+    /// Inserts an attribute with the given value into this collection.
+    pub fn insert<V: Into<AttributeValue>>(&mut self, key: String, value: V) {
+        fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {
+            let attribute = Annotated::new(Attribute {
+                value,
+                other: Default::default(),
+            });
+            slf.insert_raw(key, attribute);
+        }
+        let value = value.into();
+        inner(self, key, value);
+    }
+
+    /// Inserts an annotated attribute into this collection.
+    pub fn insert_raw(&mut self, key: String, attribute: Annotated<Attribute>) {
+        self.0.insert(key, attribute);
+    }
+
+    /// Checks whether this collection contains an attribute with the given key.
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+    where
+        String: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.0.contains_key(key)
+    }
+
+    /// Iterates mutably over this collection's attribute keys and values
+    pub fn iter_mut(
+        &mut self,
+    ) -> std::collections::btree_map::IterMut<String, Annotated<Attribute>> {
+        self.0.iter_mut()
+    }
+}
+
+impl IntoIterator for Attributes {
+    type Item = (String, Annotated<Attribute>);
+
+    type IntoIter = std::collections::btree_map::IntoIter<String, Annotated<Attribute>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl FromIterator<(String, Annotated<Attribute>)> for Attributes {
+    fn from_iter<T: IntoIterator<Item = (String, Annotated<Attribute>)>>(iter: T) -> Self {
+        Self(Object::from_iter(iter))
     }
 }

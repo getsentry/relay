@@ -280,7 +280,7 @@ where
 
 impl CspRaw {
     fn default_blocked_uri() -> String {
-        "self".to_string()
+        "self".to_owned()
     }
 
     fn effective_directive(&self) -> Result<CspDirective, InvalidSecurityError> {
@@ -315,25 +315,25 @@ impl CspRaw {
     fn get_message(&self, effective_directive: CspDirective) -> String {
         if is_local(&self.blocked_uri) {
             match effective_directive {
-                CspDirective::ChildSrc => "Blocked inline 'child'".to_string(),
-                CspDirective::ConnectSrc => "Blocked inline 'connect'".to_string(),
-                CspDirective::FontSrc => "Blocked inline 'font'".to_string(),
-                CspDirective::ImgSrc => "Blocked inline 'image'".to_string(),
-                CspDirective::ManifestSrc => "Blocked inline 'manifest'".to_string(),
-                CspDirective::MediaSrc => "Blocked inline 'media'".to_string(),
-                CspDirective::ObjectSrc => "Blocked inline 'object'".to_string(),
-                CspDirective::ScriptSrcAttr => "Blocked unsafe 'script' element".to_string(),
-                CspDirective::ScriptSrcElem => "Blocked inline script attribute".to_string(),
-                CspDirective::StyleSrc => "Blocked inline 'style'".to_string(),
-                CspDirective::StyleSrcElem => "Blocked 'style' or 'link' element".to_string(),
-                CspDirective::StyleSrcAttr => "Blocked style attribute".to_string(),
+                CspDirective::ChildSrc => "Blocked inline 'child'".to_owned(),
+                CspDirective::ConnectSrc => "Blocked inline 'connect'".to_owned(),
+                CspDirective::FontSrc => "Blocked inline 'font'".to_owned(),
+                CspDirective::ImgSrc => "Blocked inline 'image'".to_owned(),
+                CspDirective::ManifestSrc => "Blocked inline 'manifest'".to_owned(),
+                CspDirective::MediaSrc => "Blocked inline 'media'".to_owned(),
+                CspDirective::ObjectSrc => "Blocked inline 'object'".to_owned(),
+                CspDirective::ScriptSrcAttr => "Blocked unsafe 'script' element".to_owned(),
+                CspDirective::ScriptSrcElem => "Blocked inline script attribute".to_owned(),
+                CspDirective::StyleSrc => "Blocked inline 'style'".to_owned(),
+                CspDirective::StyleSrcElem => "Blocked 'style' or 'link' element".to_owned(),
+                CspDirective::StyleSrcAttr => "Blocked style attribute".to_owned(),
                 CspDirective::ScriptSrc => {
                     if self.violated_directive.contains("'unsafe-inline'") {
-                        "Blocked unsafe inline 'script'".to_string()
+                        "Blocked unsafe inline 'script'".to_owned()
                     } else if self.violated_directive.contains("'unsafe-eval'") {
-                        "Blocked unsafe eval() 'script'".to_string()
+                        "Blocked unsafe eval() 'script'".to_owned()
                     } else {
-                        "Blocked unsafe (eval() or inline) 'script'".to_string()
+                        "Blocked unsafe (eval() or inline) 'script'".to_owned()
                     }
                 }
                 directive => format!("Blocked inline '{directive}'"),
@@ -467,11 +467,11 @@ impl CspRaw {
     fn get_tags(&self, effective_directive: CspDirective) -> Tags {
         let mut tags = vec![
             Annotated::new(TagEntry(
-                Annotated::new("effective-directive".to_string()),
+                Annotated::new("effective-directive".to_owned()),
                 Annotated::new(effective_directive.to_string()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("blocked-uri".to_string()),
+                Annotated::new("blocked-uri".to_owned()),
                 Annotated::new(self.sanitized_blocked_uri()),
             )),
         ];
@@ -479,7 +479,7 @@ impl CspRaw {
         if let Ok(url) = Url::parse(&self.blocked_uri) {
             if let ("http" | "https", Some(host)) = (url.scheme(), url.host_str()) {
                 tags.push(Annotated::new(TagEntry(
-                    Annotated::new("blocked-host".to_string()),
+                    Annotated::new("blocked-host".to_owned()),
                     Annotated::new(host.to_owned()),
                 )));
             }
@@ -573,6 +573,7 @@ pub struct Csp {
     /// The name of the policy section that was violated.
     pub violated_directive: Annotated<String>,
     /// The URL of the resource where the violation occurred.
+    #[metastructure(pii = "maybe")]
     pub source_file: Annotated<String>,
     /// The line number in source-file on which the violation occurred.
     pub line_number: Annotated<u64>,
@@ -770,13 +771,13 @@ impl ExpectCtRaw {
 
     fn get_tags(&self) -> Tags {
         let mut tags = vec![Annotated::new(TagEntry(
-            Annotated::new("hostname".to_string()),
+            Annotated::new("hostname".to_owned()),
             Annotated::new(self.hostname.clone()),
         ))];
 
         if let Some(port) = self.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("port".to_string()),
+                Annotated::new("port".to_owned()),
                 Annotated::new(port.to_string()),
             )));
         }
@@ -908,20 +909,20 @@ impl HpkpRaw {
 
     fn get_tags(&self) -> Tags {
         let mut tags = vec![Annotated::new(TagEntry(
-            Annotated::new("hostname".to_string()),
+            Annotated::new("hostname".to_owned()),
             Annotated::new(self.hostname.clone()),
         ))];
 
         if let Some(port) = self.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("port".to_string()),
+                Annotated::new("port".to_owned()),
                 Annotated::new(port.to_string()),
             )));
         }
 
         if let Some(include_subdomains) = self.include_subdomains {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("include-subdomains".to_string()),
+                Annotated::new("include-subdomains".to_owned()),
                 Annotated::new(include_subdomains.to_string()),
             )));
         }
@@ -1092,27 +1093,27 @@ impl ExpectStapleRaw {
 
     fn get_tags(&self) -> Tags {
         let mut tags = vec![Annotated::new(TagEntry(
-            Annotated::new("hostname".to_string()),
+            Annotated::new("hostname".to_owned()),
             Annotated::new(self.hostname.clone()),
         ))];
 
         if let Some(port) = self.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("port".to_string()),
+                Annotated::new("port".to_owned()),
                 Annotated::new(port.to_string()),
             )));
         }
 
         if let Some(response_status) = self.response_status {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("response_status".to_string()),
+                Annotated::new("response_status".to_owned()),
                 Annotated::new(response_status.to_string()),
             )));
         }
 
         if let Some(cert_status) = self.cert_status {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("cert_status".to_string()),
+                Annotated::new("cert_status".to_owned()),
                 Annotated::new(cert_status.to_string()),
             )));
         }

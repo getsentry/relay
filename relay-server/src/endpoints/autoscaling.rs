@@ -15,7 +15,7 @@ pub async fn handle(state: ServiceState) -> (StatusCode, String) {
         Err(_) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to collect internal metrics".to_string(),
+                "Failed to collect internal metrics".to_owned(),
             );
         }
     };

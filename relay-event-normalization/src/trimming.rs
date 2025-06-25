@@ -449,8 +449,7 @@ mod tests {
 
     #[test]
     fn test_string_trimming() {
-        let mut value =
-            Annotated::new("This is my long string I want to have trimmed!".to_string());
+        let mut value = Annotated::new("This is my long string I want to have trimmed!".to_owned());
         processor::apply(&mut value, |v, m| {
             trim_string(v, m, 20, 0);
             Ok(())
@@ -463,7 +462,7 @@ mod tests {
                 let mut meta = Meta::default();
                 meta.add_remark(Remark {
                     ty: RemarkType::Substituted,
-                    rule_id: "!limit".to_string(),
+                    rule_id: "!limit".to_owned(),
                     range: Some((17, 20)),
                 });
                 meta.set_original_length(Some(46));
@@ -512,7 +511,7 @@ mod tests {
 
         fn make_nested_object(depth: usize) -> Annotated<Value> {
             if depth == 0 {
-                return Annotated::new(Value::String("max depth".to_string()));
+                return Annotated::new(Value::String("max depth".to_owned()));
             }
             let mut rv = Object::new();
             rv.insert(format!("key{depth}"), make_nested_object(depth - 1));
@@ -522,15 +521,15 @@ mod tests {
         let databag = Annotated::new({
             let mut map = Object::new();
             map.insert(
-                "key_1".to_string(),
-                Annotated::new(ExtraValue(Value::String("value 1".to_string()))),
+                "key_1".to_owned(),
+                Annotated::new(ExtraValue(Value::String("value 1".to_owned()))),
             );
             map.insert(
-                "key_2".to_string(),
+                "key_2".to_owned(),
                 make_nested_object(8).map_value(ExtraValue),
             );
             map.insert(
-                "key_3".to_string(),
+                "key_3".to_owned(),
                 // innermost key (string) is entering json stringify codepath
                 make_nested_object(5).map_value(ExtraValue),
             );
@@ -643,8 +642,8 @@ mod tests {
                         data: {
                             let mut map = Map::new();
                             map.insert(
-                                "spamspamspam".to_string(),
-                                Annotated::new(Value::String("blablabla".to_string())),
+                                "spamspamspam".to_owned(),
+                                Annotated::new(Value::String("blablabla".to_owned())),
                             );
                             Annotated::new(map)
                         },
@@ -655,15 +654,15 @@ mod tests {
                 .collect(),
             )),
             exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
-                ty: Annotated::new("TypeError".to_string()),
-                value: Annotated::new("important error message".to_string().into()),
+                ty: Annotated::new("TypeError".to_owned()),
+                value: Annotated::new("important error message".to_owned().into()),
                 stacktrace: Annotated::new(
                     RawStacktrace {
                         frames: Annotated::new(
                             repeat_n(
                                 Annotated::new(Frame {
-                                    function: Annotated::new("importantFunctionName".to_string()),
-                                    symbol: Annotated::new("important_symbol".to_string()),
+                                    function: Annotated::new("importantFunctionName".to_owned()),
+                                    symbol: Annotated::new("important_symbol".to_owned()),
                                     ..Default::default()
                                 }),
                                 200,
@@ -697,11 +696,11 @@ mod tests {
             contexts.insert(format!("despacito{i}"), {
                 let mut context = Object::new();
                 context.insert(
-                    "foo".to_string(),
+                    "foo".to_owned(),
                     Annotated::new(Value::String("a".repeat(4000))),
                 );
                 context.insert(
-                    "bar".to_string(),
+                    "bar".to_owned(),
                     Annotated::new(Value::String("a".repeat(5000))),
                 );
                 Context::Other(context)
@@ -747,7 +746,7 @@ mod tests {
     #[test]
     fn test_extra_trimming_long_arrays() {
         let mut extra = Object::new();
-        extra.insert("foo".to_string(), {
+        extra.insert("foo".to_owned(), {
             Annotated::new(ExtraValue(Value::Array(
                 repeat_n(Annotated::new(Value::U64(1)), 200_000).collect(),
             )))
@@ -805,7 +804,7 @@ mod tests {
     //     let mut value = Annotated::new(Struct {
     //         inner: Annotated::new(StructChild {
     //             inner: Annotated::new(StructChild2 {
-    //                 inner: Annotated::new(WrappedString("hi".to_string())),
+    //                 inner: Annotated::new(WrappedString("hi".to_owned())),
     //             }),
     //         }),
     //     });
@@ -935,9 +934,9 @@ mod tests {
     fn test_slim_frame_data_under_max() {
         let mut frames = vec![Annotated::new(Frame {
             filename: Annotated::new("foo".into()),
-            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-            context_line: Annotated::new("b".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+            pre_context: Annotated::new(vec![Annotated::new("a".to_owned())]),
+            context_line: Annotated::new("b".to_owned()),
+            post_context: Annotated::new(vec![Annotated::new("c".to_owned())]),
             ..Default::default()
         })];
 
@@ -954,9 +953,9 @@ mod tests {
         for n in 0..5 {
             frames.push(Annotated::new(Frame {
                 filename: Annotated::new(format!("foo {n}").into()),
-                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-                context_line: Annotated::new("b".to_string()),
-                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_owned())]),
+                context_line: Annotated::new("b".to_owned()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_owned())]),
                 ..Default::default()
             }));
         }
@@ -966,35 +965,35 @@ mod tests {
         let expected = vec![
             Annotated::new(Frame {
                 filename: Annotated::new("foo 0".into()),
-                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-                context_line: Annotated::new("b".to_string()),
-                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_owned())]),
+                context_line: Annotated::new("b".to_owned()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_owned())]),
                 ..Default::default()
             }),
             Annotated::new(Frame {
                 filename: Annotated::new("foo 1".into()),
-                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-                context_line: Annotated::new("b".to_string()),
-                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_owned())]),
+                context_line: Annotated::new("b".to_owned()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_owned())]),
                 ..Default::default()
             }),
             Annotated::new(Frame {
                 filename: Annotated::new("foo 2".into()),
-                context_line: Annotated::new("b".to_string()),
+                context_line: Annotated::new("b".to_owned()),
                 ..Default::default()
             }),
             Annotated::new(Frame {
                 filename: Annotated::new("foo 3".into()),
-                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-                context_line: Annotated::new("b".to_string()),
-                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_owned())]),
+                context_line: Annotated::new("b".to_owned()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_owned())]),
                 ..Default::default()
             }),
             Annotated::new(Frame {
                 filename: Annotated::new("foo 4".into()),
-                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-                context_line: Annotated::new("b".to_string()),
-                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_owned())]),
+                context_line: Annotated::new("b".to_owned()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_owned())]),
                 ..Default::default()
             }),
         ];

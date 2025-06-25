@@ -102,21 +102,21 @@ mod tests {
   "type": "os"
 }"#;
         let context = Annotated::new(Context::Os(Box::new(OsContext {
-            os: Annotated::new("iOS 11.4.2".to_string()),
-            name: Annotated::new("iOS".to_string()),
-            version: Annotated::new("11.4.2".to_string()),
-            build: Annotated::new(LenientString("FEEDFACE".to_string())),
-            kernel_version: Annotated::new("17.4.0".to_string()),
+            os: Annotated::new("iOS 11.4.2".to_owned()),
+            name: Annotated::new("iOS".to_owned()),
+            version: Annotated::new("11.4.2".to_owned()),
+            build: Annotated::new(LenientString("FEEDFACE".to_owned())),
+            kernel_version: Annotated::new("17.4.0".to_owned()),
             rooted: Annotated::new(true),
-            raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
+            raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_owned()),
             distribution_name: Annotated::empty(),
             distribution_version: Annotated::empty(),
             distribution_pretty_name: Annotated::empty(),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -139,16 +139,16 @@ mod tests {
   "type": "os"
 }"#;
         let context = Annotated::new(Context::Os(Box::new(OsContext {
-            os: Annotated::new("Linux 5.15.133".to_string()),
-            name: Annotated::new("Linux".to_string()),
-            version: Annotated::new("5.15.133".to_string()),
-            build: Annotated::new(LenientString("1-microsoft-standard-WSL2".to_string())),
+            os: Annotated::new("Linux 5.15.133".to_owned()),
+            name: Annotated::new("Linux".to_owned()),
+            version: Annotated::new("5.15.133".to_owned()),
+            build: Annotated::new(LenientString("1-microsoft-standard-WSL2".to_owned())),
             kernel_version: Annotated::empty(),
             rooted: Annotated::empty(),
             raw_description: Annotated::empty(),
-            distribution_name: Annotated::new("ubuntu".to_string()),
-            distribution_version: Annotated::new("22.04".to_string()),
-            distribution_pretty_name: Annotated::new("Ubuntu 22.04.4 LTS".to_string()),
+            distribution_name: Annotated::new("ubuntu".to_owned()),
+            distribution_version: Annotated::new("22.04".to_owned()),
+            distribution_pretty_name: Annotated::new("Ubuntu 22.04.4 LTS".to_owned()),
             other: Object::default(),
         })));
 

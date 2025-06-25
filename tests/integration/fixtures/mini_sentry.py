@@ -246,6 +246,8 @@ def mini_sentry(request):  # noqa
         exc_msg = ": ".join(e.get("value", "") for e in reversed(exceptions))
         message = data.get("message", {})
         message = message if isinstance(message, str) else message.get("formatted")
+        if message and exc_msg:
+            return ": ".join((message, exc_msg))
         return exc_msg or message or "unknown error"
 
     @app.before_request

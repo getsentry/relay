@@ -82,10 +82,6 @@ pub fn process(
     };
 
     for item in managed_envelope.envelope_mut().items_mut() {
-        if project_info.has_feature(Feature::SessionReplayCombinedEnvelopeItems) {
-            item.set_replay_combined_payload(true);
-        }
-
         match item.ty() {
             ItemType::ReplayEvent => {
                 let replay_event = handle_replay_event_item(item.payload(), &rpc)?;
@@ -261,7 +257,7 @@ fn handle_replay_recording_item(
         match &error {
             relay_replays::recording::ParseRecordingError::Compression(e) => {
                 // 20k errors per day at 0.1% sample rate == 20 logs per day
-                if sample(0.001) {
+                if sample(0.001).is_keep() {
                     relay_log::with_scope(
                         move |scope| {
                             scope.add_attachment(relay_log::protocol::Attachment {

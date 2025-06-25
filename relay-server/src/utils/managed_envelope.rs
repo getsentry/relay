@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::{CountFor, Envelope, Item};
+use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
@@ -252,7 +252,7 @@ impl ManagedEnvelope {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                for (category, quantity) in item.quantities(CountFor::Outcomes) {
+                for (category, quantity) in item.quantities() {
                     if let Some(indexed) = category.index_category() {
                         outcomes.push((outcome.clone(), indexed, quantity));
                     };
@@ -517,6 +517,20 @@ impl ManagedEnvelope {
     /// In case the elapsed time is negative, it is assumed that no time elapsed.
     pub fn age(&self) -> Duration {
         self.envelope.age()
+    }
+
+    /// Temporary escape hatch for the `Managed` type, to make it possible to construct
+    /// from a managed envelope.
+    #[doc(hidden)]
+    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+        &self.outcome_aggregator
+    }
+
+    /// Temporary escape hatch for the `Managed` type, to make it possible to construct
+    /// from a managed envelope.
+    #[doc(hidden)]
+    pub fn test_store(&self) -> &Addr<TestStore> {
+        &self.test_store
     }
 
     /// Resets inner state to ensure there's no more logging.

@@ -592,7 +592,7 @@ mod tests {
             case_insensitive: true,
         };
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal(Literal::new("İ".to_string(), options)));
+        tokens.push(Token::Literal(Literal::new("İ".to_owned(), options)));
         tokens.push(Token::Wildcard);
 
         assert!(is_match("İ___", &tokens, options));

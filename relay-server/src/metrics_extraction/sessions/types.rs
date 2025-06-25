@@ -58,14 +58,14 @@ impl From<CommonTags> for BTreeMap<String, String> {
     fn from(value: CommonTags) -> Self {
         let mut map = BTreeMap::new();
 
-        map.insert("release".to_string(), value.release);
+        map.insert("release".to_owned(), value.release);
 
         if let Some(environment) = value.environment {
             map.insert("environment".into(), environment);
         }
 
         if let Some(sdk) = value.sdk {
-            map.insert("sdk".to_string(), sdk);
+            map.insert("sdk".to_owned(), sdk);
         }
         map
     }
@@ -75,11 +75,11 @@ impl From<SessionUserTags> for BTreeMap<String, String> {
     fn from(value: SessionUserTags) -> Self {
         let mut map: BTreeMap<String, String> = value.common_tags.into();
         if let Some(status) = value.status {
-            map.insert("session.status".to_string(), status.to_string());
+            map.insert("session.status".to_owned(), status.to_string());
         }
 
         if let Some(abnormal_mechanism) = value.abnormal_mechanism {
-            map.insert("abnormal_mechanism".to_string(), abnormal_mechanism);
+            map.insert("abnormal_mechanism".to_owned(), abnormal_mechanism);
         }
 
         map
@@ -89,7 +89,7 @@ impl From<SessionUserTags> for BTreeMap<String, String> {
 impl From<SessionSessionTags> for BTreeMap<String, String> {
     fn from(value: SessionSessionTags) -> Self {
         let mut map: BTreeMap<String, String> = value.common_tags.into();
-        map.insert("session.status".to_string(), value.status);
+        map.insert("session.status".to_owned(), value.status);
 
         map
     }

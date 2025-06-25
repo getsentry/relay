@@ -112,7 +112,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 /// These metrics are added to [`crate::GlobalConfig`] by the service and enabled
 /// by project configs in sentry.
 pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMapping>)> {
-    let is_ai = RuleCondition::glob("span.op", "ai.*");
+    let is_ai = RuleCondition::glob("span.op", "ai.*") | RuleCondition::glob("span.op", "gen_ai.*");
 
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !RuleCondition::glob("span.op", DISABLED_DATABASES)

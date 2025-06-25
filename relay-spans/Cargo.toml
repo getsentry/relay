@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Event normalization and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.5.1"
+version = "25.6.1"
 edition = "2024"
 license-file = "../LICENSE"
 publish = false
@@ -24,6 +24,7 @@ opentelemetry-proto = { workspace = true, features = [
 relay-event-schema = { workspace = true }
 relay-protocol = { workspace = true }
 serde_json = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

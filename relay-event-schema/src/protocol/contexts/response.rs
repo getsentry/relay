@@ -121,8 +121,8 @@ mod tests {
             Cookies::parse("PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;;")
                 .unwrap();
         let headers = vec![Annotated::new((
-            Annotated::new("content-type".to_string().into()),
-            Annotated::new("text/html".to_string().into()),
+            Annotated::new("content-type".to_owned().into()),
+            Annotated::new("text/html".to_owned().into()),
         ))];
         let context = Annotated::new(Context::Response(Box::new(ResponseContext {
             cookies: Annotated::new(cookies),
@@ -131,15 +131,15 @@ mod tests {
             body_size: Annotated::new(1000),
             data: {
                 let mut map = Object::new();
-                map.insert("some".to_string(), Annotated::new(Value::I64(1)));
+                map.insert("some".to_owned(), Annotated::new(Value::I64(1)));
                 Annotated::new(Value::Object(map))
             },
-            inferred_content_type: Annotated::new("application/json".to_string()),
+            inferred_content_type: Annotated::new("application/json".to_owned()),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "arbitrary_field".to_string(),
-                    Annotated::new(Value::String("arbitrary".to_string())),
+                    "arbitrary_field".to_owned(),
+                    Annotated::new(Value::String("arbitrary".to_owned())),
                 );
                 map
             },

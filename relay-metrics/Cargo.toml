@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics protocol and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.5.1"
+version = "25.6.1"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -29,6 +29,7 @@ relay-cardinality = { workspace = true }
 relay-cogs = { workspace = true }
 relay-common = { workspace = true }
 relay-log = { workspace = true }
+relay-protocol = { workspace = true }
 relay-redis = { workspace = true, optional = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }

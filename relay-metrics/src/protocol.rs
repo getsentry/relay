@@ -1,6 +1,7 @@
 use std::hash::Hasher as _;
 
 use hash32::{FnvHasher, Hasher as _};
+use relay_protocol::FiniteF64;
 
 #[doc(inline)]
 pub use relay_base_schema::metrics::{
@@ -12,7 +13,7 @@ pub use relay_common::time::UnixTimestamp;
 #[doc(inline)]
 pub use unescaper::Error as UnescapeError;
 
-use crate::{Bucket, FiniteF64, MetricTags};
+use crate::{Bucket, MetricTags};
 
 /// Type used for Counter metric
 pub type CounterType = FiniteF64;

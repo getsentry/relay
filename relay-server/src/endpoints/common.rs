@@ -8,9 +8,7 @@ use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::envelope::{
-    AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType, Items,
-};
+use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
 use crate::services::buffer::ProjectKeyPair;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome};
@@ -380,11 +378,7 @@ fn emit_envelope_metrics(envelope: &Envelope) {
     let client_name = envelope.meta().client_name().name();
     for item in envelope.items() {
         let item_type = item.ty().name();
-        let is_container = if item.content_type().is_some_and(ContentType::is_container) {
-            "true"
-        } else {
-            "false"
-        };
+        let is_container = if item.is_container() { "true" } else { "false" };
 
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,

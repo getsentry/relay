@@ -229,7 +229,7 @@ impl Processor for PiiProcessor<'_> {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
             user.ip_address.meta_mut().add_remark(Remark::new(
                 RemarkType::Removed,
-                "pii:ip_address".to_string(),
+                "pii:ip_address".to_owned(),
             ));
         }
 
@@ -332,7 +332,7 @@ pub fn scrub_graphql(event: &mut Event) {
                 {
                     for (key, value) in variables.iter_mut() {
                         keys.insert(key);
-                        value.set_value(Some(Value::String("[Filtered]".to_string())));
+                        value.set_value(Some(Value::String("[Filtered]".to_owned())));
                     }
                 }
             }
@@ -371,7 +371,7 @@ fn scrub_graphql_data(keys: &BTreeSet<&str>, data: &mut BTreeMap<String, Annotat
             }
             _ => {
                 if keys.contains(key.as_str()) {
-                    value.set_value(Some(Value::String("[Filtered]".to_string())));
+                    value.set_value(Some(Value::String("[Filtered]".to_owned())));
                 }
             }
         }
@@ -674,14 +674,14 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
-                formatted: Annotated::new("Hello world!".to_string().into()),
+                formatted: Annotated::new("Hello world!".to_owned().into()),
                 ..Default::default()
             }),
             request: Annotated::new(Request {
                 env: {
                     let mut rv = Object::new();
                     rv.insert(
-                        "SECRET_KEY".to_string(),
+                        "SECRET_KEY".to_owned(),
                         Annotated::new(Value::String("134141231231231231231312".into())),
                     );
                     Annotated::new(rv)
@@ -689,12 +689,12 @@ mod tests {
                 headers: {
                     let rv = vec![
                         Annotated::new((
-                            Annotated::new("Cookie".to_string().into()),
-                            Annotated::new("super secret".to_string().into()),
+                            Annotated::new("Cookie".to_owned().into()),
+                            Annotated::new("super secret".to_owned().into()),
                         )),
                         Annotated::new((
-                            Annotated::new("X-Forwarded-For".to_string().into()),
-                            Annotated::new("127.0.0.1".to_string().into()),
+                            Annotated::new("X-Forwarded-For".to_owned().into()),
+                            Annotated::new("127.0.0.1".to_owned().into()),
                         )),
                     ];
                     Annotated::new(Headers(PairList(rv)))
@@ -703,8 +703,8 @@ mod tests {
             }),
             tags: Annotated::new(Tags(
                 vec![Annotated::new(TagEntry(
-                    Annotated::new("forwarded_for".to_string()),
-                    Annotated::new("127.0.0.1".to_string()),
+                    Annotated::new("forwarded_for".to_owned()),
+                    Annotated::new("127.0.0.1".to_owned()),
                 ))]
                 .into(),
             )),
@@ -733,8 +733,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "foo".to_string(),
-                    Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                    "foo".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("bar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -773,8 +773,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "myvalue".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                    "myvalue".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -803,8 +803,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "myvalue".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                    "myvalue".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -833,8 +833,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "myvalue".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                    "myvalue".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -863,8 +863,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "myvalue".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                    "myvalue".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -930,15 +930,15 @@ mod tests {
                         ),
                         debug_file: Annotated::new("wntdll.pdb".into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new("arm64".to_string()),
+                        arch: Annotated::new("arm64".to_owned()),
                         image_addr: Annotated::new(Addr(0)),
                         image_size: Annotated::new(4096),
                         image_vmaddr: Annotated::new(Addr(32768)),
                         other: {
                             let mut map = Object::new();
                             map.insert(
-                                "other".to_string(),
-                                Annotated::new(Value::String("value".to_string())),
+                                "other".to_owned(),
+                                Annotated::new(Value::String("value".to_owned())),
                             );
                             map
                         },
@@ -979,15 +979,15 @@ mod tests {
                         ),
                         debug_file: Annotated::new("wntdll.pdb".into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new("arm64".to_string()),
+                        arch: Annotated::new("arm64".to_owned()),
                         image_addr: Annotated::new(Addr(0)),
                         image_size: Annotated::new(4096),
                         image_vmaddr: Annotated::new(Addr(32768)),
                         other: {
                             let mut map = Object::new();
                             map.insert(
-                                "other".to_string(),
-                                Annotated::new(Value::String("value".to_string())),
+                                "other".to_owned(),
+                                Annotated::new(Value::String("value".to_owned())),
                             );
                             map
                         },
@@ -1028,15 +1028,15 @@ mod tests {
                         ),
                         debug_file: Annotated::new("wntdll.pdb".into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new("arm64".to_string()),
+                        arch: Annotated::new("arm64".to_owned()),
                         image_addr: Annotated::new(Addr(0)),
                         image_size: Annotated::new(4096),
                         image_vmaddr: Annotated::new(Addr(32768)),
                         other: {
                             let mut map = Object::new();
                             map.insert(
-                                "other".to_string(),
-                                Annotated::new(Value::String("value".to_string())),
+                                "other".to_owned(),
+                                Annotated::new(Value::String("value".to_owned())),
                             );
                             map
                         },
@@ -1079,15 +1079,15 @@ mod tests {
                         ),
                         debug_file: Annotated::new("wntdll.pdb".into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new("arm64".to_string()),
+                        arch: Annotated::new("arm64".to_owned()),
                         image_addr: Annotated::new(Addr(0)),
                         image_size: Annotated::new(4096),
                         image_vmaddr: Annotated::new(Addr(32768)),
                         other: {
                             let mut map = Object::new();
                             map.insert(
-                                "other".to_string(),
-                                Annotated::new(Value::String("value".to_string())),
+                                "other".to_owned(),
+                                Annotated::new(Value::String("value".to_owned())),
                             );
                             map
                         },
@@ -1120,12 +1120,12 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "do not ,./<>?!@#$%^&*())'ßtrip'".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foo".to_string()))),
+                    "do not ,./<>?!@#$%^&*())'ßtrip'".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foo".to_owned()))),
                 );
                 map.insert(
-                    "special ,./<>?!@#$%^&*())'gärbage'".to_string(),
-                    Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                    "special ,./<>?!@#$%^&*())'gärbage'".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("bar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -1159,7 +1159,7 @@ mod tests {
 
             let mut event = Annotated::new(Event {
                 logentry: Annotated::new(LogEntry {
-                    formatted: Annotated::new("Hello world!".to_string().into()),
+                    formatted: Annotated::new("Hello world!".to_owned().into()),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -1197,7 +1197,7 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             user: Annotated::new(User {
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1231,8 +1231,8 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             user: Annotated::new(User {
-                id: Annotated::new("123".to_string().into()),
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+                id: Annotated::new("123".to_owned().into()),
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1475,6 +1475,33 @@ mod tests {
     }
 
     #[test]
+    fn test_csp_source_file_pii() {
+        let mut event = Event::from_value(
+            json!({
+                "csp": {
+                    "source_file": "authentication.js",
+                }
+            })
+            .into(),
+        );
+
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+            {
+                "applications": {
+                    "csp.source_file": ["@anything:filter"]
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let mut pii_processor = PiiProcessor::new(config.compiled());
+        processor::process_value(&mut event, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(event.csp.source_file!).as_str(), "[Filtered]");
+    }
+
+    #[test]
     fn test_scrub_breadcrumb_data_http_not_scrubbed() {
         let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
             r#"{
@@ -1705,7 +1732,7 @@ mod tests {
         let mut event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
                 message: Annotated::new(Message::from("failed to parse report id=%s".to_owned())),
-                formatted: Annotated::new("failed to parse report id=1".to_string().into()),
+                formatted: Annotated::new("failed to parse report id=1".to_owned().into()),
                 params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
                     "12345".to_owned(),
                 ))])),

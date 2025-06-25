@@ -455,6 +455,10 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
+    /// The maximum number of tokens that should be used by an LLM call.
+    #[metastructure(field = "gen_ai.request.max_tokens")]
+    pub gen_ai_request_max_tokens: Annotated<Value>,
+
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
@@ -469,6 +473,11 @@ pub struct SpanData {
     )]
     pub gen_ai_usage_input_tokens: Annotated<Value>,
 
+    /// The input tokens used by an LLM call that were cached
+    /// (cheaper and faster than non-cached input tokens)
+    #[metastructure(field = "gen_ai.usage.input_tokens.cached")]
+    pub gen_ai_usage_input_tokens_cached: Annotated<Value>,
+
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
     #[metastructure(
         field = "gen_ai.usage.output_tokens",
@@ -476,9 +485,50 @@ pub struct SpanData {
     )]
     pub gen_ai_usage_output_tokens: Annotated<Value>,
 
+    /// The output tokens used to represent the model's internal thought
+    /// process while generating a response
+    #[metastructure(field = "gen_ai.usage.output_tokens.reasoning")]
+    pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
+
+    // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
+    #[metastructure(field = "gen_ai.response.model")]
+    pub gen_ai_response_model: Annotated<Value>,
+
+    /// The name of the GenAI model a request is being made to (e.g. gpt-4)
+    #[metastructure(field = "gen_ai.request.model")]
+    pub gen_ai_request_model: Annotated<Value>,
+
     /// The total cost for the tokens used
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
+
+    /// Prompt passed to LLM (Vercel AI SDK)
+    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
+    pub gen_ai_prompt: Annotated<Value>,
+
+    /// Prompt passed to LLM
+    #[metastructure(field = "gen_ai.request.messages", pii = "maybe")]
+    pub gen_ai_request_messages: Annotated<Value>,
+
+    /// Tool call arguments
+    #[metastructure(field = "gen_ai.tool.input", pii = "maybe")]
+    pub gen_ai_tool_input: Annotated<Value>,
+
+    /// Tool call result
+    #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
+    pub gen_ai_tool_output: Annotated<Value>,
+
+    /// LLM decisions to use calls
+    #[metastructure(field = "gen_ai.response.tool_calls", pii = "maybe")]
+    pub gen_ai_response_tool_calls: Annotated<Value>,
+
+    /// LLM response text (Vercel AI, generateText)
+    #[metastructure(field = "gen_ai.response.text", pii = "maybe")]
+    pub gen_ai_response_text: Annotated<Value>,
+
+    /// LLM response object (Vercel AI, generateObject)
+    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
+    pub gen_ai_response_object: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -809,6 +859,7 @@ impl Getter for SpanData {
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
+            "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
             "http\\.decoded_response_content_length" => {
@@ -1085,7 +1136,7 @@ mod tests {
         measurements.insert(
             "memory".into(),
             Annotated::new(Measurement {
-                value: Annotated::new(9001.0),
+                value: Annotated::new(9001.0.try_into().unwrap()),
                 unit: Annotated::new(MetricUnit::Information(InformationUnit::Byte)),
             }),
         );
@@ -1257,13 +1308,25 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r#"
+        insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
+            gen_ai_request_max_tokens: ~,
             gen_ai_usage_total_tokens: ~,
             gen_ai_usage_input_tokens: ~,
+            gen_ai_usage_input_tokens_cached: ~,
             gen_ai_usage_output_tokens: ~,
+            gen_ai_usage_output_tokens_reasoning: ~,
+            gen_ai_response_model: ~,
+            gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
+            gen_ai_prompt: ~,
+            gen_ai_request_messages: ~,
+            gen_ai_tool_input: ~,
+            gen_ai_tool_output: ~,
+            gen_ai_response_tool_calls: ~,
+            gen_ai_response_text: ~,
+            gen_ai_response_object: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
@@ -1364,7 +1427,7 @@ mod tests {
                 ),
             },
         }
-        "#);
+        "###);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));

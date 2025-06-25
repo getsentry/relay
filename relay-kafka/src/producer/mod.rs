@@ -122,7 +122,7 @@ impl Producer {
 
             for topic in metadata.topics() {
                 if let Some(error) = topic.error() {
-                    return Err(ClientError::TopicError(topic.name().to_string(), error));
+                    return Err(ClientError::TopicError(topic.name().to_owned(), error));
                 }
             }
         }
@@ -226,7 +226,7 @@ impl KafkaClientBuilder {
     pub fn add_kafka_topic_config(
         mut self,
         topic: KafkaTopic,
-        params_list: &[::KafkaParams],
+        params_list: &[KafkaParams],
         validate_topic: bool,
     ) -> Result<Self, ClientError> {
         let mut all_topic_producers = Vec::new();
@@ -264,7 +264,7 @@ impl KafkaClientBuilder {
                 Arc::clone(producer)
             } else {
                 let mut client_config = ClientConfig::new();
-                for config_p in *config_params {
+                for config_p in config_params {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
                 }
 

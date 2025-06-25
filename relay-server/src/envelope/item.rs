@@ -14,14 +14,6 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::envelope::{AttachmentType, ContentType, EnvelopeError};
 
-/// Expresses the purpose of counting quantities.
-///
-/// Sessions are counted for rate limiting enforcement but not for outcome reporting.
-pub enum CountFor {
-    RateLimits,
-    Outcomes,
-}
-
 #[derive(Clone, Debug)]
 pub struct Item {
     pub(super) headers: ItemHeaders,
@@ -41,7 +33,6 @@ impl Item {
                 filename: None,
                 routing_hint: None,
                 rate_limited: false,
-                replay_combined_payload: false,
                 source_quantities: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
@@ -110,7 +101,7 @@ impl Item {
     /// Returns the number used for counting towards rate limits and producing outcomes.
     ///
     /// For attachments, we count the number of bytes. Other items are counted as 1.
-    pub fn quantities(&self, purpose: CountFor) -> SmallVec<[(DataCategory, usize); 1]> {
+    pub fn quantities(&self) -> SmallVec<[(DataCategory, usize); 1]> {
         let item_count = self.item_count().unwrap_or(1) as usize;
 
         match self.ty() {
@@ -125,10 +116,9 @@ impl Item {
                 (DataCategory::Attachment, self.len().max(1)),
                 (DataCategory::AttachmentItem, item_count)
             ],
-            ItemType::Session | ItemType::Sessions => match purpose {
-                CountFor::RateLimits => smallvec![(DataCategory::Session, item_count)],
-                CountFor::Outcomes => smallvec![],
-            },
+            ItemType::Session | ItemType::Sessions => {
+                smallvec![(DataCategory::Session, item_count)]
+            }
             ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
             ItemType::Log | ItemType::OtelLog => smallvec![
                 (DataCategory::LogByte, self.len().max(1)),
@@ -291,17 +281,6 @@ impl Item {
         self.headers.source_quantities = Some(source_quantities);
     }
 
-    /// Returns if the payload's replay items should be combined into one kafka message.
-    #[cfg(feature = "processing")]
-    pub fn replay_combined_payload(&self) -> bool {
-        self.headers.replay_combined_payload
-    }
-
-    /// Sets the replay_combined_payload for this item.
-    pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
-        self.headers.replay_combined_payload = combined_payload;
-    }
-
     /// Returns the metrics extracted flag.
     pub fn metrics_extracted(&self) -> bool {
         self.headers.metrics_extracted
@@ -394,7 +373,6 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::Nel
             | ItemType::UnrealReport
             | ItemType::UserReportV2 => true,
 
@@ -436,6 +414,7 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
+            | ItemType::Nel
             | ItemType::Log
             | ItemType::OtelLog
             | ItemType::OtelSpan
@@ -491,6 +470,11 @@ impl Item {
             // returning `false` the safer option.
             ItemType::Unknown(_) => false,
         }
+    }
+
+    /// Determines if this item is an `ItemContainer` based on its content type.
+    pub fn is_container(&self) -> bool {
+        self.content_type().is_some_and(ContentType::is_container)
     }
 }
 
@@ -774,11 +758,6 @@ pub struct ItemHeaders {
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
     rate_limited: bool,
-
-    /// Indicates that this item should be combined into one payload with other replay item.
-    /// NOTE: This is internal-only and not exposed into the Envelope.
-    #[serde(default, skip)]
-    replay_combined_payload: bool,
 
     /// Contains the amount of events this item was generated and aggregated from.
     ///

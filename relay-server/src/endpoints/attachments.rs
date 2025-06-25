@@ -1,15 +1,15 @@
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use multer::Multipart;
+use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, Envelope};
-use crate::extractors::{Remote, RequestMeta};
+use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
-use crate::utils;
+use crate::utils::ConstrainedMultipart;
 
 #[derive(Debug, Deserialize)]
 pub struct AttachmentPath {
@@ -19,9 +19,12 @@ pub struct AttachmentPath {
 async fn extract_envelope(
     meta: RequestMeta,
     path: AttachmentPath,
-    multipart: Multipart<'static>,
+    multipart: ConstrainedMultipart,
+    config: &Config,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let items = utils::multipart_items(multipart, |_, _| AttachmentType::default()).await?;
+    let items = multipart
+        .items(|_, _| AttachmentType::default(), config)
+        .await?;
 
     let mut envelope = Envelope::from_request(Some(path.event_id), meta);
     for item in items {
@@ -35,9 +38,9 @@ pub async fn handle(
     state: ServiceState,
     meta: RequestMeta,
     Path(path): Path<AttachmentPath>,
-    Remote(multipart): Remote<Multipart<'static>>,
+    multipart: ConstrainedMultipart,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
-    let envelope = extract_envelope(meta, path, multipart).await?;
+    let envelope = extract_envelope(meta, path, multipart, state.config()).await?;
     common::handle_envelope(&state, envelope).await?;
     Ok(StatusCode::CREATED)
 }
