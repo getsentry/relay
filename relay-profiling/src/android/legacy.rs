@@ -334,10 +334,10 @@ mod tests {
     #[test]
     fn test_extract_transaction_metadata() {
         let transaction_metadata = BTreeMap::from([
-            ("release".to_string(), "some-random-release".to_string()),
+            ("release".to_owned(), "some-random-release".to_owned()),
             (
-                "transaction".to_string(),
-                "some-random-transaction".to_string(),
+                            "transaction".to_owned(),
+            "some-random-transaction".to_owned(),
             ),
         ]);
 
@@ -350,14 +350,14 @@ mod tests {
         let output: AndroidProfilingEvent = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
-        assert_eq!(output.metadata.release, "some-random-release".to_string());
+        assert_eq!(output.metadata.release, "some-random-release".to_owned());
         assert_eq!(
             output.metadata.transaction_name,
-            "some-random-transaction".to_string()
+            "some-random-transaction".to_owned()
         );
 
         if let Some(transaction) = output.metadata.transaction {
-            assert_eq!(transaction.name, "some-random-transaction".to_string());
+            assert_eq!(transaction.name, "some-random-transaction".to_owned());
         }
     }
 
