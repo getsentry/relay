@@ -16,6 +16,7 @@
 - Use the `FiniteF64` type for measurements. ([#4828](https://github.com/getsentry/relay/pull/4828))
 - Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
 - Consider `gen_ai` also as AI span op prefix. ([#4859](https://github.com/getsentry/relay/pull/4859))
+- Change pii scrubbing on some AI attributes to optional ([#4860](https://github.com/getsentry/relay/pull/4860))
 
 ## 25.6.1
 
