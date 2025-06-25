@@ -400,7 +400,7 @@ mod tests {
     fn test_filters_known_blocked_source_files() {
         let event = get_csp_event(None, Some("http://known.bad.com"), None);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_string()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()],
         };
 
         let actual = should_filter(&event, &config);
@@ -415,7 +415,7 @@ mod tests {
     fn test_does_not_filter_benign_source_files() {
         let event = get_csp_event(None, Some("http://good.file.com"), None);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_string()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()],
         };
 
         let actual = should_filter(&event, &config);
@@ -430,7 +430,7 @@ mod tests {
     fn test_filters_known_document_uris() {
         let event = get_csp_event(None, None, Some("http://known.bad.com"));
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_string()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()],
         };
 
         let actual = should_filter(&event, &config);
@@ -445,7 +445,7 @@ mod tests {
     fn test_filters_known_blocked_uris() {
         let event = get_csp_event(Some("http://known.bad.com"), None, None);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_string()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()],
         };
 
         let actual = should_filter(&event, &config);
@@ -460,7 +460,7 @@ mod tests {
     fn test_does_not_filter_benign_uris() {
         let event = get_csp_event(Some("http://good.file.com"), None, None);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_string()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()],
         };
 
         let actual = should_filter(&event, &config);
@@ -476,7 +476,7 @@ mod tests {
         let mut event = get_csp_event(Some("http://known.bad.com"), None, None);
         event.ty = Annotated::from(EventType::Transaction);
         let config = CspFilterConfig {
-            disallowed_sources: vec!["http://known.bad.com".to_string()],
+            disallowed_sources: vec!["http://known.bad.com".to_owned()],
         };
 
         let actual = should_filter(&event, &config);
@@ -489,14 +489,14 @@ mod tests {
 
     fn get_disallowed_sources() -> Vec<String> {
         vec![
-            "about".to_string(),
-            "ms-browser-extension".to_string(),
-            "*.superfish.com".to_string(),
-            "chrome://*".to_string(),
-            "chrome-extension://*".to_string(),
-            "chromeinvokeimmediate://*".to_string(),
-            "chromenull://*".to_string(),
-            "localhost".to_string(),
+            "about".to_owned(),
+            "ms-browser-extension".to_owned(),
+            "*.superfish.com".to_owned(),
+            "chrome://*".to_owned(),
+            "chrome-extension://*".to_owned(),
+            "chromeinvokeimmediate://*".to_owned(),
+            "chromenull://*".to_owned(),
+            "localhost".to_owned(),
         ]
     }
 

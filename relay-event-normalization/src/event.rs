@@ -394,7 +394,7 @@ fn normalize_security_report(
         return;
     }
 
-    event.logger.get_or_insert_with(|| "csp".to_string());
+    event.logger.get_or_insert_with(|| "csp".to_owned());
 
     if let Some(client_ip) = client_ip {
         let user = event.user.value_mut().get_or_insert_with(User::default);
@@ -582,7 +582,7 @@ fn normalize_breadcrumbs(event: &mut Event) {
         };
 
         if breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(Some("default".to_string()));
+            breadcrumb.ty.set_value(Some("default".to_owned()));
         }
         if breadcrumb.level.value().is_none() {
             breadcrumb.level.set_value(Some(Level::Info));
@@ -683,13 +683,13 @@ fn normalize_event_tags(event: &mut Event) {
 
     let server_name = std::mem::take(&mut event.server_name);
     if server_name.value().is_some() {
-        let tag_name = "server_name".to_string();
+        let tag_name = "server_name".to_owned();
         tags.insert(tag_name, server_name);
     }
 
     let site = std::mem::take(&mut event.site);
     if site.value().is_some() {
-        let tag_name = "site".to_string();
+        let tag_name = "site".to_owned();
         tags.insert(tag_name, site);
     }
 }
@@ -1005,24 +1005,24 @@ fn normalize_trace_context_tags(event: &mut Event) {
             if let Some(data) = trace_context.data.value() {
                 if let Some(lcp_element) = data.lcp_element.value() {
                     if !tags.contains("lcp.element") {
-                        let tag_name = "lcp.element".to_string();
+                        let tag_name = "lcp.element".to_owned();
                         tags.insert(tag_name, Annotated::new(lcp_element.clone()));
                     }
                 }
                 if let Some(lcp_size) = data.lcp_size.value() {
                     if !tags.contains("lcp.size") {
-                        let tag_name = "lcp.size".to_string();
+                        let tag_name = "lcp.size".to_owned();
                         tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
                     }
                 }
                 if let Some(lcp_id) = data.lcp_id.value() {
-                    let tag_name = "lcp.id".to_string();
+                    let tag_name = "lcp.id".to_owned();
                     if !tags.contains("lcp.id") {
                         tags.insert(tag_name, Annotated::new(lcp_id.clone()));
                     }
                 }
                 if let Some(lcp_url) = data.lcp_url.value() {
-                    let tag_name = "lcp.url".to_string();
+                    let tag_name = "lcp.url".to_owned();
                     if !tags.contains("lcp.url") {
                         tags.insert(tag_name, Annotated::new(lcp_url.clone()));
                     }
@@ -1134,7 +1134,7 @@ fn normalize_default_attributes(event: &mut Event, meta: &mut Meta, config: &Nor
     // Default required attributes, even if they have errors
     event.errors.get_or_insert_with(Vec::new);
     event.id.get_or_insert_with(EventId::new);
-    event.platform.get_or_insert_with(|| "other".to_string());
+    event.platform.get_or_insert_with(|| "other".to_owned());
     event.logger.get_or_insert_with(String::new);
     event.extra.get_or_insert_with(Object::new);
     event.level.get_or_insert_with(|| match event_type {
@@ -1504,10 +1504,10 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
 /// The snake_case is the key expected by the Sentry UI to aggregate and display in graphs.
 fn normalize_app_start_measurements(measurements: &mut Measurements) {
     if let Some(app_start_cold_value) = measurements.remove("app.start.cold") {
-        measurements.insert("app_start_cold".to_string(), app_start_cold_value);
+        measurements.insert("app_start_cold".to_owned(), app_start_cold_value);
     }
     if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
-        measurements.insert("app_start_warm".to_string(), app_start_warm_value);
+        measurements.insert("app_start_warm".to_owned(), app_start_warm_value);
     }
 }
 
@@ -1585,16 +1585,16 @@ mod tests {
 
     #[test]
     fn test_normalize_dist_empty() {
-        let mut dist = Annotated::new("".to_string());
+        let mut dist = Annotated::new("".to_owned());
         normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_trim() {
-        let mut dist = Annotated::new(" foo  ".to_string());
+        let mut dist = Annotated::new(" foo  ".to_owned());
         normalize_dist(&mut dist);
-        assert_eq!(dist.value(), Some(&"foo".to_string()));
+        assert_eq!(dist.value(), Some(&"foo".to_owned()));
     }
 
     #[test]
@@ -1842,7 +1842,7 @@ mod tests {
             csp: Annotated::from(Csp::default()),
             ..Default::default()
         };
-        let ipaddr = IpAddr("213.164.1.114".to_string());
+        let ipaddr = IpAddr("213.164.1.114".to_owned());
 
         let client_ip = Some(&ipaddr);
 
@@ -1919,8 +1919,8 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "iPhone".to_string().into(),
-                    model: "iPhone8,4".to_string().into(),
+                    family: "iPhone".to_owned().into(),
+                    model: "iPhone8,4".to_owned().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1948,8 +1948,8 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "iPhone".to_string().into(),
-                    model: "iPhone12,8".to_string().into(),
+                    family: "iPhone".to_owned().into(),
+                    model: "iPhone12,8".to_owned().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -1977,7 +1977,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "android".to_string().into(),
+                    family: "android".to_owned().into(),
                     processor_frequency: 1000.into(),
                     processor_count: 6.into(),
                     memory_size: (2 * 1024 * 1024 * 1024).into(),
@@ -2008,7 +2008,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "android".to_string().into(),
+                    family: "android".to_owned().into(),
                     processor_frequency: 2000.into(),
                     processor_count: 8.into(),
                     memory_size: (6 * 1024 * 1024 * 1024).into(),
@@ -2039,7 +2039,7 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "android".to_string().into(),
+                    family: "android".to_owned().into(),
                     processor_frequency: 2500.into(),
                     processor_count: 8.into(),
                     memory_size: (6 * 1024 * 1024 * 1024).into(),
@@ -2416,8 +2416,8 @@ mod tests {
             contexts: {
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    family: "iPhone".to_string().into(),
-                    model: "iPhone15,3".to_string().into(),
+                    family: "iPhone".to_owned().into(),
+                    model: "iPhone15,3".to_owned().into(),
                     ..Default::default()
                 });
                 Annotated::new(contexts)
@@ -4236,20 +4236,20 @@ mod tests {
         assert_eq!(user.data, {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
+                "other".to_owned(),
                 Annotated::new(Value::String("value".to_owned())),
             );
             Annotated::new(map)
         });
         assert_eq!(user.other, Object::new());
-        assert_eq!(user.username, Annotated::new("john".to_string().into()));
-        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_string()));
+        assert_eq!(user.username, Annotated::new("john".to_owned().into()));
+        assert_eq!(user.sentry_user, Annotated::new("id:123456".to_owned()));
     }
 
     #[test]
     fn test_handle_types_in_spaced_exception_values() {
         let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError: unauthorized".to_string().into()),
+            value: Annotated::new("ValueError: unauthorized".to_owned().into()),
             ..Exception::default()
         });
         normalize_exception(&mut exception);
@@ -4262,7 +4262,7 @@ mod tests {
     #[test]
     fn test_handle_types_in_non_spaced_excepton_values() {
         let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError:unauthorized".to_string().into()),
+            value: Annotated::new("ValueError:unauthorized".to_owned().into()),
             ..Exception::default()
         });
         normalize_exception(&mut exception);
@@ -4275,8 +4275,8 @@ mod tests {
     #[test]
     fn test_rejects_empty_exception_fields() {
         let mut exception = Annotated::new(Exception {
-            value: Annotated::new("".to_string().into()),
-            ty: Annotated::new("".to_string()),
+            value: Annotated::new("".to_owned().into()),
+            ty: Annotated::new("".to_owned()),
             ..Default::default()
         });
 

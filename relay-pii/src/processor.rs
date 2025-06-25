@@ -773,8 +773,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "myvalue".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                    "myvalue".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -803,8 +803,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "myvalue".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                    "myvalue".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -833,8 +833,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "myvalue".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                    "myvalue".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -863,8 +863,8 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "myvalue".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                    "myvalue".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -930,15 +930,15 @@ mod tests {
                         ),
                         debug_file: Annotated::new("wntdll.pdb".into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new("arm64".to_string()),
+                        arch: Annotated::new("arm64".to_owned()),
                         image_addr: Annotated::new(Addr(0)),
                         image_size: Annotated::new(4096),
                         image_vmaddr: Annotated::new(Addr(32768)),
                         other: {
                             let mut map = Object::new();
                             map.insert(
-                                "other".to_string(),
-                                Annotated::new(Value::String("value".to_string())),
+                                "other".to_owned(),
+                                Annotated::new(Value::String("value".to_owned())),
                             );
                             map
                         },
@@ -979,15 +979,15 @@ mod tests {
                         ),
                         debug_file: Annotated::new("wntdll.pdb".into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new("arm64".to_string()),
+                        arch: Annotated::new("arm64".to_owned()),
                         image_addr: Annotated::new(Addr(0)),
                         image_size: Annotated::new(4096),
                         image_vmaddr: Annotated::new(Addr(32768)),
                         other: {
                             let mut map = Object::new();
                             map.insert(
-                                "other".to_string(),
-                                Annotated::new(Value::String("value".to_string())),
+                                "other".to_owned(),
+                                Annotated::new(Value::String("value".to_owned())),
                             );
                             map
                         },
@@ -1028,15 +1028,15 @@ mod tests {
                         ),
                         debug_file: Annotated::new("wntdll.pdb".into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new("arm64".to_string()),
+                        arch: Annotated::new("arm64".to_owned()),
                         image_addr: Annotated::new(Addr(0)),
                         image_size: Annotated::new(4096),
                         image_vmaddr: Annotated::new(Addr(32768)),
                         other: {
                             let mut map = Object::new();
                             map.insert(
-                                "other".to_string(),
-                                Annotated::new(Value::String("value".to_string())),
+                                "other".to_owned(),
+                                Annotated::new(Value::String("value".to_owned())),
                             );
                             map
                         },
@@ -1079,15 +1079,15 @@ mod tests {
                         ),
                         debug_file: Annotated::new("wntdll.pdb".into()),
                         debug_checksum: Annotated::empty(),
-                        arch: Annotated::new("arm64".to_string()),
+                        arch: Annotated::new("arm64".to_owned()),
                         image_addr: Annotated::new(Addr(0)),
                         image_size: Annotated::new(4096),
                         image_vmaddr: Annotated::new(Addr(32768)),
                         other: {
                             let mut map = Object::new();
                             map.insert(
-                                "other".to_string(),
-                                Annotated::new(Value::String("value".to_string())),
+                                "other".to_owned(),
+                                Annotated::new(Value::String("value".to_owned())),
                             );
                             map
                         },
@@ -1120,12 +1120,12 @@ mod tests {
             extra: {
                 let mut map = Object::new();
                 map.insert(
-                    "do not ,./<>?!@#$%^&*())'ßtrip'".to_string(),
-                    Annotated::new(ExtraValue(Value::String("foo".to_string()))),
+                    "do not ,./<>?!@#$%^&*())'ßtrip'".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("foo".to_owned()))),
                 );
                 map.insert(
-                    "special ,./<>?!@#$%^&*())'gärbage'".to_string(),
-                    Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                    "special ,./<>?!@#$%^&*())'gärbage'".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("bar".to_owned()))),
                 );
                 Annotated::new(map)
             },
@@ -1159,7 +1159,7 @@ mod tests {
 
             let mut event = Annotated::new(Event {
                 logentry: Annotated::new(LogEntry {
-                    formatted: Annotated::new("Hello world!".to_string().into()),
+                    formatted: Annotated::new("Hello world!".to_owned().into()),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -1197,7 +1197,7 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             user: Annotated::new(User {
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1231,8 +1231,8 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             user: Annotated::new(User {
-                id: Annotated::new("123".to_string().into()),
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+                id: Annotated::new("123".to_owned().into()),
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1732,7 +1732,7 @@ mod tests {
         let mut event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
                 message: Annotated::new(Message::from("failed to parse report id=%s".to_owned())),
-                formatted: Annotated::new("failed to parse report id=1".to_string().into()),
+                formatted: Annotated::new("failed to parse report id=1".to_owned().into()),
                 params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
                     "12345".to_owned(),
                 ))])),

@@ -115,24 +115,24 @@ mod tests {
 
         let arr = vec![
             Annotated::new(TagEntry(
-                Annotated::new("bam".to_string()),
+                Annotated::new("bam".to_owned()),
                 Annotated::empty(),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("blah".to_string()),
-                Annotated::new("blub".to_string()),
+                Annotated::new("blah".to_owned()),
+                Annotated::new("blub".to_owned()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("bool".to_string()),
-                Annotated::new("True".to_string()),
+                Annotated::new("bool".to_owned()),
+                Annotated::new("True".to_owned()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("foo-bar".to_string()),
-                Annotated::new("baz".to_string()),
+                Annotated::new("foo-bar".to_owned()),
+                Annotated::new("baz".to_owned()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("non-string".to_string()),
-                Annotated::new("42".to_string()),
+                Annotated::new("non-string".to_owned()),
+                Annotated::new("42".to_owned()),
             )),
         ];
         let tags = Annotated::new(Tags(arr.into()));
@@ -193,23 +193,23 @@ mod tests {
 
         let arr = vec![
             Annotated::new(TagEntry(
-                Annotated::new("bool".to_string()),
-                Annotated::new("True".to_string()),
+                Annotated::new("bool".to_owned()),
+                Annotated::new("True".to_owned()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("foo-bar".to_string()),
-                Annotated::new("baz".to_string()),
+                Annotated::new("foo-bar".to_owned()),
+                Annotated::new("baz".to_owned()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("23".to_string()),
-                Annotated::new("42".to_string()),
+                Annotated::new("23".to_owned()),
+                Annotated::new("42".to_owned()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("blah".to_string()),
-                Annotated::new("blub".to_string()),
+                Annotated::new("blah".to_owned()),
+                Annotated::new("blub".to_owned()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("bam".to_string()),
+                Annotated::new("bam".to_owned()),
                 Annotated::empty(),
             )),
         ];

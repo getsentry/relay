@@ -97,15 +97,15 @@ mod tests {
   "other": "value"
 }"#;
         let exception = Annotated::new(Exception {
-            ty: Annotated::new("mytype".to_string()),
-            value: Annotated::new("myvalue".to_string().into()),
-            module: Annotated::new("mymodule".to_string()),
+            ty: Annotated::new("mytype".to_owned()),
+            value: Annotated::new("myvalue".to_owned().into()),
+            module: Annotated::new("mymodule".to_owned()),
             thread_id: Annotated::new(ThreadId::Int(42)),
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -120,7 +120,7 @@ mod tests {
     fn test_exception_default_values() {
         let json = r#"{"type":"mytype"}"#;
         let exception = Annotated::new(Exception {
-            ty: Annotated::new("mytype".to_string()),
+            ty: Annotated::new("mytype".to_owned()),
             ..Default::default()
         });
 
@@ -132,8 +132,8 @@ mod tests {
     fn test_exception_empty_fields() {
         let json = r#"{"type":"","value":""}"#;
         let exception = Annotated::new(Exception {
-            ty: Annotated::new("".to_string()),
-            value: Annotated::new("".to_string().into()),
+            ty: Annotated::new("".to_owned()),
+            value: Annotated::new("".to_owned().into()),
             ..Default::default()
         });
 
@@ -163,7 +163,7 @@ mod tests {
 }"#;
 
         let exception = Annotated::new(Exception {
-            ty: Annotated::new("ZeroDivisionError".to_string()),
+            ty: Annotated::new("ZeroDivisionError".to_owned()),
             ..Default::default()
         });
 

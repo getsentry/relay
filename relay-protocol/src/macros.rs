@@ -42,7 +42,7 @@
 ///
 /// let outer = Annotated::new(Outer {
 ///     inners: Annotated::new(Object::from([(
-///         "key".to_string(),
+///         "key".to_owned(),
 ///         Annotated::new(Inner {
 ///             value: Annotated::new(1),
 ///         }),
@@ -115,7 +115,7 @@ macro_rules! get_path {
 ///
 /// let outer = Annotated::new(Outer {
 ///     inners: Annotated::new(Object::from([(
-///         "key".to_string(),
+///         "key".to_owned(),
 ///         Annotated::new(Inner {
 ///             value: Annotated::new(1),
 ///         }),
