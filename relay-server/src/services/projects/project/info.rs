@@ -153,14 +153,14 @@ impl ProjectInfo {
         }
         match self.config.trusted_relay_settings.verify_signature {
             SignatureVerification::Disabled => Ok(()),
-            SignatureVerification::WithTimestamp => match envelope.meta().signature() {
+            SignatureVerification::Enabled => match envelope.meta().signature() {
                 Some(signature) => {
-                    if signature.verify_signature_any(
+                    if signature.verify_any(
                         &self.config.trusted_relays,
                         envelope.received_at(),
                         // conversion should never fail here
                         Duration::from_std(config.signature_max_age())
-                            .map_err(|_| DiscardReason::Internal)?,
+                            .unwrap_or(Duration::seconds(i64::MAX)),
                     ) {
                         Ok(())
                     } else {

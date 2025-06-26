@@ -19,7 +19,7 @@ use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
     RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
-    SignatureError, SignatureType,
+    SignatureError,
 };
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
@@ -285,6 +285,26 @@ impl TrySign {
                 };
                 Ok(Some(signature_type.create_signature(secret_key)))
             }
+        }
+    }
+}
+
+/// Types of signatures that are supported by Relay.
+#[derive(Debug)]
+pub enum SignatureType {
+    /// Bytes of an envelope body that are used to produce a signature.
+    Body(Bytes),
+    /// No data is needed for this signature because we only want to see if
+    /// the receiving relay can verify the signature correctly.
+    RequestSign,
+}
+
+impl SignatureType {
+    /// Creates a signature data based on the variant.
+    pub fn create_signature(self, secret_key: &SecretKey) -> Signature {
+        match self {
+            SignatureType::Body(data) => secret_key.sign(data.as_ref()),
+            SignatureType::RequestSign => secret_key.sign(&[]),
         }
     }
 }
@@ -831,7 +851,7 @@ impl SharedClient {
                     .create_signature(self.config.credentials().map(|cred| &cred.secret_key))
                     .map_err(|_| UpstreamRequestError::NoCredentials)?
                 {
-                    builder.header("x-sentry-relay-signature", signature.to_string());
+                    builder.header("x-sentry-relay-signature", &signature.0);
                 }
             }
 

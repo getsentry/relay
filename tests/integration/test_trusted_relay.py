@@ -21,7 +21,7 @@ def test_trusted_relay_chain(mini_sentry, relay, relay_credentials):
     }
 
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "withTimestamp"
+    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
     config["config"]["trustedRelays"] = [credentials["public_key"]]
 
     managed_relay = relay(mini_sentry, static_relays=static_relays)
@@ -44,7 +44,7 @@ def test_expired_signature(mini_sentry, relay, events_consumer, outcomes_consume
     project_id = 42
 
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "withTimestamp"
+    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
     config["config"]["trustedRelays"] = ["EpWXCzYBxsX3jIp9P5YpVffwW3AIJJbB7BtWeaWM7Mk"]
 
     events_consumer = events_consumer()
@@ -89,7 +89,7 @@ def test_internal_relay(mini_sentry, relay, relay_credentials):
     }
 
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "withTimestamp"
+    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
     config["config"]["trustedRelays"] = [credentials["public_key"]]
 
     managed_relay = relay(mini_sentry, static_relays=static_relays)
@@ -128,7 +128,7 @@ def test_internal_relays_invalid_signature(mini_sentry, relay, relay_credentials
     }
 
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "withTimestamp"
+    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
     config["config"]["trustedRelays"] = [credentials["public_key"]]
 
     managed_relay = relay(mini_sentry, static_relays=static_relays)
@@ -175,7 +175,7 @@ def test_invalid_signature(
     events_consumer = events_consumer(timeout=1)
 
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "withTimestamp"
+    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
     config["config"]["trustedRelays"] = [credentials["public_key"]]
 
     headers = {
@@ -226,7 +226,7 @@ def test_not_trusted_relay(
     outcomes_consumer = outcomes_consumer(timeout=1)
 
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "withTimestamp"
+    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
 
     relay.send_event(project_id)
     sleep(1)
@@ -247,7 +247,7 @@ def test_static_relay(mini_sentry, relay, relay_with_processing, outcomes_consum
     """
     project_id = 42
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "withTimestamp"
+    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
 
     processing_relay = relay_with_processing()
 
@@ -282,7 +282,7 @@ def test_drop_envelope(
     project_id = 42
     relay = relay_with_processing()
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "withTimestamp"
+    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
 
     relay.send_event(project_id)
 

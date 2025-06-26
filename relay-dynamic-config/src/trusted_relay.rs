@@ -24,7 +24,7 @@ impl TrustedRelayConfig {
 pub enum SignatureVerification {
     /// Checks the signature for validity and verifies that the embedded timestamp
     /// is not too old.
-    WithTimestamp,
+    Enabled,
     /// Does not perform any validation on the signature.
     #[default]
     Disabled,
@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_serialize_with_timestamp() {
-        let json = r#"{"verifySignature":"withTimestamp"}"#;
+        let json = r#"{"verifySignature":"enabled"}"#;
         let result: TrustedRelayConfig = serde_json::from_str(json).unwrap();
         let serialized = serde_json::to_string(&result).unwrap();
         assert_eq!(json, serialized);
@@ -51,12 +51,9 @@ mod tests {
 
     #[test]
     fn test_with_timestamp() {
-        let json = r#"{"verifySignature":"withTimestamp"}"#;
+        let json = r#"{"verifySignature":"enabled"}"#;
         let result: TrustedRelayConfig = serde_json::from_str(json).unwrap();
-        assert_eq!(
-            result.verify_signature,
-            SignatureVerification::WithTimestamp
-        );
+        assert_eq!(result.verify_signature, SignatureVerification::Enabled);
     }
 
     #[test]

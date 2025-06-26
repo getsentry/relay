@@ -60,7 +60,7 @@ pub unsafe extern "C" fn relay_publickey_verify(
     sig: *const RelayStr,
 ) -> bool {
     let pk = spk as *const PublicKey;
-    let signature = unsafe { SignatureRef((*sig).as_bytes()) };
+    let signature = SignatureRef(unsafe { (*sig).as_str() }.as_bytes());
     unsafe { (*pk).verify((*data).as_bytes(), signature) }
 }
 
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn relay_publickey_verify_timestamp(
 ) -> bool {
     let pk = spk as *const PublicKey;
     let max_age = Some(Duration::seconds(i64::from(max_age)));
-    let signature = unsafe { SignatureRef((*sig).as_bytes()) };
+    let signature = SignatureRef(unsafe { (*sig).as_str() }.as_bytes());
     unsafe { (*pk).verify_timestamp((*data).as_bytes(), signature, max_age) }
 }
 
@@ -114,8 +114,10 @@ pub unsafe extern "C" fn relay_secretkey_sign(
 ) -> RelayStr {
     let pk = spk as *const SecretKey;
     unsafe {
-        let signature = (*pk).sign((*data).as_bytes()).to_string();
-        RelayStr::from_string(signature)
+        let signature = (*pk).sign((*data).as_bytes());
+        // sign will always give us valid UTF8
+        let signature_string = String::from_utf8_unchecked(signature.0);
+        RelayStr::from_string(signature_string)
     }
 }
 
@@ -151,7 +153,7 @@ pub unsafe extern "C" fn relay_create_register_challenge(
         0 => None,
         m => Some(Duration::seconds(i64::from(m))),
     };
-    let signature = unsafe { SignatureRef((*signature).as_bytes()) };
+    let signature = SignatureRef(unsafe { (*signature).as_str() }.as_bytes());
 
     let challenge = unsafe {
         let req = RegisterRequest::bootstrap_unpack((*data).as_bytes(), signature, max_age)?;
@@ -184,7 +186,7 @@ pub unsafe extern "C" fn relay_validate_register_response(
         m => Some(Duration::seconds(i64::from(m))),
     };
 
-    let signature = unsafe { SignatureRef((*signature).as_bytes()) };
+    let signature = SignatureRef(unsafe { (*signature).as_str() }.as_bytes());
     let (response, state) = RegisterResponse::unpack(
         unsafe { (*data).as_bytes() },
         signature,

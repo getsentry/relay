@@ -22,7 +22,9 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use bytes::Bytes;
+use std::fmt;
+use std::str::FromStr;
+
 use chrono::{DateTime, Duration, Utc};
 use data_encoding::BASE64URL_NOPAD;
 use ed25519_dalek::{Signer, Verifier};
@@ -33,9 +35,6 @@ use relay_common::time::UnixTimestamp;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
-use std::fmt;
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
 use uuid::Uuid;
 
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
@@ -311,7 +310,7 @@ pub struct PublicKey {
 impl PublicKey {
     /// Verifies the signature and returns the embedded signature
     /// header.
-    pub fn verify_meta(&self, data: &[u8], sig: SignatureRef) -> Option<SignatureHeader> {
+    pub fn verify_meta(&self, data: &[u8], sig: SignatureRef<'_>) -> Option<SignatureHeader> {
         let mut iter = sig.0.splitn(2, |b| *b == b'.');
         let sig_bytes = match iter.next() {
             Some(sig_encoded) => BASE64URL_NOPAD.decode(sig_encoded).ok()?,
@@ -711,7 +710,7 @@ impl Signature {
     /// Returns `true` if the signature is valid with one of the given
     /// public keys and satisfies the timestamp constraints defined by `start_time`
     /// and `max_age`.
-    pub fn verify_signature_any(
+    pub fn verify_any(
         &self,
         public_key: &[PublicKey],
         start_time: DateTime<Utc>,
@@ -719,7 +718,7 @@ impl Signature {
     ) -> bool {
         public_key
             .iter()
-            .any(|p| self.verify_signature(p, start_time, max_age))
+            .any(|p| self.verify(p, start_time, max_age))
     }
 
     /// Verifies the signature using the specified public key.
@@ -727,7 +726,7 @@ impl Signature {
     /// The signature is considered valid if it can be verified using the given
     /// public key and its embedded timestamp falls within the valid time range,
     /// starting from `start_time` and not exceeding `max_age`.
-    pub fn verify_signature(
+    pub fn verify(
         &self,
         public_key: &PublicKey,
         start_time: DateTime<Utc>,
@@ -762,14 +761,6 @@ impl Signature {
     }
 }
 
-impl Display for Signature {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        // Bytes in Signature are already encoded as Base64 so this should never allocate.
-        let s = String::from_utf8_lossy(&self.0);
-        write!(f, "{s}")
-    }
-}
-
 /// A borrowed reference to a byte slice used for signature validation.
 ///
 /// `SignatureRef` provides a view into the raw bytes of a signature and is
@@ -778,26 +769,6 @@ impl Display for Signature {
 /// unnecessary allocations, typically by borrowing from a [`Signature`] or
 /// directly from a byte slice.
 pub struct SignatureRef<'a>(pub &'a [u8]);
-
-/// Types of signatures that are supported by Relay.
-#[derive(Debug)]
-pub enum SignatureType {
-    /// Bytes of an envelope body that are used to produce a signature.
-    Body(Bytes),
-    /// No data is needed for this signature because we only want to see if
-    /// the receiving relay can verify the signature correctly.
-    RequestSign,
-}
-
-impl SignatureType {
-    /// Creates a signature data based on the variant.
-    pub fn create_signature(self, secret_key: &SecretKey) -> Signature {
-        match self {
-            SignatureType::Body(data) => secret_key.sign(data.as_ref()),
-            SignatureType::RequestSign => secret_key.sign(&[]),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -949,7 +920,8 @@ mod tests {
 
         // sign it
         let (request_bytes, request_sig) = sk.pack(&request);
-        println!("REQUEST_SIG = \"{request_sig}\"");
+        let signature_string = String::from_utf8(request_sig.0.clone()).unwrap();
+        println!("REQUEST_SIG = \"{signature_string}\"");
 
         // attempt to get the data through bootstrap unpacking.
         let request = RegisterRequest::bootstrap_unpack(
@@ -970,9 +942,10 @@ mod tests {
         let response = challenge.into_response();
         let serialized_response = serde_json::to_string(&response).unwrap();
         let (_, response_sig) = sk.pack(&response);
+        let signature_string = String::from_utf8(response_sig.0).unwrap();
 
         println!("RESPONSE = b'{serialized_response}'");
-        println!("RESPONSE_SIG = \"{response_sig}\"");
+        println!("RESPONSE_SIG = \"{signature_string}\"");
 
         println!("RELAY_VERSION = \"{LATEST_VERSION}\"");
     }
@@ -1033,9 +1006,8 @@ mod tests {
         let pair2 = generate_key_pair();
         let pair3 = generate_key_pair();
 
-        let data = Bytes::new();
-        let signature = pair3.0.sign(&data);
-        assert!(signature.verify_signature_any(
+        let signature = pair3.0.sign(&[]);
+        assert!(signature.verify_any(
             &[pair1.1, pair2.1, pair3.1],
             Utc::now(),
             Duration::seconds(10)
@@ -1048,9 +1020,9 @@ mod tests {
         let signature = pair.0.sign(&[]);
         let start_time = Utc::now();
         // The signature is valid in general
-        assert!(signature.verify_signature(&pair.1, start_time, Duration::seconds(10)));
+        assert!(signature.verify(&pair.1, start_time, Duration::seconds(10)));
         // Signature is no longer valid because too much time elapsed
-        assert!(!signature.verify_signature(
+        assert!(!signature.verify(
             &pair.1,
             start_time - Duration::seconds(1),
             Duration::milliseconds(500)
@@ -1064,22 +1036,21 @@ mod tests {
         let pair2 = generate_key_pair();
         let pair3 = generate_key_pair();
 
-        let data = Bytes::new();
         let header = SignatureHeader {
             timestamp: Some(start_time),
         };
-        let signature = pair3.0.sign_with_header(&data, &header);
+        let signature = pair3.0.sign_with_header(&[], &header);
 
         let public_keys = &[pair1.1, pair2.1, pair3.1];
 
         // Signature still valid after 1 second
-        assert!(signature.verify_signature_any(
+        assert!(signature.verify_any(
             public_keys,
             start_time + Duration::seconds(1),
             Duration::seconds(2)
         ));
         // Signature is no longer valid because too much time elapsed
-        assert!(!signature.verify_signature_any(
+        assert!(!signature.verify_any(
             public_keys,
             start_time + Duration::seconds(3),
             Duration::seconds(2)
