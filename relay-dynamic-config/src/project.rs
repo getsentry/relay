@@ -130,7 +130,7 @@ impl ProjectConfig {
 impl Default for ProjectConfig {
     fn default() -> Self {
         ProjectConfig {
-            allowed_domains: vec!["*".to_string()],
+            allowed_domains: vec!["*".to_owned()],
             trusted_relays: vec![],
             trusted_relay_settings: TrustedRelayConfig::default(),
             pii_config: None,

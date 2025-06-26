@@ -908,7 +908,7 @@ mod tests {
     /// To prevent too aggressive scrubbing, we don't scrub valid ibans found inside of a word.
     #[test]
     fn test_iban_scrubbing_word_boundaries() {
-        let valid_norwegian_iban = "NO9386011117945".to_string();
+        let valid_norwegian_iban = "NO9386011117945".to_owned();
 
         assert_text_rule!(
             rule = "@iban";
@@ -926,7 +926,7 @@ mod tests {
 
     #[test]
     fn test_invalid_iban_codes() {
-        let mut valid_norwegian_iban = "NO9386011117945".to_string();
+        let mut valid_norwegian_iban = "NO9386011117945".to_owned();
 
         assert_text_rule!(
             rule = "@iban";
@@ -946,7 +946,7 @@ mod tests {
             input = &format!("some iban: {invalid_norwegian_iban}!");
         );
 
-        let mut valid_russian_iban = "RU0204452560040702810412345678901".to_string();
+        let mut valid_russian_iban = "RU0204452560040702810412345678901".to_owned();
 
         assert_text_rule!(
             rule = "@iban";

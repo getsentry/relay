@@ -127,7 +127,7 @@ impl Producer {
 
         for topic in metadata.topics() {
             if let Some(error) = topic.error() {
-                return Err(ClientError::TopicError(topic.name().to_string(), error));
+                return Err(ClientError::TopicError(topic.name().to_owned(), error));
             }
         }
 
@@ -247,11 +247,8 @@ impl KafkaClientBuilder {
         let config_name = config_name.map(str::to_string);
 
         if let Some(producer) = self.reused_producers.get(&config_name) {
-            let producer = Producer::new(
-                (*topic_name).to_string(),
-                Arc::clone(producer),
-                rate_limiter,
-            );
+            let producer =
+                Producer::new((*topic_name).to_owned(), Arc::clone(producer), rate_limiter);
             if validate_topic {
                 producer.validate_topic()?;
             }
@@ -272,7 +269,7 @@ impl KafkaClientBuilder {
         self.reused_producers
             .insert(config_name, Arc::clone(&producer));
 
-        let producer = Producer::new((*topic_name).to_string(), producer, rate_limiter);
+        let producer = Producer::new((*topic_name).to_owned(), producer, rate_limiter);
         if validate_topic {
             producer.validate_topic()?;
         }

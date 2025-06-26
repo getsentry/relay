@@ -6,7 +6,7 @@
 black==24.3.0
 blinker==1.8.2
 click==8.1.7
-devservices==1.1.5
+devservices==1.2.1
 flake8==7.0.0
 confluent-kafka==2.1.1
 flask==3.0.3
@@ -19,7 +19,7 @@ pytest==7.4.3
 PyYAML==6.0.2
 redis==4.5.4
 requests==2.32.2
-sentry_sdk==2.10.0
+sentry_sdk==2.30.0
 setuptools==70.0.0
 werkzeug==3.0.6
 zstandard==0.18.0

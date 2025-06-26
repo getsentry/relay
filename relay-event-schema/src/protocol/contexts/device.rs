@@ -265,17 +265,17 @@ mod tests {
   "type": "device"
 }"#;
         let context = Annotated::new(Context::Device(Box::new(DeviceContext {
-            name: Annotated::new("iphone".to_string()),
-            family: Annotated::new("iphone".to_string()),
-            model: Annotated::new("iphone7,3".to_string()),
-            model_id: Annotated::new("AH223".to_string()),
-            arch: Annotated::new("arm64".to_string()),
+            name: Annotated::new("iphone".to_owned()),
+            family: Annotated::new("iphone".to_owned()),
+            model: Annotated::new("iphone7,3".to_owned()),
+            model_id: Annotated::new("AH223".to_owned()),
+            arch: Annotated::new("arm64".to_owned()),
             battery_level: Annotated::new(58.5),
-            orientation: Annotated::new("landscape".to_string()),
+            orientation: Annotated::new("landscape".to_owned()),
             simulator: Annotated::new(true),
-            manufacturer: Annotated::new("Apple".to_string()),
-            brand: Annotated::new("iphone".to_string()),
-            screen_resolution: Annotated::new("800x600".to_string()),
+            manufacturer: Annotated::new("Apple".to_owned()),
+            brand: Annotated::new("iphone".to_owned()),
+            screen_resolution: Annotated::new("800x600".to_owned()),
             screen_width_pixels: Annotated::new(1920),
             screen_height_pixels: Annotated::new(1080),
             screen_density: Annotated::new(1.1),
@@ -290,17 +290,17 @@ mod tests {
             free_storage: Annotated::new(31_994_734_592),
             external_storage_size: Annotated::new(2_097_152),
             external_free_storage: Annotated::new(2_097_152),
-            boot_time: Annotated::new("2018-02-08T12:52:12Z".to_string()),
-            timezone: Annotated::new("Europe/Vienna".to_string()),
-            locale: Annotated::new("de-AT".to_string()),
+            boot_time: Annotated::new("2018-02-08T12:52:12Z".to_owned()),
+            timezone: Annotated::new("Europe/Vienna".to_owned()),
+            locale: Annotated::new("de-AT".to_owned()),
             processor_count: Annotated::new(8),
             cpu_description: Annotated::new(
-                "Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz".to_string(),
+                "Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz".to_owned(),
             ),
             processor_frequency: Annotated::new(2400),
-            device_type: Annotated::new("Handheld".to_string()),
-            battery_status: Annotated::new("Charging".to_string()),
-            device_unique_identifier: Annotated::new("1234567".to_string()),
+            device_type: Annotated::new("Handheld".to_owned()),
+            battery_status: Annotated::new("Charging".to_owned()),
+            device_unique_identifier: Annotated::new("1234567".to_owned()),
             supports_vibration: Annotated::new(true),
             supports_accelerometer: Annotated::new(true),
             supports_gyroscope: Annotated::new(true),
@@ -310,8 +310,8 @@ mod tests {
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },

@@ -64,8 +64,8 @@ mod tests {
   "type": "feedback"
 }"#;
         let context = Annotated::new(Context::UserReportV2(Box::new(UserReportV2Context {
-            message: Annotated::new("test message".to_string()),
-            contact_email: Annotated::new("test@test.com".to_string()),
+            message: Annotated::new("test message".to_owned()),
+            contact_email: Annotated::new("test@test.com".to_owned()),
             other: Object::default(),
         })));
 

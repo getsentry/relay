@@ -49,11 +49,11 @@ fn mock_envelope(size: &str) -> Box<Envelope> {
 
 fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<Envelope> {
     let payload = match size {
-        "small" => "small_payload".to_string(),
+        "small" => "small_payload".to_owned(),
         "medium" => "medium_payload".repeat(100),
         "big" => "big_payload".repeat(1000),
         "huge" => "huge_payload".repeat(10000),
-        _ => "default_payload".to_string(),
+        _ => "default_payload".to_owned(),
     };
 
     let bytes = Bytes::from(format!(

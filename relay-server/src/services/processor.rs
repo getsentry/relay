@@ -45,10 +45,11 @@ use zstd::stream::Encoder as ZstdEncoder;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::http;
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
+use crate::processing::logs::LogsProcessor;
+use crate::processing::{Forward as _, Processor as _, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -65,6 +66,7 @@ use crate::utils::{
     self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
     SamplingResult, TypedEnvelope,
 };
+use crate::{http, processing};
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
@@ -90,7 +92,6 @@ mod dynamic_sampling;
 mod event;
 mod metrics;
 mod nel;
-mod ourlog;
 mod profile;
 mod profile_chunk;
 mod replay;
@@ -547,12 +548,18 @@ pub enum ProcessingError {
     #[cfg(all(sentry, feature = "processing"))]
     #[error("playstation dump processing failed: {0}")]
     InvalidPlaystationDump(String),
+
+    #[error("processing group does not match specific processor")]
+    ProcessingGroupMismatch,
+    #[error("new processing pipeline failed")]
+    ProcessingFailure,
+    #[error("failed to serialize processing result to an envelope")]
+    ProcessingEnvelopeSerialization,
 }
 
 impl ProcessingError {
-    fn to_outcome(&self) -> Option<Outcome> {
+    pub fn to_outcome(&self) -> Option<Outcome> {
         match self {
-            // General outcomes for invalid events
             Self::PayloadTooLarge(payload_type) => {
                 Some(Outcome::Invalid(DiscardReason::TooLarge(*payload_type)))
             }
@@ -568,35 +575,34 @@ impl ProcessingError {
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
-
             #[cfg(feature = "processing")]
             Self::InvalidNintendoDyingMessage(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
             #[cfg(all(sentry, feature = "processing"))]
             Self::InvalidPlaystationDump(_) => Some(Outcome::Invalid(DiscardReason::Payload)),
-
-            // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(err) if err.kind() == Unreal4ErrorKind::BadCompression => {
                 Some(Outcome::Invalid(DiscardReason::InvalidCompression))
             }
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
-
-            // Internal errors
             Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
-
-            // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
-
             Self::InvalidReplay(reason) => Some(Outcome::Invalid(*reason)),
             Self::ReplayFiltered(key) => Some(Outcome::Filtered(key.clone())),
+
+            Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
+            // Outcomes are emitted in the new processing pipeline already.
+            Self::ProcessingFailure => None,
+            Self::ProcessingEnvelopeSerialization => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
         }
     }
 
@@ -1154,6 +1160,11 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
+    processing: Processing,
+}
+
+struct Processing {
+    logs: LogsProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1190,16 +1201,24 @@ impl EnvelopeProcessorService {
         };
 
         #[cfg(feature = "processing")]
-        let rate_limiter = if let (Some(quotas), Some(global_rate_limits)) =
-            (quotas.clone(), &addrs.global_rate_limits)
-        {
-            Some(Arc::new(
-                RedisRateLimiter::new(quotas, global_rate_limits.clone().into())
-                    .max_limit(config.max_rate_limit()),
-            ))
-        } else {
-            None
+        let global_rate_limits = addrs.global_rate_limits.clone().map(Into::into);
+
+        #[cfg(feature = "processing")]
+        let rate_limiter = match (quotas.clone(), global_rate_limits) {
+            (Some(redis), Some(global)) => {
+                Some(RedisRateLimiter::new(redis, global).max_limit(config.max_rate_limit()))
+            }
+            _ => None,
         };
+
+        let quota_limiter = Arc::new(QuotaRateLimiter::new(
+            #[cfg(feature = "processing")]
+            project_cache.clone(),
+            #[cfg(feature = "processing")]
+            rate_limiter.clone(),
+        ));
+        #[cfg(feature = "processing")]
+        let rate_limiter = rate_limiter.map(Arc::new);
 
         let inner = InnerProcessor {
             pool,
@@ -1225,6 +1244,9 @@ impl EnvelopeProcessorService {
                 })
                 .map(CardinalityLimiter::new),
             metric_outcomes,
+            processing: Processing {
+                logs: LogsProcessor::new(quota_limiter),
+            },
             config,
         };
 
@@ -2128,46 +2150,51 @@ impl EnvelopeProcessorService {
 
     async fn process_nel(
         &self,
-        managed_envelope: &mut TypedEnvelope<LogGroup>,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        nel::convert_to_logs(managed_envelope);
-        self.process_logs(managed_envelope, project_info, rate_limits)
-            .await
+        mut managed_envelope: ManagedEnvelope,
+        ctx: processing::Context<'_>,
+    ) -> Result<ProcessingResult, ProcessingError> {
+        nel::convert_to_logs(&mut managed_envelope);
+        self.process_logs(managed_envelope, ctx).await
     }
 
     /// Process logs
     ///
     async fn process_logs(
         &self,
-        managed_envelope: &mut TypedEnvelope<LogGroup>,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
+        mut managed_envelope: ManagedEnvelope,
+        ctx: processing::Context<'_>,
+    ) -> Result<ProcessingResult, ProcessingError> {
+        let processor = &self.inner.processing.logs;
+        let Some(logs) = processor.prepare_envelope(&mut managed_envelope) else {
+            debug_assert!(
+                false,
+                "there must be work for the logs processor in the logs processing group"
+            );
+            return Err(ProcessingError::ProcessingGroupMismatch);
+        };
 
-        ourlog::filter(
-            managed_envelope,
-            &self.inner.config,
-            &project_info,
-            &self.inner.global_config.current(),
+        managed_envelope.update();
+        match managed_envelope.envelope().is_empty() {
+            true => managed_envelope.accept(),
+            false => managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal)),
+        }
+
+        let output = processor
+            .process(logs, ctx)
+            .await
+            .map_err(|_| ProcessingError::ProcessingFailure)?;
+
+        let managed_envelope = ManagedEnvelope::from(
+            output
+                .main
+                .serialize_envelope()
+                .map_err(|_| ProcessingError::ProcessingEnvelopeSerialization)?,
         );
 
-        self.enforce_quotas(
-            managed_envelope,
-            Annotated::empty(),
-            &mut extracted_metrics,
-            &project_info,
-            &rate_limits,
-        )
-        .await?;
-
-        if_processing!(self.inner.config, {
-            ourlog::process(managed_envelope, &project_info)?;
-        });
-
-        Ok(Some(extracted_metrics))
+        Ok(ProcessingResult {
+            managed_envelope: managed_envelope.into_processed(),
+            extracted_metrics: output.metrics,
+        })
     }
 
     /// Processes standalone spans.
@@ -2285,6 +2312,14 @@ impl EnvelopeProcessorService {
             };
         }
 
+        let global_config = self.inner.global_config.current();
+        let ctx = processing::Context {
+            config: &self.inner.config,
+            global_config: &global_config,
+            project_info: &project_info,
+            rate_limits: &rate_limits,
+        };
+
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
@@ -2337,8 +2372,8 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log => run!(process_logs, project_info, rate_limits),
-            ProcessingGroup::Nel => run!(process_nel, project_info, rate_limits),
+            ProcessingGroup::Log => self.process_logs(managed_envelope, ctx).await,
+            ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
@@ -4221,7 +4256,7 @@ mod tests {
         let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
 
         let derived_value = {
-            let name = "foobar".to_string();
+            let name = "foobar".to_owned();
             let value = 5.into(); // Arbitrary value.
             let unit = MetricUnit::Duration(DurationUnit::default());
             let tags = TransactionMeasurementTags {

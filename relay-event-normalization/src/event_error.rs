@@ -33,7 +33,7 @@ impl Processor for EmitEventErrors {
                 value: Annotated::from(original_value.take()),
                 other: error
                     .data()
-                    .map(|(k, v)| (k.to_string(), Annotated::from(v.clone())))
+                    .map(|(k, v)| (k.to_owned(), Annotated::from(v.clone())))
                     .collect(),
             });
         }
@@ -100,8 +100,8 @@ mod tests {
         assert_eq!(
             *event.value().unwrap().errors.value().unwrap(),
             vec![Annotated::from(EventProcessingError {
-                ty: Annotated::from("invalid_data".to_string()),
-                name: Annotated::from("event_id".to_string()),
+                ty: Annotated::from("invalid_data".to_owned()),
+                name: Annotated::from("event_id".to_owned()),
                 value: Annotated::empty(),
                 other: Object::default(),
             })]
@@ -114,7 +114,7 @@ mod tests {
             other: {
                 let mut other = Object::new();
                 other.insert(
-                    "foo".to_string(),
+                    "foo".to_owned(),
                     Annotated::from_error(ErrorKind::InvalidData, None),
                 );
                 other
@@ -132,8 +132,8 @@ mod tests {
         assert_eq!(
             *event.value().unwrap().errors.value().unwrap(),
             vec![Annotated::from(EventProcessingError {
-                ty: Annotated::from("invalid_data".to_string()),
-                name: Annotated::from("foo".to_string()),
+                ty: Annotated::from("invalid_data".to_owned()),
+                name: Annotated::from("foo".to_owned()),
                 value: Annotated::empty(),
                 other: Object::default(),
             })]
@@ -160,8 +160,8 @@ mod tests {
         assert_eq!(
             *event.value().unwrap().errors.value().unwrap(),
             vec![Annotated::from(EventProcessingError {
-                ty: Annotated::from("invalid_data".to_string()),
-                name: Annotated::from("breadcrumbs.values.0.type".to_string()),
+                ty: Annotated::from("invalid_data".to_owned()),
+                name: Annotated::from("breadcrumbs.values.0.type".to_owned()),
                 value: Annotated::empty(),
                 other: Object::default(),
             })]
@@ -189,14 +189,14 @@ mod tests {
             *event.value().unwrap().errors.value().unwrap(),
             vec![
                 Annotated::from(EventProcessingError {
-                    ty: Annotated::from("invalid_data".to_string()),
-                    name: Annotated::from("event_id".to_string()),
+                    ty: Annotated::from("invalid_data".to_owned()),
+                    name: Annotated::from("event_id".to_owned()),
                     value: Annotated::empty(),
                     other: Object::default(),
                 }),
                 Annotated::from(EventProcessingError {
-                    ty: Annotated::from("missing_attribute".to_string()),
-                    name: Annotated::from("event_id".to_string()),
+                    ty: Annotated::from("missing_attribute".to_owned()),
+                    name: Annotated::from("event_id".to_owned()),
                     value: Annotated::empty(),
                     other: Object::default(),
                 })
@@ -226,14 +226,14 @@ mod tests {
             *event.value().unwrap().errors.value().unwrap(),
             vec![
                 Annotated::from(EventProcessingError {
-                    ty: Annotated::from("invalid_data".to_string()),
-                    name: Annotated::from("event_id".to_string()),
+                    ty: Annotated::from("invalid_data".to_owned()),
+                    name: Annotated::from("event_id".to_owned()),
                     value: Annotated::from(Value::I64(42)),
                     other: Object::default(),
                 }),
                 Annotated::from(EventProcessingError {
-                    ty: Annotated::from("missing_attribute".to_string()),
-                    name: Annotated::from("event_id".to_string()),
+                    ty: Annotated::from("missing_attribute".to_owned()),
+                    name: Annotated::from("event_id".to_owned()),
                     value: Annotated::empty(),
                     other: Object::default(),
                 })

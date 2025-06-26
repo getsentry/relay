@@ -45,16 +45,16 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
     replay
         .replay_id
         .value()
-        .ok_or_else(|| ReplayError::InvalidPayload("missing replay_id".to_string()))?;
+        .ok_or_else(|| ReplayError::InvalidPayload("missing replay_id".to_owned()))?;
 
     let segment_id = *replay
         .segment_id
         .value()
-        .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
+        .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_owned()))?;
 
     if segment_id > u16::MAX as u64 {
         return Err(ReplayError::InvalidPayload(
-            "segment_id exceeded u16 limit".to_string(),
+            "segment_id exceeded u16 limit".to_owned(),
         ));
     }
 
@@ -66,7 +66,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .any(|v| v.meta().has_errors())
     {
         return Err(ReplayError::InvalidPayload(
-            "Invalid error-id specified.".to_string(),
+            "Invalid error-id specified.".to_owned(),
         ));
     }
 
@@ -78,7 +78,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .any(|v| v.meta().has_errors())
     {
         return Err(ReplayError::InvalidPayload(
-            "Invalid trace-id specified.".to_string(),
+            "Invalid trace-id specified.".to_owned(),
         ));
     }
 
@@ -164,16 +164,16 @@ fn normalize_user_agent(replay: &mut Replay, default_user_agent: RawUserAgentInf
 
 fn normalize_platform(replay: &mut Replay) {
     // Null platforms are permitted but must be defaulted before continuing.
-    let platform = replay.platform.get_or_insert_with(|| "other".to_string());
+    let platform = replay.platform.get_or_insert_with(|| "other".to_owned());
 
     // Normalize bad platforms to "other" type.
     if !crate::is_valid_platform(platform) {
-        replay.platform = Annotated::from("other".to_string());
+        replay.platform = Annotated::from("other".to_owned());
     }
 }
 
 fn normalize_type(replay: &mut Replay) {
-    replay.ty = Annotated::from("replay_event".to_string());
+    replay.ty = Annotated::from("replay_event".to_owned());
 }
 
 #[cfg(test)]
@@ -221,27 +221,27 @@ mod tests {
         let replay = Annotated::new(Replay {
             event_id: Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap())),
             replay_id: Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap())),
-            replay_type: Annotated::new("session".to_string()),
+            replay_type: Annotated::new("session".to_owned()),
             segment_id: Annotated::new(0),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             replay_start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            urls: Annotated::new(vec![Annotated::new("localhost:9000".to_string())]),
+            urls: Annotated::new(vec![Annotated::new("localhost:9000".to_owned())]),
             error_ids: Annotated::new(vec![Annotated::new(
                 Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )]),
             trace_ids: Annotated::new(vec![Annotated::new(
                 Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )]),
-            platform: Annotated::new("myplatform".to_string()),
-            release: Annotated::new("myrelease".to_string().into()),
-            dist: Annotated::new("mydist".to_string()),
-            environment: Annotated::new("myenv".to_string()),
+            platform: Annotated::new("myplatform".to_owned()),
+            release: Annotated::new("myrelease".to_owned().into()),
+            dist: Annotated::new("mydist".to_owned()),
+            environment: Annotated::new("myenv".to_owned()),
             tags: {
                 let items = vec![Annotated::new(TagEntry(
-                    Annotated::new("tag".to_string()),
-                    Annotated::new("value".to_string()),
+                    Annotated::new("tag".to_owned()),
+                    Annotated::new("value".to_owned()),
                 ))];
                 Annotated::new(Tags(items.into()))
             },
@@ -256,7 +256,7 @@ mod tests {
         let input = r#"{"release":42}"#;
         let output = r#"{"release":"42"}"#;
         let event = Annotated::new(Replay {
-            release: Annotated::new("42".to_string().into()),
+            release: Annotated::new("42".to_owned().into()),
             ..Default::default()
         });
 
@@ -276,25 +276,25 @@ mod tests {
         assert_eq!(
             contexts.get::<BrowserContext>(),
             Some(&BrowserContext {
-                name: Annotated::new("Safari".to_string()),
-                version: Annotated::new("15.5".to_string()),
+                name: Annotated::new("Safari".to_owned()),
+                version: Annotated::new("15.5".to_owned()),
                 ..Default::default()
             })
         );
         assert_eq!(
             contexts.get_key("client_os"),
             Some(&Context::Os(Box::new(OsContext {
-                name: Annotated::new("Mac OS X".to_string()),
-                version: Annotated::new(">=10.15.7".to_string()),
+                name: Annotated::new("Mac OS X".to_owned()),
+                version: Annotated::new(">=10.15.7".to_owned()),
                 ..Default::default()
             })))
         );
         assert_eq!(
             contexts.get::<DeviceContext>(),
             Some(&DeviceContext {
-                family: Annotated::new("Mac".to_string()),
-                brand: Annotated::new("Apple".to_string()),
-                model: Annotated::new("Mac".to_string()),
+                family: Annotated::new("Mac".to_owned()),
+                brand: Annotated::new("Apple".to_owned()),
+                model: Annotated::new("Mac".to_owned()),
                 ..Default::default()
             })
         );
@@ -373,7 +373,7 @@ mod tests {
     #[test]
     fn test_capped_values() {
         let urls: Vec<Annotated<String>> = (0..101)
-            .map(|_| Annotated::new("localhost:9000".to_string()))
+            .map(|_| Annotated::new("localhost:9000".to_owned()))
             .collect();
 
         let error_ids: Vec<Annotated<Uuid>> = (0..101)

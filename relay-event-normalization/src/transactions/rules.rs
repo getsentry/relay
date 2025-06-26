@@ -17,7 +17,7 @@ pub struct SpanDescriptionRuleScope {
 
 /// Default value for substitution in [`RedactionRule`].
 fn default_substitution() -> String {
-    "*".to_string()
+    "*".to_owned()
 }
 
 /// Describes what to do with the matched pattern.
@@ -191,7 +191,7 @@ mod tests {
 
         let parsed_time = DateTime::parse_from_rfc3339("2022-11-30T00:00:00Z").unwrap();
         let result = TransactionNameRule {
-            pattern: LazyGlob::new("/auth/login/*/**".to_string()),
+            pattern: LazyGlob::new("/auth/login/*/**".to_owned()),
             expiry: DateTime::from_naive_utc_and_offset(parsed_time.naive_utc(), Utc),
             redaction: RedactionRule::Replace {
                 substitution: String::from(":id"),
@@ -217,7 +217,7 @@ mod tests {
 
         let parsed_time = DateTime::parse_from_rfc3339("2022-11-30T00:00:00Z").unwrap();
         let result = TransactionNameRule {
-            pattern: LazyGlob::new("/auth/login/*/**".to_string()),
+            pattern: LazyGlob::new("/auth/login/*/**".to_owned()),
             expiry: DateTime::from_naive_utc_and_offset(parsed_time.naive_utc(), Utc),
             redaction: RedactionRule::Replace {
                 substitution: default_substitution(),
@@ -242,7 +242,7 @@ mod tests {
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         let result = rule.apply("/auth/login/test/");
 
-        assert_eq!(result, "/auth/login/test/".to_string());
+        assert_eq!(result, "/auth/login/test/".to_owned());
     }
 
     #[test]

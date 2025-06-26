@@ -609,7 +609,7 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
             if cerror.name.value().is_none() {
                 if let Some(errno) = cerror.number.value() {
                     if let Some(name) = get_errno_name(*errno, os_hint) {
-                        cerror.name = Annotated::new(name.to_string());
+                        cerror.name = Annotated::new(name.to_owned());
                     }
                 }
             }
@@ -626,7 +626,7 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
                 if os_hint == OsHint::Darwin && signal.code_name.value().is_none() {
                     if let Some(code) = signal.code.value() {
                         if let Some(code_name) = get_signal_code_name(*signo, *code) {
-                            signal.code_name = Annotated::new(code_name.to_string());
+                            signal.code_name = Annotated::new(code_name.to_owned());
                         }
                     }
                 }
@@ -656,7 +656,7 @@ mod tests {
     #[test]
     fn test_normalize_missing() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             ..Default::default()
         };
 
@@ -670,7 +670,7 @@ mod tests {
     #[test]
     fn test_normalize_errno() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
                     number: Annotated::new(2),
@@ -688,7 +688,7 @@ mod tests {
             errno,
             &CError {
                 number: Annotated::new(2),
-                name: Annotated::new("ENOENT".to_string()),
+                name: Annotated::new("ENOENT".to_owned()),
             }
         );
     }
@@ -696,11 +696,11 @@ mod tests {
     #[test]
     fn test_normalize_errno_override() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
                     number: Annotated::new(2),
-                    name: Annotated::new("OVERRIDDEN".to_string()),
+                    name: Annotated::new("OVERRIDDEN".to_owned()),
                 }),
                 ..Default::default()
             }),
@@ -714,7 +714,7 @@ mod tests {
             errno,
             &CError {
                 number: Annotated::new(2),
-                name: Annotated::new("OVERRIDDEN".to_string()),
+                name: Annotated::new("OVERRIDDEN".to_owned()),
             }
         );
     }
@@ -722,7 +722,7 @@ mod tests {
     #[test]
     fn test_normalize_errno_fail() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
                     number: Annotated::new(2),
@@ -748,7 +748,7 @@ mod tests {
     #[test]
     fn test_normalize_signal() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::new(11),
@@ -768,8 +768,8 @@ mod tests {
             &PosixSignal {
                 number: Annotated::new(11),
                 code: Annotated::new(0),
-                name: Annotated::new("SIGSEGV".to_string()),
-                code_name: Annotated::new("SEGV_NOOP".to_string()),
+                name: Annotated::new("SIGSEGV".to_owned()),
+                code_name: Annotated::new("SEGV_NOOP".to_owned()),
             }
         );
     }
@@ -777,7 +777,7 @@ mod tests {
     #[test]
     fn test_normalize_partial_signal() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::new(11),
@@ -796,7 +796,7 @@ mod tests {
             signal,
             &PosixSignal {
                 number: Annotated::new(11),
-                name: Annotated::new("SIGSEGV".to_string()),
+                name: Annotated::new("SIGSEGV".to_owned()),
                 ..Default::default()
             }
         );
@@ -805,13 +805,13 @@ mod tests {
     #[test]
     fn test_normalize_signal_override() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::new(11),
                     code: Annotated::new(0),
-                    name: Annotated::new("OVERRIDDEN".to_string()),
-                    code_name: Annotated::new("OVERRIDDEN".to_string()),
+                    name: Annotated::new("OVERRIDDEN".to_owned()),
+                    code_name: Annotated::new("OVERRIDDEN".to_owned()),
                 }),
                 ..Default::default()
             }),
@@ -827,8 +827,8 @@ mod tests {
             &PosixSignal {
                 number: Annotated::new(11),
                 code: Annotated::new(0),
-                name: Annotated::new("OVERRIDDEN".to_string()),
-                code_name: Annotated::new("OVERRIDDEN".to_string()),
+                name: Annotated::new("OVERRIDDEN".to_owned()),
+                code_name: Annotated::new("OVERRIDDEN".to_owned()),
             }
         );
     }
@@ -836,7 +836,7 @@ mod tests {
     #[test]
     fn test_normalize_signal_fail() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::new(11),
@@ -865,7 +865,7 @@ mod tests {
     #[test]
     fn test_normalize_mach() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 mach_exception: Annotated::new(MachException {
                     ty: Annotated::new(1),
@@ -897,7 +897,7 @@ mod tests {
                 ty: Annotated::new(1),
                 code: Annotated::new(1),
                 subcode: Annotated::new(8),
-                name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                name: Annotated::new("EXC_BAD_ACCESS".to_owned()),
             }
         );
     }
@@ -905,13 +905,13 @@ mod tests {
     #[test]
     fn test_normalize_mach_override() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 mach_exception: Annotated::new(MachException {
                     ty: Annotated::new(1),
                     code: Annotated::new(1),
                     subcode: Annotated::new(8),
-                    name: Annotated::new("OVERRIDE".to_string()),
+                    name: Annotated::new("OVERRIDE".to_owned()),
                 }),
                 ..Default::default()
             }),
@@ -936,7 +936,7 @@ mod tests {
                 ty: Annotated::new(1),
                 code: Annotated::new(1),
                 subcode: Annotated::new(8),
-                name: Annotated::new("OVERRIDE".to_string()),
+                name: Annotated::new("OVERRIDE".to_owned()),
             }
         );
     }
@@ -944,7 +944,7 @@ mod tests {
     #[test]
     fn test_normalize_mach_fail() {
         let mut mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 mach_exception: Annotated::new(MachException {
                     ty: Annotated::new(99),
@@ -983,8 +983,8 @@ mod tests {
     #[test]
     fn test_normalize_http_url() {
         let mut good_mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
-            help_link: Annotated::new("https://example.com/".to_string()),
+            ty: Annotated::new("generic".to_owned()),
+            help_link: Annotated::new("https://example.com/".to_owned()),
             ..Default::default()
         };
 
@@ -997,8 +997,8 @@ mod tests {
         "#);
 
         let mut bad_mechanism = Mechanism {
-            ty: Annotated::new("generic".to_string()),
-            help_link: Annotated::new("javascript:alert(document.cookie)".to_string()),
+            ty: Annotated::new("generic".to_owned()),
+            help_link: Annotated::new("javascript:alert(document.cookie)".to_owned()),
             ..Default::default()
         };
 

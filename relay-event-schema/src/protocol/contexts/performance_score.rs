@@ -60,7 +60,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::PerformanceScore(Box::new(
             PerformanceScoreContext {
-                score_profile_version: Annotated::new("alpha".to_string()),
+                score_profile_version: Annotated::new("alpha".to_owned()),
                 other: Object::default(),
             },
         )));

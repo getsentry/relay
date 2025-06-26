@@ -98,7 +98,7 @@ fn glob_match_bytes(value: &[u8], pat: &str, options: GlobOptions) -> bool {
             pat.replace('\\', "/"),
         )
     } else {
-        (Cow::Borrowed(value), pat.to_string())
+        (Cow::Borrowed(value), pat.to_owned())
     };
     let key = (options, pat);
     let mut cache = GLOB_CACHE.lock().unwrap_or_else(PoisonError::into_inner);

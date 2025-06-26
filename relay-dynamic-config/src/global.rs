@@ -207,24 +207,6 @@ pub struct Options {
     )]
     pub drop_transaction_attachments: bool,
 
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(
-        rename = "profiling.profile_metrics.unsampled_profiles.platforms",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub deprecated1: Vec<String>,
-
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(
-        rename = "profiling.profile_metrics.unsampled_profiles.sample_rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub deprecated2: f32,
-
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
