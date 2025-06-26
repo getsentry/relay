@@ -161,7 +161,7 @@ impl ProjectInfo {
                         envelope.received_at(),
                         // conversion should never fail here
                         Duration::from_std(config.signature_max_age())
-                            .unwrap_or(Duration::seconds(i64::MAX)),
+                            .unwrap_or(Duration::milliseconds(i64::MAX)),
                     ) {
                         Ok(())
                     } else {
