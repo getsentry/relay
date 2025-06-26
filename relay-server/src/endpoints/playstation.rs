@@ -131,7 +131,7 @@ async fn handle(
     request: Request,
 ) -> axum::response::Result<impl IntoResponse> {
     // Handle either a data request (send as json) or a crash dump (send as a multi-part)
-    if content_type.as_ref() == DATA_REQUEST_CONTENT_TYPE {
+    if content_type.as_ref().contains(DATA_REQUEST_CONTENT_TYPE) {
         return Ok(axum::Json(create_data_request_response()).into_response());
     }
 

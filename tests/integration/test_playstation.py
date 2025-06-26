@@ -421,19 +421,12 @@ def test_playstation_attachment_no_feature_flag(
 
 def test_data_request(mini_sentry, relay_processing_with_playstation):
     PROJECT_ID = 42
-    mini_sentry.add_full_project_config(PROJECT_ID)
-    relay = relay_processing_with_playstation()
-
-    response = relay.post(
-        f"/api/{PROJECT_ID}/playstation/?sentry_key={relay.get_dsn_public_key(PROJECT_ID)}",
-        headers={
-            "Content-Type": "application/vnd.sce.crs.datareq-request+json; version=1",
-        },
-        json={},
+    mini_sentry.add_full_project_config(
+        PROJECT_ID,
+        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
     )
-
-    assert response.status_code == 200
-    assert response.headers["content-type"] == "application/json"
+    relay = relay_processing_with_playstation()
+    response = relay.send_playstation_data_request(PROJECT_ID)
 
     expected_response = {
         "parts": {
@@ -448,13 +441,7 @@ def test_data_request(mini_sentry, relay_processing_with_playstation):
                 "gpuextdump",
             ],
         },
-        "partParameters": {
-            "video": {
-                "duration": {
-                    "max": 4
-                }
-            }
-        }
+        "partParameters": {"video": {"duration": {"max": 4}}},
     }
-
+    assert response.status_code == 200
     assert response.json() == expected_response
