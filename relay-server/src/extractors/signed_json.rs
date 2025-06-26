@@ -1,6 +1,3 @@
-use crate::service::ServiceState;
-use crate::services::relays::GetRelay;
-use crate::utils::ApiErrorResponse;
 use axum::RequestExt;
 use axum::extract::rejection::BytesRejection;
 use axum::extract::{FromRequest, Request};
@@ -10,6 +7,10 @@ use bytes::Bytes;
 use relay_auth::{RelayId, Signature, UnpackError};
 use relay_config::RelayInfo;
 use serde::de::DeserializeOwned;
+
+use crate::service::ServiceState;
+use crate::services::relays::GetRelay;
+use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SignatureError {

@@ -2,9 +2,6 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
 
-use crate::envelope::Envelope;
-use crate::extractors::RequestMeta;
-use crate::services::outcome::DiscardReason;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
@@ -18,6 +15,10 @@ use relay_quotas::{Quota, Scoping};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use url::Url;
+
+use crate::envelope::Envelope;
+use crate::extractors::RequestMeta;
+use crate::services::outcome::DiscardReason;
 
 /// Information about an enabled project.
 ///
