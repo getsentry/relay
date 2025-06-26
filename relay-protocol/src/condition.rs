@@ -893,16 +893,16 @@ mod tests {
         Trace {
             trace_id: "6b7d15b8-cee2-4354-9fee-dae7ef43e434".parse().unwrap(),
             span_id: [0xde, 0xad, 0xbe, 0xef],
-            transaction: "transaction1".to_string(),
-            release: "1.1.1".to_string(),
-            environment: "debug".to_string(),
-            user_segment: "vip".to_string(),
+            transaction: "transaction1".to_owned(),
+            release: "1.1.1".to_owned(),
+            environment: "debug".to_owned(),
+            user_segment: "vip".to_owned(),
             exceptions: vec![
                 Exception {
-                    name: "NullPointerException".to_string(),
+                    name: "NullPointerException".to_owned(),
                 },
                 Exception {
-                    name: "NullUser".to_string(),
+                    name: "NullUser".to_owned(),
                 },
             ],
         }

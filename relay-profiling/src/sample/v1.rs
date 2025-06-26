@@ -407,24 +407,24 @@ mod tests {
                 timestamp: Utc::now(),
                 runtime: Option::None,
                 device: DeviceMetadata {
-                    architecture: "arm64e".to_string(),
+                    architecture: "arm64e".to_owned(),
                     is_emulator: Some(true),
-                    locale: Some("en_US".to_string()),
-                    manufacturer: Some("Apple".to_string()),
-                    model: Some("iPhome11,3".to_string()),
+                    locale: Some("en_US".to_owned()),
+                    manufacturer: Some("Apple".to_owned()),
+                    model: Some("iPhome11,3".to_owned()),
                 },
                 os: OSMetadata {
-                    build_number: Some("H3110".to_string()),
-                    name: "iOS".to_string(),
-                    version: "16.0".to_string(),
+                    build_number: Some("H3110".to_owned()),
+                    name: "iOS".to_owned(),
+                    version: "16.0".to_owned(),
                 },
-                environment: "testing".to_string(),
-                platform: "cocoa".to_string(),
+                environment: "testing".to_owned(),
+                platform: "cocoa".to_owned(),
                 event_id: EventId::new(),
                 transaction: Option::None,
                 transactions: Vec::new(),
-                release: Some("1.0".to_string()),
-                dist: "9999".to_string(),
+                release: Some("1.0".to_owned()),
+                dist: "9999".to_owned(),
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
                 client_sdk: None,
@@ -447,25 +447,25 @@ mod tests {
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 1,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 1,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 1,
                 thread_id: 2,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 1,
                 thread_id: 3,
             },
@@ -484,25 +484,25 @@ mod tests {
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 1,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 1,
                 thread_id: 2,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 1,
                 thread_id: 3,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 1,
                 thread_id: 4,
             },
@@ -522,7 +522,7 @@ mod tests {
         profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
-            name: "blah".to_string(),
+            name: "blah".to_owned(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 30,
@@ -534,25 +534,25 @@ mod tests {
         profile.profile.samples.extend([
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 10,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 20,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 30,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 40,
                 thread_id: 1,
             },
@@ -574,7 +574,7 @@ mod tests {
         profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
-            name: "blah".to_string(),
+            name: "blah".to_owned(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 100,
@@ -586,25 +586,25 @@ mod tests {
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 10,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 20,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 30,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 40,
                 thread_id: 1,
             },
@@ -622,7 +622,7 @@ mod tests {
         let transaction = TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
-            name: "blah".to_string(),
+            name: "blah".to_owned(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 100,
@@ -639,25 +639,25 @@ mod tests {
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 10,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 20,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 30,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 40,
                 thread_id: 1,
             },
@@ -683,7 +683,7 @@ mod tests {
         let transaction = TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
-            name: "blah".to_string(),
+            name: "blah".to_owned(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 100,
@@ -700,79 +700,79 @@ mod tests {
         profile.profile.samples = vec![
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 40,
                 thread_id: 2,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 50,
                 thread_id: 2,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 10,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 20,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 30,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 40,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 50,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 60,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 70,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 90,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 80,
                 thread_id: 3,
             },
             Sample {
                 stack_id: 1,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 90,
                 thread_id: 3,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 60,
                 thread_id: 2,
             },
@@ -797,7 +797,7 @@ mod tests {
         let transaction = TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
-            name: "blah".to_string(),
+            name: "blah".to_owned(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 100,
@@ -815,30 +815,30 @@ mod tests {
         let mut thread_metadata: HashMap<String, ThreadMetadata> = HashMap::new();
 
         thread_metadata.insert(
-            "1".to_string(),
+            "1".to_owned(),
             ThreadMetadata {
-                name: Some("".to_string()),
+                name: Some("".to_owned()),
                 priority: Some(1),
             },
         );
         thread_metadata.insert(
-            "2".to_string(),
+            "2".to_owned(),
             ThreadMetadata {
-                name: Some("".to_string()),
+                name: Some("".to_owned()),
                 priority: Some(1),
             },
         );
         thread_metadata.insert(
-            "3".to_string(),
+            "3".to_owned(),
             ThreadMetadata {
-                name: Some("".to_string()),
+                name: Some("".to_owned()),
                 priority: Some(1),
             },
         );
         thread_metadata.insert(
-            "4".to_string(),
+            "4".to_owned(),
             ThreadMetadata {
-                name: Some("".to_string()),
+                name: Some("".to_owned()),
                 priority: Some(1),
             },
         );
@@ -846,16 +846,16 @@ mod tests {
         let mut queue_metadata: HashMap<String, QueueMetadata> = HashMap::new();
 
         queue_metadata.insert(
-            "0xdeadbeef".to_string(),
+            "0xdeadbeef".to_owned(),
             QueueMetadata {
-                label: "com.apple.main-thread".to_string(),
+                label: "com.apple.main-thread".to_owned(),
             },
         );
 
         queue_metadata.insert(
-            "0x123456789".to_string(),
+            "0x123456789".to_owned(),
             QueueMetadata {
-                label: "some-label".to_string(),
+                label: "some-label".to_owned(),
             },
         );
 
@@ -864,13 +864,13 @@ mod tests {
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 10,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 20,
                 thread_id: 2,
             },
@@ -886,8 +886,8 @@ mod tests {
     #[test]
     fn test_extract_transaction_tags() {
         let transaction_metadata = BTreeMap::from([(
-            "transaction".to_string(),
-            "some-random-transaction".to_string(),
+            "transaction".to_owned(),
+            "some-random-transaction".to_owned(),
         )]);
 
         let payload = include_bytes!("../../tests/fixtures/sample/v1/valid.json");
@@ -901,7 +901,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             output.metadata.transaction.unwrap().name,
-            "some-random-transaction".to_string()
+            "some-random-transaction".to_owned()
         );
     }
 
@@ -911,13 +911,13 @@ mod tests {
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 10,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: (MAX_PROFILE_DURATION - Duration::from_secs(1)).as_nanos()
                     as u64,
                 thread_id: 2,
@@ -933,13 +933,13 @@ mod tests {
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: 10,
                 thread_id: 1,
             },
             Sample {
                 stack_id: 0,
-                queue_address: Some("0xdeadbeef".to_string()),
+                queue_address: Some("0xdeadbeef".to_owned()),
                 elapsed_since_start_ns: (MAX_PROFILE_DURATION + Duration::from_secs(1)).as_nanos()
                     as u64,
                 thread_id: 2,

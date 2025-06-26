@@ -66,9 +66,9 @@ mod tests {
   "type": "otaupdates"
 }"#;
         let context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
-            channel: Annotated::new("production".to_string()),
-            runtime_version: Annotated::new("1.0.0".to_string()),
-            update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_string()),
+            channel: Annotated::new("production".to_owned()),
+            runtime_version: Annotated::new("1.0.0".to_owned()),
+            update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_owned()),
             other: Object::default(),
         })));
 
@@ -91,32 +91,32 @@ mod tests {
   "type": "otaupdates"
 }"#;
         let mut other = Object::new();
-        other.insert("is_enabled".to_string(), Annotated::new(Value::Bool(true)));
+        other.insert("is_enabled".to_owned(), Annotated::new(Value::Bool(true)));
         other.insert(
-            "is_embedded_launch".to_string(),
+            "is_embedded_launch".to_owned(),
             Annotated::new(Value::Bool(false)),
         );
         other.insert(
-            "is_emergency_launch".to_string(),
+            "is_emergency_launch".to_owned(),
             Annotated::new(Value::Bool(true)),
         );
         other.insert(
-            "emergency_launch_reason".to_string(),
-            Annotated::new(Value::String("some reason".to_string())),
+            "emergency_launch_reason".to_owned(),
+            Annotated::new(Value::String("some reason".to_owned())),
         );
         other.insert(
-            "launch_duration".to_string(),
+            "launch_duration".to_owned(),
             Annotated::new(Value::I64(1000)),
         );
         other.insert(
-            "created_at".to_string(),
-            Annotated::new(Value::String("2023-01-01T00:00:00.000Z".to_string())),
+            "created_at".to_owned(),
+            Annotated::new(Value::String("2023-01-01T00:00:00.000Z".to_owned())),
         );
 
         let context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
-            channel: Annotated::new("production".to_string()),
-            runtime_version: Annotated::new("1.0.0".to_string()),
-            update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_string()),
+            channel: Annotated::new("production".to_owned()),
+            runtime_version: Annotated::new("1.0.0".to_owned()),
+            update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_owned()),
             other,
         })));
 
@@ -131,7 +131,7 @@ mod tests {
   "type": "otaupdates"
 }"#;
         let mut other = Object::new();
-        other.insert("is_enabled".to_string(), Annotated::new(Value::Bool(false)));
+        other.insert("is_enabled".to_owned(), Annotated::new(Value::Bool(false)));
 
         let context = Annotated::new(Context::OTAUpdates(Box::new(OTAUpdatesContext {
             channel: Annotated::empty(),

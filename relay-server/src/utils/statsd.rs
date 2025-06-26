@@ -34,7 +34,7 @@ where
         return f(event);
     }
 
-    let old_source = transaction_source_tag(inner).to_string();
+    let old_source = transaction_source_tag(inner).to_owned();
     let old_remarks = inner.transaction.meta().iter_remarks().count();
 
     let res = f(event);

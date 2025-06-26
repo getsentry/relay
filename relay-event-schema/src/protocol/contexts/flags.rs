@@ -87,12 +87,12 @@ mod test {
 
         let flags = vec![
             Annotated::new(FlagsContextItem {
-                flag: Annotated::new("abc".to_string()),
+                flag: Annotated::new("abc".to_owned()),
                 result: Annotated::new(Value::Bool(true)),
                 other: Object::default(),
             }),
             Annotated::new(FlagsContextItem {
-                flag: Annotated::new("def".to_string()),
+                flag: Annotated::new("def".to_owned()),
                 result: Annotated::new(Value::Bool(false)),
                 other: Object::default(),
             }),

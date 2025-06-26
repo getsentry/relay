@@ -1,21 +1,43 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+- Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
+- Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
+- Parse Chromium stability report from minidumps into context ([#4837](https://github.com/getsentry/relay/pull/4837))
+
+**Internal**:
+
+- Introduces a new processing pipeline and implements it for logs. ([#4777](https://github.com/getsentry/relay/pull/4777))
+- Produce spans to the items topic. ([#4735](https://github.com/getsentry/relay/pull/4735))
+- Update opentelemetry-proto and sentry-protos dependencies. ([#4847](https://github.com/getsentry/relay/pull/4847))
+- Take into account more types of tokens when doing AI cost calculation. ([#4840](https://github.com/getsentry/relay/pull/4840))
+- Use the `FiniteF64` type for measurements. ([#4828](https://github.com/getsentry/relay/pull/4828))
+- Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
+- Consider `gen_ai` also as AI span op prefix. ([#4859](https://github.com/getsentry/relay/pull/4859))
+- Change pii scrubbing on some AI attributes to optional ([#4860](https://github.com/getsentry/relay/pull/4860))
+- Conditionally set `total_cost` and `total_tokens` attributes on AI spans. ([#4868](https://github.com/getsentry/relay/pull/4868))
+
 ## 25.6.1
 
 **Features**:
 
-- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813)
+- Implements a minimum sample rate dynamic sampling rule. ([#4801](https://github.com/getsentry/relay/pull/4801))
+- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813))
 - Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo OS"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
 
 **Internal**:
 
 - Always combine replay payloads and remove feature flag guarding it. ([#4812](https://github.com/getsentry/relay/pull/4812))
+- Added version 2 of LLM cost specification. ([#4825](https://github.com/getsentry/relay/pull/4825))
+- Send `tracing` events at or above `INFO` to Sentry as logs. ([#4820](https://github.com/getsentry/relay/pull/4820))
 
 ## 25.6.0
 
 **Features**:
 
-- Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755)
+- Add logic to extract event json from userdata in prosperodumps. ([#4755](https://github.com/getsentry/relay/pull/4755))
 - Add browser name/version to logs. ([#4757](https://github.com/getsentry/relay/pull/4757))
 - Accept standalone spans in the V2 format. This feature is still highly experimental! ([#4771](https://github.com/getsentry/relay/pull/4771))
 - Enable filtering sessions by IP address, release, and user agent. ([#4745](https://github.com/getsentry/relay/pull/4745))

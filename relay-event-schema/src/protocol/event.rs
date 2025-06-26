@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use relay_common::time;
 use relay_protocol::{
-    Annotated, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
+    Annotated, Array, Empty, FiniteF64, FromValue, Getter, GetterIter, IntoValue, Object, Val,
+    Value,
 };
 use sentry_release_parser::Release as ParsedRelease;
 use uuid::Uuid;
@@ -600,13 +601,13 @@ impl Event {
     /// Returns the numeric measurement value.
     ///
     /// The name is provided without a prefix, for example `"lcp"` loads `event.measurements.lcp`.
-    pub fn measurement(&self, name: &str) -> Option<f64> {
+    pub fn measurement(&self, name: &str) -> Option<FiniteF64> {
         let annotated = self.measurements.value()?.get(name)?;
         Some(*annotated.value()?.value.value()?)
     }
 
     /// Returns the numeric breakdown value.
-    pub fn breakdown(&self, breakdown: &str, measurement: &str) -> Option<f64> {
+    pub fn breakdown(&self, breakdown: &str, measurement: &str) -> Option<FiniteF64> {
         let breakdown = self.breakdowns.value()?.get(breakdown)?.value()?;
         Some(*breakdown.get(measurement)?.value()?.value.value()?)
     }
@@ -888,45 +889,45 @@ mod tests {
                 Meta::from_error(ErrorKind::InvalidData),
             ),
             level: Annotated::new(Level::Debug),
-            fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
-            culprit: Annotated::new("myculprit".to_string()),
-            transaction: Annotated::new("mytransaction".to_string()),
+            fingerprint: Annotated::new(vec!["myprint".to_owned()].into()),
+            culprit: Annotated::new("myculprit".to_owned()),
+            transaction: Annotated::new("mytransaction".to_owned()),
             logentry: Annotated::new(LogEntry {
-                formatted: Annotated::new("mymessage".to_string().into()),
+                formatted: Annotated::new("mymessage".to_owned().into()),
                 ..Default::default()
             }),
-            logger: Annotated::new("mylogger".to_string()),
+            logger: Annotated::new("mylogger".to_owned()),
             modules: {
                 let mut map = Map::new();
-                map.insert("mymodule".to_string(), Annotated::new("1.0.0".to_string()));
+                map.insert("mymodule".to_owned(), Annotated::new("1.0.0".to_owned()));
                 Annotated::new(map)
             },
-            platform: Annotated::new("myplatform".to_string()),
+            platform: Annotated::new("myplatform".to_owned()),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            server_name: Annotated::new("myhost".to_string()),
-            release: Annotated::new("myrelease".to_string().into()),
-            dist: Annotated::new("mydist".to_string()),
-            environment: Annotated::new("myenv".to_string()),
+            server_name: Annotated::new("myhost".to_owned()),
+            release: Annotated::new("myrelease".to_owned().into()),
+            dist: Annotated::new("mydist".to_owned()),
+            environment: Annotated::new("myenv".to_owned()),
             tags: {
                 let items = vec![Annotated::new(TagEntry(
-                    Annotated::new("tag".to_string()),
-                    Annotated::new("value".to_string()),
+                    Annotated::new("tag".to_owned()),
+                    Annotated::new("value".to_owned()),
                 ))];
                 Annotated::new(Tags(items.into()))
             },
             extra: {
                 let mut map = Map::new();
                 map.insert(
-                    "extra".to_string(),
-                    Annotated::new(ExtraValue(Value::String("value".to_string()))),
+                    "extra".to_owned(),
+                    Annotated::new(ExtraValue(Value::String("value".to_owned()))),
                 );
                 Annotated::new(map)
             },
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -985,11 +986,11 @@ mod tests {
                 Meta::from_error(ErrorKind::InvalidData),
             ),
             fingerprint: Annotated(
-                Some(vec!["{{ default }}".to_string()].into()),
+                Some(vec!["{{ default }}".to_owned()].into()),
                 Meta::from_error(ErrorKind::InvalidData),
             ),
             platform: Annotated(
-                Some("other".to_string()),
+                Some("other".to_owned()),
                 Meta::from_error(ErrorKind::InvalidData),
             ),
             ..Default::default()
@@ -1014,7 +1015,7 @@ mod tests {
     fn test_fingerprint_empty_string() {
         let json = r#"{"fingerprint":[""]}"#;
         let event = Annotated::new(Event {
-            fingerprint: Annotated::new(vec!["".to_string()].into()),
+            fingerprint: Annotated::new(vec!["".to_owned()].into()),
             ..Default::default()
         });
 
@@ -1051,7 +1052,7 @@ mod tests {
         let input = r#"{"release":42}"#;
         let output = r#"{"release":"42"}"#;
         let event = Annotated::new(Event {
-            release: Annotated::new("42".to_string().into()),
+            release: Annotated::new("42".to_owned().into()),
             ..Default::default()
         });
 
@@ -1131,8 +1132,8 @@ mod tests {
                 ..Default::default()
             }),
             logentry: Annotated::new(LogEntry {
-                formatted: Annotated::new("formatted".to_string().into()),
-                message: Annotated::new("message".to_string().into()),
+                formatted: Annotated::new("formatted".to_owned().into()),
+                message: Annotated::new("message".to_owned().into()),
                 ..Default::default()
             }),
             request: Annotated::new(Request {
@@ -1150,17 +1151,17 @@ mod tests {
             }),
             tags: {
                 let items = vec![Annotated::new(TagEntry(
-                    Annotated::new("custom".to_string()),
-                    Annotated::new("custom-value".to_string()),
+                    Annotated::new("custom".to_owned()),
+                    Annotated::new("custom-value".to_owned()),
                 ))];
                 Annotated::new(Tags(items.into()))
             },
             contexts: Annotated::new({
                 let mut contexts = Contexts::new();
                 contexts.add(DeviceContext {
-                    name: Annotated::new("iphone".to_string()),
-                    family: Annotated::new("iphone-fam".to_string()),
-                    model: Annotated::new("iphone7,3".to_string()),
+                    name: Annotated::new("iphone".to_owned()),
+                    family: Annotated::new("iphone-fam".to_owned()),
+                    model: Annotated::new("iphone7,3".to_owned()),
                     screen_dpi: Annotated::new(560),
                     screen_width_pixels: Annotated::new(1920),
                     screen_height_pixels: Annotated::new(1080),
@@ -1170,9 +1171,9 @@ mod tests {
                     ..DeviceContext::default()
                 });
                 contexts.add(OsContext {
-                    name: Annotated::new("iOS".to_string()),
-                    version: Annotated::new("11.4.2".to_string()),
-                    kernel_version: Annotated::new("17.4.0".to_string()),
+                    name: Annotated::new("iOS".to_owned()),
+                    version: Annotated::new("11.4.2".to_owned()),
+                    kernel_version: Annotated::new("17.4.0".to_owned()),
                     ..OsContext::default()
                 });
                 contexts.add(ProfileContext {
@@ -1183,12 +1184,12 @@ mod tests {
                 });
                 let mut monitor_context_fields = BTreeMap::new();
                 monitor_context_fields.insert(
-                    "id".to_string(),
-                    Annotated::new(Value::String("123".to_string())),
+                    "id".to_owned(),
+                    Annotated::new(Value::String("123".to_owned())),
                 );
                 monitor_context_fields.insert(
-                    "slug".to_string(),
-                    Annotated::new(Value::String("my_monitor".to_string())),
+                    "slug".to_owned(),
+                    Annotated::new(Value::String("my_monitor".to_owned())),
                 );
                 contexts.add(MonitorContext(monitor_context_fields));
                 contexts

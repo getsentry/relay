@@ -67,12 +67,12 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Reprocessing(Box::new(ReprocessingContext {
             original_issue_id: Annotated::new(123),
-            original_primary_hash: Annotated::new("9f3ee8ff49e6ca0a2bee80d76fee8f0c".to_string()),
+            original_primary_hash: Annotated::new("9f3ee8ff49e6ca0a2bee80d76fee8f0c".to_owned()),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "random".to_string(),
-                    Annotated::new(Value::String("stuff".to_string())),
+                    "random".to_owned(),
+                    Annotated::new(Value::String("stuff".to_owned())),
                 );
                 map
             },

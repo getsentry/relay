@@ -1,41 +1,49 @@
 //! AI cost calculation.
 
-use crate::ModelCosts;
+use crate::{ModelCostV2, ModelCosts};
 use relay_event_schema::protocol::{Event, Span, SpanData};
 use relay_protocol::{Annotated, Value};
 
+/// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
-fn calculate_ai_model_cost(
-    model_id: &str,
-    prompt_tokens_used: Option<f64>,
-    completion_tokens_used: Option<f64>,
-    total_tokens_used: Option<f64>,
-    ai_model_costs: &ModelCosts,
-) -> Option<f64> {
-    if let Some(prompt_tokens) = prompt_tokens_used {
-        if let Some(completion_tokens) = completion_tokens_used {
-            let mut result = 0.0;
-            if let Some(cost_per_1k) = ai_model_costs.cost_per_1k_tokens(model_id, false) {
-                result += cost_per_1k * (prompt_tokens / 1000.0)
-            }
-            if let Some(cost_per_1k) = ai_model_costs.cost_per_1k_tokens(model_id, true) {
-                result += cost_per_1k * (completion_tokens / 1000.0)
-            }
-            return Some(result);
-        }
+fn calculate_ai_model_cost(model_cost: Option<ModelCostV2>, data: &SpanData) -> Option<f64> {
+    let cost_per_token = model_cost?;
+    let input_tokens_used = data
+        .gen_ai_usage_input_tokens
+        .value()
+        .and_then(Value::as_f64);
+
+    let output_tokens_used = data
+        .gen_ai_usage_output_tokens
+        .value()
+        .and_then(Value::as_f64);
+    let output_reasoning_tokens_used = data
+        .gen_ai_usage_output_tokens_reasoning
+        .value()
+        .and_then(Value::as_f64);
+    let input_cached_tokens_used = data
+        .gen_ai_usage_input_tokens_cached
+        .value()
+        .and_then(Value::as_f64);
+
+    if input_tokens_used.is_none() && output_tokens_used.is_none() {
+        return None;
     }
-    if let Some(total_tokens) = total_tokens_used {
-        ai_model_costs
-            .cost_per_1k_tokens(model_id, false)
-            .map(|cost| cost * (total_tokens / 1000.0))
-    } else {
-        None
-    }
+
+    let mut result = 0.0;
+
+    result += cost_per_token.input_per_token * input_tokens_used.unwrap_or(0.0);
+    result += cost_per_token.output_per_token * output_tokens_used.unwrap_or(0.0);
+    result +=
+        cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
+    result += cost_per_token.input_cached_per_token * input_cached_tokens_used.unwrap_or(0.0);
+
+    Some(result)
 }
 
 /// Maps AI-related measurements (legacy) to span data.
 pub fn map_ai_measurements_to_data(span: &mut Span) {
-    if !span.op.value().is_some_and(|op| op.starts_with("ai.")) {
+    if !is_ai_span(span) {
         return;
     };
 
@@ -47,7 +55,7 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
         if let Some(measurements) = measurements {
             if target_field.value().is_none() {
                 if let Some(value) = measurements.get_value(measurement_key) {
-                    target_field.set_value(Value::F64(value).into());
+                    target_field.set_value(Value::F64(value.to_f64()).into());
                 }
             }
         }
@@ -65,21 +73,26 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
         let input_tokens = data
             .gen_ai_usage_input_tokens
             .value()
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
+            .and_then(Value::as_f64);
         let output_tokens = data
             .gen_ai_usage_output_tokens
             .value()
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
-        data.gen_ai_usage_total_tokens
-            .set_value(Value::F64(input_tokens + output_tokens).into());
+            .and_then(Value::as_f64);
+
+        if input_tokens.is_none() && output_tokens.is_none() {
+            // don't set total_tokens if there are no input nor output tokens
+            return;
+        }
+
+        data.gen_ai_usage_total_tokens.set_value(
+            Value::F64(input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0)).into(),
+        );
     }
 }
 
 /// Extract the gen_ai_usage_total_cost data into the span
 pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
-    if !span.op.value().is_some_and(|op| op.starts_with("ai.")) {
+    if !is_ai_span(span) {
         return;
     }
 
@@ -87,27 +100,17 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
         return;
     };
 
-    let total_tokens_used = data
-        .gen_ai_usage_total_tokens
+    if let Some(model_id) = data
+        .gen_ai_request_model
         .value()
-        .and_then(Value::as_f64);
-    let prompt_tokens_used = data
-        .gen_ai_usage_input_tokens
-        .value()
-        .and_then(Value::as_f64);
-    let completion_tokens_used = data
-        .gen_ai_usage_output_tokens
-        .value()
-        .and_then(Value::as_f64);
-
-    if let Some(model_id) = data.ai_model_id.value().and_then(|val| val.as_str()) {
-        if let Some(total_cost) = calculate_ai_model_cost(
-            model_id,
-            prompt_tokens_used,
-            completion_tokens_used,
-            total_tokens_used,
-            ai_model_costs,
-        ) {
+        .and_then(|val| val.as_str())
+        // xxx (vgrozdanic): temporal fallback to legacy field, until we fix
+        // sentry conventions and standardize what SDKs send
+        .or_else(|| data.ai_model_id.value().and_then(|val| val.as_str()))
+    {
+        if let Some(total_cost) =
+            calculate_ai_model_cost(ai_model_costs.cost_per_token(model_id), data)
+        {
             data.gen_ai_usage_total_cost
                 .set_value(Value::F64(total_cost).into());
         }
@@ -125,4 +128,12 @@ pub fn enrich_ai_span_data(event: &mut Event, model_costs: Option<&ModelCosts>) 
             extract_ai_data(span, model_costs);
         }
     }
+}
+
+/// Returns true if the span is an AI span.
+/// AI spans are spans with op starting with "ai." (legacy) or "gen_ai." (new).
+pub fn is_ai_span(span: &Span) -> bool {
+    span.op
+        .value()
+        .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."))
 }

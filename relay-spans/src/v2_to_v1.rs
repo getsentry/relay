@@ -4,16 +4,19 @@ use relay_event_schema::protocol::{SpanKind, SpanV2Link};
 
 use crate::status_codes;
 use relay_event_schema::protocol::{
-    EventId, Span as SpanV1, SpanData, SpanId, SpanLink, SpanStatus, SpanV2, SpanV2Kind,
-    SpanV2Status,
+    Attributes, EventId, Span as SpanV1, SpanData, SpanId, SpanLink, SpanStatus, SpanV2,
+    SpanV2Kind, SpanV2Status,
 };
 use relay_protocol::{Annotated, FromValue, Object, Value};
+use url::Url;
 
 /// Transforms a Sentry span V2 to a Sentry span V1.
 ///
 /// This uses attributes in the V2 span to populate various fields in the V1 span.
 /// * The V1 span's `op` field will be set based on the V2 span's `sentry.op` attribute, or
 ///   inferred from other attributes if the `sentry.op` attribute is not set.
+/// * The V1 span's `description` field will be set based on the V2 span's `sentry.description`
+///   attribute, or inferred from other attributes if the `sentry.description` attribute is not set.
 /// * The V1 span's `description` field is set based on the V2 span's `sentry.description` attribute.
 /// * The V1 span's `status` field is set based on the V2 span's `status` field and
 ///   `http.status_code` and `rpc.grpc.status_code` attributes.
@@ -29,6 +32,9 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
     let mut data = Object::new();
 
     let inferred_op = derive_op_for_v2_span(&span_v2);
+    // NOTE: Inferring the description should happen after inferring the op, since the op may affect
+    // how we infer the description.
+    let inferred_description = derive_description_for_v2_span(&span_v2);
 
     let SpanV2 {
         start_timestamp,
@@ -99,10 +105,8 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         }
     }
 
-    // Note: This writes the incoming `name` field to a the `sentry.name` attribute. This creates a
-    // bit of duplication, since the attribute `sentry.name` will have the same value as the `op`
-    // field. This duplication is temporary, since we will soon generate a proper `op` field that will
-    // be different from the name.
+    // Write the incoming `name` field to a the `sentry.name` attribute, since the V1
+    // Span schema doesn't have a top-level `name` field.
     if let Some(name) = name.value() {
         data.insert(
             "sentry.name".to_owned(),
@@ -129,6 +133,9 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
 
     // If the SDK sent in a `sentry.op` attribute, use it. If not, derive it from the span attributes.
     let op = op.or_else(|| Annotated::from(inferred_op));
+
+    // If the SDK sent in a `sentry.description` attribute, use it. If not, derive it from the span attributes.
+    let description = description.or_else(|| Annotated::from(inferred_description));
 
     SpanV1 {
         op,
@@ -259,15 +266,148 @@ fn derive_op_for_v2_span(span: &SpanV2) -> String {
     }
 
     if let Some(faas_trigger) = attributes
-        .get("faas.trigger")
-        .and_then(|faas_trigger| faas_trigger.value())
-        .and_then(|trigger_value| trigger_value.value.value.value())
+        .get_value("faas.trigger")
         .and_then(|v| v.as_str())
     {
         return faas_trigger.to_owned();
     }
 
     op
+}
+
+/// Generates a `sentry.description` attribute for V2 span, if possible.
+///
+/// This uses attributes of the span to figure out an appropriate description, trying to match what
+/// the SDK might have sent. This works well for HTTP and database spans, but doesn't have a
+/// thorough implementation for other types of spans for now.
+fn derive_description_for_v2_span(span: &SpanV2) -> Option<String> {
+    // `name` is a low-cardinality description of the span, so it makes for a good fallback.
+    let description = span.name.value().map(|v| v.to_owned());
+
+    let Some(attributes) = span.attributes.value() else {
+        return description;
+    };
+
+    if let Some(http_description) = derive_http_description(attributes, &span.kind.value()) {
+        return Some(http_description);
+    }
+
+    if let Some(database_description) = derive_db_description(attributes) {
+        return Some(database_description);
+    }
+
+    description
+}
+
+fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanV2Kind>) -> Option<String> {
+    // Get HTTP method
+    let http_method = attributes
+        .get_value("http.request.method")
+        .or_else(|| attributes.get_value("http.method"))
+        .and_then(|v| v.as_str())?;
+
+    let description = http_method.to_owned();
+
+    // Get URL path information
+    let url_path = match kind {
+        Some(SpanV2Kind::Server) => get_server_url_path(attributes),
+        Some(SpanV2Kind::Client) => get_client_url_path(attributes),
+        _ => None,
+    };
+
+    let Some(url_path) = url_path else {
+        return Some(description);
+    };
+    let base_description = format!("{} {}", http_method, url_path);
+
+    // Check for GraphQL operations
+    if let Some(graphql_ops) = attributes
+        .get_value("sentry.graphql.operation")
+        .and_then(|v| v.as_str())
+    {
+        return Some(format!("{} ({})", base_description, graphql_ops));
+    }
+
+    Some(base_description)
+}
+
+fn derive_db_description(attributes: &Attributes) -> Option<String> {
+    // Check if this is a cache operation. Cache operations look very similar to database
+    // operations, since they have a `db.system` attribute, but should be treated differently, since
+    // we don't want their statements to end up in description for now.
+    if attributes
+        .get_value("sentry.op")
+        .and_then(|v| v.as_str())
+        .is_some_and(|op| op.starts_with("cache."))
+    {
+        return None;
+    }
+
+    // Check the `db.system` attribute. It's mandatory, so if it's missing, return `None` right
+    // away, since there's not much point trying to derive a description.
+    attributes
+        .get_value("db.system")
+        .or_else(|| attributes.get_value("db.system.name"))
+        .and_then(|v| v.as_str())?;
+
+    // `db.query.text` is a recommended attribute, and it contains the full query text if available.
+    // This is the ideal description.
+    if let Some(query_text) = attributes
+        .get_value("db.query.text")
+        .and_then(|v| v.as_str())
+    {
+        return Some(query_text.to_owned());
+    }
+
+    // Other SDKs check for `db.statement`, it's a legacy OTel attribute, useful as a fallback in some cases.
+    if let Some(statement) = attributes
+        .get_value("db.statement")
+        .and_then(|v| v.as_str())
+    {
+        return Some(statement.to_owned());
+    }
+
+    None
+}
+
+fn get_server_url_path(attributes: &Attributes) -> Option<String> {
+    // `http.route` takes precedence. If available, this is the matched route of the server
+    // framework for server spans. Not always available, even for server spans.
+    if let Some(route) = attributes.get_value("http.route").and_then(|v| v.as_str()) {
+        return Some(route.to_owned());
+    }
+
+    // `url.path` is the path of the HTTP request for server spans. This is required for server spans.
+    if let Some(path) = attributes.get_value("url.path").and_then(|v| v.as_str()) {
+        return Some(path.to_owned());
+    }
+
+    // `http.target` is deprecated, but might be present in older data. Here as a fallback
+    if let Some(target) = attributes.get_value("http.target").and_then(|v| v.as_str()) {
+        return Some(strip_url_query_and_fragment(target));
+    }
+
+    None
+}
+
+fn strip_url_query_and_fragment(url: &str) -> String {
+    url.split(&['?', '#']).next().unwrap_or(url).to_owned()
+}
+
+fn get_client_url_path(attributes: &Attributes) -> Option<String> {
+    let url = attributes
+        .get_value("url.full")
+        .or_else(|| attributes.get_value("http.url"))?
+        .as_str()?;
+
+    let parsed_url = Url::parse(url).ok()?;
+
+    Some(format!(
+        "{}://{}{}",
+        parsed_url.scheme(),
+        parsed_url.domain().unwrap_or(""),
+        parsed_url.path()
+    ))
 }
 
 #[cfg(test)]
@@ -332,6 +472,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "ok",
+          "description": "middleware - fastify -> @fastify/multipart",
           "data": {
             "sentry.environment": "test",
             "fastify.type": "middleware",
@@ -378,6 +519,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "middleware - fastify -> @fastify/multipart",
           "data": {
             "sentry.name": "middleware - fastify -> @fastify/multipart"
           },
@@ -412,6 +554,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "middleware - fastify -> @fastify/multipart",
           "data": {
             "sentry.name": "middleware - fastify -> @fastify/multipart"
           },
@@ -570,7 +713,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_http_client_span() {
+    fn parse_http_client_span_only_method() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",
@@ -598,6 +741,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "GET",
           "data": {
             "http.request_method": "GET"
           },
@@ -607,7 +751,60 @@ mod tests {
     }
 
     #[test]
-    fn parse_http_server_span() {
+    fn parse_semantic_http_client_span() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "kind": "client",
+            "attributes": {
+                "server.address": {
+                    "value": "github.com",
+                    "type": "string"
+                },
+                "server.port": {
+                    "value": 443,
+                    "type": "integer"
+                },
+                "http.request.method": {
+                    "value": "GET",
+                    "type": "string"
+                },
+                "url.full": {
+                    "value": "https://github.com/rust-lang/rust/issues?labels=E-easy&state=open",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "http.client",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "GET https://github.com/rust-lang/rust/issues",
+          "data": {
+            "server.address": "github.com",
+            "url.full": "https://github.com/rust-lang/rust/issues?labels=E-easy&state=open",
+            "http.request.method": "GET",
+            "server.port": 443
+          },
+          "kind": "client"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_http_server_span_only_method() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",
@@ -635,6 +832,7 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "GET",
           "data": {
             "http.request_method": "GET"
           },
@@ -644,12 +842,61 @@ mod tests {
     }
 
     #[test]
-    fn parse_database_span() {
+    fn parse_semantic_http_server_span() {
         let json = r#"{
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             "span_id": "e342abb1214ca181",
             "parent_span_id": "0c7a7dea069bf5a6",
             "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "kind": "server",
+            "attributes": {
+                "http.request.method": {
+                    "value": "GET",
+                    "type": "string"
+                },
+                "url.path": {
+                    "value": "/users",
+                    "type": "string"
+                },
+                "url.scheme": {
+                    "value": "GET",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "http.server",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "GET /users",
+          "data": {
+            "url.scheme": "GET",
+            "http.request.method": "GET",
+            "url.path": "/users"
+          },
+          "kind": "server"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_database_span_only_system() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "name": "SELECT users",
             "end_timestamp": 123.5,
             "kind": "client",
             "attributes": {
@@ -672,8 +919,102 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "SELECT users",
           "data": {
-            "db.system": "postgres"
+            "db.system": "postgres",
+            "sentry.name": "SELECT users"
+          },
+          "kind": "client"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_cache_span() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "name": "CACHE HIT",
+            "end_timestamp": 123.1,
+            "kind": "client",
+            "attributes": {
+                "db.system": {
+                    "value": "redis",
+                    "type": "string"
+                },
+                "db.statement": {
+                    "value": "GET s:user:123",
+                    "type": "string"
+                },
+                "sentry.op": {
+                    "value": "cache.hit",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.1,
+          "start_timestamp": 123.0,
+          "exclusive_time": 99.999999,
+          "op": "cache.hit",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "CACHE HIT",
+          "data": {
+            "db.system": "redis",
+            "db.statement": "GET s:user:123",
+            "sentry.name": "CACHE HIT"
+          },
+          "kind": "client"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_semantic_database_span() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "kind": "client",
+            "attributes": {
+                "db.system": {
+                    "value": "postgres",
+                    "type": "string"
+                },
+                "db.statement": {
+                    "value": "SELECT * FROM users",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "db",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "SELECT * FROM users",
+          "data": {
+            "db.system": "postgres",
+            "db.statement": "SELECT * FROM users"
           },
           "kind": "client"
         }
@@ -877,10 +1218,151 @@ mod tests {
           "parent_span_id": "0c7a7dea069bf5a6",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
+          "description": "FAAS",
           "data": {
             "faas.trigger": "http",
             "sentry.name": "FAAS"
           }
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_http_span_with_route() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "name": "GET /api/users",
+            "kind": "server",
+            "attributes": {
+                "http.method": {
+                    "value": "GET",
+                    "type": "string"
+                },
+                "http.route": {
+                    "value": "/api/users",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "http.server",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "GET /api/users",
+          "data": {
+            "http.request_method": "GET",
+            "http.route": "/api/users",
+            "sentry.name": "GET /api/users"
+          },
+          "kind": "server"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_db_span_with_statement() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "name": "SELECT users",
+            "kind": "client",
+            "attributes": {
+                "db.system": {
+                    "value": "postgres",
+                    "type": "string"
+                },
+                "db.statement": {
+                    "value": "SELECT * FROM users WHERE id = $1",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "db",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "SELECT * FROM users WHERE id = $1",
+          "data": {
+            "db.system": "postgres",
+            "db.statement": "SELECT * FROM users WHERE id = $1",
+            "sentry.name": "SELECT users"
+          },
+          "kind": "client"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_http_span_with_graphql() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "name": "POST /graphql",
+            "kind": "server",
+            "attributes": {
+                "http.method": {
+                    "value": "POST",
+                    "type": "string"
+                },
+                "http.route": {
+                    "value": "/graphql",
+                    "type": "string"
+                },
+                "sentry.graphql.operation": {
+                    "value": "getUserById",
+                    "type": "string"
+                }
+            }
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "http.server",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "unknown",
+          "description": "POST /graphql (getUserById)",
+          "data": {
+            "http.request_method": "POST",
+            "http.route": "/graphql",
+            "sentry.graphql.operation": "getUserById",
+            "sentry.name": "POST /graphql"
+          },
+          "kind": "server"
         }
         "###);
     }

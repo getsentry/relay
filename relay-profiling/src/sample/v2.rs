@@ -10,19 +10,17 @@
 //! Spans are expected to carry the profiler ID to know which samples are associated with them.
 //!
 use hashbrown::HashMap;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 
-use serde::{Deserialize, Serialize};
-
 use relay_event_schema::protocol::EventId;
-use relay_metrics::FiniteF64;
+use relay_protocol::FiniteF64;
 
 use crate::MAX_PROFILE_CHUNK_DURATION;
 use crate::error::ProfileError;
 use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::types::ClientSdk;
-use crate::utils::default_client_sdk;
 
 const MAX_PROFILE_CHUNK_DURATION_SECS: f64 = MAX_PROFILE_CHUNK_DURATION.as_secs_f64();
 #[derive(Debug, Serialize, Deserialize)]
@@ -40,8 +38,7 @@ pub struct ProfileMetadata {
     pub platform: String,
     pub release: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_sdk: Option<ClientSdk>,
+    pub client_sdk: ClientSdk,
 
     /// Hard-coded string containing "2" to indicate the format version.
     pub version: Version,
@@ -73,10 +70,6 @@ pub struct ProfileChunk {
 impl ProfileChunk {
     pub fn normalize(&mut self) -> Result<(), ProfileError> {
         let platform = self.metadata.platform.as_str();
-
-        if self.metadata.client_sdk.is_none() {
-            self.metadata.client_sdk = default_client_sdk(platform);
-        }
 
         self.profile.normalize(platform)
     }
@@ -220,7 +213,7 @@ pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
 
 #[cfg(test)]
 mod tests {
-    use relay_metrics::FiniteF64;
+    use relay_protocol::FiniteF64;
 
     use crate::sample::v2::{ProfileData, Sample, parse};
 
@@ -245,7 +238,7 @@ mod tests {
                 },
                 Sample {
                     stack_id: 0,
-                    thread_id: "1".to_string(),
+                    thread_id: "1".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
             ],
@@ -274,7 +267,7 @@ mod tests {
 
         let test_cases = [
             TestStruct {
-                name: "not above max duration".to_string(),
+                name: "not above max duration".to_owned(),
                 profile: ProfileData {
                     samples: vec![
                         Sample {
@@ -284,7 +277,7 @@ mod tests {
                         },
                         Sample {
                             stack_id: 0,
-                            thread_id: "1".to_string(),
+                            thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(60.0).unwrap(),
                         },
                     ],
@@ -295,7 +288,7 @@ mod tests {
                 want: false,
             },
             TestStruct {
-                name: "above max duration".to_string(),
+                name: "above max duration".to_owned(),
                 profile: ProfileData {
                     samples: vec![
                         Sample {
@@ -305,7 +298,7 @@ mod tests {
                         },
                         Sample {
                             stack_id: 0,
-                            thread_id: "1".to_string(),
+                            thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(80.0).unwrap(),
                         },
                     ],
@@ -316,7 +309,7 @@ mod tests {
                 want: true,
             },
             TestStruct {
-                name: "unsorted samples not above max duration".to_string(),
+                name: "unsorted samples not above max duration".to_owned(),
                 profile: ProfileData {
                     samples: vec![
                         Sample {
@@ -326,7 +319,7 @@ mod tests {
                         },
                         Sample {
                             stack_id: 0,
-                            thread_id: "1".to_string(),
+                            thread_id: "1".to_owned(),
                             timestamp: FiniteF64::new(20.0).unwrap(),
                         },
                     ],
@@ -373,7 +366,7 @@ mod tests {
                 },
                 Sample {
                     stack_id: 0,
-                    thread_id: "2".to_string(),
+                    thread_id: "2".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {
@@ -388,12 +381,12 @@ mod tests {
                 },
                 Sample {
                     stack_id: 0,
-                    thread_id: "3".to_string(),
+                    thread_id: "3".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {
                     stack_id: 0,
-                    thread_id: "3".to_string(),
+                    thread_id: "3".to_owned(),
                     timestamp: FiniteF64::new(30.0).unwrap(),
                 },
                 Sample {
