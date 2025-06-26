@@ -108,6 +108,12 @@ trait TrackOutcomeLike {
             _ => "<unknown>",
         }
     }
+
+    /// Returns the number of items for that outcome.
+    fn item_count(&self) -> u32;
+
+    /// The project id for the outcomes.
+    fn project_id(&self) -> ProjectId;
 }
 
 /// Tracks an [`Outcome`] of an Envelope item.
@@ -138,6 +144,50 @@ impl TrackOutcomeLike for TrackOutcome {
 
     fn outcome_id(&self) -> OutcomeId {
         self.outcome.to_outcome_id()
+    }
+
+    fn item_count(&self) -> u32 {
+        // Exhaustive match against all variants to make sure that newly added categories
+        // don't accidentally return the wrong item count.
+        // Make sure to update [`TrackRawOutcome`] with the proper count handling.
+        match self.category {
+            // Categories that store their bytes in `quantity` should return 1 as their count.
+            DataCategory::Attachment | DataCategory::LogByte => 1,
+
+            // All other categories store their item count as `quantity`.
+            DataCategory::Default
+            | DataCategory::Error
+            | DataCategory::Transaction
+            | DataCategory::Security
+            | DataCategory::Session
+            | DataCategory::Profile
+            | DataCategory::Replay
+            | DataCategory::TransactionProcessed
+            | DataCategory::TransactionIndexed
+            | DataCategory::Monitor
+            | DataCategory::ProfileIndexed
+            | DataCategory::Span
+            | DataCategory::MonitorSeat
+            | DataCategory::UserReportV2
+            | DataCategory::MetricBucket
+            | DataCategory::SpanIndexed
+            | DataCategory::ProfileDuration
+            | DataCategory::ProfileChunk
+            | DataCategory::MetricSecond
+            | DataCategory::DoNotUseReplayVideo
+            | DataCategory::Uptime
+            | DataCategory::AttachmentItem
+            | DataCategory::LogItem
+            | DataCategory::ProfileDurationUi
+            | DataCategory::ProfileChunkUi
+            | DataCategory::SeerAutofix
+            | DataCategory::SeerScanner
+            | DataCategory::Unknown => self.quantity,
+        }
+    }
+
+    fn project_id(&self) -> ProjectId {
+        self.scoping.project_id
     }
 }
 
@@ -834,6 +884,18 @@ impl TrackOutcomeLike for TrackRawOutcome {
     fn outcome_id(&self) -> OutcomeId {
         self.outcome
     }
+
+    fn item_count(&self) -> u32 {
+        match self.category {
+            v if v == DataCategory::LogByte.value() || v == DataCategory::Attachment.value() => 1,
+            Some(_) => self.quantity.unwrap_or(1),
+            None => 1,
+        }
+    }
+
+    fn project_id(&self) -> ProjectId {
+        self.project_id
+    }
 }
 
 impl Interface for TrackRawOutcome {}
@@ -1103,6 +1165,13 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
 }
 
 fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
+    metric!(
+        counter(RelayCounters::OutcomeCount) += message.item_count(),
+        hc.project_id = message.project_id().to_string().as_str(),
+        reason = message.reason().as_deref().unwrap_or(""),
+        outcome = message.tag_name(),
+        to = to,
+    );
     metric!(
         counter(RelayCounters::Outcomes) += 1,
         reason = message.reason().as_deref().unwrap_or(""),
