@@ -417,3 +417,44 @@ def test_playstation_attachment_no_feature_flag(
     assert "exception" in payload
     assert payload["exception"]["values"][0]["type"] == "ValueError"
     assert payload["exception"]["values"][0]["value"] == "Should not happen"
+
+
+def test_data_request(mini_sentry, relay_processing_with_playstation):
+    PROJECT_ID = 42
+    mini_sentry.add_full_project_config(PROJECT_ID)
+    relay = relay_processing_with_playstation()
+
+    response = relay.post(
+        f"/api/{PROJECT_ID}/playstation/?sentry_key={relay.get_dsn_public_key(PROJECT_ID)}",
+        headers={
+            "Content-Type": "application/vnd.sce.crs.datareq-request+json; version=1",
+        },
+        json={},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+
+    expected_response = {
+        "parts": {
+            "upload": ["corefile"],
+            "noUpload": [
+                "memorydump",
+                "video",
+                "screenshot",
+                "usermemoryfile",
+                "gpudump",
+                "gpucapture",
+                "gpuextdump",
+            ],
+        },
+        "partParameters": {
+            "video": {
+                "duration": {
+                    "max": 4
+                }
+            }
+        }
+    }
+
+    assert response.json() == expected_response

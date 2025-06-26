@@ -5,6 +5,7 @@ use axum::routing::{MethodRouter, post};
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::EventId;
+use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::ContentType::OctetStream;
@@ -21,6 +22,64 @@ const PROSPERODUMP_MAGIC_HEADER: &[u8] = b"\x7FELF";
 
 /// Magic bytes for lz4 compressed prosperodump containers.
 const LZ4_MAGIC_HEADER: &[u8] = b"\x04\x22\x4d\x18";
+
+const DATA_REQUEST_CONTENT_TYPE: &str = "application/vnd.sce.crs.datareq-request+json";
+
+const UPLOAD_PARTS: &[&str] = &["corefile"];
+const NO_UPLOAD_PARTS: &[&str] = &[
+    "memorydump",
+    "video",
+    "screenshot",
+    "usermemoryfile",
+    "gpudump",
+    "gpucapture",
+    "gpuextdump",
+];
+
+#[derive(Serialize)]
+struct DataRequestResponse {
+    parts: Parts,
+    #[serde(rename = "partParameters")]
+    part_parameters: PartParameters,
+}
+
+#[derive(Serialize)]
+struct Parts {
+    upload: Vec<&'static str>,
+    #[serde(rename = "noUpload")]
+    no_upload: Vec<&'static str>,
+}
+
+#[derive(Serialize)]
+struct PartParameters {
+    video: VideoParameters,
+}
+
+#[derive(Serialize)]
+struct VideoParameters {
+    duration: DurationParameters,
+}
+
+#[derive(Serialize)]
+struct DurationParameters {
+    max: u32,
+}
+
+// TODO: Think about if we want to construct this here or if grabbing this from somewhere else
+// makes more sense.
+fn create_data_request_response() -> DataRequestResponse {
+    DataRequestResponse {
+        parts: Parts {
+            upload: UPLOAD_PARTS.to_vec(),
+            no_upload: NO_UPLOAD_PARTS.to_vec(),
+        },
+        part_parameters: PartParameters {
+            video: VideoParameters {
+                duration: DurationParameters { max: 4 },
+            },
+        },
+    }
+}
 
 fn validate_prosperodump(data: &[u8]) -> Result<(), BadStoreRequest> {
     if !data.starts_with(LZ4_MAGIC_HEADER) && !data.starts_with(PROSPERODUMP_MAGIC_HEADER) {
@@ -68,10 +127,14 @@ async fn extract_multipart(
 async fn handle(
     state: ServiceState,
     meta: RequestMeta,
-    _content_type: RawContentType,
+    content_type: RawContentType,
     request: Request,
 ) -> axum::response::Result<impl IntoResponse> {
-    // The crash dumps are transmitted as `...` in a multipart form-data/ request.
+    // Handle either a data request (send as json) or a crash dump (send as a multi-part)
+    if content_type.as_ref() == DATA_REQUEST_CONTENT_TYPE {
+        return Ok(axum::Json(create_data_request_response()).into_response());
+    }
+
     let multipart = request.extract_with_state(&state).await?;
     let mut envelope = extract_multipart(multipart, meta, state.config()).await?;
     envelope.require_feature(Feature::PlaystationIngestion);
@@ -85,7 +148,7 @@ async fn handle(
     };
 
     // Return here needs to be a 200 with arbitrary text to make the sender happy.
-    Ok(TextResponse(id))
+    Ok(TextResponse(id).into_response())
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
