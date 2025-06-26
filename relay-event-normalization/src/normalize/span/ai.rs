@@ -11,31 +11,32 @@ fn calculate_ai_model_cost(model_cost: Option<ModelCostV2>, data: &SpanData) -> 
     let input_tokens_used = data
         .gen_ai_usage_input_tokens
         .value()
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+        .and_then(Value::as_f64);
 
     let output_tokens_used = data
         .gen_ai_usage_output_tokens
         .value()
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+        .and_then(Value::as_f64);
     let output_reasoning_tokens_used = data
         .gen_ai_usage_output_tokens_reasoning
         .value()
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+        .and_then(Value::as_f64);
     let input_cached_tokens_used = data
         .gen_ai_usage_input_tokens_cached
         .value()
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+        .and_then(Value::as_f64);
+
+    if input_tokens_used.is_none() || output_tokens_used.is_none() {
+        return None;
+    }
 
     let mut result = 0.0;
 
-    result += cost_per_token.input_per_token * input_tokens_used;
-    result += cost_per_token.output_per_token * output_tokens_used;
-    result += cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used;
-    result += cost_per_token.input_cached_per_token * input_cached_tokens_used;
+    result += cost_per_token.input_per_token * input_tokens_used.unwrap_or(0.0);
+    result += cost_per_token.output_per_token * output_tokens_used.unwrap_or(0.0);
+    result +=
+        cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
+    result += cost_per_token.input_cached_per_token * input_cached_tokens_used.unwrap_or(0.0);
 
     Some(result)
 }
@@ -72,15 +73,20 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
         let input_tokens = data
             .gen_ai_usage_input_tokens
             .value()
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
+            .and_then(Value::as_f64);
         let output_tokens = data
             .gen_ai_usage_output_tokens
             .value()
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
-        data.gen_ai_usage_total_tokens
-            .set_value(Value::F64(input_tokens + output_tokens).into());
+            .and_then(Value::as_f64);
+
+        if input_tokens.is_none() || output_tokens.is_none() {
+            // don't set total_tokens if there are no input or output tokens
+            return;
+        }
+
+        data.gen_ai_usage_total_tokens.set_value(
+            Value::F64(input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0)).into(),
+        );
     }
 }
 
