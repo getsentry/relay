@@ -44,9 +44,9 @@ pub fn check_config(config: &Config) -> Result<()> {
 
     #[cfg(feature = "processing")]
     if config.processing_enabled() {
-        for (name, topic) in config.unused_topic_assignments() {
+        for name in config.unused_topic_assignments().names() {
             relay_log::with_scope(
-                |scope| scope.set_extra("topic", format!("{topic:?}").into()),
+                |scope| scope.set_extra("topic", format!("{name}").into()),
                 || relay_log::error!("unused topic assignment '{name}'"),
             );
         }

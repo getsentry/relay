@@ -1052,11 +1052,11 @@ impl KafkaOutcomesProducer {
         let mut client_builder = KafkaClient::builder();
 
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let kafka_configs = config
+            let kafka_config = config
                 .kafka_configs(*topic)
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
             client_builder = client_builder
-                .add_kafka_topic_config(*topic, &kafka_configs, config.kafka_validate_topics())
+                .add_kafka_topic_config(*topic, &kafka_config, config.kafka_validate_topics())
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 

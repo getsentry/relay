@@ -12,8 +12,8 @@ use anyhow::Context;
 use relay_auth::{PublicKey, RelayId, SecretKey, generate_key_pair, generate_relay_id};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
-    TopicAssignments,
+    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, KafkaTopicConfig,
+    TopicAssignment, TopicAssignments,
 };
 use relay_metrics::MetricNamespace;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
@@ -2504,7 +2504,10 @@ impl Config {
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_configs(&self, topic: KafkaTopic) -> Result<Vec<KafkaParams>, KafkaConfigError> {
+    pub fn kafka_configs(
+        &self,
+        topic: KafkaTopic,
+    ) -> Result<KafkaTopicConfig<'_>, KafkaConfigError> {
         self.values.processing.topics.get(topic).kafka_configs(
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
@@ -2517,7 +2520,7 @@ impl Config {
     }
 
     /// All unused but configured topic assignments.
-    pub fn unused_topic_assignments(&self) -> &BTreeMap<String, TopicAssignment> {
+    pub fn unused_topic_assignments(&self) -> &relay_kafka::Unused {
         &self.values.processing.topics.unused
     }
 

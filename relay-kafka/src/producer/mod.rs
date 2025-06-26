@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::hash::Hasher as _;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use hash32::{FnvHasher, Hasher};
@@ -15,6 +15,7 @@ use rdkafka::producer::{BaseRecord, Producer as _};
 use relay_statsd::metric;
 use thiserror::Error;
 
+use crate::KafkaTopicConfig;
 use crate::config::{KafkaParams, KafkaTopic};
 use crate::debounced::Debounced;
 use crate::limits::KafkaRateLimits;
@@ -59,8 +60,8 @@ pub enum ClientError {
     SchemaValidationFailed(#[source] schemas::SchemaError),
 
     /// Configuration is wrong and it cannot be used to identify the number of a shard.
-    #[error("invalid kafka shard")]
-    InvalidShard,
+    #[error("no kafka configuration for topic")]
+    MissingTopic,
 
     /// Failed to fetch the metadata of Kafka.
     #[error("failed to fetch the metadata of Kafka")]
@@ -95,31 +96,48 @@ pub trait Message {
     fn serialize(&self) -> Result<Cow<'_, [u8]>, ClientError>;
 }
 
-/// Single kafka producer config with assigned topic.
-struct Producer {
-    /// Topic to producer and rate limiter mappings for sharding.
-    topic_producers: Vec<(String, Arc<ThreadedProducer>, Option<KafkaRateLimits>)>,
-    /// Debouncer for metrics.
-    metrics: Debounced,
+struct TopicProducers {
+    /// All configured producers.
+    producers: Vec<TopicProducer>,
     /// Round-robin counter for keyless messages.
-    round_robin_counter: AtomicUsize,
+    round_robin: AtomicU32,
 }
 
-impl Producer {
-    fn new(topic_producers: Vec<(String, Arc<ThreadedProducer>, Option<KafkaRateLimits>)>) -> Self {
+impl TopicProducers {
+    fn new() -> Self {
         Self {
-            topic_producers,
-            metrics: Debounced::new(REPORT_FREQUENCY_SECS),
-            round_robin_counter: AtomicUsize::new(0),
+            producers: Vec::new(),
+            round_robin: AtomicU32::new(0),
         }
+    }
+
+    fn select(&self, key: Option<[u8; 16]>) -> Option<&TopicProducer> {
+        debug_assert!(!self.producers.is_empty());
+
+        if self.producers.is_empty() {
+            return None;
+        } else if self.producers.len() == 1 {
+            return self.producers.get(0);
+        }
+
+        let select = match key {
+            Some(ref key) => {
+                let mut hasher = FnvHasher::default();
+                hasher.write(key);
+                hasher.finish32()
+            }
+            None => self.round_robin.fetch_add(1, Ordering::Relaxed),
+        };
+
+        self.producers.get(select as usize % self.producers.len())
     }
 
     /// Validates the topic by fetching the metadata of the topic directly from Kafka.
     fn validate_topic(&self) -> Result<(), ClientError> {
-        for (topic_name, producer, _rate_limiter) in &self.topic_producers {
-            let client = producer.client();
+        for tp in &self.producers {
+            let client = tp.producer.client();
             let metadata = client
-                .fetch_metadata(Some(topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
+                .fetch_metadata(Some(&tp.topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
                 .map_err(ClientError::MetadataFetchError)?;
 
             for topic in metadata.topics() {
@@ -133,12 +151,130 @@ impl Producer {
     }
 }
 
+struct TopicProducer {
+    pub topic_name: String,
+    pub producer: Arc<ThreadedProducer>,
+    pub rate_limiter: Option<KafkaRateLimits>,
+}
+
+/// Single kafka producer config with assigned topic.
+struct Producer {
+    /// Topic to producer and rate limiter mappings for sharding.
+    topic_producers: TopicProducers,
+    /// Debouncer for metrics.
+    metrics: Debounced,
+}
+
+impl Producer {
+    fn new(topic_producers: TopicProducers) -> Self {
+        Self {
+            topic_producers,
+            metrics: Debounced::new(REPORT_FREQUENCY_SECS),
+        }
+    }
+}
+
+impl Producer {
+    /// Sends the payload to the correct producer for the current topic.
+    fn send(
+        &self,
+        key: Option<[u8; 16]>,
+        headers: Option<&BTreeMap<String, String>>,
+        variant: &str,
+        payload: &[u8],
+    ) -> Result<&str, ClientError> {
+        let now = Instant::now();
+
+        let Some(TopicProducer {
+            topic_name,
+            producer,
+            rate_limiter,
+        }) = self.topic_producers.select(key)
+        else {
+            return Err(ClientError::MissingTopic);
+        };
+
+        metric!(
+            histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
+            variant = variant,
+            topic = topic_name,
+        );
+
+        let mut headers = headers
+            .unwrap_or(&BTreeMap::new())
+            .iter()
+            .map(|(key, value)| Header {
+                key,
+                value: Some(value),
+            })
+            .collect::<KafkaHeaders>();
+
+        let key = match (key, rate_limiter.as_ref()) {
+            (Some(key), Some(limiter)) => {
+                let is_limited = limiter.try_increment(now, key, 1) < 1;
+
+                if is_limited {
+                    metric!(
+                        counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
+                        variant = variant,
+                        topic = topic_name,
+                    );
+
+                    headers.insert(Header {
+                        key: "sentry-reshuffled",
+                        value: Some("1"),
+                    });
+
+                    None
+                } else {
+                    Some(key)
+                }
+            }
+            (key, _) => key,
+        };
+
+        let mut record = BaseRecord::to(topic_name).payload(payload);
+        if let Some(headers) = headers.into_inner() {
+            record = record.headers(headers);
+        }
+        if let Some(key) = key.as_ref() {
+            record = record.key(key);
+        }
+
+        self.metrics.debounce(now, || {
+            metric!(
+                gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
+                variant = variant,
+                topic = topic_name
+            );
+        });
+
+        producer.send(record).map_err(|(error, _message)| {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                tags.variant = variant,
+                tags.topic = topic_name,
+                "error sending kafka message",
+            );
+            metric!(
+                counter(KafkaCounters::ProducerEnqueueError) += 1,
+                variant = variant,
+                topic = topic_name
+            );
+            ClientError::SendFailed(error)
+        })?;
+
+        Ok(topic_name)
+    }
+}
+
 impl fmt::Debug for Producer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let topic_names: Vec<&String> = self
             .topic_producers
+            .producers
             .iter()
-            .map(|(name, _, _)| name)
+            .map(|tp| &tp.topic_name)
             .collect();
         f.debug_struct("Producer")
             .field("topic_names", &topic_names)
@@ -228,28 +364,21 @@ impl KafkaClientBuilder {
     pub fn add_kafka_topic_config(
         mut self,
         topic: KafkaTopic,
-        params_list: &[KafkaParams],
+        topic_config: &KafkaTopicConfig<'_>,
         validate_topic: bool,
     ) -> Result<Self, ClientError> {
-        let mut all_topic_producers = Vec::new();
+        let mut topic_producers = TopicProducers::new();
 
         // Process each shard configuration (one KafkaParams per shard)
         // We must preserve the original order from the configuration
         // because hash-based routing depends on shard index positions
-        for params in params_list {
+        for params in topic_config.topics() {
             let KafkaParams {
-                topic_names,
+                topic_name,
                 config_name,
                 params: config_params,
                 key_rate_limit,
             } = params;
-
-            assert_eq!(
-                topic_names.len(),
-                1,
-                "Each shard should have exactly one topic"
-            );
-            let topic_name = &topic_names[0];
 
             let rate_limiter = key_rate_limit.map(|limit| {
                 KafkaRateLimits::new(
@@ -282,14 +411,16 @@ impl KafkaClientBuilder {
                 producer
             };
 
-            // Add this topic-producer-rate_limiter tuple
-            all_topic_producers.push((topic_name.clone(), threaded_producer, rate_limiter));
+            topic_producers.producers.push(TopicProducer {
+                topic_name: topic_name.clone(),
+                producer: threaded_producer,
+                rate_limiter,
+            });
         }
 
-        // Create single Producer with all topic-producer-rate_limiter tuples
-        let producer = Producer::new(all_topic_producers);
+        let producer = Producer::new(topic_producers);
         if validate_topic {
-            producer.validate_topic()?;
+            producer.topic_producers.validate_topic()?;
         }
         self.producers.insert(topic, producer);
 
@@ -312,108 +443,5 @@ impl fmt::Debug for KafkaClientBuilder {
             .field("reused_producers", &"<CachedProducers>")
             .field("producers", &self.producers)
             .finish()
-    }
-}
-
-impl Producer {
-    /// Sends the payload to the correct producer for the current topic.
-    fn send(
-        &self,
-        key: Option<[u8; 16]>,
-        headers: Option<&BTreeMap<String, String>>,
-        variant: &str,
-        payload: &[u8],
-    ) -> Result<&str, ClientError> {
-        let now = Instant::now();
-
-        let (topic_name, producer, rate_limiter) = if self.topic_producers.len() == 1 {
-            &self.topic_producers[0]
-        } else {
-            let shard_index = match key {
-                Some(key_bytes) => {
-                    let mut hasher = FnvHasher::default();
-                    hasher.write(&key_bytes);
-                    hasher.finish32() as usize % self.topic_producers.len()
-                }
-                None => {
-                    // fetch_add wraps on overflow
-                    let count = self.round_robin_counter.fetch_add(1, Ordering::Relaxed);
-                    count % self.topic_producers.len()
-                }
-            };
-            &self.topic_producers[shard_index]
-        };
-
-        metric!(
-            histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
-            variant = variant,
-            topic = topic_name,
-        );
-
-        let mut headers = headers
-            .unwrap_or(&BTreeMap::new())
-            .iter()
-            .map(|(key, value)| Header {
-                key,
-                value: Some(value),
-            })
-            .collect::<KafkaHeaders>();
-
-        let key = match (key, rate_limiter.as_ref()) {
-            (Some(key), Some(limiter)) => {
-                let is_limited = limiter.try_increment(now, key, 1) < 1;
-
-                if is_limited {
-                    metric!(
-                        counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
-                        variant = variant,
-                        topic = topic_name,
-                    );
-
-                    headers.insert(Header {
-                        key: "sentry-reshuffled",
-                        value: Some("1"),
-                    });
-
-                    None
-                } else {
-                    Some(key)
-                }
-            }
-            (key, _) => key,
-        };
-
-        let mut record = BaseRecord::to(topic_name).payload(payload);
-        if let Some(headers) = headers.into_inner() {
-            record = record.headers(headers);
-        }
-        if let Some(key) = key.as_ref() {
-            record = record.key(key);
-        }
-
-        self.metrics.debounce(now, || {
-            metric!(
-                gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
-                variant = variant,
-                topic = topic_name
-            );
-        });
-
-        producer.send(record).map_err(|(error, _message)| {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                tags.variant = variant,
-                tags.topic = topic_name,
-                "error sending kafka message",
-            );
-            metric!(
-                counter(KafkaCounters::ProducerEnqueueError) += 1,
-                variant = variant,
-                topic = topic_name
-            );
-            ClientError::SendFailed(error)
-        })?;
-
-        Ok(topic_name)
     }
 }
