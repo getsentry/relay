@@ -1,8 +1,4 @@
 //! Configuration primitives to configure the kafka producer and properly set up the connection.
-//!
-//! The configuration can be either;
-//! - [`TopicAssignment::Primary`] - the main and default kafka configuration,
-//! - [`TopicAssignment::Secondary`] - used to configure any additional kafka topic,
 
 use std::collections::BTreeMap;
 
@@ -207,6 +203,12 @@ impl<'de> de::Deserialize<'de> for TopicAssignment {
             Inner::ShardedPrimary(topic_names) => topic_names.into_iter().map(From::from).collect(),
             Inner::ShardedSecondary(configs) => configs,
         };
+
+        if configs.is_empty() {
+            return Err(de::Error::custom(
+                "topic assignment must have at least one shard",
+            ));
+        }
 
         Ok(Self(configs))
     }
