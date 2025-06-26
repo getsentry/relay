@@ -26,7 +26,7 @@ fn calculate_ai_model_cost(model_cost: Option<ModelCostV2>, data: &SpanData) -> 
         .value()
         .and_then(Value::as_f64);
 
-    if input_tokens_used.is_none() || output_tokens_used.is_none() {
+    if input_tokens_used.is_none() && output_tokens_used.is_none() {
         return None;
     }
 
@@ -79,8 +79,8 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
             .value()
             .and_then(Value::as_f64);
 
-        if input_tokens.is_none() || output_tokens.is_none() {
-            // don't set total_tokens if there are no input or output tokens
+        if input_tokens.is_none() && output_tokens.is_none() {
+            // don't set total_tokens if there are no input nor output tokens
             return;
         }
 
