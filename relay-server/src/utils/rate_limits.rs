@@ -242,8 +242,8 @@ impl EnvelopeSummary {
                 summary.add_quantity(category, quantity);
             }
 
-            // Special case since v1 and v2 share a category.
-            // Adding this in add_quantity would double count.
+            // Special case since v1 and v2 share a data category.
+            // Adding this in add_quantity would include v2 in the count.
             if item.ty() == &ItemType::UserReport {
                 summary.user_report_quantity += 1;
             }
@@ -378,7 +378,7 @@ pub struct Enforcement {
     pub spans: CategoryLimit,
     /// The rate limit for the indexed span category.
     pub spans_indexed: CategoryLimit,
-    /// The rate limit for user-report v1.
+    /// The rate limit for user report v1.
     pub user_reports: CategoryLimit,
     /// The combined profile chunk item rate limit.
     pub profile_chunks: CategoryLimit,
