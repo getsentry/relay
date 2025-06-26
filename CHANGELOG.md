@@ -3,9 +3,9 @@
 ## Unreleased
 
 **Features**:
-
 - Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
 - Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
+- Parse Chromium stability report from minidumps into context ([#4837](https://github.com/getsentry/relay/pull/4837))
 
 **Internal**:
 
@@ -24,7 +24,7 @@
 **Features**:
 
 - Implements a minimum sample rate dynamic sampling rule. ([#4801](https://github.com/getsentry/relay/pull/4801))
-- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813)
+- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813))
 - Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo OS"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
 
 **Internal**:
