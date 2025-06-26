@@ -7,9 +7,12 @@ use std::collections::BTreeMap;
 use std::error::Error;
 
 use chrono::{TimeZone, Utc};
-use minidump::{MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module};
+use minidump::{
+    MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module, StabilityReport,
+};
 use relay_event_schema::protocol::{
-    ClientSdkInfo, Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
+    ClientSdkInfo, Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism,
+    StabilityReportContext, Values,
 };
 use relay_protocol::{Annotated, Value};
 
@@ -107,6 +110,21 @@ fn write_crashpad_annotations(
 
         contexts.insert("crashpad".to_owned(), Context::Other(crashpad_context));
     }
+
+    match minidump.get_stream::<StabilityReport>() {
+        Ok(stability_report) => {
+            contexts.add(StabilityReportContext::from(stability_report));
+        }
+        Err(minidump::Error::StreamNotFound) => {
+            // Ignore missing stability report stream.
+        }
+        Err(err) => {
+            relay_log::debug!(
+                error = &err as &dyn Error,
+                "failed to parse stability report"
+            );
+        }
+    };
 
     if crashpad_info.module_list.is_empty() {
         return Ok(());

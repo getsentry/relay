@@ -2411,6 +2411,72 @@ mod tests {
     }
 
     #[test]
+    fn test_ai_data_with_no_tokens() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "gen_ai.invoke_agent",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.request.model": "claude-2.1"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::from([(
+                        "claude-2.1".to_owned(),
+                        ModelCostV2 {
+                            input_per_token: 0.01,
+                            output_per_token: 0.02,
+                            output_reasoning_per_token: 0.03,
+                            input_cached_per_token: 0.0,
+                        },
+                    )]),
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let spans = event.value().unwrap().spans.value().unwrap();
+
+        assert_eq!(spans.len(), 1);
+        // total_cost shouldn't be set if no tokens are present on span data
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            None
+        );
+        // total_tokens shouldn't be set if no tokens are present on span data
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_usage_total_tokens.value()),
+            None
+        );
+    }
+
+    #[test]
     fn test_ai_data_with_ai_op_prefix() {
         let json = r#"
             {
