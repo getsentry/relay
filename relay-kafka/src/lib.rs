@@ -43,7 +43,6 @@ mod limits;
 mod producer;
 #[cfg(feature = "producer")]
 mod statsd;
-mod utils;
 
 pub use config::*;
 #[cfg(feature = "producer")]

@@ -46,7 +46,7 @@ pub fn check_config(config: &Config) -> Result<()> {
     if config.processing_enabled() {
         for name in config.unused_topic_assignments().names() {
             relay_log::with_scope(
-                |scope| scope.set_extra("topic", format!("{name}").into()),
+                |scope| scope.set_extra("topic", name.as_str().into()),
                 || relay_log::error!("unused topic assignment '{name}'"),
             );
         }

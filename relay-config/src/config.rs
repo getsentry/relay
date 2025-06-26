@@ -12,8 +12,8 @@ use anyhow::Context;
 use relay_auth::{PublicKey, RelayId, SecretKey, generate_key_pair, generate_relay_id};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, KafkaTopicConfig,
-    TopicAssignment, TopicAssignments,
+    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaTopic, KafkaTopicConfig,
+    TopicAssignments,
 };
 use relay_metrics::MetricNamespace;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};

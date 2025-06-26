@@ -117,7 +117,7 @@ impl TopicProducers {
         if self.producers.is_empty() {
             return None;
         } else if self.producers.len() == 1 {
-            return self.producers.get(0);
+            return self.producers.first();
         }
 
         let select = match key {
