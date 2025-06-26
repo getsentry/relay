@@ -3,10 +3,10 @@
 ## Unreleased
 
 **Features**:
-
 - Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
 - Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
 - Sharding into many topics based on partition key. ([#4861](https://github.com/getsentry/relay/pull/4861))
+- Parse Chromium stability report from minidumps into context ([#4837](https://github.com/getsentry/relay/pull/4837))
 
 **Internal**:
 
@@ -18,13 +18,14 @@
 - Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
 - Consider `gen_ai` also as AI span op prefix. ([#4859](https://github.com/getsentry/relay/pull/4859))
 - Change pii scrubbing on some AI attributes to optional ([#4860](https://github.com/getsentry/relay/pull/4860))
+- Conditionally set `total_cost` and `total_tokens` attributes on AI spans. ([#4868](https://github.com/getsentry/relay/pull/4868))
 
 ## 25.6.1
 
 **Features**:
 
 - Implements a minimum sample rate dynamic sampling rule. ([#4801](https://github.com/getsentry/relay/pull/4801))
-- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813)
+- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813))
 - Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo OS"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
 
 **Internal**:
