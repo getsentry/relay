@@ -6,6 +6,7 @@
 
 - Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
 - Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
+- Add additional web crawlers for inbound filtering. ([#4865](https://github.com/getsentry/relay/pull/4865))
 
 **Internal**:
 
