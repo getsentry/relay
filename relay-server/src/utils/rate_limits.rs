@@ -241,6 +241,12 @@ impl EnvelopeSummary {
             for (category, quantity) in item.quantities() {
                 summary.add_quantity(category, quantity);
             }
+
+            // Special case since v1 and v2 share a category.
+            // Adding this in add_quantity would double count.
+            if item.ty() == &ItemType::UserReport {
+                summary.user_report_quantity += 1;
+            }
         }
 
         summary
@@ -253,7 +259,6 @@ impl EnvelopeSummary {
             DataCategory::Session => &mut self.session_quantity,
             DataCategory::Profile => &mut self.profile_quantity,
             DataCategory::Replay => &mut self.replay_quantity,
-            DataCategory::UserReportV2 => &mut self.user_report_quantity,
             DataCategory::DoNotUseReplayVideo => &mut self.replay_quantity,
             DataCategory::Monitor => &mut self.monitor_quantity,
             DataCategory::Span => &mut self.span_quantity,
@@ -373,8 +378,8 @@ pub struct Enforcement {
     pub spans: CategoryLimit,
     /// The rate limit for the indexed span category.
     pub spans_indexed: CategoryLimit,
-    /// The combined rate limit for user-reports.
-    pub user_reports_v2: CategoryLimit,
+    /// The rate limit for user-report v1.
+    pub user_reports: CategoryLimit,
     /// The combined profile chunk item rate limit.
     pub profile_chunks: CategoryLimit,
     /// The combined profile chunk ui item rate limit.
@@ -416,7 +421,7 @@ impl Enforcement {
             log_bytes,
             spans,
             spans_indexed,
-            user_reports_v2,
+            user_reports: user_reports_v2,
             profile_chunks,
             profile_chunks_ui,
         } = self;
@@ -520,6 +525,7 @@ impl Enforcement {
             ItemType::ReplayEvent => !self.replays.is_active(),
             ItemType::ReplayVideo => !self.replays.is_active(),
             ItemType::ReplayRecording => !self.replays.is_active(),
+            ItemType::UserReport => !self.user_reports.is_active(),
             ItemType::CheckIn => !self.check_ins.is_active(),
             ItemType::OtelLog | ItemType::Log => {
                 !(self.log_items.is_active() || self.log_bytes.is_active())
@@ -539,12 +545,11 @@ impl Enforcement {
             | ItemType::RawSecurity
             | ItemType::Nel
             | ItemType::UnrealReport
-            | ItemType::UserReport
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
             | ItemType::ClientReport
-            | ItemType::UserReportV2
+            | ItemType::UserReportV2  // This is an event type.
             | ItemType::Unknown(_) => true,
         }
     }
@@ -848,14 +853,14 @@ where
             rate_limits.merge(replay_limits);
         }
 
-        // Handle user reports (legacy item type for user feedback), which share limits with v2.
+        // Handle user report v1s, which share limits with v2.
         if summary.user_report_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::UserReportV2);
             let user_report_v2_limits = self
                 .check
                 .apply(item_scoping, summary.user_report_quantity)
                 .await?;
-            enforcement.user_reports_v2 = CategoryLimit::new(
+            enforcement.user_reports = CategoryLimit::new(
                 DataCategory::UserReportV2,
                 summary.user_report_quantity,
                 user_report_v2_limits.longest(),

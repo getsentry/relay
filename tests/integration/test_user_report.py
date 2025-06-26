@@ -68,7 +68,7 @@ def test_user_report_with_event(
     assert event["event_id"] == event_id
 
 
-def test_user_report_urv2_quota(
+def test_user_report_urv2_quota_with_event(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
@@ -86,7 +86,7 @@ def test_user_report_urv2_quota(
     project_config["config"]["quotas"] = [
         {
             "id": f"test_rate_limiting_{event_id}",
-            "categories": ["feedback"],
+            "categories": ["user_report_v2"],
             "window": 3600,
             "limit": 0,
             "reasonCode": "user_report_v2_quota",
@@ -114,11 +114,52 @@ def test_user_report_urv2_quota(
     envelope.add_item(Item(PayloadRef(json=report_payload), type="user_report"))
 
     relay.send_envelope(project_id, envelope)
-    print("VWIHRI")
 
-    # Becuase of the quotas, we should drop user_report, and since the error is in the same envelope, we should also drop it.
-    # attachments_consumer.assert_empty()
-    # events_consumer.assert_empty()
+    # The user report is dropped, but the error event is not.
+    attachments_consumer.assert_empty()
+    events_consumer.get_event()
+
+    # We must have 1 outcome with provided reason.
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["reason"] == "user_report_v2_quota"
+
+
+def test_user_report_urv2_quota_standalone(
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
+):
+    project_id = 42
+    event_id = uuid.uuid1().hex
+    relay = relay_with_processing()
+    outcomes_consumer = outcomes_consumer(timeout=10)
+    attachments_consumer = attachments_consumer()
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{event_id}",
+            "categories": ["user_report_v2"],
+            "window": 3600,
+            "limit": 0,
+            "reasonCode": "user_report_v2_quota",
+        }
+    ]
+
+    report_payload = {
+        "name": "Josh",
+        "email": "",
+        "comments": "I'm having fun",
+        "event_id": event_id,
+    }
+
+    envelope = Envelope()
+    envelope.add_item(Item(PayloadRef(json=report_payload), type="user_report"))
+    relay.send_envelope(project_id, envelope)
+
+    attachments_consumer.assert_empty()
 
     # We must have 1 outcome with provided reason.
     outcomes = outcomes_consumer.get_outcomes()

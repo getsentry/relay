@@ -231,9 +231,3 @@ def test_feedback_quota(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 1
     assert outcomes[0]["reason"] == "feedback_quota"
-    # print(outcomes[0]["reason"])
-    # print(outcomes[0]["category"])
-    # print(outcomes[0]["quantity"])
-    # print(outcomes[1]["reason"])
-    # print(outcomes[1]["category"])
-    # print(outcomes[1]["quantity"])
