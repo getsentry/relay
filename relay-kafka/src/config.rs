@@ -413,15 +413,15 @@ profiles:
 "#;
 
         let def_config = vec![KafkaConfigParam {
-            name: "test".to_string(),
-            value: "test-value".to_string(),
+            name: "test".to_owned(),
+            value: "test-value".to_owned(),
         }];
         let mut second_config = BTreeMap::new();
         second_config.insert(
-            "profiles".to_string(),
+            "profiles".to_owned(),
             vec![KafkaConfigParam {
-                name: "test".to_string(),
-                value: "test-value".to_string(),
+                name: "test".to_owned(),
+                value: "test-value".to_owned(),
             }],
         );
 
@@ -463,15 +463,15 @@ events:
 "#;
 
         let def_config = vec![KafkaConfigParam {
-            name: "bootstrap.servers".to_string(),
-            value: "primary:9092".to_string(),
+            name: "bootstrap.servers".to_owned(),
+            value: "primary:9092".to_owned(),
         }];
         let mut second_config = BTreeMap::new();
         second_config.insert(
-            "secondary".to_string(),
+            "secondary".to_owned(),
             vec![KafkaConfigParam {
-                name: "bootstrap.servers".to_string(),
-                value: "secondary:9092".to_string(),
+                name: "bootstrap.servers".to_owned(),
+                value: "secondary:9092".to_owned(),
             }],
         );
 
@@ -520,22 +520,22 @@ events:
 "#;
 
         let def_config = vec![KafkaConfigParam {
-            name: "bootstrap.servers".to_string(),
-            value: "primary:9092".to_string(),
+            name: "bootstrap.servers".to_owned(),
+            value: "primary:9092".to_owned(),
         }];
         let mut second_config = BTreeMap::new();
         second_config.insert(
-            "cluster1".to_string(),
+            "cluster1".to_owned(),
             vec![KafkaConfigParam {
-                name: "bootstrap.servers".to_string(),
-                value: "cluster1:9092".to_string(),
+                name: "bootstrap.servers".to_owned(),
+                value: "cluster1:9092".to_owned(),
             }],
         );
         second_config.insert(
-            "cluster2".to_string(),
+            "cluster2".to_owned(),
             vec![KafkaConfigParam {
-                name: "bootstrap.servers".to_string(),
-                value: "cluster2:9092".to_string(),
+                name: "bootstrap.servers".to_owned(),
+                value: "cluster2:9092".to_owned(),
             }],
         );
 

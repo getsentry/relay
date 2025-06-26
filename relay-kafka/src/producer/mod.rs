@@ -3,10 +3,12 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
+use std::hash::Hasher as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
+use hash32::{FnvHasher, Hasher};
 use rdkafka::ClientConfig;
 use rdkafka::message::Header;
 use rdkafka::producer::{BaseRecord, Producer as _};
@@ -264,7 +266,7 @@ impl KafkaClientBuilder {
                 Arc::clone(producer)
             } else {
                 let mut client_config = ClientConfig::new();
-                for config_p in config_params {
+                for config_p in *config_params {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
                 }
 
@@ -329,8 +331,9 @@ impl Producer {
         } else {
             let shard_index = match key {
                 Some(key_bytes) => {
-                    let hash = hash32::fnv::FnvHasher::default().hash(&key_bytes);
-                    (hash as usize) % self.topic_producers.len()
+                    let mut hasher = FnvHasher::default();
+                    hasher.write(&key_bytes);
+                    hasher.finish32() as usize % self.topic_producers.len()
                 }
                 None => {
                     // fetch_add wraps on overflow
