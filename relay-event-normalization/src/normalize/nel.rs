@@ -155,7 +155,7 @@ fn extract_server_address(server_address: &str) -> String {
         if let Some(url_part) = server_address.split("://").nth(1) {
             // If there's nothing after the protocol, return the original
             if url_part.is_empty() {
-                return server_address.to_string();
+                return server_address.to_owned();
             }
 
             // Extract host before any path, query, or fragment
@@ -173,18 +173,18 @@ fn extract_server_address(server_address: &str) -> String {
                     host_port[..=bracket_end].to_string()
                 } else {
                     // Malformed IPv6, return the original url_part
-                    url_part.to_string()
+                    url_part.to_owned()
                 }
             } else {
                 // Regular host with potential port like localhost:8080 -> localhost
-                host_port.split(':').next().unwrap_or(host_port).to_string()
+                host_port.split(':').next().unwrap_or(host_port).to_owned()
             }
         } else {
-            server_address.to_string()
+            server_address.to_owned()
         }
     } else {
         // Assume it's already an IP address or domain, keep as-is
-        server_address.to_string()
+        server_address.to_owned()
     }
 }
 
@@ -204,13 +204,13 @@ fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Opti
         let code = status_code.unwrap_or(0);
         Some(template.replace("{}", &code.to_string()))
     } else {
-        Some(template.to_string())
+        Some(template.to_owned())
     }
 }
 
 /// Creates a human-readable message for a NEL report
 fn create_message(error_type: &str, status_code: Option<u16>) -> String {
-    get_nel_culprit_formatted(error_type, status_code).unwrap_or_else(|| error_type.to_string())
+    get_nel_culprit_formatted(error_type, status_code).unwrap_or_else(|| error_type.to_owned())
 }
 
 /// Creates a [`OurLog`] from the provided [`NetworkReportRaw`].
@@ -247,7 +247,7 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 
     let server_address = body
         .server_ip
-        .map_value(|s| extract_server_address(&s.to_string()));
+        .map_value(|s| extract_server_address(s.as_ref()));
     let url = raw_report
         .url
         .clone()
@@ -317,7 +317,7 @@ mod tests {
             get_nel_culprit_formatted("http.error", Some(500)),
             Some(
                 "The user agent successfully received a response, but it had a 500 status code"
-                    .to_string()
+                    .to_owned()
             )
         );
 
@@ -326,14 +326,14 @@ mod tests {
             get_nel_culprit_formatted("http.error", None),
             Some(
                 "The user agent successfully received a response, but it had a 0 status code"
-                    .to_string()
+                    .to_owned()
             )
         );
 
         // Test non-http.error types
         assert_eq!(
             get_nel_culprit_formatted("dns.unreachable", None),
-            Some("DNS server is unreachable".to_string())
+            Some("DNS server is unreachable".to_owned())
         );
 
         // Test unknown error type
@@ -416,23 +416,23 @@ mod tests {
         let received_at = Utc::now();
 
         let body = BodyRaw {
-            ty: Annotated::new("http.error".to_string()),
+            ty: Annotated::new("http.error".to_owned()),
             status_code: Annotated::new(500),
             elapsed_time: Annotated::new(1000),
-            method: Annotated::new("GET".to_string()),
-            protocol: Annotated::new("http/1.1".to_string()),
-            server_ip: Annotated::new(IpAddr("192.168.1.1".to_string())),
+            method: Annotated::new("GET".to_owned()),
+            protocol: Annotated::new("http/1.1".to_owned()),
+            server_ip: Annotated::new(IpAddr("192.168.1.1".to_owned())),
             phase: Annotated::new(NetworkReportPhases::Application),
             sampling_fraction: Annotated::new(1.0),
-            referrer: Annotated::new("https://example.com/referer".to_string()),
+            referrer: Annotated::new("https://example.com/referer".to_owned()),
             ..Default::default()
         };
 
         let nel = NetworkReportRaw {
             age: Annotated::new(5000),
-            ty: Annotated::new("network-error".to_string()),
-            url: Annotated::new("https://example.com/api".to_string()),
-            user_agent: Annotated::new("Mozilla/5.0".to_string()),
+            ty: Annotated::new("network-error".to_owned()),
+            url: Annotated::new("https://example.com/api".to_owned()),
+            user_agent: Annotated::new("Mozilla/5.0".to_owned()),
             body: Annotated::new(body),
             ..Default::default()
         };
@@ -445,7 +445,7 @@ mod tests {
             log.body.into_value(),
             Some(
                 "The user agent successfully received a response, but it had a 500 status code"
-                    .to_string()
+                    .to_owned()
             )
         );
 
@@ -521,7 +521,7 @@ mod tests {
         let received_at = Utc::now();
 
         let body = BodyRaw {
-            ty: Annotated::new("unknown".to_string()),
+            ty: Annotated::new("unknown".to_owned()),
             ..Default::default()
         };
 
@@ -534,7 +534,7 @@ mod tests {
 
         assert_eq!(
             log.body.into_value(),
-            Some("error type is unknown".to_string())
+            Some("error type is unknown".to_owned())
         );
         assert_eq!(log.level.into_value(), Some(OurLogLevel::Info));
     }
