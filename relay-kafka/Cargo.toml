@@ -29,7 +29,7 @@ hash32 = { workspace = true }
 [dev-dependencies]
 serde_yaml = { workspace = true }
 sentry-kafka-schemas = { workspace = true, default-features = false }
-insta = "1.43"
+insta = { workspace = true }
 
 [features]
 default = []
