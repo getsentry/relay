@@ -8,6 +8,22 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
   "level": "info",
   "body": "The user agent successfully received a response, but it had a 500 status code",
   "attributes": {
+    "browser.report.nel.phase": {
+      "type": "string",
+      "value": "application"
+    },
+    "browser.report.nel.sampling_fraction": {
+      "type": "double",
+      "value": 1.0
+    },
+    "browser.report.nel.type": {
+      "type": "string",
+      "value": "http.error"
+    },
+    "browser.report.type": {
+      "type": "string",
+      "value": "network-error"
+    },
     "http.request.duration": {
       "type": "integer",
       "value": 1000
@@ -24,29 +40,17 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
       "type": "integer",
       "value": 500
     },
-    "nel.phase": {
+    "network.protocol.name": {
       "type": "string",
-      "value": "application"
+      "value": "http"
     },
-    "nel.sampling_fraction": {
-      "type": "double",
-      "value": 1.0
-    },
-    "nel.type": {
+    "network.protocol.version": {
       "type": "string",
-      "value": "http.error"
-    },
-    "network.protocol": {
-      "type": "string",
-      "value": "http/1.1"
-    },
-    "report_type": {
-      "type": "string",
-      "value": "network-error"
+      "value": "1.1"
     },
     "sentry.origin": {
       "type": "string",
-      "value": "auto.http.browser_reports.nel"
+      "value": "auto.http.browser_report.nel"
     },
     "server.address": {
       "type": "string",

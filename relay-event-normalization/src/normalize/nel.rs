@@ -230,8 +230,8 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
         .map_value(|s| extract_server_address(&s));
 
     // sentry.origin: https://github.com/getsentry/sentry-docs/blob/1570dd4207d3d8996ca03198229579d36a980a6a/develop-docs/sdk/telemetry/logs.mdx?plain=1#L302-L310
-    add_string_attribute!("sentry.origin", "auto.http.browser_reports.nel");
-    add_string_attribute!("report_type", "network-error");
+    add_string_attribute!("sentry.origin", "auto.http.browser_report.nel");
+    add_string_attribute!("browser.report.type", "network-error");
     add_attribute!("url.domain", url);
     add_attribute!("url.full", raw_report.url);
     // TODO: Add to sentry-conventions
@@ -241,15 +241,30 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     // TODO: Discuss if to split its different URL parts into different attributes
     add_attribute!("http.request.header.referer", body.referrer);
     add_attribute!("http.response.status_code", body.status_code);
-    // TODO: Discuss if to split into network.protocol.name and network.protocol.version
-    add_attribute!("network.protocol", body.protocol);
+    // Split protocol into name and version components
+    if let Some(protocol) = body.protocol.value() {
+        let parts: Vec<&str> = protocol.split('/').collect();
+        if !parts.is_empty() {
+            // e.g. "http"
+            add_string_attribute!("network.protocol.name", parts[0]);
+            if parts.len() > 1 {
+                // e.g. "1.1"
+                add_string_attribute!("network.protocol.version", parts[1]);
+            }
+        }
+    }
     // Server domain name if available without reverse DNS lookup; otherwise,
     // IP address or Unix domain socket name.
     add_attribute!("server.address", server_address);
-
-    add_attribute!("nel.phase", body.phase.map_value(|s| s.to_string()));
-    add_attribute!("nel.sampling_fraction", body.sampling_fraction);
-    add_attribute!("nel.type", body.ty);
+    add_attribute!(
+        "browser.report.nel.phase",
+        body.phase.map_value(|s| s.to_string())
+    );
+    add_attribute!(
+        "browser.report.nel.sampling_fraction",
+        body.sampling_fraction
+    );
+    add_attribute!("browser.report.nel.type", body.ty);
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),

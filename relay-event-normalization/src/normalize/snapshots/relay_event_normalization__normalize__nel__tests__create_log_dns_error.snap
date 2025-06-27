@@ -8,6 +8,22 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
   "level": "info",
   "body": "DNS server is unreachable",
   "attributes": {
+    "browser.report.nel.phase": {
+      "type": "string",
+      "value": "dns"
+    },
+    "browser.report.nel.sampling_fraction": {
+      "type": "double",
+      "value": 0.5
+    },
+    "browser.report.nel.type": {
+      "type": "string",
+      "value": "dns.unreachable"
+    },
+    "browser.report.type": {
+      "type": "string",
+      "value": "network-error"
+    },
     "http.request.duration": {
       "type": "integer",
       "value": 2000
@@ -16,29 +32,17 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
       "type": "string",
       "value": "POST"
     },
-    "nel.phase": {
+    "network.protocol.name": {
       "type": "string",
-      "value": "dns"
+      "value": "http"
     },
-    "nel.sampling_fraction": {
-      "type": "double",
-      "value": 0.5
-    },
-    "nel.type": {
+    "network.protocol.version": {
       "type": "string",
-      "value": "dns.unreachable"
-    },
-    "network.protocol": {
-      "type": "string",
-      "value": "http/2"
-    },
-    "report_type": {
-      "type": "string",
-      "value": "network-error"
+      "value": "2"
     },
     "sentry.origin": {
       "type": "string",
-      "value": "auto.http.browser_reports.nel"
+      "value": "auto.http.browser_report.nel"
     },
     "server.address": {
       "type": "string",

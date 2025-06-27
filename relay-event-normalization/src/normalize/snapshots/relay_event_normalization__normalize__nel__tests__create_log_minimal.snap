@@ -8,17 +8,17 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
   "level": "info",
   "body": "error type is unknown",
   "attributes": {
-    "nel.type": {
+    "browser.report.nel.type": {
       "type": "string",
       "value": "unknown"
     },
-    "report_type": {
+    "browser.report.type": {
       "type": "string",
       "value": "network-error"
     },
     "sentry.origin": {
       "type": "string",
-      "value": "auto.http.browser_reports.nel"
+      "value": "auto.http.browser_report.nel"
     }
   }
 }
