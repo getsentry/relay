@@ -84,6 +84,10 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         .map(|link| otel_to_sentry_link(link).map(Into::into))
         .collect::<Result<_, _>>()?;
 
+    if let Some(status_message) = status.clone().map(|status| status.message) {
+        sentry_attributes.insert("sentry.status.message".to_owned(), status_message);
+    }
+
     let event_span = SentrySpanV2 {
         name: name.into(),
         parent_span_id: parent_span_id.into(),
@@ -281,6 +285,10 @@ mod tests {
             "sentry.sample_rate": {
               "type": "integer",
               "value": 1
+            },
+            "sentry.status.message": {
+              "type": "string",
+              "value": "test"
             }
           }
         }
@@ -701,6 +709,10 @@ mod tests {
             "sentry.segment.name": {
               "type": "string",
               "value": "my 1st transaction"
+            },
+            "sentry.status.message": {
+              "type": "string",
+              "value": "foo"
             }
           }
         }
