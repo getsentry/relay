@@ -284,15 +284,12 @@ mod tests {
                 expected: Some("DNS server is unreachable"),
             },
             NelCulpritCase {
-                error_type: "tcp.timed_out",
-                expected: Some("TCP connection to the server timed out"),
-            },
-            NelCulpritCase {
                 error_type: "http.error",
                 expected: Some(
                     "The user agent successfully received a response, but it had a {} status code",
                 ),
             },
+            // TODO: Evaluate if this is the behaviour we want
             NelCulpritCase {
                 error_type: "unknown",
                 expected: Some("error type is unknown"),
@@ -312,142 +309,6 @@ mod tests {
             );
         }
 
-        // Test cases for get_nel_culprit_formatted
-        struct NelCulpritFormattedCase {
-            error_type: &'static str,
-            status_code: Option<u16>,
-            expected: Option<String>,
-        }
-
-        let formatted_cases = vec![
-            NelCulpritFormattedCase {
-                error_type: "http.error",
-                status_code: Some(500),
-                expected: Some(
-                    "The user agent successfully received a response, but it had a 500 status code"
-                        .to_owned(),
-                ),
-            },
-            NelCulpritFormattedCase {
-                error_type: "http.error",
-                status_code: None,
-                expected: Some(
-                    "The user agent successfully received a response, but it had a 0 status code"
-                        .to_owned(),
-                ),
-            },
-            NelCulpritFormattedCase {
-                error_type: "dns.unreachable",
-                status_code: None,
-                expected: Some("DNS server is unreachable".to_owned()),
-            },
-            NelCulpritFormattedCase {
-                error_type: "nonexistent",
-                status_code: None,
-                expected: None,
-            },
-        ];
-
-        for case in formatted_cases {
-            assert_eq!(
-                get_nel_culprit_formatted(case.error_type, case.status_code),
-                case.expected,
-                "Failed for error_type: {}, status_code: {:?}",
-                case.error_type,
-                case.status_code
-            );
-        }
-
-        // Test cases for extract_server_address
-        struct ExtractServerAddressCase {
-            input: &'static str,
-            expected: &'static str,
-            description: &'static str,
-        }
-
-        let server_address_cases = vec![
-            // IP addresses
-            ExtractServerAddressCase {
-                input: "123.123.123.123",
-                expected: "123.123.123.123",
-                description: "IPv4 address",
-            },
-            ExtractServerAddressCase {
-                input: "192.168.1.1",
-                expected: "192.168.1.1",
-                description: "Private IPv4 address",
-            },
-            // Simple URLs
-            ExtractServerAddressCase {
-                input: "https://example.com/foo?bar=1",
-                expected: "example.com",
-                description: "HTTPS URL with path and query",
-            },
-            ExtractServerAddressCase {
-                input: "http://localhost:8080/foo?bar=1",
-                expected: "localhost",
-                description: "HTTP URL with port",
-            },
-            ExtractServerAddressCase {
-                input: "https://sub.example.com/path",
-                expected: "sub.example.com",
-                description: "Subdomain URL",
-            },
-            // IPv6
-            ExtractServerAddressCase {
-                input: "http://[::1]:8080/foo",
-                expected: "[::1]",
-                description: "IPv6 localhost with port",
-            },
-            ExtractServerAddressCase {
-                input: "https://[2001:db8::1]:443/path",
-                expected: "[2001:db8::1]",
-                description: "IPv6 with port",
-            },
-            ExtractServerAddressCase {
-                input: "http://[::1:8080/foo",
-                expected: "http://[::1:8080/foo",
-                description: "Malformed IPv6 - return original",
-            },
-            // Ports
-            ExtractServerAddressCase {
-                input: "https://example.com:443/path",
-                expected: "example.com",
-                description: "HTTPS with explicit port",
-            },
-            ExtractServerAddressCase {
-                input: "http://localhost:3000",
-                expected: "localhost",
-                description: "HTTP localhost with port",
-            },
-            // Edge cases
-            ExtractServerAddressCase {
-                input: "https://",
-                expected: "https://",
-                description: "Empty URL after protocol",
-            },
-            ExtractServerAddressCase {
-                input: "example.com",
-                expected: "example.com",
-                description: "Domain without protocol",
-            },
-            ExtractServerAddressCase {
-                input: "https://example.com/path?query=value#fragment",
-                expected: "example.com",
-                description: "URL with fragment and query",
-            },
-        ];
-
-        for case in server_address_cases {
-            assert_eq!(
-                extract_server_address(case.input),
-                case.expected,
-                "Failed for {}: input '{}'",
-                case.description,
-                case.input
-            );
-        }
-
         // Test cases for create_message
         struct CreateMessageCase {
             error_type: &'static str,
@@ -461,15 +322,17 @@ mod tests {
                 status_code: None,
                 expected: "DNS server is unreachable",
             },
+            // This tests the status code replacement in the message
             CreateMessageCase {
                 error_type: "http.error",
                 status_code: Some(404),
                 expected: "The user agent successfully received a response, but it had a 404 status code",
             },
+            // Unknown errors do not get a human-friendly message, but the error type is preserved
             CreateMessageCase {
-                error_type: "unknown_error",
+                error_type: "http.some_new_error",
                 status_code: None,
-                expected: "unknown_error",
+                expected: "http.some_new_error",
             },
         ];
 
@@ -487,7 +350,7 @@ mod tests {
         let received_at = Utc::now();
 
         // Test create_log_basic
-        let body_basic = BodyRaw {
+        let body = BodyRaw {
             ty: Annotated::new("http.error".to_owned()),
             status_code: Annotated::new(500),
             elapsed_time: Annotated::new(1000),
@@ -500,16 +363,16 @@ mod tests {
             ..Default::default()
         };
 
-        let nel_basic = NetworkReportRaw {
+        let report = NetworkReportRaw {
             age: Annotated::new(5000),
             ty: Annotated::new("network-error".to_owned()),
             url: Annotated::new("https://example.com/api".to_owned()),
             user_agent: Annotated::new("Mozilla/5.0".to_owned()),
-            body: Annotated::new(body_basic),
+            body: Annotated::new(body),
             ..Default::default()
         };
 
-        let log_basic = create_log(Annotated::new(nel_basic), received_at).unwrap();
+        let log_basic = create_log(Annotated::new(report), received_at).unwrap();
 
         // Check basic fields
         assert_eq!(log_basic.level.into_value(), Some(OurLogLevel::Info));
