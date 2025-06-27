@@ -5,6 +5,7 @@ use relay_event_schema::protocol::{
     Attributes, NetworkReportRaw, OurLog, OurLogLevel, Timestamp, TraceId,
 };
 use relay_protocol::Annotated;
+use url::Url;
 
 /// Mapping of NEL error types to their human-readable descriptions
 /// Based on W3C Network Error Logging specification and Chromium-specific extensions
@@ -150,40 +151,17 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
 /// e.g. "http://localhost:8080/foo?bar=1" -> "localhost"
 /// e.g. "http://[::1]:8080/foo" -> "[::1]"
 fn extract_server_address(server_address: &str) -> String {
-    // If it looks like a URL, extract the host part
-    if server_address.starts_with("http://") || server_address.starts_with("https://") {
-        if let Some(url_part) = server_address.split("://").nth(1) {
-            // If there's nothing after the protocol, return the original
-            if url_part.is_empty() {
-                return server_address.to_owned();
-            }
-
-            // Extract host before any path, query, or fragment
-            let host_port = url_part
-                .split('/')
-                .next()
-                .and_then(|host_port| host_port.split('?').next())
-                .and_then(|host_port| host_port.split('#').next())
-                .unwrap_or(url_part);
-
-            // Handle IPv6 addresses (enclosed in brackets) vs regular hosts
-            if host_port.starts_with('[') {
-                // IPv6 address like [::1]:8080 -> [::1]
-                if let Some(bracket_end) = host_port.find(']') {
-                    host_port[..=bracket_end].to_string()
-                } else {
-                    // Malformed IPv6, return the original url_part
-                    url_part.to_owned()
-                }
-            } else {
-                // Regular host with potential port like localhost:8080 -> localhost
-                host_port.split(':').next().unwrap_or(host_port).to_owned()
-            }
+    // Try to parse as URL first
+    if let Ok(url) = Url::parse(server_address) {
+        // Extract host from the parsed URL
+        if let Some(host) = url.host_str() {
+            host.to_owned()
         } else {
+            // URL parsed but no host (e.g., "file://"), return original
             server_address.to_owned()
         }
     } else {
-        // Assume it's already an IP address or domain, keep as-is
+        // Not a valid URL, assume it's already an IP address or domain
         server_address.to_owned()
     }
 }
@@ -369,10 +347,10 @@ mod tests {
             extract_server_address("https://[2001:db8::1]:443/path"),
             "[2001:db8::1]"
         );
-        // Malformed IPv6 (missing closing bracket)
+        // Malformed IPv6 (missing closing bracket) - URL parsing fails, return original
         assert_eq!(
             extract_server_address("http://[::1:8080/foo"),
-            "[::1:8080/foo"
+            "http://[::1:8080/foo"
         );
     }
 
