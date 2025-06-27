@@ -45,7 +45,6 @@ bzip2 = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
 flate2 = { workspace = true }
-fnv = { workspace = true }
 futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
 hyper = { workspace = true }

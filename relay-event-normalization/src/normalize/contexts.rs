@@ -145,7 +145,7 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if runtime.runtime.value().is_none() {
         if let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value()) {
-            runtime.runtime = Annotated::from(format!("{} {}", name, version));
+            runtime.runtime = Annotated::from(format!("{name} {version}"));
         }
     }
 }
@@ -270,7 +270,7 @@ fn compute_os_context(os: &mut OsContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if os.os.value().is_none() {
         if let (Some(name), Some(version)) = (os.name.value(), os.version.value()) {
-            os.os = Annotated::from(format!("{} {}", name, version));
+            os.os = Annotated::from(format!("{name} {version}"));
         }
     }
 }
@@ -280,7 +280,7 @@ fn normalize_browser_context(browser: &mut BrowserContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if browser.browser.value().is_none() {
         if let (Some(name), Some(version)) = (browser.name.value(), browser.version.value()) {
-            browser.browser = Annotated::from(format!("{} {}", name, version));
+            browser.browser = Annotated::from(format!("{name} {version}"));
         }
     }
 }

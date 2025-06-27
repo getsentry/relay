@@ -2083,7 +2083,7 @@ mod tests {
             ),
         ] {
             let config: TransactionMetricsConfig = serde_json::from_str(config_str).unwrap();
-            assert_eq!(config.deprecated1, expected_strategy, "{}", config_str);
+            assert_eq!(config.deprecated1, expected_strategy, "{config_str}");
         }
     }
 
