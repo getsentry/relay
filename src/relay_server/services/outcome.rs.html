@@ -1052,11 +1052,11 @@
 <a href=#1052 id=1052 data-nosnippet>1052</a>        <span class="kw">let </span><span class="kw-2">mut </span>client_builder = KafkaClient::builder();
 <a href=#1053 id=1053 data-nosnippet>1053</a>
 <a href=#1054 id=1054 data-nosnippet>1054</a>        <span class="kw">for </span>topic <span class="kw">in </span><span class="kw-2">&amp;</span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-<a href=#1055 id=1055 data-nosnippet>1055</a>            <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config
-<a href=#1056 id=1056 data-nosnippet>1056</a>                .kafka_config(<span class="kw-2">*</span>topic)
+<a href=#1055 id=1055 data-nosnippet>1055</a>            <span class="kw">let </span>kafka_config = config
+<a href=#1056 id=1056 data-nosnippet>1056</a>                .kafka_configs(<span class="kw-2">*</span>topic)
 <a href=#1057 id=1057 data-nosnippet>1057</a>                .map_err(|e| ServiceError::Kafka(e.to_string()))<span class="question-mark">?</span>;
 <a href=#1058 id=1058 data-nosnippet>1058</a>            client_builder = client_builder
-<a href=#1059 id=1059 data-nosnippet>1059</a>                .add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config, config.kafka_validate_topics())
+<a href=#1059 id=1059 data-nosnippet>1059</a>                .add_kafka_topic_config(<span class="kw-2">*</span>topic, <span class="kw-2">&amp;</span>kafka_config, config.kafka_validate_topics())
 <a href=#1060 id=1060 data-nosnippet>1060</a>                .map_err(|e| ServiceError::Kafka(e.to_string()))<span class="question-mark">?</span>;
 <a href=#1061 id=1061 data-nosnippet>1061</a>        }
 <a href=#1062 id=1062 data-nosnippet>1062</a>

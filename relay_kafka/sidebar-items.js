@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ClientError","ConfigError","KafkaTopic","TopicAssignment"],"struct":["KafkaClient","KafkaClientBuilder","KafkaConfigParam","KafkaParams","KafkaTopicConfig","KeyRateLimit","TopicAssignments"],"trait":["Message"]};
+window.SIDEBAR_ITEMS = {"enum":["ClientError","ConfigError","KafkaTopic"],"struct":["KafkaClient","KafkaClientBuilder","KafkaConfigParam","KafkaParams","KafkaTopicConfig","KeyRateLimit","TopicAssignment","TopicAssignments","TopicConfig","Unused"],"trait":["Message"]};

@@ -5,7 +5,7 @@
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>sentry_kafka_schemas::{Schema <span class="kw">as </span>SentrySchema, SchemaError <span class="kw">as </span>SentrySchemaError};
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>thiserror::Error;
 <a href=#7 id=7 data-nosnippet>7</a>
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::config::{KafkaTopic, TopicAssignment, TopicAssignments};
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::config::KafkaTopic;
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="attr">#[derive(Debug, Error)]
 <a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">pub enum </span>SchemaError {
@@ -63,21 +63,17 @@
 <a href=#63 id=63 data-nosnippet>63</a>
 <a href=#64 id=64 data-nosnippet>64</a>        <span class="prelude-val">Ok</span>(<span class="kw">match </span>schemas.entry(topic) {
 <a href=#65 id=65 data-nosnippet>65</a>            Entry::Vacant(entry) =&gt; entry.insert({
-<a href=#66 id=66 data-nosnippet>66</a>                <span class="kw">let </span>default_assignments = TopicAssignments::default();
-<a href=#67 id=67 data-nosnippet>67</a>                <span class="kw">let </span>logical_topic_name = <span class="kw">match </span>default_assignments.get(topic) {
-<a href=#68 id=68 data-nosnippet>68</a>                    TopicAssignment::Primary(logical_topic_name) =&gt; logical_topic_name,
-<a href=#69 id=69 data-nosnippet>69</a>                    <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SchemaError::LogicalTopic),
-<a href=#70 id=70 data-nosnippet>70</a>                };
-<a href=#71 id=71 data-nosnippet>71</a>
-<a href=#72 id=72 data-nosnippet>72</a>                <span class="kw">match </span>sentry_kafka_schemas::get_schema(logical_topic_name, <span class="prelude-val">None</span>) {
-<a href=#73 id=73 data-nosnippet>73</a>                    <span class="prelude-val">Ok</span>(schema) =&gt; <span class="prelude-val">Some</span>(Arc::new(schema)),
-<a href=#74 id=74 data-nosnippet>74</a>                    <span class="prelude-val">Err</span>(SentrySchemaError::TopicNotFound) =&gt; <span class="prelude-val">None</span>,
-<a href=#75 id=75 data-nosnippet>75</a>                    <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SchemaError::SchemaCompiled(err)),
-<a href=#76 id=76 data-nosnippet>76</a>                }
-<a href=#77 id=77 data-nosnippet>77</a>            }),
-<a href=#78 id=78 data-nosnippet>78</a>            Entry::Occupied(entry) =&gt; entry.into_mut(),
-<a href=#79 id=79 data-nosnippet>79</a>        }
-<a href=#80 id=80 data-nosnippet>80</a>        .as_ref()
-<a href=#81 id=81 data-nosnippet>81</a>        .map(Arc::clone))
-<a href=#82 id=82 data-nosnippet>82</a>    }
-<a href=#83 id=83 data-nosnippet>83</a>}</code></pre></div></section></main></body></html>
+<a href=#66 id=66 data-nosnippet>66</a>                <span class="kw">let </span>logical_topic_name = topic.logical_topic_name();
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a>                <span class="kw">match </span>sentry_kafka_schemas::get_schema(logical_topic_name, <span class="prelude-val">None</span>) {
+<a href=#69 id=69 data-nosnippet>69</a>                    <span class="prelude-val">Ok</span>(schema) =&gt; <span class="prelude-val">Some</span>(Arc::new(schema)),
+<a href=#70 id=70 data-nosnippet>70</a>                    <span class="prelude-val">Err</span>(SentrySchemaError::TopicNotFound) =&gt; <span class="prelude-val">None</span>,
+<a href=#71 id=71 data-nosnippet>71</a>                    <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SchemaError::SchemaCompiled(err)),
+<a href=#72 id=72 data-nosnippet>72</a>                }
+<a href=#73 id=73 data-nosnippet>73</a>            }),
+<a href=#74 id=74 data-nosnippet>74</a>            Entry::Occupied(entry) =&gt; entry.into_mut(),
+<a href=#75 id=75 data-nosnippet>75</a>        }
+<a href=#76 id=76 data-nosnippet>76</a>        .as_ref()
+<a href=#77 id=77 data-nosnippet>77</a>        .map(Arc::clone))
+<a href=#78 id=78 data-nosnippet>78</a>    }
+<a href=#79 id=79 data-nosnippet>79</a>}</code></pre></div></section></main></body></html>
