@@ -258,7 +258,7 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
-        trace_id: Annotated::new(TraceId::random()),
+        trace_id: Annotated::new(TraceId::from(uuid::Uuid::nil())),
         level: Annotated::new(OurLogLevel::Info),
         body: Annotated::new(message),
         attributes: Annotated::new(attributes),
@@ -269,12 +269,12 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
+    use chrono::{DateTime, Utc};
     use relay_event_schema::protocol::{BodyRaw, IpAddr, NetworkReportPhases};
-    use relay_protocol::{Annotated, Val};
+    use relay_protocol::{Annotated, SerializableAnnotated};
 
     #[test]
-    fn test_nel_functions() {
+    fn test_get_nel_culprit() {
         // Test cases for get_nel_culprit
         struct NelCulpritCase {
             error_type: &'static str,
@@ -311,7 +311,10 @@ mod tests {
                 case.error_type
             );
         }
+    }
 
+    #[test]
+    fn test_create_message() {
         // Test cases for create_message
         struct CreateMessageCase {
             error_type: &'static str,
@@ -348,9 +351,14 @@ mod tests {
                 case.status_code
             );
         }
+    }
 
-        // Test cases for create_log
-        let received_at = Utc::now();
+    #[test]
+    fn test_create_log_basic() {
+        // Use a fixed timestamp for deterministic testing
+        let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
 
         let body = BodyRaw {
             ty: Annotated::new("http.error".to_owned()),
@@ -374,142 +382,16 @@ mod tests {
             ..Default::default()
         };
 
-        let log_basic = create_log(Annotated::new(report), received_at).unwrap();
+        let log = create_log(Annotated::new(report), received_at).unwrap();
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
+    }
 
-        // Check basic fields
-        // TODO: Test warning & info levels
-        assert_eq!(log_basic.level.into_value(), Some(OurLogLevel::Info));
-        assert_eq!(
-            log_basic.body.into_value(),
-            Some(
-                "The user agent successfully received a response, but it had a 500 status code"
-                    .to_owned()
-            )
-        );
+    #[test]
+    fn test_create_log_minimal() {
+        let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
 
-        // Check timestamp adjustment (should be received_at - age)
-        let expected_timestamp = received_at
-            .checked_sub_signed(Duration::milliseconds(5000))
-            .unwrap();
-        assert_eq!(
-            log_basic.timestamp.into_value().unwrap().into_inner(),
-            expected_timestamp
-        );
-
-        // Check attributes
-        let attributes = log_basic.attributes.into_value().unwrap();
-
-        struct AttributeCheck<'a> {
-            key: &'a str,
-            expected_str: Option<&'a str>,
-            expected_i64: Option<i64>,
-            expected_f64: Option<f64>,
-        }
-
-        let attribute_checks = vec![
-            AttributeCheck {
-                key: "sentry.origin",
-                expected_str: Some("auto.http.browser_reports.nel"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "report_type",
-                expected_str: Some("network-error"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "url.domain",
-                expected_str: Some("example.com"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "url.full",
-                expected_str: Some("https://example.com/api"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "http.request.duration",
-                expected_str: None,
-                expected_i64: Some(1000),
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "http.request.method",
-                expected_str: Some("GET"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "http.response.status_code",
-                expected_str: None,
-                expected_i64: Some(500),
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "network.protocol",
-                expected_str: Some("http/1.1"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "server.address",
-                expected_str: Some("192.168.1.1"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "nel.phase",
-                expected_str: Some("application"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-            AttributeCheck {
-                key: "nel.sampling_fraction",
-                expected_str: None,
-                expected_i64: None,
-                expected_f64: Some(1.0),
-            },
-            AttributeCheck {
-                key: "nel.type",
-                expected_str: Some("http.error"),
-                expected_i64: None,
-                expected_f64: None,
-            },
-        ];
-
-        for check in attribute_checks {
-            let value = attributes.get_value(check.key).unwrap();
-            if let Some(expected) = check.expected_str {
-                assert_eq!(
-                    value.as_str(),
-                    Some(expected),
-                    "Failed for attribute: {}",
-                    check.key
-                );
-            }
-            if let Some(expected) = check.expected_i64 {
-                assert_eq!(
-                    Val::from(value).as_i64(),
-                    Some(expected),
-                    "Failed for attribute: {}",
-                    check.key
-                );
-            }
-            if let Some(expected) = check.expected_f64 {
-                assert_eq!(
-                    value.as_f64(),
-                    Some(expected),
-                    "Failed for attribute: {}",
-                    check.key
-                );
-            }
-        }
-
-        // Test create_log_minimal
         let body_minimal = BodyRaw {
             ty: Annotated::new("unknown".to_owned()),
             ..Default::default()
@@ -520,24 +402,73 @@ mod tests {
             ..Default::default()
         };
 
-        let log_minimal = create_log(Annotated::new(nel_minimal), received_at).unwrap();
-        assert_eq!(
-            log_minimal.body.into_value(),
-            Some("error type is unknown".to_string())
-        );
-        assert_eq!(log_minimal.level.into_value(), Some(OurLogLevel::Info));
+        let log = create_log(Annotated::new(nel_minimal), received_at).unwrap();
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
+    }
 
-        // Test create_log_missing_body
+    #[test]
+    fn test_create_log_missing_body() {
+        let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
         let nel_missing_body = NetworkReportRaw {
             body: Annotated::empty(),
             ..Default::default()
         };
 
-        let result_missing_body = create_log(Annotated::new(nel_missing_body), received_at);
-        assert!(result_missing_body.is_none());
+        let result = create_log(Annotated::new(nel_missing_body), received_at);
+        assert!(result.is_none());
+    }
 
-        // Test create_log_empty_nel
-        let result_empty_nel = create_log(Annotated::empty(), received_at);
-        assert!(result_empty_nel.is_none());
+    #[test]
+    fn test_create_log_empty_nel() {
+        let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let result = create_log(Annotated::empty(), received_at);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_create_log_dns_error() {
+        let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let body = BodyRaw {
+            ty: Annotated::new("dns.unreachable".to_owned()),
+            elapsed_time: Annotated::new(2000),
+            method: Annotated::new("POST".to_owned()),
+            protocol: Annotated::new("http/2".to_owned()),
+            server_ip: Annotated::new(IpAddr("10.0.0.1".to_owned())),
+            phase: Annotated::new(NetworkReportPhases::DNS),
+            sampling_fraction: Annotated::new(0.5),
+            ..Default::default()
+        };
+
+        let report = NetworkReportRaw {
+            age: Annotated::new(1000),
+            ty: Annotated::new("network-error".to_owned()),
+            url: Annotated::new("https://api.example.com/v1/users".to_owned()),
+            user_agent: Annotated::new(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)".to_owned(),
+            ),
+            body: Annotated::new(body),
+            ..Default::default()
+        };
+
+        let log = create_log(Annotated::new(report), received_at).unwrap();
+        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
+    }
+
+    #[test]
+    fn test_extract_server_address() {
+        insta::assert_debug_snapshot!(extract_server_address("192.168.1.1"), @r###""192.168.1.1""###);
+        insta::assert_debug_snapshot!(extract_server_address("https://example.com/foo?bar=1"), @r###""example.com""###);
+        insta::assert_debug_snapshot!(extract_server_address("http://localhost:8080/foo?bar=1"), @r###""localhost""###);
+        insta::assert_debug_snapshot!(extract_server_address("http://[::1]:8080/foo"), @r###""[::1]""###);
+        insta::assert_debug_snapshot!(extract_server_address("invalid-url"), @r###""invalid-url""###);
     }
 }

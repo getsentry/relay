@@ -1,0 +1,56 @@
+---
+source: relay-event-normalization/src/normalize/nel.rs
+expression: "SerializableAnnotated(&Annotated::new(log))"
+---
+{
+  "timestamp": 1619424004.0,
+  "trace_id": "00000000000000000000000000000000",
+  "level": "info",
+  "body": "DNS server is unreachable",
+  "attributes": {
+    "http.request.duration": {
+      "type": "integer",
+      "value": 2000
+    },
+    "http.request.method": {
+      "type": "string",
+      "value": "POST"
+    },
+    "nel.phase": {
+      "type": "string",
+      "value": "dns"
+    },
+    "nel.sampling_fraction": {
+      "type": "double",
+      "value": 0.5
+    },
+    "nel.type": {
+      "type": "string",
+      "value": "dns.unreachable"
+    },
+    "network.protocol": {
+      "type": "string",
+      "value": "http/2"
+    },
+    "report_type": {
+      "type": "string",
+      "value": "network-error"
+    },
+    "sentry.origin": {
+      "type": "string",
+      "value": "auto.http.browser_reports.nel"
+    },
+    "server.address": {
+      "type": "string",
+      "value": "10.0.0.1"
+    },
+    "url.domain": {
+      "type": "string",
+      "value": "api.example.com"
+    },
+    "url.full": {
+      "type": "string",
+      "value": "https://api.example.com/v1/users"
+    }
+  }
+}

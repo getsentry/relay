@@ -1,0 +1,24 @@
+---
+source: relay-event-normalization/src/normalize/nel.rs
+expression: "SerializableAnnotated(&Annotated::new(log))"
+---
+{
+  "timestamp": 1619424005.0,
+  "trace_id": "00000000000000000000000000000000",
+  "level": "info",
+  "body": "error type is unknown",
+  "attributes": {
+    "nel.type": {
+      "type": "string",
+      "value": "unknown"
+    },
+    "report_type": {
+      "type": "string",
+      "value": "network-error"
+    },
+    "sentry.origin": {
+      "type": "string",
+      "value": "auto.http.browser_reports.nel"
+    }
+  }
+}
