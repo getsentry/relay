@@ -328,12 +328,12 @@ mod tests {
         let attribute_value = |key: &str| -> String {
             match attributes
                 .get(key)
-                .unwrap_or_else(|| panic!("attribute {} missing", key))
+                .unwrap_or_else(|| panic!("attribute {key} missing"))
                 .to_owned()
                 .value
             {
                 Some(Value::StringValue(str)) => str,
-                _ => panic!("attribute {} not a string", key),
+                _ => panic!("attribute {key} not a string"),
             }
         };
         assert_eq!(

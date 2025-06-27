@@ -221,10 +221,10 @@ mod tests {
     fn test_roundtrip() {
         let first_payload = include_bytes!("../../tests/fixtures/sample/v2/valid.json");
         let first_parse = parse(first_payload);
-        assert!(first_parse.is_ok(), "{:#?}", first_parse);
+        assert!(first_parse.is_ok(), "{first_parse:#?}");
         let second_payload = serde_json::to_vec(&first_parse.unwrap()).unwrap();
         let second_parse = parse(&second_payload[..]);
-        assert!(second_parse.is_ok(), "{:#?}", second_parse);
+        assert!(second_parse.is_ok(), "{second_parse:#?}");
     }
 
     #[test]
