@@ -352,7 +352,6 @@ mod tests {
         // Test cases for create_log
         let received_at = Utc::now();
 
-        // Test create_log_basic
         let body = BodyRaw {
             ty: Annotated::new("http.error".to_owned()),
             status_code: Annotated::new(500),
@@ -378,6 +377,7 @@ mod tests {
         let log_basic = create_log(Annotated::new(report), received_at).unwrap();
 
         // Check basic fields
+        // TODO: Test warning & info levels
         assert_eq!(log_basic.level.into_value(), Some(OurLogLevel::Info));
         assert_eq!(
             log_basic.body.into_value(),
