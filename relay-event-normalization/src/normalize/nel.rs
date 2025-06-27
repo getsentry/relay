@@ -157,19 +157,14 @@ static NEL_CULPRITS_MAP: LazyLock<HashMap<&'static str, &'static str>> =
 /// e.g. "http://localhost:8080/foo?bar=1" -> "localhost"
 /// e.g. "http://[::1]:8080/foo" -> "[::1]"
 fn extract_server_address(server_address: &str) -> String {
-    // Try to parse as URL first
+    // Try to parse as URL and extract host
     if let Ok(url) = Url::parse(server_address) {
-        // Extract host from the parsed URL
         if let Some(host) = url.host_str() {
-            host.to_owned()
-        } else {
-            // URL parsed but no host (e.g., "file://"), return original
-            server_address.to_owned()
+            return host.to_owned();
         }
-    } else {
-        // Not a valid URL, assume it's already an IP address or domain
-        server_address.to_owned()
     }
+    // Fallback: URL parsing failed or no host found, return original
+    server_address.to_owned()
 }
 
 /// Gets the human-readable description for a NEL error type
