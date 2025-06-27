@@ -263,7 +263,11 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
         trace_id: Annotated::new(TraceId::from(uuid::Uuid::nil())),
-        level: Annotated::new(OurLogLevel::Info),
+        level: Annotated::new(if body.ty.as_str().unwrap_or("unknown") == "ok" {
+            OurLogLevel::Info
+        } else {
+            OurLogLevel::Warn
+        }),
         body: Annotated::new(message),
         attributes: Annotated::new(attributes),
         ..Default::default()
