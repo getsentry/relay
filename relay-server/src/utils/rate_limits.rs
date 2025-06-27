@@ -421,7 +421,7 @@ impl Enforcement {
             log_bytes,
             spans,
             spans_indexed,
-            user_reports: user_reports_v2,
+            user_reports,
             profile_chunks,
             profile_chunks_ui,
         } = self;
@@ -439,7 +439,7 @@ impl Enforcement {
             log_bytes,
             spans,
             spans_indexed,
-            user_reports_v2,
+            user_reports,
             profile_chunks,
             profile_chunks_ui,
         ];
