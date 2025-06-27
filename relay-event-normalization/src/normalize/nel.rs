@@ -144,6 +144,28 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Gets the human-readable description for a NEL error type
+#[cfg(test)]
+fn get_nel_culprit(error_type: &str) -> Option<&'static str> {
+    NEL_CULPRITS
+        .iter()
+        .find(|(key, _)| *key == error_type)
+        .map(|(_, value)| *value)
+}
+
+/// Gets the formatted human-readable description for a NEL error type with optional status code
+#[cfg(test)]
+fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Option<String> {
+    let template = get_nel_culprit(error_type)?;
+
+    if error_type == "http.error" {
+        let code = status_code.unwrap_or(0);
+        Some(template.replace("{}", &code.to_string()))
+    } else {
+        Some(template.to_string())
+    }
+}
+
 /// Extracts the domain or IP address from a server address string
 /// e.g. "123.123.123.123" -> "123.123.123.123"
 /// e.g. "https://example.com/foo?bar=1" -> "example.com"
@@ -153,13 +175,18 @@ fn extract_server_address(server_address: &str) -> String {
     // If it looks like a URL, extract the host part
     if server_address.starts_with("http://") || server_address.starts_with("https://") {
         if let Some(url_part) = server_address.split("://").nth(1) {
+            // If there's nothing after the protocol, return the original
+            if url_part.is_empty() {
+                return server_address.to_string();
+            }
+
             // Extract host before any path, query, or fragment
             let host_port = url_part
                 .split('/')
                 .next()
                 .and_then(|host_port| host_port.split('?').next())
                 .and_then(|host_port| host_port.split('#').next())
-                .unwrap_or(server_address);
+                .unwrap_or(url_part);
 
             // Handle IPv6 addresses (enclosed in brackets) vs regular hosts
             if host_port.starts_with('[') {
@@ -167,7 +194,8 @@ fn extract_server_address(server_address: &str) -> String {
                 if let Some(bracket_end) = host_port.find(']') {
                     host_port[..=bracket_end].to_string()
                 } else {
-                    host_port.to_string()
+                    // Malformed IPv6, return the original url_part
+                    url_part.to_string()
                 }
             } else {
                 // Regular host with potential port like localhost:8080 -> localhost
@@ -278,9 +306,8 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 mod tests {
     use super::*;
     use chrono::Utc;
-    use relay_event_schema::protocol::{BodyRaw, NetworkReportPhases};
-    use relay_protocol::Annotated;
-    use std::net::IpAddr;
+    use relay_event_schema::protocol::{BodyRaw, IpAddr, NetworkReportPhases};
+    use relay_protocol::{Annotated, Val};
 
     #[test]
     fn test_get_nel_culprit() {
@@ -411,7 +438,7 @@ mod tests {
             elapsed_time: Annotated::new(1000),
             method: Annotated::new("GET".to_string()),
             protocol: Annotated::new("http/1.1".to_string()),
-            server_ip: Annotated::new("192.168.1.1".parse::<IpAddr>().unwrap()),
+            server_ip: Annotated::new(IpAddr("192.168.1.1".to_string())),
             phase: Annotated::new(NetworkReportPhases::Application),
             sampling_fraction: Annotated::new(1.0),
             referrer: Annotated::new("https://example.com/referer".to_string()),
@@ -451,54 +478,57 @@ mod tests {
         // Check attributes
         let attributes = log.attributes.into_value().unwrap();
         assert_eq!(
-            attributes.get("sentry.origin").unwrap().as_str(),
+            attributes.get_value("sentry.origin").unwrap().as_str(),
             Some("auto.http.browser_reports.nel")
         );
         assert_eq!(
-            attributes.get("report_type").unwrap().as_str(),
+            attributes.get_value("report_type").unwrap().as_str(),
             Some("network-error")
         );
         assert_eq!(
-            attributes.get("url.domain").unwrap().as_str(),
+            attributes.get_value("url.domain").unwrap().as_str(),
             Some("example.com")
         );
         assert_eq!(
-            attributes.get("url.full").unwrap().as_str(),
+            attributes.get_value("url.full").unwrap().as_str(),
             Some("https://example.com/api")
         );
         assert_eq!(
-            attributes.get("http.request.duration").unwrap().as_i64(),
+            Val::from(attributes.get_value("http.request.duration").unwrap()).as_i64(),
             Some(1000)
         );
         assert_eq!(
-            attributes.get("http.request.method").unwrap().as_str(),
+            attributes
+                .get_value("http.request.method")
+                .unwrap()
+                .as_str(),
             Some("GET")
         );
         assert_eq!(
-            attributes
-                .get("http.response.status_code")
-                .unwrap()
-                .as_i64(),
+            Val::from(attributes.get_value("http.response.status_code").unwrap()).as_i64(),
             Some(500)
         );
         assert_eq!(
-            attributes.get("network.protocol").unwrap().as_str(),
+            attributes.get_value("network.protocol").unwrap().as_str(),
             Some("http/1.1")
         );
         assert_eq!(
-            attributes.get("server.address").unwrap().as_str(),
+            attributes.get_value("server.address").unwrap().as_str(),
             Some("192.168.1.1")
         );
         assert_eq!(
-            attributes.get("nel.phase").unwrap().as_str(),
+            attributes.get_value("nel.phase").unwrap().as_str(),
             Some("application")
         );
         assert_eq!(
-            attributes.get("nel.sampling_fraction").unwrap().as_f64(),
+            attributes
+                .get_value("nel.sampling_fraction")
+                .unwrap()
+                .as_f64(),
             Some(1.0)
         );
         assert_eq!(
-            attributes.get("nel.type").unwrap().as_str(),
+            attributes.get_value("nel.type").unwrap().as_str(),
             Some("http.error")
         );
     }
