@@ -109,6 +109,16 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         );
     }
 
+    if let Some(status_message) = status.clone().map(|status| status.message) {
+        sentry_attributes.insert(
+            "sentry.status.message".into(),
+            Annotated::new(Attribute::new(
+                AttributeType::String,
+                Value::String(status_message.to_owned()),
+            )),
+        );
+    }
+
     let sentry_links: Vec<Annotated<SpanV2Link>> = links
         .into_iter()
         .map(|link| otel_to_sentry_link(link).map(Into::into))
@@ -322,6 +332,10 @@ mod tests {
             "sentry.sample_rate": {
               "type": "integer",
               "value": 1
+            },
+            "sentry.status.message": {
+              "type": "string",
+              "value": "test"
             }
           }
         }
@@ -750,6 +764,10 @@ mod tests {
             "sentry.segment.name": {
               "type": "string",
               "value": "my 1st transaction"
+            },
+            "sentry.status.message": {
+              "type": "string",
+              "value": "foo"
             }
           }
         }

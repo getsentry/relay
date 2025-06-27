@@ -130,7 +130,8 @@ mod tests {
             "plugin.name": "fastify -> @fastify/multipart",
             "sentry.name": "middleware - fastify -> @fastify/multipart",
             "sentry.parentSampled": true,
-            "sentry.sample_rate": 1
+            "sentry.sample_rate": 1,
+            "sentry.status.message": "test"
           },
           "links": [],
           "kind": "internal"
@@ -534,7 +535,8 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
-            "sentry.name": "myname"
+            "sentry.name": "myname",
+            "sentry.status.message": "foo"
           },
           "links": [],
           "platform": "php"
