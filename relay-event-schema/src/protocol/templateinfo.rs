@@ -58,18 +58,18 @@ mod tests {
   "other": "value"
 }"#;
         let template_info = Annotated::new(TemplateInfo {
-            filename: Annotated::new("myfile.rs".to_string()),
-            abs_path: Annotated::new("/path/to".to_string()),
+            filename: Annotated::new("myfile.rs".to_owned()),
+            abs_path: Annotated::new("/path/to".to_owned()),
             lineno: Annotated::new(2),
             colno: Annotated::new(42),
-            pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
-            context_line: Annotated::new("unimplemented!()".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
+            pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_owned())]),
+            context_line: Annotated::new("unimplemented!()".to_owned()),
+            post_context: Annotated::new(vec![Annotated::new("}".to_owned())]),
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },

@@ -10,7 +10,8 @@ use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
     TransactionSource,
 };
-use relay_metrics::{Bucket, DurationUnit, FiniteF64};
+use relay_metrics::{Bucket, DurationUnit};
+use relay_protocol::FiniteF64;
 use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::IntoMetric;
@@ -145,13 +146,13 @@ fn extract_light_transaction_tags(tags: &CommonTags) -> LightTransactionTags {
 fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> CommonTags {
     let mut tags = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
-        tags.insert(CommonTag::Release, release.to_string());
+        tags.insert(CommonTag::Release, release.to_owned());
     }
     if let Some(dist) = event.dist.value() {
         tags.insert(CommonTag::Dist, dist.to_string());
     }
     if let Some(environment) = event.environment.as_str() {
-        tags.insert(CommonTag::Environment, environment.to_string());
+        tags.insert(CommonTag::Environment, environment.to_owned());
     }
     if let Some(transaction_name) = get_transaction_name(event) {
         tags.insert(CommonTag::Transaction, transaction_name);
@@ -166,7 +167,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         _ => "other",
     };
 
-    tags.insert(CommonTag::Platform, platform.to_string());
+    tags.insert(CommonTag::Platform, platform.to_owned());
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         // We assume that the trace context status is automatically set to unknown inside of the
@@ -225,7 +226,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
                     let (key, value) = entry.as_pair();
                     if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
                         if custom_tags.contains(key) {
-                            tags.insert(CommonTag::Custom(key.to_string()), value.to_string());
+                            tags.insert(CommonTag::Custom(key.to_owned()), value.to_owned());
                         }
                     }
                 }
@@ -300,14 +301,6 @@ impl TransactionExtractor<'_> {
                     continue;
                 };
 
-                let Some(value) = FiniteF64::new(value) else {
-                    relay_log::error!(
-                        tags.field = format_args!("measurements.{name}"),
-                        "non-finite float value in transaction metric extraction"
-                    );
-                    continue;
-                };
-
                 // We treat a measurement as "performance score" if its name is the name of another
                 // measurement prefixed by `score.`.
                 let is_performance_score = name == "score.total"
@@ -365,15 +358,6 @@ impl TransactionExtractor<'_> {
                             continue;
                         };
 
-                        let Some(value) = FiniteF64::new(value) else {
-                            relay_log::error!(
-                                tags.field =
-                                    format_args!("breakdowns.{breakdown}.{measurement_name}"),
-                                "non-finite float value in transaction metric extraction"
-                            );
-                            continue;
-                        };
-
                         metrics.project_metrics.push(
                             TransactionMetric::Breakdown {
                                 name: format!("{breakdown}.{measurement_name}"),
@@ -425,7 +409,7 @@ impl TransactionExtractor<'_> {
             if let Some(transaction_from_dsc) = self.transaction_from_dsc {
                 universal_tags
                     .0
-                    .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
+                    .insert(CommonTag::Transaction, transaction_from_dsc.to_owned());
             }
 
             TransactionCPRTags {
@@ -587,9 +571,9 @@ mod tests {
                         name: Some("".into()),
                         score_components: vec![PerformanceScoreWeightedComponent {
                             measurement: "lcp".into(),
-                            weight: 0.5,
-                            p10: 2.0,
-                            p50: 3.0,
+                            weight: 0.5.try_into().unwrap(),
+                            p10: 2.0.try_into().unwrap(),
+                            p50: 3.0.try_into().unwrap(),
                             optional: false,
                         }],
                         condition: Some(RuleCondition::all()),
@@ -1601,7 +1585,7 @@ mod tests {
 
         assert_eq!(
             duration_metric.tags,
-            BTreeMap::from([("platform".to_string(), "other".to_string())])
+            BTreeMap::from([("platform".to_owned(), "other".to_owned())])
         );
     }
 
@@ -1641,8 +1625,8 @@ mod tests {
         assert_eq!(
             duration_metric.tags,
             BTreeMap::from([
-                ("transaction.status".to_string(), "ok".to_string()),
-                ("platform".to_string(), "other".to_string())
+                ("transaction.status".to_owned(), "ok".to_owned()),
+                ("platform".to_owned(), "other".to_owned())
             ])
         );
     }
@@ -2099,7 +2083,7 @@ mod tests {
             ),
         ] {
             let config: TransactionMetricsConfig = serde_json::from_str(config_str).unwrap();
-            assert_eq!(config.deprecated1, expected_strategy, "{}", config_str);
+            assert_eq!(config.deprecated1, expected_strategy, "{config_str}");
         }
     }
 

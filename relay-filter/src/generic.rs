@@ -183,12 +183,12 @@ mod tests {
     fn mock_filters() -> GenericFiltersMap {
         vec![
             GenericFilterConfig {
-                id: "firstReleases".to_string(),
+                id: "firstReleases".to_owned(),
                 is_enabled: true,
                 condition: Some(RuleCondition::eq("event.release", "1.0")),
             },
             GenericFilterConfig {
-                id: "helloTransactions".to_string(),
+                id: "helloTransactions".to_owned(),
                 is_enabled: true,
                 condition: Some(RuleCondition::eq("event.transaction", "/hello")),
             },
@@ -205,24 +205,22 @@ mod tests {
 
         // Matching first rule.
         let event = Event {
-            release: Annotated::new(LenientString("1.0".to_string())),
+            release: Annotated::new(LenientString("1.0".to_owned())),
             ..Default::default()
         };
         assert_eq!(
             should_filter(&event, &config, None),
-            Err(FilterStatKey::GenericFilter("firstReleases".to_string()))
+            Err(FilterStatKey::GenericFilter("firstReleases".to_owned()))
         );
 
         // Matching second rule.
         let event = Event {
-            transaction: Annotated::new("/hello".to_string()),
+            transaction: Annotated::new("/hello".to_owned()),
             ..Default::default()
         };
         assert_eq!(
             should_filter(&event, &config, None),
-            Err(FilterStatKey::GenericFilter(
-                "helloTransactions".to_string()
-            ))
+            Err(FilterStatKey::GenericFilter("helloTransactions".to_owned()))
         );
     }
 
@@ -235,13 +233,13 @@ mod tests {
 
         // Matching both rules (first is taken).
         let event = Event {
-            release: Annotated::new(LenientString("1.0".to_string())),
-            transaction: Annotated::new("/hello".to_string()),
+            release: Annotated::new(LenientString("1.0".to_owned())),
+            transaction: Annotated::new("/hello".to_owned()),
             ..Default::default()
         };
         assert_eq!(
             should_filter(&event, &config, None),
-            Err(FilterStatKey::GenericFilter("firstReleases".to_string()))
+            Err(FilterStatKey::GenericFilter("firstReleases".to_owned()))
         );
     }
 
@@ -254,7 +252,7 @@ mod tests {
 
         // Matching no rule.
         let event = Event {
-            transaction: Annotated::new("/world".to_string()),
+            transaction: Annotated::new("/world".to_owned()),
             ..Default::default()
         };
         assert_eq!(should_filter(&event, &config, None), Ok(()));
@@ -269,8 +267,8 @@ mod tests {
         };
 
         let event = Event {
-            release: Annotated::new(LenientString("1.0".to_string())),
-            transaction: Annotated::new("/hello".to_string()),
+            release: Annotated::new(LenientString("1.0".to_owned())),
+            transaction: Annotated::new("/hello".to_owned()),
             ..Default::default()
         };
         assert_eq!(should_filter(&event, &config, None), Ok(()));
@@ -281,7 +279,7 @@ mod tests {
         let project = GenericFiltersConfig {
             version: 1,
             filters: vec![GenericFilterConfig {
-                id: "firstReleases".to_string(),
+                id: "firstReleases".to_owned(),
                 is_enabled: true,
                 condition: Some(RuleCondition::eq("event.release", "1.0")),
             }]
@@ -291,7 +289,7 @@ mod tests {
         let global = GenericFiltersConfig {
             version: 1,
             filters: vec![GenericFilterConfig {
-                id: "helloTransactions".to_string(),
+                id: "helloTransactions".to_owned(),
                 is_enabled: true,
                 condition: Some(RuleCondition::eq("event.transaction", "/hello")),
             }]
@@ -299,15 +297,13 @@ mod tests {
         };
 
         let event = Event {
-            transaction: Annotated::new("/hello".to_string()),
+            transaction: Annotated::new("/hello".to_owned()),
             ..Default::default()
         };
 
         assert_eq!(
             should_filter(&event, &project, Some(&global)),
-            Err(FilterStatKey::GenericFilter(
-                "helloTransactions".to_string()
-            ))
+            Err(FilterStatKey::GenericFilter("helloTransactions".to_owned()))
         );
     }
 
@@ -821,7 +817,7 @@ mod tests {
             );
 
             let expected = if filters {
-                Err(FilterStatKey::GenericFilter("os_name".to_string()))
+                Err(FilterStatKey::GenericFilter("os_name".to_owned()))
             } else {
                 Ok(())
             };

@@ -343,7 +343,7 @@ pub fn generate_completions(matches: &ArgMatches) -> Result<()> {
     };
 
     let mut app = make_app();
-    let name = app.get_name().to_string();
+    let name = app.get_name().to_owned();
     clap_complete::generate(shell, &mut app, name, &mut io::stdout());
 
     Ok(())

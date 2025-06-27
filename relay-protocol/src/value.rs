@@ -6,6 +6,7 @@ use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use uuid::Uuid;
 
+use crate::FiniteF64;
 use crate::annotated::Annotated;
 use crate::meta::Meta;
 
@@ -226,7 +227,7 @@ impl From<f64> for Value {
 
 impl<'a> From<&'a str> for Value {
     fn from(value: &'a str) -> Self {
-        Value::String(value.to_string())
+        Value::String(value.to_owned())
     }
 }
 
@@ -475,6 +476,12 @@ impl From<u64> for Val<'_> {
 impl From<f64> for Val<'_> {
     fn from(value: f64) -> Self {
         Self::F64(value)
+    }
+}
+
+impl From<FiniteF64> for Val<'_> {
+    fn from(value: FiniteF64) -> Self {
+        Self::F64(value.to_f64())
     }
 }
 

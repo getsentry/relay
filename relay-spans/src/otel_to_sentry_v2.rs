@@ -1,10 +1,8 @@
-use std::collections::BTreeMap;
-
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_event_schema::protocol::{Attribute, AttributeType, SpanV2Kind};
+use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, SpanV2Kind};
 use relay_protocol::ErrorKind;
 
 use crate::otel_trace::{
@@ -13,7 +11,7 @@ use crate::otel_trace::{
 use relay_event_schema::protocol::{
     SpanId, SpanV2 as SentrySpanV2, SpanV2Link, SpanV2Status, Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, Error, Object, Value};
+use relay_protocol::{Annotated, Error, Value};
 
 /// Transform an OTEL span to a Sentry span V2.
 ///
@@ -54,25 +52,16 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
         bytes => Some(SpanId::try_from(bytes)?),
     };
 
-    let mut sentry_attributes = Object::default();
+    let mut sentry_attributes = Attributes::new();
     let mut name = if name.is_empty() { None } else { Some(name) };
-    let mut description = None;
-    let mut http_method = None;
-    let mut http_route = None;
 
     for (key, value) in attributes.into_iter().flat_map(|attribute| {
         let value = attribute.value?.value?;
         Some((attribute.key, value))
     }) {
         match key.as_str() {
-            "sentry.description" => {
-                description = otel_value_to_string(value.clone());
-            }
             key if key.starts_with("db") => {
                 name = name.or(Some("db".to_owned()));
-                if key == "db.statement" {
-                    description = description.or_else(|| otel_value_to_string(value.clone()));
-                }
             }
             "http.method" | "http.request.method" => {
                 let http_op = match kind {
@@ -80,49 +69,24 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
                     3 => "http.client",
                     _ => "http",
                 };
-                http_method = otel_value_to_string(value.clone());
                 name = name.or(Some(http_op.to_owned()));
-            }
-            "http.route" | "url.path" => {
-                http_route = otel_value_to_string(value.clone());
             }
             _ => (),
         }
 
         if let Some(v) = otel_value_to_attr(value) {
-            sentry_attributes.insert(key, Annotated::new(v));
+            sentry_attributes.insert_raw(key, Annotated::new(v));
         }
-    }
-
-    if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
-        description = description.or_else(|| Some(format!("{http_method} {http_route}")));
-    }
-
-    // Put the fixed up description back into the attributes
-    if let Some(description) = description {
-        sentry_attributes.insert(
-            "sentry.description".into(),
-            Annotated::new(Attribute::new(
-                AttributeType::String,
-                Value::String(description),
-            )),
-        );
-    }
-
-    if let Some(status_message) = status.clone().map(|status| status.message) {
-        sentry_attributes.insert(
-            "sentry.status.message".into(),
-            Annotated::new(Attribute::new(
-                AttributeType::String,
-                Value::String(status_message.to_owned()),
-            )),
-        );
     }
 
     let sentry_links: Vec<Annotated<SpanV2Link>> = links
         .into_iter()
         .map(|link| otel_to_sentry_link(link).map(Into::into))
         .collect::<Result<_, _>>()?;
+
+    if let Some(status_message) = status.clone().map(|status| status.message) {
+        sentry_attributes.insert("sentry.status.message".to_owned(), status_message);
+    }
 
     let event_span = SentrySpanV2 {
         name: name.into(),
@@ -142,17 +106,6 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
     };
 
     Ok(event_span)
-}
-
-fn otel_value_to_string(value: OtelValue) -> Option<String> {
-    match value {
-        OtelValue::StringValue(v) => Some(v),
-        OtelValue::BoolValue(v) => Some(v.to_string()),
-        OtelValue::IntValue(v) => Some(v.to_string()),
-        OtelValue::DoubleValue(v) => Some(v.to_string()),
-        OtelValue::BytesValue(v) => String::from_utf8(v).ok(),
-        _ => None,
-    }
 }
 
 fn otel_flags_is_remote(value: u32) -> Option<bool> {
@@ -204,7 +157,7 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
     // <https://www.w3.org/TR/trace-context-2/#sampled-flag>
     const W3C_TRACE_CONTEXT_SAMPLED: u32 = 1 << 0;
 
-    let attributes = BTreeMap::from_iter(otel_link.attributes.into_iter().filter_map(|kv| {
+    let attributes = Attributes::from_iter(otel_link.attributes.into_iter().filter_map(|kv| {
         let value = kv.value?.value?;
         let attr_value = otel_value_to_attr(value)?;
         Some((kv.key, Annotated::new(attr_value)))
@@ -440,10 +393,6 @@ mod tests {
             "db.type": {
               "type": "string",
               "value": "sql"
-            },
-            "sentry.description": {
-              "type": "string",
-              "value": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
             }
           }
         }
@@ -564,10 +513,6 @@ mod tests {
             "http.request.method": {
               "type": "string",
               "value": "GET"
-            },
-            "sentry.description": {
-              "type": "string",
-              "value": "GET /api/search?q=foobar"
             },
             "url.path": {
               "type": "string",

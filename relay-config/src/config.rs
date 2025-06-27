@@ -12,7 +12,7 @@ use anyhow::Context;
 use relay_auth::{PublicKey, RelayId, SecretKey, generate_key_pair, generate_relay_id};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
+    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaTopic, KafkaTopicConfig,
     TopicAssignments,
 };
 use relay_metrics::MetricNamespace;
@@ -557,6 +557,14 @@ pub struct Metrics {
     ///
     /// Defaults to `true`.
     pub aggregate: bool,
+    /// Allows emission of metrics with high cardinality tags.
+    ///
+    /// High cardinality tags are dynamic values attached to metrics,
+    /// such as project IDs. When enabled, these tags will be included
+    /// in the emitted metrics. When disabled, the tags will be omitted.
+    ///
+    /// Defaults to `false`.
+    pub allow_high_cardinality_tags: bool,
 }
 
 impl Default for Metrics {
@@ -569,6 +577,7 @@ impl Default for Metrics {
             sample_rate: 1.0,
             periodic_secs: 5,
             aggregate: true,
+            allow_high_cardinality_tags: false,
         }
     }
 }
@@ -1143,6 +1152,9 @@ pub struct Processing {
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
+    /// Configure what span format to produce.
+    #[serde(default)]
+    pub span_producers: SpanProducers,
     /// Additional kafka producer configurations.
     ///
     /// The `kafka_config` is the default producer configuration used for all topics. A secondary
@@ -1200,6 +1212,26 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            span_producers: Default::default(),
+        }
+    }
+}
+
+/// Configuration for span producers.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SpanProducers {
+    /// Send JSON spans to `ingest-spans`.
+    pub produce_json: bool,
+    /// Send Protobuf (TraceItem) to `snuba-items`.
+    pub produce_protobuf: bool,
+}
+
+impl Default for SpanProducers {
+    fn default() -> Self {
+        Self {
+            produce_json: true,
+            produce_protobuf: false,
         }
     }
 }
@@ -2100,6 +2132,11 @@ impl Config {
         self.values.metrics.aggregate
     }
 
+    /// Returns whether high cardinality tags should be removed before sending metrics.
+    pub fn metrics_allow_high_cardinality_tags(&self) -> bool {
+        self.values.metrics.allow_high_cardinality_tags
+    }
+
     /// Returns the interval for periodic metrics emitted from Relay.
     ///
     /// `None` if periodic metrics are disabled.
@@ -2210,7 +2247,7 @@ impl Config {
         }
 
         let file_name = path.file_name().and_then(|f| f.to_str())?;
-        let new_file_name = format!("{}.{}", file_name, partition_id);
+        let new_file_name = format!("{file_name}.{partition_id}");
         path.set_file_name(new_file_name);
 
         Some(path)
@@ -2467,8 +2504,11 @@ impl Config {
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaParams, KafkaConfigError> {
-        self.values.processing.topics.get(topic).kafka_config(
+    pub fn kafka_configs(
+        &self,
+        topic: KafkaTopic,
+    ) -> Result<KafkaTopicConfig<'_>, KafkaConfigError> {
+        self.values.processing.topics.get(topic).kafka_configs(
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
         )
@@ -2480,7 +2520,7 @@ impl Config {
     }
 
     /// All unused but configured topic assignments.
-    pub fn unused_topic_assignments(&self) -> &BTreeMap<String, TopicAssignment> {
+    pub fn unused_topic_assignments(&self) -> &relay_kafka::Unused {
         &self.values.processing.topics.unused
     }
 
@@ -2591,6 +2631,16 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
+    }
+
+    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
+    pub fn produce_protobuf_spans(&self) -> bool {
+        self.values.processing.span_producers.produce_protobuf
+    }
+
+    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
+    pub fn produce_json_spans(&self) -> bool {
+        self.values.processing.span_producers.produce_json
     }
 }
 

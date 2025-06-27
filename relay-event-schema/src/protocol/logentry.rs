@@ -149,17 +149,17 @@ mod tests {
 }"#;
 
         let entry = Annotated::new(LogEntry {
-            message: Annotated::new("Hello, %s %s!".to_string().into()),
+            message: Annotated::new("Hello, %s %s!".to_owned().into()),
             formatted: Annotated::empty(),
             params: Annotated::new(Value::Array(vec![
-                Annotated::new(Value::String("World".to_string())),
+                Annotated::new(Value::String("World".to_owned())),
                 Annotated::new(Value::I64(1)),
             ])),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -177,7 +177,7 @@ mod tests {
 }"#;
 
         let entry = Annotated::new(LogEntry {
-            formatted: Annotated::new("hi".to_string().into()),
+            formatted: Annotated::new("hi".to_owned().into()),
             ..Default::default()
         });
 
@@ -207,12 +207,12 @@ mod tests {
 }"#;
 
         let entry = Annotated::new(LogEntry {
-            message: Annotated::new("Hello, %s!".to_string().into()),
+            message: Annotated::new("Hello, %s!".to_owned().into()),
             params: Annotated::new(Value::Object({
                 let mut object = Object::new();
                 object.insert(
-                    "name".to_string(),
-                    Annotated::new(Value::String("World".to_string())),
+                    "name".to_owned(),
+                    Annotated::new(Value::String("World".to_owned())),
                 );
                 object
             })),
@@ -231,7 +231,7 @@ mod tests {
 }"#;
 
         let entry = Annotated::new(LogEntry {
-            message: Annotated::new("Hello, %s!".to_string().into()),
+            message: Annotated::new("Hello, %s!".to_owned().into()),
             params: Annotated::from_error(
                 Error::expected("message parameters"),
                 Some(Value::I64(42)),

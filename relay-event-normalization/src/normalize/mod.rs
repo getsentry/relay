@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::hash::Hash;
 
 use relay_base_schema::metrics::MetricUnit;
 use relay_common::glob2::LazyGlob;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
-use relay_protocol::RuleCondition;
+use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
 
 pub mod breakdowns;
@@ -99,10 +100,10 @@ pub fn normalize_app_start_spans(event: &mut Event) {
             if let Some(span) = span.value_mut() {
                 if let Some(op) = span.op.value() {
                     if op == "app_start_cold" {
-                        span.op.set_value(Some("app.start.cold".to_string()));
+                        span.op.set_value(Some("app.start.cold".to_owned()));
                         break;
                     } else if op == "app_start_warm" {
-                        span.op.set_value(Some("app.start.warm".to_string()));
+                        span.op.set_value(Some("app.start.warm".to_owned()));
                         break;
                     }
                 }
@@ -175,11 +176,11 @@ pub struct PerformanceScoreWeightedComponent {
     /// profile will be discarded.
     pub measurement: String,
     /// Weight [0,1.0] of this component in the performance score
-    pub weight: f64,
+    pub weight: FiniteF64,
     /// p10 used to define the log-normal for calculation
-    pub p10: f64,
+    pub p10: FiniteF64,
     /// Median used to define the log-normal for calculation
-    pub p50: f64,
+    pub p50: FiniteF64,
     /// Whether the measurement is optional. If the measurement is missing, performance score processing
     /// may still continue, and the weight will be 0.
     #[serde(default)]
@@ -217,35 +218,94 @@ pub struct PerformanceScoreConfig {
 }
 
 /// A mapping of AI model types (like GPT-4) to their respective costs.
+///
+/// This struct supports multiple versions with different cost structures:
+/// - Version 1: Array-based costs with glob pattern matching for model IDs (uses `costs` field)
+/// - Version 2: Dictionary-based costs with exact model ID keys and granular token pricing (uses `models` field)
+///
+/// Example V1 JSON:
+/// ```json
+/// {
+///   "version": 1,
+///   "costs": [
+///     {
+///       "modelId": "gpt-4*",
+///       "forCompletion": false,
+///       "costPer1kTokens": 0.03
+///     }
+///   ]
+/// }
+/// ```
+///
+/// Example V2 JSON:
+/// ```json
+/// {
+///   "version": 2,
+///   "models": {
+///     "gpt-4": {
+///       "inputPerToken": 0.03,
+///       "outputPerToken": 0.06,
+///       "outputReasoningPerToken": 0.12,
+///       "inputCachedPerToken": 0.015
+///     }
+///   }
+/// }
+/// ```
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCosts {
     /// The version of the model cost struct
     pub version: u16,
 
-    /// The mappings of model ID => cost
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    /// The mappings of model ID => cost (used in version 1)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<ModelCost>,
+
+    /// The mappings of model ID => cost as a dictionary (version 2)
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub models: HashMap<String, ModelCostV2>,
 }
 
 impl ModelCosts {
-    const MAX_SUPPORTED_VERSION: u16 = 1;
+    const MAX_SUPPORTED_VERSION: u16 = 2;
+
+    /// `true` if the model costs are empty and the version is supported.
+    pub fn is_empty(&self) -> bool {
+        (self.costs.is_empty() && self.models.is_empty()) || !self.is_enabled()
+    }
 
     /// `false` if measurement and metrics extraction should be skipped.
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= ModelCosts::MAX_SUPPORTED_VERSION
     }
 
-    /// Gets the cost per 1000 tokens, if defined for the given model.
-    pub fn cost_per_1k_tokens(&self, model_id: &str, for_completion: bool) -> Option<f64> {
-        self.costs
-            .iter()
-            .find(|cost| cost.matches(model_id, for_completion))
-            .map(|c| c.cost_per_1k_tokens)
+    /// Gets the cost per token, if defined for the given model.
+    pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
+        match self.version {
+            1 => {
+                let input_cost = self.costs.iter().find(|cost| cost.matches(model_id, false));
+                let output_cost = self.costs.iter().find(|cost| cost.matches(model_id, true));
+
+                // V1 costs were defined per 1k tokens, so we need to convert to per token.
+                if input_cost.is_some() || output_cost.is_some() {
+                    Some(ModelCostV2 {
+                        input_per_token: input_cost.map_or(0.0, |c| c.cost_per_1k_tokens / 1000.0),
+                        output_per_token: output_cost
+                            .map_or(0.0, |c| c.cost_per_1k_tokens / 1000.0),
+                        output_reasoning_per_token: 0.0, // in v1 this info is not available
+                        input_cached_per_token: 0.0,     // in v1 this info is not available
+                    })
+                } else {
+                    None
+                }
+            }
+            2 => self.models.get(model_id).copied(),
+            _ => None,
+        }
     }
 }
 
-/// A single mapping of (AI model ID, input/output, cost)
+/// A mapping of AI model types (like GPT-4) to their respective costs.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCost {
@@ -259,6 +319,21 @@ impl ModelCost {
     pub fn matches(&self, model_id: &str, for_completion: bool) -> bool {
         self.for_completion == for_completion && self.model_id.compiled().is_match(model_id)
     }
+}
+
+/// Version 2 of a mapping of AI model types (like GPT-4) to their respective costs.
+/// Version 1 had some limitations, so we're moving to a more flexible format.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCostV2 {
+    /// The cost per input token
+    pub input_per_token: f64,
+    /// The cost per output token
+    pub output_per_token: f64,
+    /// The cost per output reasoning token
+    pub output_reasoning_per_token: f64,
+    /// The cost per input cached token
+    pub input_cached_per_token: f64,
 }
 
 #[cfg(test)]
@@ -288,25 +363,189 @@ mod tests {
 
     use super::*;
 
+    /// Test that integer versions are handled correctly in the struct format
     #[test]
-    fn test_model_cost_config() {
-        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft-*","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
+    fn test_model_cost_version_sent_as_number() {
+        // Test integer version 1
+        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
-        assert_debug_snapshot!(deserialized, @r###"
+        assert_debug_snapshot!(
+            deserialized,
+            @r#"
         ModelCosts {
             version: 1,
             costs: [
                 ModelCost {
-                    model_id: LazyGlob("babbage-002.ft-*"),
+                    model_id: LazyGlob("babbage-002.ft"),
                     for_completion: false,
                     cost_per_1k_tokens: 0.0016,
                 },
             ],
+            models: {},
+        }
+        "#,
+        );
+
+        // Test integer version 2
+        let original_v2 = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
+        assert_debug_snapshot!(
+            deserialized_v2,
+            @r###"
+            ModelCosts {
+                version: 2,
+                costs: [],
+                models: {
+                    "gpt-4": ModelCostV2 {
+                        input_per_token: 0.03,
+                        output_per_token: 0.06,
+                        output_reasoning_per_token: 0.12,
+                        input_cached_per_token: 0.015,
+                    },
+                },
+            }
+            "###,
+        );
+
+        // Test unknown integer version
+        let original_unknown = r#"{"version":99,"costs":[]}"#;
+        let deserialized_unknown: ModelCosts = serde_json::from_str(original_unknown).unwrap();
+        assert_eq!(deserialized_unknown.version, 99);
+        assert!(!deserialized_unknown.is_enabled());
+    }
+
+    #[test]
+    fn test_model_cost_config_v1() {
+        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
+        let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
+        assert_debug_snapshot!(deserialized, @r#"
+        ModelCosts {
+            version: 1,
+            costs: [
+                ModelCost {
+                    model_id: LazyGlob("babbage-002.ft"),
+                    for_completion: false,
+                    cost_per_1k_tokens: 0.0016,
+                },
+            ],
+            models: {},
+        }
+        "#);
+
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        assert_eq!(&serialized, original);
+    }
+
+    #[test]
+    fn test_model_cost_config_v2() {
+        let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
+        let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
+        assert_debug_snapshot!(deserialized, @r###"
+        ModelCosts {
+            version: 2,
+            costs: [],
+            models: {
+                "gpt-4": ModelCostV2 {
+                    input_per_token: 0.03,
+                    output_per_token: 0.06,
+                    output_reasoning_per_token: 0.12,
+                    input_cached_per_token: 0.015,
+                },
+            },
         }
         "###);
 
         let serialized = serde_json::to_string(&deserialized).unwrap();
         assert_eq!(&serialized, original);
+    }
+
+    #[test]
+    fn test_model_cost_functionality_v1_only_input_tokens() {
+        // Test V1 functionality
+        let v1_config = ModelCosts {
+            version: 1,
+            costs: vec![ModelCost {
+                model_id: LazyGlob::new("gpt-4*"),
+                for_completion: false,
+                cost_per_1k_tokens: 0.03,
+            }],
+            models: HashMap::new(),
+        };
+        assert!(v1_config.is_enabled());
+        let costs = v1_config.cost_per_token("gpt-4-turbo").unwrap();
+        assert_eq!(costs.input_per_token * 1000.0, 0.03); // multiplying by 1000 to avoid floating point errors
+        assert_eq!(costs.output_per_token, 0.0); // output tokens are not defined
+    }
+
+    #[test]
+    fn test_model_cost_functionality_v1() {
+        let v1_config = ModelCosts {
+            version: 1,
+            costs: vec![
+                ModelCost {
+                    model_id: LazyGlob::new("gpt-4*"),
+                    for_completion: false,
+                    cost_per_1k_tokens: 0.03,
+                },
+                ModelCost {
+                    model_id: LazyGlob::new("gpt-4*"),
+                    for_completion: true,
+                    cost_per_1k_tokens: 0.06,
+                },
+            ],
+            models: HashMap::new(),
+        };
+        assert!(v1_config.is_enabled());
+        let costs = v1_config.cost_per_token("gpt-4").unwrap();
+        assert_eq!(costs.input_per_token * 1000.0, 0.03); // multiplying by 1000 to avoid floating point errors
+        assert_eq!(costs.output_per_token * 1000.0, 0.06); // multiplying by 1000 to avoid floating point errors
+    }
+
+    #[test]
+    fn test_model_cost_functionality_v2() {
+        // Test V2 functionality
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            "gpt-4".to_owned(),
+            ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            },
+        );
+        let v2_config = ModelCosts {
+            version: 2,
+            costs: vec![],
+            models: models_map,
+        };
+        assert!(v2_config.is_enabled());
+        let cost = v2_config.cost_per_token("gpt-4").unwrap();
+        assert_eq!(
+            cost,
+            ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            }
+        );
+    }
+
+    #[test]
+    fn test_model_cost_unknown_version() {
+        // Test that unknown versions are handled properly
+        let unknown_version_json = r#"{"version":3,"models":{"some-model":{"inputPerToken":0.01,"outputPerToken":0.02,"outputReasoningPerToken":0.03,"inputCachedPerToken":0.005}}}"#;
+        let deserialized: ModelCosts = serde_json::from_str(unknown_version_json).unwrap();
+        assert_eq!(deserialized.version, 3);
+        assert!(!deserialized.is_enabled());
+        assert_eq!(deserialized.cost_per_token("some-model"), None);
+
+        // Test version 0 (invalid)
+        let version_zero_json = r#"{"version":0,"models":{}}"#;
+        let deserialized: ModelCosts = serde_json::from_str(version_zero_json).unwrap();
+        assert_eq!(deserialized.version, 0);
+        assert!(!deserialized.is_enabled());
     }
 
     #[test]
@@ -381,10 +620,10 @@ mod tests {
         );
 
         let expected = Annotated::new(Geo {
-            country_code: Annotated::new("GB".to_string()),
-            city: Annotated::new("Boxford".to_string()),
-            subdivision: Annotated::new("England".to_string()),
-            region: Annotated::new("United Kingdom".to_string()),
+            country_code: Annotated::new("GB".to_owned()),
+            city: Annotated::new("Boxford".to_owned()),
+            subdivision: Annotated::new("England".to_owned()),
+            region: Annotated::new("United Kingdom".to_owned()),
             ..Geo::default()
         });
         assert_eq!(get_value!(event.user!).geo, expected);
@@ -397,8 +636,8 @@ mod tests {
                 env: Annotated::new({
                     let mut map = Object::new();
                     map.insert(
-                        "REMOTE_ADDR".to_string(),
-                        Annotated::new(Value::String("2.125.160.216".to_string())),
+                        "REMOTE_ADDR".to_owned(),
+                        Annotated::new(Value::String("2.125.160.216".to_owned())),
                     );
                     map
                 }),
@@ -411,7 +650,7 @@ mod tests {
         normalize_event(&mut event, &NormalizationConfig::default());
 
         let ip_addr = get_value!(event.user.ip_address!);
-        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
+        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_owned()));
     }
 
     #[test]
@@ -421,8 +660,8 @@ mod tests {
                 env: Annotated::new({
                     let mut map = Object::new();
                     map.insert(
-                        "REMOTE_ADDR".to_string(),
-                        Annotated::new(Value::String("whoops".to_string())),
+                        "REMOTE_ADDR".to_owned(),
+                        Annotated::new(Value::String("whoops".to_owned())),
                     );
                     map
                 }),
@@ -456,7 +695,7 @@ mod tests {
         );
 
         let ip_addr = get_value!(event.user.ip_address!);
-        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
+        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_owned()));
     }
 
     #[test]
@@ -485,7 +724,7 @@ mod tests {
         let user = get_value!(event.user!);
         let ip_addr = user.ip_address.value().expect("ip address missing");
 
-        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
+        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_owned()));
         assert!(user.geo.value().is_some());
     }
 
@@ -603,8 +842,8 @@ mod tests {
     fn test_environment_tag_is_moved() {
         let mut event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
-                Annotated::new("environment".to_string()),
-                Annotated::new("despacito".to_string()),
+                Annotated::new("environment".to_owned()),
+                Annotated::new("despacito".to_owned()),
             ))]))),
             ..Event::default()
         });
@@ -621,10 +860,10 @@ mod tests {
     fn test_empty_environment_is_removed_and_overwritten_with_tag() {
         let mut event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
-                Annotated::new("environment".to_string()),
-                Annotated::new("despacito".to_string()),
+                Annotated::new("environment".to_owned()),
+                Annotated::new("despacito".to_owned()),
             ))]))),
-            environment: Annotated::new("".to_string()),
+            environment: Annotated::new("".to_owned()),
             ..Event::default()
         });
 
@@ -639,7 +878,7 @@ mod tests {
     #[test]
     fn test_empty_environment_is_removed() {
         let mut event = Annotated::new(Event {
-            environment: Annotated::new("".to_string()),
+            environment: Annotated::new("".to_owned()),
             ..Event::default()
         });
 
@@ -676,14 +915,14 @@ mod tests {
     #[test]
     fn test_none_environment_errors() {
         let mut event = Annotated::new(Event {
-            environment: Annotated::new("none".to_string()),
+            environment: Annotated::new("none".to_owned()),
             ..Event::default()
         });
 
         normalize_event(&mut event, &NormalizationConfig::default());
 
         let environment = get_path!(event.environment!);
-        let expected_original = &Value::String("none".to_string());
+        let expected_original = &Value::String("none".to_owned());
 
         assert_eq!(
             environment.meta().iter_errors().collect::<Vec<&Error>>(),
@@ -699,14 +938,14 @@ mod tests {
     #[test]
     fn test_invalid_release_removed() {
         let mut event = Annotated::new(Event {
-            release: Annotated::new(LenientString("Latest".to_string())),
+            release: Annotated::new(LenientString("Latest".to_owned())),
             ..Event::default()
         });
 
         normalize_event(&mut event, &NormalizationConfig::default());
 
         let release = get_path!(event.release!);
-        let expected_original = &Value::String("Latest".to_string());
+        let expected_original = &Value::String("Latest".to_owned());
 
         assert_eq!(
             release.meta().iter_errors().collect::<Vec<&Error>>(),
@@ -719,16 +958,16 @@ mod tests {
     #[test]
     fn test_top_level_keys_moved_into_tags() {
         let mut event = Annotated::new(Event {
-            server_name: Annotated::new("foo".to_string()),
-            site: Annotated::new("foo".to_string()),
+            server_name: Annotated::new("foo".to_owned()),
+            site: Annotated::new("foo".to_owned()),
             tags: Annotated::new(Tags(PairList(vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("site".to_string()),
-                    Annotated::new("old".to_string()),
+                    Annotated::new("site".to_owned()),
+                    Annotated::new("old".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("server_name".to_string()),
-                    Annotated::new("old".to_string()),
+                    Annotated::new("server_name".to_owned()),
+                    Annotated::new("old".to_owned()),
                 )),
             ]))),
             ..Event::default()
@@ -743,12 +982,12 @@ mod tests {
             get_value!(event.tags!),
             &Tags(PairList(vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("site".to_string()),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("site".to_owned()),
+                    Annotated::new("foo".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("server_name".to_string()),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("server_name".to_owned()),
+                    Annotated::new("foo".to_owned()),
                 )),
             ]))
         );
@@ -759,28 +998,28 @@ mod tests {
         let mut event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("release".to_string()),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("release".to_owned()),
+                    Annotated::new("foo".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("dist".to_string()),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("dist".to_owned()),
+                    Annotated::new("foo".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("user".to_string()),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("user".to_owned()),
+                    Annotated::new("foo".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("filename".to_string()),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("filename".to_owned()),
+                    Annotated::new("foo".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("function".to_string()),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("function".to_owned()),
+                    Annotated::new("foo".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("something".to_string()),
-                    Annotated::new("else".to_string()),
+                    Annotated::new("something".to_owned()),
+                    Annotated::new("else".to_owned()),
                 )),
             ]))),
             ..Event::default()
@@ -796,16 +1035,16 @@ mod tests {
         let mut event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("".to_string()),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("".to_owned()),
+                    Annotated::new("foo".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("foo".to_string()),
-                    Annotated::new("".to_string()),
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("something".to_string()),
-                    Annotated::new("else".to_string()),
+                    Annotated::new("something".to_owned()),
+                    Annotated::new("else".to_owned()),
                 )),
             ]))),
             ..Event::default()
@@ -818,15 +1057,15 @@ mod tests {
             &Tags(PairList(vec![
                 Annotated::new(TagEntry(
                     Annotated::from_error(Error::nonempty(), None),
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("foo".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("foo".to_string()),
+                    Annotated::new("foo".to_owned()),
                     Annotated::from_error(Error::nonempty(), None),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("something".to_string()),
-                    Annotated::new("else".to_string()),
+                    Annotated::new("something".to_owned()),
+                    Annotated::new("else".to_owned()),
                 )),
             ]))
         );
@@ -837,24 +1076,24 @@ mod tests {
         let mut event = Annotated::new(Event {
             tags: Annotated::new(Tags(PairList(vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("foo".to_string()),
-                    Annotated::new("1".to_string()),
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("1".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("bar".to_string()),
-                    Annotated::new("1".to_string()),
+                    Annotated::new("bar".to_owned()),
+                    Annotated::new("1".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("foo".to_string()),
-                    Annotated::new("2".to_string()),
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("2".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("bar".to_string()),
-                    Annotated::new("2".to_string()),
+                    Annotated::new("bar".to_owned()),
+                    Annotated::new("2".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("foo".to_string()),
-                    Annotated::new("3".to_string()),
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("3".to_owned()),
                 )),
             ]))),
             ..Event::default()
@@ -867,12 +1106,12 @@ mod tests {
             get_value!(event.tags!),
             &Tags(PairList(vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("foo".to_string()),
-                    Annotated::new("1".to_string()),
+                    Annotated::new("foo".to_owned()),
+                    Annotated::new("1".to_owned()),
                 )),
                 Annotated::new(TagEntry(
-                    Annotated::new("bar".to_string()),
-                    Annotated::new("1".to_string()),
+                    Annotated::new("bar".to_owned()),
+                    Annotated::new("1".to_owned()),
                 )),
             ]))
         );
@@ -887,7 +1126,7 @@ mod tests {
             ..TraceContext::default()
         };
         object.insert(
-            "trace".to_string(),
+            "trace".to_owned(),
             Annotated::new(ContextInner(Context::Trace(Box::new(trace_context)))),
         );
 
@@ -933,11 +1172,8 @@ mod tests {
     #[test]
     fn test_context_line_default() {
         let mut frame = Annotated::new(Frame {
-            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
-            post_context: Annotated::new(vec![
-                Annotated::new("".to_string()),
-                Annotated::default(),
-            ]),
+            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_owned())]),
+            post_context: Annotated::new(vec![Annotated::new("".to_owned()), Annotated::default()]),
             ..Frame::default()
         });
 
@@ -950,12 +1186,9 @@ mod tests {
     #[test]
     fn test_context_line_retain() {
         let mut frame = Annotated::new(Frame {
-            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
-            post_context: Annotated::new(vec![
-                Annotated::new("".to_string()),
-                Annotated::default(),
-            ]),
-            context_line: Annotated::new("some line".to_string()),
+            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_owned())]),
+            post_context: Annotated::new(vec![Annotated::new("".to_owned()), Annotated::default()]),
+            context_line: Annotated::new("some line".to_owned()),
             ..Frame::default()
         });
 
@@ -968,11 +1201,8 @@ mod tests {
     #[test]
     fn test_frame_null_context_lines() {
         let mut frame = Annotated::new(Frame {
-            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
-            post_context: Annotated::new(vec![
-                Annotated::new("".to_string()),
-                Annotated::default(),
-            ]),
+            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_owned())]),
+            post_context: Annotated::new(vec![Annotated::new("".to_owned()), Annotated::default()]),
             ..Frame::default()
         });
 
@@ -980,17 +1210,11 @@ mod tests {
 
         assert_eq!(
             *get_value!(frame.pre_context!),
-            vec![
-                Annotated::new("".to_string()),
-                Annotated::new("".to_string())
-            ],
+            vec![Annotated::new("".to_owned()), Annotated::new("".to_owned())],
         );
         assert_eq!(
             *get_value!(frame.post_context!),
-            vec![
-                Annotated::new("".to_string()),
-                Annotated::new("".to_string())
-            ],
+            vec![Annotated::new("".to_owned()), Annotated::new("".to_owned())],
         );
     }
 
@@ -999,11 +1223,11 @@ mod tests {
         let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(PairList(
             vec![Annotated::new(TagEntry(
-                Annotated::new("foobar".to_string()),
-                Annotated::new("...........................................................................................................................................................................................................".to_string()),
+                Annotated::new("foobar".to_owned()),
+                Annotated::new("...........................................................................................................................................................................................................".to_owned()),
             )), Annotated::new(TagEntry(
-                Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".to_string()),
-                Annotated::new("bar".to_string()),
+                Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".to_owned()),
+                Annotated::new("bar".to_owned()),
             ))]),
         )),
         ..Event::default()
@@ -1015,12 +1239,12 @@ mod tests {
             get_value!(event.tags!),
             &Tags(PairList(vec![
                 Annotated::new(TagEntry(
-                    Annotated::new("foobar".to_string()),
+                    Annotated::new("foobar".to_owned()),
                     Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
                 )),
                 Annotated::new(TagEntry(
                     Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
-                    Annotated::new("bar".to_string()),
+                    Annotated::new("bar".to_owned()),
                 )),
             ]))
         );
@@ -1044,7 +1268,7 @@ mod tests {
         let dist = &event.value().unwrap().dist;
         let result = &Annotated::<String>::from_error(
             Error::new(ErrorKind::ValueTooLong),
-            Some(Value::String("52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059".to_string()))
+            Some(Value::String("52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059-52df9022835246eeb317dbd739ccd059".to_owned()))
         );
         assert_eq!(dist, result);
     }
@@ -1053,16 +1277,16 @@ mod tests {
     fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
         let mut event = Annotated::new(Event {
             exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
-                ty: Annotated::new("FooDivisionError".to_string()),
-                value: Annotated::new("hi".to_string().into()),
+                ty: Annotated::new("FooDivisionError".to_owned()),
+                value: Annotated::new("hi".to_owned().into()),
                 ..Exception::default()
             })])),
             stacktrace: Annotated::new(
                 RawStacktrace {
                     frames: Annotated::new(vec![Annotated::new(Frame {
-                        module: Annotated::new("MyModule".to_string()),
+                        module: Annotated::new("MyModule".to_owned()),
                         filename: Annotated::new("MyFilename".into()),
-                        function: Annotated::new("Void FooBar()".to_string()),
+                        function: Annotated::new("Void FooBar()".to_owned()),
                         ..Frame::default()
                     })]),
                     ..RawStacktrace::default()
@@ -1078,10 +1302,10 @@ mod tests {
             get_value!(event.exceptions.values[0].stacktrace!),
             &Stacktrace(RawStacktrace {
                 frames: Annotated::new(vec![Annotated::new(Frame {
-                    module: Annotated::new("MyModule".to_string()),
+                    module: Annotated::new("MyModule".to_owned()),
                     filename: Annotated::new("MyFilename".into()),
                     abs_path: Annotated::new("MyFilename".into()),
-                    function: Annotated::new("Void FooBar()".to_string()),
+                    function: Annotated::new("Void FooBar()".to_owned()),
                     ..Frame::default()
                 })]),
                 ..RawStacktrace::default()
@@ -1096,7 +1320,7 @@ mod tests {
         normalize_event(
             &mut event,
             &NormalizationConfig {
-                client: Some("_fooBar/0.0.0".to_string()),
+                client: Some("_fooBar/0.0.0".to_owned()),
                 ..Default::default()
             },
         );
@@ -1104,8 +1328,8 @@ mod tests {
         assert_eq!(
             get_path!(event.client_sdk!),
             &Annotated::new(ClientSdkInfo {
-                name: Annotated::new("_fooBar".to_string()),
-                version: Annotated::new("0.0.0".to_string()),
+                name: Annotated::new("_fooBar".to_owned()),
+                version: Annotated::new("0.0.0".to_owned()),
                 ..ClientSdkInfo::default()
             })
         );
@@ -1128,7 +1352,7 @@ mod tests {
     fn test_grouping_config() {
         let mut event = Annotated::new(Event {
             logentry: Annotated::from(LogEntry {
-                message: Annotated::new("Hello World!".to_string().into()),
+                message: Annotated::new("Hello World!".to_owned().into()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1139,7 +1363,7 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 grouping_config: Some(json!({
-                    "id": "legacy:1234-12-12".to_string(),
+                    "id": "legacy:1234-12-12".to_owned(),
                 })),
                 ..Default::default()
             },

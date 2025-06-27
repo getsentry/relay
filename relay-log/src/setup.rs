@@ -126,7 +126,7 @@ impl Level {
 
 impl Display for Level {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", format!("{:?}", self).to_lowercase())
+        write!(f, "{}", format!("{self:?}").to_lowercase())
     }
 }
 
@@ -330,11 +330,13 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
     tracing_subscriber::registry()
         .with(format.with_filter(config.level_filter()))
         .with(
-            // Same as the default filter, except it converts warnings into events instead of breadcrumbs.
+            // Same as the default filter, except it converts warnings into events
+            // and also sends everything at or above INFO as logs instead of breadcrumbs.
             sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
-                tracing::Level::ERROR => EventFilter::Exception,
-                tracing::Level::WARN => EventFilter::Event,
-                tracing::Level::INFO => EventFilter::Breadcrumb,
+                tracing::Level::ERROR | tracing::Level::WARN => {
+                    EventFilter::Event | EventFilter::Log
+                }
+                tracing::Level::INFO => EventFilter::Log,
                 tracing::Level::DEBUG | tracing::Level::TRACE => EventFilter::Ignore,
             }),
         )
@@ -363,6 +365,7 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
             environment: sentry.environment.clone(),
             server_name: sentry.server_name.clone(),
             traces_sampler,
+            enable_logs: true,
             ..Default::default()
         };
 

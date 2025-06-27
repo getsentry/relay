@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.6.0"
+version = "25.6.1"
 edition = "2024"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -45,7 +45,6 @@ bzip2 = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
 flate2 = { workspace = true }
-fnv = { workspace = true }
 futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
 hyper = { workspace = true }

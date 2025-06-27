@@ -494,9 +494,41 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.response.model")]
     pub gen_ai_response_model: Annotated<Value>,
 
+    /// The name of the GenAI model a request is being made to (e.g. gpt-4)
+    #[metastructure(field = "gen_ai.request.model")]
+    pub gen_ai_request_model: Annotated<Value>,
+
     /// The total cost for the tokens used
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
+
+    /// Prompt passed to LLM (Vercel AI SDK)
+    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
+    pub gen_ai_prompt: Annotated<Value>,
+
+    /// Prompt passed to LLM
+    #[metastructure(field = "gen_ai.request.messages", pii = "maybe")]
+    pub gen_ai_request_messages: Annotated<Value>,
+
+    /// Tool call arguments
+    #[metastructure(field = "gen_ai.tool.input", pii = "maybe")]
+    pub gen_ai_tool_input: Annotated<Value>,
+
+    /// Tool call result
+    #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
+    pub gen_ai_tool_output: Annotated<Value>,
+
+    /// LLM decisions to use calls
+    #[metastructure(field = "gen_ai.response.tool_calls", pii = "maybe")]
+    pub gen_ai_response_tool_calls: Annotated<Value>,
+
+    /// LLM response text (Vercel AI, generateText)
+    #[metastructure(field = "gen_ai.response.text", pii = "maybe")]
+    pub gen_ai_response_text: Annotated<Value>,
+
+    /// LLM response object (Vercel AI, generateObject)
+    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
+    pub gen_ai_response_object: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -1104,7 +1136,7 @@ mod tests {
         measurements.insert(
             "memory".into(),
             Annotated::new(Measurement {
-                value: Annotated::new(9001.0),
+                value: Annotated::new(9001.0.try_into().unwrap()),
                 unit: Annotated::new(MetricUnit::Information(InformationUnit::Byte)),
             }),
         );
@@ -1286,7 +1318,15 @@ mod tests {
             gen_ai_usage_output_tokens: ~,
             gen_ai_usage_output_tokens_reasoning: ~,
             gen_ai_response_model: ~,
+            gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
+            gen_ai_prompt: ~,
+            gen_ai_request_messages: ~,
+            gen_ai_tool_input: ~,
+            gen_ai_tool_output: ~,
+            gen_ai_response_tool_calls: ~,
+            gen_ai_response_text: ~,
+            gen_ai_response_object: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",

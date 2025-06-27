@@ -6,9 +6,7 @@ use std::str::FromStr;
 use serde::Serialize;
 
 use crate::processor::ProcessValue;
-use crate::protocol::{Attribute, SpanId, Timestamp, TraceId};
-
-use super::OperationType;
+use crate::protocol::{Attributes, OperationType, SpanId, Timestamp, TraceId};
 
 /// A version 2 (transactionless) span.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue)]
@@ -64,18 +62,11 @@ pub struct SpanV2 {
 
     /// Arbitrary attributes on a span.
     #[metastructure(pii = "true", trim = false)]
-    pub attributes: Annotated<Object<Attribute>>,
+    pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
-}
-
-impl SpanV2 {
-    /// Returns the value of the attribute with the given name.
-    pub fn attribute(&self, key: &str) -> Option<&Annotated<Value>> {
-        Some(&self.attributes.value()?.get(key)?.value()?.value.value)
-    }
 }
 
 /// Status of a V2 span.
@@ -294,7 +285,7 @@ pub struct SpanV2Link {
 
     /// Span link attributes, similar to span attributes/data.
     #[metastructure(pii = "maybe", trim = false)]
-    pub attributes: Annotated<Object<Attribute>>,
+    pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "maybe", trim = false)]
@@ -307,20 +298,6 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
-
-    macro_rules! attrs {
-        ($($name:expr => $val:expr , $ty:ident),* $(,)?) => {
-            std::collections::BTreeMap::from([$((
-                $name.to_owned(),
-                relay_protocol::Annotated::new(
-                    $crate::protocol::Attribute::new(
-                        $crate::protocol::AttributeType::$ty,
-                        $val.into()
-                    )
-                )
-            ),)*])
-        };
-    }
 
     #[test]
     fn test_span_serialization() {
@@ -394,27 +371,31 @@ mod tests {
   }
 }"#;
 
-        let attributes = attrs!(
-            "custom.error_rate" => 0.5, Double,
-            "custom.is_green" => true, Boolean,
-            "sentry.release" => "1.0.0" , String,
-            "sentry.environment" => "local", String,
-            "sentry.platform" => "php", String,
-            "sentry.sdk.name" => "sentry.php", String,
-            "sentry.sdk.version" => "4.10.0", String,
-            "sentry.transaction_info.source" => "url", String,
-            "sentry.origin" => "manual", String,
-            "server.address" => "DHWKN7KX6N.local", String,
-            "http.response.status_code" => 200i64, Integer,
+        let mut attributes = Attributes::new();
+
+        attributes.insert("custom.error_rate".to_owned(), 0.5);
+        attributes.insert("custom.is_green".to_owned(), true);
+        attributes.insert("sentry.release".to_owned(), "1.0.0".to_owned());
+        attributes.insert("sentry.environment".to_owned(), "local".to_owned());
+        attributes.insert("sentry.platform".to_owned(), "php".to_owned());
+        attributes.insert("sentry.sdk.name".to_owned(), "sentry.php".to_owned());
+        attributes.insert("sentry.sdk.version".to_owned(), "4.10.0".to_owned());
+        attributes.insert(
+            "sentry.transaction_info.source".to_owned(),
+            "url".to_owned(),
         );
+        attributes.insert("sentry.origin".to_owned(), "manual".to_owned());
+        attributes.insert("server.address".to_owned(), "DHWKN7KX6N.local".to_owned());
+        attributes.insert("http.response.status_code".to_owned(), 200i64);
+
+        let mut link_attributes = Attributes::new();
+        link_attributes.insert("sentry.link.type".to_owned(), "previous_trace".to_owned());
 
         let links = vec![Annotated::new(SpanV2Link {
             trace_id: Annotated::new("627a2885119dcc8184fae7eef09438cb".parse().unwrap()),
             span_id: Annotated::new("6c71fc6b09b8b716".parse().unwrap()),
             sampled: Annotated::new(true),
-            attributes: Annotated::new(attrs!(
-                "sentry.link.type" => "previous_trace", String
-            )),
+            attributes: Annotated::new(link_attributes),
             ..Default::default()
         })];
         let span = Annotated::new(SpanV2 {

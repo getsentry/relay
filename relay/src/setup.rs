@@ -3,6 +3,7 @@ use anyhow::Context;
 use anyhow::Result;
 use relay_config::{Config, RelayMode};
 use relay_server::MemoryStat;
+use relay_statsd::MetricsClientConfig;
 
 /// Validates that the `batch_size_bytes` of the configuration is correct and doesn't lead to
 /// deadlocks in the buffer.
@@ -43,16 +44,16 @@ pub fn check_config(config: &Config) -> Result<()> {
 
     #[cfg(feature = "processing")]
     if config.processing_enabled() {
-        for (name, topic) in config.unused_topic_assignments() {
+        for name in config.unused_topic_assignments().names() {
             relay_log::with_scope(
-                |scope| scope.set_extra("topic", format!("{topic:?}").into()),
+                |scope| scope.set_extra("topic", name.as_str().into()),
                 || relay_log::error!("unused topic assignment '{name}'"),
             );
         }
 
         for topic in relay_kafka::KafkaTopic::iter() {
             let _ = config
-                .kafka_config(*topic)
+                .kafka_configs(*topic)
                 .with_context(|| format!("invalid kafka configuration for topic '{topic:?}'"))?;
         }
     }
@@ -110,13 +111,14 @@ pub fn init_metrics(config: &Config) -> Result<()> {
             default_tags.insert(hostname_tag.to_owned(), hostname);
         }
     }
-    relay_statsd::init(
-        config.metrics_prefix(),
-        &addrs[..],
+    relay_statsd::init(MetricsClientConfig {
+        prefix: config.metrics_prefix(),
+        host: &addrs[..],
         default_tags,
-        config.metrics_sample_rate(),
-        config.metrics_aggregate(),
-    );
+        sample_rate: config.metrics_sample_rate(),
+        aggregate: config.metrics_aggregate(),
+        allow_high_cardinality_tags: config.metrics_allow_high_cardinality_tags(),
+    });
 
     Ok(())
 }
