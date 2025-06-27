@@ -154,7 +154,7 @@ fn normalize_type_path(mut path: String, crate_root: &str, module_path: &str) ->
     path = path
         .replace(' ', "")
         .replace('-', "_")
-        .replace("crate::", &format!("{}::", crate_root));
+        .replace("crate::", &format!("{crate_root}::"));
 
     if path.contains("super::") {
         let parent_module = {
