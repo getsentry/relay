@@ -5,6 +5,8 @@ use relay_event_schema::protocol::{
     Attributes, NetworkReportRaw, OurLog, OurLogLevel, Timestamp, TraceId,
 };
 use relay_protocol::Annotated;
+use std::collections::HashMap;
+use std::sync::LazyLock;
 use url::Url;
 
 /// Mapping of NEL error types to their human-readable descriptions
@@ -145,6 +147,10 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Lazy-initialized HashMap for fast NEL error type lookups
+static NEL_CULPRITS_MAP: LazyLock<HashMap<&'static str, &'static str>> =
+    LazyLock::new(|| NEL_CULPRITS.iter().copied().collect());
+
 /// Extracts the domain or IP address from a server address string
 /// e.g. "123.123.123.123" -> "123.123.123.123"
 /// e.g. "https://example.com/foo?bar=1" -> "example.com"
@@ -168,10 +174,7 @@ fn extract_server_address(server_address: &str) -> String {
 
 /// Gets the human-readable description for a NEL error type
 fn get_nel_culprit(error_type: &str) -> Option<&'static str> {
-    NEL_CULPRITS
-        .iter()
-        .find(|(key, _)| *key == error_type)
-        .map(|(_, value)| *value)
+    NEL_CULPRITS_MAP.get(error_type).copied()
 }
 
 /// Gets the formatted human-readable description for a NEL error type with optional status code
