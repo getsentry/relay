@@ -162,7 +162,7 @@ impl IntoValue for AttributeType {
 
 /// Wrapper struct around a collection of attributes with some convenience methods.
 #[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct Attributes(Object<Attribute>);
+pub struct Attributes(pub Object<Attribute>);
 
 impl Attributes {
     /// Creates an empty collection of attributes.

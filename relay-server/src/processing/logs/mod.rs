@@ -18,6 +18,7 @@ use crate::utils::ManagedEnvelope;
 
 mod filter;
 mod process;
+mod store;
 mod validate;
 
 /// Temporary byte count of a single log.
@@ -126,7 +127,7 @@ impl processing::Processor for LogsProcessor {
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
 
         if ctx.is_processing() {
-            let mut logs = process::expand(logs);
+            let mut logs = process::expand(logs, ctx);
             process::process(&mut logs, ctx);
 
             Ok(Output::just(LogOutput::Processed(logs)))
@@ -141,6 +142,7 @@ impl processing::Processor for LogsProcessor {
     clippy::large_enum_variant,
     reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
 )]
+#[derive(Debug)]
 pub enum LogOutput {
     NotProcessed(Managed<SerializedLogs>),
     Processed(Managed<ExpandedLogs>),
@@ -159,9 +161,43 @@ impl Forward for LogOutput {
 
         Ok(logs.map(|logs, _| logs.serialize_envelope()))
     }
+
+    #[cfg(feature = "processing")]
+    fn forward_store(
+        self,
+        s: &relay_system::Addr<crate::services::store::Store>,
+    ) -> Result<(), Rejected<()>> {
+        let logs = match self {
+            LogOutput::NotProcessed(logs) => {
+                return Err(logs.internal_error(
+                    "logs must be processed before they can be forwarded to the store",
+                ));
+            }
+            LogOutput::Processed(logs) => logs,
+        };
+
+        let scoping = logs.scoping();
+        let received_at = logs.received_at();
+
+        let (logs, retention) = logs.split_with_context(|logs| (logs.logs, logs.retention));
+        let ctx = store::Context {
+            scoping,
+            received_at,
+            retention,
+        };
+
+        for log in logs {
+            if let Ok(log) = log.try_map(|log, _| store::convert(log, &ctx)) {
+                s.send(log)
+            };
+        }
+
+        Ok(())
+    }
 }
 
 /// Logs in their serialized state, as transported in an envelope.
+#[derive(Debug)]
 pub struct SerializedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
@@ -241,9 +277,12 @@ impl RateLimited for Managed<SerializedLogs> {
 }
 
 /// Logs which have been parsed and expanded from their serialized state.
+#[derive(Debug)]
 pub struct ExpandedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
+    /// Retention in days.
+    retention: Option<u16>,
     /// Expanded and parsed logs.
     logs: ContainerItems<OurLog>,
 }
