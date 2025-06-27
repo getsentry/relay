@@ -135,11 +135,7 @@ impl From<Uuid> for RelayUuid {
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_uuid_is_nil(uuid: *const RelayUuid) -> bool {
-    if let Ok(uuid) = Uuid::from_slice(unsafe { &(*uuid).data[..] }) {
-        uuid == Uuid::nil()
-    } else {
-        false
-    }
+    Uuid::from_bytes(unsafe { (*uuid).data }) == Uuid::nil()
 }
 
 /// Formats the UUID into a string.
@@ -149,7 +145,7 @@ pub unsafe extern "C" fn relay_uuid_is_nil(uuid: *const RelayUuid) -> bool {
 #[unsafe(no_mangle)]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_uuid_to_str(uuid: *const RelayUuid) -> RelayStr {
-    let uuid = Uuid::from_slice(unsafe { &(*uuid).data[..] }).unwrap_or_else(|_| Uuid::nil());
+    let uuid = Uuid::from_bytes(unsafe { (*uuid).data });
     RelayStr::from_string(uuid.as_hyphenated().to_string())
 }
 
