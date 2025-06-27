@@ -247,7 +247,7 @@ impl fmt::Display for Outcome {
             Outcome::RateLimited(None) => write!(f, "rate limited"),
             Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({})", id),
+            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({id})"),
             Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
