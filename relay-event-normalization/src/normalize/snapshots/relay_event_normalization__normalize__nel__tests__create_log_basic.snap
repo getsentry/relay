@@ -8,15 +8,19 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
   "level": "info",
   "body": "The user agent successfully received a response, but it had a 500 status code",
   "attributes": {
-    "browser.report.nel.phase": {
+    "browser.nel.phase": {
       "type": "string",
       "value": "application"
     },
-    "browser.report.nel.sampling_fraction": {
+    "browser.nel.referrer": {
+      "type": "string",
+      "value": "https://example.com/referer"
+    },
+    "browser.nel.sampling_fraction": {
       "type": "double",
       "value": 1.0
     },
-    "browser.report.nel.type": {
+    "browser.nel.type": {
       "type": "string",
       "value": "http.error"
     },

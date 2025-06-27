@@ -8,15 +8,15 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
   "level": "info",
   "body": "DNS server is unreachable",
   "attributes": {
-    "browser.report.nel.phase": {
+    "browser.nel.phase": {
       "type": "string",
       "value": "dns"
     },
-    "browser.report.nel.sampling_fraction": {
+    "browser.nel.sampling_fraction": {
       "type": "double",
       "value": 0.5
     },
-    "browser.report.nel.type": {
+    "browser.nel.type": {
       "type": "string",
       "value": "dns.unreachable"
     },

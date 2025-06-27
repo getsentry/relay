@@ -21,9 +21,9 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                 "attributes": {
                     "sentry.origin": {
                         "type": "string",
-                        "value": "auto.http.browser_reports.nel",
+                        "value": "auto.http.browser_report.nel",
                     },
-                    "report_type": {"type": "string", "value": "network-error"},
+                    "browser.report.type": {"type": "string", "value": "network-error"},
                     "url.domain": {"type": "string", "value": "example.com"},
                     "url.full": {
                         "type": "string",
@@ -31,16 +31,26 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                     },
                     "http.request.duration": {"type": "integer", "value": 37},
                     "http.request.method": {"type": "string", "value": "GET"},
-                    "http.request.header.referer": {
+                    "http.response.status_code": {"type": "integer", "value": 500},
+                    "network.protocol.name": {"type": "string", "value": "http"},
+                    "network.protocol.version": {"type": "string", "value": "1.1"},
+                    "server.address": {"type": "string", "value": "123.123.123.123"},
+                    "browser.nel.referrer": {
                         "type": "string",
                         "value": "https://example.com/nel/",
                     },
-                    "http.response.status_code": {"type": "integer", "value": 500},
-                    "network.protocol": {"type": "string", "value": "http/1.1"},
-                    "server.address": {"type": "string", "value": "123.123.123.123"},
-                    "nel.phase": {"type": "string", "value": "application"},
-                    "nel.sampling_fraction": {"type": "double", "value": 1.0},
-                    "nel.type": {"type": "string", "value": "http.error"},
+                    "browser.nel.phase": {
+                        "type": "string",
+                        "value": "application",
+                    },
+                    "browser.nel.sampling_fraction": {
+                        "type": "double",
+                        "value": 1.0,
+                    },
+                    "browser.nel.type": {
+                        "type": "string",
+                        "value": "http.error",
+                    },
                 },
                 "body": "The user agent successfully received a response, but it had a 500 status code",
                 "level": "info",

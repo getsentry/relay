@@ -239,7 +239,7 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     add_attribute!("http.request.method", body.method);
     // TODO: Add to sentry-conventions
     // TODO: Discuss if to split its different URL parts into different attributes
-    add_attribute!("http.request.header.referer", body.referrer);
+    add_attribute!("http.request.header.referer", body.referrer.clone());
     add_attribute!("http.response.status_code", body.status_code);
     // Split protocol into name and version components
     if let Some(protocol) = body.protocol.value() {
@@ -256,15 +256,12 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     // Server domain name if available without reverse DNS lookup; otherwise,
     // IP address or Unix domain socket name.
     add_attribute!("server.address", server_address);
-    add_attribute!(
-        "browser.report.nel.phase",
-        body.phase.map_value(|s| s.to_string())
-    );
-    add_attribute!(
-        "browser.report.nel.sampling_fraction",
-        body.sampling_fraction
-    );
-    add_attribute!("browser.report.nel.type", body.ty);
+
+    // NEL-specific attributes
+    add_attribute!("browser.nel.referrer", body.referrer);
+    add_attribute!("browser.nel.phase", body.phase.map_value(|s| s.to_string()));
+    add_attribute!("browser.nel.sampling_fraction", body.sampling_fraction);
+    add_attribute!("browser.nel.type", body.ty);
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
