@@ -265,29 +265,35 @@ def secondary_redis_client():
     return redis.Redis(host="127.0.0.1", port=6380, db=0)
 
 
-import pytest
-
-
 def redact_snapshot(data, exclude_keys=None):
+    """
+    Redacts certain fields from data to make them comparable with snapshots.
+    Fields that contain timestamps or UUIDs are problematic for snapshots because
+    they will be different each time.
+    It's possible to always set them to a fixed value before comparing to the snapshot,
+    but that is annoying and cumbersome.
+    This function makes sure that those fields remain comparable between runs by replacing
+    their content with the key name wrapped in `<` and `>`.
+    """
     if exclude_keys is None:
         exclude_keys = {"timestamp", "received", "ingest_path", "event_id"}
     else:
         exclude_keys = set(exclude_keys)
 
-    def _redact_entire_subtree(obj):
+    def _redact_entire_subtree(obj, parent_key=None):
         if isinstance(obj, dict):
-            return {k: f"<{k}>" for k in obj}
+            return {k: _redact_entire_subtree(v, parent_key=k) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [_redact_entire_subtree(item) for item in obj]
+            return [_redact_entire_subtree(item, parent_key=parent_key) for item in obj]
         else:
-            return "<redacted>"
+            return f"<{parent_key}>"
 
     def _redact(obj):
         if isinstance(obj, dict):
             redacted = {}
             for k, v in obj.items():
                 if k in exclude_keys:
-                    redacted[k] = _redact_entire_subtree(v)
+                    redacted[k] = _redact_entire_subtree(v, parent_key=k)
                 else:
                     redacted[k] = _redact(v)
             return redacted
@@ -300,7 +306,7 @@ def redact_snapshot(data, exclude_keys=None):
 
 
 @pytest.fixture
-def my_snapshot(snapshot):
+def relay_snapshot(snapshot):
     class SnapshotWrapper:
         def __call__(self, name, exclude_keys=None):
             self.name = name

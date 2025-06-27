@@ -13,6 +13,7 @@ flask==3.0.3
 msgpack==1.1.0
 opentelemetry-proto==1.32.1
 pytest-localserver==0.8.1
+pytest-insta==0.3.0
 pytest-sentry==0.3.0
 pytest-xdist==3.5.0
 pytest==7.4.3
@@ -24,7 +25,6 @@ setuptools==70.0.0
 werkzeug==3.0.6
 zstandard==0.18.0
 sentry_protos==0.2.0
-pytest-insta==0.3.0
 
 # typing things
 mypy==1.10.0
