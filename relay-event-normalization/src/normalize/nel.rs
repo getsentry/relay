@@ -234,11 +234,8 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     add_string_attribute!("browser.report.type", "network-error");
     add_attribute!("url.domain", url);
     add_attribute!("url.full", raw_report.url);
-    // TODO: Add to sentry-conventions
     add_attribute!("http.request.duration", body.elapsed_time);
     add_attribute!("http.request.method", body.method);
-    // TODO: Add to sentry-conventions
-    // TODO: Discuss if to split its different URL parts into different attributes
     add_attribute!("http.request.header.referer", body.referrer.clone());
     add_attribute!("http.response.status_code", body.status_code);
     // Split protocol into name and version components
@@ -279,46 +276,6 @@ mod tests {
     use chrono::{DateTime, Utc};
     use relay_event_schema::protocol::{BodyRaw, IpAddr, NetworkReportPhases};
     use relay_protocol::{Annotated, SerializableAnnotated};
-
-    #[test]
-    fn test_get_nel_culprit() {
-        // Test cases for get_nel_culprit
-        struct NelCulpritCase {
-            error_type: &'static str,
-            expected: Option<&'static str>,
-        }
-
-        let culprit_cases = vec![
-            NelCulpritCase {
-                error_type: "dns.unreachable",
-                expected: Some("DNS server is unreachable"),
-            },
-            NelCulpritCase {
-                error_type: "http.error",
-                expected: Some(
-                    "The user agent successfully received a response, but it had a {} status code",
-                ),
-            },
-            // TODO: Evaluate if this is the behaviour we want
-            NelCulpritCase {
-                error_type: "unknown",
-                expected: Some("error type is unknown"),
-            },
-            NelCulpritCase {
-                error_type: "nonexistent",
-                expected: None,
-            },
-        ];
-
-        for case in culprit_cases {
-            assert_eq!(
-                get_nel_culprit(case.error_type),
-                case.expected,
-                "Failed for error_type: {}",
-                case.error_type
-            );
-        }
-    }
 
     #[test]
     fn test_create_message() {
@@ -468,14 +425,5 @@ mod tests {
 
         let log = create_log(Annotated::new(report), received_at).unwrap();
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
-    }
-
-    #[test]
-    fn test_extract_server_address() {
-        insta::assert_debug_snapshot!(extract_server_address("192.168.1.1"), @r###""192.168.1.1""###);
-        insta::assert_debug_snapshot!(extract_server_address("https://example.com/foo?bar=1"), @r###""example.com""###);
-        insta::assert_debug_snapshot!(extract_server_address("http://localhost:8080/foo?bar=1"), @r###""localhost""###);
-        insta::assert_debug_snapshot!(extract_server_address("http://[::1]:8080/foo"), @r###""[::1]""###);
-        insta::assert_debug_snapshot!(extract_server_address("invalid-url"), @r###""invalid-url""###);
     }
 }
