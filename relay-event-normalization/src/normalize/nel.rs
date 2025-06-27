@@ -271,129 +271,223 @@ mod tests {
     use relay_protocol::{Annotated, Val};
 
     #[test]
-    fn test_get_nel_culprit() {
-        assert_eq!(
-            get_nel_culprit("dns.unreachable"),
-            Some("DNS server is unreachable")
-        );
-        assert_eq!(
-            get_nel_culprit("tcp.timed_out"),
-            Some("TCP connection to the server timed out")
-        );
-        assert_eq!(
-            get_nel_culprit("http.error"),
-            Some("The user agent successfully received a response, but it had a {} status code")
-        );
-        assert_eq!(get_nel_culprit("unknown"), Some("error type is unknown"));
-        assert_eq!(get_nel_culprit("nonexistent"), None);
-    }
+    fn test_nel_functions() {
+        // Test cases for get_nel_culprit
+        struct NelCulpritCase {
+            error_type: &'static str,
+            expected: Option<&'static str>,
+        }
 
-    #[test]
-    fn test_get_nel_culprit_formatted() {
-        // Test http.error with status code
-        assert_eq!(
-            get_nel_culprit_formatted("http.error", Some(500)),
-            Some(
-                "The user agent successfully received a response, but it had a 500 status code"
-                    .to_owned()
-            )
-        );
+        let culprit_cases = vec![
+            NelCulpritCase {
+                error_type: "dns.unreachable",
+                expected: Some("DNS server is unreachable"),
+            },
+            NelCulpritCase {
+                error_type: "tcp.timed_out",
+                expected: Some("TCP connection to the server timed out"),
+            },
+            NelCulpritCase {
+                error_type: "http.error",
+                expected: Some(
+                    "The user agent successfully received a response, but it had a {} status code",
+                ),
+            },
+            NelCulpritCase {
+                error_type: "unknown",
+                expected: Some("error type is unknown"),
+            },
+            NelCulpritCase {
+                error_type: "nonexistent",
+                expected: None,
+            },
+        ];
 
-        // Test http.error without status code
-        assert_eq!(
-            get_nel_culprit_formatted("http.error", None),
-            Some(
-                "The user agent successfully received a response, but it had a 0 status code"
-                    .to_owned()
-            )
-        );
+        for case in culprit_cases {
+            assert_eq!(
+                get_nel_culprit(case.error_type),
+                case.expected,
+                "Failed for error_type: {}",
+                case.error_type
+            );
+        }
 
-        // Test non-http.error types
-        assert_eq!(
-            get_nel_culprit_formatted("dns.unreachable", None),
-            Some("DNS server is unreachable".to_owned())
-        );
+        // Test cases for get_nel_culprit_formatted
+        struct NelCulpritFormattedCase {
+            error_type: &'static str,
+            status_code: Option<u16>,
+            expected: Option<String>,
+        }
 
-        // Test unknown error type
-        assert_eq!(get_nel_culprit_formatted("nonexistent", None), None);
-    }
+        let formatted_cases = vec![
+            NelCulpritFormattedCase {
+                error_type: "http.error",
+                status_code: Some(500),
+                expected: Some(
+                    "The user agent successfully received a response, but it had a 500 status code"
+                        .to_owned(),
+                ),
+            },
+            NelCulpritFormattedCase {
+                error_type: "http.error",
+                status_code: None,
+                expected: Some(
+                    "The user agent successfully received a response, but it had a 0 status code"
+                        .to_owned(),
+                ),
+            },
+            NelCulpritFormattedCase {
+                error_type: "dns.unreachable",
+                status_code: None,
+                expected: Some("DNS server is unreachable".to_owned()),
+            },
+            NelCulpritFormattedCase {
+                error_type: "nonexistent",
+                status_code: None,
+                expected: None,
+            },
+        ];
 
-    #[test]
-    fn test_extract_server_address_ip() {
-        assert_eq!(extract_server_address("123.123.123.123"), "123.123.123.123");
-        assert_eq!(extract_server_address("192.168.1.1"), "192.168.1.1");
-    }
+        for case in formatted_cases {
+            assert_eq!(
+                get_nel_culprit_formatted(case.error_type, case.status_code),
+                case.expected,
+                "Failed for error_type: {}, status_code: {:?}",
+                case.error_type,
+                case.status_code
+            );
+        }
 
-    #[test]
-    fn test_extract_server_address_simple_urls() {
-        assert_eq!(
-            extract_server_address("https://example.com/foo?bar=1"),
-            "example.com"
-        );
-        assert_eq!(
-            extract_server_address("http://localhost:8080/foo?bar=1"),
-            "localhost"
-        );
-        assert_eq!(
-            extract_server_address("https://sub.example.com/path"),
-            "sub.example.com"
-        );
-    }
+        // Test cases for extract_server_address
+        struct ExtractServerAddressCase {
+            input: &'static str,
+            expected: &'static str,
+            description: &'static str,
+        }
 
-    #[test]
-    fn test_extract_server_address_ipv6() {
-        assert_eq!(extract_server_address("http://[::1]:8080/foo"), "[::1]");
-        assert_eq!(
-            extract_server_address("https://[2001:db8::1]:443/path"),
-            "[2001:db8::1]"
-        );
-        // Malformed IPv6 (missing closing bracket) - URL parsing fails, return original
-        assert_eq!(
-            extract_server_address("http://[::1:8080/foo"),
-            "http://[::1:8080/foo"
-        );
-    }
+        let server_address_cases = vec![
+            // IP addresses
+            ExtractServerAddressCase {
+                input: "123.123.123.123",
+                expected: "123.123.123.123",
+                description: "IPv4 address",
+            },
+            ExtractServerAddressCase {
+                input: "192.168.1.1",
+                expected: "192.168.1.1",
+                description: "Private IPv4 address",
+            },
+            // Simple URLs
+            ExtractServerAddressCase {
+                input: "https://example.com/foo?bar=1",
+                expected: "example.com",
+                description: "HTTPS URL with path and query",
+            },
+            ExtractServerAddressCase {
+                input: "http://localhost:8080/foo?bar=1",
+                expected: "localhost",
+                description: "HTTP URL with port",
+            },
+            ExtractServerAddressCase {
+                input: "https://sub.example.com/path",
+                expected: "sub.example.com",
+                description: "Subdomain URL",
+            },
+            // IPv6
+            ExtractServerAddressCase {
+                input: "http://[::1]:8080/foo",
+                expected: "[::1]",
+                description: "IPv6 localhost with port",
+            },
+            ExtractServerAddressCase {
+                input: "https://[2001:db8::1]:443/path",
+                expected: "[2001:db8::1]",
+                description: "IPv6 with port",
+            },
+            ExtractServerAddressCase {
+                input: "http://[::1:8080/foo",
+                expected: "http://[::1:8080/foo",
+                description: "Malformed IPv6 - return original",
+            },
+            // Ports
+            ExtractServerAddressCase {
+                input: "https://example.com:443/path",
+                expected: "example.com",
+                description: "HTTPS with explicit port",
+            },
+            ExtractServerAddressCase {
+                input: "http://localhost:3000",
+                expected: "localhost",
+                description: "HTTP localhost with port",
+            },
+            // Edge cases
+            ExtractServerAddressCase {
+                input: "https://",
+                expected: "https://",
+                description: "Empty URL after protocol",
+            },
+            ExtractServerAddressCase {
+                input: "example.com",
+                expected: "example.com",
+                description: "Domain without protocol",
+            },
+            ExtractServerAddressCase {
+                input: "https://example.com/path?query=value#fragment",
+                expected: "example.com",
+                description: "URL with fragment and query",
+            },
+        ];
 
-    #[test]
-    fn test_extract_server_address_ports() {
-        assert_eq!(
-            extract_server_address("https://example.com:443/path"),
-            "example.com"
-        );
-        assert_eq!(extract_server_address("http://localhost:3000"), "localhost");
-    }
+        for case in server_address_cases {
+            assert_eq!(
+                extract_server_address(case.input),
+                case.expected,
+                "Failed for {}: input '{}'",
+                case.description,
+                case.input
+            );
+        }
 
-    #[test]
-    fn test_extract_server_address_edge_cases() {
-        // Empty URL part after protocol
-        assert_eq!(extract_server_address("https://"), "https://");
-        // No protocol
-        assert_eq!(extract_server_address("example.com"), "example.com");
-        // URL with fragments and queries
-        assert_eq!(
-            extract_server_address("https://example.com/path?query=value#fragment"),
-            "example.com"
-        );
-    }
+        // Test cases for create_message
+        struct CreateMessageCase {
+            error_type: &'static str,
+            status_code: Option<u16>,
+            expected: &'static str,
+        }
 
-    #[test]
-    fn test_create_message() {
-        assert_eq!(
-            create_message("dns.unreachable", None),
-            "DNS server is unreachable"
-        );
-        assert_eq!(
-            create_message("http.error", Some(404)),
-            "The user agent successfully received a response, but it had a 404 status code"
-        );
-        assert_eq!(create_message("unknown_error", None), "unknown_error");
-    }
+        let message_cases = vec![
+            CreateMessageCase {
+                error_type: "dns.unreachable",
+                status_code: None,
+                expected: "DNS server is unreachable",
+            },
+            CreateMessageCase {
+                error_type: "http.error",
+                status_code: Some(404),
+                expected: "The user agent successfully received a response, but it had a 404 status code",
+            },
+            CreateMessageCase {
+                error_type: "unknown_error",
+                status_code: None,
+                expected: "unknown_error",
+            },
+        ];
 
-    #[test]
-    fn test_create_log_basic() {
+        for case in message_cases {
+            assert_eq!(
+                create_message(case.error_type, case.status_code),
+                case.expected,
+                "Failed for error_type: {}, status_code: {:?}",
+                case.error_type,
+                case.status_code
+            );
+        }
+
+        // Test cases for create_log
         let received_at = Utc::now();
 
-        let body = BodyRaw {
+        // Test create_log_basic
+        let body_basic = BodyRaw {
             ty: Annotated::new("http.error".to_owned()),
             status_code: Annotated::new(500),
             elapsed_time: Annotated::new(1000),
@@ -406,21 +500,21 @@ mod tests {
             ..Default::default()
         };
 
-        let nel = NetworkReportRaw {
+        let nel_basic = NetworkReportRaw {
             age: Annotated::new(5000),
             ty: Annotated::new("network-error".to_owned()),
             url: Annotated::new("https://example.com/api".to_owned()),
             user_agent: Annotated::new("Mozilla/5.0".to_owned()),
-            body: Annotated::new(body),
+            body: Annotated::new(body_basic),
             ..Default::default()
         };
 
-        let log = create_log(Annotated::new(nel), received_at).unwrap();
+        let log_basic = create_log(Annotated::new(nel_basic), received_at).unwrap();
 
         // Check basic fields
-        assert_eq!(log.level.into_value(), Some(OurLogLevel::Info));
+        assert_eq!(log_basic.level.into_value(), Some(OurLogLevel::Info));
         assert_eq!(
-            log.body.into_value(),
+            log_basic.body.into_value(),
             Some(
                 "The user agent successfully received a response, but it had a 500 status code"
                     .to_owned()
@@ -432,108 +526,152 @@ mod tests {
             .checked_sub_signed(Duration::milliseconds(5000))
             .unwrap();
         assert_eq!(
-            log.timestamp.into_value().unwrap().into_inner(),
+            log_basic.timestamp.into_value().unwrap().into_inner(),
             expected_timestamp
         );
 
         // Check attributes
-        let attributes = log.attributes.into_value().unwrap();
-        assert_eq!(
-            attributes.get_value("sentry.origin").unwrap().as_str(),
-            Some("auto.http.browser_reports.nel")
-        );
-        assert_eq!(
-            attributes.get_value("report_type").unwrap().as_str(),
-            Some("network-error")
-        );
-        assert_eq!(
-            attributes.get_value("url.domain").unwrap().as_str(),
-            Some("example.com")
-        );
-        assert_eq!(
-            attributes.get_value("url.full").unwrap().as_str(),
-            Some("https://example.com/api")
-        );
-        assert_eq!(
-            Val::from(attributes.get_value("http.request.duration").unwrap()).as_i64(),
-            Some(1000)
-        );
-        assert_eq!(
-            attributes
-                .get_value("http.request.method")
-                .unwrap()
-                .as_str(),
-            Some("GET")
-        );
-        assert_eq!(
-            Val::from(attributes.get_value("http.response.status_code").unwrap()).as_i64(),
-            Some(500)
-        );
-        assert_eq!(
-            attributes.get_value("network.protocol").unwrap().as_str(),
-            Some("http/1.1")
-        );
-        assert_eq!(
-            attributes.get_value("server.address").unwrap().as_str(),
-            Some("192.168.1.1")
-        );
-        assert_eq!(
-            attributes.get_value("nel.phase").unwrap().as_str(),
-            Some("application")
-        );
-        assert_eq!(
-            attributes
-                .get_value("nel.sampling_fraction")
-                .unwrap()
-                .as_f64(),
-            Some(1.0)
-        );
-        assert_eq!(
-            attributes.get_value("nel.type").unwrap().as_str(),
-            Some("http.error")
-        );
-    }
+        let attributes = log_basic.attributes.into_value().unwrap();
 
-    #[test]
-    fn test_create_log_minimal() {
-        let received_at = Utc::now();
+        struct AttributeCheck<'a> {
+            key: &'a str,
+            expected_str: Option<&'a str>,
+            expected_i64: Option<i64>,
+            expected_f64: Option<f64>,
+        }
 
-        let body = BodyRaw {
+        let attribute_checks = vec![
+            AttributeCheck {
+                key: "sentry.origin",
+                expected_str: Some("auto.http.browser_reports.nel"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "report_type",
+                expected_str: Some("network-error"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "url.domain",
+                expected_str: Some("example.com"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "url.full",
+                expected_str: Some("https://example.com/api"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "http.request.duration",
+                expected_str: None,
+                expected_i64: Some(1000),
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "http.request.method",
+                expected_str: Some("GET"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "http.response.status_code",
+                expected_str: None,
+                expected_i64: Some(500),
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "network.protocol",
+                expected_str: Some("http/1.1"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "server.address",
+                expected_str: Some("192.168.1.1"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "nel.phase",
+                expected_str: Some("application"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+            AttributeCheck {
+                key: "nel.sampling_fraction",
+                expected_str: None,
+                expected_i64: None,
+                expected_f64: Some(1.0),
+            },
+            AttributeCheck {
+                key: "nel.type",
+                expected_str: Some("http.error"),
+                expected_i64: None,
+                expected_f64: None,
+            },
+        ];
+
+        for check in attribute_checks {
+            let value = attributes.get_value(check.key).unwrap();
+            if let Some(expected) = check.expected_str {
+                assert_eq!(
+                    value.as_str(),
+                    Some(expected),
+                    "Failed for attribute: {}",
+                    check.key
+                );
+            }
+            if let Some(expected) = check.expected_i64 {
+                assert_eq!(
+                    Val::from(value).as_i64(),
+                    Some(expected),
+                    "Failed for attribute: {}",
+                    check.key
+                );
+            }
+            if let Some(expected) = check.expected_f64 {
+                assert_eq!(
+                    value.as_f64(),
+                    Some(expected),
+                    "Failed for attribute: {}",
+                    check.key
+                );
+            }
+        }
+
+        // Test create_log_minimal
+        let body_minimal = BodyRaw {
             ty: Annotated::new("unknown".to_owned()),
             ..Default::default()
         };
 
-        let nel = NetworkReportRaw {
-            body: Annotated::new(body),
+        let nel_minimal = NetworkReportRaw {
+            body: Annotated::new(body_minimal),
             ..Default::default()
         };
 
-        let log = create_log(Annotated::new(nel), received_at).unwrap();
-
+        let log_minimal = create_log(Annotated::new(nel_minimal), received_at).unwrap();
         assert_eq!(
-            log.body.into_value(),
-            Some("error type is unknown".to_owned())
+            log_minimal.body.into_value(),
+            Some("error type is unknown".to_string())
         );
-        assert_eq!(log.level.into_value(), Some(OurLogLevel::Info));
-    }
+        assert_eq!(log_minimal.level.into_value(), Some(OurLogLevel::Info));
 
-    #[test]
-    fn test_create_log_missing_body() {
-        let received_at = Utc::now();
-
-        let nel = NetworkReportRaw {
+        // Test create_log_missing_body
+        let nel_missing_body = NetworkReportRaw {
             body: Annotated::empty(),
             ..Default::default()
         };
 
-        let result = create_log(Annotated::new(nel), received_at);
-        assert!(result.is_none());
-    }
+        let result_missing_body = create_log(Annotated::new(nel_missing_body), received_at);
+        assert!(result_missing_body.is_none());
 
-    #[test]
-    fn test_create_log_empty_nel() {
-        let received_at = Utc::now();
-        let result = create_log(Annotated::empty(), received_at);
-        assert!(result.is_none());
+        // Test create_log_empty_nel
+        let result_empty_nel = create_log(Annotated::empty(), received_at);
+        assert!(result_empty_nel.is_none());
     }
 }
