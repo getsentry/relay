@@ -144,28 +144,6 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Gets the human-readable description for a NEL error type
-#[cfg(test)]
-fn get_nel_culprit(error_type: &str) -> Option<&'static str> {
-    NEL_CULPRITS
-        .iter()
-        .find(|(key, _)| *key == error_type)
-        .map(|(_, value)| *value)
-}
-
-/// Gets the formatted human-readable description for a NEL error type with optional status code
-#[cfg(test)]
-fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Option<String> {
-    let template = get_nel_culprit(error_type)?;
-
-    if error_type == "http.error" {
-        let code = status_code.unwrap_or(0);
-        Some(template.replace("{}", &code.to_string()))
-    } else {
-        Some(template.to_string())
-    }
-}
-
 /// Extracts the domain or IP address from a server address string
 /// e.g. "123.123.123.123" -> "123.123.123.123"
 /// e.g. "https://example.com/foo?bar=1" -> "example.com"
@@ -210,24 +188,29 @@ fn extract_server_address(server_address: &str) -> String {
     }
 }
 
-/// Creates a human-readable message for a NEL report
-fn create_message(error_type: &str, status_code: Option<u16>) -> String {
-    let template = NEL_CULPRITS
+/// Gets the human-readable description for a NEL error type
+fn get_nel_culprit(error_type: &str) -> Option<&'static str> {
+    NEL_CULPRITS
         .iter()
         .find(|(key, _)| *key == error_type)
-        .map(|(_, value)| *value);
+        .map(|(_, value)| *value)
+}
 
-    match template {
-        Some(template_str) => {
-            if error_type == "http.error" {
-                let code = status_code.unwrap_or(0);
-                template_str.replace("{}", &code.to_string())
-            } else {
-                template_str.to_string()
-            }
-        }
-        None => error_type.to_string(), // Return the error type itself if not found
+/// Gets the formatted human-readable description for a NEL error type with optional status code
+fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Option<String> {
+    let template = get_nel_culprit(error_type)?;
+
+    if error_type == "http.error" {
+        let code = status_code.unwrap_or(0);
+        Some(template.replace("{}", &code.to_string()))
+    } else {
+        Some(template.to_string())
     }
+}
+
+/// Creates a human-readable message for a NEL report
+fn create_message(error_type: &str, status_code: Option<u16>) -> String {
+    get_nel_culprit_formatted(error_type, status_code).unwrap_or_else(|| error_type.to_string())
 }
 
 /// Creates a [`OurLog`] from the provided [`NetworkReportRaw`].
