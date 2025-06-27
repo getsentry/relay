@@ -430,11 +430,13 @@ def test_data_request(mini_sentry, relay_processing_with_playstation):
 
     expected_response = {
         "parts": {
-            "upload": ["corefile"],
-            "noUpload": [
-                "memorydump",
+            "upload": [
+                "corefile",
                 "video",
                 "screenshot",
+            ],
+            "noUpload": [
+                "memorydump",
                 "usermemoryfile",
                 "gpudump",
                 "gpucapture",

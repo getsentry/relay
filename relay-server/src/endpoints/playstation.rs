@@ -17,19 +17,21 @@ use crate::utils::UnconstrainedMultipart;
 /// The extension of a prosperodump in the multipart form-data upload.
 const PROSPERODUMP_EXTENSION: &str = ".prosperodmp";
 
-/// Prosperodump attachments should have these magic bytes
+/// Prosperodump attachments should have these magic bytes.
 const PROSPERODUMP_MAGIC_HEADER: &[u8] = b"\x7FELF";
 
 /// Magic bytes for lz4 compressed prosperodump containers.
 const LZ4_MAGIC_HEADER: &[u8] = b"\x04\x22\x4d\x18";
 
+/// Content type of the data request payload.
 const DATA_REQUEST_CONTENT_TYPE: &str = "application/vnd.sce.crs.datareq-request+json";
 
-const UPLOAD_PARTS: &[&str] = &["corefile"];
+/// Files that are currently supported for uploading.
+const UPLOAD_PARTS: &[&str] = &["corefile", "video", "screenshot"];
+
+/// Files that are not currently supported for uploading.
 const NO_UPLOAD_PARTS: &[&str] = &[
     "memorydump",
-    "video",
-    "screenshot",
     "usermemoryfile",
     "gpudump",
     "gpucapture",
@@ -39,8 +41,8 @@ const NO_UPLOAD_PARTS: &[&str] = &[
 #[derive(Serialize)]
 struct DataRequestResponse {
     parts: Parts,
-    #[serde(rename = "partParameters")]
-    part_parameters: PartParameters,
+    #[serde(rename = "partParameters", skip_serializing_if = "Option::is_none")]
+    part_parameters: Option<PartParameters>,
 }
 
 #[derive(Serialize)]
@@ -65,19 +67,17 @@ struct DurationParameters {
     max: u32,
 }
 
-// TODO: Think about if we want to construct this here or if grabbing this from somewhere else
-// makes more sense.
 fn create_data_request_response() -> DataRequestResponse {
     DataRequestResponse {
         parts: Parts {
             upload: UPLOAD_PARTS.to_vec(),
             no_upload: NO_UPLOAD_PARTS.to_vec(),
         },
-        part_parameters: PartParameters {
+        part_parameters: Some(PartParameters {
             video: VideoParameters {
                 duration: DurationParameters { max: 4 },
             },
-        },
+        }),
     }
 }
 
