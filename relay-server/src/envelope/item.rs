@@ -125,7 +125,7 @@ impl Item {
                 (DataCategory::LogItem, item_count)
             ],
             ItemType::FormData => smallvec![],
-            ItemType::UserReport => smallvec![],
+            ItemType::UserReport => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, item_count)],
             ItemType::Profile => smallvec![(DataCategory::Profile, item_count)],
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
