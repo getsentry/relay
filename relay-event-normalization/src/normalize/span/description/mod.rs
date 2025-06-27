@@ -224,7 +224,7 @@ fn scrub_file(description: &str) -> Option<String> {
             if ext != "*" {
                 Some(format!("*.{ext}"))
             } else {
-                Some("*".to_string())
+                Some("*".to_owned())
             }
         }
         _ => Some("*".to_owned()),
@@ -1397,17 +1397,17 @@ mod tests {
         let examples = [
             (
                 "https://foo.bar.internal/api/v1/submit",
-                ["foo.bar.internal".to_string()],
+                ["foo.bar.internal".to_owned()],
                 "https://foo.bar.internal",
             ),
             (
                 "http://192.168.1.1:3000",
-                ["192.168.1.1".to_string()],
+                ["192.168.1.1".to_owned()],
                 "http://192.168.1.1:3000",
             ),
             (
                 "http://[1fff:0:a88:85a3::ac1f]:8001/foo",
-                ["[1fff:0:a88:85a3::ac1f]".to_string()],
+                ["[1fff:0:a88:85a3::ac1f]".to_owned()],
                 "http://[1fff:0:a88:85a3::ac1f]:8001",
             ),
         ];
@@ -1464,12 +1464,12 @@ mod tests {
                     }}
                 "#,
                     if $operation_in == "" {
-                        "null".to_string()
+                        "null".to_owned()
                     } else {
                         format!("\"{}\"", $operation_in)
                     },
                     if $collection_in == "" {
-                        "null".to_string()
+                        "null".to_owned()
                     } else {
                         format!("\"{}\"", $collection_in)
                     }

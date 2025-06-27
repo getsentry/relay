@@ -92,9 +92,9 @@ mod tests {
     #[test]
     fn test_format_python() {
         let mut logentry = LogEntry {
-            message: Annotated::new("hello, %s!".to_string().into()),
+            message: Annotated::new("hello, %s!".to_owned().into()),
             params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-                "world".to_string(),
+                "world".to_owned(),
             ))])),
             ..LogEntry::default()
         };
@@ -106,12 +106,12 @@ mod tests {
     #[test]
     fn test_format_python_named() {
         let mut logentry = LogEntry {
-            message: Annotated::new("hello, %(name)s!".to_string().into()),
+            message: Annotated::new("hello, %(name)s!".to_owned().into()),
             params: Annotated::new(Value::Object({
                 let mut object = Object::new();
                 object.insert(
-                    "name".to_string(),
-                    Annotated::new(Value::String("world".to_string())),
+                    "name".to_owned(),
+                    Annotated::new(Value::String("world".to_owned())),
                 );
                 object
             })),
@@ -125,9 +125,9 @@ mod tests {
     #[test]
     fn test_format_java() {
         let mut logentry = LogEntry {
-            message: Annotated::new("hello, {}!".to_string().into()),
+            message: Annotated::new("hello, {}!".to_owned().into()),
             params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-                "world".to_string(),
+                "world".to_owned(),
             ))])),
             ..LogEntry::default()
         };
@@ -139,9 +139,9 @@ mod tests {
     #[test]
     fn test_format_dotnet() {
         let mut logentry = LogEntry {
-            message: Annotated::new("hello, {0}!".to_string().into()),
+            message: Annotated::new("hello, {0}!".to_owned().into()),
             params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-                "world".to_string(),
+                "world".to_owned(),
             ))])),
             ..LogEntry::default()
         };
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn test_format_no_params() {
         let mut logentry = LogEntry {
-            message: Annotated::new("hello, %s!".to_string().into()),
+            message: Annotated::new("hello, %s!".to_owned().into()),
             ..LogEntry::default()
         };
 
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn test_only_message() {
         let mut logentry = LogEntry {
-            message: Annotated::new("hello, world!".to_string().into()),
+            message: Annotated::new("hello, world!".to_owned().into()),
             ..LogEntry::default()
         };
 
@@ -176,8 +176,8 @@ mod tests {
     #[test]
     fn test_message_formatted_equal() {
         let mut logentry = LogEntry {
-            message: Annotated::new("hello, world!".to_string().into()),
-            formatted: Annotated::new("hello, world!".to_string().into()),
+            message: Annotated::new("hello, world!".to_owned().into()),
+            formatted: Annotated::new("hello, world!".to_owned().into()),
             ..LogEntry::default()
         };
 

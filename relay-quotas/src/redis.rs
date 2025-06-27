@@ -124,7 +124,7 @@ impl<'a> RedisQuota<'a> {
         OwnedRedisQuota {
             quota: self.quota.clone(),
             scoping: self.scoping,
-            prefix: self.prefix.to_string(),
+            prefix: self.prefix.to_owned(),
             window: self.window,
             timestamp: self.timestamp,
         }
@@ -225,6 +225,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 /// attachments. For more information on quota parameters, see [`Quota`].
 ///
 /// Requires the `redis` feature.
+#[derive(Clone)]
 pub struct RedisRateLimiter<T> {
     client: AsyncRedisClient,
     script: &'static Script,
@@ -803,7 +804,7 @@ mod tests {
     async fn test_limited_with_unlimited_quota() {
         let quotas = &[
             Quota {
-                id: Some("q0".to_string()),
+                id: Some("q0".to_owned()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,
@@ -813,7 +814,7 @@ mod tests {
                 namespace: None,
             },
             Quota {
-                id: Some("q1".to_string()),
+                id: Some("q1".to_owned()),
                 categories: DataCategories::new(),
                 scope: QuotaScope::Organization,
                 scope_id: None,

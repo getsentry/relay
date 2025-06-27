@@ -44,6 +44,7 @@ impl FromMessage<CheckRateLimited> for GlobalRateLimits {
 ///
 /// This handle implements [`GlobalLimiter`] to expose the global rate limiting feature from the
 /// [`GlobalRateLimitsServiceHandle`].
+#[derive(Clone)]
 pub struct GlobalRateLimitsServiceHandle {
     tx: Addr<GlobalRateLimits>,
 }

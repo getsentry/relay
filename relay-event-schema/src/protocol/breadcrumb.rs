@@ -168,15 +168,15 @@ mod tests {
 
         let breadcrumb = Annotated::new(Breadcrumb {
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            ty: Annotated::new("mytype".to_string()),
-            category: Annotated::new("mycategory".to_string()),
+            ty: Annotated::new("mytype".to_owned()),
+            category: Annotated::new("mycategory".to_owned()),
             level: Annotated::new(Level::Fatal),
-            message: Annotated::new("my message".to_string()),
+            message: Annotated::new("my message".to_owned()),
             data: {
                 let mut map = Map::new();
                 map.insert(
-                    "a".to_string(),
-                    Annotated::new(Value::String("b".to_string())),
+                    "a".to_owned(),
+                    Annotated::new(Value::String("b".to_owned())),
                 );
                 Annotated::new(map)
             },
@@ -184,12 +184,12 @@ mod tests {
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "c".to_string(),
-                    Annotated::new(Value::String("d".to_string())),
+                    "c".to_owned(),
+                    Annotated::new(Value::String("d".to_owned())),
                 );
                 map
             },
-            origin: Annotated::new("myorigin".to_string()),
+            origin: Annotated::new("myorigin".to_owned()),
         });
 
         assert_eq!(breadcrumb, Annotated::from_json(input).unwrap());

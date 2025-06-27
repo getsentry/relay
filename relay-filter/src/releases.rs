@@ -29,7 +29,7 @@ mod tests {
 
     fn get_event_for_release(release: &str) -> Event {
         Event {
-            release: Annotated::from(LenientString::from(release.to_string())),
+            release: Annotated::from(LenientString::from(release.to_owned())),
             ..Event::default()
         }
     }
@@ -37,7 +37,7 @@ mod tests {
     fn get_span_for_release(release: &str) -> Span {
         Span {
             data: Annotated::new(SpanData {
-                release: Annotated::from(LenientString::from(release.to_string())),
+                release: Annotated::from(LenientString::from(release.to_owned())),
                 ..Default::default()
             }),
             ..Default::default()

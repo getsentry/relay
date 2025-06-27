@@ -199,7 +199,7 @@ mod tests {
             let waker = noop_waker_ref();
             let mut cx = Context::from_waker(waker);
 
-            let body = Body::new("cool test".to_string());
+            let body = Body::new("cool test".to_owned());
             let mut timed_body = TimedBody::new(body, None);
             let mut pinned = Pin::new(&mut timed_body);
 
@@ -218,7 +218,7 @@ mod tests {
             let waker = noop_waker_ref();
             let mut cx = Context::from_waker(waker);
 
-            let body = Body::new("just calling this once".to_string());
+            let body = Body::new("just calling this once".to_owned());
             let mut timed_body = TimedBody::new(body, None);
             let pinned = Pin::new(&mut timed_body);
 
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_dropped_before_reading() {
         let captures = with_capturing_test_client(|| {
-            let body = Body::new("dropped".to_string());
+            let body = Body::new("dropped".to_owned());
             let _ = TimedBody::new(body, None);
         });
         assert_eq!(captures.len(), 0);

@@ -52,7 +52,7 @@ mod tests {
             "*/ping",
             "*/up",
         ]
-        .map(|val| val.to_string())
+        .map(|val| val.to_owned())
         .to_vec();
 
         IgnoreTransactionsFilterConfig {

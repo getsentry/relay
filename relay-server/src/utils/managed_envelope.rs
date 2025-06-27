@@ -519,6 +519,20 @@ impl ManagedEnvelope {
         self.envelope.age()
     }
 
+    /// Temporary escape hatch for the `Managed` type, to make it possible to construct
+    /// from a managed envelope.
+    #[doc(hidden)]
+    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+        &self.outcome_aggregator
+    }
+
+    /// Temporary escape hatch for the `Managed` type, to make it possible to construct
+    /// from a managed envelope.
+    #[doc(hidden)]
+    pub fn test_store(&self) -> &Addr<TestStore> {
+        &self.test_store
+    }
+
     /// Resets inner state to ensure there's no more logging.
     fn finish(&mut self, counter: RelayCounters, handling: Handling) {
         relay_statsd::metric!(counter(counter) += 1, handling = handling.as_str());

@@ -61,7 +61,7 @@ pub mod utils {
         let dsc = DynamicSamplingContext {
             trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
             public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
-            release: Some("1.1.1".to_string()),
+            release: Some("1.1.1".to_owned()),
             user: Default::default(),
             replay_id: None,
             environment: None,

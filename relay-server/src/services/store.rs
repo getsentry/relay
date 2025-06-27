@@ -1,8 +1,6 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
-use relay_base_schema::organization::OrganizationId;
-use serde::ser::SerializeMap;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -12,31 +10,34 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use futures::future::BoxFuture;
+use prost::Message as _;
+use prost_types::Timestamp;
+use sentry_protos::snuba::v1::any_value::Value;
+use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
+use serde_json::{Deserializer, Value as JsonValue};
+use uuid::Uuid;
+
 use relay_base_schema::data_category::DataCategory;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
-
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use prost::Message as _;
-use prost_types::Timestamp;
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
-    Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, FiniteF64, GaugeValue,
-    MetricName, MetricNamespace, SetView,
+    Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
+    MetricNamespace, SetView,
 };
+use relay_protocol::FiniteF64;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
-use sentry_protos::snuba::v1::any_value::Value;
-use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType};
-use serde::{Deserialize, Serialize};
-use serde_json::Deserializer;
-use serde_json::value::RawValue;
-use uuid::Uuid;
 
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
@@ -279,10 +280,7 @@ impl StoreService {
                     replay_recording = Some(item);
                 }
                 ItemType::ReplayEvent => {
-                    if item.replay_combined_payload() {
-                        replay_event = Some(item);
-                    }
-
+                    replay_event = Some(item);
                     self.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
@@ -703,7 +701,7 @@ impl StoreService {
             }
             _ => KafkaTopic::MetricsGeneric,
         };
-        let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
+        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
 
         self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
@@ -725,7 +723,7 @@ impl StoreService {
             received: safe_timestamp(received_at),
             retention_days,
             headers: BTreeMap::from([(
-                "sampled".to_string(),
+                "sampled".to_owned(),
                 if item.sampled() { "true" } else { "false" }.to_owned(),
             )]),
             payload: item.payload(),
@@ -893,6 +891,7 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         relay_log::trace!("Producing span");
+
         let payload = item.payload();
         let d = &mut Deserializer::from_slice(&payload);
         let mut span: SpanKafkaMessage = match serde_path_to_error::deserialize(d) {
@@ -915,6 +914,11 @@ impl StoreService {
             }
         };
 
+        if let Some(measurements) = &mut span.measurements {
+            measurements
+                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
+        }
+
         span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
@@ -924,21 +928,19 @@ impl StoreService {
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
 
-        if let Some(measurements) = &mut span.measurements {
-            measurements
-                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
+        if self.config.produce_protobuf_spans() {
+            self.inner_produce_protobuf_span(
+                scoping,
+                received_at,
+                event_id,
+                retention_days,
+                span.clone(),
+            )?;
         }
 
-        self.produce(
-            KafkaTopic::Spans,
-            KafkaMessage::Span {
-                headers: BTreeMap::from([(
-                    "project_id".to_string(),
-                    scoping.project_id.to_string(),
-                )]),
-                message: span,
-            },
-        )?;
+        if self.config.produce_json_spans() {
+            self.inner_produce_json_span(scoping, span)?;
+        }
 
         self.outcome_aggregator.send(TrackOutcome {
             category: DataCategory::SpanIndexed,
@@ -949,6 +951,229 @@ impl StoreService {
             scoping,
             timestamp: received_at,
         });
+
+        Ok(())
+    }
+
+    fn inner_produce_json_span(
+        &self,
+        scoping: Scoping,
+        span: SpanKafkaMessage,
+    ) -> Result<(), StoreError> {
+        self.produce(
+            KafkaTopic::Spans,
+            KafkaMessage::Span {
+                headers: BTreeMap::from([(
+                    "project_id".to_owned(),
+                    scoping.project_id.to_string(),
+                )]),
+                message: span,
+            },
+        )?;
+
+        Ok(())
+    }
+
+    fn inner_produce_protobuf_span(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        event_id: Option<EventId>,
+        retention_days: u16,
+        span: SpanKafkaMessage,
+    ) -> Result<(), StoreError> {
+        let mut trace_item = TraceItem {
+            item_type: TraceItemType::Span.into(),
+            organization_id: scoping.organization_id.value(),
+            project_id: scoping.project_id.value(),
+            received: Some(Timestamp {
+                seconds: safe_timestamp(received_at) as i64,
+                nanos: 0,
+            }),
+            retention_days: retention_days.into(),
+            timestamp: Some(Timestamp {
+                seconds: span.start_timestamp_precise as i64,
+                nanos: 0,
+            }),
+            trace_id: span.trace_id.to_string(),
+            item_id: u128::from_str_radix(span.span_id, 16)
+                .unwrap_or_default()
+                .to_le_bytes()
+                .to_vec(),
+            attributes: Default::default(),
+            client_sample_rate: span.client_sample_rate.unwrap_or_default(),
+            server_sample_rate: span.server_sample_rate.unwrap_or_default(),
+        };
+
+        if let Some(data) = span.data {
+            for (key, raw_value) in data {
+                let Some(json_value) = raw_value else {
+                    continue;
+                };
+                let any_value = match json_value {
+                    JsonValue::String(string) => AnyValue {
+                        value: Some(Value::StringValue(string)),
+                    },
+                    JsonValue::Number(number) => {
+                        if number.is_i64() || number.is_u64() {
+                            AnyValue {
+                                value: Some(Value::IntValue(number.as_i64().unwrap_or_default())),
+                            }
+                        } else {
+                            AnyValue {
+                                value: Some(Value::DoubleValue(
+                                    number.as_f64().unwrap_or_default(),
+                                )),
+                            }
+                        }
+                    }
+                    JsonValue::Bool(bool) => AnyValue {
+                        value: Some(Value::BoolValue(bool)),
+                    },
+                    JsonValue::Array(array) => AnyValue {
+                        value: Some(Value::StringValue(
+                            serde_json::to_string(&array).unwrap_or_default(),
+                        )),
+                    },
+                    JsonValue::Object(object) => AnyValue {
+                        value: Some(Value::StringValue(
+                            serde_json::to_string(&object).unwrap_or_default(),
+                        )),
+                    },
+                    _ => continue,
+                };
+
+                trace_item.attributes.insert(key.into(), any_value);
+            }
+        }
+
+        if let Some(description) = span.description {
+            trace_item.attributes.insert(
+                "sentry.raw_description".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(description)),
+                },
+            );
+        }
+
+        trace_item.attributes.insert(
+            "sentry.duration_ms".into(),
+            AnyValue {
+                value: Some(Value::IntValue(span.duration_ms.into())),
+            },
+        );
+
+        if let Some(event_id) = event_id {
+            trace_item.attributes.insert(
+                "sentry.event_id".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(event_id.0.as_simple().to_string())),
+                },
+            );
+        }
+
+        trace_item.attributes.insert(
+            "sentry.is_segment".into(),
+            AnyValue {
+                value: Some(Value::BoolValue(span.is_segment)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.exclusive_time_ms".into(),
+            AnyValue {
+                value: Some(Value::DoubleValue(span.exclusive_time_ms)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.start_timestamp_precise".into(),
+            AnyValue {
+                value: Some(Value::DoubleValue(span.start_timestamp_precise)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.end_timestamp_precise".into(),
+            AnyValue {
+                value: Some(Value::DoubleValue(span.end_timestamp_precise)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.start_timestamp_ms".into(),
+            AnyValue {
+                value: Some(Value::IntValue(span.start_timestamp_ms as i64)),
+            },
+        );
+
+        trace_item.attributes.insert(
+            "sentry.is_remote".into(),
+            AnyValue {
+                value: Some(Value::BoolValue(span.is_remote)),
+            },
+        );
+
+        if let Some(parent_span_id) = span.parent_span_id {
+            trace_item.attributes.insert(
+                "sentry.parent_span_id".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(parent_span_id.to_owned())),
+                },
+            );
+        }
+
+        if let Some(profile_id) = span.profile_id {
+            trace_item.attributes.insert(
+                "sentry.profile_id".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(profile_id.to_owned())),
+                },
+            );
+        }
+
+        if let Some(segment_id) = span.segment_id {
+            trace_item.attributes.insert(
+                "sentry.segment_id".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(segment_id.to_owned())),
+                },
+            );
+        }
+
+        if let Some(origin) = span.origin {
+            trace_item.attributes.insert(
+                "sentry.origin".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(origin.to_string())),
+                },
+            );
+        }
+
+        if let Some(kind) = span.kind {
+            trace_item.attributes.insert(
+                "sentry.kind".into(),
+                AnyValue {
+                    value: Some(Value::StringValue(kind.to_owned())),
+                },
+            );
+        }
+
+        self.produce(
+            KafkaTopic::Items,
+            KafkaMessage::Item {
+                headers: BTreeMap::from([
+                    (
+                        "item_type".to_owned(),
+                        (TraceItemType::Span as i32).to_string(),
+                    ),
+                    ("project_id".to_owned(), scoping.project_id.to_string()),
+                ]),
+                item_type: TraceItemType::Span,
+                message: trace_item,
+            },
+        )?;
+
         Ok(())
     }
 
@@ -1388,7 +1613,7 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanLink<'a> {
     pub trace_id: &'a str,
     pub span_id: &'a str,
@@ -1398,16 +1623,16 @@ struct SpanLink<'a> {
     pub attributes: Option<&'a RawValue>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanMeasurement {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     value: Option<f64>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    description: Option<&'a RawValue>,
+    description: Option<String>,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
@@ -1421,7 +1646,7 @@ struct SpanKafkaMessage<'a> {
     is_remote: bool,
 
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
+    data: Option<BTreeMap<Cow<'a, str>, Option<serde_json::Value>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<&'a str>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
@@ -1452,10 +1677,10 @@ struct SpanKafkaMessage<'a> {
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
     #[serde(borrow)]
-    sentry_tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
+    sentry_tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
     span_id: &'a str,
-    #[serde(default, skip_serializing_if = "none_or_empty_object")]
-    tags: Option<&'a RawValue>,
+    #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
+    tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
     trace_id: EventId,
 
     #[serde(default)]
@@ -1467,6 +1692,11 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    client_sample_rate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    server_sample_rate: Option<f64>,
 
     #[serde(
         default,
@@ -1480,29 +1710,75 @@ struct SpanKafkaMessage<'a> {
 }
 
 impl SpanKafkaMessage<'_> {
-    /// Backfills `data` based on `sentry_tags`.
+    /// Backfills `data` based on `sentry_tags`, `tags`, and `measurements`.
     ///
-    /// Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
-    /// The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    /// * Every item in `sentry_tags` is copied to `data`, with the key prefixed with `sentry.`.
+    ///   The only exception is the `description` tag, which is copied as `sentry.normalized_description`.
+    ///
+    /// * Every item in `tags` is copied to `data` verbatim, with the exception of `description`, which
+    ///   is copied as `sentry.normalized_description`.
+    ///
+    /// * The value of every item in `measurements` is copied to `data` with the same key, with the exceptions
+    ///   of `client_sample_rate` and `server_sample_rate`. Those measurements are instead written to the top-level
+    ///   fields of the same names.
+    ///
+    /// In no case are existing keys overwritten. Thus, from highest to lowest, the order of precedence is
+    /// * existing values in `data`
+    /// * `measurements`
+    /// * `tags`
+    /// * `sentry_tags`
     fn backfill_data(&mut self) {
-        let Some(sentry_tags) = self.sentry_tags.as_ref() else {
-            return;
-        };
-
         let data = self.data.get_or_insert_default();
 
-        for (key, value) in sentry_tags {
-            let Some(value) = value else {
-                continue;
-            };
+        if let Some(measurements) = &self.measurements {
+            for (key, value) in measurements {
+                let Some(value) = value.as_ref().and_then(|v| v.value) else {
+                    continue;
+                };
 
-            let key = if *key == "description" {
-                "sentry.normalized_description".to_owned()
-            } else {
-                format!("sentry.{key}")
-            };
+                match &key[..] {
+                    "client_sample_rate" => self.client_sample_rate = Some(value),
+                    "server_sample_rate" => self.server_sample_rate = Some(value),
+                    _ => {
+                        data.entry(key.clone())
+                            .or_insert_with(|| Some(value.into()));
+                    }
+                }
+            }
+        }
 
-            data.insert(Cow::Owned(key), Some(value));
+        if let Some(tags) = &self.tags {
+            for (key, value) in tags {
+                let Some(value) = value else {
+                    continue;
+                };
+
+                let key = if *key == "description" {
+                    "sentry.normalized_description"
+                } else {
+                    key
+                };
+
+                data.entry(Cow::Borrowed(key))
+                    .or_insert_with(|| Some(value.clone()));
+            }
+        }
+
+        if let Some(sentry_tags) = &self.sentry_tags {
+            for (key, value) in sentry_tags {
+                let Some(value) = value else {
+                    continue;
+                };
+
+                let key = if *key == "description" {
+                    "sentry.normalized_description".to_owned()
+                } else {
+                    format!("sentry.{key}")
+                };
+
+                data.entry(Cow::Owned(key))
+                    .or_insert_with(|| Some(value.clone()));
+            }
         }
     }
 }
@@ -1591,6 +1867,14 @@ enum KafkaMessage<'a> {
     ReplayEvent(ReplayEventKafkaMessage<'a>),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
+    Item {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(skip)]
+        item_type: TraceItemType,
+        #[serde(skip)]
+        message: TraceItem,
+    },
     Span {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
@@ -1627,6 +1911,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Log { .. } => "log",
             KafkaMessage::Span { .. } => "span",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
+            KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
         }
     }
 
@@ -1658,7 +1943,8 @@ impl Message for KafkaMessage<'_> {
             Self::Profile(_)
             | Self::Log { .. }
             | Self::ReplayRecordingNotChunked(_)
-            | Self::ProfileChunk(_) => None,
+            | Self::ProfileChunk(_)
+            | Self::Item { .. } => None,
         }
         .filter(|uuid| !uuid.is_nil())
         .map(|uuid| uuid.into_bytes())
@@ -1666,7 +1952,10 @@ impl Message for KafkaMessage<'_> {
 
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
         match &self {
-            KafkaMessage::Metric { headers, .. } => {
+            KafkaMessage::Metric { headers, .. }
+            | KafkaMessage::Span { headers, .. }
+            | KafkaMessage::Item { headers, .. }
+            | KafkaMessage::Log { headers, .. } => {
                 if !headers.is_empty() {
                     return Some(headers);
                 }
@@ -1675,18 +1964,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Profile(profile) => {
                 if !profile.headers.is_empty() {
                     return Some(&profile.headers);
-                }
-                None
-            }
-            KafkaMessage::Log { headers, .. } => {
-                if !headers.is_empty() {
-                    return Some(headers);
-                }
-                None
-            }
-            KafkaMessage::Span { headers, .. } => {
-                if !headers.is_empty() {
-                    return Some(headers);
                 }
                 None
             }
@@ -1706,7 +1983,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Log { message, .. } => {
+            KafkaMessage::Log { message, .. } | KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
 
                 if message.encode(&mut payload).is_err() {

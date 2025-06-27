@@ -547,8 +547,8 @@ mod tests {
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -570,8 +570,8 @@ mod tests {
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -597,8 +597,8 @@ mod tests {
 }"#;
 
         let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
-            name: Annotated::new("CoreFoundation".to_string()),
-            arch: Annotated::new("arm64".to_string()),
+            name: Annotated::new("CoreFoundation".to_owned()),
+            arch: Annotated::new("arm64".to_owned()),
             cpu_type: Annotated::new(1233),
             cpu_subtype: Annotated::new(3),
             image_addr: Annotated::new(Addr(0)),
@@ -608,8 +608,8 @@ mod tests {
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -630,7 +630,7 @@ mod tests {
 }"#;
 
         let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
-            name: Annotated::new("CoreFoundation".to_string()),
+            name: Annotated::new("CoreFoundation".to_owned()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
             uuid: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6".parse().unwrap()),
@@ -662,15 +662,15 @@ mod tests {
             debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
             debug_file: Annotated::new("wntdll.pdb".into()),
             debug_checksum: Annotated::empty(),
-            arch: Annotated::new("arm64".to_string()),
+            arch: Annotated::new("arm64".to_owned()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
             image_vmaddr: Annotated::new(Addr(32768)),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -699,15 +699,15 @@ mod tests {
             debug_id: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6-1234".parse().unwrap()),
             debug_file: Annotated::empty(),
             debug_checksum: Annotated::empty(),
-            arch: Annotated::new("arm64".to_string()),
+            arch: Annotated::new("arm64".to_owned()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
             image_vmaddr: Annotated::new(Addr(32768)),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -762,15 +762,15 @@ mod tests {
             debug_id: Annotated::new("c0bcc3f1-9827-fe65-3058-404b2831d9e6".parse().unwrap()),
             debug_file: Annotated::empty(),
             debug_checksum: Annotated::empty(),
-            arch: Annotated::new("arm64".to_string()),
+            arch: Annotated::new("arm64".to_owned()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
             image_vmaddr: Annotated::new(Addr(32768)),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -826,15 +826,15 @@ mod tests {
             debug_id: Annotated::new("67e9247c-814e-392b-a027-dbde6748fcbf".parse().unwrap()),
             debug_file: Annotated::empty(),
             debug_checksum: Annotated::empty(),
-            arch: Annotated::new("arm64".to_string()),
+            arch: Annotated::new("arm64".to_owned()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
             image_vmaddr: Annotated::new(Addr(32768)),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -864,15 +864,15 @@ mod tests {
             debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
             debug_file: Annotated::new("wntdll.pdb".into()),
             debug_checksum: Annotated::empty(),
-            arch: Annotated::new("arm64".to_string()),
+            arch: Annotated::new("arm64".to_owned()),
             image_addr: Annotated::new(Addr(0)),
             image_size: Annotated::new(4096),
             image_vmaddr: Annotated::new(Addr(32768)),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -899,8 +899,8 @@ mod tests {
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -916,12 +916,12 @@ mod tests {
         let image = Annotated::new(DebugImage::Other({
             let mut map = Map::new();
             map.insert(
-                "type".to_string(),
-                Annotated::new(Value::String("mytype".to_string())),
+                "type".to_owned(),
+                Annotated::new(Value::String("mytype".to_owned())),
             );
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".to_owned(),
+                Annotated::new(Value::String("value".to_owned())),
             );
             map
         }));
@@ -936,8 +936,8 @@ mod tests {
         let image = Annotated::new(DebugImage::Other({
             let mut map = Map::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".to_owned(),
+                Annotated::new(Value::String("value".to_owned())),
             );
             map
         }));
@@ -961,15 +961,15 @@ mod tests {
 }"#;
         let meta = Annotated::new(DebugMeta {
             system_sdk: Annotated::new(SystemSdkInfo {
-                sdk_name: Annotated::new("iOS".to_string()),
+                sdk_name: Annotated::new("iOS".to_owned()),
                 version_major: Annotated::new(10),
                 version_minor: Annotated::new(3),
                 version_patchlevel: Annotated::new(0),
                 other: {
                     let mut map = Map::new();
                     map.insert(
-                        "other".to_string(),
-                        Annotated::new(Value::String("value".to_string())),
+                        "other".to_owned(),
+                        Annotated::new(Value::String("value".to_owned())),
                     );
                     map
                 },
@@ -977,8 +977,8 @@ mod tests {
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },

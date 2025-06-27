@@ -84,16 +84,16 @@ mod tests {
   "type": "runtime"
 }"#;
         let context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
-            runtime: Annotated::new("rustc 1.27.0".to_string()),
-            name: Annotated::new("rustc".to_string()),
-            version: Annotated::new("1.27.0".to_string()),
-            build: Annotated::new(LenientString("stable".to_string())),
-            raw_description: Annotated::new("rustc 1.27.0 stable".to_string()),
+            runtime: Annotated::new("rustc 1.27.0".to_owned()),
+            name: Annotated::new("rustc".to_owned()),
+            version: Annotated::new("1.27.0".to_owned()),
+            build: Annotated::new(LenientString("stable".to_owned())),
+            raw_description: Annotated::new("rustc 1.27.0 stable".to_owned()),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },

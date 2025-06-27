@@ -263,7 +263,7 @@ impl FromValue for Mechanism {
                 } else {
                     let annotated = Annotated(Some(Value::Object(object)), meta);
                     LegacyMechanism::from_value(annotated).map_value(|legacy| Mechanism {
-                        ty: Annotated::new("generic".to_string()),
+                        ty: Annotated::new("generic".to_owned()),
                         synthetic: Annotated::empty(),
                         description: Annotated::empty(),
                         help_link: Annotated::empty(),
@@ -353,51 +353,51 @@ mod tests {
   "other": "value"
 }"#;
         let mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new("mytype".to_string()),
+            ty: Annotated::new("mytype".to_owned()),
             synthetic: Annotated::empty(),
-            description: Annotated::new("mydescription".to_string()),
+            description: Annotated::new("mydescription".to_owned()),
             help_link: Annotated::new(
-                "https://developer.apple.com/library/content/qa/qa1367/_index.html".to_string(),
+                "https://developer.apple.com/library/content/qa/qa1367/_index.html".to_owned(),
             ),
             handled: Annotated::new(false),
-            source: Annotated::new("errors[0]".to_string()),
+            source: Annotated::new("errors[0]".to_owned()),
             is_exception_group: Annotated::new(false),
             exception_id: Annotated::new(1),
             parent_id: Annotated::new(0),
             data: {
                 let mut map = Map::new();
                 map.insert(
-                    "relevant_address".to_string(),
-                    Annotated::new(Value::String("0x1".to_string())),
+                    "relevant_address".to_owned(),
+                    Annotated::new(Value::String("0x1".to_owned())),
                 );
                 Annotated::new(map)
             },
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
                     number: Annotated::new(2),
-                    name: Annotated::new("ENOENT".to_string()),
+                    name: Annotated::new("ENOENT".to_owned()),
                 }),
                 mach_exception: Annotated::new(MachException {
                     ty: Annotated::new(1),
                     code: Annotated::new(1),
                     subcode: Annotated::new(8),
-                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_owned()),
                 }),
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::new(11),
                     code: Annotated::new(0),
-                    name: Annotated::new("SIGSEGV".to_string()),
-                    code_name: Annotated::new("SEGV_NOOP".to_string()),
+                    name: Annotated::new("SIGSEGV".to_owned()),
+                    code_name: Annotated::new("SEGV_NOOP".to_owned()),
                 }),
                 ns_error: Annotated::new(NsError {
                     code: Annotated::new(-42),
-                    domain: Annotated::new("SqlException".to_string()),
+                    domain: Annotated::new("SqlException".to_owned()),
                 }),
                 other: {
                     let mut map = Object::new();
                     map.insert(
-                        "other".to_string(),
-                        Annotated::new(Value::String("value".to_string())),
+                        "other".to_owned(),
+                        Annotated::new(Value::String("value".to_owned())),
                     );
                     map
                 },
@@ -405,8 +405,8 @@ mod tests {
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -420,7 +420,7 @@ mod tests {
     fn test_mechanism_default_values() {
         let json = r#"{"type":"mytype"}"#;
         let mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new("mytype".to_string()),
+            ty: Annotated::new("mytype".to_owned()),
             ..Default::default()
         });
 
@@ -473,7 +473,7 @@ mod tests {
   }
 }"#;
         let mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new("generic".to_string()),
+            ty: Annotated::new("generic".to_owned()),
             synthetic: Annotated::empty(),
             description: Annotated::empty(),
             help_link: Annotated::empty(),
@@ -485,8 +485,8 @@ mod tests {
             data: {
                 let mut map = Map::new();
                 map.insert(
-                    "relevant_address".to_string(),
-                    Annotated::new(Value::String("0x1".to_string())),
+                    "relevant_address".to_owned(),
+                    Annotated::new(Value::String("0x1".to_owned())),
                 );
                 Annotated::new(map)
             },
@@ -496,13 +496,13 @@ mod tests {
                     ty: Annotated::new(1),
                     code: Annotated::new(1),
                     subcode: Annotated::new(8),
-                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_owned()),
                 }),
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::new(11),
                     code: Annotated::new(0),
-                    name: Annotated::new("SIGSEGV".to_string()),
-                    code_name: Annotated::new("SEGV_NOOP".to_string()),
+                    name: Annotated::new("SIGSEGV".to_owned()),
+                    code_name: Annotated::new("SEGV_NOOP".to_owned()),
                 }),
                 ns_error: Annotated::empty(),
                 other: Object::default(),
