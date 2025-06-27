@@ -144,27 +144,6 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Gets the human-readable description for a NEL error type
-fn get_nel_culprit(error_type: &str) -> Option<&'static str> {
-    NEL_CULPRITS
-        .iter()
-        .find(|(key, _)| *key == error_type)
-        .map(|(_, value)| *value)
-}
-
-/// Gets the formatted human-readable description for a NEL error type
-/// For http.error, formats the message with the provided status code
-fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Option<String> {
-    let template = get_nel_culprit(error_type)?;
-
-    if error_type == "http.error" {
-        let code = status_code.unwrap_or(0);
-        Some(template.replace("{}", &code.to_string()))
-    } else {
-        Some(template.to_string())
-    }
-}
-
 /// Extracts the domain or IP address from a server address string
 /// e.g. "123.123.123.123" -> "123.123.123.123"
 /// e.g. "https://example.com/foo?bar=1" -> "example.com"
@@ -205,7 +184,22 @@ fn extract_server_address(server_address: &str) -> String {
 
 /// Creates a human-readable message for a NEL report
 fn create_message(error_type: &str, status_code: Option<u16>) -> String {
-    get_nel_culprit_formatted(error_type, status_code).unwrap_or_else(|| error_type.to_string())
+    let template = NEL_CULPRITS
+        .iter()
+        .find(|(key, _)| *key == error_type)
+        .map(|(_, value)| *value);
+
+    match template {
+        Some(template_str) => {
+            if error_type == "http.error" {
+                let code = status_code.unwrap_or(0);
+                template_str.replace("{}", &code.to_string())
+            } else {
+                template_str.to_string()
+            }
+        }
+        None => error_type.to_string(), // Return the error type itself if not found
+    }
 }
 
 /// Creates a [`OurLog`] from the provided [`NetworkReportRaw`].
@@ -278,4 +272,277 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
         attributes: Annotated::new(attributes),
         ..Default::default()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use relay_event_schema::protocol::{BodyRaw, NetworkReportPhases};
+    use relay_protocol::Annotated;
+    use std::net::IpAddr;
+
+    #[test]
+    fn test_get_nel_culprit() {
+        assert_eq!(
+            get_nel_culprit("dns.unreachable"),
+            Some("DNS server is unreachable")
+        );
+        assert_eq!(
+            get_nel_culprit("tcp.timed_out"),
+            Some("TCP connection to the server timed out")
+        );
+        assert_eq!(
+            get_nel_culprit("http.error"),
+            Some("The user agent successfully received a response, but it had a {} status code")
+        );
+        assert_eq!(get_nel_culprit("unknown"), Some("error type is unknown"));
+        assert_eq!(get_nel_culprit("nonexistent"), None);
+    }
+
+    #[test]
+    fn test_get_nel_culprit_formatted() {
+        // Test http.error with status code
+        assert_eq!(
+            get_nel_culprit_formatted("http.error", Some(500)),
+            Some(
+                "The user agent successfully received a response, but it had a 500 status code"
+                    .to_string()
+            )
+        );
+
+        // Test http.error without status code
+        assert_eq!(
+            get_nel_culprit_formatted("http.error", None),
+            Some(
+                "The user agent successfully received a response, but it had a 0 status code"
+                    .to_string()
+            )
+        );
+
+        // Test non-http.error types
+        assert_eq!(
+            get_nel_culprit_formatted("dns.unreachable", None),
+            Some("DNS server is unreachable".to_string())
+        );
+
+        // Test unknown error type
+        assert_eq!(get_nel_culprit_formatted("nonexistent", None), None);
+    }
+
+    #[test]
+    fn test_extract_server_address_ip() {
+        assert_eq!(extract_server_address("123.123.123.123"), "123.123.123.123");
+        assert_eq!(extract_server_address("192.168.1.1"), "192.168.1.1");
+    }
+
+    #[test]
+    fn test_extract_server_address_simple_urls() {
+        assert_eq!(
+            extract_server_address("https://example.com/foo?bar=1"),
+            "example.com"
+        );
+        assert_eq!(
+            extract_server_address("http://localhost:8080/foo?bar=1"),
+            "localhost"
+        );
+        assert_eq!(
+            extract_server_address("https://sub.example.com/path"),
+            "sub.example.com"
+        );
+    }
+
+    #[test]
+    fn test_extract_server_address_ipv6() {
+        assert_eq!(extract_server_address("http://[::1]:8080/foo"), "[::1]");
+        assert_eq!(
+            extract_server_address("https://[2001:db8::1]:443/path"),
+            "[2001:db8::1]"
+        );
+        // Malformed IPv6 (missing closing bracket)
+        assert_eq!(
+            extract_server_address("http://[::1:8080/foo"),
+            "[::1:8080/foo"
+        );
+    }
+
+    #[test]
+    fn test_extract_server_address_ports() {
+        assert_eq!(
+            extract_server_address("https://example.com:443/path"),
+            "example.com"
+        );
+        assert_eq!(extract_server_address("http://localhost:3000"), "localhost");
+    }
+
+    #[test]
+    fn test_extract_server_address_edge_cases() {
+        // Empty URL part after protocol
+        assert_eq!(extract_server_address("https://"), "https://");
+        // No protocol
+        assert_eq!(extract_server_address("example.com"), "example.com");
+        // URL with fragments and queries
+        assert_eq!(
+            extract_server_address("https://example.com/path?query=value#fragment"),
+            "example.com"
+        );
+    }
+
+    #[test]
+    fn test_create_message() {
+        assert_eq!(
+            create_message("dns.unreachable", None),
+            "DNS server is unreachable"
+        );
+        assert_eq!(
+            create_message("http.error", Some(404)),
+            "The user agent successfully received a response, but it had a 404 status code"
+        );
+        assert_eq!(create_message("unknown_error", None), "unknown_error");
+    }
+
+    #[test]
+    fn test_create_log_basic() {
+        let received_at = Utc::now();
+
+        let body = BodyRaw {
+            ty: Annotated::new("http.error".to_string()),
+            status_code: Annotated::new(500),
+            elapsed_time: Annotated::new(1000),
+            method: Annotated::new("GET".to_string()),
+            protocol: Annotated::new("http/1.1".to_string()),
+            server_ip: Annotated::new("192.168.1.1".parse::<IpAddr>().unwrap()),
+            phase: Annotated::new(NetworkReportPhases::Application),
+            sampling_fraction: Annotated::new(1.0),
+            referrer: Annotated::new("https://example.com/referer".to_string()),
+            ..Default::default()
+        };
+
+        let nel = NetworkReportRaw {
+            age: Annotated::new(5000),
+            ty: Annotated::new("network-error".to_string()),
+            url: Annotated::new("https://example.com/api".to_string()),
+            user_agent: Annotated::new("Mozilla/5.0".to_string()),
+            body: Annotated::new(body),
+            ..Default::default()
+        };
+
+        let log = create_log(Annotated::new(nel), received_at).unwrap();
+
+        // Check basic fields
+        assert_eq!(log.level.into_value(), Some(OurLogLevel::Info));
+        assert_eq!(
+            log.body.into_value(),
+            Some(
+                "The user agent successfully received a response, but it had a 500 status code"
+                    .to_string()
+            )
+        );
+
+        // Check timestamp adjustment (should be received_at - age)
+        let expected_timestamp = received_at
+            .checked_sub_signed(Duration::milliseconds(5000))
+            .unwrap();
+        assert_eq!(
+            log.timestamp.into_value().unwrap().into_inner(),
+            expected_timestamp
+        );
+
+        // Check attributes
+        let attributes = log.attributes.into_value().unwrap();
+        assert_eq!(
+            attributes.get("sentry.origin").unwrap().as_str(),
+            Some("auto.http.browser_reports.nel")
+        );
+        assert_eq!(
+            attributes.get("report_type").unwrap().as_str(),
+            Some("network-error")
+        );
+        assert_eq!(
+            attributes.get("url.domain").unwrap().as_str(),
+            Some("example.com")
+        );
+        assert_eq!(
+            attributes.get("url.full").unwrap().as_str(),
+            Some("https://example.com/api")
+        );
+        assert_eq!(
+            attributes.get("http.request.duration").unwrap().as_i64(),
+            Some(1000)
+        );
+        assert_eq!(
+            attributes.get("http.request.method").unwrap().as_str(),
+            Some("GET")
+        );
+        assert_eq!(
+            attributes
+                .get("http.response.status_code")
+                .unwrap()
+                .as_i64(),
+            Some(500)
+        );
+        assert_eq!(
+            attributes.get("network.protocol").unwrap().as_str(),
+            Some("http/1.1")
+        );
+        assert_eq!(
+            attributes.get("server.address").unwrap().as_str(),
+            Some("192.168.1.1")
+        );
+        assert_eq!(
+            attributes.get("nel.phase").unwrap().as_str(),
+            Some("application")
+        );
+        assert_eq!(
+            attributes.get("nel.sampling_fraction").unwrap().as_f64(),
+            Some(1.0)
+        );
+        assert_eq!(
+            attributes.get("nel.type").unwrap().as_str(),
+            Some("http.error")
+        );
+    }
+
+    #[test]
+    fn test_create_log_minimal() {
+        let received_at = Utc::now();
+
+        let body = BodyRaw {
+            ty: Annotated::new("unknown".to_string()),
+            ..Default::default()
+        };
+
+        let nel = NetworkReportRaw {
+            body: Annotated::new(body),
+            ..Default::default()
+        };
+
+        let log = create_log(Annotated::new(nel), received_at).unwrap();
+
+        assert_eq!(
+            log.body.into_value(),
+            Some("error type is unknown".to_string())
+        );
+        assert_eq!(log.level.into_value(), Some(OurLogLevel::Info));
+    }
+
+    #[test]
+    fn test_create_log_missing_body() {
+        let received_at = Utc::now();
+
+        let nel = NetworkReportRaw {
+            body: Annotated::empty(),
+            ..Default::default()
+        };
+
+        let result = create_log(Annotated::new(nel), received_at);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_create_log_empty_nel() {
+        let received_at = Utc::now();
+        let result = create_log(Annotated::empty(), received_at);
+        assert!(result.is_none());
+    }
 }
