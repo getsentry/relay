@@ -58,11 +58,10 @@ fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<E
 
     let bytes = Bytes::from(format!(
         "\
-         {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{}:@sentry.io/42\"}}\n\
+         {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{project_key}:@sentry.io/42\"}}\n\
          {{\"type\":\"attachment\"}}\n\
-         {}\n\
-         ",
-        project_key, payload
+         {payload}\n\
+         "
     ));
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -88,7 +87,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
             // Benchmark push operations
             group.bench_with_input(
-                BenchmarkId::new(format!("push_{}", envelope_size), size),
+                BenchmarkId::new(format!("push_{envelope_size}"), size),
                 size,
                 |b, &size| {
                     b.iter_with_setup(
@@ -126,7 +125,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
             // Benchmark pop operations
             group.bench_with_input(
-                BenchmarkId::new(format!("pop_{}", envelope_size), size),
+                BenchmarkId::new(format!("pop_{envelope_size}"), size),
                 size,
                 |b, &size| {
                     b.iter_with_setup(
@@ -166,7 +165,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
             // Benchmark mixed push and pop operations
             group.bench_with_input(
-                BenchmarkId::new(format!("mixed_{}", envelope_size), size),
+                BenchmarkId::new(format!("mixed_{envelope_size}"), size),
                 size,
                 |b, &size| {
                     b.iter_with_setup(
@@ -245,7 +244,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
         b.iter_with_setup(
             || {
                 let project_keys: Vec<_> = (0..num_projects)
-                    .map(|i| ProjectKey::parse(&format!("{:#032x}", i)).unwrap())
+                    .map(|i| ProjectKey::parse(&format!("{i:#032x}")).unwrap())
                     .collect();
 
                 let mut envelopes = vec![];
@@ -277,7 +276,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
         b.iter_with_setup(
             || {
                 let project_keys: Vec<_> = (0..num_projects)
-                    .map(|i| ProjectKey::parse(&format!("{:#032x}", i)).unwrap())
+                    .map(|i| ProjectKey::parse(&format!("{i:#032x}")).unwrap())
                     .collect();
 
                 let mut envelopes = vec![];

@@ -1415,7 +1415,7 @@ mod tests {
         for (url, allowed_hosts, expected) in examples {
             let json = format!(
                 r#"{{
-                    "description": "POST {}",
+                    "description": "POST {url}",
                     "span_id": "bd2eb23da2beb459",
                     "start_timestamp": 1597976393.4619668,
                     "timestamp": 1597976393.4718769,
@@ -1423,7 +1423,6 @@ mod tests {
                     "op": "http.client"
         }}
             "#,
-                url,
             );
 
             let mut span = Annotated::<Span>::from_json(&json).unwrap();
@@ -1433,7 +1432,7 @@ mod tests {
 
             assert_eq!(
                 scrubbed.0.as_deref(),
-                Some(format!("POST {}", expected).as_str()),
+                Some(format!("POST {expected}").as_str()),
                 "Could not match {url}"
             );
         }

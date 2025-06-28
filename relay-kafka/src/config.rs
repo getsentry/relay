@@ -1,12 +1,8 @@
 //! Configuration primitives to configure the kafka producer and properly set up the connection.
-//!
-//! The configuration can be either;
-//! - [`TopicAssignment::Primary`] - the main and default kafka configuration,
-//! - [`TopicAssignment::Secondary`] - used to configure any additional kafka topic,
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de};
 use thiserror::Error;
 
 /// Kafka configuration errors.
@@ -84,7 +80,7 @@ impl KafkaTopic {
 macro_rules! define_topic_assignments {
     ($($field_name:ident : ($kafka_topic:path, $default_topic:literal, $doc:literal)),* $(,)?) => {
         /// Configuration for topics.
-        #[derive(Serialize, Deserialize, Debug)]
+        #[derive(Deserialize, Serialize, Debug)]
         #[serde(default)]
         pub struct TopicAssignments {
             $(
@@ -94,8 +90,8 @@ macro_rules! define_topic_assignments {
             )*
 
             /// Additional topic assignments configured but currently unused by this Relay instance.
-            #[serde(flatten)]
-            pub unused: BTreeMap<String, TopicAssignment>,
+            #[serde(flatten, skip_serializing)]
+            pub unused: Unused,
         }
 
         impl TopicAssignments{
@@ -110,13 +106,24 @@ macro_rules! define_topic_assignments {
             }
         }
 
+        impl KafkaTopic {
+            /// Map this KafkaTopic to the "logical topic", i.e. the default topic name.
+            pub fn logical_topic_name(&self) -> &'static str {
+                match self {
+                    $(
+                        $kafka_topic => $default_topic,
+                    )*
+                }
+            }
+        }
+
         impl Default for TopicAssignments {
             fn default() -> Self {
                 Self {
                     $(
                         $field_name: $default_topic.to_owned().into(),
                     )*
-                    unused: BTreeMap::new(),
+                    unused: Default::default()
                 }
             }
         }
@@ -144,41 +151,97 @@ define_topic_assignments! {
     items: (KafkaTopic::Items, "snuba-items", "Items topic."),
 }
 
+/// A list of all currently, by this Relay, unused topic configurations.
+#[derive(Debug, Default)]
+pub struct Unused(Vec<String>);
+
+impl Unused {
+    /// Returns all unused topic names.
+    pub fn names(&self) -> &[String] {
+        &self.0
+    }
+}
+
+impl<'de> de::Deserialize<'de> for Unused {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let topics = BTreeMap::<String, de::IgnoredAny>::deserialize(deserializer)?;
+        Ok(Self(topics.into_keys().collect()))
+    }
+}
+
 /// Configuration for a "logical" topic/datasink that Relay should forward data into.
 ///
 /// Can be either a string containing the kafka topic name to produce into (using the default
-/// `kafka_config`), or an object containing keys `topic_name` and `kafka_config_name` for using a
-/// custom kafka cluster.
+/// `kafka_config`), an object containing keys `topic_name` and `kafka_config_name` for using a
+/// custom kafka cluster, or an array of topic names/configs for sharded topics.
 ///
 /// See documentation for `secondary_kafka_configs` for more information.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum TopicAssignment {
-    /// String containing the kafka topic name. In this case the default kafka cluster configured
-    /// in `kafka_config` will be used.
-    Primary(String),
-    /// Object containing topic name and string identifier of one of the clusters configured in
-    /// `secondary_kafka_configs`. In this case that custom kafka config will be used to produce
-    /// data to the given topic name.
-    Secondary(KafkaTopicConfig),
+#[derive(Debug, Serialize)]
+pub struct TopicAssignment(Vec<TopicConfig>);
+
+impl<'de> de::Deserialize<'de> for TopicAssignment {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        #[derive(Deserialize, Debug)]
+        #[serde(untagged)]
+        enum Inner {
+            // order matters. structs can be deserialized from arrays.
+            ShardedPrimary(Vec<String>),
+            ShardedSecondary(Vec<TopicConfig>),
+            Primary(String),
+            Secondary(TopicConfig),
+        }
+
+        let configs = match Inner::deserialize(deserializer)? {
+            Inner::Primary(topic_name) => vec![topic_name.into()],
+            Inner::Secondary(config) => vec![config],
+            Inner::ShardedPrimary(topic_names) => topic_names.into_iter().map(From::from).collect(),
+            Inner::ShardedSecondary(configs) => configs,
+        };
+
+        if configs.is_empty() {
+            return Err(de::Error::custom(
+                "topic assignment must have at least one shard",
+            ));
+        }
+
+        Ok(Self(configs))
+    }
 }
 
 /// Configuration for topic
-#[derive(Serialize, Deserialize, Debug)]
-pub struct KafkaTopicConfig {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TopicConfig {
     /// The topic name to use.
     #[serde(rename = "name")]
     topic_name: String,
     /// The Kafka config name will be used to produce data to the given topic.
-    #[serde(rename = "config")]
-    kafka_config_name: String,
+    ///
+    /// If the config is missing, the default config will be used.
+    #[serde(rename = "config", skip_serializing_if = "Option::is_none")]
+    kafka_config_name: Option<String>,
     /// Optionally, a rate limit per partition key to protect against partition imbalance.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     key_rate_limit: Option<KeyRateLimit>,
 }
 
+impl From<String> for TopicConfig {
+    fn from(topic_name: String) -> Self {
+        Self {
+            topic_name,
+            kafka_config_name: None,
+            key_rate_limit: None,
+        }
+    }
+}
+
 /// Produce rate limit configuration for a topic.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 pub struct KeyRateLimit {
     /// Limit each partition key to N messages per `window_secs`.
     pub limit_per_window: u64,
@@ -189,11 +252,25 @@ pub struct KeyRateLimit {
     pub window_secs: u64,
 }
 
+/// A Kafka config for a topic.
+///
+/// This internally includes configuration for multiple 'physical' Kafka topics,
+/// as Relay can shard to multiple topics at once.
+#[derive(Debug)]
+pub struct KafkaTopicConfig<'a>(Vec<KafkaParams<'a>>);
+
+impl<'a> KafkaTopicConfig<'a> {
+    /// Kafka params for each psysical shard.
+    pub fn topics(&self) -> &[KafkaParams<'a>] {
+        &self.0
+    }
+}
+
 /// Config for creating a Kafka producer.
 #[derive(Debug)]
 pub struct KafkaParams<'a> {
-    /// The topic name to use.
-    pub topic_name: &'a str,
+    /// The topic names to use. Can be a single topic or multiple topics for sharding.
+    pub topic_name: String,
     /// The Kafka config name will be used to produce data.
     pub config_name: Option<&'a str>,
     /// Parameters for the Kafka producer configuration.
@@ -204,49 +281,44 @@ pub struct KafkaParams<'a> {
 
 impl From<String> for TopicAssignment {
     fn from(topic_name: String) -> Self {
-        Self::Primary(topic_name)
+        Self(vec![topic_name.into()])
     }
 }
 
 impl TopicAssignment {
-    /// Get the kafka config for the current topic assignment.
+    /// Get the Kafka configs for the current topic assignment.
     ///
     /// # Errors
     /// Returns [`ConfigError`] if the configuration for the current topic assignment is invalid.
-    pub fn kafka_config<'a>(
+    pub fn kafka_configs<'a>(
         &'a self,
         default_config: &'a Vec<KafkaConfigParam>,
         secondary_configs: &'a BTreeMap<String, Vec<KafkaConfigParam>>,
-    ) -> Result<KafkaParams<'a>, ConfigError> {
-        let kafka_config = match self {
-            Self::Primary(topic_name) => KafkaParams {
-                topic_name,
-                config_name: None,
-                params: default_config.as_slice(),
-                // XXX: Rate limits can only be set if the non-default kafka broker config is used,
-                // i.e. in the Secondary codepath
-                key_rate_limit: None,
-            },
-            Self::Secondary(KafkaTopicConfig {
-                topic_name,
-                kafka_config_name,
-                key_rate_limit,
-            }) => KafkaParams {
-                config_name: Some(kafka_config_name),
-                topic_name,
-                params: secondary_configs
-                    .get(kafka_config_name)
-                    .ok_or(ConfigError::UnknownKafkaConfigName)?,
-                key_rate_limit: *key_rate_limit,
-            },
-        };
+    ) -> Result<KafkaTopicConfig<'a>, ConfigError> {
+        let configs = self
+            .0
+            .iter()
+            .map(|tc| {
+                Ok(KafkaParams {
+                    topic_name: tc.topic_name.clone(),
+                    config_name: tc.kafka_config_name.as_deref(),
+                    params: match &tc.kafka_config_name {
+                        Some(config) => secondary_configs
+                            .get(config)
+                            .ok_or(ConfigError::UnknownKafkaConfigName)?,
+                        None => default_config.as_slice(),
+                    },
+                    key_rate_limit: tc.key_rate_limit,
+                })
+            })
+            .collect::<Result<_, _>>()?;
 
-        Ok(kafka_config)
+        Ok(KafkaTopicConfig(configs))
     }
 }
 
 /// A name value pair of Kafka config parameter.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct KafkaConfigParam {
     /// Name of the Kafka config parameter.
     pub name: String,
@@ -270,6 +342,192 @@ ingest-metrics: "ingest-metrics-3"
 transactions: "ingest-transactions-kafka-topic"
 "#;
 
+        let mut second_config = BTreeMap::new();
+        second_config.insert(
+            "profiles".to_owned(),
+            vec![KafkaConfigParam {
+                name: "test".to_owned(),
+                value: "test-value".to_owned(),
+            }],
+        );
+
+        let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
+        insta::assert_debug_snapshot!(topics, @r###"
+        TopicAssignments {
+            events: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-events-kafka-topic",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            attachments: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-attachments",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            transactions: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-transactions-kafka-topic",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            outcomes: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "outcomes",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            outcomes_billing: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "outcomes-billing",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            metrics_sessions: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-metrics-3",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            metrics_generic: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-performance-metrics",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            profiles: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-profiles",
+                        kafka_config_name: Some(
+                            "profiles",
+                        ),
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            replay_events: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-replay-events",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            replay_recordings: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-replay-recordings",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            ourlogs: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "snuba-ourlogs",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            monitors: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-monitors",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            spans: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "snuba-spans",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            feedback: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "ingest-feedback-events",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            items: TopicAssignment(
+                [
+                    TopicConfig {
+                        topic_name: "snuba-items",
+                        kafka_config_name: None,
+                        key_rate_limit: None,
+                    },
+                ],
+            ),
+            unused: Unused(
+                [],
+            ),
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_default_topic_is_valid() {
+        // A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
+        let currrently_undefined_topics = [
+            "ingest-attachments",
+            "ingest-transactions",
+            "profiles",
+            "ingest-monitors",
+        ];
+
+        for topic in KafkaTopic::iter() {
+            let name = topic.logical_topic_name();
+            if !currrently_undefined_topics.contains(&name) {
+                assert!(sentry_kafka_schemas::get_schema(name, None).is_ok());
+            }
+        }
+    }
+
+    #[test]
+    fn test_sharded_kafka_config() {
+        let yaml = r#"
+events: ["ingest-events-1", "ingest-events-2"]
+profiles:
+  - name: "ingest-profiles-1"
+    config: "profiles"
+  - name: "ingest-profiles-2"
+    config: "profiles"
+"#;
+        let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
+
         let def_config = vec![KafkaConfigParam {
             name: "test".to_owned(),
             value: "test-value".to_owned(),
@@ -283,85 +541,175 @@ transactions: "ingest-transactions-kafka-topic"
             }],
         );
 
-        let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
-        let events = topics.events;
-        let profiles = topics.profiles;
-        let metrics_sessions = topics.metrics_sessions;
-        let transactions = topics.transactions;
+        let events_configs = topics
+            .events
+            .kafka_configs(&def_config, &second_config)
+            .expect("Kafka config for sharded events topic");
 
-        assert!(matches!(events, TopicAssignment::Primary(_)));
-        assert!(matches!(profiles, TopicAssignment::Secondary { .. }));
-        assert!(matches!(metrics_sessions, TopicAssignment::Primary(_)));
-        assert!(matches!(transactions, TopicAssignment::Primary(_)));
+        insta::assert_debug_snapshot!(events_configs, @r###"
+        KafkaTopicConfig(
+            [
+                KafkaParams {
+                    topic_name: "ingest-events-1",
+                    config_name: None,
+                    params: [
+                        KafkaConfigParam {
+                            name: "test",
+                            value: "test-value",
+                        },
+                    ],
+                    key_rate_limit: None,
+                },
+                KafkaParams {
+                    topic_name: "ingest-events-2",
+                    config_name: None,
+                    params: [
+                        KafkaConfigParam {
+                            name: "test",
+                            value: "test-value",
+                        },
+                    ],
+                    key_rate_limit: None,
+                },
+            ],
+        )
+        "###);
 
-        let events_config = events
-            .kafka_config(&def_config, &second_config)
-            .expect("Kafka config for events topic");
-        assert!(matches!(
-            events_config,
-            KafkaParams {
-                topic_name: "ingest-events-kafka-topic",
-                ..
-            }
-        ));
+        let profiles_configs = topics
+            .profiles
+            .kafka_configs(&def_config, &second_config)
+            .expect("Kafka config for sharded profiles topic");
 
-        let events_config = profiles
-            .kafka_config(&def_config, &second_config)
-            .expect("Kafka config for profiles topic");
-        assert!(matches!(
-            events_config,
-            KafkaParams {
-                topic_name: "ingest-profiles",
-                config_name: Some("profiles"),
-                ..
-            }
-        ));
-
-        let events_config = metrics_sessions
-            .kafka_config(&def_config, &second_config)
-            .expect("Kafka config for metrics topic");
-        assert!(matches!(
-            events_config,
-            KafkaParams {
-                topic_name: "ingest-metrics-3",
-                ..
-            }
-        ));
-
-        // Legacy keys are still supported
-        let transactions_config = transactions
-            .kafka_config(&def_config, &second_config)
-            .expect("Kafka config for transactions topic");
-        assert!(matches!(
-            transactions_config,
-            KafkaParams {
-                topic_name: "ingest-transactions-kafka-topic",
-                ..
-            }
-        ));
+        insta::assert_debug_snapshot!(profiles_configs, @r###"
+        KafkaTopicConfig(
+            [
+                KafkaParams {
+                    topic_name: "ingest-profiles-1",
+                    config_name: Some(
+                        "profiles",
+                    ),
+                    params: [
+                        KafkaConfigParam {
+                            name: "test",
+                            value: "test-value",
+                        },
+                    ],
+                    key_rate_limit: None,
+                },
+                KafkaParams {
+                    topic_name: "ingest-profiles-2",
+                    config_name: Some(
+                        "profiles",
+                    ),
+                    params: [
+                        KafkaConfigParam {
+                            name: "test",
+                            value: "test-value",
+                        },
+                    ],
+                    key_rate_limit: None,
+                },
+            ],
+        )
+        "###);
     }
 
     #[test]
-    fn test_default_topic_is_valid() {
-        let topic_assignments = TopicAssignments::default();
+    fn test_per_shard_rate_limits() {
+        let yaml = r#"
+events:
+  - name: "shard-0"
+    config: "cluster1"
+    key_rate_limit:
+      limit_per_window: 100
+      window_secs: 60
+  - name: "shard-1"
+    config: "cluster2"
+    key_rate_limit:
+      limit_per_window: 200
+      window_secs: 120
+  - name: "shard-2"  # No rate limit (Primary variant)
+"#;
 
-        // A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
-        let currrently_undefined_topics = [
-            "ingest-attachments".to_owned(),
-            "ingest-transactions".to_owned(),
-            "profiles".to_owned(),
-            "ingest-monitors".to_owned(),
-        ];
+        let def_config = vec![KafkaConfigParam {
+            name: "bootstrap.servers".to_owned(),
+            value: "primary:9092".to_owned(),
+        }];
+        let mut second_config = BTreeMap::new();
+        second_config.insert(
+            "cluster1".to_owned(),
+            vec![KafkaConfigParam {
+                name: "bootstrap.servers".to_owned(),
+                value: "cluster1:9092".to_owned(),
+            }],
+        );
+        second_config.insert(
+            "cluster2".to_owned(),
+            vec![KafkaConfigParam {
+                name: "bootstrap.servers".to_owned(),
+                value: "cluster2:9092".to_owned(),
+            }],
+        );
 
-        for topic in KafkaTopic::iter() {
-            match topic_assignments.get(*topic) {
-                TopicAssignment::Primary(logical_topic_name) => {
-                    if !currrently_undefined_topics.contains(logical_topic_name) {
-                        assert!(sentry_kafka_schemas::get_schema(logical_topic_name, None).is_ok());
-                    }
-                }
-                _ => panic!("invalid default"),
-            }
-        }
+        let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
+
+        let events_configs = topics
+            .events
+            .kafka_configs(&def_config, &second_config)
+            .expect("Kafka config for per-shard rate limits");
+
+        insta::assert_debug_snapshot!(events_configs, @r###"
+        KafkaTopicConfig(
+            [
+                KafkaParams {
+                    topic_name: "shard-0",
+                    config_name: Some(
+                        "cluster1",
+                    ),
+                    params: [
+                        KafkaConfigParam {
+                            name: "bootstrap.servers",
+                            value: "cluster1:9092",
+                        },
+                    ],
+                    key_rate_limit: Some(
+                        KeyRateLimit {
+                            limit_per_window: 100,
+                            window_secs: 60,
+                        },
+                    ),
+                },
+                KafkaParams {
+                    topic_name: "shard-1",
+                    config_name: Some(
+                        "cluster2",
+                    ),
+                    params: [
+                        KafkaConfigParam {
+                            name: "bootstrap.servers",
+                            value: "cluster2:9092",
+                        },
+                    ],
+                    key_rate_limit: Some(
+                        KeyRateLimit {
+                            limit_per_window: 200,
+                            window_secs: 120,
+                        },
+                    ),
+                },
+                KafkaParams {
+                    topic_name: "shard-2",
+                    config_name: None,
+                    params: [
+                        KafkaConfigParam {
+                            name: "bootstrap.servers",
+                            value: "primary:9092",
+                        },
+                    ],
+                    key_rate_limit: None,
+                },
+            ],
+        )
+        "###);
     }
 }
