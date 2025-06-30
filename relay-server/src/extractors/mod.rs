@@ -4,6 +4,7 @@ mod mime;
 mod received_at;
 mod remote;
 mod request_meta;
+mod signature;
 mod signed_json;
 
 pub use self::content_type::*;

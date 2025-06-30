@@ -1484,6 +1484,16 @@ pub struct AuthConfig {
     /// Statically authenticated downstream relays.
     #[serde(default, with = "config_relay_info")]
     pub static_relays: HashMap<RelayId, RelayInfo>,
+
+    /// How old a signature can be before it is considered invalid, in seconds.
+    ///
+    /// Defaults to 5 minutes.
+    #[serde(default = "default_max_age")]
+    pub signature_max_age: u64,
+}
+
+fn default_max_age() -> u64 {
+    300
 }
 
 /// GeoIp database configuration options.
@@ -2625,6 +2635,11 @@ impl Config {
     /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
         &self.values.auth.static_relays
+    }
+
+    /// Returns the max age a signature is considered valid, in seconds.
+    pub fn signature_max_age(&self) -> Duration {
+        Duration::from_secs(self.values.auth.signature_max_age)
     }
 
     /// Returns `true` if unknown items should be accepted and forwarded.

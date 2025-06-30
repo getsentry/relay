@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -9,7 +9,7 @@ use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_dynamic_config::ErrorBoundary;
-use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
+use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig, SignatureVerification};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
 use serde::{Deserialize, Serialize};
@@ -101,6 +101,7 @@ impl ProjectInfo {
     ///  - Disabled or unknown projects
     ///  - Disabled project keys (DSN)
     ///  - Feature flags
+    ///  - Trusted Relay signature invalid
     pub fn check_envelope(
         &self,
         envelope: &Envelope,
@@ -133,7 +134,43 @@ impl ProjectInfo {
             return Err(DiscardReason::FeatureDisabled(*disabled_feature));
         }
 
-        Ok(())
+        self.check_envelope_signature(envelope, config)
+    }
+
+    /// Checks if the envelope signature is valid given the configuration.
+    ///
+    /// Based on [`SignatureVerification`], it will perform different checks on
+    /// the signature and return a [`DiscardReason`] if it is invalid.
+    ///
+    /// NOTE: It will only check signatures coming from external relays, if the
+    /// envelope was received from an internal relay, the check will always succeed.
+    fn check_envelope_signature(
+        &self,
+        envelope: &Envelope,
+        config: &Config,
+    ) -> Result<(), DiscardReason> {
+        if envelope.meta().is_from_internal_relay() {
+            return Ok(());
+        }
+        match self.config.trusted_relay_settings.verify_signature {
+            SignatureVerification::Disabled => Ok(()),
+            SignatureVerification::Enabled => match envelope.meta().signature() {
+                Some(signature) => {
+                    if signature.verify_any(
+                        &self.config.trusted_relays,
+                        envelope.received_at(),
+                        // conversion should never fail here
+                        Duration::from_std(config.signature_max_age())
+                            .unwrap_or(Duration::milliseconds(i64::MAX)),
+                    ) {
+                        Ok(())
+                    } else {
+                        Err(DiscardReason::InvalidSignature)
+                    }
+                }
+                None => Err(DiscardReason::MissingSignature),
+            },
+        }
     }
 
     /// Returns `true` if the given project ID matches this project.
