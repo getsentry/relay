@@ -3,12 +3,11 @@ use std::sync::Arc;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::OurLog;
 use relay_pii::PiiConfigError;
+use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{
-    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
-};
+use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items};
 use crate::processing::{
     self, Context, Counted, Forward, Managed, ManagedResult as _, OutcomeError, Output, Quantities,
     QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
@@ -101,10 +100,12 @@ impl processing::Processor for LogsProcessor {
 
         let otel_logs = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLog));
+            .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLog))
+            .into_vec();
         let logs = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Log));
+            .take_items_by(|item| matches!(*item.ty(), ItemType::Log))
+            .into_vec();
 
         let work = SerializedLogs {
             headers,
@@ -138,10 +139,6 @@ impl processing::Processor for LogsProcessor {
 }
 
 /// Output produced by [`LogsProcessor`].
-#[expect(
-    clippy::large_enum_variant,
-    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
-)]
 #[derive(Debug)]
 pub enum LogOutput {
     NotProcessed(Managed<SerializedLogs>),
@@ -203,19 +200,19 @@ pub struct SerializedLogs {
     headers: EnvelopeHeaders,
 
     /// OTel Logs are not sent in containers, an envelope is very likely to contain multiple OTel logs.
-    otel_logs: Items,
+    otel_logs: Vec<Item>,
     /// Logs are sent in item containers, there is specified limit of a single container per
     /// envelope.
     ///
     /// But at this point this has not yet been validated.
-    logs: Items,
+    logs: Vec<Item>,
 }
 
 impl SerializedLogs {
     fn serialize_envelope(self) -> Box<Envelope> {
         let mut items = self.logs;
         items.extend(self.otel_logs);
-        Envelope::from_parts(self.headers, items)
+        Envelope::from_parts(self.headers, Items::from_vec(items))
     }
 
     fn items(&self) -> impl Iterator<Item = &Item> {
@@ -284,7 +281,7 @@ pub struct ExpandedLogs {
     /// Retention in days.
     retention: Option<u16>,
     /// Expanded and parsed logs.
-    logs: ContainerItems<OurLog>,
+    logs: Vec<Annotated<OurLog>>,
 }
 
 impl Counted for ExpandedLogs {
@@ -307,7 +304,7 @@ impl ExpandedLogs {
         Ok(SerializedLogs {
             headers: self.headers,
             otel_logs: Default::default(),
-            logs: smallvec::smallvec![item],
+            logs: vec![item],
         })
     }
 }

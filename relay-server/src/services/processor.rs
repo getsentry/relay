@@ -844,6 +844,10 @@ struct SpansExtracted(bool);
 
 /// The result of the envelope processing containing the processed envelope along with the partial
 /// result.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
+)]
 #[derive(Debug)]
 enum ProcessingResult {
     Envelope {
@@ -863,8 +867,15 @@ impl ProcessingResult {
     }
 }
 
+/// All items which can be submitted upstream.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
+)]
 enum Submit {
+    /// A processed envelope.
     Envelope(TypedEnvelope<Processed>),
+    /// The output of the [log processor](LogsProcessor).
     Logs(LogOutput),
 }
 
