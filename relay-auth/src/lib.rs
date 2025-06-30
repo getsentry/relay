@@ -701,7 +701,7 @@ impl RegisterResponse {
     }
 }
 
-/// A wrapper around a byte vector that represents a signature.
+/// A wrapper around a String that represents a signature.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature(pub String);
 
@@ -768,13 +768,11 @@ impl Signature {
     }
 }
 
-/// A borrowed reference to a byte slice used for signature validation.
+/// A borrowed reference to a signature string used for validation.
 ///
-/// `SignatureRef` provides a view into the raw bytes of a signature and is
-/// the primary type used in signature validation and verification routines.
-/// It enables working with either owned or borrowed signature data without
-/// unnecessary allocations, typically by borrowing from a [`Signature`] or
-/// directly from a byte slice.
+/// `SignatureRef` provides a view into the signature data as a string slice,
+/// allowing verification to work with borrowed data without unnecessary allocations.
+/// This type is typically obtained by borrowing from an owned [`Signature`].
 pub struct SignatureRef<'a>(pub &'a str);
 
 #[cfg(test)]
