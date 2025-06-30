@@ -76,6 +76,24 @@ test-integration: build setup-venv ## run integration tests
 	.venv/bin/pytest tests -n $(PYTEST_N) -v
 .PHONY: test-integration
 
+insta-review: build setup-venv ## review all snapshots for files that have been modified
+	@changed_py=$$(git diff --name-only | grep '\.py$$'); \
+	if [ -z "$$changed_py" ]; then \
+	  echo "No Python files changed — skipping insta review"; \
+	else \
+	  .venv/bin/pytest -s --insta review $$changed_py; \
+	fi
+.PHONY: insta-review
+
+insta-accept: build setup-venv ## accept all new snapshots for files that have been modified
+	@changed_py=$$(git diff --name-only | grep '\.py$$'); \
+	if [ -z "$$changed_py" ]; then \
+	  echo "No Python files changed — no snapshots updated"; \
+	else \
+	  .venv/bin/pytest -s --insta update $$changed_py; \
+	fi
+.PHONY: insta-accept
+
 # Documentation
 
 doc: doc-rust ## generate all API docs
