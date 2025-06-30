@@ -3,6 +3,7 @@
 ## Unreleased
 
 **Features**:
+
 - Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
 - Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
 - Sharding into many topics based on partition key. ([#4861](https://github.com/getsentry/relay/pull/4861))
@@ -19,6 +20,7 @@
 - Consider `gen_ai` also as AI span op prefix. ([#4859](https://github.com/getsentry/relay/pull/4859))
 - Change pii scrubbing on some AI attributes to optional ([#4860](https://github.com/getsentry/relay/pull/4860))
 - Conditionally set `total_cost` and `total_tokens` attributes on AI spans. ([#4868](https://github.com/getsentry/relay/pull/4868))
+- Add support for playstation data requests. ([#4870](https://github.com/getsentry/relay/pull/4870))
 
 ## 25.6.1
 
