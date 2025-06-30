@@ -57,7 +57,7 @@ mod tests {
         let metadata = TransactionMetadata {
             active_thread_id: 259,
             id: "A2669CD2-C7E0-47ED-8298-4AAF9666A6B6".parse().unwrap(),
-            name: "SomeTransaction".to_string(),
+            name: "SomeTransaction".to_owned(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 133,
@@ -73,7 +73,7 @@ mod tests {
         let metadata = TransactionMetadata {
             active_thread_id: 259,
             id: "A2669CD2-C7E0-47ED-8298-4AAF9666A6B6".parse().unwrap(),
-            name: "".to_string(),
+            name: "".to_owned(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 133,
@@ -89,7 +89,7 @@ mod tests {
         let metadata = TransactionMetadata {
             active_thread_id: 259,
             id: "A2669CD2-C7E0-47ED-8298-4AAF9666A6B6".parse().unwrap(),
-            name: "valid-transaction-name".to_string(),
+            name: "valid-transaction-name".to_owned(),
             relative_cpu_end_ms: 0,
             relative_cpu_start_ms: 0,
             relative_end_ns: 0,

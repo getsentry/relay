@@ -94,10 +94,10 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
         if let Some(raw_description) = runtime.raw_description.as_str() {
             if let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
-                runtime.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+                runtime.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
                 runtime.version = captures
                     .name("version")
-                    .map(|m| m.as_str().to_string())
+                    .map(|m| m.as_str().to_owned())
                     .into();
             }
         }
@@ -110,27 +110,27 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
         if let Some(build) = runtime.build.as_str() {
             if name.starts_with(".NET Framework") {
                 let version = match build {
-                    "378389" => Some("4.5".to_string()),
-                    "378675" => Some("4.5.1".to_string()),
-                    "378758" => Some("4.5.1".to_string()),
-                    "379893" => Some("4.5.2".to_string()),
-                    "393295" => Some("4.6".to_string()),
-                    "393297" => Some("4.6".to_string()),
-                    "394254" => Some("4.6.1".to_string()),
-                    "394271" => Some("4.6.1".to_string()),
-                    "394802" => Some("4.6.2".to_string()),
-                    "394806" => Some("4.6.2".to_string()),
-                    "460798" => Some("4.7".to_string()),
-                    "460805" => Some("4.7".to_string()),
-                    "461308" => Some("4.7.1".to_string()),
-                    "461310" => Some("4.7.1".to_string()),
-                    "461808" => Some("4.7.2".to_string()),
-                    "461814" => Some("4.7.2".to_string()),
-                    "528040" => Some("4.8".to_string()),
-                    "528049" => Some("4.8".to_string()),
-                    "528209" => Some("4.8".to_string()),
-                    "528372" => Some("4.8".to_string()),
-                    "528449" => Some("4.8".to_string()),
+                    "378389" => Some("4.5".to_owned()),
+                    "378675" => Some("4.5.1".to_owned()),
+                    "378758" => Some("4.5.1".to_owned()),
+                    "379893" => Some("4.5.2".to_owned()),
+                    "393295" => Some("4.6".to_owned()),
+                    "393297" => Some("4.6".to_owned()),
+                    "394254" => Some("4.6.1".to_owned()),
+                    "394271" => Some("4.6.1".to_owned()),
+                    "394802" => Some("4.6.2".to_owned()),
+                    "394806" => Some("4.6.2".to_owned()),
+                    "460798" => Some("4.7".to_owned()),
+                    "460805" => Some("4.7".to_owned()),
+                    "461308" => Some("4.7.1".to_owned()),
+                    "461310" => Some("4.7.1".to_owned()),
+                    "461808" => Some("4.7.2".to_owned()),
+                    "461814" => Some("4.7.2".to_owned()),
+                    "528040" => Some("4.8".to_owned()),
+                    "528049" => Some("4.8".to_owned()),
+                    "528209" => Some("4.8".to_owned()),
+                    "528372" => Some("4.8".to_owned()),
+                    "528449" => Some("4.8".to_owned()),
                     _ => None,
                 };
 
@@ -145,7 +145,7 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if runtime.runtime.value().is_none() {
         if let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value()) {
-            runtime.runtime = Annotated::from(format!("{} {}", name, version));
+            runtime.runtime = Annotated::from(format!("{name} {version}"));
         }
     }
 }
@@ -199,66 +199,66 @@ fn normalize_os_context(os: &mut OsContext) {
 
     if let Some(raw_description) = os.raw_description.as_str() {
         if let Some((version, build_number)) = get_windows_version(raw_description) {
-            os.name = "Windows".to_string().into();
-            os.version = version.to_string().into();
+            os.name = "Windows".to_owned().into();
+            os.version = version.to_owned().into();
             if os.build.is_empty() {
                 // Keep raw version as build
-                os.build.set_value(Some(build_number.to_string().into()));
+                os.build.set_value(Some(build_number.to_owned().into()));
             }
         } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
-            os.name = "macOS".to_string().into();
+            os.name = "macOS".to_owned().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_IOS_REGEX.captures(raw_description) {
-            os.name = "iOS".to_string().into();
+            os.name = "iOS".to_owned().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_IPADOS_REGEX.captures(raw_description) {
-            os.name = "iPadOS".to_string().into();
+            os.name = "iPadOS".to_owned().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_LINUX_DISTRO_UNAME_REGEX.captures(raw_description) {
-            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
             os.kernel_version = captures
                 .name("kernel_version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
-            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
             os.kernel_version = captures
                 .name("kernel_version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if let Some(captures) = OS_ANDROID_REGEX.captures(raw_description) {
-            os.name = "Android".to_string().into();
+            os.name = "Android".to_owned().into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| m.as_str().to_owned())
                 .into();
         } else if raw_description == "Nintendo Switch" {
-            os.name = "Nintendo OS".to_string().into();
+            os.name = "Nintendo OS".to_owned().into();
         }
     }
 
@@ -270,7 +270,7 @@ fn compute_os_context(os: &mut OsContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if os.os.value().is_none() {
         if let (Some(name), Some(version)) = (os.name.value(), os.version.value()) {
-            os.os = Annotated::from(format!("{} {}", name, version));
+            os.os = Annotated::from(format!("{name} {version}"));
         }
     }
 }
@@ -280,7 +280,7 @@ fn normalize_browser_context(browser: &mut BrowserContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if browser.browser.value().is_none() {
         if let (Some(name), Some(version)) = (browser.name.value(), browser.version.value()) {
-            browser.browser = Annotated::from(format!("{} {}", name, version));
+            browser.browser = Annotated::from(format!("{name} {version}"));
         }
     }
 }
@@ -302,13 +302,13 @@ fn normalize_response_data(response: &mut ResponseContext) {
         // Retain meta data on the body (e.g. trimming annotations) but remove anything on the
         // inferred content type.
         response.data.set_value(Some(parsed_data));
-        response.inferred_content_type = Annotated::from(content_type.to_string());
+        response.inferred_content_type = Annotated::from(content_type.to_owned());
     } else {
         response.inferred_content_type = response
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.split(';').next().unwrap_or(value).to_string())
+            .map(|value| value.split(';').next().unwrap_or(value).to_owned())
             .into();
     }
 }
@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn test_dotnet_framework_48_without_build_id() {
         let mut runtime = RuntimeContext {
-            raw_description: ".NET Framework 4.8.4250.0".to_string().into(),
+            raw_description: ".NET Framework 4.8.4250.0".to_owned().into(),
             ..RuntimeContext::default()
         };
 
@@ -398,8 +398,8 @@ mod tests {
     #[test]
     fn test_dotnet_framework_472() {
         let mut runtime = RuntimeContext {
-            raw_description: ".NET Framework 4.7.3056.0".to_string().into(),
-            build: LenientString("461814".to_string()).into(),
+            raw_description: ".NET Framework 4.7.3056.0".to_owned().into(),
+            build: LenientString("461814".to_owned()).into(),
             ..RuntimeContext::default()
         };
 
@@ -411,8 +411,8 @@ mod tests {
     #[test]
     fn test_dotnet_framework_future_version() {
         let mut runtime = RuntimeContext {
-            raw_description: ".NET Framework 200.0".to_string().into(),
-            build: LenientString("999999".to_string()).into(),
+            raw_description: ".NET Framework 200.0".to_owned().into(),
+            build: LenientString("999999".to_owned()).into(),
             ..RuntimeContext::default()
         };
 
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn test_dotnet_native() {
         let mut runtime = RuntimeContext {
-            raw_description: ".NET Native 2.0".to_string().into(),
+            raw_description: ".NET Native 2.0".to_owned().into(),
             ..RuntimeContext::default()
         };
 
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn test_dotnet_core() {
         let mut runtime = RuntimeContext {
-            raw_description: ".NET Core 2.0".to_string().into(),
+            raw_description: ".NET Core 2.0".to_owned().into(),
             ..RuntimeContext::default()
         };
 
@@ -451,7 +451,7 @@ mod tests {
         // Environment.OSVersion on Windows 7 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
         let mut os = OsContext {
             raw_description: "Microsoft Windows NT 6.1.7601 Service Pack 1"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -468,7 +468,7 @@ mod tests {
         // It's a potentially really misleading API on newer platforms
         // Only used if RuntimeInformation.OSDescription is not available (old runtimes)
         let mut os = OsContext {
-            raw_description: "Microsoft Windows NT 6.2.9200.0".to_string().into(),
+            raw_description: "Microsoft Windows NT 6.2.9200.0".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -482,7 +482,7 @@ mod tests {
         // RuntimeInformation.OSDescription on Windows 10 (CoreCLR 2.0+, .NET
         // Framework 4.7.1+, Mono 5.4+)
         let mut os = OsContext {
-            raw_description: "Microsoft Windows 10.0.16299".to_string().into(),
+            raw_description: "Microsoft Windows 10.0.16299".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -495,7 +495,7 @@ mod tests {
     fn test_windows_11() {
         // https://github.com/getsentry/relay/issues/1201
         let mut os = OsContext {
-            raw_description: "Microsoft Windows 10.0.22000".to_string().into(),
+            raw_description: "Microsoft Windows 10.0.22000".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -508,7 +508,7 @@ mod tests {
     fn test_windows_11_future1() {
         // This is fictional as of today, but let's be explicit about the behavior we expect.
         let mut os = OsContext {
-            raw_description: "Microsoft Windows 10.0.22001".to_string().into(),
+            raw_description: "Microsoft Windows 10.0.22001".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -521,7 +521,7 @@ mod tests {
     fn test_windows_11_future2() {
         // This is fictional, but let's be explicit about the behavior we expect.
         let mut os = OsContext {
-            raw_description: "Microsoft Windows 10.1.23456".to_string().into(),
+            raw_description: "Microsoft Windows 10.1.23456".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -534,7 +534,7 @@ mod tests {
     fn test_macos_os_version() {
         // Environment.OSVersion on macOS (CoreCLR 1.0+, Mono 1+)
         let mut os = OsContext {
-            raw_description: "Unix 17.5.0.0".to_string().into(),
+            raw_description: "Unix 17.5.0.0".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -547,7 +547,7 @@ mod tests {
     fn test_macos_runtime() {
         // RuntimeInformation.OSDescription on macOS (CoreCLR 2.0+, Mono 5.4+)
         let mut os = OsContext {
-        raw_description: "Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64".to_string().into(),
+        raw_description: "Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64".to_owned().into(),
         ..OsContext::default()
     };
 
@@ -560,7 +560,7 @@ mod tests {
     fn test_centos_os_version() {
         // Environment.OSVersion on CentOS 7 (CoreCLR 1.0+, Mono 1+)
         let mut os = OsContext {
-            raw_description: "Unix 3.10.0.693".to_string().into(),
+            raw_description: "Unix 3.10.0.693".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -574,7 +574,7 @@ mod tests {
         // RuntimeInformation.OSDescription on CentOS 7 (CoreCLR 2.0+, Mono 5.4+)
         let mut os = OsContext {
             raw_description: "Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -590,7 +590,7 @@ mod tests {
         // (CoreCLR 2.0+, Mono 5.4+)
         let mut os = OsContext {
             raw_description: "Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -603,7 +603,7 @@ mod tests {
     #[test]
     fn test_macos_with_build() {
         let mut os = OsContext {
-            raw_description: "Mac OS X 10.14.2 (18C54)".to_string().into(),
+            raw_description: "Mac OS X 10.14.2 (18C54)".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -616,7 +616,7 @@ mod tests {
     #[test]
     fn test_macos_without_build() {
         let mut os = OsContext {
-            raw_description: "Mac OS X 10.14.2".to_string().into(),
+            raw_description: "Mac OS X 10.14.2".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -629,8 +629,8 @@ mod tests {
     #[test]
     fn test_name_not_overwritten() {
         let mut os = OsContext {
-            name: "Properly defined name".to_string().into(),
-            raw_description: "Linux 4.4.0".to_string().into(),
+            name: "Properly defined name".to_owned().into(),
+            raw_description: "Linux 4.4.0".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -641,8 +641,8 @@ mod tests {
     #[test]
     fn test_version_not_overwritten() {
         let mut os = OsContext {
-            version: "Properly defined version".to_string().into(),
-            raw_description: "Linux 4.4.0".to_string().into(),
+            version: "Properly defined version".to_owned().into(),
+            raw_description: "Linux 4.4.0".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -664,7 +664,7 @@ mod tests {
     #[test]
     fn test_unity_mac_os() {
         let mut os = OsContext {
-            raw_description: "Mac OS X 10.16.0".to_string().into(),
+            raw_description: "Mac OS X 10.16.0".to_owned().into(),
             ..OsContext::default()
         };
         normalize_os_context(&mut os);
@@ -676,7 +676,7 @@ mod tests {
     #[test]
     fn test_unity_ios() {
         let mut os = OsContext {
-            raw_description: "iOS 17.5.1".to_string().into(),
+            raw_description: "iOS 17.5.1".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -689,7 +689,7 @@ mod tests {
     #[test]
     fn test_unity_ipados() {
         let mut os = OsContext {
-            raw_description: "iPadOS 17.5.1".to_string().into(),
+            raw_description: "iPadOS 17.5.1".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -703,20 +703,20 @@ mod tests {
     #[test]
     fn test_unity_windows_os() {
         let mut os = OsContext {
-            raw_description: "Windows 10  (10.0.19042) 64bit".to_string().into(),
+            raw_description: "Windows 10  (10.0.19042) 64bit".to_owned().into(),
             ..OsContext::default()
         };
         normalize_os_context(&mut os);
         assert_eq!(Some("Windows"), os.name.as_str());
         assert_eq!(Some("10"), os.version.as_str());
-        assert_eq!(Some(&LenientString("19042".to_string())), os.build.value());
+        assert_eq!(Some(&LenientString("19042".to_owned())), os.build.value());
     }
 
     #[test]
     fn test_unity_android_os() {
         let mut os = OsContext {
             raw_description: "Android OS 11 / API-30 (RP1A.201005.001/2107031736)"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -735,7 +735,7 @@ mod tests {
     #[test]
     fn test_linux_5_11() {
         let mut os = OsContext {
-            raw_description: "Linux 5.11 Ubuntu 20.04 64bit".to_string().into(),
+            raw_description: "Linux 5.11 Ubuntu 20.04 64bit".to_owned().into(),
             ..OsContext::default()
         };
         normalize_os_context(&mut os);
@@ -749,7 +749,7 @@ mod tests {
     fn test_unity_nintendo_switch() {
         // Format sent by Unity on Nintendo Switch
         let mut os = OsContext {
-            raw_description: "Nintendo Switch".to_string().into(),
+            raw_description: "Nintendo Switch".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -763,7 +763,7 @@ mod tests {
     fn test_android_4_4_2() {
         let mut os = OsContext {
             raw_description: "Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)"
-                .to_string()
+                .to_owned()
                 .into(),
             ..OsContext::default()
         };
@@ -776,13 +776,13 @@ mod tests {
     #[test]
     fn test_infer_json() {
         let mut response = ResponseContext {
-            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_owned())),
             ..ResponseContext::default()
         };
 
         let mut expected_value = Object::new();
         expected_value.insert(
-            "foo".to_string(),
+            "foo".to_owned(),
             Annotated::from(Value::String("bar".into())),
         );
 
@@ -797,10 +797,10 @@ mod tests {
     #[test]
     fn test_broken_json_with_fallback() {
         let mut response = ResponseContext {
-            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_owned())),
             headers: Annotated::from(Headers(PairList(vec![Annotated::new((
-                Annotated::new("Content-Type".to_string().into()),
-                Annotated::new("text/plain; encoding=utf-8".to_string().into()),
+                Annotated::new("Content-Type".to_owned().into()),
+                Annotated::new("text/plain; encoding=utf-8".to_owned().into()),
             ))]))),
             ..ResponseContext::default()
         };
@@ -813,7 +813,7 @@ mod tests {
     #[test]
     fn test_broken_json_without_fallback() {
         let mut response = ResponseContext {
-            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_owned())),
             ..ResponseContext::default()
         };
 
@@ -825,8 +825,8 @@ mod tests {
     #[test]
     fn test_os_computed_context() {
         let mut os = OsContext {
-            name: "Windows".to_string().into(),
-            version: "10".to_string().into(),
+            name: "Windows".to_owned().into(),
+            version: "10".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -837,7 +837,7 @@ mod tests {
     #[test]
     fn test_os_computed_context_missing_version() {
         let mut os = OsContext {
-            name: "Windows".to_string().into(),
+            name: "Windows".to_owned().into(),
             ..OsContext::default()
         };
 
@@ -848,8 +848,8 @@ mod tests {
     #[test]
     fn test_runtime_computed_context() {
         let mut runtime = RuntimeContext {
-            name: "Python".to_string().into(),
-            version: "3.9.0".to_string().into(),
+            name: "Python".to_owned().into(),
+            version: "3.9.0".to_owned().into(),
             ..RuntimeContext::default()
         };
 
@@ -860,7 +860,7 @@ mod tests {
     #[test]
     fn test_runtime_computed_context_missing_version() {
         let mut runtime = RuntimeContext {
-            name: "Python".to_string().into(),
+            name: "Python".to_owned().into(),
             ..RuntimeContext::default()
         };
 
@@ -871,8 +871,8 @@ mod tests {
     #[test]
     fn test_browser_computed_context() {
         let mut browser = BrowserContext {
-            name: "Firefox".to_string().into(),
-            version: "89.0".to_string().into(),
+            name: "Firefox".to_owned().into(),
+            version: "89.0".to_owned().into(),
             ..BrowserContext::default()
         };
 
@@ -883,7 +883,7 @@ mod tests {
     #[test]
     fn test_browser_computed_context_missing_version() {
         let mut browser = BrowserContext {
-            name: "Firefox".to_string().into(),
+            name: "Firefox".to_owned().into(),
             ..BrowserContext::default()
         };
 

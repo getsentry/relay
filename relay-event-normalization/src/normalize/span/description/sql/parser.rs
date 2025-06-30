@@ -34,7 +34,7 @@ pub fn parse_query(
         || match std::panic::catch_unwind(|| parse_query_inner(db_system, query)) {
             Ok(res) => res,
             Err(_) => Err(sqlparser::parser::ParserError::ParserError(
-                "panicked".to_string(),
+                "panicked".to_owned(),
             )),
         },
     )

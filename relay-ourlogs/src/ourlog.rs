@@ -109,7 +109,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
     Ok(ourlog)
 }
 
-/// This fills attributes with OTel specific fields to be compatible with the otel schema.
+/// This fills attributes with OTel specific fields to be compatible with the OTel schema.
 pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<Utc>) {
     let Some(ourlog_value) = ourlog.value_mut() else {
         return;

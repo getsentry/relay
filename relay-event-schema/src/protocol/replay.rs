@@ -433,27 +433,27 @@ mod tests {
         let replay = Annotated::new(Replay {
             event_id: Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap())),
             replay_id: Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap())),
-            replay_type: Annotated::new("session".to_string()),
+            replay_type: Annotated::new("session".to_owned()),
             segment_id: Annotated::new(0),
             timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
             replay_start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            urls: Annotated::new(vec![Annotated::new("localhost:9000".to_string())]),
+            urls: Annotated::new(vec![Annotated::new("localhost:9000".to_owned())]),
             error_ids: Annotated::new(vec![Annotated::new(
                 Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )]),
             trace_ids: Annotated::new(vec![Annotated::new(
                 Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )]),
-            platform: Annotated::new("myplatform".to_string()),
-            release: Annotated::new("myrelease".to_string().into()),
-            dist: Annotated::new("mydist".to_string()),
-            environment: Annotated::new("myenv".to_string()),
+            platform: Annotated::new("myplatform".to_owned()),
+            release: Annotated::new("myrelease".to_owned().into()),
+            dist: Annotated::new("mydist".to_owned()),
+            environment: Annotated::new("myenv".to_owned()),
             tags: {
                 let items = vec![Annotated::new(TagEntry(
-                    Annotated::new("tag".to_string()),
-                    Annotated::new("value".to_string()),
+                    Annotated::new("tag".to_owned()),
+                    Annotated::new("value".to_owned()),
                 ))];
                 Annotated::new(Tags(items.into()))
             },
@@ -468,7 +468,7 @@ mod tests {
         let input = r#"{"release":42}"#;
         let output = r#"{"release":"42"}"#;
         let event = Annotated::new(Replay {
-            release: Annotated::new("42".to_string().into()),
+            release: Annotated::new("42".to_owned().into()),
             ..Default::default()
         });
 
@@ -480,9 +480,9 @@ mod tests {
     fn test_ota_updates_context_getter() {
         let mut contexts = Contexts::new();
         contexts.add(OTAUpdatesContext {
-            channel: Annotated::new("production".to_string()),
-            runtime_version: Annotated::new("1.0.0".to_string()),
-            update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_string()),
+            channel: Annotated::new("production".to_owned()),
+            runtime_version: Annotated::new("1.0.0".to_owned()),
+            update_id: Annotated::new("12345678-1234-1234-1234-1234567890ab".to_owned()),
             ..OTAUpdatesContext::default()
         });
 

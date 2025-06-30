@@ -261,6 +261,7 @@ mod http;
 mod metrics;
 mod metrics_extraction;
 mod middlewares;
+mod processing;
 mod service;
 mod services;
 mod statsd;

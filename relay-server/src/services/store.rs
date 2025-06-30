@@ -72,9 +72,9 @@ impl Producer {
             // See `KafkaOutcomesProducer`.
             **t != KafkaTopic::Outcomes && **t != KafkaTopic::OutcomesBilling
         }) {
-            let kafka_config = &config.kafka_config(*topic)?;
+            let kafka_configs = config.kafka_configs(*topic)?;
             client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
+                .add_kafka_topic_config(*topic, &kafka_configs, config.kafka_validate_topics())
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 
@@ -701,7 +701,7 @@ impl StoreService {
             }
             _ => KafkaTopic::MetricsGeneric,
         };
-        let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
+        let headers = BTreeMap::from([("namespace".to_owned(), namespace.to_string())]);
 
         self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
@@ -723,7 +723,7 @@ impl StoreService {
             received: safe_timestamp(received_at),
             retention_days,
             headers: BTreeMap::from([(
-                "sampled".to_string(),
+                "sampled".to_owned(),
                 if item.sampled() { "true" } else { "false" }.to_owned(),
             )]),
             payload: item.payload(),
@@ -959,7 +959,7 @@ impl StoreService {
             KafkaTopic::Spans,
             KafkaMessage::Span {
                 headers: BTreeMap::from([(
-                    "project_id".to_string(),
+                    "project_id".to_owned(),
                     scoping.project_id.to_string(),
                 )]),
                 message: span,

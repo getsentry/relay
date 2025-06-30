@@ -52,7 +52,7 @@ mod tests {
             "*/ping",
             "*/up",
         ]
-        .map(|val| val.to_string())
+        .map(|val| val.to_owned())
         .to_vec();
 
         IgnoreTransactionsFilterConfig {
@@ -247,8 +247,7 @@ mod tests {
                 assert_eq!(
                     filter_result,
                     Ok(()),
-                    "Event filtered for event_type={} although filter should have not matched",
-                    event_type
+                    "Event filtered for event_type={event_type} although filter should have not matched"
                 )
             }
         }

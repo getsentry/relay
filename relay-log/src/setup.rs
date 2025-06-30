@@ -126,7 +126,7 @@ impl Level {
 
 impl Display for Level {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", format!("{:?}", self).to_lowercase())
+        write!(f, "{}", format!("{self:?}").to_lowercase())
     }
 }
 
@@ -365,6 +365,7 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
             environment: sentry.environment.clone(),
             server_name: sentry.server_name.clone(),
             traces_sampler,
+            enable_logs: true,
             ..Default::default()
         };
 

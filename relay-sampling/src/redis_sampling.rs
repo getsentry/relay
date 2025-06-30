@@ -8,7 +8,7 @@ pub struct ReservoirRuleKey(String);
 
 impl ReservoirRuleKey {
     pub fn new(org_id: OrganizationId, rule_id: RuleId) -> Self {
-        Self(format!("reservoir:{}:{}", org_id, rule_id))
+        Self(format!("reservoir:{org_id}:{rule_id}"))
     }
 
     fn as_str(&self) -> &str {

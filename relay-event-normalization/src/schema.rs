@@ -188,14 +188,14 @@ mod tests {
     #[test]
     fn test_client_sdk_missing_attribute() {
         let mut info = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
+            name: Annotated::new("sentry.rust".to_owned()),
             ..Default::default()
         });
 
         processor::process_value(&mut info, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
         let expected = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
+            name: Annotated::new("sentry.rust".to_owned()),
             version: Annotated::from_error(ErrorKind::MissingAttribute, None),
             ..Default::default()
         });
@@ -206,18 +206,18 @@ mod tests {
     #[test]
     fn test_mechanism_missing_attributes() {
         let mut mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new("mytype".to_string()),
+            ty: Annotated::new("mytype".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
-                    name: Annotated::new("ENOENT".to_string()),
+                    name: Annotated::new("ENOENT".to_owned()),
                     ..Default::default()
                 }),
                 mach_exception: Annotated::new(MachException {
-                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_owned()),
                     ..Default::default()
                 }),
                 signal: Annotated::new(PosixSignal {
-                    name: Annotated::new("SIGSEGV".to_string()),
+                    name: Annotated::new("SIGSEGV".to_owned()),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -233,22 +233,22 @@ mod tests {
         .unwrap();
 
         let expected = Annotated::new(Mechanism {
-            ty: Annotated::new("mytype".to_string()),
+            ty: Annotated::new("mytype".to_owned()),
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
                     number: Annotated::empty(),
-                    name: Annotated::new("ENOENT".to_string()),
+                    name: Annotated::new("ENOENT".to_owned()),
                 }),
                 mach_exception: Annotated::new(MachException {
                     ty: Annotated::empty(),
                     code: Annotated::empty(),
                     subcode: Annotated::empty(),
-                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_owned()),
                 }),
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::empty(),
                     code: Annotated::empty(),
-                    name: Annotated::new("SIGSEGV".to_string()),
+                    name: Annotated::new("SIGSEGV".to_owned()),
                     code_name: Annotated::empty(),
                 }),
                 ..Default::default()
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn test_newlines_release() {
         let mut event = Annotated::new(Event {
-            release: Annotated::new("42\n".to_string().into()),
+            release: Annotated::new("42\n".to_owned().into()),
             ..Default::default()
         });
 
@@ -285,7 +285,7 @@ mod tests {
             .unwrap();
 
         let expected = Annotated::new(Event {
-            release: Annotated::new("42".to_string().into()),
+            release: Annotated::new("42".to_owned().into()),
             ..Default::default()
         });
 

@@ -153,7 +153,7 @@ fn test_skip_array_empty_deep() {
 
     // "empty_deep" does not apply to non-empty value
     let helper = Annotated::new(Helper {
-        items: Annotated::new(vec![Annotated::new("some".to_string())]),
+        items: Annotated::new(vec![Annotated::new("some".to_owned())]),
     });
     assert_eq!(helper.to_json().unwrap(), r#"{"items":["some"]}"#);
 }
@@ -212,7 +212,7 @@ fn test_skip_object_null_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::default());
+            obj.insert("foo".to_owned(), Annotated::default());
             obj
         }),
     });
@@ -222,7 +222,7 @@ fn test_skip_object_null_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj.insert("foo".to_owned(), Annotated::new(String::new()));
             obj
         }),
     });
@@ -253,7 +253,7 @@ fn test_skip_object_empty() {
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::default());
+            obj.insert("foo".to_owned(), Annotated::default());
             obj
         }),
     });
@@ -263,7 +263,7 @@ fn test_skip_object_empty() {
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj.insert("foo".to_owned(), Annotated::new(String::new()));
             obj
         }),
     });
@@ -288,7 +288,7 @@ fn test_skip_object_empty_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj.insert("foo".to_owned(), Annotated::new(String::new()));
             obj
         }),
     });
@@ -298,7 +298,7 @@ fn test_skip_object_empty_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::new("some".to_string()));
+            obj.insert("foo".to_owned(), Annotated::new("some".to_owned()));
             obj
         }),
     });
@@ -417,7 +417,7 @@ fn test_skip_tuple_empty_deep() {
 
     // "empty_deep" does not apply to non-empty value
     let helper = Annotated::new(Helper {
-        items: Annotated::new((Annotated::new("some".to_string()),)),
+        items: Annotated::new((Annotated::new("some".to_owned()),)),
     });
     assert_eq!(helper.to_json().unwrap(), r#"{"items":["some"]}"#);
 }

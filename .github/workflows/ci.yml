@@ -3,12 +3,13 @@ name: CI
 on:
   push:
     branches:
-      - master
       - release/**
       - release-library/**
 
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -17,6 +18,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RELAY_CARGO_ARGS: "--locked"
+  IS_MASTER: "${{ github.event_name == 'merge_group' }}"
 
 jobs:
   lint:
@@ -38,7 +40,7 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        if: env.SSH_PRIVATE_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
@@ -128,7 +130,7 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        if: env.SSH_PRIVATE_KEY != ''
         # Windows needs an older versino of the ssh agent: https://github.com/webfactory/ssh-agent/pull/17
         uses: webfactory/ssh-agent@v0.7.0
         with:
@@ -182,7 +184,7 @@ jobs:
           submodules: recursive
 
       - name: Setup SSH agent
-        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        if: env.SSH_PRIVATE_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
@@ -240,6 +242,7 @@ jobs:
     env:
       FULL_CI: "${{
         github.ref == 'refs/heads/master'
+        || github.event_name == 'merge_group'
         || startsWith(github.ref, 'refs/heads/release/')
         || contains(github.event.pull_request.labels.*.name, 'Trigger: Full-CI')
       }}"
@@ -470,7 +473,7 @@ jobs:
           docker buildx build \
             --platform "${PLATFORMS}" \
             --tag "${DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
+            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
             --file Dockerfile.release \
             --push \
             .
@@ -554,7 +557,7 @@ jobs:
           docker buildx build \
             --platform "${PLATFORMS}" \
             --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
+            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
             --file Dockerfile.release \
             --push \
             .
@@ -569,7 +572,7 @@ jobs:
       matrix:
         image_name: ["relay"] # Don't publish relay-pop (for now)
 
-    if: ${{ (github.ref_name == 'master') }}
+    if: github.event_name == 'merge_group' 
 
     env:
       GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
@@ -641,7 +644,7 @@ jobs:
         run: docker buildx imagetools create --tag "${AR_DOCKER_IMAGE}:${REVISION}" "${GHCR_DOCKER_IMAGE}:${REVISION}"
 
       - name: Copy Nightly from GHCR to AR
-        if: github.ref == 'refs/heads/master'
+        if: env.IS_MASTER == 'true'
         run: docker buildx imagetools create --tag "${AR_DOCKER_IMAGE}:nightly" "${GHCR_DOCKER_IMAGE}:nightly"
 
   gocd-artifacts:
@@ -769,7 +772,7 @@ jobs:
           key: ${{ github.job }}
 
       - name: Setup SSH agent
-        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        if: env.SSH_PRIVATE_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
@@ -858,7 +861,7 @@ jobs:
   validate-devservices-config:
       runs-on: ubuntu-24.04
       needs: devservices-files-changed
-      if: ${{ needs.devservices-files-changed.outputs.devservices-files-changed == 'true' }}
+      if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
       steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         name: Checkout repository

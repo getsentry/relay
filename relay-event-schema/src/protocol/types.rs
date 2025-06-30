@@ -724,8 +724,8 @@ impl FromValue for LenientString {
         match value {
             Annotated(Some(Value::String(string)), meta) => Annotated(Some(string), meta),
             // XXX: True/False instead of true/false because of old python code
-            Annotated(Some(Value::Bool(true)), meta) => Annotated(Some("True".to_string()), meta),
-            Annotated(Some(Value::Bool(false)), meta) => Annotated(Some("False".to_string()), meta),
+            Annotated(Some(Value::Bool(true)), meta) => Annotated(Some("True".to_owned()), meta),
+            Annotated(Some(Value::Bool(false)), meta) => Annotated(Some("False".to_owned()), meta),
             Annotated(Some(Value::U64(num)), meta) => Annotated(Some(num.to_string()), meta),
             Annotated(Some(Value::I64(num)), meta) => Annotated(Some(num.to_string()), meta),
             Annotated(Some(Value::F64(num)), mut meta) => {
@@ -1035,8 +1035,8 @@ mod tests {
         assert_eq!(
             value,
             Annotated::new(Values::new(vec![Annotated::new(Exception {
-                ty: Annotated::new("Test".to_string()),
-                value: Annotated::new("aha!".to_string()),
+                ty: Annotated::new("Test".to_owned()),
+                value: Annotated::new("aha!".to_owned()),
             })]))
         );
 
@@ -1046,8 +1046,8 @@ mod tests {
         assert_eq!(
             value,
             Annotated::new(Values::new(vec![Annotated::new(Exception {
-                ty: Annotated::new("Test".to_string()),
-                value: Annotated::new("aha!".to_string()),
+                ty: Annotated::new("Test".to_owned()),
+                value: Annotated::new("aha!".to_owned()),
             })]))
         );
 
@@ -1057,8 +1057,8 @@ mod tests {
         assert_eq!(
             value,
             Annotated::new(Values::new(vec![Annotated::new(Exception {
-                ty: Annotated::new("Test".to_string()),
-                value: Annotated::new("aha!".to_string()),
+                ty: Annotated::new("Test".to_owned()),
+                value: Annotated::new("aha!".to_owned()),
             })]))
         );
     }
@@ -1079,7 +1079,7 @@ mod tests {
 
     #[test]
     fn test_hex_serialization() {
-        let value = Value::String("0x2a".to_string());
+        let value = Value::String("0x2a".to_owned());
         let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
         assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
         let value = Value::U64(42);
