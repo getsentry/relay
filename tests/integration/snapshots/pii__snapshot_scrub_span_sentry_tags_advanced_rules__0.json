@@ -1,0 +1,78 @@
+{
+  "event_id": "<event_id>",
+  "level": "error",
+  "version": "5",
+  "type": "default",
+  "logger": "",
+  "platform": "other",
+  "timestamp": "<timestamp>",
+  "received": "<received>",
+  "user": {
+    "ip_address": "2.125.160.216",
+    "sentry_user": "ip:2.125.160.216",
+    "geo": {
+      "country_code": "GB",
+      "city": "Boxford",
+      "subdivision": "England",
+      "region": "United Kingdom"
+    }
+  },
+  "sdk": {
+    "name": "raven-node",
+    "version": "2.6.3"
+  },
+  "ingest_path": [
+    {
+      "version": "<version>",
+      "public_key": "<public_key>"
+    }
+  ],
+  "key_id": "123",
+  "project": 42,
+  "spans": [
+    {
+      "timestamp": "<timestamp>",
+      "start_timestamp": 1746007545.0,
+      "span_id": "aaaaaaaa00000000",
+      "trace_id": "aaaaaaaaaaaaaaaaaaaa000000000000",
+      "sentry_tags": {
+        "user.geo.country_code": "**",
+        "user.geo.subregion": "**"
+      }
+    }
+  ],
+  "_meta": {
+    "spans": {
+      "0": {
+        "sentry_tags": {
+          "user.geo.country_code": {
+            "": {
+              "rem": [
+                [
+                  "@anything:mask",
+                  "m",
+                  0,
+                  2
+                ]
+              ],
+              "len": 2
+            }
+          },
+          "user.geo.subregion": {
+            "": {
+              "rem": [
+                [
+                  "@anything:mask",
+                  "m",
+                  0,
+                  2
+                ]
+              ],
+              "len": 2
+            }
+          }
+        }
+      }
+    }
+  }
+}
