@@ -48,8 +48,8 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
-use crate::processing::logs::LogsProcessor;
-use crate::processing::{Forward as _, Processor as _, QuotaRateLimiter};
+use crate::processing::logs::{LogOutput, LogsProcessor};
+use crate::processing::{Forward as _, Output, Processor as _, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -553,8 +553,6 @@ pub enum ProcessingError {
     ProcessingGroupMismatch,
     #[error("new processing pipeline failed")]
     ProcessingFailure,
-    #[error("failed to serialize processing result to an envelope")]
-    ProcessingEnvelopeSerialization,
 }
 
 impl ProcessingError {
@@ -600,9 +598,6 @@ impl ProcessingError {
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
             // Outcomes are emitted in the new processing pipeline already.
             Self::ProcessingFailure => None,
-            Self::ProcessingEnvelopeSerialization => {
-                Some(Outcome::Invalid(DiscardReason::Internal))
-            }
         }
     }
 
@@ -761,9 +756,12 @@ impl ProcessingExtractedMetrics {
     }
 }
 
-fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, aggregator: &Addr<Aggregator>) {
-    let project_key = envelope.meta().public_key();
-
+fn send_metrics(
+    metrics: ExtractedMetrics,
+    project_key: ProjectKey,
+    sampling_key: Option<ProjectKey>,
+    aggregator: &Addr<Aggregator>,
+) {
     let ExtractedMetrics {
         project_metrics,
         sampling_metrics,
@@ -783,7 +781,7 @@ fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, aggregator: &Add
         // project_without_tracing         -> metrics goes to self
         // dependent_project_with_tracing  -> metrics goes to root
         // root_project_with_tracing       -> metrics goes to root == self
-        let sampling_project_key = envelope.sampling_key().unwrap_or(project_key);
+        let sampling_project_key = sampling_key.unwrap_or(project_key);
         aggregator.send(MergeBuckets {
             project_key: sampling_project_key,
             buckets: sampling_metrics,
@@ -846,25 +844,39 @@ struct SpansExtracted(bool);
 
 /// The result of the envelope processing containing the processed envelope along with the partial
 /// result.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
+)]
 #[derive(Debug)]
-struct ProcessingResult {
-    managed_envelope: TypedEnvelope<Processed>,
-    extracted_metrics: ProcessingExtractedMetrics,
+enum ProcessingResult {
+    Envelope {
+        managed_envelope: TypedEnvelope<Processed>,
+        extracted_metrics: ProcessingExtractedMetrics,
+    },
+    Logs(Output<LogOutput>),
 }
 
 impl ProcessingResult {
     /// Creates a [`ProcessingResult`] with no metrics.
     fn no_metrics(managed_envelope: TypedEnvelope<Processed>) -> Self {
-        Self {
+        Self::Envelope {
             managed_envelope,
             extracted_metrics: ProcessingExtractedMetrics::new(),
         }
     }
+}
 
-    /// Returns the components of the [`ProcessingResult`].
-    fn into_inner(self) -> (TypedEnvelope<Processed>, ExtractedMetrics) {
-        (self.managed_envelope, self.extracted_metrics.metrics)
-    }
+/// All items which can be submitted upstream.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
+)]
+enum Submit {
+    /// A processed envelope.
+    Envelope(TypedEnvelope<Processed>),
+    /// The output of the [log processor](LogsProcessor).
+    Logs(LogOutput),
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -2179,22 +2191,11 @@ impl EnvelopeProcessorService {
             false => managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal)),
         }
 
-        let output = processor
+        processor
             .process(logs, ctx)
             .await
-            .map_err(|_| ProcessingError::ProcessingFailure)?;
-
-        let managed_envelope = ManagedEnvelope::from(
-            output
-                .main
-                .serialize_envelope()
-                .map_err(|_| ProcessingError::ProcessingEnvelopeSerialization)?,
-        );
-
-        Ok(ProcessingResult {
-            managed_envelope: managed_envelope.into_processed(),
-            extracted_metrics: output.metrics,
-        })
+            .map_err(|_| ProcessingError::ProcessingFailure)
+            .map(ProcessingResult::Logs)
     }
 
     /// Processes standalone spans.
@@ -2295,7 +2296,7 @@ impl EnvelopeProcessorService {
                 async {
                     let mut managed_envelope = (managed_envelope, group).try_into()?;
                     match self.$fn_name(&mut managed_envelope, $($args),*).await {
-                        Ok(extracted_metrics) => Ok(ProcessingResult {
+                        Ok(extracted_metrics) => Ok(ProcessingResult::Envelope {
                             managed_envelope: managed_envelope.into_processed(),
                             extracted_metrics: extracted_metrics.map_or(ProcessingExtractedMetrics::new(), |e| e)
                         }),
@@ -2432,7 +2433,7 @@ impl EnvelopeProcessorService {
         &self,
         cogs: &mut Token,
         mut message: ProcessEnvelopeGrouped,
-    ) -> Result<Option<TypedEnvelope<Processed>>, ProcessingError> {
+    ) -> Result<Option<Submit>, ProcessingError> {
         let ProcessEnvelopeGrouped {
             ref mut envelope,
             ref project_info,
@@ -2455,6 +2456,8 @@ impl EnvelopeProcessorService {
 
         let client = envelope.envelope().meta().client().map(str::to_owned);
         let user_agent = envelope.envelope().meta().user_agent().map(str::to_owned);
+        let project_key = envelope.envelope().meta().public_key();
+        let sampling_key = envelope.envelope().sampling_key();
 
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
@@ -2469,21 +2472,21 @@ impl EnvelopeProcessorService {
         });
 
         let result = match self.process_envelope(cogs, project_id, message).await {
-            Ok(result) => {
-                let (mut managed_envelope, extracted_metrics) = result.into_inner();
-
+            Ok(ProcessingResult::Envelope {
+                mut managed_envelope,
+                extracted_metrics,
+            }) => {
                 // The envelope could be modified or even emptied during processing, which
                 // requires re-computation of the context.
                 managed_envelope.update();
 
-                let has_metrics = !extracted_metrics.project_metrics.is_empty();
-                if has_metrics {
-                    send_metrics(
-                        extracted_metrics,
-                        managed_envelope.envelope(),
-                        &self.inner.addrs.aggregator,
-                    );
-                }
+                let has_metrics = !extracted_metrics.metrics.project_metrics.is_empty();
+                send_metrics(
+                    extracted_metrics.metrics,
+                    project_key,
+                    sampling_key,
+                    &self.inner.addrs.aggregator,
+                );
 
                 let envelope_response = if managed_envelope.envelope().is_empty() {
                     if !has_metrics {
@@ -2498,7 +2501,16 @@ impl EnvelopeProcessorService {
                     Some(managed_envelope)
                 };
 
-                Ok(envelope_response)
+                Ok(envelope_response.map(Submit::Envelope))
+            }
+            Ok(ProcessingResult::Logs(Output { main, metrics })) => {
+                send_metrics(
+                    metrics.metrics,
+                    project_key,
+                    sampling_key,
+                    &self.inner.addrs.aggregator,
+                );
+                Ok(Some(Submit::Logs(main)))
             }
             Err(err) => Err(err),
         };
@@ -2552,7 +2564,7 @@ impl EnvelopeProcessorService {
             );
 
             match result {
-                Ok(Some(envelope)) => self.submit_envelope(&mut cogs, envelope),
+                Ok(Some(envelope)) => self.submit_upstream(&mut cogs, envelope),
                 Ok(None) => {}
                 Err(error) if error.is_unexpected() => {
                     relay_log::error!(
@@ -2670,17 +2682,32 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn submit_envelope(&self, cogs: &mut Token, mut envelope: TypedEnvelope<Processed>) {
+    fn submit_upstream(&self, cogs: &mut Token, submit: Submit) {
         let _submit = cogs.start_category("submit");
 
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
-            if let Some(store_forwarder) = self.inner.addrs.store_forwarder.clone() {
-                relay_log::trace!("sending envelope to kafka");
-                store_forwarder.send(StoreEnvelope { envelope });
+            if let Some(store_forwarder) = &self.inner.addrs.store_forwarder {
+                match submit {
+                    Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
+                    Submit::Logs(output) => output
+                        .forward_store(store_forwarder)
+                        .unwrap_or_else(|err| err.into_inner()),
+                }
                 return;
             }
         }
+
+        let mut envelope = match submit {
+            Submit::Envelope(envelope) => envelope,
+            Submit::Logs(output) => match output.serialize_envelope() {
+                Ok(envelope) => ManagedEnvelope::from(envelope).into_processed(),
+                Err(_) => {
+                    relay_log::error!("failed to serialize output to an envelope");
+                    return;
+                }
+            },
+        };
 
         // If we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.inner.config) {
@@ -2752,7 +2779,7 @@ impl EnvelopeProcessorService {
             self.inner.addrs.outcome_aggregator.clone(),
             self.inner.addrs.test_store.clone(),
         );
-        self.submit_envelope(cogs, envelope.into_processed());
+        self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
     }
 
     fn check_buckets(
@@ -3135,7 +3162,7 @@ impl EnvelopeProcessorService {
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.submit_envelope(cogs, envelope.into_processed());
+                self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
                 num_batches += 1;
             }
 
@@ -4023,11 +4050,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let mut new_envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap();
+        let Ok(Some(Submit::Envelope(mut new_envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
         let new_envelope = new_envelope.envelope_mut();
 
         let event_item = new_envelope.items().last().unwrap();
@@ -4090,7 +4117,7 @@ mod tests {
         });
         let project_info = Arc::new(project_info);
 
-        let process_message = ProcessEnvelopeGrouped {
+        let message = ProcessEnvelopeGrouped {
             group: ProcessingGroup::Transaction,
             envelope: managed_envelope,
             project_info: project_info.clone(),
@@ -4108,11 +4135,11 @@ mod tests {
         .unwrap();
 
         let processor = create_test_processor(config).await;
-        let envelope = processor
-            .process(&mut Token::noop(), process_message)
-            .await
-            .unwrap()
-            .unwrap();
+        let Ok(Some(Submit::Envelope(envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
         let event = envelope
             .envelope()
             .get_item_by(|item| item.ty() == &ItemType::Event)

@@ -291,7 +291,7 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup, Submit};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -344,13 +344,13 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap()
-            .envelope()
-            .clone()
+        let Ok(Some(Submit::Envelope(envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
+
+        envelope.envelope().clone()
     }
 
     fn extract_first_event_from_envelope(envelope: Envelope) -> Event {

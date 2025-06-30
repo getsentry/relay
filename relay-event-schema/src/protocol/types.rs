@@ -817,6 +817,16 @@ impl Timestamp {
     }
 }
 
+impl From<Timestamp> for uuid::Timestamp {
+    fn from(value: Timestamp) -> Self {
+        uuid::Timestamp::from_unix(
+            uuid::NoContext,
+            u64::try_from(value.0.timestamp()).unwrap_or(0),
+            value.0.timestamp_subsec_nanos(),
+        )
+    }
+}
+
 impl ProcessValue for Timestamp {
     #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {

@@ -277,7 +277,7 @@ mod tests {
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::outcome::RuleCategory;
-    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
@@ -394,11 +394,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let new_envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap();
+        let Ok(Some(Submit::Envelope(new_envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
         let item = new_envelope.envelope().items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
 
@@ -506,11 +506,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let new_envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap();
+        let Ok(Some(Submit::Envelope(new_envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
         let new_envelope = new_envelope.envelope();
 
         assert_eq!(new_envelope.len(), 1);
@@ -559,11 +559,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let new_envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap();
+        let Ok(Some(Submit::Envelope(new_envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
         let new_envelope = new_envelope.envelope();
 
         assert_eq!(new_envelope.len(), 1);
