@@ -15,7 +15,7 @@
 <a href=#15 id=15 data-nosnippet>15</a>
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, RuleCategories, TrackOutcome};
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, RuleCategories, TrackOutcome};
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{ClientReportGroup, MINIMUM_CLOCK_DRIFT};
 <a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::utils::{ItemAction, TypedEnvelope};
@@ -208,10 +208,10 @@
 <a href=#208 id=208 data-nosnippet>208</a>        // versions with the broken SDK out there.
 <a href=#209 id=209 data-nosnippet>209</a>        </span><span class="kw">let </span>payload = trim_whitespaces(<span class="kw-2">&amp;</span>payload);
 <a href=#210 id=210 data-nosnippet>210</a>        <span class="kw">let </span>report = <span class="kw">match </span>serde_json::from_slice::&lt;UserReport&gt;(payload) {
-<a href=#211 id=211 data-nosnippet>211</a>            <span class="prelude-val">Ok</span>(session) =&gt; session,
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="prelude-val">Ok</span>(report) =&gt; report,
 <a href=#212 id=212 data-nosnippet>212</a>            <span class="prelude-val">Err</span>(error) =&gt; {
 <a href=#213 id=213 data-nosnippet>213</a>                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to store user report"</span>);
-<a href=#214 id=214 data-nosnippet>214</a>                <span class="kw">return </span>ItemAction::DropSilently;
+<a href=#214 id=214 data-nosnippet>214</a>                <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
 <a href=#215 id=215 data-nosnippet>215</a>            }
 <a href=#216 id=216 data-nosnippet>216</a>        };
 <a href=#217 id=217 data-nosnippet>217</a>
@@ -222,7 +222,7 @@
 <a href=#222 id=222 data-nosnippet>222</a>                    error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
 <a href=#223 id=223 data-nosnippet>223</a>                    <span class="string">"failed to serialize user report"
 <a href=#224 id=224 data-nosnippet>224</a>                </span>);
-<a href=#225 id=225 data-nosnippet>225</a>                <span class="kw">return </span>ItemAction::DropSilently;
+<a href=#225 id=225 data-nosnippet>225</a>                <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
 <a href=#226 id=226 data-nosnippet>226</a>            }
 <a href=#227 id=227 data-nosnippet>227</a>        };
 <a href=#228 id=228 data-nosnippet>228</a>
