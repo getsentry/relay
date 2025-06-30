@@ -113,12 +113,8 @@ pub unsafe extern "C" fn relay_secretkey_sign(
     data: *const RelayBuf,
 ) -> RelayStr {
     let pk = spk as *const SecretKey;
-    unsafe {
-        let signature = (*pk).sign((*data).as_bytes());
-        // sign will always give us valid UTF8
-        let signature_string = String::from_utf8_unchecked(signature.0);
-        RelayStr::from_string(signature_string)
-    }
+    let signature = unsafe { (*pk).sign((*data).as_bytes()) };
+    RelayStr::from_bytes(signature.0)
 }
 
 /// Generates a secret, public key pair.

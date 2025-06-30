@@ -4,6 +4,14 @@
 //! [`UpstreamRelayService`] along with messages to communicate with the service. Please look at
 //! service-level docs for more information.
 
+use std::borrow::Cow;
+use std::collections::VecDeque;
+use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::Duration;
+
 use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
@@ -22,13 +30,6 @@ pub use reqwest::Method;
 use reqwest::header;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::borrow::Cow;
-use std::collections::VecDeque;
-use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 

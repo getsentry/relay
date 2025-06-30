@@ -45,6 +45,20 @@ impl RelayStr {
         rv
     }
 
+    /// Creates a new `RelayStr` by assuming ownership over the given `Vec` of bytes.
+    ///
+    /// When dropping this `RelayStr` instance, the buffer is freed.
+    pub(crate) fn from_bytes(mut b: Vec<u8>) -> RelayStr {
+        b.shrink_to_fit();
+        let rv = RelayStr {
+            data: b.as_ptr() as *mut c_char,
+            len: b.len(),
+            owned: true,
+        };
+        mem::forget(b);
+        rv
+    }
+
     /// Frees the string buffer if it is owned.
     pub(crate) unsafe fn free(&mut self) {
         if self.owned {
