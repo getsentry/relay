@@ -479,7 +479,7 @@ impl PartialMeta {
 }
 
 impl FromRequestParts<ServiceState> for PartialMeta {
-    type Rejection = Infallible;
+    type Rejection = BadEventMeta;
 
     async fn from_request_parts(
         parts: &mut Parts,
@@ -508,6 +508,10 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
+        let signature = Signature::from_request_parts(parts, state)
+            .await
+            .map_err(BadEventMeta::SignatureError)?;
+
         Ok(RequestMeta {
             dsn: None,
             version: default_version(),
@@ -525,7 +529,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
             no_cache: false,
             received_at,
             client_hints: ua.client_hints,
-            signature: None,
+            signature,
             from_internal_relay,
         })
     }
@@ -672,10 +676,6 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             return Err(BadEventMeta::UnsupportedProtocolVersion(version));
         }
 
-        let signature = Signature::from_request_parts(parts, state)
-            .await
-            .map_err(BadEventMeta::SignatureError)?;
-
         relay_statsd::metric!(
             counter(RelayCounters::EventProtocol) += 1,
             version = &version.to_string()
@@ -692,7 +692,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             no_cache: key_flags.contains(&"no-cache"),
             received_at: partial_meta.received_at,
             client_hints: partial_meta.client_hints,
-            signature,
+            signature: partial_meta.signature,
             from_internal_relay: partial_meta.from_internal_relay,
         })
     }
