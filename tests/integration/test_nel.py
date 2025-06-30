@@ -10,7 +10,7 @@ def test_nel_converted_to_logs(mini_sentry, relay):
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
     relay = relay(mini_sentry)
-    payload = relay.send_nel_event(project_id)
+    relay.send_nel_event(project_id)
 
     envelope = mini_sentry.captured_events.get(timeout=1)
 
@@ -35,29 +35,32 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                     "network.protocol.name": {"type": "string", "value": "http"},
                     "network.protocol.version": {"type": "string", "value": "1.1"},
                     "server.address": {"type": "string", "value": "123.123.123.123"},
-                    "browser.nel.referrer": {
+                    "http.request.header.referer": {
                         "type": "string",
                         "value": "https://example.com/nel/",
                     },
-                    "browser.nel.phase": {
+                    "nel.referrer": {
+                        "type": "string",
+                        "value": "https://example.com/nel/",
+                    },
+                    "nel.phase": {
                         "type": "string",
                         "value": "application",
                     },
-                    "browser.nel.sampling_fraction": {
+                    "nel.sampling_fraction": {
                         "type": "double",
                         "value": 1.0,
                     },
-                    "browser.nel.type": {
+                    "nel.type": {
                         "type": "string",
                         "value": "http.error",
                     },
                 },
                 "body": "The user agent successfully received a response, but it had a 500 status code",
-                "level": "info",
+                "level": "warn",
                 # Time is corrected by the `age` specified in the NEL report
                 "timestamp": time_within_delta(
-                    datetime.now(tz=timezone.utc)
-                    - timedelta(milliseconds=payload[0]["age"])
+                    datetime.now(tz=timezone.utc) - timedelta(milliseconds=1200000)
                 ),
                 "trace_id": mock.ANY,
             }
