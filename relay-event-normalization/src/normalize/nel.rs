@@ -255,10 +255,10 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     add_attribute!("server.address", server_address);
 
     // NEL-specific attributes
-    add_attribute!("browser.nel.referrer", body.referrer);
-    add_attribute!("browser.nel.phase", body.phase.map_value(|s| s.to_string()));
-    add_attribute!("browser.nel.sampling_fraction", body.sampling_fraction);
-    add_attribute!("browser.nel.type", body.ty);
+    add_attribute!("nel.referrer", body.referrer);
+    add_attribute!("nel.phase", body.phase.map_value(|s| s.to_string()));
+    add_attribute!("nel.sampling_fraction", body.sampling_fraction);
+    add_attribute!("nel.type", body.ty);
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
