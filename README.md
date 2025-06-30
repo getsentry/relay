@@ -137,9 +137,10 @@ make test-rust
 make test-rust-all
 ```
 
-The integration test suite requires `python` version 3.11. By default,
-the integration test suite will create a virtualenv, build the Relay binary
-with processing enabled, and run a set of integration tests:
+The integration test suite requires Python. The required version is specified
+in the `.python-version` file. By default, the integration test suite will
+create a virtualenv, build the Relay binary with processing enabled, and run
+a set of integration tests:
 
 ```bash
 # Make sure that kafka and redis are running
