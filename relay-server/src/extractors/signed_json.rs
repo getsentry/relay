@@ -92,8 +92,10 @@ impl FromRequest<ServiceState> for SignedBytes {
             .ok_or(SignatureError::UnknownRelay)?;
 
         let signature = request
-            .extract_parts_with_state::<Signature, ServiceState>(state)
-            .await?;
+            .extract_parts_with_state::<Option<Signature>, ServiceState>(state)
+            .await?
+            .ok_or_else(|| SignatureError::MissingHeader("x-sentry-relay-signature"))?;
+
         let body = Bytes::from_request(request, state).await?;
         if signature.verify_bytes(body.as_ref(), &relay.public_key) {
             Ok(SignedBytes { body, relay })

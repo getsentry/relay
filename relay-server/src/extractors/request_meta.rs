@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use axum::RequestPartsExt;
 use axum::extract::rejection::PathRejection;
-use axum::extract::{ConnectInfo, FromRequestParts, Path};
+use axum::extract::{ConnectInfo, FromRequestParts, OptionalFromRequestParts, Path};
 use axum::http::StatusCode;
 use axum::http::header::{self, AsHeaderName};
 use axum::http::request::Parts;
@@ -22,7 +22,7 @@ use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::extractors::{ForwardedFor, ReceivedAt};
+use crate::extractors::{ForwardedFor, ReceivedAt, SignatureError};
 use crate::service::ServiceState;
 use crate::statsd::{ClientName, RelayCounters};
 use crate::utils::ApiErrorResponse;
@@ -49,6 +49,9 @@ pub enum BadEventMeta {
 
     #[error("bad sentry DSN public key")]
     BadPublicKey(#[from] ParseProjectKeyError),
+
+    #[error("bad x-sentry-relay-signature header")]
+    SignatureError(SignatureError),
 }
 
 impl From<Infallible> for BadEventMeta {
@@ -64,9 +67,10 @@ impl IntoResponse for BadEventMeta {
             | Self::MultipleAuth
             | Self::BadAuth(_)
             | Self::BadEnvelopeAuth(_) => StatusCode::UNAUTHORIZED,
-            Self::UnsupportedProtocolVersion(_) | Self::BadProject(_) | Self::BadPublicKey(_) => {
-                StatusCode::BAD_REQUEST
-            }
+            Self::UnsupportedProtocolVersion(_)
+            | Self::BadProject(_)
+            | Self::BadPublicKey(_)
+            | Self::SignatureError(_) => StatusCode::BAD_REQUEST,
         };
 
         (code, ApiErrorResponse::from_error(&self)).into_response()
@@ -504,8 +508,6 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
-        let signature = Signature::from_request_parts(parts, state).await.ok();
-
         Ok(RequestMeta {
             dsn: None,
             version: default_version(),
@@ -523,7 +525,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
             no_cache: false,
             received_at,
             client_hints: ua.client_hints,
-            signature,
+            signature: None,
             from_internal_relay,
         })
     }
@@ -670,6 +672,10 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             return Err(BadEventMeta::UnsupportedProtocolVersion(version));
         }
 
+        let signature = Signature::from_request_parts(parts, state)
+            .await
+            .map_err(BadEventMeta::SignatureError)?;
+
         relay_statsd::metric!(
             counter(RelayCounters::EventProtocol) += 1,
             version = &version.to_string()
@@ -686,7 +692,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             no_cache: key_flags.contains(&"no-cache"),
             received_at: partial_meta.received_at,
             client_hints: partial_meta.client_hints,
-            signature: partial_meta.signature,
+            signature,
             from_internal_relay: partial_meta.from_internal_relay,
         })
     }
@@ -770,7 +776,7 @@ mod tests {
             .unwrap();
         let without_signature = RequestMeta::new(dsn.clone());
         let mut with_signature = RequestMeta::new(dsn);
-        with_signature.signature = Some(Signature("test-signature".as_bytes().to_vec()));
+        with_signature.signature = Some(Signature("test-signature".to_owned()));
 
         let serialized_without_signature = serde_json::to_string(&without_signature).unwrap();
         let serialized_with_signature = serde_json::to_string(&with_signature).unwrap();

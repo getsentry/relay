@@ -23,6 +23,7 @@
 )]
 
 use std::fmt;
+use std::fmt::Display;
 use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};
@@ -223,7 +224,7 @@ impl SecretKey {
         let mut sig_encoded = BASE64URL_NOPAD.encode(&sig.to_bytes());
         sig_encoded.push('.');
         sig_encoded.push_str(&header_encoded);
-        Signature(sig_encoded.into_bytes())
+        Signature(sig_encoded)
     }
 
     /// Packs some serializable data into JSON and signs it with the default header.
@@ -311,15 +312,15 @@ impl PublicKey {
     /// Verifies the signature and returns the embedded signature
     /// header.
     pub fn verify_meta(&self, data: &[u8], sig: SignatureRef<'_>) -> Option<SignatureHeader> {
-        let mut iter = sig.0.splitn(2, |b| *b == b'.');
+        let mut iter = sig.0.splitn(2, '.');
         let sig_bytes = match iter.next() {
-            Some(sig_encoded) => BASE64URL_NOPAD.decode(sig_encoded).ok()?,
+            Some(sig_encoded) => BASE64URL_NOPAD.decode(sig_encoded.as_bytes()).ok()?,
             None => return None,
         };
         let sig = ed25519_dalek::Signature::from_slice(&sig_bytes).ok()?;
 
         let header = match iter.next() {
-            Some(header_encoded) => BASE64URL_NOPAD.decode(header_encoded).ok()?,
+            Some(header_encoded) => BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()?,
             None => return None,
         };
         let mut to_verify = header.clone();
@@ -702,7 +703,13 @@ impl RegisterResponse {
 
 /// A wrapper around a byte vector that represents a signature.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Signature(pub Vec<u8>);
+pub struct Signature(pub String);
+
+impl Display for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl Signature {
     /// Verifies the signature against any of the provided public keys.
@@ -757,7 +764,7 @@ impl Signature {
     /// This method provides a lightweight reference wrapper over the internal
     /// signature data.
     pub fn as_signature_ref(&self) -> SignatureRef {
-        SignatureRef(self.0.as_slice())
+        SignatureRef(self.0.as_str())
     }
 }
 
@@ -768,7 +775,7 @@ impl Signature {
 /// It enables working with either owned or borrowed signature data without
 /// unnecessary allocations, typically by borrowing from a [`Signature`] or
 /// directly from a byte slice.
-pub struct SignatureRef<'a>(pub &'a [u8]);
+pub struct SignatureRef<'a>(pub &'a str);
 
 #[cfg(test)]
 mod tests {
@@ -839,7 +846,7 @@ mod tests {
         assert!(pk.verify(data, sig.as_signature_ref()));
 
         let bad_sig = "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
-        assert!(!pk.verify(data, SignatureRef(bad_sig.as_bytes())));
+        assert!(!pk.verify(data, SignatureRef(bad_sig)));
     }
 
     #[test]
@@ -920,8 +927,7 @@ mod tests {
 
         // sign it
         let (request_bytes, request_sig) = sk.pack(&request);
-        let signature_string = String::from_utf8(request_sig.0.clone()).unwrap();
-        println!("REQUEST_SIG = \"{signature_string}\"");
+        println!("REQUEST_SIG = \"{request_sig}\"");
 
         // attempt to get the data through bootstrap unpacking.
         let request = RegisterRequest::bootstrap_unpack(
@@ -942,10 +948,9 @@ mod tests {
         let response = challenge.into_response();
         let serialized_response = serde_json::to_string(&response).unwrap();
         let (_, response_sig) = sk.pack(&response);
-        let signature_string = String::from_utf8(response_sig.0).unwrap();
 
         println!("RESPONSE = b'{serialized_response}'");
-        println!("RESPONSE_SIG = \"{signature_string}\"");
+        println!("RESPONSE_SIG = \"{response_sig}\"");
 
         println!("RELAY_VERSION = \"{LATEST_VERSION}\"");
     }
