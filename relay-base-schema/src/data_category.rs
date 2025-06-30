@@ -264,3 +264,42 @@ impl From<EventType> for DataCategory {
         }
     }
 }
+
+impl TryFrom<i8> for DataCategory {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Default),
+            1 => Ok(Self::Error),
+            2 => Ok(Self::Transaction),
+            3 => Ok(Self::Security),
+            4 => Ok(Self::Attachment),
+            5 => Ok(Self::Session),
+            6 => Ok(Self::Profile),
+            7 => Ok(Self::Replay),
+            8 => Ok(Self::TransactionProcessed),
+            9 => Ok(Self::TransactionIndexed),
+            10 => Ok(Self::Monitor),
+            11 => Ok(Self::ProfileIndexed),
+            12 => Ok(Self::Span),
+            13 => Ok(Self::MonitorSeat),
+            14 => Ok(Self::UserReportV2),
+            15 => Ok(Self::MetricBucket),
+            16 => Ok(Self::SpanIndexed),
+            17 => Ok(Self::ProfileDuration),
+            18 => Ok(Self::ProfileChunk),
+            19 => Ok(Self::MetricSecond),
+            20 => Ok(Self::DoNotUseReplayVideo),
+            21 => Ok(Self::Uptime),
+            22 => Ok(Self::AttachmentItem),
+            23 => Ok(Self::LogItem),
+            24 => Ok(Self::LogByte),
+            25 => Ok(Self::ProfileDurationUi),
+            26 => Ok(Self::ProfileChunkUi),
+            27 => Ok(Self::SeerAutofix),
+            28 => Ok(Self::SeerScanner),
+            _ => Err(()),
+        }
+    }
+}

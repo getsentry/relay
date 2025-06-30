@@ -733,8 +733,8 @@ pub enum RelayCounters {
     /// The number of individual outcomes including their quantity.
     ///
     /// While [`RelayCounters::Outcomes`] tracks the number of times aggregated outcomes
-    /// have been emitted, this counter tracks the total number of individual outcomes.
-    OutcomeCount,
+    /// have been emitted, this counter tracks the total quantity of individual outcomes.
+    OutcomeQuantity,
     /// Number of project state HTTP requests.
     ///
     /// Relay updates projects in batches. Every update cycle, Relay requests
@@ -931,7 +931,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferProjectChangedEvent => "buffer.project_changed_event",
             RelayCounters::BufferProjectPending => "buffer.project_pending",
             RelayCounters::Outcomes => "events.outcomes",
-            RelayCounters::OutcomeCount => "events.outcome_count",
+            RelayCounters::OutcomeQuantity => "events.outcome_quantity",
             RelayCounters::ProjectStateRequest => "project_state.request",
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
