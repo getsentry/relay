@@ -228,7 +228,9 @@ mod tests {
 
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
+    #[cfg(feature = "processing")]
+    use crate::services::processor::Submit;
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;

@@ -14,7 +14,7 @@ use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed};
 use crate::services::outcome::DiscardReason;
 
-pub fn expand(logs: Managed<SerializedLogs>, ctx: Context<'_>) -> Managed<ExpandedLogs> {
+pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
     let received_at = logs.received_at();
     logs.map(|logs, records| {
         let mut all_logs = Vec::with_capacity(logs.count());
@@ -37,7 +37,8 @@ pub fn expand(logs: Managed<SerializedLogs>, ctx: Context<'_>) -> Managed<Expand
 
         ExpandedLogs {
             headers: logs.headers,
-            retention: ctx.project_info.config.event_retention,
+            #[cfg(feature = "processing")]
+            retention: _ctx.project_info.config.event_retention,
             logs: all_logs,
         }
     })

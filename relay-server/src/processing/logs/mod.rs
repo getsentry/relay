@@ -17,6 +17,7 @@ use crate::utils::ManagedEnvelope;
 
 mod filter;
 mod process;
+#[cfg(feature = "processing")]
 mod store;
 mod validate;
 
@@ -279,6 +280,7 @@ pub struct ExpandedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
     /// Retention in days.
+    #[cfg(feature = "processing")]
     retention: Option<u16>,
     /// Expanded and parsed logs.
     logs: Vec<Annotated<OurLog>>,
