@@ -991,7 +991,7 @@ impl StoreService {
                 nanos: 0,
             }),
             trace_id: span.trace_id.to_string(),
-            item_id: u128::from_str_radix(span.span_id, 16)
+            item_id: u128::from_str_radix(&span.span_id, 16)
                 .unwrap_or_default()
                 .to_le_bytes()
                 .to_vec(),
@@ -1129,7 +1129,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.parent_span_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(parent_span_id.to_owned())),
+                    value: Some(Value::StringValue(parent_span_id.into_owned())),
                 },
             );
         }
@@ -1138,7 +1138,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.profile_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(profile_id.to_owned())),
+                    value: Some(Value::StringValue(profile_id.into_owned())),
                 },
             );
         }
@@ -1147,7 +1147,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.segment_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(segment_id.to_owned())),
+                    value: Some(Value::StringValue(segment_id.into_owned())),
                 },
             );
         }
@@ -1156,7 +1156,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.origin".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(origin.to_string())),
+                    value: Some(Value::StringValue(origin.into_owned())),
                 },
             );
         }
@@ -1165,7 +1165,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.kind".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(kind.to_owned())),
+                    value: Some(Value::StringValue(kind.into_owned())),
                 },
             );
         }
@@ -1421,11 +1421,12 @@ where
         .serialize(serializer)
 }
 
-fn serialize_btreemap_skip_nulls<S, T>(
-    map: &Option<BTreeMap<&str, Option<T>>>,
+fn serialize_btreemap_skip_nulls<K, S, T>(
+    map: &Option<BTreeMap<K, Option<T>>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
+    K: Serialize,
     S: serde::Serializer,
     T: serde::Serialize,
 {
@@ -1659,19 +1660,19 @@ struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
     data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    kind: Option<&'a str>,
+    kind: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
     links: Option<Vec<SpanLink<'a>>>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<BTreeMap<&'a str, Option<SpanMeasurement<'a>>>>,
+    measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement<'a>>>>,
     #[serde(default)]
     organization_id: u64,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    origin: Option<&'a str>,
+    origin: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    parent_span_id: Option<&'a str>,
+    parent_span_id: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    profile_id: Option<&'a str>,
+    profile_id: Option<Cow<'a, str>>,
     /// The numeric ID of the project.
     #[serde(default)]
     project_id: u64,
@@ -1681,17 +1682,17 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     retention_days: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    segment_id: Option<&'a str>,
+    segment_id: Option<Cow<'a, str>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
     #[serde(borrow)]
-    sentry_tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
-    span_id: &'a str,
+    sentry_tags: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
+    span_id: Cow<'a, str>,
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    tags: Option<BTreeMap<&'a str, Option<&'a RawValue>>>,
+    tags: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     trace_id: EventId,
 
     #[serde(default)]
@@ -1702,7 +1703,7 @@ struct SpanKafkaMessage<'a> {
     end_timestamp_precise: f64,
 
     #[serde(borrow, default, skip_serializing)]
-    platform: &'a str, // We only use this for logging for now
+    platform: Cow<'a, str>, // We only use this for logging for now
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     client_sample_rate: Option<f64>,
