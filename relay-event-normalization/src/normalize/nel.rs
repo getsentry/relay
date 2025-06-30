@@ -225,17 +225,14 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
         ($name:literal, $value:expr) => {{
             attributes.insert($name.to_owned(), $value.to_string());
         }};
-    }
-
-    let server_address = body
-        .server_ip
-        .map_value(|s| extract_server_address(s.as_ref()));
-    let url = raw_report
-        .url
-        .clone()
-        .map_value(|s| extract_server_address(&s));
-
-    // sentry.origin: https://github.com/getsentry/sentry-docs/blob/1570dd4207d3d8996ca03198229579d36a980a6a/develop-docs/sdk/telemetry/logs.mdx?plain=1#L302-L310
+macro_rules! add_string_attribute {
+    ($name:literal, $value:expr) => {{
+        let val = $value.to_string();
+        if !val.is_empty() {
+            attributes.insert($name.to_owned(), val);
+        }
+    }};
+}
     add_string_attribute!("sentry.origin", "auto.http.browser_report.nel");
     add_string_attribute!("browser.report.type", "network-error");
     add_attribute!("url.domain", url);
