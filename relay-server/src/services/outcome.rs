@@ -857,7 +857,7 @@ impl TrackOutcomeLike for TrackRawOutcome {
     }
 
     fn quantity(&self) -> u32 {
-        self.quantity.unwrap_or(0)
+        self.quantity.unwrap_or(1)
     }
 
     fn project_id(&self) -> ProjectId {
