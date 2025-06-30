@@ -38,18 +38,34 @@ const NO_UPLOAD_PARTS: &[&str] = &[
     "gpuextdump",
 ];
 
+/// The maximum video length that is currently support for uploading.
+const MAX_VIDEO_LENGTH: u32 = 4;
+
+/// Implementation of the `getRequestCoreDumpData` [response](https://game.develop.playstation.net/resources/documents/SDK/11.000/Core_Dump_Data_Request_API-Reference/0002.html).
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DataRequestResponse {
     parts: Parts,
-    #[serde(rename = "partParameters", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     part_parameters: Option<PartParameters>,
 }
 
+/// Partial implementation of the `parts` section in the `getRequestCoreDumpData` response.
+///
+/// The optional `additional` section is currently omitted as we make no use of it.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Parts {
-    upload: Vec<&'static str>,
-    #[serde(rename = "noUpload")]
-    no_upload: Vec<&'static str>,
+    /// List of files that can be uploaded.
+    ///
+    /// Note: It is not guaranteed that all of these will be uploaded every time. If they are not
+    /// already created on the device, we need to tell the device to create them by adding the files
+    /// to the `additional` section.
+    upload: &'static [&'static str],
+    /// List of files that should not be uploaded.
+    ///
+    /// This takes precedence over any setting on the device itself.
+    no_upload: &'static [&'static str],
 }
 
 #[derive(Serialize)]
@@ -62,20 +78,28 @@ struct VideoParameters {
     duration: DurationParameters,
 }
 
+/// Partial implementation of the `duration` section in the `getRequestCoreDumpData` response.
+///
+/// The optional `min` section is currently omitted as we make no use of it.
 #[derive(Serialize)]
 struct DurationParameters {
+    /// The maximum length a video that is uploaded is allowed to have.
+    ///
+    /// If a longer video is present on the device only the last `max` seconds will be  uploaded.
     max: u32,
 }
 
 fn create_data_request_response() -> DataRequestResponse {
     DataRequestResponse {
         parts: Parts {
-            upload: UPLOAD_PARTS.to_vec(),
-            no_upload: NO_UPLOAD_PARTS.to_vec(),
+            upload: UPLOAD_PARTS,
+            no_upload: NO_UPLOAD_PARTS,
         },
         part_parameters: Some(PartParameters {
             video: VideoParameters {
-                duration: DurationParameters { max: 4 },
+                duration: DurationParameters {
+                    max: MAX_VIDEO_LENGTH,
+                },
             },
         }),
     }
