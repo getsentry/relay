@@ -42,7 +42,7 @@
 ///
 /// let outer = Annotated::new(Outer {
 ///     inners: Annotated::new(Object::from([(
-///         "key".to_string(),
+///         "key".to_owned(),
 ///         Annotated::new(Inner {
 ///             value: Annotated::new(1),
 ///         }),
@@ -115,7 +115,7 @@ macro_rules! get_path {
 ///
 /// let outer = Annotated::new(Outer {
 ///     inners: Annotated::new(Object::from([(
-///         "key".to_string(),
+///         "key".to_owned(),
 ///         Annotated::new(Inner {
 ///             value: Annotated::new(1),
 ///         }),
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn get_path_object() {
-        let object = Annotated::new(Object::from([("key".to_string(), Annotated::new(1))]));
+        let object = Annotated::new(Object::from([("key".to_owned(), Annotated::new(1))]));
 
         // Exists
         assert_eq!(get_path!(object["key"]), Some(&Annotated::new(1)));
@@ -353,7 +353,7 @@ mod tests {
 
         let outer = Annotated::new(Outer {
             inners: Annotated::new(Object::from([(
-                "key".to_string(),
+                "key".to_owned(),
                 Annotated::new(Inner {
                     value: Annotated::new(1),
                 }),
@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn get_value_object() {
-        let object = Annotated::new(Object::from([("key".to_string(), Annotated::new(1))]));
+        let object = Annotated::new(Object::from([("key".to_owned(), Annotated::new(1))]));
 
         // Exists
         assert_eq!(get_value!(object["key"]), Some(&1));
@@ -448,7 +448,7 @@ mod tests {
 
         let outer = Annotated::new(Outer {
             inners: Annotated::new(Object::from([(
-                "key".to_string(),
+                "key".to_owned(),
                 Annotated::new(Inner {
                     value: Annotated::new(1),
                 }),

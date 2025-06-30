@@ -53,8 +53,7 @@ impl Processor for TimestampProcessor {
         if let Some(start_timestamp) = span.start_timestamp.value() {
             if start_timestamp.into_inner().timestamp_millis() < 0 {
                 meta.add_error(Error::invalid(format!(
-                    "start_timestamp is too stale: {}",
-                    start_timestamp
+                    "start_timestamp is too stale: {start_timestamp}"
                 )));
                 return Err(ProcessingAction::DeleteValueHard);
             }
@@ -62,8 +61,7 @@ impl Processor for TimestampProcessor {
         if let Some(end_timestamp) = span.timestamp.value() {
             if end_timestamp.into_inner().timestamp_millis() < 0 {
                 meta.add_error(Error::invalid(format!(
-                    "timestamp is too stale: {}",
-                    end_timestamp
+                    "timestamp is too stale: {end_timestamp}"
                 )));
                 return Err(ProcessingAction::DeleteValueHard);
             }
@@ -81,8 +79,7 @@ impl Processor for TimestampProcessor {
         if let Some(timestamp) = breadcrumb.timestamp.value() {
             if timestamp.into_inner().timestamp_millis() < 0 {
                 meta.add_error(Error::invalid(format!(
-                    "timestamp is too stale: {}",
-                    timestamp
+                    "timestamp is too stale: {timestamp}"
                 )));
                 return Err(ProcessingAction::DeleteValueHard);
             }

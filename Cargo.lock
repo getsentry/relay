@@ -2097,13 +2097,12 @@ dependencies = [
 
 [[package]]
 name = "insta"
-version = "1.41.1"
+version = "1.43.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e9ffc4d4892617c50a928c52b2961cb5174b6fc6ebf252b2fac9d21955c48b8"
+checksum = "154934ea70c58054b556dd430b99a98c2a7ff5309ac9891597e339b5c28f4371"
 dependencies = [
  "console",
- "lazy_static",
- "linked-hash-map",
+ "once_cell",
  "pest",
  "pest_derive",
  "ron",
@@ -2512,19 +2511,20 @@ dependencies = [
 
 [[package]]
 name = "minidump"
-version = "0.22.2"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc7268c0afe5aa2fd6fde310e6cda158f0b3581f317c5a5c7d170861f9b90a6"
+checksum = "ee9ea21482e519a57bfc5df90b736f25465ef349a31c18ff2c6332a2f18474de"
 dependencies = [
  "debugid",
  "encoding_rs",
  "memmap2",
- "minidump-common",
+ "minidump-common 0.26.0",
  "num-traits",
  "procfs-core 0.17.0",
+ "prost",
  "range-map",
  "scroll",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "time",
  "tracing",
  "uuid",
@@ -2535,6 +2535,21 @@ name = "minidump-common"
 version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cde999358cca8fb9397c4298bb27c4a603c13ee6b3a646da514b20be582a21e"
+dependencies = [
+ "bitflags 2.6.0",
+ "debugid",
+ "num-derive",
+ "num-traits",
+ "range-map",
+ "scroll",
+ "smart-default",
+]
+
+[[package]]
+name = "minidump-common"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd1e7ee92185b2f4fa67c3e5c1743057d979e145f58b4391d5481b79f0d8067c"
 dependencies = [
  "bitflags 2.6.0",
  "debugid",
@@ -2561,7 +2576,7 @@ dependencies = [
  "mach2",
  "memmap2",
  "memoffset",
- "minidump-common",
+ "minidump-common 0.22.2",
  "nix",
  "procfs-core 0.16.0",
  "scroll",
@@ -3815,6 +3830,7 @@ dependencies = [
  "debugid",
  "enumset",
  "insta",
+ "minidump",
  "opentelemetry-proto",
  "relay-base-schema",
  "relay-common",
@@ -3868,7 +3884,9 @@ dependencies = [
 name = "relay-kafka"
 version = "25.6.1"
 dependencies = [
+ "hash32",
  "hashbrown 0.14.5",
+ "insta",
  "parking_lot",
  "rdkafka",
  "rdkafka-sys",
@@ -3904,7 +3922,6 @@ dependencies = [
  "bytecount",
  "chrono",
  "criterion",
- "fnv",
  "hash32",
  "hashbrown 0.14.5",
  "insta",
@@ -4079,6 +4096,7 @@ dependencies = [
 name = "relay-quotas"
 version = "25.6.1"
 dependencies = [
+ "async-trait",
  "hashbrown 0.14.5",
  "insta",
  "itertools 0.13.0",
@@ -4165,7 +4183,6 @@ dependencies = [
  "criterion",
  "data-encoding",
  "flate2",
- "fnv",
  "futures",
  "hashbrown 0.14.5",
  "http",

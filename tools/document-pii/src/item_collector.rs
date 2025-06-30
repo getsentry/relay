@@ -40,7 +40,7 @@ impl TypesAndScopedPaths {
             .into_iter()
             .filter(|pii| {
                 pii.has_attribute("pii", Some(pii_values))
-                    && (pii.has_attribute("retain", Some(&vec!["true".to_string()]))
+                    && (pii.has_attribute("retain", Some(&vec!["true".to_owned()]))
                         || !pii.has_attribute("additional_properties", None))
             })
             .collect())
@@ -154,7 +154,7 @@ fn normalize_type_path(mut path: String, crate_root: &str, module_path: &str) ->
     path = path
         .replace(' ', "")
         .replace('-', "_")
-        .replace("crate::", &format!("{}::", crate_root));
+        .replace("crate::", &format!("{crate_root}::"));
 
     if path.contains("super::") {
         let parent_module = {

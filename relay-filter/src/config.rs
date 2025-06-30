@@ -625,11 +625,11 @@ mod tests {
         let filters_config = ProjectFiltersConfig {
             browser_extensions: FilterConfig { is_enabled: true },
             client_ips: ClientIpsFilterConfig {
-                blacklisted_ips: vec!["127.0.0.1".to_string()],
+                blacklisted_ips: vec!["127.0.0.1".to_owned()],
             },
             web_crawlers: FilterConfig { is_enabled: true },
             csp: CspFilterConfig {
-                disallowed_sources: vec!["https://*".to_string()],
+                disallowed_sources: vec!["https://*".to_owned()],
             },
             error_messages: ErrorMessagesFilterConfig {
                 patterns: TypedPatterns::from(["Panic".to_owned()]),

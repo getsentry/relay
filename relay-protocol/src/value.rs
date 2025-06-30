@@ -227,7 +227,7 @@ impl From<f64> for Value {
 
 impl<'a> From<&'a str> for Value {
     fn from(value: &'a str) -> Self {
-        Value::String(value.to_string())
+        Value::String(value.to_owned())
     }
 }
 

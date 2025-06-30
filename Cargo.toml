@@ -30,6 +30,7 @@ strip = true
 dbg_macro = "warn"
 print_stdout = "warn"
 print_stderr = "warn"
+str_to_string = "warn"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(sentry)'] }
@@ -111,7 +112,6 @@ ed25519-dalek = "2.1.1"
 enumset = "1.0.13"
 flate2 = "1.0.35"
 flume = { version = "0.11.1", default-features = false }
-fnv = "1.0.7"
 futures = { version = "0.3", default-features = false, features = ["std"] }
 globset = "0.4.15"
 hash32 = "0.3.1"
@@ -135,7 +135,7 @@ maxminddb = "0.24.0"
 md5 = "0.7.0"
 memchr = "2.7.4"
 mime = "0.3.17"
-minidump = "0.22.2"
+minidump = "0.26.0"
 multer = "3.1.0"
 num-traits = "0.2.19"
 num_cpus = "1.13.1"

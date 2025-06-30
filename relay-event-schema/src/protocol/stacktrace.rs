@@ -419,7 +419,7 @@ impl FromStr for InstructionAddrAdjustment {
             "all_but_first" => Ok(Self::AllButFirst),
             "all" => Ok(Self::All),
             "none" => Ok(Self::None),
-            s => Ok(Self::Unknown(s.to_string())),
+            s => Ok(Self::Unknown(s.to_owned())),
         }
     }
 }
@@ -562,30 +562,30 @@ mod tests {
   "other": "value"
 }"#;
         let frame = Annotated::new(Frame {
-            function: Annotated::new("main@8".to_string()),
-            raw_function: Annotated::new("main".to_string()),
-            symbol: Annotated::new("_main@8".to_string()),
-            module: Annotated::new("app".to_string()),
-            package: Annotated::new("/my/app".to_string()),
+            function: Annotated::new("main@8".to_owned()),
+            raw_function: Annotated::new("main".to_owned()),
+            symbol: Annotated::new("_main@8".to_owned()),
+            module: Annotated::new("app".to_owned()),
+            package: Annotated::new("/my/app".to_owned()),
             filename: Annotated::new("myfile.rs".into()),
             abs_path: Annotated::new("/path/to".into()),
             lineno: Annotated::new(2),
             colno: Annotated::new(42),
-            platform: Annotated::new("rust".to_string()),
-            pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
-            context_line: Annotated::new("unimplemented!()".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
+            platform: Annotated::new("rust".to_owned()),
+            pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_owned())]),
+            context_line: Annotated::new("unimplemented!()".to_owned()),
+            post_context: Annotated::new(vec![Annotated::new("}".to_owned())]),
             in_app: Annotated::new(true),
             vars: {
                 let mut vars = Object::new();
                 vars.insert(
-                    "variable".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "variable".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 Annotated::new(vars.into())
             },
             data: Annotated::new(FrameData {
-                sourcemap: Annotated::new("http://example.com/invalid.map".to_string()),
+                sourcemap: Annotated::new("http://example.com/invalid.map".to_owned()),
                 ..Default::default()
             }),
             image_addr: Annotated::new(Addr(0x400)),
@@ -598,17 +598,17 @@ mod tests {
             stack_start: Annotated::new(true),
             lock: Annotated::new(LockReason {
                 ty: Annotated::new(LockReasonType::Waiting),
-                address: Annotated::new("0x07d7437b".to_string()),
-                package_name: Annotated::new("io.sentry.samples".to_string()),
-                class_name: Annotated::new("MainActivity".to_string()),
+                address: Annotated::new("0x07d7437b".to_owned()),
+                package_name: Annotated::new("io.sentry.samples".to_owned()),
+                class_name: Annotated::new("MainActivity".to_owned()),
                 thread_id: Annotated::new(ThreadId::Int(7)),
                 other: Default::default(),
             }),
             other: {
                 let mut vars = Object::new();
                 vars.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 vars
             },
@@ -648,15 +648,15 @@ mod tests {
 }"#;
         let stack = Annotated::new(RawStacktrace {
             frames: Annotated::new(vec![Annotated::new(Frame {
-                function: Annotated::new("foobar".to_string()),
+                function: Annotated::new("foobar".to_owned()),
                 ..Default::default()
             })]),
             registers: {
                 let mut registers = Object::new();
-                registers.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
-                registers.insert("lr".to_string(), Annotated::new(RegVal(0x1_8a31_aadc)));
-                registers.insert("pc".to_string(), Annotated::new(RegVal(0x1_8a31_0ea4)));
-                registers.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
+                registers.insert("cspr".to_owned(), Annotated::new(RegVal(0x2000_0000)));
+                registers.insert("lr".to_owned(), Annotated::new(RegVal(0x1_8a31_aadc)));
+                registers.insert("pc".to_owned(), Annotated::new(RegVal(0x1_8a31_0ea4)));
+                registers.insert("sp".to_owned(), Annotated::new(RegVal(0x1_6fd7_5060)));
                 Annotated::new(registers)
             },
             instruction_addr_adjustment: Annotated::new(InstructionAddrAdjustment::AllButFirst),
@@ -665,8 +665,8 @@ mod tests {
             other: {
                 let mut other = Object::new();
                 other.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 other
             },
@@ -704,7 +704,7 @@ mod tests {
         let frame = Annotated::new(Frame {
             vars: Annotated::new({
                 let mut vars = Object::new();
-                vars.insert("despacito".to_string(), Annotated::empty());
+                vars.insert("despacito".to_owned(), Annotated::empty());
                 vars.into()
             }),
             ..Default::default()
@@ -725,8 +725,8 @@ mod tests {
         let frame = Annotated::new(Frame {
             vars: Annotated::new({
                 let mut vars = Object::new();
-                vars.insert("despacito".to_string(), Annotated::empty());
-                vars.insert("despacito2".to_string(), Annotated::empty());
+                vars.insert("despacito".to_owned(), Annotated::empty());
+                vars.insert("despacito2".to_owned(), Annotated::empty());
                 vars.into()
             }),
             ..Default::default()
@@ -748,9 +748,9 @@ mod tests {
 }"#;
 
         let frame = Annotated::new(Frame {
-            pre_context: Annotated::new(vec![Annotated::new("".to_string())]),
-            context_line: Annotated::new("".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("".to_string())]),
+            pre_context: Annotated::new(vec![Annotated::new("".to_owned())]),
+            context_line: Annotated::new("".to_owned()),
+            post_context: Annotated::new(vec![Annotated::new("".to_owned())]),
             ..Frame::default()
         });
 
@@ -780,10 +780,10 @@ mod tests {
         let frame = Annotated::new(Frame {
             vars: Annotated::new({
                 let mut vars = Object::new();
-                vars.insert("0".to_string(), Annotated::new("foo".to_string().into()));
-                vars.insert("1".to_string(), Annotated::new("bar".to_string().into()));
-                vars.insert("2".to_string(), Annotated::new("baz".to_string().into()));
-                vars.insert("3".to_string(), Annotated::empty());
+                vars.insert("0".to_owned(), Annotated::new("foo".to_owned().into()));
+                vars.insert("1".to_owned(), Annotated::new("bar".to_owned().into()));
+                vars.insert("2".to_owned(), Annotated::new("baz".to_owned().into()));
+                vars.insert("3".to_owned(), Annotated::empty());
                 vars.into()
             }),
             ..Default::default()

@@ -73,8 +73,8 @@ impl Empty for ThreadId {
 impl fmt::Display for ThreadId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ThreadId::Int(id) => write!(f, "{}", id),
-            ThreadId::String(id) => write!(f, "{}", id),
+            ThreadId::Int(id) => write!(f, "{id}"),
+            ThreadId::String(id) => write!(f, "{id}"),
         }
     }
 }
@@ -292,19 +292,19 @@ mod tests {
 }"#;
         let thread = Annotated::new(Thread {
             id: Annotated::new(ThreadId::Int(42)),
-            name: Annotated::new("myname".to_string()),
+            name: Annotated::new("myname".to_owned()),
             stacktrace: Annotated::empty(),
             raw_stacktrace: Annotated::empty(),
             crashed: Annotated::new(true),
             current: Annotated::new(true),
             main: Annotated::new(true),
-            state: Annotated::new("RUNNABLE".to_string()),
+            state: Annotated::new("RUNNABLE".to_owned()),
             held_locks: Annotated::empty(),
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
@@ -351,33 +351,33 @@ mod tests {
 }"#;
         let thread = Annotated::new(Thread {
             id: Annotated::new(ThreadId::Int(42)),
-            name: Annotated::new("myname".to_string()),
+            name: Annotated::new("myname".to_owned()),
             stacktrace: Annotated::empty(),
             raw_stacktrace: Annotated::empty(),
             crashed: Annotated::new(true),
             current: Annotated::new(true),
             main: Annotated::new(true),
-            state: Annotated::new("BLOCKED".to_string()),
+            state: Annotated::new("BLOCKED".to_owned()),
             held_locks: {
                 let mut locks = Object::new();
                 locks.insert(
-                    "0x07d7437b".to_string(),
+                    "0x07d7437b".to_owned(),
                     Annotated::new(LockReason {
                         ty: Annotated::new(LockReasonType::Waiting),
                         address: Annotated::empty(),
-                        package_name: Annotated::new("io.sentry.samples".to_string()),
-                        class_name: Annotated::new("MainActivity".to_string()),
+                        package_name: Annotated::new("io.sentry.samples".to_owned()),
+                        class_name: Annotated::new("MainActivity".to_owned()),
                         thread_id: Annotated::new(ThreadId::Int(7)),
                         other: Default::default(),
                     }),
                 );
                 locks.insert(
-                    "0x0d3a2f0a".to_string(),
+                    "0x0d3a2f0a".to_owned(),
                     Annotated::new(LockReason {
                         ty: Annotated::new(LockReasonType::Locked),
                         address: Annotated::empty(),
-                        package_name: Annotated::new("android.database.sqlite".to_string()),
-                        class_name: Annotated::new("SQLiteConnection".to_string()),
+                        package_name: Annotated::new("android.database.sqlite".to_owned()),
+                        class_name: Annotated::new("SQLiteConnection".to_owned()),
                         thread_id: Annotated::new(ThreadId::Int(2)),
                         other: Default::default(),
                     }),
@@ -387,8 +387,8 @@ mod tests {
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },

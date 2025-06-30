@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use sentry_kafka_schemas::{Schema as SentrySchema, SchemaError as SentrySchemaError};
 use thiserror::Error;
 
-use crate::config::{KafkaTopic, TopicAssignment, TopicAssignments};
+use crate::config::KafkaTopic;
 
 #[derive(Debug, Error)]
 pub enum SchemaError {
@@ -63,11 +63,7 @@ impl Validator {
 
         Ok(match schemas.entry(topic) {
             Entry::Vacant(entry) => entry.insert({
-                let default_assignments = TopicAssignments::default();
-                let logical_topic_name = match default_assignments.get(topic) {
-                    TopicAssignment::Primary(logical_topic_name) => logical_topic_name,
-                    _ => return Err(SchemaError::LogicalTopic),
-                };
+                let logical_topic_name = topic.logical_topic_name();
 
                 match sentry_kafka_schemas::get_schema(logical_topic_name, None) {
                     Ok(schema) => Some(Arc::new(schema)),

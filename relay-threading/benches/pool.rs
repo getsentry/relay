@@ -94,7 +94,7 @@ fn bench_pool_scaling(c: &mut Criterion) {
         // Test with different task counts
         for tasks in [100, 1000, 10000].iter() {
             group.bench_with_input(
-                BenchmarkId::new(format!("threads_{}", threads), tasks),
+                BenchmarkId::new(format!("threads_{threads}"), tasks),
                 tasks,
                 |b, &tasks| {
                     b.to_async(&runtime).iter(|| run_benchmark(&pool, tasks));
@@ -117,7 +117,7 @@ fn bench_multi_threaded_spawn(c: &mut Criterion) {
         // Test with different task counts
         for tasks in [1000, 10000].iter() {
             group.bench_with_input(
-                BenchmarkId::new(format!("spawn_threads_{}", spawn_threads), tasks),
+                BenchmarkId::new(format!("spawn_threads_{spawn_threads}"), tasks),
                 tasks,
                 |b, &tasks| {
                     b.to_async(&runtime).iter(|| async {

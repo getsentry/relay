@@ -102,7 +102,7 @@ impl AttributeType {
     }
 
     pub fn unknown_string() -> String {
-        "unknown".to_string()
+        "unknown".to_owned()
     }
 }
 

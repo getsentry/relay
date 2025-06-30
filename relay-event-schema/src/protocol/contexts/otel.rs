@@ -89,76 +89,76 @@ mod tests {
         let context = Annotated::new(Context::Otel(Box::new(OtelContext {
             attributes: Annotated::new(Object::from([
                 (
-                    "app.payment.amount".to_string(),
+                    "app.payment.amount".to_owned(),
                     Annotated::new(Value::F64(394.25)),
                 ),
                 (
-                    "rpc.grpc.status_code".to_string(),
-                    Annotated::new(Value::String("1".to_string())),
+                    "rpc.grpc.status_code".to_owned(),
+                    Annotated::new(Value::String("1".to_owned())),
                 ),
                 (
-                    "rpc.method".to_string(),
-                    Annotated::new(Value::String("Charge".to_string())),
+                    "rpc.method".to_owned(),
+                    Annotated::new(Value::String("Charge".to_owned())),
                 ),
                 (
-                    "rpc.service".to_string(),
-                    Annotated::new(Value::String("hipstershop.PaymentService".to_string())),
+                    "rpc.service".to_owned(),
+                    Annotated::new(Value::String("hipstershop.PaymentService".to_owned())),
                 ),
                 (
-                    "rpc.system".to_string(),
-                    Annotated::new(Value::String("grpc".to_string())),
+                    "rpc.system".to_owned(),
+                    Annotated::new(Value::String("grpc".to_owned())),
                 ),
             ])),
             resource: Annotated::new(Object::from([
                 (
-                    "process.command".to_string(),
-                    Annotated::new(Value::String("/usr/src/app/index.js".to_string())),
+                    "process.command".to_owned(),
+                    Annotated::new(Value::String("/usr/src/app/index.js".to_owned())),
                 ),
                 (
-                    "process.command_line".to_string(),
+                    "process.command_line".to_owned(),
                     Annotated::new(Value::String(
-                        "/usr/local/bin/node /usr/src/app/index.js".to_string(),
+                        "/usr/local/bin/node /usr/src/app/index.js".to_owned(),
                     )),
                 ),
                 (
-                    "process.executable.name".to_string(),
-                    Annotated::new(Value::String("node".to_string())),
+                    "process.executable.name".to_owned(),
+                    Annotated::new(Value::String("node".to_owned())),
                 ),
-                ("process.pid".to_string(), Annotated::new(Value::I64(1))),
+                ("process.pid".to_owned(), Annotated::new(Value::I64(1))),
                 (
-                    "process.runtime.description".to_string(),
-                    Annotated::new(Value::String("Node.js".to_string())),
-                ),
-                (
-                    "process.runtime.name".to_string(),
-                    Annotated::new(Value::String("nodejs".to_string())),
+                    "process.runtime.description".to_owned(),
+                    Annotated::new(Value::String("Node.js".to_owned())),
                 ),
                 (
-                    "process.runtime.version".to_string(),
-                    Annotated::new(Value::String("16.18.0".to_string())),
+                    "process.runtime.name".to_owned(),
+                    Annotated::new(Value::String("nodejs".to_owned())),
                 ),
                 (
-                    "service.name".to_string(),
-                    Annotated::new(Value::String("paymentservice".to_string())),
+                    "process.runtime.version".to_owned(),
+                    Annotated::new(Value::String("16.18.0".to_owned())),
                 ),
                 (
-                    "telemetry.sdk.language".to_string(),
-                    Annotated::new(Value::String("nodejs".to_string())),
+                    "service.name".to_owned(),
+                    Annotated::new(Value::String("paymentservice".to_owned())),
                 ),
                 (
-                    "telemetry.sdk.name".to_string(),
-                    Annotated::new(Value::String("opentelemetry".to_string())),
+                    "telemetry.sdk.language".to_owned(),
+                    Annotated::new(Value::String("nodejs".to_owned())),
                 ),
                 (
-                    "telemetry.sdk.version".to_string(),
-                    Annotated::new(Value::String("1.7.0".to_string())),
+                    "telemetry.sdk.name".to_owned(),
+                    Annotated::new(Value::String("opentelemetry".to_owned())),
+                ),
+                (
+                    "telemetry.sdk.version".to_owned(),
+                    Annotated::new(Value::String("1.7.0".to_owned())),
                 ),
             ])),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".to_owned(),
+                    Annotated::new(Value::String("value".to_owned())),
                 );
                 map
             },
