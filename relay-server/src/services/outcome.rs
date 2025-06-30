@@ -865,7 +865,10 @@ impl TrackOutcomeLike for TrackRawOutcome {
     }
 
     fn category(&self) -> DataCategory {
-        DataCategory::try_from(self.category).unwrap_or(DataCategory::Unknown)
+        match self.category {
+            Some(cat) => DataCategory::try_from(cat).unwrap_or(DataCategory::Unknown),
+            None => DataCategory::Unknown,
+        }
     }
 }
 

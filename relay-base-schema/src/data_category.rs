@@ -265,10 +265,10 @@ impl From<EventType> for DataCategory {
     }
 }
 
-impl TryFrom<i8> for DataCategory {
+impl TryFrom<u8> for DataCategory {
     type Error = ();
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u8) -> Result<Self, <DataCategory as TryFrom<u8>>::Error> {
         match value {
             0 => Ok(Self::Default),
             1 => Ok(Self::Error),
