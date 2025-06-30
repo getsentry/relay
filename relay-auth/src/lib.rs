@@ -334,7 +334,7 @@ impl PublicKey {
     }
 
     /// Verifies a signature but discards the header.
-    pub fn verify(&self, data: &[u8], sig: SignatureRef) -> bool {
+    pub fn verify(&self, data: &[u8], sig: SignatureRef<'_>) -> bool {
         self.verify_meta(data, sig).is_some()
     }
 
@@ -342,7 +342,7 @@ impl PublicKey {
     pub fn verify_timestamp(
         &self,
         data: &[u8],
-        sig: SignatureRef,
+        sig: SignatureRef<'_>,
         max_age: Option<Duration>,
     ) -> bool {
         self.verify_meta(data, sig)
@@ -354,7 +354,7 @@ impl PublicKey {
     pub fn unpack_meta<D: DeserializeOwned>(
         &self,
         data: &[u8],
-        signature: SignatureRef,
+        signature: SignatureRef<'_>,
     ) -> Result<(SignatureHeader, D), UnpackError> {
         if let Some(header) = self.verify_meta(data, signature) {
             serde_json::from_slice(data)
@@ -372,7 +372,7 @@ impl PublicKey {
     pub fn unpack<D: DeserializeOwned>(
         &self,
         data: &[u8],
-        signature: SignatureRef,
+        signature: SignatureRef<'_>,
         max_age: Option<Duration>,
     ) -> Result<D, UnpackError> {
         let (header, data) = self.unpack_meta(data, signature)?;
@@ -589,7 +589,7 @@ impl RegisterRequest {
     /// the data is returned.
     pub fn bootstrap_unpack(
         data: &[u8],
-        signature: SignatureRef,
+        signature: SignatureRef<'_>,
         max_age: Option<Duration>,
     ) -> Result<RegisterRequest, UnpackError> {
         let req: RegisterRequest = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
@@ -667,7 +667,7 @@ impl RegisterResponse {
     /// Unpacks the register response and validates signatures.
     pub fn unpack(
         data: &[u8],
-        signature: SignatureRef,
+        signature: SignatureRef<'_>,
         secret: &[u8],
         max_age: Option<Duration>,
     ) -> Result<(Self, RegisterState), UnpackError> {
@@ -763,7 +763,7 @@ impl Signature {
     ///
     /// This method provides a lightweight reference wrapper over the internal
     /// signature data.
-    pub fn as_signature_ref(&self) -> SignatureRef {
+    pub fn as_signature_ref(&self) -> SignatureRef<'_> {
         SignatureRef(self.0.as_str())
     }
 }
