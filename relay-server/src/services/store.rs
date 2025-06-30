@@ -1748,7 +1748,7 @@ impl SpanKafkaMessage<'_> {
                     continue;
                 };
 
-                match &key[..] {
+                match key.as_ref() {
                     "client_sample_rate" => {
                         if let Ok(client_sample_rate) = Deserialize::deserialize(value) {
                             self.client_sample_rate = Some(client_sample_rate);
@@ -1760,7 +1760,7 @@ impl SpanKafkaMessage<'_> {
                         }
                     }
                     _ => {
-                        data.entry(Cow::Borrowed(key)).or_insert(Some(value));
+                        data.entry(key.clone()).or_insert(Some(value));
                     }
                 }
             }
@@ -1773,12 +1773,12 @@ impl SpanKafkaMessage<'_> {
                 };
 
                 let key = if *key == "description" {
-                    "sentry.normalized_description"
+                    Cow::Borrowed("sentry.normalized_description")
                 } else {
-                    key
+                    key.clone()
                 };
 
-                data.entry(Cow::Borrowed(key)).or_insert(Some(value));
+                data.entry(key).or_insert(Some(value));
             }
         }
 
