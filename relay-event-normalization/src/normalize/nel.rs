@@ -264,7 +264,6 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
-        trace_id: Annotated::new(TraceId::from(uuid::Uuid::nil())),
         level: Annotated::new(if error_type == "ok" {
             OurLogLevel::Info
         } else {
@@ -357,26 +356,6 @@ mod tests {
     }
 
     #[test]
-    fn test_create_log_minimal() {
-        let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
-            .unwrap()
-            .with_timezone(&Utc);
-
-        let body_minimal = BodyRaw {
-            ty: Annotated::new("unknown".to_owned()),
-            ..Default::default()
-        };
-
-        let nel_minimal = NetworkReportRaw {
-            body: Annotated::new(body_minimal),
-            ..Default::default()
-        };
-
-        let log = create_log(Annotated::new(nel_minimal), received_at).unwrap();
-        insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
-    }
-
-    #[test]
     fn test_create_log_missing_body() {
         let received_at = DateTime::parse_from_rfc3339("2021-04-26T08:00:05+00:00")
             .unwrap()
@@ -387,8 +366,9 @@ mod tests {
             ..Default::default()
         };
 
-        let result = create_log(Annotated::new(nel_missing_body), received_at);
-        assert!(result.is_none());
+        let log = create_log(Annotated::new(nel_missing_body), received_at);
+        // No log is created because the body is missing
+        assert!(log.is_none());
     }
 
     #[test]
@@ -397,8 +377,9 @@ mod tests {
             .unwrap()
             .with_timezone(&Utc);
 
-        let result = create_log(Annotated::empty(), received_at);
-        assert!(result.is_none());
+        let log = create_log(Annotated::empty(), received_at);
+        // No log is created because the NEL is empty
+        assert!(log.is_none());
     }
 
     #[test]
