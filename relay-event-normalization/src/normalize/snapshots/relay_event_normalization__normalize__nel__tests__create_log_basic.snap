@@ -5,25 +5,9 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
 {
   "timestamp": 1619424000.0,
   "trace_id": "00000000000000000000000000000000",
-  "level": "info",
+  "level": "warn",
   "body": "The user agent successfully received a response, but it had a 500 status code",
   "attributes": {
-    "browser.nel.phase": {
-      "type": "string",
-      "value": "application"
-    },
-    "browser.nel.referrer": {
-      "type": "string",
-      "value": "https://example.com/referer"
-    },
-    "browser.nel.sampling_fraction": {
-      "type": "double",
-      "value": 1.0
-    },
-    "browser.nel.type": {
-      "type": "string",
-      "value": "http.error"
-    },
     "browser.report.type": {
       "type": "string",
       "value": "network-error"
@@ -43,6 +27,22 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
     "http.response.status_code": {
       "type": "integer",
       "value": 500
+    },
+    "nel.phase": {
+      "type": "string",
+      "value": "application"
+    },
+    "nel.referrer": {
+      "type": "string",
+      "value": "https://example.com/referer"
+    },
+    "nel.sampling_fraction": {
+      "type": "double",
+      "value": 1.0
+    },
+    "nel.type": {
+      "type": "string",
+      "value": "http.error"
     },
     "network.protocol.name": {
       "type": "string",

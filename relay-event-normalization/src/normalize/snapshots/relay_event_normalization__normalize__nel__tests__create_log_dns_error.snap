@@ -5,21 +5,9 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
 {
   "timestamp": 1619424004.0,
   "trace_id": "00000000000000000000000000000000",
-  "level": "info",
+  "level": "warn",
   "body": "DNS server is unreachable",
   "attributes": {
-    "browser.nel.phase": {
-      "type": "string",
-      "value": "dns"
-    },
-    "browser.nel.sampling_fraction": {
-      "type": "double",
-      "value": 0.5
-    },
-    "browser.nel.type": {
-      "type": "string",
-      "value": "dns.unreachable"
-    },
     "browser.report.type": {
       "type": "string",
       "value": "network-error"
@@ -31,6 +19,18 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
     "http.request.method": {
       "type": "string",
       "value": "POST"
+    },
+    "nel.phase": {
+      "type": "string",
+      "value": "dns"
+    },
+    "nel.sampling_fraction": {
+      "type": "double",
+      "value": 0.5
+    },
+    "nel.type": {
+      "type": "string",
+      "value": "dns.unreachable"
     },
     "network.protocol.name": {
       "type": "string",

@@ -194,8 +194,10 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     let raw_report = nel.into_value()?;
     let body = raw_report.body.into_value()?;
 
+    // Extract the error type string to avoid borrowing issues later
+    let error_type = body.ty.as_str().unwrap_or("unknown");
     let message = create_message(
-        body.ty.as_str().unwrap_or("unknown"),
+        error_type,
         body.status_code.value().map(|&code| code as u16),
     );
 
@@ -258,12 +260,12 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     add_attribute!("nel.referrer", body.referrer);
     add_attribute!("nel.phase", body.phase.map_value(|s| s.to_string()));
     add_attribute!("nel.sampling_fraction", body.sampling_fraction);
-    add_attribute!("nel.type", body.ty);
+    add_attribute!("nel.type", body.ty.clone());
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
         trace_id: Annotated::new(TraceId::from(uuid::Uuid::nil())),
-        level: Annotated::new(if body.ty.as_str().unwrap_or("unknown") == "ok" {
+        level: Annotated::new(if error_type == "ok" {
             OurLogLevel::Info
         } else {
             OurLogLevel::Warn

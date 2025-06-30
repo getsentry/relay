@@ -5,16 +5,16 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
 {
   "timestamp": 1619424005.0,
   "trace_id": "00000000000000000000000000000000",
-  "level": "info",
+  "level": "warn",
   "body": "error type is unknown",
   "attributes": {
-    "browser.nel.type": {
-      "type": "string",
-      "value": "unknown"
-    },
     "browser.report.type": {
       "type": "string",
       "value": "network-error"
+    },
+    "nel.type": {
+      "type": "string",
+      "value": "unknown"
     },
     "sentry.origin": {
       "type": "string",
