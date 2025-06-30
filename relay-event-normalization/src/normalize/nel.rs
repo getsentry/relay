@@ -170,15 +170,18 @@ fn extract_server_address(server_address: &str) -> String {
 
 /// Gets the human-readable description for a NEL error type
 fn get_nel_culprit(error_type: &str) -> Option<&'static str> {
-    NEL_CULPRITS_MAP.get(error_type).copied()
-}
+use std::borrow::Cow;
 
-/// Gets the formatted human-readable description for a NEL error type with optional status code
-fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Option<String> {
+fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Option<Cow<'static, str>> {
     let template = get_nel_culprit(error_type)?;
 
     if error_type == "http.error" {
         let code = status_code.unwrap_or(0);
+        Some(Cow::Owned(template.replace("{}", &code.to_string())))
+    } else {
+        Some(Cow::Borrowed(template))
+    }
+}
         Some(template.replace("{}", &code.to_string()))
     } else {
         Some(template.to_owned())
