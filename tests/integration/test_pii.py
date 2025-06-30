@@ -25,7 +25,7 @@ def test_snapshot_scrub_span_sentry_tags_advanced_rules(
                     "span_id": "aaaaaaaa00000000",
                     "trace_id": "aaaaaaaaaaaaaaaaaaaa000000000000",
                     "sentry_tags": {
-                        "user.geo.country_code": "ATdasdsa",
+                        "user.geo.country_code": "AT",
                         "user.geo.subregion": "12",
                     },
                 }
