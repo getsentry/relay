@@ -152,10 +152,11 @@ static NEL_CULPRITS_MAP: LazyLock<HashMap<&'static str, &'static str>> =
     LazyLock::new(|| NEL_CULPRITS.iter().copied().collect());
 
 /// Extracts the domain or IP address from a server address string
-/// e.g. "123.123.123.123" -> "123.123.123.123"
-/// e.g. "https://example.com/foo?bar=1" -> "example.com"
-/// e.g. "http://localhost:8080/foo?bar=1" -> "localhost"
-/// e.g. "http://[::1]:8080/foo" -> "[::1]"
+/// e.g. 123.123.123.123 -> 123.123.123.123
+/// e.g. https://example.com/foo?bar=1 -> example.com
+/// e.g. http://localhost:8080/foo?bar=1 -> localhost
+/// e.g. http://\[::1\]:8080/foo -> \[::1\]
+#[allow(rustdoc::bare_urls)]
 fn extract_server_address(server_address: &str) -> String {
     // Try to parse as URL and extract host
     if let Ok(url) = Url::parse(server_address) {
