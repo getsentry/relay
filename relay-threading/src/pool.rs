@@ -360,8 +360,7 @@ mod tests {
         // If running concurrently, the overall time should be near 200ms (with some allowance).
         assert!(
             elapsed < Duration::from_millis(250),
-            "Elapsed time was too high: {:?}",
-            elapsed
+            "Elapsed time was too high: {elapsed:?}"
         );
     }
 
@@ -391,8 +390,7 @@ mod tests {
         // If running concurrently, the overall time should be near 200ms (with some allowance).
         assert!(
             elapsed < Duration::from_millis(250),
-            "Elapsed time was too high: {:?}",
-            elapsed
+            "Elapsed time was too high: {elapsed:?}"
         );
     }
 
