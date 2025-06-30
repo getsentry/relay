@@ -1143,7 +1143,7 @@ fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
         counter(RelayCounters::OutcomeQuantity) += message.quantity(),
         hc.project_id = message.project_id().to_string().as_str(),
         hc.reason = message.reason().as_deref().unwrap_or(""),
-        hc.category = message.category().name(),
+        category = message.category().name(),
         outcome = message.tag_name(),
         to = to,
     );
