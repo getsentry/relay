@@ -15,7 +15,7 @@ use relay_system::Addr;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::{Outcome, RuleCategories, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, RuleCategories, TrackOutcome};
 use crate::services::processor::{ClientReportGroup, MINIMUM_CLOCK_DRIFT};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{ItemAction, TypedEnvelope};
@@ -208,10 +208,10 @@ pub fn process_user_reports<Group>(managed_envelope: &mut TypedEnvelope<Group>) 
         // versions with the broken SDK out there.
         let payload = trim_whitespaces(&payload);
         let report = match serde_json::from_slice::<UserReport>(payload) {
-            Ok(session) => session,
+            Ok(report) => report,
             Err(error) => {
                 relay_log::error!(error = &error as &dyn Error, "failed to store user report");
-                return ItemAction::DropSilently;
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
             }
         };
 
@@ -222,7 +222,7 @@ pub fn process_user_reports<Group>(managed_envelope: &mut TypedEnvelope<Group>) 
                     error = &err as &dyn Error,
                     "failed to serialize user report"
                 );
-                return ItemAction::DropSilently;
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             }
         };
 
