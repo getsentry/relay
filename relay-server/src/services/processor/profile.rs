@@ -228,6 +228,8 @@ mod tests {
 
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
+    #[cfg(feature = "processing")]
+    use crate::services::processor::Submit;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
@@ -343,11 +345,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let new_envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap();
+        let Ok(Some(Submit::Envelope(new_envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
         let new_envelope = new_envelope.envelope();
 
         // Get the re-serialized context.
@@ -478,11 +480,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let new_envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap();
+        let Ok(Some(Submit::Envelope(new_envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
         let new_envelope = new_envelope.envelope();
 
         // Get the re-serialized context.
@@ -628,11 +630,11 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let new_envelope = processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap();
+        let Ok(Some(Submit::Envelope(new_envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
         let new_envelope = new_envelope.envelope();
 
         // Get the re-serialized context.

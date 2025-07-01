@@ -93,6 +93,7 @@ impl Context<'_> {
 }
 
 /// The main processing output and all of its by products.
+#[derive(Debug)]
 pub struct Output<T> {
     /// The main output of a [`Processor`].
     pub main: T,
@@ -113,5 +114,16 @@ impl<T> Output<T> {
 /// A processor output which can be forwarded to a different destination.
 pub trait Forward {
     /// Serializes the output into an [`Envelope`].
+    ///
+    /// All output must be serializable as an envelope.
     fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>>;
+
+    /// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
+    ///
+    /// This function must only be called when Relay is configured to be in processing mode.
+    #[cfg(feature = "processing")]
+    fn forward_store(
+        self,
+        s: &relay_system::Addr<crate::services::store::Store>,
+    ) -> Result<(), Rejected<()>>;
 }
