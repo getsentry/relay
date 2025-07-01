@@ -238,7 +238,7 @@
 <a href=#238 id=238 data-nosnippet>238</a>    <span class="comment">// OS information is likely overwritten by Minidump processing later.
 <a href=#239 id=239 data-nosnippet>239</a>    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(os_major) = runtime_props.misc_os_version_major.take() {
 <a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">let </span>os_context = contexts.get_or_default::&lt;OsContext&gt;();
-<a href=#241 id=241 data-nosnippet>241</a>        os_context.name = Annotated::new(os_major);
+<a href=#241 id=241 data-nosnippet>241</a>        os_context.raw_description = Annotated::new(os_major);
 <a href=#242 id=242 data-nosnippet>242</a>    }
 <a href=#243 id=243 data-nosnippet>243</a>
 <a href=#244 id=244 data-nosnippet>244</a>    <span class="comment">// See https://github.com/EpicGames/UnrealEngine/blob/5.3.2-release/Engine/Source/Runtime/RHI/Private/DynamicRHI.cpp#L368-L376
