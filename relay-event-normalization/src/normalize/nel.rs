@@ -238,8 +238,8 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     // Handle URL and extract server address if available
     add_attribute!("url.full", raw_report.url.clone());
     if let Some(url_str) = raw_report.url.value() {
-        let server_address = extract_server_address(url_str);
-        add_string_attribute!("url.domain", &server_address);
+        let url_domain = extract_server_address(url_str);
+        add_string_attribute!("url.domain", &url_domain);
     }
     add_attribute!("http.request.duration", body.elapsed_time);
     add_attribute!("http.request.method", body.method);
@@ -257,9 +257,11 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
             }
         }
     }
-    // Server domain name if available without reverse DNS lookup; otherwise,
-    // IP address or Unix domain socket name.
-    add_attribute!("server.address", server_address);
+
+    if let Some(server_ip) = body.server_ip.value() {
+        // server_ip contains the IP address of the server according to NEL spec
+        add_string_attribute!("server.address", server_ip.as_ref());
+    }
 
     // NEL-specific attributes
     add_attribute!("nel.referrer", body.referrer);

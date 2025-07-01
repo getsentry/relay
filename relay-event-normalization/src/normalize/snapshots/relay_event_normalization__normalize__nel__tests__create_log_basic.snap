@@ -58,7 +58,7 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
     },
     "server.address": {
       "type": "string",
-      "value": "example.com"
+      "value": "192.168.1.1"
     },
     "url.domain": {
       "type": "string",
