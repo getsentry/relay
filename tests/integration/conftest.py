@@ -265,7 +265,7 @@ def secondary_redis_client():
     return redis.Redis(host="127.0.0.1", port=6380, db=0)
 
 
-def redact_snapshot(data, exclude_keys=None):
+def redact_snapshot(data, exclude_keys=None, additional_keys=None):
     """
     Redacts certain fields from data to make them comparable with snapshots.
     Fields that contain timestamps or UUIDs are problematic for snapshots because
@@ -274,13 +274,57 @@ def redact_snapshot(data, exclude_keys=None):
     but that is annoying and cumbersome.
     This function makes sure that those fields remain comparable between runs by replacing
     their content with the key name wrapped in `<` and `>`.
+
+    To dynamically change the list of keys that will be redacted, call it like this:
+    `assert relay_snapshot("json", excluded_keys={"key1", "key2}) == data`
+
+    To extend the default list with custom keys, call it like this:
+    `assert relay_snapshot("json", additional_keys={"bonusKey}) == data`
+
+    Note that using both parameters is not advised as it will produce the same as just using the
+    `excluded_keys` parameter.
+    relay_snapshot("json", excluded_keys={"key1", "key2"}, additional_keys={"key3"}) is the same as
+    relay_snapshot("json", excluded_keys={"key1", "key2", "key3"})
+
+    Keys must match the full path to be redacted with every step being separated by a '.' (dot).
+    There is no special syntax for lists, instead it will apply to all elements in that list.
+    For example, "foo" will only match the top level item with the key "foo" while "bar.foo" will
+    only match the key "foo" that is a child of "bar".
+
+    Specified keys do not have to be leaf nodes. If an intermediate key is specified, it will
+    redact the entire subtree and replace their values with the respective key name.
+    For example:
+    {
+        "name": "test",
+        "foo": {
+            "dynamicBar": "14412",
+            "dynamicBaz": "57712"
+        }
+    }
+
+    will be redacted into
+    {
+        "name": "test",
+        "foo": {
+            "dynamicBar": "<dynamicBar>",
+            "dynamicBaz": "<dynamicBaz>"
+        }
+    }
+
+    :param data: the data that will be redacted.
+    :param set exclude_keys: overwrites the keys that will be redacted. In other words, the keys in the list here
+           will be the only keys that will be redacted.
+    :param set additional_keys: keys in this set are added to the list of default keys that are redacted.
     """
     if exclude_keys is None:
         exclude_keys = {"timestamp", "received", "ingest_path", "event_id"}
     else:
         exclude_keys = set(exclude_keys)
 
-    def _redact_entire_subtree(obj, parent_key=None):
+    if additional_keys is not None:
+        exclude_keys = exclude_keys.union(additional_keys)
+
+    def _redact_entire_subtree(obj, parent_key):
         if isinstance(obj, dict):
             return {k: _redact_entire_subtree(v, parent_key=k) for k, v in obj.items()}
         elif isinstance(obj, list):
@@ -288,17 +332,18 @@ def redact_snapshot(data, exclude_keys=None):
         else:
             return f"<{parent_key}>"
 
-    def _redact(obj):
+    def _redact(obj, path=None):
         if isinstance(obj, dict):
             redacted = {}
             for k, v in obj.items():
-                if k in exclude_keys:
+                full_path = path + f".{k}" if path else k
+                if full_path in exclude_keys:
                     redacted[k] = _redact_entire_subtree(v, parent_key=k)
                 else:
-                    redacted[k] = _redact(v)
+                    redacted[k] = _redact(v, full_path)
             return redacted
         elif isinstance(obj, list):
-            return [_redact(item) for item in obj]
+            return [_redact(item, path) for item in obj]
         else:
             return obj
 
@@ -308,13 +353,18 @@ def redact_snapshot(data, exclude_keys=None):
 @pytest.fixture
 def relay_snapshot(snapshot):
     class SnapshotWrapper:
-        def __call__(self, name, exclude_keys=None):
+        def __call__(self, name, exclude_keys=None, additional_keys=None):
             self.name = name
             self.exclude_keys = exclude_keys
+            self.additional_keys = additional_keys
             return self
 
         def __eq__(self, other):
-            redacted = redact_snapshot(other, exclude_keys=self.exclude_keys)
+            redacted = redact_snapshot(
+                other,
+                exclude_keys=self.exclude_keys,
+                additional_keys=self.additional_keys,
+            )
             return snapshot(self.name) == redacted
 
     return SnapshotWrapper()

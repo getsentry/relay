@@ -31,7 +31,7 @@
   "project": 42,
   "spans": [
     {
-      "timestamp": "<timestamp>",
+      "timestamp": 1746007551.0,
       "start_timestamp": 1746007545.0,
       "span_id": "aaaaaaaa00000000",
       "trace_id": "aaaaaaaaaaaaaaaaaaaa000000000000",

@@ -76,7 +76,7 @@ test-integration: build setup-venv ## run integration tests
 	.venv/bin/pytest tests -n $(PYTEST_N) -v
 .PHONY: test-integration
 
-insta-review: build setup-venv ## review all snapshots for files that have been modified
+snapshots-review: build setup-venv ## review all snapshots for files that have been modified
 	@changed_py=$$(git diff --name-only | grep '\.py$$'); \
 	if [ -z "$$changed_py" ]; then \
 	  echo "No Python files changed — skipping insta review"; \
@@ -85,7 +85,7 @@ insta-review: build setup-venv ## review all snapshots for files that have been 
 	fi
 .PHONY: insta-review
 
-insta-accept: build setup-venv ## accept all new snapshots for files that have been modified
+snapshots-accept: build setup-venv ## accept all new snapshots for files that have been modified
 	@changed_py=$$(git diff --name-only | grep '\.py$$'); \
 	if [ -z "$$changed_py" ]; then \
 	  echo "No Python files changed — no snapshots updated"; \
