@@ -5,6 +5,7 @@ use relay_event_schema::protocol::{
     Attributes, NetworkReportRaw, OurLog, OurLogLevel, Timestamp, TraceId,
 };
 use relay_protocol::Annotated;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 use url::Url;
@@ -170,9 +171,13 @@ fn extract_server_address(server_address: &str) -> String {
 
 /// Gets the human-readable description for a NEL error type
 fn get_nel_culprit(error_type: &str) -> Option<&'static str> {
-use std::borrow::Cow;
+    NEL_CULPRITS_MAP.get(error_type).copied()
+}
 
-fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Option<Cow<'static, str>> {
+fn get_nel_culprit_formatted(
+    error_type: &str,
+    status_code: Option<u16>,
+) -> Option<Cow<'static, str>> {
     let template = get_nel_culprit(error_type)?;
 
     if error_type == "http.error" {
@@ -182,15 +187,12 @@ fn get_nel_culprit_formatted(error_type: &str, status_code: Option<u16>) -> Opti
         Some(Cow::Borrowed(template))
     }
 }
-        Some(template.replace("{}", &code.to_string()))
-    } else {
-        Some(template.to_owned())
-    }
-}
 
 /// Creates a human-readable message for a NEL report
 fn create_message(error_type: &str, status_code: Option<u16>) -> String {
-    get_nel_culprit_formatted(error_type, status_code).unwrap_or_else(|| error_type.to_owned())
+    get_nel_culprit_formatted(error_type, status_code)
+        .map(|cow| cow.into_owned())
+        .unwrap_or_else(|| error_type.to_owned())
 }
 
 /// Creates a [`OurLog`] from the provided [`NetworkReportRaw`].
@@ -223,20 +225,22 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 
     macro_rules! add_string_attribute {
         ($name:literal, $value:expr) => {{
-            attributes.insert($name.to_owned(), $value.to_string());
+            let val = $value.to_string();
+            if !val.is_empty() {
+                attributes.insert($name.to_owned(), val);
+            }
         }};
-macro_rules! add_string_attribute {
-    ($name:literal, $value:expr) => {{
-        let val = $value.to_string();
-        if !val.is_empty() {
-            attributes.insert($name.to_owned(), val);
-        }
-    }};
-}
+    }
+
     add_string_attribute!("sentry.origin", "auto.http.browser_report.nel");
     add_string_attribute!("browser.report.type", "network-error");
-    add_attribute!("url.domain", url);
-    add_attribute!("url.full", raw_report.url);
+
+    // Handle URL and extract server address if available
+    add_attribute!("url.full", raw_report.url.clone());
+    if let Some(url_str) = raw_report.url.value() {
+        let server_address = extract_server_address(url_str);
+        add_string_attribute!("url.domain", &server_address);
+    }
     add_attribute!("http.request.duration", body.elapsed_time);
     add_attribute!("http.request.method", body.method);
     add_attribute!("http.request.header.referer", body.referrer.clone());
@@ -244,10 +248,10 @@ macro_rules! add_string_attribute {
     // Split protocol into name and version components
     if let Some(protocol) = body.protocol.value() {
         let parts: Vec<&str> = protocol.split('/').collect();
-        if !parts.is_empty() {
+        if !parts.is_empty() && !parts[0].is_empty() {
             // e.g. "http"
             add_string_attribute!("network.protocol.name", parts[0]);
-            if parts.len() > 1 {
+            if parts.len() > 1 && !parts[1].is_empty() {
                 // e.g. "1.1"
                 add_string_attribute!("network.protocol.version", parts[1]);
             }
