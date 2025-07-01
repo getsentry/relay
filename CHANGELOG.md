@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
+
 ## 25.6.2
 
 **Features**:
@@ -7,10 +13,6 @@
 - Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
 - Sharding into many topics based on partition key. ([#4861](https://github.com/getsentry/relay/pull/4861))
 - Parse Chromium stability report from minidumps into context ([#4837](https://github.com/getsentry/relay/pull/4837))
-
-**Bug Fixes**:
-
-- OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
 
 **Internal**:
 
