@@ -238,7 +238,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     // OS information is likely overwritten by Minidump processing later.
     if let Some(os_major) = runtime_props.misc_os_version_major.take() {
         let os_context = contexts.get_or_default::<OsContext>();
-        os_context.raw_description = Annotated::new(os_major);
+        os_context.name = Annotated::new(os_major);
     }
 
     // See https://github.com/EpicGames/UnrealEngine/blob/5.3.2-release/Engine/Source/Runtime/RHI/Private/DynamicRHI.cpp#L368-L376

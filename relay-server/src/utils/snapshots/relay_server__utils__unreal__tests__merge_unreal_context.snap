@@ -24,7 +24,7 @@ expression: "Annotated::new(event).to_json_pretty().unwrap()"
       "type": "gpu"
     },
     "os": {
-      "raw_description": "Windows 10",
+      "name": "Windows 10",
       "type": "os"
     },
     "unreal": {
