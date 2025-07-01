@@ -93,25 +93,37 @@
 <a href=#93 id=93 data-nosnippet>93</a>}
 <a href=#94 id=94 data-nosnippet>94</a>
 <a href=#95 id=95 data-nosnippet>95</a><span class="doccomment">/// The main processing output and all of its by products.
-<a href=#96 id=96 data-nosnippet>96</a></span><span class="kw">pub struct </span>Output&lt;T&gt; {
-<a href=#97 id=97 data-nosnippet>97</a>    <span class="doccomment">/// The main output of a [`Processor`].
-<a href=#98 id=98 data-nosnippet>98</a>    </span><span class="kw">pub </span>main: T,
-<a href=#99 id=99 data-nosnippet>99</a>    <span class="doccomment">/// Metric by products.
-<a href=#100 id=100 data-nosnippet>100</a>    </span><span class="kw">pub </span>metrics: ProcessingExtractedMetrics,
-<a href=#101 id=101 data-nosnippet>101</a>}
-<a href=#102 id=102 data-nosnippet>102</a>
-<a href=#103 id=103 data-nosnippet>103</a><span class="kw">impl</span>&lt;T&gt; Output&lt;T&gt; {
-<a href=#104 id=104 data-nosnippet>104</a>    <span class="doccomment">/// Creates a new output with just a main output.
-<a href=#105 id=105 data-nosnippet>105</a>    </span><span class="kw">pub fn </span>just(main: T) -&gt; <span class="self">Self </span>{
-<a href=#106 id=106 data-nosnippet>106</a>        <span class="self">Self </span>{
-<a href=#107 id=107 data-nosnippet>107</a>            main,
-<a href=#108 id=108 data-nosnippet>108</a>            metrics: ProcessingExtractedMetrics::new(),
-<a href=#109 id=109 data-nosnippet>109</a>        }
-<a href=#110 id=110 data-nosnippet>110</a>    }
-<a href=#111 id=111 data-nosnippet>111</a>}
-<a href=#112 id=112 data-nosnippet>112</a>
-<a href=#113 id=113 data-nosnippet>113</a><span class="doccomment">/// A processor output which can be forwarded to a different destination.
-<a href=#114 id=114 data-nosnippet>114</a></span><span class="kw">pub trait </span>Forward {
-<a href=#115 id=115 data-nosnippet>115</a>    <span class="doccomment">/// Serializes the output into an [`Envelope`].
-<a href=#116 id=116 data-nosnippet>116</a>    </span><span class="kw">fn </span>serialize_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Managed&lt;Box&lt;Envelope&gt;&gt;, Rejected&lt;()&gt;&gt;;
-<a href=#117 id=117 data-nosnippet>117</a>}</code></pre></div></section></main></body></html>
+<a href=#96 id=96 data-nosnippet>96</a></span><span class="attr">#[derive(Debug)]
+<a href=#97 id=97 data-nosnippet>97</a></span><span class="kw">pub struct </span>Output&lt;T&gt; {
+<a href=#98 id=98 data-nosnippet>98</a>    <span class="doccomment">/// The main output of a [`Processor`].
+<a href=#99 id=99 data-nosnippet>99</a>    </span><span class="kw">pub </span>main: T,
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="doccomment">/// Metric by products.
+<a href=#101 id=101 data-nosnippet>101</a>    </span><span class="kw">pub </span>metrics: ProcessingExtractedMetrics,
+<a href=#102 id=102 data-nosnippet>102</a>}
+<a href=#103 id=103 data-nosnippet>103</a>
+<a href=#104 id=104 data-nosnippet>104</a><span class="kw">impl</span>&lt;T&gt; Output&lt;T&gt; {
+<a href=#105 id=105 data-nosnippet>105</a>    <span class="doccomment">/// Creates a new output with just a main output.
+<a href=#106 id=106 data-nosnippet>106</a>    </span><span class="kw">pub fn </span>just(main: T) -&gt; <span class="self">Self </span>{
+<a href=#107 id=107 data-nosnippet>107</a>        <span class="self">Self </span>{
+<a href=#108 id=108 data-nosnippet>108</a>            main,
+<a href=#109 id=109 data-nosnippet>109</a>            metrics: ProcessingExtractedMetrics::new(),
+<a href=#110 id=110 data-nosnippet>110</a>        }
+<a href=#111 id=111 data-nosnippet>111</a>    }
+<a href=#112 id=112 data-nosnippet>112</a>}
+<a href=#113 id=113 data-nosnippet>113</a>
+<a href=#114 id=114 data-nosnippet>114</a><span class="doccomment">/// A processor output which can be forwarded to a different destination.
+<a href=#115 id=115 data-nosnippet>115</a></span><span class="kw">pub trait </span>Forward {
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="doccomment">/// Serializes the output into an [`Envelope`].
+<a href=#117 id=117 data-nosnippet>117</a>    ///
+<a href=#118 id=118 data-nosnippet>118</a>    /// All output must be serializable as an envelope.
+<a href=#119 id=119 data-nosnippet>119</a>    </span><span class="kw">fn </span>serialize_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Managed&lt;Box&lt;Envelope&gt;&gt;, Rejected&lt;()&gt;&gt;;
+<a href=#120 id=120 data-nosnippet>120</a>
+<a href=#121 id=121 data-nosnippet>121</a>    <span class="doccomment">/// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
+<a href=#122 id=122 data-nosnippet>122</a>    ///
+<a href=#123 id=123 data-nosnippet>123</a>    /// This function must only be called when Relay is configured to be in processing mode.
+<a href=#124 id=124 data-nosnippet>124</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#125 id=125 data-nosnippet>125</a>    </span><span class="kw">fn </span>forward_store(
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="self">self</span>,
+<a href=#127 id=127 data-nosnippet>127</a>        s: <span class="kw-2">&amp;</span>relay_system::Addr&lt;<span class="kw">crate</span>::services::store::Store&gt;,
+<a href=#128 id=128 data-nosnippet>128</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt;;
+<a href=#129 id=129 data-nosnippet>129</a>}</code></pre></div></section></main></body></html>

@@ -277,7 +277,7 @@
 <a href=#277 id=277 data-nosnippet>277</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item};
 <a href=#278 id=278 data-nosnippet>278</a>    <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <a href=#279 id=279 data-nosnippet>279</a>    <span class="kw">use </span><span class="kw">crate</span>::services::outcome::RuleCategory;
-<a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
+<a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
 <a href=#281 id=281 data-nosnippet>281</a>    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils::{<span class="self">self</span>, create_test_processor};
 <a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
@@ -394,11 +394,11 @@
 <a href=#394 id=394 data-nosnippet>394</a>            reservoir_counters: ReservoirCounters::default(),
 <a href=#395 id=395 data-nosnippet>395</a>        };
 <a href=#396 id=396 data-nosnippet>396</a>
-<a href=#397 id=397 data-nosnippet>397</a>        <span class="kw">let </span>new_envelope = processor
-<a href=#398 id=398 data-nosnippet>398</a>            .process(<span class="kw-2">&amp;mut </span>Token::noop(), message)
-<a href=#399 id=399 data-nosnippet>399</a>            .<span class="kw">await
-<a href=#400 id=400 data-nosnippet>400</a>            </span>.unwrap()
-<a href=#401 id=401 data-nosnippet>401</a>            .unwrap();
+<a href=#397 id=397 data-nosnippet>397</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Submit::Envelope(new_envelope))) =
+<a href=#398 id=398 data-nosnippet>398</a>            processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).<span class="kw">await
+<a href=#399 id=399 data-nosnippet>399</a>        else </span>{
+<a href=#400 id=400 data-nosnippet>400</a>            <span class="macro">panic!</span>();
+<a href=#401 id=401 data-nosnippet>401</a>        };
 <a href=#402 id=402 data-nosnippet>402</a>        <span class="kw">let </span>item = new_envelope.envelope().items().next().unwrap();
 <a href=#403 id=403 data-nosnippet>403</a>        <span class="macro">assert_eq!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::ClientReport);
 <a href=#404 id=404 data-nosnippet>404</a>
@@ -506,11 +506,11 @@
 <a href=#506 id=506 data-nosnippet>506</a>            reservoir_counters: ReservoirCounters::default(),
 <a href=#507 id=507 data-nosnippet>507</a>        };
 <a href=#508 id=508 data-nosnippet>508</a>
-<a href=#509 id=509 data-nosnippet>509</a>        <span class="kw">let </span>new_envelope = processor
-<a href=#510 id=510 data-nosnippet>510</a>            .process(<span class="kw-2">&amp;mut </span>Token::noop(), message)
-<a href=#511 id=511 data-nosnippet>511</a>            .<span class="kw">await
-<a href=#512 id=512 data-nosnippet>512</a>            </span>.unwrap()
-<a href=#513 id=513 data-nosnippet>513</a>            .unwrap();
+<a href=#509 id=509 data-nosnippet>509</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Submit::Envelope(new_envelope))) =
+<a href=#510 id=510 data-nosnippet>510</a>            processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).<span class="kw">await
+<a href=#511 id=511 data-nosnippet>511</a>        else </span>{
+<a href=#512 id=512 data-nosnippet>512</a>            <span class="macro">panic!</span>();
+<a href=#513 id=513 data-nosnippet>513</a>        };
 <a href=#514 id=514 data-nosnippet>514</a>        <span class="kw">let </span>new_envelope = new_envelope.envelope();
 <a href=#515 id=515 data-nosnippet>515</a>
 <a href=#516 id=516 data-nosnippet>516</a>        <span class="macro">assert_eq!</span>(new_envelope.len(), <span class="number">1</span>);
@@ -559,11 +559,11 @@
 <a href=#559 id=559 data-nosnippet>559</a>            reservoir_counters: ReservoirCounters::default(),
 <a href=#560 id=560 data-nosnippet>560</a>        };
 <a href=#561 id=561 data-nosnippet>561</a>
-<a href=#562 id=562 data-nosnippet>562</a>        <span class="kw">let </span>new_envelope = processor
-<a href=#563 id=563 data-nosnippet>563</a>            .process(<span class="kw-2">&amp;mut </span>Token::noop(), message)
-<a href=#564 id=564 data-nosnippet>564</a>            .<span class="kw">await
-<a href=#565 id=565 data-nosnippet>565</a>            </span>.unwrap()
-<a href=#566 id=566 data-nosnippet>566</a>            .unwrap();
+<a href=#562 id=562 data-nosnippet>562</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Submit::Envelope(new_envelope))) =
+<a href=#563 id=563 data-nosnippet>563</a>            processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).<span class="kw">await
+<a href=#564 id=564 data-nosnippet>564</a>        else </span>{
+<a href=#565 id=565 data-nosnippet>565</a>            <span class="macro">panic!</span>();
+<a href=#566 id=566 data-nosnippet>566</a>        };
 <a href=#567 id=567 data-nosnippet>567</a>        <span class="kw">let </span>new_envelope = new_envelope.envelope();
 <a href=#568 id=568 data-nosnippet>568</a>
 <a href=#569 id=569 data-nosnippet>569</a>        <span class="macro">assert_eq!</span>(new_envelope.len(), <span class="number">1</span>);
