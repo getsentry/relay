@@ -9,10 +9,12 @@
 **Internal**:
 
 - Forward logs to Kafka directly instead of serialized as envelope. ([#4875](https://github.com/getsentry/relay/pull/4875))
+- Add `gen_ai.response.tokens_per_second` span attribute on AI spans. ([#4883](https://github.com/getsentry/relay/pull/4883))
 
 ## 25.6.2
 
 **Features**:
+
 - Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
 - Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
 - Sharding into many topics based on partition key. ([#4861](https://github.com/getsentry/relay/pull/4861))

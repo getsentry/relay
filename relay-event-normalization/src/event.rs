@@ -2316,7 +2316,7 @@ mod tests {
             {
                 "spans": [
                     {
-                        "timestamp": 1702474613.0495,
+                        "timestamp": 1702474614.0175,
                         "start_timestamp": 1702474613.0175,
                         "description": "OpenAI ",
                         "op": "gen_ai.chat_completions.openai",
@@ -2332,7 +2332,7 @@ mod tests {
                         }
                     },
                     {
-                        "timestamp": 1702474613.0495,
+                        "timestamp": 1702474614.0175,
                         "start_timestamp": 1702474613.0175,
                         "description": "OpenAI ",
                         "op": "gen_ai.chat_completions.openai",
@@ -2384,29 +2384,34 @@ mod tests {
 
         let spans = event.value().unwrap().spans.value().unwrap();
         assert_eq!(spans.len(), 2);
+        let first_span_data = spans
+            .first()
+            .and_then(|span| span.value())
+            .and_then(|span| span.data.value());
         assert_eq!(
-            spans
-                .first()
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            first_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(140.0))
         );
         assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
+            Some(&Value::F64(2000.0))
+        );
+
+        let second_span_data = spans
+            .get(1)
+            .and_then(|span| span.value())
+            .and_then(|span| span.data.value());
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(190.0))
         );
         assert_eq!(
-            spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_tokens.value()),
+            second_span_data.and_then(|data| data.gen_ai_usage_total_tokens.value()),
             Some(&Value::F64(3000.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
+            Some(&Value::F64(2000.0))
         );
     }
 
@@ -2573,6 +2578,106 @@ mod tests {
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_tokens.value()),
             Some(&Value::F64(3000.0))
+        );
+    }
+
+    #[test]
+    fn test_ai_response_tokens_per_second_no_output_tokens() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474614.0175,
+                        "start_timestamp": 1702474613.0175,
+                        "op": "gen_ai.chat_completions",
+                        "span_id": "9c01bd820a083e63",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 500
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::new(),
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data = event
+            .value()
+            .and_then(|event| event.spans.value())
+            .and_then(|spans| spans.first())
+            .and_then(|span| span.value())
+            .and_then(|span| span.data.value())
+            .unwrap();
+
+        // Should not set response_tokens_per_second when there are no output tokens
+        assert!(
+            span_data
+                .gen_ai_response_tokens_per_second
+                .value()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_ai_response_tokens_per_second_zero_duration() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0175,
+                        "start_timestamp": 1702474613.0175,
+                        "op": "gen_ai.chat_completions",
+                        "span_id": "9c01bd820a083e63",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.output_tokens": 1000
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::new(),
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data = event
+            .value()
+            .and_then(|event| event.spans.value())
+            .and_then(|spans| spans.first())
+            .and_then(|span| span.value())
+            .and_then(|span| span.data.value())
+            .unwrap();
+
+        // Should not set response_tokens_per_second when duration is zero
+        assert!(
+            span_data
+                .gen_ai_response_tokens_per_second
+                .value()
+                .is_none()
         );
     }
 
