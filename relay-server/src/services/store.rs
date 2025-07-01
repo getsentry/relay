@@ -1012,11 +1012,6 @@ impl StoreService {
             }
         };
 
-        if let Some(measurements) = &mut span.measurements {
-            measurements
-                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
-        }
-
         span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
@@ -1094,7 +1089,7 @@ impl StoreService {
                 nanos: 0,
             }),
             trace_id: span.trace_id.to_string(),
-            item_id: u128::from_str_radix(span.span_id, 16)
+            item_id: u128::from_str_radix(&span.span_id, 16)
                 .unwrap_or_default()
                 .to_le_bytes()
                 .to_vec(),
@@ -1105,9 +1100,25 @@ impl StoreService {
 
         if let Some(data) = span.data {
             for (key, raw_value) in data {
-                let Some(json_value) = raw_value else {
+                let Some(raw_value) = raw_value else {
                     continue;
                 };
+
+                let json_value = match Deserialize::deserialize(raw_value) {
+                    Ok(v) => v,
+                    Err(error) => {
+                        // This should not be possible: a `RawValue` is definitely valid JSON,
+                        // so deserializing it to a `json::Value` must succeed. But better safe
+                        // than sorry.
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            raw_value = %raw_value,
+                            "failed to parse JSON value"
+                        );
+                        continue;
+                    }
+                };
+
                 let any_value = match json_value {
                     JsonValue::String(string) => AnyValue {
                         value: Some(Value::StringValue(string)),
@@ -1149,7 +1160,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.raw_description".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(description)),
+                    value: Some(Value::StringValue(description.into())),
                 },
             );
         }
@@ -1216,7 +1227,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.parent_span_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(parent_span_id.to_owned())),
+                    value: Some(Value::StringValue(parent_span_id.into_owned())),
                 },
             );
         }
@@ -1225,7 +1236,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.profile_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(profile_id.to_owned())),
+                    value: Some(Value::StringValue(profile_id.into_owned())),
                 },
             );
         }
@@ -1234,7 +1245,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.segment_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(segment_id.to_owned())),
+                    value: Some(Value::StringValue(segment_id.into_owned())),
                 },
             );
         }
@@ -1243,7 +1254,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.origin".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(origin.to_string())),
+                    value: Some(Value::StringValue(origin.into_owned())),
                 },
             );
         }
@@ -1252,7 +1263,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.kind".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(kind.to_owned())),
+                    value: Some(Value::StringValue(kind.into_owned())),
                 },
             );
         }
@@ -1373,11 +1384,12 @@ where
         .serialize(serializer)
 }
 
-fn serialize_btreemap_skip_nulls<S, T>(
-    map: &Option<BTreeMap<&str, Option<T>>>,
+fn serialize_btreemap_skip_nulls<K, S, T>(
+    map: &Option<BTreeMap<K, Option<T>>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
+    K: Serialize,
     S: serde::Serializer,
     T: serde::Serialize,
 {
@@ -1587,15 +1599,15 @@ struct SpanLink<'a> {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-struct SpanMeasurement {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    value: Option<f64>,
+struct SpanMeasurement<'a> {
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    value: Option<&'a RawValue>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanKafkaMessage<'a> {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    description: Option<Cow<'a, str>>,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
@@ -1609,21 +1621,21 @@ struct SpanKafkaMessage<'a> {
     is_remote: bool,
 
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    data: Option<BTreeMap<Cow<'a, str>, Option<serde_json::Value>>>,
+    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    kind: Option<&'a str>,
+    kind: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
     links: Option<Vec<SpanLink<'a>>>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
+    measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement<'a>>>>,
     #[serde(default)]
     organization_id: u64,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     origin: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    parent_span_id: Option<&'a str>,
+    parent_span_id: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    profile_id: Option<&'a str>,
+    profile_id: Option<Cow<'a, str>>,
     /// The numeric ID of the project.
     #[serde(default)]
     project_id: u64,
@@ -1633,17 +1645,17 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     retention_days: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    segment_id: Option<&'a str>,
+    segment_id: Option<Cow<'a, str>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
     #[serde(borrow)]
-    sentry_tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
-    span_id: &'a str,
+    sentry_tags: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
+    span_id: Cow<'a, str>,
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
+    tags: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     trace_id: EventId,
 
     #[serde(default)]
@@ -1699,12 +1711,19 @@ impl SpanKafkaMessage<'_> {
                     continue;
                 };
 
-                match &key[..] {
-                    "client_sample_rate" => self.client_sample_rate = Some(value),
-                    "server_sample_rate" => self.server_sample_rate = Some(value),
+                match key.as_ref() {
+                    "client_sample_rate" => {
+                        if let Ok(client_sample_rate) = Deserialize::deserialize(value) {
+                            self.client_sample_rate = Some(client_sample_rate);
+                        }
+                    }
+                    "server_sample_rate" => {
+                        if let Ok(server_sample_rate) = Deserialize::deserialize(value) {
+                            self.server_sample_rate = Some(server_sample_rate);
+                        }
+                    }
                     _ => {
-                        data.entry(key.clone())
-                            .or_insert_with(|| Some(value.into()));
+                        data.entry(key.clone()).or_insert(Some(value));
                     }
                 }
             }
@@ -1717,13 +1736,12 @@ impl SpanKafkaMessage<'_> {
                 };
 
                 let key = if *key == "description" {
-                    "sentry.normalized_description"
+                    Cow::Borrowed("sentry.normalized_description")
                 } else {
-                    key
+                    key.clone()
                 };
 
-                data.entry(Cow::Borrowed(key))
-                    .or_insert_with(|| Some(value.clone()));
+                data.entry(key).or_insert(Some(value));
             }
         }
 
@@ -1734,13 +1752,12 @@ impl SpanKafkaMessage<'_> {
                 };
 
                 let key = if *key == "description" {
-                    "sentry.normalized_description".to_owned()
+                    Cow::Borrowed("sentry.normalized_description")
                 } else {
-                    format!("sentry.{key}")
+                    Cow::Owned(format!("sentry.{key}"))
                 };
 
-                data.entry(Cow::Owned(key))
-                    .or_insert_with(|| Some(value.clone()));
+                data.entry(key).or_insert(Some(value));
             }
         }
     }

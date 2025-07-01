@@ -350,6 +350,7 @@ impl ManagedEnvelope {
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
                     tags.has_span_metrics = summary.secondary_span_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
+                    tags.has_user_reports = summary.user_report_quantity > 0,
                     tags.has_checkins = summary.monitor_quantity > 0,
                     tags.event_category = ?summary.event_category,
                     cached_summary = ?summary,
@@ -449,6 +450,17 @@ impl ManagedEnvelope {
                 outcome.clone(),
                 DataCategory::Replay,
                 self.context.summary.replay_quantity,
+            );
+        }
+
+        // Track outcomes for user reports, the legacy item type for user feedback.
+        //
+        // User reports are not events, but count toward UserReportV2 for quotas and outcomes.
+        if self.context.summary.user_report_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::UserReportV2,
+                self.context.summary.user_report_quantity,
             );
         }
 
