@@ -201,16 +201,20 @@ def test_ourlog_multiple_containers_not_allowed(
 
 def test_ourlog_extraction_with_sentry_logs(
     mini_sentry,
+    relay,
     relay_with_processing,
     ourlogs_consumer,
+    outcomes_consumer,
 ):
     ourlogs_consumer = ourlogs_consumer()
+    outcomes_consumer = outcomes_consumer()
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay(relay_with_processing(options=TEST_CONFIG))
     start = datetime.now(timezone.utc)
 
     timestamp = start.timestamp()
@@ -320,6 +324,27 @@ def test_ourlog_extraction_with_sentry_logs(
                 start, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
+        },
+    ]
+
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
+    assert outcomes == [
+        {
+            "category": DataCategory.LOG_ITEM.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 2,
+        },
+        {
+            "category": DataCategory.LOG_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            # This is a billing relevant number, do not just adjust this because it changed.
+            "quantity": 260,
         },
     ]
 

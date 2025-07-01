@@ -9,6 +9,7 @@
 **Internal**:
 
 - Forward logs to Kafka directly instead of serialized as envelope. ([#4875](https://github.com/getsentry/relay/pull/4875))
+- Remember accepted/ingested bytes for log outcomes. ([#4886](https://github.com/getsentry/relay/pull/4886))
 
 ## 25.6.2
 
