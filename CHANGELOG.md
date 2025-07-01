@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
+
 **Internal**:
 
 - Forward logs to Kafka directly instead of serialized as envelope. ([#4875](https://github.com/getsentry/relay/pull/4875))
