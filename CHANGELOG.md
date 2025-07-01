@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
+- Do not overwrite geo information if already set. ([#4888](https://github.com/getsentry/relay/pull/4888))
 
 **Internal**:
 
