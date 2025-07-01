@@ -261,9 +261,11 @@ impl<T: Counted> Managed<T> {
 
     /// Accepts the item of this managed instance.
     ///
-    /// This should be called if the item has been or is about to be accepted by the upstream, which means that
-    /// the responsibility for logging outcomes has been moved. This function will not log any
-    /// outcomes.
+    /// This should be called if the item has been or is about to be accepted by the upstream.
+    ///
+    /// Outcomes are only emitted when the accepting closure returns an error, which means that
+    /// in the success case the responsibility for logging outcomes has been moved to the
+    /// caller/upstream.
     pub fn try_accept<F, S, E>(self, f: F) -> Result<S, Rejected<E::Error>>
     where
         F: FnOnce(T) -> Result<S, E>,
@@ -288,8 +290,8 @@ impl<T: Counted> Managed<T> {
     /// Internal errors should be reserved for uses where logical invariants are violated.
     /// Cases which should never happen and always indicate a logical bug.
     ///
-    /// This function will panic in debug builds and in release builds, discard the item
-    /// with an internal discard reason.
+    /// This function will panic in debug builds, but discard the item
+    /// with an internal discard reason in release builds.
     #[track_caller]
     pub fn internal_error(&self, reason: &'static str) -> Rejected<()> {
         relay_log::error!("internal error: {reason}");
@@ -357,10 +359,7 @@ impl<T: Counted> Drop for Managed<T> {
     }
 }
 
-impl<T: Counted> fmt::Debug for Managed<T>
-where
-    T: fmt::Debug,
-{
+impl<T: Counted + fmt::Debug> fmt::Debug for Managed<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Managed<{}>[", std::any::type_name::<T>())?;
         for (i, (category, quantity)) in self.value.quantities().iter().enumerate() {

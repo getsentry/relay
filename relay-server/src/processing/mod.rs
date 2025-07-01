@@ -118,10 +118,10 @@ pub trait Forward {
     /// All output must be serializable as an envelope.
     fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>>;
 
-    #[cfg(feature = "processing")]
     /// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
     ///
-    /// This function must only be called in a context where the processing feature is enabled.
+    /// This function must only be called when Relay is configured to be in processing mode.
+    #[cfg(feature = "processing")]
     fn forward_store(
         self,
         s: &relay_system::Addr<crate::services::store::Store>,
