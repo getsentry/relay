@@ -7,6 +7,7 @@ use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog};
 use relay_ourlogs::OtelLog;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, ErrorKind, Value};
+use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::RequestMeta;
@@ -17,6 +18,8 @@ use crate::services::outcome::DiscardReason;
 pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
     let received_at = logs.received_at();
     logs.map(|logs, records| {
+        records.lenient(DataCategory::LogByte);
+
         let mut all_logs = Vec::with_capacity(logs.count());
 
         for logs in logs.logs {
