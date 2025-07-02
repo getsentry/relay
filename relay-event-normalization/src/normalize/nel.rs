@@ -250,13 +250,17 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     // Split protocol into name and version components
     if let Some(protocol) = body.protocol.value() {
         let mut parts = protocol.split('/');
-        if Some(protocol) = parts.next() && !protocol.is_empty() {
-            // e.g. "http"
-            add_string_attribute!("network.protocol.name", protocol);
+        if let Some(protocol) = parts.next() {
+            if !protocol.is_empty() {
+                // e.g. "http"
+                add_string_attribute!("network.protocol.name", protocol);
+            }
         }
-        if Some(version) = parts.next() && !version.is_empty() {
+        if let Some(version) = parts.next() {
+            if !version.is_empty() {
                 // e.g. "1.1"
-            add_string_attribute!("network.protocol.version", version);
+                add_string_attribute!("network.protocol.version", version);
+            }
         }
     }
 
