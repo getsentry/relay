@@ -432,18 +432,9 @@ def test_data_request(mini_sentry, relay_processing_with_playstation):
         "parts": {
             "upload": [
                 "corefile",
-                "video",
                 "screenshot",
             ],
-            "noUpload": [
-                "memorydump",
-                "usermemoryfile",
-                "gpudump",
-                "gpucapture",
-                "gpuextdump",
-            ],
-        },
-        "partParameters": {"video": {"duration": {"max": 4}}},
+        }
     }
     assert response.status_code == 200
     assert response.json() == expected_response
