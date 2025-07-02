@@ -14,10 +14,10 @@ use relay_protocol::Annotated;
 use relay_protocol::{Getter, Remark, RemarkType};
 
 use crate::envelope::{ContentType, Item, ItemType};
+use crate::managed::{ItemAction, TypedEnvelope};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{TransactionGroup, event_type, should_filter};
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{ItemAction, TypedEnvelope};
 
 /// Filters out invalid and duplicate profiles.
 ///
@@ -228,12 +228,12 @@ mod tests {
 
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
+    use crate::managed::ManagedEnvelope;
     #[cfg(feature = "processing")]
     use crate::services::processor::Submit;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
-    use crate::utils::ManagedEnvelope;
 
     use super::*;
 

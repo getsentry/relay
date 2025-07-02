@@ -3,9 +3,10 @@
 //! These functions are included only in the processing mode.
 
 use crate::envelope::ItemType;
+use crate::managed::TypedEnvelope;
 use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
 use crate::utils;
-use crate::utils::TypedEnvelope;
+
 use relay_config::Config;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;

@@ -10,8 +10,8 @@ use relay_statsd::metric;
 use crate::envelope::{AttachmentType, ContentType, ItemType};
 use crate::statsd::RelayTimers;
 
+use crate::managed::TypedEnvelope;
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::TypedEnvelope;
 use relay_dynamic_config::Feature;
 #[cfg(feature = "processing")]
 use {

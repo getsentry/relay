@@ -1,4 +1,4 @@
-use crate::processing::{Counted, Managed, OutcomeError, Rejected};
+use crate::managed::{Counted, Managed, OutcomeError, Rejected};
 use crate::services::outcome::Outcome;
 
 /// Extension trait for Results, which adds convenience functions to work with errors and [`Managed`].

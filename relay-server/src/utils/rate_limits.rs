@@ -9,8 +9,8 @@ use relay_quotas::{
 };
 
 use crate::envelope::{Envelope, Item, ItemType};
+use crate::managed::ManagedEnvelope;
 use crate::services::outcome::Outcome;
-use crate::utils::ManagedEnvelope;
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";

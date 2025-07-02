@@ -531,17 +531,15 @@ impl ManagedEnvelope {
         self.envelope.age()
     }
 
-    /// Temporary escape hatch for the `Managed` type, to make it possible to construct
+    /// Escape hatch for the [`super::Managed`] type, to make it possible to construct
     /// from a managed envelope.
-    #[doc(hidden)]
-    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+    pub(super) fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.outcome_aggregator
     }
 
-    /// Temporary escape hatch for the `Managed` type, to make it possible to construct
+    /// Escape hatch for the [`super::Managed`] type, to make it possible to construct
     /// from a managed envelope.
-    #[doc(hidden)]
-    pub fn test_store(&self) -> &Addr<TestStore> {
+    pub(super) fn test_store(&self) -> &Addr<TestStore> {
         &self.test_store
     }
 

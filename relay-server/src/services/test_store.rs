@@ -6,9 +6,9 @@ use relay_event_schema::protocol::EventId;
 use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
 
 use crate::envelope::Envelope;
+use crate::managed::TypedEnvelope;
 use crate::services::outcome::Outcome;
 use crate::services::processor::Processed;
-use crate::utils::TypedEnvelope;
 
 /// Either a captured envelope or an error that occured during processing.
 pub type CapturedEnvelope = Result<Box<Envelope>, String>;

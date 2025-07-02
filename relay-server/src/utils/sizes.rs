@@ -1,8 +1,8 @@
 use relay_config::Config;
 
 use crate::envelope::{AttachmentType, Envelope, ItemType};
+use crate::managed::{ItemAction, ManagedEnvelope};
 use crate::services::outcome::{DiscardAttachmentType, DiscardItemType};
-use crate::utils::{ItemAction, ManagedEnvelope};
 
 /// Checks for size limits of items in this envelope.
 ///
