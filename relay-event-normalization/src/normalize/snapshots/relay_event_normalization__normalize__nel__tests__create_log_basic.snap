@@ -4,7 +4,7 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
 ---
 {
   "timestamp": 1619424000.0,
-  "trace_id": "00000000000000000000000000000000",
+  "trace_id": "de4e189601a342c6bee991645300852e",
   "level": "warn",
   "body": "The user agent successfully received a response, but it had a 500 status code",
   "attributes": {

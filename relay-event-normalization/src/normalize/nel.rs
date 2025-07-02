@@ -277,7 +277,7 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
-        trace_id: Annotated::new(TraceId::from(uuid::Uuid::nil())),
+        trace_id: Annotated::new(TraceId::random()),
         level: Annotated::new(if error_type == "ok" {
             OurLogLevel::Info
         } else {

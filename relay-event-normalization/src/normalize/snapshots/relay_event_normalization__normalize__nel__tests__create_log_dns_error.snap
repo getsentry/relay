@@ -4,7 +4,7 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
 ---
 {
   "timestamp": 1619424004.0,
-  "trace_id": "00000000000000000000000000000000",
+  "trace_id": "825d2fca3bcd40d390a0b39fe7102e90",
   "level": "warn",
   "body": "DNS server is unreachable",
   "attributes": {
