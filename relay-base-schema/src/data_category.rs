@@ -7,6 +7,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::events::EventType;
 
+/// Error type for operations involving [`DataCategory`].
+#[derive(Debug, PartialEq)]
+pub enum DataCategoryError {
+    /// The number could not be converted into a [`DataCategory`].
+    InvalidValue(u8),
+}
+
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -266,9 +273,9 @@ impl From<EventType> for DataCategory {
 }
 
 impl TryFrom<u8> for DataCategory {
-    type Error = ();
+    type Error = DataCategoryError;
 
-    fn try_from(value: u8) -> Result<Self, <DataCategory as TryFrom<u8>>::Error> {
+    fn try_from(value: u8) -> Result<Self, DataCategoryError> {
         match value {
             0 => Ok(Self::Default),
             1 => Ok(Self::Error),
@@ -299,7 +306,21 @@ impl TryFrom<u8> for DataCategory {
             26 => Ok(Self::ProfileChunkUi),
             27 => Ok(Self::SeerAutofix),
             28 => Ok(Self::SeerScanner),
-            _ => Err(()),
+            other => Err(DataCategoryError::InvalidValue(other)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_variant_mapping() {
+        assert_eq!(DataCategory::try_from(28), Ok(DataCategory::SeerScanner));
+        assert_eq!(
+            DataCategory::try_from(29),
+            Err(DataCategoryError::InvalidValue(29))
+        );
     }
 }
