@@ -148,14 +148,6 @@ pub enum UnpackError {
     SignatureExpired,
 }
 
-/// Errors during the signature or verification process.
-#[derive(Debug, Clone, PartialEq, thiserror::Error)]
-pub enum SignatureError {
-    /// Credentials for a required signature were missing.
-    #[error("missing credentials")]
-    MissingCredentials,
-}
-
 /// A wrapper around packed data that adds a timestamp.
 ///
 /// This is internally automatically used when data is signed.

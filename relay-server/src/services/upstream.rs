@@ -16,7 +16,6 @@ use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
     RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
-    SignatureError,
 };
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
@@ -250,6 +249,14 @@ impl fmt::Display for RequestPriority {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
     }
+}
+
+/// Errors during the signature or verification process.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum SignatureError {
+    /// Credentials for a required signature were missing.
+    #[error("missing credentials")]
+    MissingCredentials,
 }
 
 /// Represents whether credentials are required for signing a request.
