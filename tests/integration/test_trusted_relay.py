@@ -31,9 +31,10 @@ def test_trusted_relay_chain(mini_sentry, relay, relay_credentials):
     relay.send_event(project_id, {"message": "trusted event"})
     relay.send_event(project_id, {"message": "trusted event"})
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-    assert event["logentry"]["formatted"] == "trusted event"
+    for _ in range(2):
+        envelope = mini_sentry.captured_events.get(timeout=1)
+        event = envelope.get_event()
+        assert event["logentry"]["formatted"] == "trusted event"
 
 
 def test_send_directly(mini_sentry, relay, relay_credentials):
@@ -66,10 +67,8 @@ def test_send_directly(mini_sentry, relay, relay_credentials):
     assert event["logentry"]["formatted"] == "trusted event"
 
     # sending directly to the managed relay will be rejected
-    with pytest.raises(HTTPError) as error:
+    with pytest.raises(HTTPError, match="403 Client Error"):
         managed_relay.send_event(project_id, {"message": "trusted event"})
-
-    assert error.value.response.status_code == 403
 
     outcome = mini_sentry.get_client_report(timeout=1)
     assert outcome["discarded_events"] == [
@@ -101,14 +100,12 @@ def test_expired_signature(mini_sentry, relay):
         {"reason": "invalid_signature", "category": "error", "quantity": 1}
     ]
 
-    with pytest.raises(HTTPError) as error:
+    with pytest.raises(HTTPError, match="403 Client Error"):
         relay.send_event(
             project_id,
             {"message": "expired signature"},
             headers=headers,
         )
-
-    assert error.value.response.status_code == 403
 
 
 def test_internal_relay(mini_sentry, relay, relay_credentials):
@@ -143,9 +140,10 @@ def test_internal_relay(mini_sentry, relay, relay_credentials):
         headers={"x-sentry-relay-id": credentials["id"]},
     )
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-    assert event["logentry"]["formatted"] == "trusted event"
+    for _ in range(2):
+        envelope = mini_sentry.captured_events.get(timeout=1)
+        event = envelope.get_event()
+        assert event["logentry"]["formatted"] == "trusted event"
 
 
 def test_internal_relays_invalid_signature(mini_sentry, relay, relay_credentials):
@@ -184,10 +182,10 @@ def test_internal_relays_invalid_signature(mini_sentry, relay, relay_credentials
         {"message": "trusted event"},
         headers=headers,
     )
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-    assert event["logentry"]["formatted"] == "trusted event"
+    for _ in range(2):
+        envelope = mini_sentry.captured_events.get(timeout=1)
+        event = envelope.get_event()
+        assert event["logentry"]["formatted"] == "trusted event"
 
 
 def test_invalid_signature(mini_sentry, relay, relay_credentials):
@@ -220,14 +218,12 @@ def test_invalid_signature(mini_sentry, relay, relay_credentials):
         {"reason": "invalid_signature", "category": "error", "quantity": 1}
     ]
 
-    with pytest.raises(HTTPError) as error:
+    with pytest.raises(HTTPError, match="403 Client Error"):
         relay.send_event(
             project_id,
             {"message": "trusted event"},
             headers=headers,
         )
-
-    assert error.value.response.status_code == 403
 
 
 def test_not_trusted_relay(mini_sentry, relay, relay_credentials):
@@ -251,9 +247,8 @@ def test_not_trusted_relay(mini_sentry, relay, relay_credentials):
     ]
 
     # will reject in the fast path because project config is fetched at this point
-    with pytest.raises(HTTPError) as error:
+    with pytest.raises(HTTPError, match="403 Client Error"):
         relay.send_event(project_id)
-    assert error.value.response.status_code == 403
 
 
 def test_static_relay(mini_sentry, relay):
@@ -291,10 +286,8 @@ def test_static_relay(mini_sentry, relay):
 
     # sending to managed relay directly is not because it needs the signature
     # it will fail in the fast path because the project config is fetched at this point
-    with pytest.raises(HTTPError) as error:
+    with pytest.raises(HTTPError, match="403 Client Error"):
         managed_relay.send_event(project_id)
-
-    assert error.value.response.status_code == 403
 
     outcome = mini_sentry.get_client_report(timeout=1)
     assert outcome["discarded_events"] == [
@@ -312,12 +305,10 @@ def test_invalid_header_value(mini_sentry, relay):
 
     relay = relay(mini_sentry)
 
-    with pytest.raises(HTTPError) as error:
+    with pytest.raises(HTTPError, match="400 Client Error"):
         relay.send_event(
             project_id,
             headers={
                 "x-sentry-relay-signature": b"\xFF\xFF\xFF\xFF\xFF",
             },
         )
-
-    assert error.value.response.status_code == 400
