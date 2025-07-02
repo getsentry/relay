@@ -10,8 +10,9 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 use url::Url;
 
-/// Mapping of NEL error types to their human-readable descriptions
-/// Based on W3C Network Error Logging specification and Chromium-specific extensions
+/// Mapping of NEL error types to their human-readable descriptions.
+///
+/// Based on W3C Network Error Logging specification and Chromium-specific extensions.
 static NEL_CULPRITS: &[(&str, &str)] = &[
     // https://w3c.github.io/network-error-logging/#predefined-network-error-types
     ("dns.unreachable", "DNS server is unreachable"),
@@ -148,11 +149,12 @@ static NEL_CULPRITS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Lazy-initialized HashMap for fast NEL error type lookups
+/// Lazy-initialized HashMap for fast NEL error type lookups.
 static NEL_CULPRITS_MAP: LazyLock<HashMap<&'static str, &'static str>> =
     LazyLock::new(|| NEL_CULPRITS.iter().copied().collect());
 
-/// Extracts the domain or IP address from a server address string
+/// Extracts the domain or IP address from a server address string.
+///
 /// e.g. 123.123.123.123 -> 123.123.123.123
 /// e.g. https://example.com/foo?bar=1 -> example.com
 /// e.g. http://localhost:8080/foo?bar=1 -> localhost
@@ -169,7 +171,7 @@ fn extract_server_address(server_address: &str) -> String {
     server_address.to_owned()
 }
 
-/// Gets the human-readable description for a NEL error type
+/// Gets the human-readable description for a NEL error type.
 fn get_nel_culprit(error_type: &str) -> Option<&'static str> {
     NEL_CULPRITS_MAP.get(error_type).copied()
 }
@@ -236,25 +238,25 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
     add_string_attribute!("browser.report.type", "network-error");
 
     // Handle URL and extract server address if available
-    add_attribute!("url.full", raw_report.url.clone());
     if let Some(url_str) = raw_report.url.value() {
         let url_domain = extract_server_address(url_str);
         add_string_attribute!("url.domain", &url_domain);
     }
+    add_attribute!("url.full", raw_report.url);
     add_attribute!("http.request.duration", body.elapsed_time);
     add_attribute!("http.request.method", body.method);
     add_attribute!("http.request.header.referer", body.referrer.clone());
     add_attribute!("http.response.status_code", body.status_code);
     // Split protocol into name and version components
     if let Some(protocol) = body.protocol.value() {
-        let parts: Vec<&str> = protocol.split('/').collect();
-        if !parts.is_empty() && !parts[0].is_empty() {
+        let mut parts = protocol.split('/');
+        if Some(protocol) = parts.next() && !protocol.is_empty() {
             // e.g. "http"
-            add_string_attribute!("network.protocol.name", parts[0]);
-            if parts.len() > 1 && !parts[1].is_empty() {
+            add_string_attribute!("network.protocol.name", protocol);
+        }
+        if Some(version) = parts.next() && !version.is_empty() {
                 // e.g. "1.1"
-                add_string_attribute!("network.protocol.version", parts[1]);
-            }
+            add_string_attribute!("network.protocol.version", version);
         }
     }
 
