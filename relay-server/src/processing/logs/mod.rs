@@ -151,14 +151,18 @@ impl Forward for LogOutput {
     fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let logs = match self {
             Self::NotProcessed(logs) => logs,
-            Self::Processed(logs) => logs.try_map(|logs, _| {
+            Self::Processed(logs) => logs.try_map(|logs, r| {
+                r.lenient(DataCategory::LogByte);
                 logs.serialize()
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))
             })?,
         };
 
-        Ok(logs.map(|logs, _| logs.serialize_envelope()))
+        Ok(logs.map(|logs, r| {
+            r.lenient(DataCategory::LogByte);
+            logs.serialize_envelope()
+        }))
     }
 
     #[cfg(feature = "processing")]
