@@ -22,6 +22,7 @@ use serde_json::Value as SerdeValue;
 
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::managed::TypedEnvelope;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent,
@@ -29,7 +30,7 @@ use crate::services::processor::{
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
 /// Result of the extraction of the primary event payload from an envelope.
 #[derive(Debug)]

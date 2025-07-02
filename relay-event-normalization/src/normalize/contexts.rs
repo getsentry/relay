@@ -11,7 +11,7 @@ use relay_protocol::{Annotated, Empty, Value};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
 static OS_WINDOWS_REGEX1: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$")
+    Regex::new(r"^(Microsoft\s+)?Windows\s+(NT\s+)?(?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$")
         .unwrap()
 });
 static OS_WINDOWS_REGEX2: Lazy<Regex> = Lazy::new(|| {
@@ -145,7 +145,7 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if runtime.runtime.value().is_none() {
         if let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value()) {
-            runtime.runtime = Annotated::from(format!("{} {}", name, version));
+            runtime.runtime = Annotated::from(format!("{name} {version}"));
         }
     }
 }
@@ -177,6 +177,28 @@ fn get_windows_version(description: &str) -> Option<(&str, &str)> {
     };
 
     Some((version_name, build_number_str))
+}
+
+/// Simple marketing names in the form `<OS> <version>`.
+fn get_marketing_name(description: &str) -> Option<(&str, &str)> {
+    let (name, version) = description.split_once(' ')?;
+    let name = name.trim();
+    let version = version.trim();
+
+    // Validate if it looks like a reasonable name.
+    if name.bytes().any(|c| !c.is_ascii_alphabetic()) {
+        return None;
+    }
+
+    // Validate if it looks like a reasonable version.
+    if version
+        .bytes()
+        .any(|c| !matches!(c, b'0'..=b'9' | b'.' | b'-'))
+    {
+        return None;
+    }
+
+    Some((name, version))
 }
 
 #[allow(dead_code)]
@@ -221,19 +243,11 @@ fn normalize_os_context(os: &mut OsContext) {
                 .name("version")
                 .map(|m| m.as_str().to_owned())
                 .into();
-            os.build = captures
-                .name("build")
-                .map(|m| m.as_str().to_owned().into())
-                .into();
         } else if let Some(captures) = OS_IPADOS_REGEX.captures(raw_description) {
             os.name = "iPadOS".to_owned().into();
             os.version = captures
                 .name("version")
                 .map(|m| m.as_str().to_owned())
-                .into();
-            os.build = captures
-                .name("build")
-                .map(|m| m.as_str().to_owned().into())
                 .into();
         } else if let Some(captures) = OS_LINUX_DISTRO_UNAME_REGEX.captures(raw_description) {
             os.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
@@ -259,6 +273,9 @@ fn normalize_os_context(os: &mut OsContext) {
                 .into();
         } else if raw_description == "Nintendo Switch" {
             os.name = "Nintendo OS".to_owned().into();
+        } else if let Some((name, version)) = get_marketing_name(raw_description) {
+            os.name = name.to_owned().into();
+            os.version = version.to_owned().into();
         }
     }
 
@@ -270,7 +287,7 @@ fn compute_os_context(os: &mut OsContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if os.os.value().is_none() {
         if let (Some(name), Some(version)) = (os.name.value(), os.version.value()) {
-            os.os = Annotated::from(format!("{} {}", name, version));
+            os.os = Annotated::from(format!("{name} {version}"));
         }
     }
 }
@@ -280,7 +297,7 @@ fn normalize_browser_context(browser: &mut BrowserContext) {
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if browser.browser.value().is_none() {
         if let (Some(name), Some(version)) = (browser.name.value(), browser.version.value()) {
-            browser.browser = Annotated::from(format!("{} {}", name, version));
+            browser.browser = Annotated::from(format!("{name} {version}"));
         }
     }
 }
@@ -730,6 +747,17 @@ mod tests {
     fn test_unity_android_api_version() {
         let description = "Android OS 11 / API-30 (RP1A.201005.001/2107031736)";
         assert_eq!(Some("30"), get_android_api_version(description));
+    }
+
+    #[test]
+    fn test_unreal_windows_os() {
+        let mut os = OsContext {
+            raw_description: "Windows 10".to_owned().into(),
+            ..OsContext::default()
+        };
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows"), os.name.as_str());
+        assert_eq!(Some("10"), os.version.as_str());
     }
 
     #[test]

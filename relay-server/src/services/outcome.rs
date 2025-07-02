@@ -247,7 +247,7 @@ impl fmt::Display for Outcome {
             Outcome::RateLimited(None) => write!(f, "rate limited"),
             Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({})", id),
+            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({id})"),
             Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
@@ -1052,11 +1052,11 @@ impl KafkaOutcomesProducer {
         let mut client_builder = KafkaClient::builder();
 
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let kafka_config = &config
-                .kafka_config(*topic)
+            let kafka_config = config
+                .kafka_configs(*topic)
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
             client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
+                .add_kafka_topic_config(*topic, &kafka_config, config.kafka_validate_topics())
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 

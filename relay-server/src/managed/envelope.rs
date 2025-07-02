@@ -350,6 +350,7 @@ impl ManagedEnvelope {
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
                     tags.has_span_metrics = summary.secondary_span_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
+                    tags.has_user_reports = summary.user_report_quantity > 0,
                     tags.has_checkins = summary.monitor_quantity > 0,
                     tags.event_category = ?summary.event_category,
                     cached_summary = ?summary,
@@ -452,6 +453,17 @@ impl ManagedEnvelope {
             );
         }
 
+        // Track outcomes for user reports, the legacy item type for user feedback.
+        //
+        // User reports are not events, but count toward UserReportV2 for quotas and outcomes.
+        if self.context.summary.user_report_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::UserReportV2,
+                self.context.summary.user_report_quantity,
+            );
+        }
+
         if self.context.summary.profile_chunk_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),
@@ -519,17 +531,15 @@ impl ManagedEnvelope {
         self.envelope.age()
     }
 
-    /// Temporary escape hatch for the `Managed` type, to make it possible to construct
+    /// Escape hatch for the [`super::Managed`] type, to make it possible to construct
     /// from a managed envelope.
-    #[doc(hidden)]
-    pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
+    pub(super) fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.outcome_aggregator
     }
 
-    /// Temporary escape hatch for the `Managed` type, to make it possible to construct
+    /// Escape hatch for the [`super::Managed`] type, to make it possible to construct
     /// from a managed envelope.
-    #[doc(hidden)]
-    pub fn test_store(&self) -> &Addr<TestStore> {
+    pub(super) fn test_store(&self) -> &Addr<TestStore> {
         &self.test_store
     }
 

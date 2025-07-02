@@ -65,7 +65,7 @@ For more available make targets, please, run `make help`.
 
 Integration tests require Redis and Kafka running in their default
 configuration. The most convenient way to get all required services is via
-[`sentry devservices`](https://develop.sentry.dev/services/devservices/), which
+[`devservices`](https://develop.sentry.dev/development-infrastructure/devservices/), which
 requires an up-to-date Sentry development environment.
 
 ### Building and Running
@@ -137,13 +137,14 @@ make test-rust
 make test-rust-all
 ```
 
-The integration test suite requires `python`. By default, the integration test
-suite will create a virtualenv, build the Relay binary with processing enabled,
-and run a set of integration tests:
+The integration test suite requires Python. The required version is specified
+in the `.python-version` file. By default, the integration test suite will
+create a virtualenv, build the Relay binary with processing enabled, and run
+a set of integration tests:
 
 ```bash
 # Make sure that kafka and redis are running
-sentry devservices up kafka redis
+devservices up kafka redis
 
 # Create a new virtualenv, build Relay and run integration tests
 make test-integration
@@ -157,11 +158,13 @@ make build
 
 We use `insta` for snapshot testing. It will run as part of the `make test` command
 to validate schema/protocol changes. To install the `insta` tool for reviewing snapshots run:
+
 ```bash
 cargo install cargo-insta
 ```
 
 After that you'll be able to review and automatically update snapshot files by running:
+
 ```bash
 cargo insta review
 ```

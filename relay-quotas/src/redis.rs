@@ -493,7 +493,7 @@ mod tests {
                 scope_id: None,
                 limit: Some(quota_limit),
                 window: Some(600),
-                reason_code: Some(ReasonCode::new(format!("ns: {:?}", namespace))),
+                reason_code: Some(ReasonCode::new(format!("ns: {namespace:?}"))),
                 namespace,
             }
         };

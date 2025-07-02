@@ -13,12 +13,13 @@ use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
+use crate::managed::TypedEnvelope;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, Sampling, SpansExtracted, TransactionGroup, event_category,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{self, SamplingResult, TypedEnvelope};
+use crate::utils::{self, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -291,12 +292,12 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup};
+    use crate::managed::ManagedEnvelope;
+    use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup, Submit};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
-    use crate::utils::ManagedEnvelope;
 
     use super::*;
 
@@ -344,13 +345,13 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        processor
-            .process(&mut Token::noop(), message)
-            .await
-            .unwrap()
-            .unwrap()
-            .envelope()
-            .clone()
+        let Ok(Some(Submit::Envelope(envelope))) =
+            processor.process(&mut Token::noop(), message).await
+        else {
+            panic!();
+        };
+
+        envelope.envelope().clone()
     }
 
     fn extract_first_event_from_envelope(envelope: Envelope) -> Event {

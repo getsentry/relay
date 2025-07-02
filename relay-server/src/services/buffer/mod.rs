@@ -32,7 +32,7 @@ use crate::statsd::RelayCounters;
 
 use crate::MemoryChecker;
 use crate::MemoryStat;
-use crate::utils::ManagedEnvelope;
+use crate::managed::ManagedEnvelope;
 
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
