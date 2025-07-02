@@ -267,6 +267,47 @@ def secondary_redis_client():
 
 def redact_snapshot(data, exclude_keys=None, additional_keys=None):
     """
+    :param data: the data that will be redacted.
+    :param set exclude_keys: overwrites the default keys that will be redacted.
+    :param set additional_keys: keys in this set are added to the list of default keys that are redacted.
+    """
+    if exclude_keys is None:
+        exclude_keys = {"timestamp", "received", "ingest_path", "event_id"}
+    else:
+        exclude_keys = set(exclude_keys)
+
+    if additional_keys is not None:
+        exclude_keys = exclude_keys.union(additional_keys)
+
+    def _redact_entire_subtree(obj, parent_key):
+        if isinstance(obj, dict):
+            return {k: _redact_entire_subtree(v, parent_key=k) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [_redact_entire_subtree(item, parent_key=parent_key) for item in obj]
+        else:
+            return f"<{parent_key}>"
+
+    def _redact(obj, path=None):
+        if isinstance(obj, dict):
+            redacted = {}
+            for k, v in obj.items():
+                full_path = path + f".{k}" if path else k
+                if full_path in exclude_keys:
+                    redacted[k] = _redact_entire_subtree(v, parent_key=k)
+                else:
+                    redacted[k] = _redact(v, full_path)
+            return redacted
+        elif isinstance(obj, list):
+            return [_redact(item, path) for item in obj]
+        else:
+            return obj
+
+    return _redact(data)
+
+
+@pytest.fixture
+def relay_snapshot(snapshot):
+    """
     Redacts certain fields from data to make them comparable with snapshots.
     Fields that contain timestamps or UUIDs are problematic for snapshots because
     they will be different each time.
@@ -310,48 +351,8 @@ def redact_snapshot(data, exclude_keys=None, additional_keys=None):
             "dynamicBaz": "<dynamicBaz>"
         }
     }
-
-    :param data: the data that will be redacted.
-    :param set exclude_keys: overwrites the keys that will be redacted. In other words, the keys in the list here
-           will be the only keys that will be redacted.
-    :param set additional_keys: keys in this set are added to the list of default keys that are redacted.
     """
-    if exclude_keys is None:
-        exclude_keys = {"timestamp", "received", "ingest_path", "event_id"}
-    else:
-        exclude_keys = set(exclude_keys)
 
-    if additional_keys is not None:
-        exclude_keys = exclude_keys.union(additional_keys)
-
-    def _redact_entire_subtree(obj, parent_key):
-        if isinstance(obj, dict):
-            return {k: _redact_entire_subtree(v, parent_key=k) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [_redact_entire_subtree(item, parent_key=parent_key) for item in obj]
-        else:
-            return f"<{parent_key}>"
-
-    def _redact(obj, path=None):
-        if isinstance(obj, dict):
-            redacted = {}
-            for k, v in obj.items():
-                full_path = path + f".{k}" if path else k
-                if full_path in exclude_keys:
-                    redacted[k] = _redact_entire_subtree(v, parent_key=k)
-                else:
-                    redacted[k] = _redact(v, full_path)
-            return redacted
-        elif isinstance(obj, list):
-            return [_redact(item, path) for item in obj]
-        else:
-            return obj
-
-    return _redact(data)
-
-
-@pytest.fixture
-def relay_snapshot(snapshot):
     class SnapshotWrapper:
         def __call__(self, name, exclude_keys=None, additional_keys=None):
             self.name = name
