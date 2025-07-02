@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
+
 **Bug Fixes**:
 
 - Preserve user specified event values in Unreal crash reports. ([#4882](https://github.com/getsentry/relay/pull/4882))
@@ -20,7 +24,6 @@
 - Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
 - Sharding into many topics based on partition key. ([#4861](https://github.com/getsentry/relay/pull/4861))
 - Parse Chromium stability report from minidumps into context ([#4837](https://github.com/getsentry/relay/pull/4837))
-- Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
 
 **Internal**:
 
