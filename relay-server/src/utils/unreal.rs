@@ -394,6 +394,8 @@ pub fn process_unreal_envelope(
 #[cfg(test)]
 mod tests {
 
+    use relay_protocol::SerializableAnnotated;
+
     use super::*;
 
     fn get_context() -> Unreal4Context {
@@ -597,10 +599,10 @@ mod tests {
         let mut event = Event::default();
 
         let logentry = event.logentry.get_or_insert_with(LogEntry::default);
-        logentry.formatted = Annotated::new(String::from("error_message").into());
+        logentry.formatted = Annotated::new("error_message".to_owned().into());
 
         let user = event.user.get_or_insert_with(User::default);
-        user.username = Annotated::new(String::from("user_name").into());
+        user.username = Annotated::new("user_name".to_owned().into());
 
         let contexts = event.contexts.get_or_insert_with(Contexts::default);
 
@@ -608,54 +610,63 @@ mod tests {
         device_context.memory_size = Annotated::new(123456789);
 
         let os_context = contexts.get_or_default::<OsContext>();
-        os_context.name = Annotated::new(String::from("os_name"));
+        os_context.name = Annotated::new("os_name".to_owned());
+        os_context.raw_description = Annotated::new("my own raw desc".to_owned());
 
         let gpu_context = contexts.get_or_default::<GpuContext>();
-        gpu_context.name = Annotated::new(String::from("adapter_name"));
-        gpu_context.id = Annotated::new(Value::String(String::from("device_id")));
-        gpu_context.graphics_shader_level = Annotated::new(String::from("feature_level"));
-        gpu_context.vendor_name = Annotated::new(String::from("vendor_name"));
-        gpu_context.version = Annotated::new(String::from("driver_version"));
-        gpu_context.api_type = Annotated::new(String::from("rhi_name"));
+        gpu_context.name = Annotated::new("adapter_name".to_owned());
+        gpu_context.id = Annotated::new(Value::String("device_id".to_owned()));
+        gpu_context.graphics_shader_level = Annotated::new("feature_level".to_owned());
+        gpu_context.vendor_name = Annotated::new("vendor_name".to_owned());
+        gpu_context.version = Annotated::new("driver_version".to_owned());
+        gpu_context.api_type = Annotated::new("rhi_name".to_owned());
 
         merge_unreal_context(&mut event, context);
 
-        let logentry = event.logentry.value().unwrap();
-        let formatted = logentry.formatted.value().unwrap();
-        assert_eq!(formatted.as_ref(), "error_message");
-
-        let user = event.user.value().unwrap();
-        let username = user.username.value().unwrap();
-        assert_eq!(username.as_ref(), "user_name");
-
-        let contexts = event.contexts.value().unwrap();
-
-        let device_context = contexts.get::<DeviceContext>().unwrap();
-        let memory_size = device_context.memory_size.value().unwrap();
-        assert_eq!(*memory_size, 123456789);
-
-        let os_context = contexts.get::<OsContext>().unwrap();
-        let os_name = os_context.name.value().unwrap();
-        assert_eq!(os_name, "os_name");
-
-        let gpu_context = contexts.get::<GpuContext>().unwrap();
-        let adapter_name = gpu_context.name.value().unwrap();
-        assert_eq!(adapter_name, "adapter_name");
-
-        let device_id = gpu_context.id.value().unwrap();
-        let device_id = device_id.as_str().unwrap();
-        assert_eq!(device_id, "device_id");
-
-        let feature_level = gpu_context.graphics_shader_level.value().unwrap();
-        assert_eq!(feature_level, "feature_level");
-
-        let vendor_name = gpu_context.vendor_name.value().unwrap();
-        assert_eq!(vendor_name, "vendor_name");
-
-        let driver_version = gpu_context.version.value().unwrap();
-        assert_eq!(driver_version, "driver_version");
-
-        let rhi_name = gpu_context.api_type.value().unwrap();
-        assert_eq!(rhi_name, "rhi_name");
+        let event = Annotated::new(event);
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r###"
+        {
+          "logentry": {
+            "formatted": "error_message"
+          },
+          "user": {
+            "username": "user_name"
+          },
+          "contexts": {
+            "device": {
+              "memory_size": 123456789,
+              "type": "device"
+            },
+            "gpu": {
+              "name": "adapter_name",
+              "version": "driver_version",
+              "id": "device_id",
+              "vendor_name": "vendor_name",
+              "api_type": "rhi_name",
+              "graphics_shader_level": "feature_level",
+              "type": "gpu"
+            },
+            "os": {
+              "name": "os_name",
+              "raw_description": "my own raw desc",
+              "type": "os"
+            },
+            "unreal": {
+              "custom": {
+                "CrashVersion": "3",
+                "PlatformFullName": "Win64 [Windows 10  64b]"
+              },
+              "memory_stats_total_virtual": 140737488224256,
+              "misc_cpu_brand": "Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz",
+              "misc_cpu_vendor": "GenuineIntel",
+              "misc_primary_gpu_brand": "Parallels Display Adapter (WDDM)"
+            }
+          },
+          "sdk": {
+            "name": "unreal.crashreporter",
+            "version": "1.0"
+          }
+        }
+        "###);
     }
 }

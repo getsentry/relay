@@ -4,6 +4,7 @@
 
 **Bug Fixes**:
 
+- Preserve user specified event values in Unreal crash reports. ([#4882](https://github.com/getsentry/relay/pull/4882))
 - OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
 
 **Internal**:
