@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 use std::fmt;
+use std::iter::FusedIterator;
 use std::mem::ManuallyDrop;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -16,6 +17,16 @@ use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
 use crate::services::test_store::TestStore;
+
+#[cfg(test)]
+mod test;
+
+#[cfg(test)]
+#[expect(
+    unused,
+    reason = "currently unused, but these are testing utilities for all of Relay"
+)]
+pub use self::test::*;
 
 /// An error which can be extracted into an outcome.
 pub trait OutcomeError {
@@ -694,7 +705,6 @@ where
     type Item = Managed<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO: if there is none, all quantities should be empty
         let next = match self.items.next() {
             Some(next) => next,
             None => {
@@ -745,5 +755,151 @@ where
                 );
             }
         }
+    }
+}
+
+impl<I, S> FusedIterator for Split<I, S>
+where
+    I: Iterator<Item = S> + FusedIterator,
+    S: Counted,
+{
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct CountedVec(Vec<u32>);
+
+    impl Counted for CountedVec {
+        fn quantities(&self) -> Quantities {
+            smallvec::smallvec![(DataCategory::Error, self.0.len())]
+        }
+    }
+
+    struct CountedValue(u32);
+
+    impl Counted for CountedValue {
+        fn quantities(&self) -> Quantities {
+            smallvec::smallvec![(DataCategory::Error, 1)]
+        }
+    }
+
+    #[test]
+    fn test_split_fully_consumed() {
+        let value = CountedVec(vec![0, 1, 2, 3, 4, 5]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        let s = managed
+            .split(|value| value.0.into_iter().map(CountedValue))
+            // Fully consume the iterator to make sure there aren't any outcomes emitted on drop.
+            .collect::<Vec<_>>();
+
+        handle.assert_no_outcomes();
+
+        for (i, s) in s.into_iter().enumerate() {
+            assert_eq!(s.as_ref().0, i as u32);
+            let outcome = Outcome::Invalid(DiscardReason::Cors);
+            let _ = s.reject_err((outcome.clone(), ()));
+            handle.assert_outcome(&outcome, DataCategory::Error, 1);
+        }
+    }
+
+    #[test]
+    fn test_split_partially_consumed_emits_remaining() {
+        let value = CountedVec(vec![0, 1, 2, 3, 4, 5]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        let mut s = managed.split(|value| value.0.into_iter().map(CountedValue));
+        handle.assert_no_outcomes();
+
+        drop(s.next());
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        drop(s.next());
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        drop(s.next());
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        handle.assert_no_outcomes();
+
+        drop(s);
+
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+    }
+
+    #[test]
+    fn test_split_changing_quantities_should_panic() {
+        let value = CountedVec(vec![0, 1, 2, 3, 4, 5]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        let mut s = managed.split(|_| std::iter::once(CountedValue(0)));
+
+        s.next().unwrap().accept(|_| {});
+        handle.assert_no_outcomes();
+
+        assert!(s.next().is_none());
+
+        let r = std::panic::catch_unwind(move || {
+            drop(s);
+        });
+
+        assert!(
+            r.is_err(),
+            "expected split to panic because of mismatched (not enough) outcomes"
+        );
+    }
+
+    #[test]
+    fn test_split_more_outcomes_than_before_should_panic() {
+        let value = CountedVec(vec![0]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        let mut s = managed.split(|_| vec![CountedValue(0), CountedValue(2)].into_iter());
+
+        s.next().unwrap().accept(|_| {});
+        handle.assert_no_outcomes();
+
+        let r = std::panic::catch_unwind(move || {
+            s.next();
+        });
+
+        assert!(
+            r.is_err(),
+            "expected split to panic because of mismatched (too many) outcomes"
+        );
+    }
+
+    #[test]
+    fn test_split_changing_categories_should_panic() {
+        struct Special;
+        impl Counted for Special {
+            fn quantities(&self) -> Quantities {
+                smallvec::smallvec![(DataCategory::Error, 1), (DataCategory::Transaction, 1)]
+            }
+        }
+
+        let value = CountedVec(vec![0]);
+        let (managed, _handle) = Managed::for_test(value).build();
+
+        let mut s = managed.split(|value| value.0.into_iter().map(|_| Special));
+
+        let r = std::panic::catch_unwind(move || {
+            let _ = s.next();
+        });
+
+        assert!(
+            r.is_err(),
+            "expected split to panic because of mismatched outcome categories"
+        );
+    }
+
+    #[test]
+    fn test_split_assert_fused() {
+        fn only_fused<T: FusedIterator>(_: T) {}
+
+        let (managed, mut handle) = Managed::for_test(CountedVec(vec![0])).build();
+        only_fused(managed.split(|value| value.0.into_iter().map(CountedValue)));
+        handle.assert_internal_outcome(DataCategory::Error, 1);
     }
 }
