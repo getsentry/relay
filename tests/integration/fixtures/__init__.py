@@ -459,6 +459,24 @@ class SentryLike:
         response.raise_for_status()
         return response
 
+    def send_playstation_data_request(
+        self,
+        project_id,
+        dsn_key_idx=0,
+    ):
+        response = self.post(
+            "/api/{}/playstation/?sentry_key={}".format(
+                project_id, self.get_dsn_public_key(project_id, dsn_key_idx)
+            ),
+            json={},
+            headers={
+                "Content-Type": "application/vnd.sce.crs.datareq-request+json; version=1",
+            },
+        )
+
+        response.raise_for_status()
+        return response
+
     def send_attachments(self, project_id, event_id, files, dsn_key_idx=0):
         files = {
             name: (file_name, file_content) for (name, file_name, file_content) in files
