@@ -199,6 +199,16 @@ fn create_message(error_type: &str, status_code: Option<u16>) -> String {
 
 /// Creates a [`OurLog`] from the provided [`NetworkReportRaw`].
 pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) -> Option<OurLog> {
+    create_log_with_trace_id(nel, received_at, None)
+}
+
+/// Creates a [`OurLog`] from the provided [`NetworkReportRaw`] with an optional trace ID.
+/// If trace_id is None, a random one will be generated.
+pub fn create_log_with_trace_id(
+    nel: Annotated<NetworkReportRaw>,
+    received_at: DateTime<Utc>,
+    trace_id: Option<TraceId>,
+) -> Option<OurLog> {
     let raw_report = nel.into_value()?;
     let body = raw_report.body.into_value()?;
 
@@ -277,7 +287,7 @@ pub fn create_log(nel: Annotated<NetworkReportRaw>, received_at: DateTime<Utc>) 
 
     Some(OurLog {
         timestamp: Annotated::new(Timestamp::from(timestamp)),
-        trace_id: Annotated::new(TraceId::random()),
+        trace_id: Annotated::new(trace_id.unwrap_or_else(TraceId::random)),
         level: Annotated::new(if error_type == "ok" {
             OurLogLevel::Info
         } else {
@@ -365,7 +375,11 @@ mod tests {
             ..Default::default()
         };
 
-        let log = create_log(Annotated::new(report), received_at).unwrap();
+        // Use a fixed trace ID for deterministic testing
+        let fixed_trace_id: TraceId = "de4e189601a342c6bee991645300852e".parse().unwrap();
+        let log =
+            create_log_with_trace_id(Annotated::new(report), received_at, Some(fixed_trace_id))
+                .unwrap();
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
     }
 
@@ -424,7 +438,11 @@ mod tests {
             ..Default::default()
         };
 
-        let log = create_log(Annotated::new(report), received_at).unwrap();
+        // Use a fixed trace ID for deterministic testing
+        let fixed_trace_id: TraceId = "825d2fca3bcd40d390a0b39fe7102e90".parse().unwrap();
+        let log =
+            create_log_with_trace_id(Annotated::new(report), received_at, Some(fixed_trace_id))
+                .unwrap();
         insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new(log)));
     }
 }
