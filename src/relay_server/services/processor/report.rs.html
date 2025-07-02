@@ -15,10 +15,10 @@
 <a href=#15 id=15 data-nosnippet>15</a>
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, RuleCategories, TrackOutcome};
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{ClientReportGroup, MINIMUM_CLOCK_DRIFT};
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::utils::{ItemAction, TypedEnvelope};
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span><span class="kw">crate</span>::managed::{ItemAction, TypedEnvelope};
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, RuleCategories, TrackOutcome};
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::services::processor::{ClientReportGroup, MINIMUM_CLOCK_DRIFT};
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <a href=#22 id=22 data-nosnippet>22</a>
 <a href=#23 id=23 data-nosnippet>23</a><span class="doccomment">/// Fields of client reports that map to specific [`Outcome`]s without content.
 <a href=#24 id=24 data-nosnippet>24</a></span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -276,11 +276,11 @@
 <a href=#276 id=276 data-nosnippet>276</a>
 <a href=#277 id=277 data-nosnippet>277</a>    <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item};
 <a href=#278 id=278 data-nosnippet>278</a>    <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<a href=#279 id=279 data-nosnippet>279</a>    <span class="kw">use </span><span class="kw">crate</span>::services::outcome::RuleCategory;
-<a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
-<a href=#281 id=281 data-nosnippet>281</a>    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils::{<span class="self">self</span>, create_test_processor};
-<a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
+<a href=#279 id=279 data-nosnippet>279</a>    <span class="kw">use </span><span class="kw">crate</span>::managed::ManagedEnvelope;
+<a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">use </span><span class="kw">crate</span>::services::outcome::RuleCategory;
+<a href=#281 id=281 data-nosnippet>281</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
+<a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils::{<span class="self">self</span>, create_test_processor};
 <a href=#284 id=284 data-nosnippet>284</a>
 <a href=#285 id=285 data-nosnippet>285</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#286 id=286 data-nosnippet>286</a>
