@@ -38,13 +38,14 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::{FormDataIter, TypedEnvelope};
+use crate::utils::FormDataIter;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -57,6 +58,14 @@ pub enum StoreError {
     EncodingFailed(std::io::Error),
     #[error("failed to store event because event id was missing")]
     NoEventId,
+}
+
+impl OutcomeError for StoreError {
+    type Error = Self;
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        (Some(Outcome::Invalid(DiscardReason::Internal)), self)
+    }
 }
 
 struct Producer {
@@ -98,14 +107,42 @@ pub struct StoreMetrics {
     pub retention: u16,
 }
 
+/// Publishes a log item to Sentry core application through Kafka.
+#[derive(Debug)]
+pub struct StoreLog {
+    /// The final trace item which will be produced to Kafka.
+    pub trace_item: TraceItem,
+    /// Outcomes to be emitted when successfully producing the item to Kafka.
+    ///
+    /// Note: this is only a temporary measure, long term these outcomes will be part of the trace
+    /// item and emitted by Snuba to guarantee a delivery to storage.
+    pub quantities: Quantities,
+}
+
+impl Counted for StoreLog {
+    fn quantities(&self) -> Quantities {
+        self.quantities.clone()
+    }
+}
+
 /// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
 pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub enum Store {
+    /// An envelope containing a mixture of items.
+    ///
+    /// Note: Some envelope items are not supported to be submitted at all or through an envelope,
+    /// for example logs must be submitted via [`Self::Log`] instead.
+    ///
+    /// Long term this variant is going to be replaced with fully typed variants of items which can
+    /// be stored instead.
     Envelope(StoreEnvelope),
+    /// Aggregated generic metrics.
     Metrics(StoreMetrics),
+    /// A singular log item.
+    Log(Managed<StoreLog>),
 }
 
 impl Store {
@@ -114,6 +151,7 @@ impl Store {
         match self {
             Store::Envelope(_) => "envelope",
             Store::Metrics(_) => "metrics",
+            Store::Log(_) => "log",
         }
     }
 }
@@ -133,6 +171,14 @@ impl FromMessage<StoreMetrics> for Store {
 
     fn from_message(message: StoreMetrics, _: ()) -> Self {
         Self::Metrics(message)
+    }
+}
+
+impl FromMessage<Managed<StoreLog>> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: Managed<StoreLog>, _: ()) -> Self {
+        Self::Log(message)
     }
 }
 
@@ -171,6 +217,7 @@ impl StoreService {
             match message {
                 Store::Envelope(message) => self.handle_store_envelope(message),
                 Store::Metrics(message) => self.handle_store_metrics(message),
+                Store::Log(message) => self.handle_store_log(message),
             }
         })
     }
@@ -296,7 +343,6 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, received_at, event_id, retention, item)?
                 }
-                ItemType::Log => self.produce_log(scoping, received_at, retention, item)?,
                 ItemType::ProfileChunk => self.produce_profile_chunk(
                     scoping.organization_id,
                     scoping.project_id,
@@ -304,6 +350,18 @@ impl StoreService {
                     retention,
                     item,
                 )?,
+                // Explicitly unsupported items which must be submitted via a specific store message.
+                ty @ ItemType::Log => {
+                    debug_assert!(
+                        false,
+                        "received {ty} through an envelope, \
+                        this item must be submitted via a specific store message instead"
+                    );
+                    relay_log::error!(
+                        tags.project_key = %scoping.project_key,
+                        "StoreService received unsupported item type '{ty}' in envelope"
+                    );
+                }
                 other => {
                     let event_type = event_item.as_ref().map(|item| item.ty().as_str());
                     let item_types = envelope
@@ -465,6 +523,46 @@ impl StoreService {
                 gauge(RelayGauges::MetricDelayMax) = max,
                 namespace = namespace.as_str()
             );
+        }
+    }
+
+    fn handle_store_log(&self, message: Managed<StoreLog>) {
+        let scoping = message.scoping();
+        let received_at = message.received_at();
+
+        let quantities = message.try_accept(|log| {
+            let message = KafkaMessage::Item {
+                headers: BTreeMap::from([
+                    ("project_id".to_owned(), scoping.project_id.to_string()),
+                    (
+                        "item_type".to_owned(),
+                        (TraceItemType::Log as i32).to_string(),
+                    ),
+                ]),
+                message: log.trace_item,
+                item_type: TraceItemType::Log,
+            };
+
+            self.produce(KafkaTopic::Items, message)
+                .map(|()| log.quantities)
+        });
+
+        // Accepted outcomes when items have been successfully produced to rdkafka.
+        //
+        // This is only a temporary measure, long term these outcomes will be part of the trace
+        // item and emitted by Snuba to guarantee a delivery to storage.
+        if let Ok(quantities) = quantities {
+            for (category, quantity) in quantities {
+                self.outcome_aggregator.send(TrackOutcome {
+                    category,
+                    event_id: None,
+                    outcome: Outcome::Accepted,
+                    quantity: u32::try_from(quantity).unwrap_or(u32::MAX),
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+            }
         }
     }
 
@@ -914,9 +1012,9 @@ impl StoreService {
             }
         };
 
+        // Discard measurements with empty `value`s.
         if let Some(measurements) = &mut span.measurements {
-            measurements
-                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
+            measurements.retain(|_, v| v.as_ref().and_then(|v| v.value).is_some());
         }
 
         span.backfill_data();
@@ -996,7 +1094,7 @@ impl StoreService {
                 nanos: 0,
             }),
             trace_id: span.trace_id.to_string(),
-            item_id: u128::from_str_radix(span.span_id, 16)
+            item_id: u128::from_str_radix(&span.span_id, 16)
                 .unwrap_or_default()
                 .to_le_bytes()
                 .to_vec(),
@@ -1007,9 +1105,25 @@ impl StoreService {
 
         if let Some(data) = span.data {
             for (key, raw_value) in data {
-                let Some(json_value) = raw_value else {
+                let Some(raw_value) = raw_value else {
                     continue;
                 };
+
+                let json_value = match Deserialize::deserialize(raw_value) {
+                    Ok(v) => v,
+                    Err(error) => {
+                        // This should not be possible: a `RawValue` is definitely valid JSON,
+                        // so deserializing it to a `json::Value` must succeed. But better safe
+                        // than sorry.
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            raw_value = %raw_value,
+                            "failed to parse JSON value"
+                        );
+                        continue;
+                    }
+                };
+
                 let any_value = match json_value {
                     JsonValue::String(string) => AnyValue {
                         value: Some(Value::StringValue(string)),
@@ -1051,7 +1165,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.raw_description".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(description)),
+                    value: Some(Value::StringValue(description.into())),
                 },
             );
         }
@@ -1118,7 +1232,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.parent_span_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(parent_span_id.to_owned())),
+                    value: Some(Value::StringValue(parent_span_id.into_owned())),
                 },
             );
         }
@@ -1127,7 +1241,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.profile_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(profile_id.to_owned())),
+                    value: Some(Value::StringValue(profile_id.into_owned())),
                 },
             );
         }
@@ -1136,7 +1250,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.segment_id".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(segment_id.to_owned())),
+                    value: Some(Value::StringValue(segment_id.into_owned())),
                 },
             );
         }
@@ -1145,7 +1259,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.origin".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(origin.to_string())),
+                    value: Some(Value::StringValue(origin.into_owned())),
                 },
             );
         }
@@ -1154,7 +1268,7 @@ impl StoreService {
             trace_item.attributes.insert(
                 "sentry.kind".into(),
                 AnyValue {
-                    value: Some(Value::StringValue(kind.to_owned())),
+                    value: Some(Value::StringValue(kind.into_owned())),
                 },
             );
         }
@@ -1173,141 +1287,6 @@ impl StoreService {
                 message: trace_item,
             },
         )?;
-
-        Ok(())
-    }
-
-    fn produce_log(
-        &self,
-        scoping: Scoping,
-        received_at: DateTime<Utc>,
-        retention_days: u16,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        relay_log::trace!("Producing log");
-
-        let payload = item.payload();
-        let d = &mut Deserializer::from_slice(&payload);
-        let logs: LogKafkaMessages = match serde_path_to_error::deserialize(d) {
-            Ok(logs) => logs,
-            Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    "failed to parse log"
-                );
-                self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::LogItem,
-                    event_id: None,
-                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
-                    quantity: 1,
-                    remote_addr: None,
-                    scoping,
-                    timestamp: received_at,
-                });
-                self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::LogByte,
-                    event_id: None,
-                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
-                    quantity: payload.len() as u32,
-                    remote_addr: None,
-                    scoping,
-                    timestamp: received_at,
-                });
-                return Ok(());
-            }
-        };
-
-        let num_logs = logs.items.len() as u32;
-        for log in logs.items {
-            let timestamp_seconds = log.timestamp as i64;
-            let timestamp_nanos = (log.timestamp.fract() * 1e9) as u32;
-            let item_id = u128::from_be_bytes(
-                *Uuid::new_v7(uuid::Timestamp::from_unix(
-                    uuid::NoContext,
-                    timestamp_seconds as u64,
-                    timestamp_nanos,
-                ))
-                .as_bytes(),
-            )
-            .to_le_bytes()
-            .to_vec();
-            let mut trace_item = TraceItem {
-                item_type: TraceItemType::Log.into(),
-                organization_id: scoping.organization_id.value(),
-                project_id: scoping.project_id.value(),
-                received: Some(Timestamp {
-                    seconds: safe_timestamp(received_at) as i64,
-                    nanos: 0,
-                }),
-                retention_days: retention_days.into(),
-                timestamp: Some(Timestamp {
-                    seconds: timestamp_seconds,
-                    nanos: 0,
-                }),
-                trace_id: log.trace_id.to_string(),
-                item_id,
-                attributes: Default::default(),
-                client_sample_rate: 1.0,
-                server_sample_rate: 1.0,
-            };
-
-            for (name, attribute) in log.attributes.unwrap_or_default() {
-                if let Some(attribute_value) = attribute {
-                    if let Some(v) = attribute_value.value {
-                        let any_value = match v {
-                            LogAttributeValue::String(value) => AnyValue {
-                                value: Some(Value::StringValue(value)),
-                            },
-                            LogAttributeValue::Int(value) => AnyValue {
-                                value: Some(Value::IntValue(value)),
-                            },
-                            LogAttributeValue::Bool(value) => AnyValue {
-                                value: Some(Value::BoolValue(value)),
-                            },
-                            LogAttributeValue::Double(value) => AnyValue {
-                                value: Some(Value::DoubleValue(value)),
-                            },
-                            LogAttributeValue::Unknown(_) => continue,
-                        };
-
-                        trace_item.attributes.insert(name.into(), any_value);
-                    }
-                }
-            }
-
-            let message = KafkaMessage::Log {
-                headers: BTreeMap::from([
-                    ("project_id".to_owned(), scoping.project_id.to_string()),
-                    (
-                        "item_type".to_owned(),
-                        (TraceItemType::Log as i32).to_string(),
-                    ),
-                ]),
-                message: trace_item,
-            };
-
-            self.produce(KafkaTopic::Items, message)?;
-        }
-
-        // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::LogItem,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: num_logs,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::LogByte,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: payload.len() as u32,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
 
         Ok(())
     }
@@ -1410,11 +1389,12 @@ where
         .serialize(serializer)
 }
 
-fn serialize_btreemap_skip_nulls<S, T>(
-    map: &Option<BTreeMap<&str, Option<T>>>,
+fn serialize_btreemap_skip_nulls<K, S, T>(
+    map: &Option<BTreeMap<K, Option<T>>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
+    K: Serialize,
     S: serde::Serializer,
     T: serde::Serialize,
 {
@@ -1624,15 +1604,15 @@ struct SpanLink<'a> {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-struct SpanMeasurement {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    value: Option<f64>,
+struct SpanMeasurement<'a> {
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    value: Option<&'a RawValue>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanKafkaMessage<'a> {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    description: Option<Cow<'a, str>>,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
@@ -1646,21 +1626,21 @@ struct SpanKafkaMessage<'a> {
     is_remote: bool,
 
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    data: Option<BTreeMap<Cow<'a, str>, Option<serde_json::Value>>>,
+    data: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    kind: Option<&'a str>,
+    kind: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "none_or_empty_vec")]
     links: Option<Vec<SpanLink<'a>>>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
+    measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement<'a>>>>,
     #[serde(default)]
     organization_id: u64,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     origin: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    parent_span_id: Option<&'a str>,
+    parent_span_id: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    profile_id: Option<&'a str>,
+    profile_id: Option<Cow<'a, str>>,
     /// The numeric ID of the project.
     #[serde(default)]
     project_id: u64,
@@ -1670,17 +1650,17 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     retention_days: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    segment_id: Option<&'a str>,
+    segment_id: Option<Cow<'a, str>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_btreemap_skip_nulls"
     )]
     #[serde(borrow)]
-    sentry_tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
-    span_id: &'a str,
+    sentry_tags: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
+    span_id: Cow<'a, str>,
     #[serde(skip_serializing_if = "none_or_empty_map", borrow)]
-    tags: Option<BTreeMap<&'a str, Option<serde_json::Value>>>,
+    tags: Option<BTreeMap<Cow<'a, str>, Option<&'a RawValue>>>,
     trace_id: EventId,
 
     #[serde(default)]
@@ -1736,12 +1716,19 @@ impl SpanKafkaMessage<'_> {
                     continue;
                 };
 
-                match &key[..] {
-                    "client_sample_rate" => self.client_sample_rate = Some(value),
-                    "server_sample_rate" => self.server_sample_rate = Some(value),
+                match key.as_ref() {
+                    "client_sample_rate" => {
+                        if let Ok(client_sample_rate) = Deserialize::deserialize(value) {
+                            self.client_sample_rate = Some(client_sample_rate);
+                        }
+                    }
+                    "server_sample_rate" => {
+                        if let Ok(server_sample_rate) = Deserialize::deserialize(value) {
+                            self.server_sample_rate = Some(server_sample_rate);
+                        }
+                    }
                     _ => {
-                        data.entry(key.clone())
-                            .or_insert_with(|| Some(value.into()));
+                        data.entry(key.clone()).or_insert(Some(value));
                     }
                 }
             }
@@ -1754,13 +1741,12 @@ impl SpanKafkaMessage<'_> {
                 };
 
                 let key = if *key == "description" {
-                    "sentry.normalized_description"
+                    Cow::Borrowed("sentry.normalized_description")
                 } else {
-                    key
+                    key.clone()
                 };
 
-                data.entry(Cow::Borrowed(key))
-                    .or_insert_with(|| Some(value.clone()));
+                data.entry(key).or_insert(Some(value));
             }
         }
 
@@ -1771,54 +1757,15 @@ impl SpanKafkaMessage<'_> {
                 };
 
                 let key = if *key == "description" {
-                    "sentry.normalized_description".to_owned()
+                    Cow::Borrowed("sentry.normalized_description")
                 } else {
-                    format!("sentry.{key}")
+                    Cow::Owned(format!("sentry.{key}"))
                 };
 
-                data.entry(Cow::Owned(key))
-                    .or_insert_with(|| Some(value.clone()));
+                data.entry(key).or_insert(Some(value));
             }
         }
     }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type", content = "value")]
-enum LogAttributeValue {
-    #[serde(rename = "string")]
-    String(String),
-    #[serde(rename = "boolean")]
-    Bool(bool),
-    #[serde(rename = "integer")]
-    Int(i64),
-    #[serde(rename = "double")]
-    Double(f64),
-    #[serde(rename = "unknown")]
-    Unknown(()),
-}
-
-/// This is a temporary struct to convert the old attribute format to the new one.
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct LogAttribute {
-    #[serde(flatten)]
-    value: Option<LogAttributeValue>,
-}
-
-#[derive(Debug, Deserialize)]
-struct LogKafkaMessages<'a> {
-    #[serde(borrow)]
-    items: Vec<LogKafkaMessage<'a>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct LogKafkaMessage<'a> {
-    trace_id: EventId,
-    #[serde(default)]
-    timestamp: f64,
-    #[serde(borrow, default)]
-    attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
@@ -1881,11 +1828,6 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
     },
-    Log {
-        headers: BTreeMap<String, String>,
-        #[serde(skip)]
-        message: TraceItem,
-    },
     ProfileChunk(ProfileChunkKafkaMessage),
 }
 
@@ -1908,7 +1850,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::Log { .. } => "log",
             KafkaMessage::Span { .. } => "span",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
             KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
@@ -1941,7 +1882,6 @@ impl Message for KafkaMessage<'_> {
 
             // Random partitioning
             Self::Profile(_)
-            | Self::Log { .. }
             | Self::ReplayRecordingNotChunked(_)
             | Self::ProfileChunk(_)
             | Self::Item { .. } => None,
@@ -1954,8 +1894,7 @@ impl Message for KafkaMessage<'_> {
         match &self {
             KafkaMessage::Metric { headers, .. }
             | KafkaMessage::Span { headers, .. }
-            | KafkaMessage::Item { headers, .. }
-            | KafkaMessage::Log { headers, .. } => {
+            | KafkaMessage::Item { headers, .. } => {
                 if !headers.is_empty() {
                     return Some(headers);
                 }
@@ -1983,13 +1922,11 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Log { message, .. } | KafkaMessage::Item { message, .. } => {
+            KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
-
                 if message.encode(&mut payload).is_err() {
                     return Err(ClientError::ProtobufEncodingFailed);
                 }
-
                 Ok(Cow::Owned(payload))
             }
             _ => rmp_serde::to_vec_named(&self)

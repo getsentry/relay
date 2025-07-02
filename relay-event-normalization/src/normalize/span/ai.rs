@@ -2,7 +2,7 @@
 
 use crate::{ModelCostV2, ModelCosts};
 use relay_event_schema::protocol::{Event, Span, SpanData};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Getter, Value};
 
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
@@ -90,16 +90,34 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
     }
 }
 
-/// Extract the gen_ai_usage_total_cost data into the span
+/// Extract the additional data into the span
 pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
     if !is_ai_span(span) {
         return;
     }
 
+    let duration = span
+        .get_value("span.duration")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
     let Some(data) = span.data.value_mut() else {
         return;
     };
 
+    // Extracts the response tokens per second
+    if data.gen_ai_response_tokens_per_second.value().is_none() && duration > 0.0 {
+        if let Some(output_tokens) = data
+            .gen_ai_usage_output_tokens
+            .value()
+            .and_then(Value::as_f64)
+        {
+            data.gen_ai_response_tokens_per_second
+                .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
+        }
+    }
+
+    // Extracts the total cost of the AI model used
     if let Some(model_id) = data
         .gen_ai_request_model
         .value()

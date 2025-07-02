@@ -282,7 +282,7 @@ async fn monitor_shutdown(timeout: Duration) -> io::Result<()> {
 }
 
 /*
-TODO: Tests disabled since there is no isloation. Should be re-enabled once Controller-instances are
+TODO: Tests disabled since there is no isolation. Should be re-enabled once Controller-instances are
 passed into services.
 
 #[cfg(test)]

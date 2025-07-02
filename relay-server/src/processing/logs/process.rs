@@ -7,7 +7,7 @@ use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog};
 use relay_ourlogs::OtelLog;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, ErrorKind, Value};
-use smallvec::SmallVec;
+use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::extractors::RequestMeta;
@@ -15,10 +15,12 @@ use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed};
 use crate::services::outcome::DiscardReason;
 
-pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
+pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
     let received_at = logs.received_at();
     logs.map(|logs, records| {
-        let mut all_logs = SmallVec::with_capacity(logs.count());
+        records.lenient(DataCategory::LogByte);
+
+        let mut all_logs = Vec::with_capacity(logs.count());
 
         for logs in logs.logs {
             let expanded = expand_log_container(&logs, received_at);
@@ -38,6 +40,8 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
 
         ExpandedLogs {
             headers: logs.headers,
+            #[cfg(feature = "processing")]
+            retention: _ctx.project_info.config.event_retention,
             logs: all_logs,
         }
     })

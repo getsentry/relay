@@ -1,6 +1,6 @@
 use crate::envelope::ItemType;
+use crate::managed::{ItemAction, TypedEnvelope};
 use crate::services::processor::StandaloneGroup;
-use crate::utils::{ItemAction, TypedEnvelope};
 
 /// Processes a standalone envelope by removing unnecessary items.
 ///
