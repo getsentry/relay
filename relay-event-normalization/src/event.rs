@@ -514,6 +514,10 @@ pub fn normalize_user_geoinfo(
     ip_addr: Option<&IpAddr>,
 ) {
     let user = user.value_mut().get_or_insert_with(User::default);
+    // The event was already populated with geo information so we don't have to do anything.
+    if user.geo.value().is_some() {
+        return;
+    }
     if let Some(ip_address) = user
         .ip_address
         .value()
