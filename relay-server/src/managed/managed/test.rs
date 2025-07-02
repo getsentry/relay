@@ -90,7 +90,7 @@ pub struct ManagedTestHandle {
 }
 
 impl ManagedTestHandle {
-    /// Asserts that there are currently have been no outcomes emitted from the associated [`Managed`] instance.
+    /// Asserts that no outcomes have been emitted from the associated [`Managed`] instance.
     #[track_caller]
     pub fn assert_no_outcomes(&mut self) {
         match self.outcomes.try_recv() {
