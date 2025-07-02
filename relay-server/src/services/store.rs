@@ -1012,6 +1012,11 @@ impl StoreService {
             }
         };
 
+        // Discard measurements with empty `value`s.
+        if let Some(measurements) = &mut span.measurements {
+            measurements.retain(|_, v| v.as_ref().and_then(|v| v.value).is_some());
+        }
+
         span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
