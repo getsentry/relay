@@ -15,10 +15,10 @@ use relay_system::Addr;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{ContentType, ItemType};
+use crate::managed::{ItemAction, TypedEnvelope};
 use crate::services::outcome::{DiscardReason, Outcome, RuleCategories, TrackOutcome};
 use crate::services::processor::{ClientReportGroup, MINIMUM_CLOCK_DRIFT};
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{ItemAction, TypedEnvelope};
 
 /// Fields of client reports that map to specific [`Outcome`]s without content.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -276,11 +276,11 @@ mod tests {
 
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
+    use crate::managed::ManagedEnvelope;
     use crate::services::outcome::RuleCategory;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
     use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{self, create_test_processor};
-    use crate::utils::ManagedEnvelope;
 
     use super::*;
 

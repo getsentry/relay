@@ -8,12 +8,13 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items};
+use crate::managed::{
+    Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
+};
 use crate::processing::{
-    self, Context, Counted, Forward, Managed, ManagedResult as _, OutcomeError, Output, Quantities,
-    QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
+    self, Context, Forward, Output, QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::utils::ManagedEnvelope;
 
 mod filter;
 mod process;

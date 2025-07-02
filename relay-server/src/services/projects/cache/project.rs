@@ -6,11 +6,12 @@ use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateL
 use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::envelope::ItemType;
+use crate::managed::ManagedEnvelope;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::projects::cache::state::SharedProject;
 use crate::services::projects::project::ProjectState;
 use crate::statsd::RelayTimers;
-use crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ManagedEnvelope};
+use crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter};
 
 /// A loaded project.
 pub struct Project<'a> {

@@ -38,14 +38,14 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
-use crate::processing::{Counted, Managed, OutcomeError, Quantities};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::{FormDataIter, TypedEnvelope};
+use crate::utils::FormDataIter;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";

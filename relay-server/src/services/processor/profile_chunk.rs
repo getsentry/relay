@@ -4,7 +4,7 @@ use relay_dynamic_config::Feature;
 use std::sync::Arc;
 
 use crate::envelope::ItemType;
-use crate::utils::{ItemAction, TypedEnvelope};
+use crate::managed::{ItemAction, TypedEnvelope};
 
 use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]

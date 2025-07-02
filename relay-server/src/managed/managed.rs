@@ -12,11 +12,10 @@ use relay_system::Addr;
 use smallvec::SmallVec;
 
 use crate::Envelope;
-use crate::processing::{Counted, Quantities};
+use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
 use crate::services::test_store::TestStore;
-use crate::utils::ManagedEnvelope;
 
 /// An error which can be extracted into an outcome.
 pub trait OutcomeError {
