@@ -11,6 +11,7 @@
 
 - Forward logs to Kafka directly instead of serialized as envelope. ([#4875](https://github.com/getsentry/relay/pull/4875))
 - Add `gen_ai.response.tokens_per_second` span attribute on AI spans. ([#4883](https://github.com/getsentry/relay/pull/4883))
+- Add support for playstation data requests. ([#4870](https://github.com/getsentry/relay/pull/4870))
 
 ## 25.6.2
 
@@ -32,7 +33,6 @@
 - Consider `gen_ai` also as AI span op prefix. ([#4859](https://github.com/getsentry/relay/pull/4859))
 - Change pii scrubbing on some AI attributes to optional. ([#4860](https://github.com/getsentry/relay/pull/4860))
 - Conditionally set `total_cost` and `total_tokens` attributes on AI spans. ([#4868](https://github.com/getsentry/relay/pull/4868))
-- Add support for playstation data requests. ([#4870](https://github.com/getsentry/relay/pull/4870))
 
 ## 25.6.1
 
