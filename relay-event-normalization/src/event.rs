@@ -2614,13 +2614,7 @@ mod tests {
             },
         );
 
-        let span_data = event
-            .value()
-            .and_then(|event| event.spans.value())
-            .and_then(|spans| spans.first())
-            .and_then(|span| span.value())
-            .and_then(|span| span.data.value())
-            .unwrap();
+        let span_data = get_value!(event.spans[0].data!);
 
         // Should not set response_tokens_per_second when there are no output tokens
         assert!(
@@ -2664,13 +2658,7 @@ mod tests {
             },
         );
 
-        let span_data = event
-            .value()
-            .and_then(|event| event.spans.value())
-            .and_then(|spans| spans.first())
-            .and_then(|span| span.value())
-            .and_then(|span| span.data.value())
-            .unwrap();
+        let span_data = get_value!(event.spans[0].data!);
 
         // Should not set response_tokens_per_second when duration is zero
         assert!(
