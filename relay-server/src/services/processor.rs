@@ -59,7 +59,7 @@ use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
-    SendRequest, SignatureType, TrySign, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+    SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
@@ -3539,8 +3539,8 @@ impl UpstreamRequest for SendEnvelope {
         Ok(())
     }
 
-    fn sign(&mut self) -> Option<TrySign> {
-        Some(TrySign::Optional(SignatureType::RequestSign))
+    fn sign(&mut self) -> Option<Sign> {
+        Some(Sign::Optional(SignatureType::RequestSign))
     }
 
     fn respond(
@@ -3721,10 +3721,8 @@ impl UpstreamRequest for SendMetricsRequest {
         true
     }
 
-    fn sign(&mut self) -> Option<TrySign> {
-        Some(TrySign::Required(SignatureType::Body(
-            self.unencoded.clone(),
-        )))
+    fn sign(&mut self) -> Option<Sign> {
+        Some(Sign::Required(SignatureType::Body(self.unencoded.clone())))
     }
 
     fn method(&self) -> reqwest::Method {

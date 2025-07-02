@@ -260,7 +260,7 @@ pub enum SignatureError {
 }
 
 /// Represents whether credentials are required for signing a request.
-pub enum TrySign {
+pub enum Sign {
     /// Credentials are required for signing. If no credentials are available,
     /// signature creation will fail.
     Required(SignatureType),
@@ -269,8 +269,8 @@ pub enum TrySign {
     Optional(SignatureType),
 }
 
-impl TrySign {
-    /// Creates a signature based on the [`TrySign`] variant.
+impl Sign {
+    /// Creates a signature based on the [`Sign`] variant.
     ///
     /// This method signs the input data and returns an optional signature string.
     ///
@@ -281,13 +281,13 @@ impl TrySign {
         secret_key: Option<&SecretKey>,
     ) -> Result<Option<Signature>, SignatureError> {
         match self {
-            TrySign::Required(signature_type) => {
+            Sign::Required(signature_type) => {
                 let Some(secret_key) = secret_key else {
                     return Err(SignatureError::MissingCredentials);
                 };
                 Ok(Some(signature_type.create_signature(secret_key)))
             }
-            TrySign::Optional(signature_type) => {
+            Sign::Optional(signature_type) => {
                 let Some(secret_key) = secret_key else {
                     return Ok(None);
                 };
@@ -376,7 +376,7 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
     /// Defaults to `None`.
-    fn sign(&mut self) -> Option<TrySign> {
+    fn sign(&mut self) -> Option<Sign> {
         None
     }
 
@@ -525,14 +525,14 @@ where
         true
     }
 
-    fn sign(&mut self) -> Option<TrySign> {
+    fn sign(&mut self) -> Option<Sign> {
         // Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
         self.body()
             .ok()
             .map(SignatureType::Body)
-            .map(TrySign::Required)
+            .map(Sign::Required)
     }
 
     fn method(&self) -> Method {
@@ -1619,7 +1619,7 @@ mod tests {
 
     #[test]
     fn test_required_credentials_missing() {
-        let result = TrySign::Required(SignatureType::Body(Bytes::new())).create_signature(None);
+        let result = Sign::Required(SignatureType::Body(Bytes::new())).create_signature(None);
         assert_eq!(result, Err(SignatureError::MissingCredentials))
     }
 
@@ -1627,7 +1627,7 @@ mod tests {
     fn test_required_credentials() {
         let (secret, _) = generate_key_pair();
         let result =
-            TrySign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+            Sign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
         assert!(result.unwrap().is_some())
     }
 
@@ -1635,13 +1635,13 @@ mod tests {
     fn test_optional_credentials() {
         let (secret, _) = generate_key_pair();
         let result =
-            TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+            Sign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
         assert!(result.unwrap().is_some())
     }
 
     #[test]
     fn test_optional_credentials_missing() {
-        let result = TrySign::Optional(SignatureType::Body(Bytes::new())).create_signature(None);
+        let result = Sign::Optional(SignatureType::Body(Bytes::new())).create_signature(None);
         assert_eq!(result, Ok(None))
     }
 }

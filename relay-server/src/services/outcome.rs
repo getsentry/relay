@@ -470,10 +470,10 @@ pub enum DiscardReason {
     /// An attachment was submitted with a transaction.
     TransactionAttachment,
 
-    /// (Relay) The signature from a trusted relay was invalid.
+    /// (Relay) The signature from a trusted Relay was invalid.
     InvalidSignature,
 
-    /// (Relay) The signature from a trusted relay was missing.
+    /// (Relay) The signature from a trusted Relay was missing but required.
     MissingSignature,
 }
 
