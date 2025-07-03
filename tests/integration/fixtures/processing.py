@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 import msgpack
 import uuid
@@ -269,6 +270,25 @@ class OutcomesConsumer(ConsumerBase):
         for outcome in outcomes:
             assert outcome.error() is None
         return [json.loads(outcome.value()) for outcome in outcomes]
+
+    def get_aggregated_outcomes(self, **kwargs):
+        outcomes = self.get_outcomes(**kwargs)
+        aggregated = defaultdict(int)
+
+        for outcome in outcomes:
+            del outcome["timestamp"]
+            quantity = outcome.pop("quantity")
+            aggregated[frozenset(outcome.items())] += quantity
+
+        return list(
+            sorted(
+                (
+                    dict(quantity=quantity, **dict(k))
+                    for (k, quantity) in aggregated.items()
+                ),
+                key=lambda o: sorted(o.items()),
+            )
+        )
 
     def get_outcome(self, timeout=None):
         outcomes = self.get_outcomes(timeout)

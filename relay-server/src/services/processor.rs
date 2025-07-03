@@ -2463,7 +2463,8 @@ impl EnvelopeProcessorService {
         let project_key = envelope.envelope().meta().public_key();
         let sampling_key = envelope.envelope().sampling_key();
 
-        let has_ourlogs_new_byte_count = project_info.has_feature(Feature::OurLogsNewByteCount);
+        let has_ourlogs_new_byte_count =
+            project_info.has_feature(Feature::OurLogsCalculatedByteCount);
 
         // We set additional information on the scope, which will be removed after processing the
         // envelope.

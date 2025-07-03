@@ -20,12 +20,10 @@ mod filter;
 mod process;
 #[cfg(feature = "processing")]
 mod store;
+mod utils;
 mod validate;
 
-/// Temporary byte count of a single log.
-///
-/// This will be addressed at a later stage: #4824.
-pub const DUMMY_LOG_SIZE: usize = 500;
+pub use self::utils::get_calculated_byte_size;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -295,12 +293,17 @@ impl Counted for ExpandedLogs {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![
             (DataCategory::LogItem, self.logs.len()),
-            (DataCategory::LogByte, DUMMY_LOG_SIZE * self.logs.len())
+            (DataCategory::LogByte, self.bytes())
         ]
     }
 }
 
 impl ExpandedLogs {
+    /// Returns the sum of bytes of all logs contained.
+    fn bytes(&self) -> usize {
+        self.logs.iter().map(get_calculated_byte_size).sum()
+    }
+
     fn serialize(self) -> Result<SerializedLogs, ContainerWriteError> {
         let mut item = Item::new(ItemType::Log);
 
