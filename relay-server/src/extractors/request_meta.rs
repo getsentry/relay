@@ -5,14 +5,14 @@ use std::str::FromStr;
 
 use axum::RequestPartsExt;
 use axum::extract::rejection::PathRejection;
-use axum::extract::{ConnectInfo, FromRequestParts, Path};
+use axum::extract::{ConnectInfo, FromRequestParts, OptionalFromRequestParts, Path};
 use axum::http::StatusCode;
 use axum::http::header::{self, AsHeaderName};
 use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
 use data_encoding::BASE64;
-use relay_auth::RelayId;
+use relay_auth::{RelayId, Signature};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
@@ -22,7 +22,7 @@ use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::extractors::{ForwardedFor, ReceivedAt};
+use crate::extractors::{ForwardedFor, ReceivedAt, SignatureError};
 use crate::service::ServiceState;
 use crate::statsd::{ClientName, RelayCounters};
 use crate::utils::ApiErrorResponse;
@@ -49,6 +49,9 @@ pub enum BadEventMeta {
 
     #[error("bad sentry DSN public key")]
     BadPublicKey(#[from] ParseProjectKeyError),
+
+    #[error("bad x-sentry-relay-signature header")]
+    SignatureError(SignatureError),
 }
 
 impl From<Infallible> for BadEventMeta {
@@ -64,9 +67,10 @@ impl IntoResponse for BadEventMeta {
             | Self::MultipleAuth
             | Self::BadAuth(_)
             | Self::BadEnvelopeAuth(_) => StatusCode::UNAUTHORIZED,
-            Self::UnsupportedProtocolVersion(_) | Self::BadProject(_) | Self::BadPublicKey(_) => {
-                StatusCode::BAD_REQUEST
-            }
+            Self::UnsupportedProtocolVersion(_)
+            | Self::BadProject(_)
+            | Self::BadPublicKey(_)
+            | Self::SignatureError(_) => StatusCode::BAD_REQUEST,
         };
 
         (code, ApiErrorResponse::from_error(&self)).into_response()
@@ -231,6 +235,14 @@ pub struct RequestMeta<D = PartialDsn> {
     #[serde(skip, default = "Utc::now")]
     received_at: DateTime<Utc>,
 
+    /// Contains the signature information extracted from the request.
+    ///
+    /// This can be used, for example, to verify a trusted relay during ingestion.
+    ///
+    /// NOTE: This is internal only.
+    #[serde(skip)]
+    signature: Option<Signature>,
+
     /// Whether the request is coming from an statically configured internal Relay.
     ///
     /// NOTE: This is internal-only and not exposed to Envelope headers.
@@ -328,6 +340,11 @@ impl<D> RequestMeta<D> {
     pub fn set_client(&mut self, client: String) {
         self.client = Some(client);
     }
+
+    /// Returns the trusted relay signature.
+    pub fn signature(&self) -> Option<&Signature> {
+        self.signature.as_ref()
+    }
 }
 
 impl RequestMeta {
@@ -344,6 +361,7 @@ impl RequestMeta {
             no_cache: false,
             received_at: Utc::now(),
             client_hints: ClientHints::default(),
+            signature: None,
             from_internal_relay: false,
         }
     }
@@ -461,7 +479,7 @@ impl PartialMeta {
 }
 
 impl FromRequestParts<ServiceState> for PartialMeta {
-    type Rejection = Infallible;
+    type Rejection = BadEventMeta;
 
     async fn from_request_parts(
         parts: &mut Parts,
@@ -490,6 +508,10 @@ impl FromRequestParts<ServiceState> for PartialMeta {
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
+        let signature = Signature::from_request_parts(parts, state)
+            .await
+            .map_err(BadEventMeta::SignatureError)?;
+
         Ok(RequestMeta {
             dsn: None,
             version: default_version(),
@@ -507,6 +529,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
             no_cache: false,
             received_at,
             client_hints: ua.client_hints,
+            signature,
             from_internal_relay,
         })
     }
@@ -669,6 +692,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             no_cache: key_flags.contains(&"no-cache"),
             received_at: partial_meta.received_at,
             client_hints: partial_meta.client_hints,
+            signature: partial_meta.signature,
             from_internal_relay: partial_meta.from_internal_relay,
         })
     }
@@ -693,6 +717,7 @@ mod tests {
                 received_at: Utc::now(),
                 client_hints: ClientHints::default(),
                 from_internal_relay: false,
+                signature: None,
             }
         }
     }
@@ -738,8 +763,23 @@ mod tests {
                 sec_ch_ua_model: None,
             },
             from_internal_relay: false,
+            signature: None,
         };
         deserialized.received_at = reqmeta.received_at;
         assert_eq!(deserialized, reqmeta);
+    }
+
+    #[test]
+    fn test_signature_not_serialized() {
+        let dsn: relay_common::Dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let without_signature = RequestMeta::new(dsn.clone());
+        let mut with_signature = RequestMeta::new(dsn);
+        with_signature.signature = Some(Signature("test-signature".to_owned()));
+
+        let serialized_without_signature = serde_json::to_string(&without_signature).unwrap();
+        let serialized_with_signature = serde_json::to_string(&with_signature).unwrap();
+        assert_eq!(serialized_with_signature, serialized_without_signature);
     }
 }

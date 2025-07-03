@@ -469,6 +469,12 @@ pub enum DiscardReason {
 
     /// An attachment was submitted with a transaction.
     TransactionAttachment,
+
+    /// (Relay) The signature from a trusted Relay was invalid.
+    InvalidSignature,
+
+    /// (Relay) The signature from a trusted Relay was missing but required.
+    MissingSignature,
 }
 
 impl DiscardReason {
@@ -489,6 +495,8 @@ impl DiscardReason {
             DiscardReason::SecurityReport => "security_report",
             DiscardReason::Cors => "cors",
             DiscardReason::ProcessUnreal => "process_unreal",
+            DiscardReason::InvalidSignature => "invalid_signature",
+            DiscardReason::MissingSignature => "missing_signature",
 
             // Relay specific reasons (not present in Sentry)
             DiscardReason::Payload => "payload",
@@ -979,6 +987,9 @@ impl ClientReportOutcomeProducer {
             Outcome::Filtered(_) => &mut client_report.filtered_events,
             Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
             Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
+            Outcome::Invalid(DiscardReason::InvalidSignature | DiscardReason::MissingSignature) => {
+                &mut client_report.discarded_events
+            }
             _ => {
                 relay_log::debug!(
                     "Outcome '{}' cannot be converted to client report",

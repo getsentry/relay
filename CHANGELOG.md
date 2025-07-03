@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
+
 **Bug Fixes**:
 
 - Preserve user specified event values in Unreal crash reports. ([#4882](https://github.com/getsentry/relay/pull/4882))
