@@ -1,4 +1,6 @@
-def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
+def test_snapshot_scrub_span_sentry_tags_advanced_rules(
+    mini_sentry, relay, relay_snapshot
+):
     project_id = 42
     relay = relay(
         mini_sentry,
@@ -33,5 +35,4 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
-    assert event["spans"][0]["sentry_tags"]["user.geo.country_code"] == "**"
-    assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "**"
+    assert relay_snapshot("json") == event
