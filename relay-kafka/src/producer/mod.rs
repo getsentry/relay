@@ -25,7 +25,7 @@ use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 mod utils;
 use utils::{Context, ThreadedProducer};
 
-#[cfg(feature = "schemas")]
+#[cfg(debug_assertions)]
 mod schemas;
 
 const REPORT_FREQUENCY_SECS: u64 = 1;
@@ -55,7 +55,7 @@ pub enum ClientError {
     InvalidJson(#[source] serde_json::Error),
 
     /// Failed to run schema validation on message.
-    #[cfg(feature = "schemas")]
+    #[cfg(debug_assertions)]
     #[error("failed to run schema validation on message")]
     SchemaValidationFailed(#[source] schemas::SchemaError),
 
@@ -287,7 +287,7 @@ impl fmt::Debug for Producer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
-    #[cfg(feature = "schemas")]
+    #[cfg(debug_assertions)]
     schema_validator: schemas::Validator,
 }
 
@@ -306,7 +306,7 @@ impl KafkaClient {
         message: &impl Message,
     ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
-        #[cfg(feature = "schemas")]
+        #[cfg(debug_assertions)]
         self.schema_validator
             .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
@@ -431,7 +431,7 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
-            #[cfg(feature = "schemas")]
+            #[cfg(debug_assertions)]
             schema_validator: schemas::Validator::default(),
         }
     }
