@@ -179,6 +179,12 @@ impl<T> From<ContainerItems<T>> for ItemContainer<T> {
     }
 }
 
+impl<T> From<Vec<Annotated<T>>> for ItemContainer<T> {
+    fn from(items: Vec<Annotated<T>>) -> Self {
+        ContainerItems::from_vec(items).into()
+    }
+}
+
 impl ContainerItem for relay_event_schema::protocol::OurLog {
     const ITEM_TYPE: ItemType = ItemType::Log;
     const CONTENT_TYPE: ContentType = ContentType::LogContainer;

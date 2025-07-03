@@ -31,16 +31,13 @@ where
         AnyType::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
         AnyType::Number(n) => Ok(n),
         AnyType::Bool(v) => Err(serde::de::Error::custom(format!(
-            "unsupported value: {:?}",
-            v
+            "unsupported value: {v:?}"
         ))),
         AnyType::Array(v) => Err(serde::de::Error::custom(format!(
-            "unsupported value: {:?}",
-            v
+            "unsupported value: {v:?}"
         ))),
         AnyType::Object(v) => Err(serde::de::Error::custom(format!(
-            "unsupported value: {:?}",
-            v
+            "unsupported value: {v:?}"
         ))),
         AnyType::Null => Err(serde::de::Error::custom("unsupported null value")),
     }

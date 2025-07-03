@@ -67,6 +67,7 @@ mod feature;
 mod global;
 mod metrics;
 mod project;
+mod trusted_relay;
 mod utils;
 
 pub use error_boundary::*;
@@ -74,4 +75,5 @@ pub use feature::*;
 pub use global::*;
 pub use metrics::*;
 pub use project::*;
+pub use trusted_relay::*;
 pub use utils::*;

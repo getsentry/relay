@@ -318,14 +318,14 @@ fn derive_http_description(attributes: &Attributes, kind: &Option<&SpanV2Kind>) 
     let Some(url_path) = url_path else {
         return Some(description);
     };
-    let base_description = format!("{} {}", http_method, url_path);
+    let base_description = format!("{http_method} {url_path}");
 
     // Check for GraphQL operations
     if let Some(graphql_ops) = attributes
         .get_value("sentry.graphql.operation")
         .and_then(|v| v.as_str())
     {
-        return Some(format!("{} ({})", base_description, graphql_ops));
+        return Some(format!("{base_description} ({graphql_ops})"));
     }
 
     Some(base_description)

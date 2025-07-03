@@ -40,7 +40,7 @@ fn main() {
             "clone",
             "git@github.com:getsentry/tempest.git",
             &temp_dir_str,
-            &format!("--revision={}", version),
+            &format!("--revision={version}"),
             "--depth=1",
         ])
         .status()
@@ -52,7 +52,7 @@ fn main() {
                 "clone",
                 "https://github.com/getsentry/tempest.git",
                 &temp_dir_str,
-                &format!("--revision={}", version),
+                &format!("--revision={version}"),
                 "--depth=1",
             ])
             .status()

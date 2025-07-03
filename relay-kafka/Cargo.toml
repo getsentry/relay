@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Kafka related functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.6.1"
+version = "25.6.2"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -24,10 +24,12 @@ thiserror = { workspace = true }
 sentry-kafka-schemas = { workspace = true, default-features = false, optional = true }
 parking_lot = { workspace = true }
 hashbrown = { workspace = true }
+hash32 = { workspace = true }
 
 [dev-dependencies]
 serde_yaml = { workspace = true }
 sentry-kafka-schemas = { workspace = true, default-features = false }
+insta = { workspace = true }
 
 [features]
 default = []

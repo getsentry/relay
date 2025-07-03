@@ -247,8 +247,7 @@ mod tests {
                 assert_eq!(
                     filter_result,
                     Ok(()),
-                    "Event filtered for event_type={} although filter should have not matched",
-                    event_type
+                    "Event filtered for event_type={event_type} although filter should have not matched"
                 )
             }
         }

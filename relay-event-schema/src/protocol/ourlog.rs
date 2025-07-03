@@ -33,9 +33,31 @@ pub struct OurLog {
     #[metastructure(pii = "true", trim = false)]
     pub attributes: Annotated<Attributes>,
 
+    /// Relay internal metadata associated with the log item.
+    ///
+    /// Temporary solution until Relay has a better mechanism to transport metadata with an item
+    /// contained in an item container.
+    ///
+    /// See: <https://github.com/getsentry/relay/issues/4881>.
+    #[metastructure(pii = "false", trim = false)]
+    pub __headers: Annotated<OurLogHeaders>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
+}
+
+/// Relay specific metadata embedded into the log item.
+///
+/// This metadata is purely an internal protocol extension used by Relay,
+/// no one except Relay should be sending this data, nor should anyone except Relay rely on it.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+pub struct OurLogHeaders {
+    /// Original (calculated) size of the log item when it was first received by a Relay.
+    ///
+    /// If this value exists, Relay uses it as quantity for all outcomes emitted to the
+    /// log byte data category.
+    pub byte_size: Annotated<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

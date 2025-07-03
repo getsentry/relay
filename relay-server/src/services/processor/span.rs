@@ -13,11 +13,10 @@ use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
 
 use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
+use crate::managed::{ItemAction, TypedEnvelope};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
 use crate::statsd::RelayTimers;
-use crate::utils::ItemAction;
-use crate::utils::TypedEnvelope;
 
 #[cfg(feature = "processing")]
 mod processing;
@@ -236,8 +235,8 @@ mod tests {
 
     use super::*;
     use crate::Envelope;
+    use crate::managed::{ManagedEnvelope, TypedEnvelope};
     use crate::services::processor::ProcessingGroup;
-    use crate::utils::{ManagedEnvelope, TypedEnvelope};
     use bytes::Bytes;
     use relay_spans::otel_trace::Span as OtelSpan;
     use relay_system::Addr;
@@ -328,12 +327,12 @@ mod tests {
         let attribute_value = |key: &str| -> String {
             match attributes
                 .get(key)
-                .unwrap_or_else(|| panic!("attribute {} missing", key))
+                .unwrap_or_else(|| panic!("attribute {key} missing"))
                 .to_owned()
                 .value
             {
                 Some(Value::StringValue(str)) => str,
-                _ => panic!("attribute {} not a string", key),
+                _ => panic!("attribute {key} not a string"),
             }
         };
         assert_eq!(

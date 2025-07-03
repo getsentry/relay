@@ -100,6 +100,9 @@ pub enum Feature {
     /// Serialized as `organizations:ourlogs-ingestion`.
     #[serde(rename = "organizations:ourlogs-ingestion")]
     OurLogsIngestion,
+    /// Use a new/alternative way of counting bytes per log.
+    #[serde(rename = "organizations:ourlogs-calculated-byte-count")]
+    OurLogsCalculatedByteCount,
     /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]

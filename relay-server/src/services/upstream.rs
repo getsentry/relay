@@ -14,7 +14,9 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use itertools::Itertools;
-use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
+use relay_auth::{
+    RegisterChallenge, RegisterRequest, RegisterResponse, Registration, SecretKey, Signature,
+};
 use relay_config::{Config, Credentials, RelayMode};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
@@ -249,6 +251,72 @@ impl fmt::Display for RequestPriority {
     }
 }
 
+/// Errors during the signature or verification process.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum SignatureError {
+    /// Credentials for a required signature were missing.
+    #[error("missing credentials")]
+    MissingCredentials,
+}
+
+/// Represents whether credentials are required for signing a request.
+pub enum Sign {
+    /// Credentials are required for signing. If no credentials are available,
+    /// signature creation will fail.
+    Required(SignatureType),
+    /// Credentials are optional for signing. If no credentials are available,
+    /// signature creation will be skipped.
+    Optional(SignatureType),
+}
+
+impl Sign {
+    /// Creates a signature based on the [`Sign`] variant.
+    ///
+    /// This method signs the input data and returns an optional signature string.
+    ///
+    /// If credentials are required but none are provided, it will fail with
+    /// [`SignatureError::MissingCredentials`].
+    pub fn create_signature(
+        self,
+        secret_key: Option<&SecretKey>,
+    ) -> Result<Option<Signature>, SignatureError> {
+        match self {
+            Sign::Required(signature_type) => {
+                let Some(secret_key) = secret_key else {
+                    return Err(SignatureError::MissingCredentials);
+                };
+                Ok(Some(signature_type.create_signature(secret_key)))
+            }
+            Sign::Optional(signature_type) => {
+                let Some(secret_key) = secret_key else {
+                    return Ok(None);
+                };
+                Ok(Some(signature_type.create_signature(secret_key)))
+            }
+        }
+    }
+}
+
+/// Types of signatures that are supported by Relay.
+#[derive(Debug)]
+pub enum SignatureType {
+    /// Bytes of an envelope body that are used to produce a signature.
+    Body(Bytes),
+    /// No data is needed for this signature because we only want to see if
+    /// the receiving relay can verify the signature correctly.
+    RequestSign,
+}
+
+impl SignatureType {
+    /// Creates a signature data based on the variant.
+    pub fn create_signature(self, secret_key: &SecretKey) -> Signature {
+        match self {
+            SignatureType::Body(data) => secret_key.sign(data.as_ref()),
+            SignatureType::RequestSign => secret_key.sign(&[]),
+        }
+    }
+}
+
 /// Represents a generic HTTP request to be sent to the upstream.
 pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// The HTTP method of the request.
@@ -304,11 +372,11 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     /// should return the payload to sign. For requests with content encoding, this must be the
     /// **uncompressed** payload.
     ///
-    /// This requires configuration of the Relay's credentials. If the credentials are not
-    /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
+    /// If the variant of [`SignatureType`] forces a signature and no Relay credentials are configured,
+    /// the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
     /// Defaults to `None`.
-    fn sign(&mut self) -> Option<Bytes> {
+    fn sign(&mut self) -> Option<Sign> {
         None
     }
 
@@ -457,11 +525,14 @@ where
         true
     }
 
-    fn sign(&mut self) -> Option<Bytes> {
+    fn sign(&mut self) -> Option<Sign> {
         // Computing the body is practically infallible since we're serializing standard structures
         // into a string. Even if it fails, `sign` is called after `build` and the error will be
         // reported there.
-        self.body().ok()
+        self.body()
+            .ok()
+            .map(SignatureType::Body)
+            .map(Sign::Required)
     }
 
     fn method(&self) -> Method {
@@ -784,13 +855,12 @@ impl SharedClient {
             request.build(&mut builder)?;
 
             if let Some(payload) = request.sign() {
-                let credentials = self
-                    .config
-                    .credentials()
-                    .ok_or(UpstreamRequestError::NoCredentials)?;
-
-                let signature = credentials.secret_key.sign(&payload);
-                builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
+                if let Some(signature) = payload
+                    .create_signature(self.config.credentials().map(|cred| &cred.secret_key))
+                    .map_err(|_| UpstreamRequestError::NoCredentials)?
+                {
+                    builder.header("x-sentry-relay-signature", &signature.0);
+                }
             }
 
             match builder.finish() {
@@ -1539,5 +1609,39 @@ impl Service for UpstreamRelayService {
                 else => break,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use relay_auth::generate_key_pair;
+
+    #[test]
+    fn test_required_credentials_missing() {
+        let result = Sign::Required(SignatureType::Body(Bytes::new())).create_signature(None);
+        assert_eq!(result, Err(SignatureError::MissingCredentials))
+    }
+
+    #[test]
+    fn test_required_credentials() {
+        let (secret, _) = generate_key_pair();
+        let result =
+            Sign::Required(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+        assert!(result.unwrap().is_some())
+    }
+
+    #[test]
+    fn test_optional_credentials() {
+        let (secret, _) = generate_key_pair();
+        let result =
+            Sign::Optional(SignatureType::Body(Bytes::new())).create_signature(Some(&secret));
+        assert!(result.unwrap().is_some())
+    }
+
+    #[test]
+    fn test_optional_credentials_missing() {
+        let result = Sign::Optional(SignatureType::Body(Bytes::new())).create_signature(None);
+        assert_eq!(result, Ok(None))
     }
 }

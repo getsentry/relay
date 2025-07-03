@@ -4,8 +4,9 @@
 
 use crate::Envelope;
 use crate::envelope::{ContentType, EnvelopeError, Item, ItemType};
+use crate::managed::TypedEnvelope;
 use crate::services::processor::{ErrorGroup, ProcessingError};
-use crate::utils::{self, TypedEnvelope};
+use crate::utils;
 use bytes::{Buf, Bytes};
 use std::sync::OnceLock;
 use zstd::bulk::Decompressor as ZstdDecompressor;
@@ -217,8 +218,8 @@ mod tests {
 
     use super::*;
     use crate::envelope::Item;
+    use crate::managed::ManagedEnvelope;
     use crate::services::processor::ProcessingGroup;
-    use crate::utils::ManagedEnvelope;
     use zstd::bulk::Compressor as ZstdCompressor;
 
     #[test]

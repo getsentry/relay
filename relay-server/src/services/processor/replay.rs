@@ -3,11 +3,13 @@ use std::error::Error;
 use std::net::IpAddr;
 
 use crate::envelope::{ContentType, ItemType};
+use crate::managed::TypedEnvelope;
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessingError, ReplayGroup, should_filter};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{TypedEnvelope, sample};
+use crate::utils::sample;
+
 use bytes::Bytes;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;

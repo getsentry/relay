@@ -13,12 +13,12 @@ use relay_prosperoconv::{self, ProsperoDump};
 use relay_protocol::{Annotated, Empty, Object};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::managed::TypedEnvelope;
 use crate::services::processor::metric;
 use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayCounters;
 use crate::utils;
-use crate::utils::TypedEnvelope;
 
 /// Name of the custom tag in the UserData for Sentry event payloads.
 const SENTRY_PAYLOAD_KEY: &str = "__sentry";

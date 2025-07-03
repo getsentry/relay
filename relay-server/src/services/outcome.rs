@@ -247,7 +247,7 @@ impl fmt::Display for Outcome {
             Outcome::RateLimited(None) => write!(f, "rate limited"),
             Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({})", id),
+            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({id})"),
             Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
@@ -469,6 +469,12 @@ pub enum DiscardReason {
 
     /// An attachment was submitted with a transaction.
     TransactionAttachment,
+
+    /// (Relay) The signature from a trusted Relay was invalid.
+    InvalidSignature,
+
+    /// (Relay) The signature from a trusted Relay was missing but required.
+    MissingSignature,
 }
 
 impl DiscardReason {
@@ -489,6 +495,8 @@ impl DiscardReason {
             DiscardReason::SecurityReport => "security_report",
             DiscardReason::Cors => "cors",
             DiscardReason::ProcessUnreal => "process_unreal",
+            DiscardReason::InvalidSignature => "invalid_signature",
+            DiscardReason::MissingSignature => "missing_signature",
 
             // Relay specific reasons (not present in Sentry)
             DiscardReason::Payload => "payload",
@@ -979,6 +987,9 @@ impl ClientReportOutcomeProducer {
             Outcome::Filtered(_) => &mut client_report.filtered_events,
             Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
             Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
+            Outcome::Invalid(DiscardReason::InvalidSignature | DiscardReason::MissingSignature) => {
+                &mut client_report.discarded_events
+            }
             _ => {
                 relay_log::debug!(
                     "Outcome '{}' cannot be converted to client report",
@@ -1052,11 +1063,11 @@ impl KafkaOutcomesProducer {
         let mut client_builder = KafkaClient::builder();
 
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let kafka_config = &config
-                .kafka_config(*topic)
+            let kafka_config = config
+                .kafka_configs(*topic)
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
             client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
+                .add_kafka_topic_config(*topic, &kafka_config, config.kafka_validate_topics())
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 
