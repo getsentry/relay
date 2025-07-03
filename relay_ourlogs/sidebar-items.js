@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["otel_to_sentry_log","ourlog_merge_otel"],"struct":["OtelLog"]};
+window.SIDEBAR_ITEMS = {"fn":["calculate_size","otel_to_sentry_log","ourlog_merge_otel"],"struct":["OtelLog"]};

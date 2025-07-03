@@ -3,9 +3,9 @@
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>relay_quotas::DataCategory;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>smallvec::SmallVec;
 <a href=#5 id=5 data-nosnippet>5</a>
-<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::Envelope;
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::envelope::Item;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span><span class="kw">crate</span>::utils::EnvelopeSummary;
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::envelope::Item;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span><span class="kw">crate</span>::utils::EnvelopeSummary;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use crate</span>::{Envelope, processing};
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="doccomment">/// A list of data categories and amounts.
 <a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">pub type </span>Quantities = SmallVec&lt;[(DataCategory, usize); <span class="number">1</span>]&gt;;
@@ -82,7 +82,7 @@
 <a href=#82 id=82 data-nosnippet>82</a>            (DataCategory::LogItem, <span class="number">1</span>),
 <a href=#83 id=83 data-nosnippet>83</a>            (
 <a href=#84 id=84 data-nosnippet>84</a>                DataCategory::LogByte,
-<a href=#85 id=85 data-nosnippet>85</a>                <span class="kw">crate</span>::processing::logs::DUMMY_LOG_SIZE
+<a href=#85 id=85 data-nosnippet>85</a>                processing::logs::get_calculated_byte_size(<span class="self">self</span>)
 <a href=#86 id=86 data-nosnippet>86</a>            )
 <a href=#87 id=87 data-nosnippet>87</a>        ]
 <a href=#88 id=88 data-nosnippet>88</a>    }
