@@ -199,12 +199,14 @@ def test_ourlog_multiple_containers_not_allowed(
     ourlogs_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("calculated_byte_count", [False, True])
 def test_ourlog_extraction_with_sentry_logs(
     mini_sentry,
     relay,
     relay_with_processing,
     ourlogs_consumer,
     outcomes_consumer,
+    calculated_byte_count,
 ):
     ourlogs_consumer = ourlogs_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -214,6 +216,10 @@ def test_ourlog_extraction_with_sentry_logs(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    if calculated_byte_count:
+        project_config["config"]["features"].append(
+            "organizations:ourlogs-calculated-byte-count"
+        )
     relay = relay(relay_with_processing(options=TEST_CONFIG))
     start = datetime.now(timezone.utc)
 
@@ -327,7 +333,9 @@ def test_ourlog_extraction_with_sentry_logs(
         },
     ]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(
+        n=4 if calculated_byte_count else 2
+    )
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -344,7 +352,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "outcome": 0,
             "project_id": 42,
             # This is a billing relevant number, do not just adjust this because it changed.
-            "quantity": 260,
+            "quantity": 260 if calculated_byte_count else 2475,
         },
     ]
 
