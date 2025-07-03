@@ -8,12 +8,13 @@ use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
 use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items};
+use crate::managed::{
+    Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
+};
 use crate::processing::{
-    self, Context, Counted, Forward, Managed, ManagedResult as _, OutcomeError, Output, Quantities,
-    QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
+    self, Context, Forward, Output, QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::utils::ManagedEnvelope;
 
 mod filter;
 mod process;
@@ -148,14 +149,18 @@ impl Forward for LogOutput {
     fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let logs = match self {
             Self::NotProcessed(logs) => logs,
-            Self::Processed(logs) => logs.try_map(|logs, _| {
+            Self::Processed(logs) => logs.try_map(|logs, r| {
+                r.lenient(DataCategory::LogByte);
                 logs.serialize()
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))
             })?,
         };
 
-        Ok(logs.map(|logs, _| logs.serialize_envelope()))
+        Ok(logs.map(|logs, r| {
+            r.lenient(DataCategory::LogByte);
+            logs.serialize_envelope()
+        }))
     }
 
     #[cfg(feature = "processing")]

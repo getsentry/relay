@@ -4,8 +4,8 @@ use relay_protocol::Annotated;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer, ItemType};
 use crate::extractors::RequestMeta;
+use crate::managed::ManagedEnvelope;
 use crate::services::processor::ProcessingError;
-use crate::utils::ManagedEnvelope;
 
 pub fn convert_to_logs(envelope: &mut ManagedEnvelope) {
     let items = envelope

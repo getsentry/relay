@@ -37,10 +37,13 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
         BrightEdgeOnCrawl|          # BrightEdge - see https://www.brightedge.com/news/press-releases/brightedge-acquires-oncrawl-future-proof-web-30-strategies
         ELB-HealthChecker|          # AWS Elastic Load Balancing Health Checks
         naver.me/spd|               # Yeti/1.1 - naver.me
-        ClaudeBot|                  # Anthropic - see https://support.anthropic.com/en/articles/10023637-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
+        ClaudeBot|                  # Anthropic - see https://support.anthropic.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
         CCBot|                      # CCBot - see https://commoncrawl.org/ccbot
         OAI-SearchBot|              # OpenAI - see https://platform.openai.com/docs/bots
-        GPTBot                      # OpenAI - see https://platform.openai.com/docs/bots
+        GPTBot|                     # OpenAI - see https://platform.openai.com/docs/bots
+        PerplexityBot|              # Perplexity - see https://docs.perplexity.ai/guides/bots
+        Applebot|                   # Apple - see https://support.apple.com/en-us/119829
+        DuckDuckBot                 # DuckDuckGo - see https://duckduckgo.com/duckduckgo-help-pages/results/duckduckbot
     "
     )
     .expect("Invalid web crawlers filter Regex")
@@ -141,6 +144,9 @@ mod tests {
             "Mozilla/5.0; CCBot",
             "; OAI-SearchBot/1.0; +https://openai.com/searchbot",
             "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot",
+            "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
+            "Mozilla/5.0 (Device; OS_version) AppleWebKit/WebKit_version (KHTML, like Gecko)Version/Safari_version [Mobile/Mobile_version] Safari/WebKit_version (Applebot/Applebot_version; +http://www.apple.com/go/applebot)",
+            "DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)",
         ];
 
         for banned_user_agent in &user_agents {

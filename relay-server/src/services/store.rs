@@ -38,14 +38,14 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_threading::AsyncPool;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::managed::{Counted, Managed, OutcomeError, Quantities, TypedEnvelope};
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
-use crate::processing::{Counted, Managed, OutcomeError, Quantities};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::{FormDataIter, TypedEnvelope};
+use crate::utils::FormDataIter;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -343,6 +343,7 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, received_at, event_id, retention, item)?
                 }
+                ItemType::Log => self.produce_log(scoping, received_at, retention, item)?,
                 ItemType::ProfileChunk => self.produce_profile_chunk(
                     scoping.organization_id,
                     scoping.project_id,
@@ -350,18 +351,6 @@ impl StoreService {
                     retention,
                     item,
                 )?,
-                // Explicitly unsupported items which must be submitted via a specific store message.
-                ty @ ItemType::Log => {
-                    debug_assert!(
-                        false,
-                        "received {ty} through an envelope, \
-                        this item must be submitted via a specific store message instead"
-                    );
-                    relay_log::error!(
-                        tags.project_key = %scoping.project_key,
-                        "StoreService received unsupported item type '{ty}' in envelope"
-                    );
-                }
                 other => {
                     let event_type = event_item.as_ref().map(|item| item.ty().as_str());
                     let item_types = envelope
@@ -1012,6 +1001,11 @@ impl StoreService {
             }
         };
 
+        // Discard measurements with empty `value`s.
+        if let Some(measurements) = &mut span.measurements {
+            measurements.retain(|_, v| v.as_ref().and_then(|v| v.value).is_some());
+        }
+
         span.backfill_data();
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
@@ -1282,6 +1276,142 @@ impl StoreService {
                 message: trace_item,
             },
         )?;
+
+        Ok(())
+    }
+
+    fn produce_log(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        relay_log::trace!("Producing log");
+
+        let payload = item.payload();
+        let d = &mut Deserializer::from_slice(&payload);
+        let logs: LogKafkaMessages = match serde_path_to_error::deserialize(d) {
+            Ok(logs) => logs,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse log"
+                );
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::LogItem,
+                    event_id: None,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
+                    quantity: 1,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::LogByte,
+                    event_id: None,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
+                    quantity: payload.len() as u32,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+                return Ok(());
+            }
+        };
+
+        let num_logs = logs.items.len() as u32;
+        for log in logs.items {
+            let timestamp_seconds = log.timestamp as i64;
+            let timestamp_nanos = (log.timestamp.fract() * 1e9) as u32;
+            let item_id = u128::from_be_bytes(
+                *Uuid::new_v7(uuid::Timestamp::from_unix(
+                    uuid::NoContext,
+                    timestamp_seconds as u64,
+                    timestamp_nanos,
+                ))
+                .as_bytes(),
+            )
+            .to_le_bytes()
+            .to_vec();
+            let mut trace_item = TraceItem {
+                item_type: TraceItemType::Log.into(),
+                organization_id: scoping.organization_id.value(),
+                project_id: scoping.project_id.value(),
+                received: Some(Timestamp {
+                    seconds: safe_timestamp(received_at) as i64,
+                    nanos: 0,
+                }),
+                retention_days: retention_days.into(),
+                timestamp: Some(Timestamp {
+                    seconds: timestamp_seconds,
+                    nanos: 0,
+                }),
+                trace_id: log.trace_id.to_string(),
+                item_id,
+                attributes: Default::default(),
+                client_sample_rate: 1.0,
+                server_sample_rate: 1.0,
+            };
+
+            for (name, attribute) in log.attributes.unwrap_or_default() {
+                if let Some(attribute_value) = attribute {
+                    if let Some(v) = attribute_value.value {
+                        let any_value = match v {
+                            LogAttributeValue::String(value) => AnyValue {
+                                value: Some(Value::StringValue(value)),
+                            },
+                            LogAttributeValue::Int(value) => AnyValue {
+                                value: Some(Value::IntValue(value)),
+                            },
+                            LogAttributeValue::Bool(value) => AnyValue {
+                                value: Some(Value::BoolValue(value)),
+                            },
+                            LogAttributeValue::Double(value) => AnyValue {
+                                value: Some(Value::DoubleValue(value)),
+                            },
+                            LogAttributeValue::Unknown(_) => continue,
+                        };
+
+                        trace_item.attributes.insert(name.into(), any_value);
+                    }
+                }
+            }
+
+            let message = KafkaMessage::Item {
+                item_type: TraceItemType::Log,
+                headers: BTreeMap::from([
+                    ("project_id".to_owned(), scoping.project_id.to_string()),
+                    (
+                        "item_type".to_owned(),
+                        (TraceItemType::Log as i32).to_string(),
+                    ),
+                ]),
+                message: trace_item,
+            };
+
+            self.produce(KafkaTopic::Items, message)?;
+        }
+
+        // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogItem,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: num_logs,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogByte,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: payload.len() as u32,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
 
         Ok(())
     }
@@ -1761,6 +1891,44 @@ impl SpanKafkaMessage<'_> {
             }
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "type", content = "value")]
+enum LogAttributeValue {
+    #[serde(rename = "string")]
+    String(String),
+    #[serde(rename = "boolean")]
+    Bool(bool),
+    #[serde(rename = "integer")]
+    Int(i64),
+    #[serde(rename = "double")]
+    Double(f64),
+    #[serde(rename = "unknown")]
+    Unknown(()),
+}
+
+/// This is a temporary struct to convert the old attribute format to the new one.
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct LogAttribute {
+    #[serde(flatten)]
+    value: Option<LogAttributeValue>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LogKafkaMessages<'a> {
+    #[serde(borrow)]
+    items: Vec<LogKafkaMessage<'a>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LogKafkaMessage<'a> {
+    trace_id: EventId,
+    #[serde(default)]
+    timestamp: f64,
+    #[serde(borrow, default)]
+    attributes: Option<BTreeMap<&'a str, Option<LogAttribute>>>,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {

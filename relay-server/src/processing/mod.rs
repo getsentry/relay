@@ -11,20 +11,14 @@ use relay_dynamic_config::GlobalConfig;
 use relay_quotas::RateLimits;
 
 use crate::Envelope;
+use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
 use crate::services::processor::ProcessingExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::ManagedEnvelope;
 
-mod counted;
 mod limits;
 pub mod logs;
-mod managed;
-mod utils;
 
-pub use self::counted::*;
 pub use self::limits::*;
-pub use self::managed::*;
-pub use self::utils::*;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
 ///

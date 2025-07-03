@@ -9,13 +9,13 @@ use chrono::{DateTime, Utc};
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
+use smallvec::SmallVec;
 
 use crate::Envelope;
-use crate::processing::{Counted, Quantities};
+use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
 use crate::services::test_store::TestStore;
-use crate::utils::ManagedEnvelope;
 
 /// An error which can be extracted into an outcome.
 pub trait OutcomeError {
@@ -441,7 +441,9 @@ impl Meta {
 pub struct RecordKeeper<'a> {
     meta: &'a Meta,
     on_drop: Quantities,
-    in_flight: Vec<(DataCategory, usize, Option<Outcome>)>,
+    #[cfg(debug_assertions)]
+    lenient: SmallVec<[DataCategory; 1]>,
+    in_flight: SmallVec<[(DataCategory, usize, Option<Outcome>); 2]>,
 }
 
 impl<'a> RecordKeeper<'a> {
@@ -449,8 +451,20 @@ impl<'a> RecordKeeper<'a> {
         Self {
             meta,
             on_drop: quantities,
+            #[cfg(debug_assertions)]
+            lenient: Default::default(),
             in_flight: Default::default(),
         }
+    }
+
+    /// Marking a data category as lenient exempts this category from outcome quantity validations.
+    ///
+    /// This can be used in cases where the quantity is knowingly modified, which is quite common
+    /// for data categories which count bytes.
+    pub fn lenient(&mut self, category: DataCategory) {
+        let _category = category;
+        #[cfg(debug_assertions)]
+        self.lenient.push(_category);
     }
 
     /// Finalizes all records and emits the necessary outcomes.
@@ -519,13 +533,11 @@ impl<'a> RecordKeeper<'a> {
 
         macro_rules! emit {
             ($category:expr, $($tt:tt)*) => {{
-                // Certain categories are known to be not always correct,
-                // they are logged instead.
-                match $category {
-                    // Log bytes may change when going from an unparsed to the parsed state,
-                    // as they are batched up in containers.
-                    DataCategory::LogByte => relay_log::debug!($($tt)*),
-                    _ => {
+                match self.lenient.contains(&$category) {
+                    // Certain categories are known to be not always correct,
+                    // they are logged instead.
+                    true => relay_log::debug!($($tt)*),
+                    false  => {
                         relay_log::error!("Original: {original:?}");
                         relay_log::error!("New: {new:?}");
                         relay_log::error!("In Flight: {:?}", self.in_flight);

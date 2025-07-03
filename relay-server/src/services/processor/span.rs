@@ -13,11 +13,10 @@ use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
 
 use crate::envelope::{ContentType, Item, ItemContainer, ItemType};
+use crate::managed::{ItemAction, TypedEnvelope};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{SpanGroup, should_filter};
 use crate::statsd::RelayTimers;
-use crate::utils::ItemAction;
-use crate::utils::TypedEnvelope;
 
 #[cfg(feature = "processing")]
 mod processing;
@@ -236,8 +235,8 @@ mod tests {
 
     use super::*;
     use crate::Envelope;
+    use crate::managed::{ManagedEnvelope, TypedEnvelope};
     use crate::services::processor::ProcessingGroup;
-    use crate::utils::{ManagedEnvelope, TypedEnvelope};
     use bytes::Bytes;
     use relay_spans::otel_trace::Span as OtelSpan;
     use relay_system::Addr;

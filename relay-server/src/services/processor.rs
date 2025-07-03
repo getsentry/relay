@@ -45,6 +45,7 @@ use zstd::stream::Encoder as ZstdEncoder;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
+use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
@@ -62,19 +63,17 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{
-    self, CheckLimits, EnvelopeLimiter, InvalidProcessingGroupType, ManagedEnvelope,
-    SamplingResult, TypedEnvelope,
-};
+use crate::utils::{self, CheckLimits, EnvelopeLimiter, SamplingResult};
 use crate::{http, processing};
 use relay_base_schema::organization::OrganizationId;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
+    crate::managed::ItemAction,
     crate::services::global_rate_limits::{GlobalRateLimits, GlobalRateLimitsServiceHandle},
     crate::services::processor::nnswitch::SwitchProcessingError,
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{Enforcement, ItemAction},
+    crate::utils::Enforcement,
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -553,6 +552,8 @@ pub enum ProcessingError {
     ProcessingGroupMismatch,
     #[error("new processing pipeline failed")]
     ProcessingFailure,
+    #[error("failed to serialize processing result to an envelope")]
+    ProcessingEnvelopeSerialization,
 }
 
 impl ProcessingError {
@@ -598,6 +599,9 @@ impl ProcessingError {
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
             // Outcomes are emitted in the new processing pipeline already.
             Self::ProcessingFailure => None,
+            Self::ProcessingEnvelopeSerialization => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
         }
     }
 
@@ -2459,6 +2463,8 @@ impl EnvelopeProcessorService {
         let project_key = envelope.envelope().meta().public_key();
         let sampling_key = envelope.envelope().sampling_key();
 
+        let has_ourlogs_new_byte_count = project_info.has_feature(Feature::OurLogsNewByteCount);
+
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
         relay_log::configure_scope(|scope| {
@@ -2510,7 +2516,17 @@ impl EnvelopeProcessorService {
                     sampling_key,
                     &self.inner.addrs.aggregator,
                 );
-                Ok(Some(Submit::Logs(main)))
+
+                if has_ourlogs_new_byte_count {
+                    Ok(Some(Submit::Logs(main)))
+                } else {
+                    let envelope = main
+                        .serialize_envelope()
+                        .map_err(|_| ProcessingError::ProcessingEnvelopeSerialization)?;
+                    let managed_envelope = ManagedEnvelope::from(envelope);
+
+                    Ok(Some(Submit::Envelope(managed_envelope.into_processed())))
+                }
             }
             Err(err) => Err(err),
         };
