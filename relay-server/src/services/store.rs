@@ -26,7 +26,7 @@ use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
-use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
+use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
     MetricNamespace, SetView,
@@ -2073,27 +2073,26 @@ impl Message for KafkaMessage<'_> {
         }
     }
 
-    /// Serializes the message into its binary format.
-    fn serialize(&self) -> Result<Cow<'_, [u8]>, ClientError> {
+    fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
         match self {
             KafkaMessage::Metric { message, .. } => serde_json::to_vec(message)
-                .map(Cow::Owned)
+                .map(|x| SerializationOutput::Json(Cow::Owned(x)))
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
-                .map(Cow::Owned)
+                .map(|x| SerializationOutput::Json(Cow::Owned(x)))
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
-                .map(Cow::Owned)
+                .map(|x| SerializationOutput::Json(Cow::Owned(x)))
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
                 if message.encode(&mut payload).is_err() {
                     return Err(ClientError::ProtobufEncodingFailed);
                 }
-                Ok(Cow::Owned(payload))
+                Ok(SerializationOutput::Protobuf(Cow::Owned(payload)))
             }
             _ => rmp_serde::to_vec_named(&self)
-                .map(Cow::Owned)
+                .map(|x| SerializationOutput::MsgPack(Cow::Owned(x)))
                 .map_err(ClientError::InvalidMsgPack),
         }
     }
