@@ -2075,26 +2075,30 @@ impl Message for KafkaMessage<'_> {
 
     fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
         match self {
-            KafkaMessage::Metric { message, .. } => serde_json::to_vec(message)
-                .map(|x| SerializationOutput::Json(Cow::Owned(x)))
-                .map_err(ClientError::InvalidJson),
-            KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
-                .map(|x| SerializationOutput::Json(Cow::Owned(x)))
-                .map_err(ClientError::InvalidJson),
-            KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
-                .map(|x| SerializationOutput::Json(Cow::Owned(x)))
-                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Metric { message, .. } => serialize_as_json(message),
+            KafkaMessage::ReplayEvent(message) => serialize_as_json(message),
+            KafkaMessage::Span { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
-                if message.encode(&mut payload).is_err() {
-                    return Err(ClientError::ProtobufEncodingFailed);
+                match message.encode(&mut payload) {
+                    Ok(_) => Ok(SerializationOutput::Protobuf(Cow::Owned(payload))),
+                    Err(_) => Err(ClientError::ProtobufEncodingFailed),
                 }
-                Ok(SerializationOutput::Protobuf(Cow::Owned(payload)))
             }
-            _ => rmp_serde::to_vec_named(&self)
-                .map(|x| SerializationOutput::MsgPack(Cow::Owned(x)))
-                .map_err(ClientError::InvalidMsgPack),
+            _ => match rmp_serde::to_vec_named(&self) {
+                Ok(x) => Ok(SerializationOutput::MsgPack(Cow::Owned(x))),
+                Err(err) => Err(ClientError::InvalidMsgPack(err)),
+            },
         }
+    }
+}
+
+fn serialize_as_json<T: serde::Serialize>(
+    value: &T,
+) -> Result<SerializationOutput<'_>, ClientError> {
+    match serde_json::to_vec(value) {
+        Ok(vec) => Ok(SerializationOutput::Json(Cow::Owned(vec))),
+        Err(err) => Err(ClientError::InvalidJson(err)),
     }
 }
 

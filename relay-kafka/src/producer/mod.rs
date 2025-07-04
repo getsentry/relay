@@ -331,8 +331,8 @@ impl KafkaClient {
     ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
 
+        #[cfg(debug_assertions)]
         if let SerializationOutput::Json(ref bytes) = serialized {
-            #[cfg(debug_assertions)]
             self.schema_validator
                 .validate_message_schema(topic, bytes)
                 .map_err(ClientError::SchemaValidationFailed)?;
