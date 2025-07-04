@@ -2348,6 +2348,20 @@ mod tests {
                             "gen_ai.usage.output_tokens": 2000,
                             "gen_ai.request.model": "gpt4-21-04"
                         }
+                    },
+                    {
+                        "timestamp": 1702474614.0175,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "gen_ai.chat_completions.openai",
+                        "span_id": "ac01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "gen_ai.response.model": "gpt4-21-04"
+                        }
                     }
                 ]
             }
@@ -2387,7 +2401,7 @@ mod tests {
         );
 
         let spans = event.value().unwrap().spans.value().unwrap();
-        assert_eq!(spans.len(), 2);
+        assert_eq!(spans.len(), 3);
         let first_span_data = spans
             .first()
             .and_then(|span| span.value())
@@ -2416,6 +2430,16 @@ mod tests {
         assert_eq!(
             second_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
             Some(&Value::F64(2000.0))
+        );
+
+        // Cost calculation when there is only gen_ai.response.model present
+        let third_span_data = spans
+            .get(2)
+            .and_then(|span| span.value())
+            .and_then(|span| span.data.value());
+        assert_eq!(
+            third_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(190.0))
         );
     }
 

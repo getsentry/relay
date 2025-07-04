@@ -1,0 +1,72 @@
+---
+source: relay-event-normalization/src/normalize/nel.rs
+expression: "SerializableAnnotated(&Annotated::new(log))"
+---
+{
+  "timestamp": 1619424000.0,
+  "trace_id": "de4e189601a342c6bee991645300852e",
+  "level": "warn",
+  "body": "The user agent successfully received a response, but it had a 500 status code",
+  "attributes": {
+    "browser.report.type": {
+      "type": "string",
+      "value": "network-error"
+    },
+    "http.request.duration": {
+      "type": "integer",
+      "value": 1000
+    },
+    "http.request.header.referer": {
+      "type": "string",
+      "value": "https://example.com/referer"
+    },
+    "http.request.method": {
+      "type": "string",
+      "value": "GET"
+    },
+    "http.response.status_code": {
+      "type": "integer",
+      "value": 500
+    },
+    "nel.phase": {
+      "type": "string",
+      "value": "application"
+    },
+    "nel.referrer": {
+      "type": "string",
+      "value": "https://example.com/referer"
+    },
+    "nel.sampling_fraction": {
+      "type": "double",
+      "value": 1.0
+    },
+    "nel.type": {
+      "type": "string",
+      "value": "http.error"
+    },
+    "network.protocol.name": {
+      "type": "string",
+      "value": "http"
+    },
+    "network.protocol.version": {
+      "type": "string",
+      "value": "1.1"
+    },
+    "sentry.origin": {
+      "type": "string",
+      "value": "auto.http.browser_report.nel"
+    },
+    "server.address": {
+      "type": "string",
+      "value": "192.168.1.1"
+    },
+    "url.domain": {
+      "type": "string",
+      "value": "example.com"
+    },
+    "url.full": {
+      "type": "string",
+      "value": "https://example.com/api"
+    }
+  }
+}
