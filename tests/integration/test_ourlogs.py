@@ -8,7 +8,7 @@ from sentry_relay.consts import DataCategory
 
 from google.protobuf.json_format import MessageToDict
 
-from .asserts.time import time_within_delta, time_within
+from .asserts import time_within_delta, time_within, matches
 
 import pytest
 
@@ -352,7 +352,11 @@ def test_ourlog_extraction_with_sentry_logs(
             "outcome": 0,
             "project_id": 42,
             # This is a billing relevant number, do not just adjust this because it changed.
-            "quantity": 260 if calculated_byte_count else 2475,
+            #
+            # This is 'fuzzy' for the non-calculated outcome, as timestamps do not have a constant size.
+            "quantity": (
+                260 if calculated_byte_count else matches(lambda x: 2470 <= x <= 2480)
+            ),
         },
     ]
 
