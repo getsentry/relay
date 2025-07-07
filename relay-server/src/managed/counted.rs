@@ -1,9 +1,8 @@
 use relay_event_schema::protocol::OurLog;
-use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use smallvec::SmallVec;
 
-use crate::envelope::Item;
+use crate::envelope::{Item, WithHeader};
 use crate::utils::EnvelopeSummary;
 use crate::{Envelope, processing};
 
@@ -76,7 +75,7 @@ impl Counted for Box<Envelope> {
     }
 }
 
-impl Counted for Annotated<OurLog> {
+impl Counted for WithHeader<OurLog> {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![
             (DataCategory::LogItem, 1),

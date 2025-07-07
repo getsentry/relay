@@ -92,7 +92,7 @@ pub fn expand_v2_spans(
         };
 
         for span_v2 in spans_v2.into_items() {
-            let span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
+            let span_v1 = span_v2.value.map_value(relay_spans::span_v2_to_span_v1);
             match span_v1.to_json() {
                 Ok(payload) => {
                     let mut new_item = Item::new(ItemType::Span);

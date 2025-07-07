@@ -15,6 +15,7 @@ use relay_protocol::{Annotated, Value};
 /// Complex types like objects and arrays are counted as the sum of all contained simple data types.
 ///
 /// Considered for the size of a log are all attribute keys, values and the log message body.
+/// An empty log (no message, no attributes) is counted as 1 byte.
 ///
 /// The byte size should only be calculated once before any processing, enrichment and other
 /// modifications done by Relay.
@@ -31,7 +32,7 @@ pub fn calculate_size(log: &OurLog) -> u64 {
             .sum::<usize>();
     }
 
-    u64::try_from(total_size).unwrap_or(u64::MAX)
+    u64::try_from(total_size).unwrap_or(u64::MAX).max(1)
 }
 
 /// Calculates the size of a single attribute.
@@ -295,5 +296,10 @@ mod tests {
             }
         }"#
         );
+    }
+
+    #[test]
+    fn test_calculate_size_empty_log_is_1byte() {
+        assert_calculated_size_of!(1, r#"{}"#);
     }
 }
