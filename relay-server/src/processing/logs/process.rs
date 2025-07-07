@@ -97,18 +97,16 @@ fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<Conta
         .into_items();
 
     for log in &mut logs {
-        // Manifests the byte size of a log item into the log itself, before making any modifications.
+        let byte_size = log.value().map(relay_ourlogs::calculate_size).unwrap_or(1);
+        let header = log.header.get_or_insert_default();
+        // Unconditionally override the size of the log, before making any modifications.
         //
         // Relay later may deem certain attributes to be invalid and therefore drop or modify them,
         // we still keep the original size.
-        if let Some(size) = log.value().map(relay_ourlogs::calculate_size) {
-            let header = log.header.get_or_insert_default();
-            // Unconditionally override the size of the log.
-            //
-            // Once there is processing of logs in other internal Relays, we will have to respect
-            // the value set by the header, if it is coming from an internal Relay.
-            header.byte_size = Some(size);
-        };
+        //
+        // Once there is processing of logs in other internal Relays, we will have to respect
+        // the value set by the header, if it is coming from an internal Relay.
+        header.byte_size = Some(byte_size);
 
         relay_ourlogs::ourlog_merge_otel(log, received_at);
     }

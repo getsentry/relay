@@ -21,7 +21,7 @@ pub fn get_calculated_byte_size(log: &WithHeader<OurLog>) -> usize {
     // Only fall back to a calculated size, when there is nothing stored.
     // This should never happen, logs should have a size assigned to them immediately after
     // they have been expanded.
-    let bytes = bytes.unwrap_or_else(|| log.value().map_or(0, relay_ourlogs::calculate_size));
+    let bytes = bytes.unwrap_or_else(|| log.value().map_or(1, relay_ourlogs::calculate_size));
 
     usize::try_from(bytes).unwrap_or(usize::MAX)
 }
