@@ -4167,7 +4167,7 @@
 <a href=#4167 id=4167 data-nosnippet>4167</a>            .unwrap();
 <a href=#4168 id=4168 data-nosnippet>4168</a>
 <a href=#4169 id=4169 data-nosnippet>4169</a>        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json_bytes(<span class="kw-2">&amp;</span>event.payload()).unwrap();
-<a href=#4170 id=4170 data-nosnippet>4170</a>        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap()._dsc, @<span class="string">r#"
+<a href=#4170 id=4170 data-nosnippet>4170</a>        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap()._dsc, @<span class="string">r###"
 <a href=#4171 id=4171 data-nosnippet>4171</a>        Object(
 <a href=#4172 id=4172 data-nosnippet>4172</a>            {
 <a href=#4173 id=4173 data-nosnippet>4173</a>                "environment": ~,
@@ -4185,7 +4185,7 @@
 <a href=#4185 id=4185 data-nosnippet>4185</a>                "transaction": ~,
 <a href=#4186 id=4186 data-nosnippet>4186</a>            },
 <a href=#4187 id=4187 data-nosnippet>4187</a>        )
-<a href=#4188 id=4188 data-nosnippet>4188</a>        "#</span>);
+<a href=#4188 id=4188 data-nosnippet>4188</a>        "###</span>);
 <a href=#4189 id=4189 data-nosnippet>4189</a>    }
 <a href=#4190 id=4190 data-nosnippet>4190</a>
 <a href=#4191 id=4191 data-nosnippet>4191</a>    <span class="kw">fn </span>capture_test_event(transaction_name: <span class="kw-2">&amp;</span>str, source: TransactionSource) -&gt; Vec&lt;String&gt; {
@@ -4243,51 +4243,51 @@
 <a href=#4243 id=4243 data-nosnippet>4243</a>    <span class="attr">#[test]
 <a href=#4244 id=4244 data-nosnippet>4244</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_none() {
 <a href=#4245 id=4245 data-nosnippet>4245</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/nothing"</span>, TransactionSource::Url);
-<a href=#4246 id=4246 data-nosnippet>4246</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+<a href=#4246 id=4246 data-nosnippet>4246</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
 <a href=#4247 id=4247 data-nosnippet>4247</a>        [
 <a href=#4248 id=4248 data-nosnippet>4248</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
 <a href=#4249 id=4249 data-nosnippet>4249</a>        ]
-<a href=#4250 id=4250 data-nosnippet>4250</a>        "#</span>);
+<a href=#4250 id=4250 data-nosnippet>4250</a>        "###</span>);
 <a href=#4251 id=4251 data-nosnippet>4251</a>    }
 <a href=#4252 id=4252 data-nosnippet>4252</a>
 <a href=#4253 id=4253 data-nosnippet>4253</a>    <span class="attr">#[test]
 <a href=#4254 id=4254 data-nosnippet>4254</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_rule() {
 <a href=#4255 id=4255 data-nosnippet>4255</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/denver"</span>, TransactionSource::Url);
-<a href=#4256 id=4256 data-nosnippet>4256</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+<a href=#4256 id=4256 data-nosnippet>4256</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
 <a href=#4257 id=4257 data-nosnippet>4257</a>        [
 <a href=#4258 id=4258 data-nosnippet>4258</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
 <a href=#4259 id=4259 data-nosnippet>4259</a>        ]
-<a href=#4260 id=4260 data-nosnippet>4260</a>        "#</span>);
+<a href=#4260 id=4260 data-nosnippet>4260</a>        "###</span>);
 <a href=#4261 id=4261 data-nosnippet>4261</a>    }
 <a href=#4262 id=4262 data-nosnippet>4262</a>
 <a href=#4263 id=4263 data-nosnippet>4263</a>    <span class="attr">#[test]
 <a href=#4264 id=4264 data-nosnippet>4264</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_pattern() {
 <a href=#4265 id=4265 data-nosnippet>4265</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/something/12345"</span>, TransactionSource::Url);
-<a href=#4266 id=4266 data-nosnippet>4266</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+<a href=#4266 id=4266 data-nosnippet>4266</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
 <a href=#4267 id=4267 data-nosnippet>4267</a>        [
 <a href=#4268 id=4268 data-nosnippet>4268</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
 <a href=#4269 id=4269 data-nosnippet>4269</a>        ]
-<a href=#4270 id=4270 data-nosnippet>4270</a>        "#</span>);
+<a href=#4270 id=4270 data-nosnippet>4270</a>        "###</span>);
 <a href=#4271 id=4271 data-nosnippet>4271</a>    }
 <a href=#4272 id=4272 data-nosnippet>4272</a>
 <a href=#4273 id=4273 data-nosnippet>4273</a>    <span class="attr">#[test]
 <a href=#4274 id=4274 data-nosnippet>4274</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_both() {
 <a href=#4275 id=4275 data-nosnippet>4275</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Url);
-<a href=#4276 id=4276 data-nosnippet>4276</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+<a href=#4276 id=4276 data-nosnippet>4276</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
 <a href=#4277 id=4277 data-nosnippet>4277</a>        [
 <a href=#4278 id=4278 data-nosnippet>4278</a>            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
 <a href=#4279 id=4279 data-nosnippet>4279</a>        ]
-<a href=#4280 id=4280 data-nosnippet>4280</a>        "#</span>);
+<a href=#4280 id=4280 data-nosnippet>4280</a>        "###</span>);
 <a href=#4281 id=4281 data-nosnippet>4281</a>    }
 <a href=#4282 id=4282 data-nosnippet>4282</a>
 <a href=#4283 id=4283 data-nosnippet>4283</a>    <span class="attr">#[test]
 <a href=#4284 id=4284 data-nosnippet>4284</a>    </span><span class="kw">fn </span>test_log_transaction_metrics_no_match() {
 <a href=#4285 id=4285 data-nosnippet>4285</a>        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Route);
-<a href=#4286 id=4286 data-nosnippet>4286</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+<a href=#4286 id=4286 data-nosnippet>4286</a>        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###"
 <a href=#4287 id=4287 data-nosnippet>4287</a>        [
 <a href=#4288 id=4288 data-nosnippet>4288</a>            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
 <a href=#4289 id=4289 data-nosnippet>4289</a>        ]
-<a href=#4290 id=4290 data-nosnippet>4290</a>        "#</span>);
+<a href=#4290 id=4290 data-nosnippet>4290</a>        "###</span>);
 <a href=#4291 id=4291 data-nosnippet>4291</a>    }
 <a href=#4292 id=4292 data-nosnippet>4292</a>
 <a href=#4293 id=4293 data-nosnippet>4293</a>    <span class="doccomment">/// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is

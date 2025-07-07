@@ -2017,7 +2017,7 @@
 <a href=#2017 id=2017 data-nosnippet>2017</a>            tags.get_value(<span class="string">"ai_pipeline_group"</span>).unwrap().as_str(),
 <a href=#2018 id=2018 data-nosnippet>2018</a>            <span class="prelude-val">Some</span>(<span class="string">"68e6cafc5b68d276"</span>)
 <a href=#2019 id=2019 data-nosnippet>2019</a>        );
-<a href=#2020 id=2020 data-nosnippet>2020</a>        <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>span.data), @<span class="string">r#"
+<a href=#2020 id=2020 data-nosnippet>2020</a>        <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>span.data), @<span class="string">r###"
 <a href=#2021 id=2021 data-nosnippet>2021</a>        {
 <a href=#2022 id=2022 data-nosnippet>2022</a>          "gen_ai.usage.total_tokens": 300,
 <a href=#2023 id=2023 data-nosnippet>2023</a>          "gen_ai.usage.input_tokens": 100,
@@ -2025,7 +2025,7 @@
 <a href=#2025 id=2025 data-nosnippet>2025</a>          "ai.pipeline.name": "My AI pipeline",
 <a href=#2026 id=2026 data-nosnippet>2026</a>          "ai.streaming": true
 <a href=#2027 id=2027 data-nosnippet>2027</a>        }
-<a href=#2028 id=2028 data-nosnippet>2028</a>        "#</span>);
+<a href=#2028 id=2028 data-nosnippet>2028</a>        "###</span>);
 <a href=#2029 id=2029 data-nosnippet>2029</a>    }
 <a href=#2030 id=2030 data-nosnippet>2030</a>
 <a href=#2031 id=2031 data-nosnippet>2031</a>    <span class="attr">#[test]
@@ -2076,7 +2076,7 @@
 <a href=#2076 id=2076 data-nosnippet>2076</a>            tags.get_value(<span class="string">"ai_pipeline_group"</span>).unwrap().as_str(),
 <a href=#2077 id=2077 data-nosnippet>2077</a>            <span class="prelude-val">Some</span>(<span class="string">"68e6cafc5b68d276"</span>)
 <a href=#2078 id=2078 data-nosnippet>2078</a>        );
-<a href=#2079 id=2079 data-nosnippet>2079</a>        <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>span.data), @<span class="string">r#"
+<a href=#2079 id=2079 data-nosnippet>2079</a>        <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>span.data), @<span class="string">r###"
 <a href=#2080 id=2080 data-nosnippet>2080</a>        {
 <a href=#2081 id=2081 data-nosnippet>2081</a>          "gen_ai.usage.total_tokens": 300,
 <a href=#2082 id=2082 data-nosnippet>2082</a>          "gen_ai.usage.input_tokens": 100,
@@ -2084,7 +2084,7 @@
 <a href=#2084 id=2084 data-nosnippet>2084</a>          "ai.pipeline.name": "My AI pipeline",
 <a href=#2085 id=2085 data-nosnippet>2085</a>          "ai.streaming": true
 <a href=#2086 id=2086 data-nosnippet>2086</a>        }
-<a href=#2087 id=2087 data-nosnippet>2087</a>        "#</span>);
+<a href=#2087 id=2087 data-nosnippet>2087</a>        "###</span>);
 <a href=#2088 id=2088 data-nosnippet>2088</a>    }
 <a href=#2089 id=2089 data-nosnippet>2089</a>
 <a href=#2090 id=2090 data-nosnippet>2090</a>    <span class="attr">#[test]

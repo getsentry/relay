@@ -1178,12 +1178,12 @@
 <a href=#1178 id=1178 data-nosnippet>1178</a>        <span class="kw">let </span>s = <span class="string">"transactions/foo:17.5|d|#foo,bar:baz"</span>;
 <a href=#1179 id=1179 data-nosnippet>1179</a>        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 <a href=#1180 id=1180 data-nosnippet>1180</a>        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-<a href=#1181 id=1181 data-nosnippet>1181</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric.tags, @<span class="string">r#"
-<a href=#1182 id=1182 data-nosnippet>1182</a>            {
-<a href=#1183 id=1183 data-nosnippet>1183</a>                "bar": "baz",
-<a href=#1184 id=1184 data-nosnippet>1184</a>                "foo": "",
-<a href=#1185 id=1185 data-nosnippet>1185</a>            }
-<a href=#1186 id=1186 data-nosnippet>1186</a>            "#</span>);
+<a href=#1181 id=1181 data-nosnippet>1181</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric.tags, @<span class="string">r###"
+<a href=#1182 id=1182 data-nosnippet>1182</a>        {
+<a href=#1183 id=1183 data-nosnippet>1183</a>            "bar": "baz",
+<a href=#1184 id=1184 data-nosnippet>1184</a>            "foo": "",
+<a href=#1185 id=1185 data-nosnippet>1185</a>        }
+<a href=#1186 id=1186 data-nosnippet>1186</a>        "###</span>);
 <a href=#1187 id=1187 data-nosnippet>1187</a>    }
 <a href=#1188 id=1188 data-nosnippet>1188</a>
 <a href=#1189 id=1189 data-nosnippet>1189</a>    <span class="attr">#[test]
@@ -1191,11 +1191,11 @@
 <a href=#1191 id=1191 data-nosnippet>1191</a>        <span class="kw">let </span>s = <span class="string">"transactions/foo:17.5|d|#foo:😅\\u{2c}🚀"</span>;
 <a href=#1192 id=1192 data-nosnippet>1192</a>        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
 <a href=#1193 id=1193 data-nosnippet>1193</a>        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-<a href=#1194 id=1194 data-nosnippet>1194</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric.tags, @<span class="string">r#"
-<a href=#1195 id=1195 data-nosnippet>1195</a>            {
-<a href=#1196 id=1196 data-nosnippet>1196</a>                "foo": "😅,🚀",
-<a href=#1197 id=1197 data-nosnippet>1197</a>            }
-<a href=#1198 id=1198 data-nosnippet>1198</a>            "#</span>);
+<a href=#1194 id=1194 data-nosnippet>1194</a>        <span class="macro">insta::assert_debug_snapshot!</span>(metric.tags, @<span class="string">r###"
+<a href=#1195 id=1195 data-nosnippet>1195</a>        {
+<a href=#1196 id=1196 data-nosnippet>1196</a>            "foo": "😅,🚀",
+<a href=#1197 id=1197 data-nosnippet>1197</a>        }
+<a href=#1198 id=1198 data-nosnippet>1198</a>        "###</span>);
 <a href=#1199 id=1199 data-nosnippet>1199</a>    }
 <a href=#1200 id=1200 data-nosnippet>1200</a>
 <a href=#1201 id=1201 data-nosnippet>1201</a>    <span class="attr">#[test]

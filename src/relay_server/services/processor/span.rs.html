@@ -92,7 +92,7 @@
 <a href=#92 id=92 data-nosnippet>92</a>        };
 <a href=#93 id=93 data-nosnippet>93</a>
 <a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">for </span>span_v2 <span class="kw">in </span>spans_v2.into_items() {
-<a href=#95 id=95 data-nosnippet>95</a>            <span class="kw">let </span>span_v1 = span_v2.map_value(relay_spans::span_v2_to_span_v1);
+<a href=#95 id=95 data-nosnippet>95</a>            <span class="kw">let </span>span_v1 = span_v2.value.map_value(relay_spans::span_v2_to_span_v1);
 <a href=#96 id=96 data-nosnippet>96</a>            <span class="kw">match </span>span_v1.to_json() {
 <a href=#97 id=97 data-nosnippet>97</a>                <span class="prelude-val">Ok</span>(payload) =&gt; {
 <a href=#98 id=98 data-nosnippet>98</a>                    <span class="kw">let </span><span class="kw-2">mut </span>new_item = Item::new(ItemType::Span);

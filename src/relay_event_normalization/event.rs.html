@@ -1671,7 +1671,7 @@
 <a href=#1671 id=1671 data-nosnippet>1671</a>
 <a href=#1672 id=1672 data-nosnippet>1672</a>        normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 <a href=#1673 id=1673 data-nosnippet>1673</a>
-<a href=#1674 id=1674 data-nosnippet>1674</a>        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#"
+<a href=#1674 id=1674 data-nosnippet>1674</a>        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
 <a href=#1675 id=1675 data-nosnippet>1675</a>        {
 <a href=#1676 id=1676 data-nosnippet>1676</a>          "type": "transaction",
 <a href=#1677 id=1677 data-nosnippet>1677</a>          "timestamp": 1619420405.0,
@@ -1707,7 +1707,7 @@
 <a href=#1707 id=1707 data-nosnippet>1707</a>            },
 <a href=#1708 id=1708 data-nosnippet>1708</a>          },
 <a href=#1709 id=1709 data-nosnippet>1709</a>        }
-<a href=#1710 id=1710 data-nosnippet>1710</a>        "#</span>);
+<a href=#1710 id=1710 data-nosnippet>1710</a>        "###</span>);
 <a href=#1711 id=1711 data-nosnippet>1711</a>    }
 <a href=#1712 id=1712 data-nosnippet>1712</a>
 <a href=#1713 id=1713 data-nosnippet>1713</a>    <span class="attr">#[test]
@@ -1744,7 +1744,7 @@
 <a href=#1744 id=1744 data-nosnippet>1744</a>        normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(dynamic_measurement_config), <span class="prelude-val">None</span>);
 <a href=#1745 id=1745 data-nosnippet>1745</a>
 <a href=#1746 id=1746 data-nosnippet>1746</a>        <span class="comment">// Only two custom measurements are retained, in alphabetic order (1 and 2)
-<a href=#1747 id=1747 data-nosnippet>1747</a>        </span><span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#"
+<a href=#1747 id=1747 data-nosnippet>1747</a>        </span><span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
 <a href=#1748 id=1748 data-nosnippet>1748</a>        {
 <a href=#1749 id=1749 data-nosnippet>1749</a>          "type": "transaction",
 <a href=#1750 id=1750 data-nosnippet>1750</a>          "timestamp": 1619420405.0,
@@ -1784,7 +1784,7 @@
 <a href=#1784 id=1784 data-nosnippet>1784</a>            },
 <a href=#1785 id=1785 data-nosnippet>1785</a>          },
 <a href=#1786 id=1786 data-nosnippet>1786</a>        }
-<a href=#1787 id=1787 data-nosnippet>1787</a>        "#</span>);
+<a href=#1787 id=1787 data-nosnippet>1787</a>        "###</span>);
 <a href=#1788 id=1788 data-nosnippet>1788</a>    }
 <a href=#1789 id=1789 data-nosnippet>1789</a>
 <a href=#1790 id=1790 data-nosnippet>1790</a>    <span class="attr">#[test]
@@ -1799,7 +1799,7 @@
 <a href=#1799 id=1799 data-nosnippet>1799</a>        .unwrap()
 <a href=#1800 id=1800 data-nosnippet>1800</a>        .into_value()
 <a href=#1801 id=1801 data-nosnippet>1801</a>        .unwrap();
-<a href=#1802 id=1802 data-nosnippet>1802</a>        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r#"
+<a href=#1802 id=1802 data-nosnippet>1802</a>        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
 <a href=#1803 id=1803 data-nosnippet>1803</a>        Measurements(
 <a href=#1804 id=1804 data-nosnippet>1804</a>            {
 <a href=#1805 id=1805 data-nosnippet>1805</a>                "fcp": Measurement {
@@ -1816,9 +1816,9 @@
 <a href=#1816 id=1816 data-nosnippet>1816</a>                },
 <a href=#1817 id=1817 data-nosnippet>1817</a>            },
 <a href=#1818 id=1818 data-nosnippet>1818</a>        )
-<a href=#1819 id=1819 data-nosnippet>1819</a>        "#</span>);
+<a href=#1819 id=1819 data-nosnippet>1819</a>        "###</span>);
 <a href=#1820 id=1820 data-nosnippet>1820</a>        normalize_units(<span class="kw-2">&amp;mut </span>measurements);
-<a href=#1821 id=1821 data-nosnippet>1821</a>        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r#"
+<a href=#1821 id=1821 data-nosnippet>1821</a>        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
 <a href=#1822 id=1822 data-nosnippet>1822</a>        Measurements(
 <a href=#1823 id=1823 data-nosnippet>1823</a>            {
 <a href=#1824 id=1824 data-nosnippet>1824</a>                "fcp": Measurement {
@@ -1837,7 +1837,7 @@
 <a href=#1837 id=1837 data-nosnippet>1837</a>                },
 <a href=#1838 id=1838 data-nosnippet>1838</a>            },
 <a href=#1839 id=1839 data-nosnippet>1839</a>        )
-<a href=#1840 id=1840 data-nosnippet>1840</a>        "#</span>);
+<a href=#1840 id=1840 data-nosnippet>1840</a>        "###</span>);
 <a href=#1841 id=1841 data-nosnippet>1841</a>    }
 <a href=#1842 id=1842 data-nosnippet>1842</a>
 <a href=#1843 id=1843 data-nosnippet>1843</a>    <span class="attr">#[test]
@@ -1932,7 +1932,7 @@
 <a href=#1932 id=1932 data-nosnippet>1932</a>            ..Default::default()
 <a href=#1933 id=1933 data-nosnippet>1933</a>        };
 <a href=#1934 id=1934 data-nosnippet>1934</a>        normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-<a href=#1935 id=1935 data-nosnippet>1935</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
+<a href=#1935 id=1935 data-nosnippet>1935</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###"
 <a href=#1936 id=1936 data-nosnippet>1936</a>        Tags(
 <a href=#1937 id=1937 data-nosnippet>1937</a>            PairList(
 <a href=#1938 id=1938 data-nosnippet>1938</a>                [
@@ -1943,7 +1943,7 @@
 <a href=#1943 id=1943 data-nosnippet>1943</a>                ],
 <a href=#1944 id=1944 data-nosnippet>1944</a>            ),
 <a href=#1945 id=1945 data-nosnippet>1945</a>        )
-<a href=#1946 id=1946 data-nosnippet>1946</a>        "#</span>);
+<a href=#1946 id=1946 data-nosnippet>1946</a>        "###</span>);
 <a href=#1947 id=1947 data-nosnippet>1947</a>    }
 <a href=#1948 id=1948 data-nosnippet>1948</a>
 <a href=#1949 id=1949 data-nosnippet>1949</a>    <span class="attr">#[test]
@@ -1961,7 +1961,7 @@
 <a href=#1961 id=1961 data-nosnippet>1961</a>            ..Default::default()
 <a href=#1962 id=1962 data-nosnippet>1962</a>        };
 <a href=#1963 id=1963 data-nosnippet>1963</a>        normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-<a href=#1964 id=1964 data-nosnippet>1964</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
+<a href=#1964 id=1964 data-nosnippet>1964</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###"
 <a href=#1965 id=1965 data-nosnippet>1965</a>        Tags(
 <a href=#1966 id=1966 data-nosnippet>1966</a>            PairList(
 <a href=#1967 id=1967 data-nosnippet>1967</a>                [
@@ -1972,7 +1972,7 @@
 <a href=#1972 id=1972 data-nosnippet>1972</a>                ],
 <a href=#1973 id=1973 data-nosnippet>1973</a>            ),
 <a href=#1974 id=1974 data-nosnippet>1974</a>        )
-<a href=#1975 id=1975 data-nosnippet>1975</a>        "#</span>);
+<a href=#1975 id=1975 data-nosnippet>1975</a>        "###</span>);
 <a href=#1976 id=1976 data-nosnippet>1976</a>    }
 <a href=#1977 id=1977 data-nosnippet>1977</a>
 <a href=#1978 id=1978 data-nosnippet>1978</a>    <span class="attr">#[test]
@@ -1992,7 +1992,7 @@
 <a href=#1992 id=1992 data-nosnippet>1992</a>            ..Default::default()
 <a href=#1993 id=1993 data-nosnippet>1993</a>        };
 <a href=#1994 id=1994 data-nosnippet>1994</a>        normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-<a href=#1995 id=1995 data-nosnippet>1995</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
+<a href=#1995 id=1995 data-nosnippet>1995</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###"
 <a href=#1996 id=1996 data-nosnippet>1996</a>        Tags(
 <a href=#1997 id=1997 data-nosnippet>1997</a>            PairList(
 <a href=#1998 id=1998 data-nosnippet>1998</a>                [
@@ -2003,7 +2003,7 @@
 <a href=#2003 id=2003 data-nosnippet>2003</a>                ],
 <a href=#2004 id=2004 data-nosnippet>2004</a>            ),
 <a href=#2005 id=2005 data-nosnippet>2005</a>        )
-<a href=#2006 id=2006 data-nosnippet>2006</a>        "#</span>);
+<a href=#2006 id=2006 data-nosnippet>2006</a>        "###</span>);
 <a href=#2007 id=2007 data-nosnippet>2007</a>    }
 <a href=#2008 id=2008 data-nosnippet>2008</a>
 <a href=#2009 id=2009 data-nosnippet>2009</a>    <span class="attr">#[test]
@@ -2023,7 +2023,7 @@
 <a href=#2023 id=2023 data-nosnippet>2023</a>            ..Default::default()
 <a href=#2024 id=2024 data-nosnippet>2024</a>        };
 <a href=#2025 id=2025 data-nosnippet>2025</a>        normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-<a href=#2026 id=2026 data-nosnippet>2026</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
+<a href=#2026 id=2026 data-nosnippet>2026</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###"
 <a href=#2027 id=2027 data-nosnippet>2027</a>        Tags(
 <a href=#2028 id=2028 data-nosnippet>2028</a>            PairList(
 <a href=#2029 id=2029 data-nosnippet>2029</a>                [
@@ -2034,7 +2034,7 @@
 <a href=#2034 id=2034 data-nosnippet>2034</a>                ],
 <a href=#2035 id=2035 data-nosnippet>2035</a>            ),
 <a href=#2036 id=2036 data-nosnippet>2036</a>        )
-<a href=#2037 id=2037 data-nosnippet>2037</a>        "#</span>);
+<a href=#2037 id=2037 data-nosnippet>2037</a>        "###</span>);
 <a href=#2038 id=2038 data-nosnippet>2038</a>    }
 <a href=#2039 id=2039 data-nosnippet>2039</a>
 <a href=#2040 id=2040 data-nosnippet>2040</a>    <span class="attr">#[test]
@@ -2054,7 +2054,7 @@
 <a href=#2054 id=2054 data-nosnippet>2054</a>            ..Default::default()
 <a href=#2055 id=2055 data-nosnippet>2055</a>        };
 <a href=#2056 id=2056 data-nosnippet>2056</a>        normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-<a href=#2057 id=2057 data-nosnippet>2057</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
+<a href=#2057 id=2057 data-nosnippet>2057</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###"
 <a href=#2058 id=2058 data-nosnippet>2058</a>        Tags(
 <a href=#2059 id=2059 data-nosnippet>2059</a>            PairList(
 <a href=#2060 id=2060 data-nosnippet>2060</a>                [
@@ -2065,7 +2065,7 @@
 <a href=#2065 id=2065 data-nosnippet>2065</a>                ],
 <a href=#2066 id=2066 data-nosnippet>2066</a>            ),
 <a href=#2067 id=2067 data-nosnippet>2067</a>        )
-<a href=#2068 id=2068 data-nosnippet>2068</a>        "#</span>);
+<a href=#2068 id=2068 data-nosnippet>2068</a>        "###</span>);
 <a href=#2069 id=2069 data-nosnippet>2069</a>    }
 <a href=#2070 id=2070 data-nosnippet>2070</a>
 <a href=#2071 id=2071 data-nosnippet>2071</a>    <span class="attr">#[test]
@@ -2712,7 +2712,7 @@
 <a href=#2712 id=2712 data-nosnippet>2712</a>            ..Default::default()
 <a href=#2713 id=2713 data-nosnippet>2713</a>        };
 <a href=#2714 id=2714 data-nosnippet>2714</a>        normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-<a href=#2715 id=2715 data-nosnippet>2715</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#"
+<a href=#2715 id=2715 data-nosnippet>2715</a>        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###"
 <a href=#2716 id=2716 data-nosnippet>2716</a>        Tags(
 <a href=#2717 id=2717 data-nosnippet>2717</a>            PairList(
 <a href=#2718 id=2718 data-nosnippet>2718</a>                [
@@ -2723,7 +2723,7 @@
 <a href=#2723 id=2723 data-nosnippet>2723</a>                ],
 <a href=#2724 id=2724 data-nosnippet>2724</a>            ),
 <a href=#2725 id=2725 data-nosnippet>2725</a>        )
-<a href=#2726 id=2726 data-nosnippet>2726</a>        "#</span>);
+<a href=#2726 id=2726 data-nosnippet>2726</a>        "###</span>);
 <a href=#2727 id=2727 data-nosnippet>2727</a>    }
 <a href=#2728 id=2728 data-nosnippet>2728</a>
 <a href=#2729 id=2729 data-nosnippet>2729</a>    <span class="attr">#[test]
@@ -4630,7 +4630,7 @@
 <a href=#4630 id=4630 data-nosnippet>4630</a>            .first()
 <a href=#4631 id=4631 data-nosnippet>4631</a>            .unwrap();
 <a href=#4632 id=4632 data-nosnippet>4632</a>
-<a href=#4633 id=4633 data-nosnippet>4633</a>        <span class="macro">assert_debug_snapshot!</span>(exception.meta(), @<span class="string">r#"
+<a href=#4633 id=4633 data-nosnippet>4633</a>        <span class="macro">assert_debug_snapshot!</span>(exception.meta(), @<span class="string">r###"
 <a href=#4634 id=4634 data-nosnippet>4634</a>        Meta {
 <a href=#4635 id=4635 data-nosnippet>4635</a>            remarks: [],
 <a href=#4636 id=4636 data-nosnippet>4636</a>            errors: [
@@ -4657,260 +4657,262 @@
 <a href=#4657 id=4657 data-nosnippet>4657</a>                    },
 <a href=#4658 id=4658 data-nosnippet>4658</a>                ),
 <a href=#4659 id=4659 data-nosnippet>4659</a>            ),
-<a href=#4660 id=4660 data-nosnippet>4660</a>        }"#</span>);
-<a href=#4661 id=4661 data-nosnippet>4661</a>    }
-<a href=#4662 id=4662 data-nosnippet>4662</a>
-<a href=#4663 id=4663 data-nosnippet>4663</a>    <span class="attr">#[test]
-<a href=#4664 id=4664 data-nosnippet>4664</a>    </span><span class="kw">fn </span>test_normalize_breadcrumbs() {
-<a href=#4665 id=4665 data-nosnippet>4665</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
-<a href=#4666 id=4666 data-nosnippet>4666</a>            breadcrumbs: Annotated::new(Values {
-<a href=#4667 id=4667 data-nosnippet>4667</a>                values: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Breadcrumb::default())]),
-<a href=#4668 id=4668 data-nosnippet>4668</a>                ..Default::default()
-<a href=#4669 id=4669 data-nosnippet>4669</a>            }),
-<a href=#4670 id=4670 data-nosnippet>4670</a>            ..Default::default()
-<a href=#4671 id=4671 data-nosnippet>4671</a>        };
-<a href=#4672 id=4672 data-nosnippet>4672</a>        normalize_breadcrumbs(<span class="kw-2">&amp;mut </span>event);
-<a href=#4673 id=4673 data-nosnippet>4673</a>
-<a href=#4674 id=4674 data-nosnippet>4674</a>        <span class="kw">let </span>breadcrumb = event
-<a href=#4675 id=4675 data-nosnippet>4675</a>            .breadcrumbs
-<a href=#4676 id=4676 data-nosnippet>4676</a>            .value()
-<a href=#4677 id=4677 data-nosnippet>4677</a>            .unwrap()
-<a href=#4678 id=4678 data-nosnippet>4678</a>            .values
-<a href=#4679 id=4679 data-nosnippet>4679</a>            .value()
-<a href=#4680 id=4680 data-nosnippet>4680</a>            .unwrap()
-<a href=#4681 id=4681 data-nosnippet>4681</a>            .first()
-<a href=#4682 id=4682 data-nosnippet>4682</a>            .unwrap()
-<a href=#4683 id=4683 data-nosnippet>4683</a>            .value()
-<a href=#4684 id=4684 data-nosnippet>4684</a>            .unwrap();
-<a href=#4685 id=4685 data-nosnippet>4685</a>        <span class="macro">assert_eq!</span>(breadcrumb.ty.value().unwrap(), <span class="string">"default"</span>);
-<a href=#4686 id=4686 data-nosnippet>4686</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>breadcrumb.level.value().unwrap().to_string(), <span class="string">"info"</span>);
-<a href=#4687 id=4687 data-nosnippet>4687</a>    }
-<a href=#4688 id=4688 data-nosnippet>4688</a>
-<a href=#4689 id=4689 data-nosnippet>4689</a>    <span class="attr">#[test]
-<a href=#4690 id=4690 data-nosnippet>4690</a>    </span><span class="kw">fn </span>test_other_debug_images_have_meta_errors() {
-<a href=#4691 id=4691 data-nosnippet>4691</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
-<a href=#4692 id=4692 data-nosnippet>4692</a>            debug_meta: Annotated::new(DebugMeta {
-<a href=#4693 id=4693 data-nosnippet>4693</a>                images: Annotated::new(<span class="macro">vec!</span>[Annotated::new(
-<a href=#4694 id=4694 data-nosnippet>4694</a>                    DebugImage::Other(BTreeMap::default()),
-<a href=#4695 id=4695 data-nosnippet>4695</a>                )]),
-<a href=#4696 id=4696 data-nosnippet>4696</a>                ..Default::default()
-<a href=#4697 id=4697 data-nosnippet>4697</a>            }),
-<a href=#4698 id=4698 data-nosnippet>4698</a>            ..Default::default()
-<a href=#4699 id=4699 data-nosnippet>4699</a>        };
-<a href=#4700 id=4700 data-nosnippet>4700</a>        normalize_debug_meta(<span class="kw-2">&amp;mut </span>event);
-<a href=#4701 id=4701 data-nosnippet>4701</a>
-<a href=#4702 id=4702 data-nosnippet>4702</a>        <span class="kw">let </span>debug_image_meta = event
-<a href=#4703 id=4703 data-nosnippet>4703</a>            .debug_meta
-<a href=#4704 id=4704 data-nosnippet>4704</a>            .value()
-<a href=#4705 id=4705 data-nosnippet>4705</a>            .unwrap()
-<a href=#4706 id=4706 data-nosnippet>4706</a>            .images
-<a href=#4707 id=4707 data-nosnippet>4707</a>            .value()
-<a href=#4708 id=4708 data-nosnippet>4708</a>            .unwrap()
-<a href=#4709 id=4709 data-nosnippet>4709</a>            .first()
-<a href=#4710 id=4710 data-nosnippet>4710</a>            .unwrap()
-<a href=#4711 id=4711 data-nosnippet>4711</a>            .meta();
-<a href=#4712 id=4712 data-nosnippet>4712</a>        <span class="macro">assert_debug_snapshot!</span>(debug_image_meta, @<span class="string">r#"
-<a href=#4713 id=4713 data-nosnippet>4713</a>        Meta {
-<a href=#4714 id=4714 data-nosnippet>4714</a>            remarks: [],
-<a href=#4715 id=4715 data-nosnippet>4715</a>            errors: [
-<a href=#4716 id=4716 data-nosnippet>4716</a>                Error {
-<a href=#4717 id=4717 data-nosnippet>4717</a>                    kind: InvalidData,
-<a href=#4718 id=4718 data-nosnippet>4718</a>                    data: {
-<a href=#4719 id=4719 data-nosnippet>4719</a>                        "reason": String(
-<a href=#4720 id=4720 data-nosnippet>4720</a>                            "unsupported debug image type",
-<a href=#4721 id=4721 data-nosnippet>4721</a>                        ),
-<a href=#4722 id=4722 data-nosnippet>4722</a>                    },
-<a href=#4723 id=4723 data-nosnippet>4723</a>                },
-<a href=#4724 id=4724 data-nosnippet>4724</a>            ],
-<a href=#4725 id=4725 data-nosnippet>4725</a>            original_length: None,
-<a href=#4726 id=4726 data-nosnippet>4726</a>            original_value: Some(
-<a href=#4727 id=4727 data-nosnippet>4727</a>                Object(
-<a href=#4728 id=4728 data-nosnippet>4728</a>                    {},
-<a href=#4729 id=4729 data-nosnippet>4729</a>                ),
-<a href=#4730 id=4730 data-nosnippet>4730</a>            ),
-<a href=#4731 id=4731 data-nosnippet>4731</a>        }"#</span>);
-<a href=#4732 id=4732 data-nosnippet>4732</a>    }
-<a href=#4733 id=4733 data-nosnippet>4733</a>
-<a href=#4734 id=4734 data-nosnippet>4734</a>    <span class="attr">#[test]
-<a href=#4735 id=4735 data-nosnippet>4735</a>    </span><span class="kw">fn </span>test_skip_span_normalization_when_configured() {
-<a href=#4736 id=4736 data-nosnippet>4736</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#4737 id=4737 data-nosnippet>4737</a>            "type": "transaction",
-<a href=#4738 id=4738 data-nosnippet>4738</a>            "start_timestamp": 1,
-<a href=#4739 id=4739 data-nosnippet>4739</a>            "timestamp": 2,
-<a href=#4740 id=4740 data-nosnippet>4740</a>            "contexts": {
-<a href=#4741 id=4741 data-nosnippet>4741</a>                "trace": {
-<a href=#4742 id=4742 data-nosnippet>4742</a>                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#4743 id=4743 data-nosnippet>4743</a>                    "span_id": "aaaaaaaaaaaaaaaa"
-<a href=#4744 id=4744 data-nosnippet>4744</a>                }
-<a href=#4745 id=4745 data-nosnippet>4745</a>            },
-<a href=#4746 id=4746 data-nosnippet>4746</a>            "spans": [
-<a href=#4747 id=4747 data-nosnippet>4747</a>                {
-<a href=#4748 id=4748 data-nosnippet>4748</a>                    "op": "db",
-<a href=#4749 id=4749 data-nosnippet>4749</a>                    "description": "SELECT * FROM table;",
-<a href=#4750 id=4750 data-nosnippet>4750</a>                    "start_timestamp": 1,
-<a href=#4751 id=4751 data-nosnippet>4751</a>                    "timestamp": 2,
-<a href=#4752 id=4752 data-nosnippet>4752</a>                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-<a href=#4753 id=4753 data-nosnippet>4753</a>                    "span_id": "bbbbbbbbbbbbbbbb",
-<a href=#4754 id=4754 data-nosnippet>4754</a>                    "parent_span_id": "aaaaaaaaaaaaaaaa"
-<a href=#4755 id=4755 data-nosnippet>4755</a>                }
-<a href=#4756 id=4756 data-nosnippet>4756</a>            ]
-<a href=#4757 id=4757 data-nosnippet>4757</a>        }"#</span>;
-<a href=#4758 id=4758 data-nosnippet>4758</a>
-<a href=#4759 id=4759 data-nosnippet>4759</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
-<a href=#4760 id=4760 data-nosnippet>4760</a>        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_none());
-<a href=#4761 id=4761 data-nosnippet>4761</a>        normalize_event(
-<a href=#4762 id=4762 data-nosnippet>4762</a>            <span class="kw-2">&amp;mut </span>event,
-<a href=#4763 id=4763 data-nosnippet>4763</a>            <span class="kw-2">&amp;</span>NormalizationConfig {
-<a href=#4764 id=4764 data-nosnippet>4764</a>                is_renormalize: <span class="bool-val">true</span>,
-<a href=#4765 id=4765 data-nosnippet>4765</a>                ..Default::default()
-<a href=#4766 id=4766 data-nosnippet>4766</a>            },
-<a href=#4767 id=4767 data-nosnippet>4767</a>        );
-<a href=#4768 id=4768 data-nosnippet>4768</a>        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_none());
-<a href=#4769 id=4769 data-nosnippet>4769</a>        normalize_event(
-<a href=#4770 id=4770 data-nosnippet>4770</a>            <span class="kw-2">&amp;mut </span>event,
-<a href=#4771 id=4771 data-nosnippet>4771</a>            <span class="kw-2">&amp;</span>NormalizationConfig {
-<a href=#4772 id=4772 data-nosnippet>4772</a>                is_renormalize: <span class="bool-val">false</span>,
-<a href=#4773 id=4773 data-nosnippet>4773</a>                ..Default::default()
-<a href=#4774 id=4774 data-nosnippet>4774</a>            },
-<a href=#4775 id=4775 data-nosnippet>4775</a>        );
-<a href=#4776 id=4776 data-nosnippet>4776</a>        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_some());
-<a href=#4777 id=4777 data-nosnippet>4777</a>    }
-<a href=#4778 id=4778 data-nosnippet>4778</a>
-<a href=#4779 id=4779 data-nosnippet>4779</a>    <span class="attr">#[test]
-<a href=#4780 id=4780 data-nosnippet>4780</a>    </span><span class="kw">fn </span>test_normalize_trace_context_tags_extracts_lcp_info() {
-<a href=#4781 id=4781 data-nosnippet>4781</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#4782 id=4782 data-nosnippet>4782</a>            "type": "transaction",
-<a href=#4783 id=4783 data-nosnippet>4783</a>            "start_timestamp": 1,
-<a href=#4784 id=4784 data-nosnippet>4784</a>            "timestamp": 2,
-<a href=#4785 id=4785 data-nosnippet>4785</a>            "contexts": {
-<a href=#4786 id=4786 data-nosnippet>4786</a>                "trace": {
-<a href=#4787 id=4787 data-nosnippet>4787</a>                    "data": {
-<a href=#4788 id=4788 data-nosnippet>4788</a>                        "lcp.element": "body &gt; div#app &gt; div &gt; h1#header",
-<a href=#4789 id=4789 data-nosnippet>4789</a>                        "lcp.size": 24827,
-<a href=#4790 id=4790 data-nosnippet>4790</a>                        "lcp.id": "header",
-<a href=#4791 id=4791 data-nosnippet>4791</a>                        "lcp.url": "http://example.com/image.jpg"
-<a href=#4792 id=4792 data-nosnippet>4792</a>                    }
-<a href=#4793 id=4793 data-nosnippet>4793</a>                }
-<a href=#4794 id=4794 data-nosnippet>4794</a>            },
-<a href=#4795 id=4795 data-nosnippet>4795</a>            "measurements": {
-<a href=#4796 id=4796 data-nosnippet>4796</a>                "lcp": { "value": 146.20000000298023, "unit": "millisecond" }
-<a href=#4797 id=4797 data-nosnippet>4797</a>            }
-<a href=#4798 id=4798 data-nosnippet>4798</a>        }"#</span>;
-<a href=#4799 id=4799 data-nosnippet>4799</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
-<a href=#4800 id=4800 data-nosnippet>4800</a>        normalize_trace_context_tags(<span class="kw-2">&amp;mut </span>event);
-<a href=#4801 id=4801 data-nosnippet>4801</a>        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#"
-<a href=#4802 id=4802 data-nosnippet>4802</a>        {
-<a href=#4803 id=4803 data-nosnippet>4803</a>          "type": "transaction",
-<a href=#4804 id=4804 data-nosnippet>4804</a>          "timestamp": 2.0,
-<a href=#4805 id=4805 data-nosnippet>4805</a>          "start_timestamp": 1.0,
-<a href=#4806 id=4806 data-nosnippet>4806</a>          "contexts": {
-<a href=#4807 id=4807 data-nosnippet>4807</a>            "trace": {
-<a href=#4808 id=4808 data-nosnippet>4808</a>              "data": {
-<a href=#4809 id=4809 data-nosnippet>4809</a>                "lcp.element": "body &gt; div#app &gt; div &gt; h1#header",
-<a href=#4810 id=4810 data-nosnippet>4810</a>                "lcp.size": 24827,
-<a href=#4811 id=4811 data-nosnippet>4811</a>                "lcp.id": "header",
-<a href=#4812 id=4812 data-nosnippet>4812</a>                "lcp.url": "http://example.com/image.jpg",
-<a href=#4813 id=4813 data-nosnippet>4813</a>              },
-<a href=#4814 id=4814 data-nosnippet>4814</a>              "type": "trace",
-<a href=#4815 id=4815 data-nosnippet>4815</a>            },
-<a href=#4816 id=4816 data-nosnippet>4816</a>          },
-<a href=#4817 id=4817 data-nosnippet>4817</a>          "tags": [
-<a href=#4818 id=4818 data-nosnippet>4818</a>            [
-<a href=#4819 id=4819 data-nosnippet>4819</a>              "lcp.element",
-<a href=#4820 id=4820 data-nosnippet>4820</a>              "body &gt; div#app &gt; div &gt; h1#header",
-<a href=#4821 id=4821 data-nosnippet>4821</a>            ],
-<a href=#4822 id=4822 data-nosnippet>4822</a>            [
-<a href=#4823 id=4823 data-nosnippet>4823</a>              "lcp.size",
-<a href=#4824 id=4824 data-nosnippet>4824</a>              "24827",
-<a href=#4825 id=4825 data-nosnippet>4825</a>            ],
-<a href=#4826 id=4826 data-nosnippet>4826</a>            [
-<a href=#4827 id=4827 data-nosnippet>4827</a>              "lcp.id",
-<a href=#4828 id=4828 data-nosnippet>4828</a>              "header",
-<a href=#4829 id=4829 data-nosnippet>4829</a>            ],
-<a href=#4830 id=4830 data-nosnippet>4830</a>            [
-<a href=#4831 id=4831 data-nosnippet>4831</a>              "lcp.url",
-<a href=#4832 id=4832 data-nosnippet>4832</a>              "http://example.com/image.jpg",
-<a href=#4833 id=4833 data-nosnippet>4833</a>            ],
-<a href=#4834 id=4834 data-nosnippet>4834</a>          ],
-<a href=#4835 id=4835 data-nosnippet>4835</a>          "measurements": {
-<a href=#4836 id=4836 data-nosnippet>4836</a>            "lcp": {
-<a href=#4837 id=4837 data-nosnippet>4837</a>              "value": 146.20000000298023,
-<a href=#4838 id=4838 data-nosnippet>4838</a>              "unit": "millisecond",
-<a href=#4839 id=4839 data-nosnippet>4839</a>            },
-<a href=#4840 id=4840 data-nosnippet>4840</a>          },
-<a href=#4841 id=4841 data-nosnippet>4841</a>        }
-<a href=#4842 id=4842 data-nosnippet>4842</a>        "#</span>);
-<a href=#4843 id=4843 data-nosnippet>4843</a>    }
-<a href=#4844 id=4844 data-nosnippet>4844</a>
-<a href=#4845 id=4845 data-nosnippet>4845</a>    <span class="attr">#[test]
-<a href=#4846 id=4846 data-nosnippet>4846</a>    </span><span class="kw">fn </span>test_normalize_trace_context_tags_does_not_overwrite_lcp_tags() {
-<a href=#4847 id=4847 data-nosnippet>4847</a>        <span class="kw">let </span>json = <span class="string">r#"{
-<a href=#4848 id=4848 data-nosnippet>4848</a>          "type": "transaction",
-<a href=#4849 id=4849 data-nosnippet>4849</a>          "start_timestamp": 1,
-<a href=#4850 id=4850 data-nosnippet>4850</a>          "timestamp": 2,
-<a href=#4851 id=4851 data-nosnippet>4851</a>          "contexts": {
-<a href=#4852 id=4852 data-nosnippet>4852</a>              "trace": {
-<a href=#4853 id=4853 data-nosnippet>4853</a>                  "data": {
-<a href=#4854 id=4854 data-nosnippet>4854</a>                      "lcp.element": "body &gt; div#app &gt; div &gt; h1#id",
-<a href=#4855 id=4855 data-nosnippet>4855</a>                      "lcp.size": 33333,
-<a href=#4856 id=4856 data-nosnippet>4856</a>                      "lcp.id": "id",
-<a href=#4857 id=4857 data-nosnippet>4857</a>                      "lcp.url": "http://example.com/another-image.jpg"
-<a href=#4858 id=4858 data-nosnippet>4858</a>                  }
-<a href=#4859 id=4859 data-nosnippet>4859</a>              }
-<a href=#4860 id=4860 data-nosnippet>4860</a>          },
-<a href=#4861 id=4861 data-nosnippet>4861</a>          "tags": {
-<a href=#4862 id=4862 data-nosnippet>4862</a>              "lcp.element": "body &gt; div#app &gt; div &gt; h1#header",
-<a href=#4863 id=4863 data-nosnippet>4863</a>              "lcp.size": 24827,
-<a href=#4864 id=4864 data-nosnippet>4864</a>              "lcp.id": "header",
-<a href=#4865 id=4865 data-nosnippet>4865</a>              "lcp.url": "http://example.com/image.jpg"
-<a href=#4866 id=4866 data-nosnippet>4866</a>          },
-<a href=#4867 id=4867 data-nosnippet>4867</a>          "measurements": {
-<a href=#4868 id=4868 data-nosnippet>4868</a>              "lcp": { "value": 146.20000000298023, "unit": "millisecond" }
-<a href=#4869 id=4869 data-nosnippet>4869</a>          }
-<a href=#4870 id=4870 data-nosnippet>4870</a>        }"#</span>;
-<a href=#4871 id=4871 data-nosnippet>4871</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
-<a href=#4872 id=4872 data-nosnippet>4872</a>        normalize_trace_context_tags(<span class="kw-2">&amp;mut </span>event);
-<a href=#4873 id=4873 data-nosnippet>4873</a>        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#"
-<a href=#4874 id=4874 data-nosnippet>4874</a>        {
-<a href=#4875 id=4875 data-nosnippet>4875</a>          "type": "transaction",
-<a href=#4876 id=4876 data-nosnippet>4876</a>          "timestamp": 2.0,
-<a href=#4877 id=4877 data-nosnippet>4877</a>          "start_timestamp": 1.0,
-<a href=#4878 id=4878 data-nosnippet>4878</a>          "contexts": {
-<a href=#4879 id=4879 data-nosnippet>4879</a>            "trace": {
-<a href=#4880 id=4880 data-nosnippet>4880</a>              "data": {
-<a href=#4881 id=4881 data-nosnippet>4881</a>                "lcp.element": "body &gt; div#app &gt; div &gt; h1#id",
-<a href=#4882 id=4882 data-nosnippet>4882</a>                "lcp.size": 33333,
-<a href=#4883 id=4883 data-nosnippet>4883</a>                "lcp.id": "id",
-<a href=#4884 id=4884 data-nosnippet>4884</a>                "lcp.url": "http://example.com/another-image.jpg",
-<a href=#4885 id=4885 data-nosnippet>4885</a>              },
-<a href=#4886 id=4886 data-nosnippet>4886</a>              "type": "trace",
-<a href=#4887 id=4887 data-nosnippet>4887</a>            },
-<a href=#4888 id=4888 data-nosnippet>4888</a>          },
-<a href=#4889 id=4889 data-nosnippet>4889</a>          "tags": [
-<a href=#4890 id=4890 data-nosnippet>4890</a>            [
-<a href=#4891 id=4891 data-nosnippet>4891</a>              "lcp.element",
-<a href=#4892 id=4892 data-nosnippet>4892</a>              "body &gt; div#app &gt; div &gt; h1#header",
-<a href=#4893 id=4893 data-nosnippet>4893</a>            ],
-<a href=#4894 id=4894 data-nosnippet>4894</a>            [
-<a href=#4895 id=4895 data-nosnippet>4895</a>              "lcp.id",
-<a href=#4896 id=4896 data-nosnippet>4896</a>              "header",
-<a href=#4897 id=4897 data-nosnippet>4897</a>            ],
-<a href=#4898 id=4898 data-nosnippet>4898</a>            [
-<a href=#4899 id=4899 data-nosnippet>4899</a>              "lcp.size",
-<a href=#4900 id=4900 data-nosnippet>4900</a>              "24827",
-<a href=#4901 id=4901 data-nosnippet>4901</a>            ],
-<a href=#4902 id=4902 data-nosnippet>4902</a>            [
-<a href=#4903 id=4903 data-nosnippet>4903</a>              "lcp.url",
-<a href=#4904 id=4904 data-nosnippet>4904</a>              "http://example.com/image.jpg",
-<a href=#4905 id=4905 data-nosnippet>4905</a>            ],
-<a href=#4906 id=4906 data-nosnippet>4906</a>          ],
-<a href=#4907 id=4907 data-nosnippet>4907</a>          "measurements": {
-<a href=#4908 id=4908 data-nosnippet>4908</a>            "lcp": {
-<a href=#4909 id=4909 data-nosnippet>4909</a>              "value": 146.20000000298023,
-<a href=#4910 id=4910 data-nosnippet>4910</a>              "unit": "millisecond",
-<a href=#4911 id=4911 data-nosnippet>4911</a>            },
-<a href=#4912 id=4912 data-nosnippet>4912</a>          },
-<a href=#4913 id=4913 data-nosnippet>4913</a>        }
-<a href=#4914 id=4914 data-nosnippet>4914</a>        "#</span>);
-<a href=#4915 id=4915 data-nosnippet>4915</a>    }
-<a href=#4916 id=4916 data-nosnippet>4916</a>}</code></pre></div></section></main></body></html>
+<a href=#4660 id=4660 data-nosnippet>4660</a>        }
+<a href=#4661 id=4661 data-nosnippet>4661</a>        "###</span>);
+<a href=#4662 id=4662 data-nosnippet>4662</a>    }
+<a href=#4663 id=4663 data-nosnippet>4663</a>
+<a href=#4664 id=4664 data-nosnippet>4664</a>    <span class="attr">#[test]
+<a href=#4665 id=4665 data-nosnippet>4665</a>    </span><span class="kw">fn </span>test_normalize_breadcrumbs() {
+<a href=#4666 id=4666 data-nosnippet>4666</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+<a href=#4667 id=4667 data-nosnippet>4667</a>            breadcrumbs: Annotated::new(Values {
+<a href=#4668 id=4668 data-nosnippet>4668</a>                values: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Breadcrumb::default())]),
+<a href=#4669 id=4669 data-nosnippet>4669</a>                ..Default::default()
+<a href=#4670 id=4670 data-nosnippet>4670</a>            }),
+<a href=#4671 id=4671 data-nosnippet>4671</a>            ..Default::default()
+<a href=#4672 id=4672 data-nosnippet>4672</a>        };
+<a href=#4673 id=4673 data-nosnippet>4673</a>        normalize_breadcrumbs(<span class="kw-2">&amp;mut </span>event);
+<a href=#4674 id=4674 data-nosnippet>4674</a>
+<a href=#4675 id=4675 data-nosnippet>4675</a>        <span class="kw">let </span>breadcrumb = event
+<a href=#4676 id=4676 data-nosnippet>4676</a>            .breadcrumbs
+<a href=#4677 id=4677 data-nosnippet>4677</a>            .value()
+<a href=#4678 id=4678 data-nosnippet>4678</a>            .unwrap()
+<a href=#4679 id=4679 data-nosnippet>4679</a>            .values
+<a href=#4680 id=4680 data-nosnippet>4680</a>            .value()
+<a href=#4681 id=4681 data-nosnippet>4681</a>            .unwrap()
+<a href=#4682 id=4682 data-nosnippet>4682</a>            .first()
+<a href=#4683 id=4683 data-nosnippet>4683</a>            .unwrap()
+<a href=#4684 id=4684 data-nosnippet>4684</a>            .value()
+<a href=#4685 id=4685 data-nosnippet>4685</a>            .unwrap();
+<a href=#4686 id=4686 data-nosnippet>4686</a>        <span class="macro">assert_eq!</span>(breadcrumb.ty.value().unwrap(), <span class="string">"default"</span>);
+<a href=#4687 id=4687 data-nosnippet>4687</a>        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>breadcrumb.level.value().unwrap().to_string(), <span class="string">"info"</span>);
+<a href=#4688 id=4688 data-nosnippet>4688</a>    }
+<a href=#4689 id=4689 data-nosnippet>4689</a>
+<a href=#4690 id=4690 data-nosnippet>4690</a>    <span class="attr">#[test]
+<a href=#4691 id=4691 data-nosnippet>4691</a>    </span><span class="kw">fn </span>test_other_debug_images_have_meta_errors() {
+<a href=#4692 id=4692 data-nosnippet>4692</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+<a href=#4693 id=4693 data-nosnippet>4693</a>            debug_meta: Annotated::new(DebugMeta {
+<a href=#4694 id=4694 data-nosnippet>4694</a>                images: Annotated::new(<span class="macro">vec!</span>[Annotated::new(
+<a href=#4695 id=4695 data-nosnippet>4695</a>                    DebugImage::Other(BTreeMap::default()),
+<a href=#4696 id=4696 data-nosnippet>4696</a>                )]),
+<a href=#4697 id=4697 data-nosnippet>4697</a>                ..Default::default()
+<a href=#4698 id=4698 data-nosnippet>4698</a>            }),
+<a href=#4699 id=4699 data-nosnippet>4699</a>            ..Default::default()
+<a href=#4700 id=4700 data-nosnippet>4700</a>        };
+<a href=#4701 id=4701 data-nosnippet>4701</a>        normalize_debug_meta(<span class="kw-2">&amp;mut </span>event);
+<a href=#4702 id=4702 data-nosnippet>4702</a>
+<a href=#4703 id=4703 data-nosnippet>4703</a>        <span class="kw">let </span>debug_image_meta = event
+<a href=#4704 id=4704 data-nosnippet>4704</a>            .debug_meta
+<a href=#4705 id=4705 data-nosnippet>4705</a>            .value()
+<a href=#4706 id=4706 data-nosnippet>4706</a>            .unwrap()
+<a href=#4707 id=4707 data-nosnippet>4707</a>            .images
+<a href=#4708 id=4708 data-nosnippet>4708</a>            .value()
+<a href=#4709 id=4709 data-nosnippet>4709</a>            .unwrap()
+<a href=#4710 id=4710 data-nosnippet>4710</a>            .first()
+<a href=#4711 id=4711 data-nosnippet>4711</a>            .unwrap()
+<a href=#4712 id=4712 data-nosnippet>4712</a>            .meta();
+<a href=#4713 id=4713 data-nosnippet>4713</a>        <span class="macro">assert_debug_snapshot!</span>(debug_image_meta, @<span class="string">r###"
+<a href=#4714 id=4714 data-nosnippet>4714</a>        Meta {
+<a href=#4715 id=4715 data-nosnippet>4715</a>            remarks: [],
+<a href=#4716 id=4716 data-nosnippet>4716</a>            errors: [
+<a href=#4717 id=4717 data-nosnippet>4717</a>                Error {
+<a href=#4718 id=4718 data-nosnippet>4718</a>                    kind: InvalidData,
+<a href=#4719 id=4719 data-nosnippet>4719</a>                    data: {
+<a href=#4720 id=4720 data-nosnippet>4720</a>                        "reason": String(
+<a href=#4721 id=4721 data-nosnippet>4721</a>                            "unsupported debug image type",
+<a href=#4722 id=4722 data-nosnippet>4722</a>                        ),
+<a href=#4723 id=4723 data-nosnippet>4723</a>                    },
+<a href=#4724 id=4724 data-nosnippet>4724</a>                },
+<a href=#4725 id=4725 data-nosnippet>4725</a>            ],
+<a href=#4726 id=4726 data-nosnippet>4726</a>            original_length: None,
+<a href=#4727 id=4727 data-nosnippet>4727</a>            original_value: Some(
+<a href=#4728 id=4728 data-nosnippet>4728</a>                Object(
+<a href=#4729 id=4729 data-nosnippet>4729</a>                    {},
+<a href=#4730 id=4730 data-nosnippet>4730</a>                ),
+<a href=#4731 id=4731 data-nosnippet>4731</a>            ),
+<a href=#4732 id=4732 data-nosnippet>4732</a>        }
+<a href=#4733 id=4733 data-nosnippet>4733</a>        "###</span>);
+<a href=#4734 id=4734 data-nosnippet>4734</a>    }
+<a href=#4735 id=4735 data-nosnippet>4735</a>
+<a href=#4736 id=4736 data-nosnippet>4736</a>    <span class="attr">#[test]
+<a href=#4737 id=4737 data-nosnippet>4737</a>    </span><span class="kw">fn </span>test_skip_span_normalization_when_configured() {
+<a href=#4738 id=4738 data-nosnippet>4738</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#4739 id=4739 data-nosnippet>4739</a>            "type": "transaction",
+<a href=#4740 id=4740 data-nosnippet>4740</a>            "start_timestamp": 1,
+<a href=#4741 id=4741 data-nosnippet>4741</a>            "timestamp": 2,
+<a href=#4742 id=4742 data-nosnippet>4742</a>            "contexts": {
+<a href=#4743 id=4743 data-nosnippet>4743</a>                "trace": {
+<a href=#4744 id=4744 data-nosnippet>4744</a>                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#4745 id=4745 data-nosnippet>4745</a>                    "span_id": "aaaaaaaaaaaaaaaa"
+<a href=#4746 id=4746 data-nosnippet>4746</a>                }
+<a href=#4747 id=4747 data-nosnippet>4747</a>            },
+<a href=#4748 id=4748 data-nosnippet>4748</a>            "spans": [
+<a href=#4749 id=4749 data-nosnippet>4749</a>                {
+<a href=#4750 id=4750 data-nosnippet>4750</a>                    "op": "db",
+<a href=#4751 id=4751 data-nosnippet>4751</a>                    "description": "SELECT * FROM table;",
+<a href=#4752 id=4752 data-nosnippet>4752</a>                    "start_timestamp": 1,
+<a href=#4753 id=4753 data-nosnippet>4753</a>                    "timestamp": 2,
+<a href=#4754 id=4754 data-nosnippet>4754</a>                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+<a href=#4755 id=4755 data-nosnippet>4755</a>                    "span_id": "bbbbbbbbbbbbbbbb",
+<a href=#4756 id=4756 data-nosnippet>4756</a>                    "parent_span_id": "aaaaaaaaaaaaaaaa"
+<a href=#4757 id=4757 data-nosnippet>4757</a>                }
+<a href=#4758 id=4758 data-nosnippet>4758</a>            ]
+<a href=#4759 id=4759 data-nosnippet>4759</a>        }"#</span>;
+<a href=#4760 id=4760 data-nosnippet>4760</a>
+<a href=#4761 id=4761 data-nosnippet>4761</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+<a href=#4762 id=4762 data-nosnippet>4762</a>        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_none());
+<a href=#4763 id=4763 data-nosnippet>4763</a>        normalize_event(
+<a href=#4764 id=4764 data-nosnippet>4764</a>            <span class="kw-2">&amp;mut </span>event,
+<a href=#4765 id=4765 data-nosnippet>4765</a>            <span class="kw-2">&amp;</span>NormalizationConfig {
+<a href=#4766 id=4766 data-nosnippet>4766</a>                is_renormalize: <span class="bool-val">true</span>,
+<a href=#4767 id=4767 data-nosnippet>4767</a>                ..Default::default()
+<a href=#4768 id=4768 data-nosnippet>4768</a>            },
+<a href=#4769 id=4769 data-nosnippet>4769</a>        );
+<a href=#4770 id=4770 data-nosnippet>4770</a>        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_none());
+<a href=#4771 id=4771 data-nosnippet>4771</a>        normalize_event(
+<a href=#4772 id=4772 data-nosnippet>4772</a>            <span class="kw-2">&amp;mut </span>event,
+<a href=#4773 id=4773 data-nosnippet>4773</a>            <span class="kw-2">&amp;</span>NormalizationConfig {
+<a href=#4774 id=4774 data-nosnippet>4774</a>                is_renormalize: <span class="bool-val">false</span>,
+<a href=#4775 id=4775 data-nosnippet>4775</a>                ..Default::default()
+<a href=#4776 id=4776 data-nosnippet>4776</a>            },
+<a href=#4777 id=4777 data-nosnippet>4777</a>        );
+<a href=#4778 id=4778 data-nosnippet>4778</a>        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].exclusive_time).is_some());
+<a href=#4779 id=4779 data-nosnippet>4779</a>    }
+<a href=#4780 id=4780 data-nosnippet>4780</a>
+<a href=#4781 id=4781 data-nosnippet>4781</a>    <span class="attr">#[test]
+<a href=#4782 id=4782 data-nosnippet>4782</a>    </span><span class="kw">fn </span>test_normalize_trace_context_tags_extracts_lcp_info() {
+<a href=#4783 id=4783 data-nosnippet>4783</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#4784 id=4784 data-nosnippet>4784</a>            "type": "transaction",
+<a href=#4785 id=4785 data-nosnippet>4785</a>            "start_timestamp": 1,
+<a href=#4786 id=4786 data-nosnippet>4786</a>            "timestamp": 2,
+<a href=#4787 id=4787 data-nosnippet>4787</a>            "contexts": {
+<a href=#4788 id=4788 data-nosnippet>4788</a>                "trace": {
+<a href=#4789 id=4789 data-nosnippet>4789</a>                    "data": {
+<a href=#4790 id=4790 data-nosnippet>4790</a>                        "lcp.element": "body &gt; div#app &gt; div &gt; h1#header",
+<a href=#4791 id=4791 data-nosnippet>4791</a>                        "lcp.size": 24827,
+<a href=#4792 id=4792 data-nosnippet>4792</a>                        "lcp.id": "header",
+<a href=#4793 id=4793 data-nosnippet>4793</a>                        "lcp.url": "http://example.com/image.jpg"
+<a href=#4794 id=4794 data-nosnippet>4794</a>                    }
+<a href=#4795 id=4795 data-nosnippet>4795</a>                }
+<a href=#4796 id=4796 data-nosnippet>4796</a>            },
+<a href=#4797 id=4797 data-nosnippet>4797</a>            "measurements": {
+<a href=#4798 id=4798 data-nosnippet>4798</a>                "lcp": { "value": 146.20000000298023, "unit": "millisecond" }
+<a href=#4799 id=4799 data-nosnippet>4799</a>            }
+<a href=#4800 id=4800 data-nosnippet>4800</a>        }"#</span>;
+<a href=#4801 id=4801 data-nosnippet>4801</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
+<a href=#4802 id=4802 data-nosnippet>4802</a>        normalize_trace_context_tags(<span class="kw-2">&amp;mut </span>event);
+<a href=#4803 id=4803 data-nosnippet>4803</a>        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
+<a href=#4804 id=4804 data-nosnippet>4804</a>        {
+<a href=#4805 id=4805 data-nosnippet>4805</a>          "type": "transaction",
+<a href=#4806 id=4806 data-nosnippet>4806</a>          "timestamp": 2.0,
+<a href=#4807 id=4807 data-nosnippet>4807</a>          "start_timestamp": 1.0,
+<a href=#4808 id=4808 data-nosnippet>4808</a>          "contexts": {
+<a href=#4809 id=4809 data-nosnippet>4809</a>            "trace": {
+<a href=#4810 id=4810 data-nosnippet>4810</a>              "data": {
+<a href=#4811 id=4811 data-nosnippet>4811</a>                "lcp.element": "body &gt; div#app &gt; div &gt; h1#header",
+<a href=#4812 id=4812 data-nosnippet>4812</a>                "lcp.size": 24827,
+<a href=#4813 id=4813 data-nosnippet>4813</a>                "lcp.id": "header",
+<a href=#4814 id=4814 data-nosnippet>4814</a>                "lcp.url": "http://example.com/image.jpg",
+<a href=#4815 id=4815 data-nosnippet>4815</a>              },
+<a href=#4816 id=4816 data-nosnippet>4816</a>              "type": "trace",
+<a href=#4817 id=4817 data-nosnippet>4817</a>            },
+<a href=#4818 id=4818 data-nosnippet>4818</a>          },
+<a href=#4819 id=4819 data-nosnippet>4819</a>          "tags": [
+<a href=#4820 id=4820 data-nosnippet>4820</a>            [
+<a href=#4821 id=4821 data-nosnippet>4821</a>              "lcp.element",
+<a href=#4822 id=4822 data-nosnippet>4822</a>              "body &gt; div#app &gt; div &gt; h1#header",
+<a href=#4823 id=4823 data-nosnippet>4823</a>            ],
+<a href=#4824 id=4824 data-nosnippet>4824</a>            [
+<a href=#4825 id=4825 data-nosnippet>4825</a>              "lcp.size",
+<a href=#4826 id=4826 data-nosnippet>4826</a>              "24827",
+<a href=#4827 id=4827 data-nosnippet>4827</a>            ],
+<a href=#4828 id=4828 data-nosnippet>4828</a>            [
+<a href=#4829 id=4829 data-nosnippet>4829</a>              "lcp.id",
+<a href=#4830 id=4830 data-nosnippet>4830</a>              "header",
+<a href=#4831 id=4831 data-nosnippet>4831</a>            ],
+<a href=#4832 id=4832 data-nosnippet>4832</a>            [
+<a href=#4833 id=4833 data-nosnippet>4833</a>              "lcp.url",
+<a href=#4834 id=4834 data-nosnippet>4834</a>              "http://example.com/image.jpg",
+<a href=#4835 id=4835 data-nosnippet>4835</a>            ],
+<a href=#4836 id=4836 data-nosnippet>4836</a>          ],
+<a href=#4837 id=4837 data-nosnippet>4837</a>          "measurements": {
+<a href=#4838 id=4838 data-nosnippet>4838</a>            "lcp": {
+<a href=#4839 id=4839 data-nosnippet>4839</a>              "value": 146.20000000298023,
+<a href=#4840 id=4840 data-nosnippet>4840</a>              "unit": "millisecond",
+<a href=#4841 id=4841 data-nosnippet>4841</a>            },
+<a href=#4842 id=4842 data-nosnippet>4842</a>          },
+<a href=#4843 id=4843 data-nosnippet>4843</a>        }
+<a href=#4844 id=4844 data-nosnippet>4844</a>        "###</span>);
+<a href=#4845 id=4845 data-nosnippet>4845</a>    }
+<a href=#4846 id=4846 data-nosnippet>4846</a>
+<a href=#4847 id=4847 data-nosnippet>4847</a>    <span class="attr">#[test]
+<a href=#4848 id=4848 data-nosnippet>4848</a>    </span><span class="kw">fn </span>test_normalize_trace_context_tags_does_not_overwrite_lcp_tags() {
+<a href=#4849 id=4849 data-nosnippet>4849</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#4850 id=4850 data-nosnippet>4850</a>          "type": "transaction",
+<a href=#4851 id=4851 data-nosnippet>4851</a>          "start_timestamp": 1,
+<a href=#4852 id=4852 data-nosnippet>4852</a>          "timestamp": 2,
+<a href=#4853 id=4853 data-nosnippet>4853</a>          "contexts": {
+<a href=#4854 id=4854 data-nosnippet>4854</a>              "trace": {
+<a href=#4855 id=4855 data-nosnippet>4855</a>                  "data": {
+<a href=#4856 id=4856 data-nosnippet>4856</a>                      "lcp.element": "body &gt; div#app &gt; div &gt; h1#id",
+<a href=#4857 id=4857 data-nosnippet>4857</a>                      "lcp.size": 33333,
+<a href=#4858 id=4858 data-nosnippet>4858</a>                      "lcp.id": "id",
+<a href=#4859 id=4859 data-nosnippet>4859</a>                      "lcp.url": "http://example.com/another-image.jpg"
+<a href=#4860 id=4860 data-nosnippet>4860</a>                  }
+<a href=#4861 id=4861 data-nosnippet>4861</a>              }
+<a href=#4862 id=4862 data-nosnippet>4862</a>          },
+<a href=#4863 id=4863 data-nosnippet>4863</a>          "tags": {
+<a href=#4864 id=4864 data-nosnippet>4864</a>              "lcp.element": "body &gt; div#app &gt; div &gt; h1#header",
+<a href=#4865 id=4865 data-nosnippet>4865</a>              "lcp.size": 24827,
+<a href=#4866 id=4866 data-nosnippet>4866</a>              "lcp.id": "header",
+<a href=#4867 id=4867 data-nosnippet>4867</a>              "lcp.url": "http://example.com/image.jpg"
+<a href=#4868 id=4868 data-nosnippet>4868</a>          },
+<a href=#4869 id=4869 data-nosnippet>4869</a>          "measurements": {
+<a href=#4870 id=4870 data-nosnippet>4870</a>              "lcp": { "value": 146.20000000298023, "unit": "millisecond" }
+<a href=#4871 id=4871 data-nosnippet>4871</a>          }
+<a href=#4872 id=4872 data-nosnippet>4872</a>        }"#</span>;
+<a href=#4873 id=4873 data-nosnippet>4873</a>        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
+<a href=#4874 id=4874 data-nosnippet>4874</a>        normalize_trace_context_tags(<span class="kw-2">&amp;mut </span>event);
+<a href=#4875 id=4875 data-nosnippet>4875</a>        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###"
+<a href=#4876 id=4876 data-nosnippet>4876</a>        {
+<a href=#4877 id=4877 data-nosnippet>4877</a>          "type": "transaction",
+<a href=#4878 id=4878 data-nosnippet>4878</a>          "timestamp": 2.0,
+<a href=#4879 id=4879 data-nosnippet>4879</a>          "start_timestamp": 1.0,
+<a href=#4880 id=4880 data-nosnippet>4880</a>          "contexts": {
+<a href=#4881 id=4881 data-nosnippet>4881</a>            "trace": {
+<a href=#4882 id=4882 data-nosnippet>4882</a>              "data": {
+<a href=#4883 id=4883 data-nosnippet>4883</a>                "lcp.element": "body &gt; div#app &gt; div &gt; h1#id",
+<a href=#4884 id=4884 data-nosnippet>4884</a>                "lcp.size": 33333,
+<a href=#4885 id=4885 data-nosnippet>4885</a>                "lcp.id": "id",
+<a href=#4886 id=4886 data-nosnippet>4886</a>                "lcp.url": "http://example.com/another-image.jpg",
+<a href=#4887 id=4887 data-nosnippet>4887</a>              },
+<a href=#4888 id=4888 data-nosnippet>4888</a>              "type": "trace",
+<a href=#4889 id=4889 data-nosnippet>4889</a>            },
+<a href=#4890 id=4890 data-nosnippet>4890</a>          },
+<a href=#4891 id=4891 data-nosnippet>4891</a>          "tags": [
+<a href=#4892 id=4892 data-nosnippet>4892</a>            [
+<a href=#4893 id=4893 data-nosnippet>4893</a>              "lcp.element",
+<a href=#4894 id=4894 data-nosnippet>4894</a>              "body &gt; div#app &gt; div &gt; h1#header",
+<a href=#4895 id=4895 data-nosnippet>4895</a>            ],
+<a href=#4896 id=4896 data-nosnippet>4896</a>            [
+<a href=#4897 id=4897 data-nosnippet>4897</a>              "lcp.id",
+<a href=#4898 id=4898 data-nosnippet>4898</a>              "header",
+<a href=#4899 id=4899 data-nosnippet>4899</a>            ],
+<a href=#4900 id=4900 data-nosnippet>4900</a>            [
+<a href=#4901 id=4901 data-nosnippet>4901</a>              "lcp.size",
+<a href=#4902 id=4902 data-nosnippet>4902</a>              "24827",
+<a href=#4903 id=4903 data-nosnippet>4903</a>            ],
+<a href=#4904 id=4904 data-nosnippet>4904</a>            [
+<a href=#4905 id=4905 data-nosnippet>4905</a>              "lcp.url",
+<a href=#4906 id=4906 data-nosnippet>4906</a>              "http://example.com/image.jpg",
+<a href=#4907 id=4907 data-nosnippet>4907</a>            ],
+<a href=#4908 id=4908 data-nosnippet>4908</a>          ],
+<a href=#4909 id=4909 data-nosnippet>4909</a>          "measurements": {
+<a href=#4910 id=4910 data-nosnippet>4910</a>            "lcp": {
+<a href=#4911 id=4911 data-nosnippet>4911</a>              "value": 146.20000000298023,
+<a href=#4912 id=4912 data-nosnippet>4912</a>              "unit": "millisecond",
+<a href=#4913 id=4913 data-nosnippet>4913</a>            },
+<a href=#4914 id=4914 data-nosnippet>4914</a>          },
+<a href=#4915 id=4915 data-nosnippet>4915</a>        }
+<a href=#4916 id=4916 data-nosnippet>4916</a>        "###</span>);
+<a href=#4917 id=4917 data-nosnippet>4917</a>    }
+<a href=#4918 id=4918 data-nosnippet>4918</a>}</code></pre></div></section></main></body></html>
