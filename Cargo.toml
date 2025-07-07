@@ -98,7 +98,7 @@ chrono = { version = "0.4.38", default-features = false, features = [
 clap = { version = "4.4.18" }
 clap_complete = "4.1.6"
 cmake = "0.1.54"
-console = "0.16.0"
+console = "0.15.11"
 cookie = "0.18.1"
 criterion = "0.5.1"
 crossbeam-channel = "0.5.13"
@@ -121,8 +121,8 @@ hmac = "0.12.1"
 hostname = "0.4.0"
 http = "1.1.0"
 human-size = "0.4.3"
-hyper = "1.5.1"
-hyper-util = { version = "0.1.10", features = ["tokio"] }
+hyper = "1.6.0"
+hyper-util = { version = "0.1.14", features = ["tokio"] }
 indexmap = "2.2.6"
 insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
 ipnetwork = "0.21.0"
@@ -190,7 +190,7 @@ sha1 = "0.10.6"
 sha2 = "0.10.9"
 similar-asserts = "1.6.0"
 smallvec = { version = "1.13.2", features = ["serde"] }
-socket2 = "0.6.0"
+socket2 = "0.5.10"
 sqlparser = "0.44.0"
 sqlx = { version = "0.8.2", default-features = false }
 statsdproxy = { version = "0.4.1", default-features = false }
