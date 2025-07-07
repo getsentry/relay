@@ -1671,7 +1671,7 @@ mod tests {
 
         normalize_event_measurements(&mut event, None, None);
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -1707,7 +1707,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1744,7 +1744,7 @@ mod tests {
         normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -1784,7 +1784,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1799,7 +1799,7 @@ mod tests {
         .unwrap()
         .into_value()
         .unwrap();
-        insta::assert_debug_snapshot!(measurements, @r#"
+        insta::assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
                 "fcp": Measurement {
@@ -1816,9 +1816,9 @@ mod tests {
                 },
             },
         )
-        "#);
+        "###);
         normalize_units(&mut measurements);
-        insta::assert_debug_snapshot!(measurements, @r#"
+        insta::assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
                 "fcp": Measurement {
@@ -1837,7 +1837,7 @@ mod tests {
                 },
             },
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1932,7 +1932,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -1943,7 +1943,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1961,7 +1961,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -1972,7 +1972,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1992,7 +1992,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2003,7 +2003,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2023,7 +2023,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2034,7 +2034,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2054,7 +2054,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2065,7 +2065,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2712,7 +2712,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2723,7 +2723,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -4630,7 +4630,7 @@ mod tests {
             .first()
             .unwrap();
 
-        assert_debug_snapshot!(exception.meta(), @r#"
+        assert_debug_snapshot!(exception.meta(), @r###"
         Meta {
             remarks: [],
             errors: [
@@ -4657,7 +4657,8 @@ mod tests {
                     },
                 ),
             ),
-        }"#);
+        }
+        "###);
     }
 
     #[test]
@@ -4709,7 +4710,7 @@ mod tests {
             .first()
             .unwrap()
             .meta();
-        assert_debug_snapshot!(debug_image_meta, @r#"
+        assert_debug_snapshot!(debug_image_meta, @r###"
         Meta {
             remarks: [],
             errors: [
@@ -4728,7 +4729,8 @@ mod tests {
                     {},
                 ),
             ),
-        }"#);
+        }
+        "###);
     }
 
     #[test]
@@ -4798,7 +4800,7 @@ mod tests {
         }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
         normalize_trace_context_tags(&mut event);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 2.0,
@@ -4839,7 +4841,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -4870,7 +4872,7 @@ mod tests {
         }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
         normalize_trace_context_tags(&mut event);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 2.0,
@@ -4911,6 +4913,6 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 }

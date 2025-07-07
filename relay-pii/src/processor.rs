@@ -1745,22 +1745,24 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let params = get_value!(event.logentry.params!);
-        assert_debug_snapshot!(params, @r#"Array(
-    [
-        Meta {
-            remarks: [
-                Remark {
-                    ty: Removed,
-                    rule_id: "@anything:remove",
-                    range: None,
+        assert_debug_snapshot!(params, @r###"
+        Array(
+            [
+                Meta {
+                    remarks: [
+                        Remark {
+                            ty: Removed,
+                            rule_id: "@anything:remove",
+                            range: None,
+                        },
+                    ],
+                    errors: [],
+                    original_length: None,
+                    original_value: None,
                 },
             ],
-            errors: [],
-            original_length: None,
-            original_value: None,
-        },
-    ],
-)"#);
+        )
+        "###);
     }
 
     #[test]
@@ -1848,47 +1850,47 @@ mod tests {
 
             let vars = get_value!(event.exceptions.values[0].stacktrace.frames[0].vars).unwrap();
 
-            allow_duplicates!(assert_debug_snapshot!(vars, @r#"
-        FrameVars(
-            {
-                "headers": Array(
-                    [
-                        Array(
-                            [
-                                String(
-                                    "authorization",
-                                ),
-                                Annotated(
-                                    String(
-                                        "[Filtered]",
-                                    ),
-                                    Meta {
-                                        remarks: [
-                                            Remark {
-                                                ty: Substituted,
-                                                rule_id: "@anything:replace",
-                                                range: Some(
-                                                    (
-                                                        0,
-                                                        10,
-                                                    ),
-                                                ),
-                                            },
-                                        ],
-                                        errors: [],
-                                        original_length: Some(
-                                            13,
-                                        ),
-                                        original_value: None,
-                                    },
-                                ),
-                            ],
-                        ),
-                    ],
-                ),
-            },
-        )
-        "#));
+            allow_duplicates!(assert_debug_snapshot!(vars, @r###"
+                              FrameVars(
+                                  {
+                                      "headers": Array(
+                                          [
+                                              Array(
+                                                  [
+                                                      String(
+                                                          "authorization",
+                                                      ),
+                                                      Annotated(
+                                                          String(
+                                                              "[Filtered]",
+                                                          ),
+                                                          Meta {
+                                                              remarks: [
+                                                                  Remark {
+                                                                      ty: Substituted,
+                                                                      rule_id: "@anything:replace",
+                                                                      range: Some(
+                                                                          (
+                                                                              0,
+                                                                              10,
+                                                                          ),
+                                                                      ),
+                                                                  },
+                                                              ],
+                                                              errors: [],
+                                                              original_length: Some(
+                                                                  13,
+                                                              ),
+                                                              original_value: None,
+                                                          },
+                                                      ),
+                                                  ],
+                                              ),
+                                          ],
+                                      ),
+                                  },
+                              )
+                              "###));
         }
     }
 

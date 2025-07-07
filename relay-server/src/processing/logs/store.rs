@@ -9,6 +9,7 @@ use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
 use uuid::Uuid;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
+use crate::envelope::WithHeader;
 use crate::processing::Counted;
 use crate::processing::logs::{Error, Result};
 use crate::services::outcome::DiscardReason;
@@ -40,10 +41,10 @@ pub struct Context {
     pub retention: Option<u16>,
 }
 
-pub fn convert(log: Annotated<OurLog>, ctx: &Context) -> Result<StoreLog> {
+pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreLog> {
     let quantities = log.quantities();
 
-    let log = required!(log);
+    let log = required!(log.value);
     let timestamp = required!(log.timestamp);
     let attrs = log.attributes.0.unwrap_or_default();
 

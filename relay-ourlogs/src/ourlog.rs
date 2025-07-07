@@ -103,7 +103,6 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
         level: Annotated::new(level),
         attributes: Annotated::new(attribute_data),
         body: Annotated::new(body),
-        __headers: Annotated::empty(),
         other: Object::default(),
     };
 
