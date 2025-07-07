@@ -7,6 +7,9 @@ yum -y -q install gcc libffi-devel
 
 export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/
 
+# Install cffi to prevent ModuleNotFoundError
+/opt/python/cp311-cp311/bin/pip install cffi
+
 # Build wheels
 /opt/python/cp311-cp311/bin/python setup.py bdist_wheel
 
