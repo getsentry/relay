@@ -9,7 +9,7 @@ use crate::events::EventType;
 
 /// An error that occurs if a number cannot be converted into a [`DataCategory`].
 #[derive(Debug, PartialEq, thiserror::Error)]
-#[error("number could not be converted into a [`DataCategory`].")]
+#[error("Unknown numeric data category {0} can not be converted into a DataCategory.")]
 pub struct UnknownDataCategory(pub u8);
 
 /// Classifies the type of data that is being ingested.
