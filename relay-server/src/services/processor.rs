@@ -4167,7 +4167,7 @@ mod tests {
             .unwrap();
 
         let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
-        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r#"
+        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
         Object(
             {
                 "environment": ~,
@@ -4185,7 +4185,7 @@ mod tests {
                 "transaction": ~,
             },
         )
-        "#);
+        "###);
     }
 
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
@@ -4243,51 +4243,51 @@ mod tests {
     #[test]
     fn test_log_transaction_metrics_none() {
         let captures = capture_test_event("/nothing", TransactionSource::Url);
-        insta::assert_debug_snapshot!(captures, @r#"
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
         ]
-        "#);
+        "###);
     }
 
     #[test]
     fn test_log_transaction_metrics_rule() {
         let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
-        insta::assert_debug_snapshot!(captures, @r#"
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
         ]
-        "#);
+        "###);
     }
 
     #[test]
     fn test_log_transaction_metrics_pattern() {
         let captures = capture_test_event("/something/12345", TransactionSource::Url);
-        insta::assert_debug_snapshot!(captures, @r#"
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
         ]
-        "#);
+        "###);
     }
 
     #[test]
     fn test_log_transaction_metrics_both() {
         let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
-        insta::assert_debug_snapshot!(captures, @r#"
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
         ]
-        "#);
+        "###);
     }
 
     #[test]
     fn test_log_transaction_metrics_no_match() {
         let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
-        insta::assert_debug_snapshot!(captures, @r#"
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
-        "#);
+        "###);
     }
 
     /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is

@@ -989,12 +989,12 @@ mod tests {
         };
 
         normalize_mechanism(&mut good_mechanism, None);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r###"
         {
           "type": "generic",
           "help_link": "https://example.com/",
         }
-        "#);
+        "###);
 
         let mut bad_mechanism = Mechanism {
             ty: Annotated::new("generic".to_owned()),
@@ -1003,7 +1003,7 @@ mod tests {
         };
 
         normalize_mechanism(&mut bad_mechanism, None);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r###"
         {
           "type": "generic",
           "help_link": (),
@@ -1023,6 +1023,6 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 }

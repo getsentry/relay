@@ -330,7 +330,7 @@ mod tests {
         "#;
 
         let metrics = parse_metrics(source)?;
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
                 ty: Set,
@@ -364,7 +364,7 @@ mod tests {
                 features: [],
             },
         ]
-        "#);
+        "###);
 
         Ok(())
     }

@@ -2017,7 +2017,7 @@ LIMIT 1
             tags.get_value("ai_pipeline_group").unwrap().as_str(),
             Some("68e6cafc5b68d276")
         );
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
         {
           "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
@@ -2025,7 +2025,7 @@ LIMIT 1
           "ai.pipeline.name": "My AI pipeline",
           "ai.streaming": true
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -2076,7 +2076,7 @@ LIMIT 1
             tags.get_value("ai_pipeline_group").unwrap().as_str(),
             Some("68e6cafc5b68d276")
         );
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
         {
           "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
@@ -2084,7 +2084,7 @@ LIMIT 1
           "ai.pipeline.name": "My AI pipeline",
           "ai.streaming": true
         }
-        "#);
+        "###);
     }
 
     #[test]

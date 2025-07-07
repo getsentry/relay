@@ -520,7 +520,7 @@ mod tests {
             }
           }
         }
-"###);
+        "###);
     }
 
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
@@ -743,7 +743,7 @@ mod tests {
           "links": [],
           "attributes": {}
         }
-"###);
+        "###);
     }
 
     #[test]
@@ -770,7 +770,7 @@ mod tests {
           "links": [],
           "attributes": {}
         }
-"###);
+        "###);
     }
 
     #[test]
@@ -797,7 +797,7 @@ mod tests {
           "links": [],
           "attributes": {}
         }
-"###);
+        "###);
     }
 
     #[test]

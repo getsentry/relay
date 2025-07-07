@@ -315,7 +315,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r#"
+        insta::assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "b1e2a9dc9b8e4cd0af0e80e6b83b56e6",
           "public_key": "abd0f232775f45feab79864e580d160b",
@@ -325,7 +325,7 @@ mod tests {
           "user_id": "hello",
           "replay_id": None,
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -339,7 +339,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r#"
+        insta::assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
           "public_key": "abd0f232775f45feab79864e580d160b",
@@ -350,7 +350,7 @@ mod tests {
           "user_id": "hello",
           "replay_id": None,
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -364,7 +364,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r#"
+        insta::assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
           "public_key": "abd0f232775f45feab79864e580d160b",
@@ -375,7 +375,7 @@ mod tests {
           "user_id": "hello",
           "replay_id": None,
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -402,18 +402,18 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r#"
-            {
-              "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
-              "public_key": "abd0f232775f45feab79864e580d160b",
-              "release": None,
-              "environment": None,
-              "transaction": None,
-              "sample_rate": "0.1",
-              "user_id": "hello",
-              "replay_id": None,
-            }
-        "#);
+        insta::assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "sample_rate": "0.1",
+          "user_id": "hello",
+          "replay_id": None,
+        }
+        "###);
     }
 
     #[test]
@@ -427,18 +427,18 @@ mod tests {
             }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r#"
-            {
-              "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
-              "public_key": "abd0f232775f45feab79864e580d160b",
-              "release": None,
-              "environment": None,
-              "transaction": None,
-              "sample_rate": "1.0",
-              "user_id": "hello",
-              "replay_id": None,
-            }
-        "#);
+        insta::assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "67e5504410b1426f9247bb680e5fe0c8",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "sample_rate": "1.0",
+          "user_id": "hello",
+          "replay_id": None,
+        }
+        "###);
     }
 
     #[test]
