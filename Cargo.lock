@@ -28,7 +28,7 @@ dependencies = [
  "once_cell",
  "serde",
  "version_check",
- "zerocopy 0.7.35",
+ "zerocopy",
 ]
 
 [[package]]
@@ -389,7 +389,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
- "rand 0.8.5",
+ "rand 0.9.1",
  "relay-config",
  "relay-log",
  "relay-server",
@@ -1200,7 +1200,6 @@ checksum = "4a3daa8e81a3963a60642bcc1f90a670680bd4a77535faa384e9d1c79d620871"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
- "rand_core 0.6.4",
  "serde",
  "sha2",
  "subtle",
@@ -2972,7 +2971,7 @@ dependencies = [
  "futures-util",
  "opentelemetry",
  "percent-encoding",
- "rand 0.9.0",
+ "rand 0.9.1",
  "serde_json",
  "thiserror 2.0.12",
 ]
@@ -3218,7 +3217,7 @@ version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77957b295656769bb8ad2b6a6b09d897d94f05c41b069aede1fcdaa675eaea04"
 dependencies = [
- "zerocopy 0.7.35",
+ "zerocopy",
 ]
 
 [[package]]
@@ -3397,13 +3396,12 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "zerocopy 0.8.24",
 ]
 
 [[package]]
@@ -3446,11 +3444,11 @@ dependencies = [
 
 [[package]]
 name = "rand_pcg"
-version = "0.3.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59cad018caf63deb318e5a4586d99a24424a364f40f1e5778c29aca23f4fc73e"
+checksum = "b48ac3f7ffaab7fac4d2376632268aa5f89abdb55f7ebf8f4d11fffccb2320f7"
 dependencies = [
- "rand_core 0.6.4",
+ "rand_core 0.9.3",
 ]
 
 [[package]]
@@ -3536,7 +3534,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "r2d2",
- "rand 0.9.0",
+ "rand 0.9.1",
  "ryu",
  "sha1_smol",
  "socket2",
@@ -3632,7 +3630,7 @@ dependencies = [
  "data-encoding",
  "ed25519-dalek",
  "hmac",
- "rand 0.8.5",
+ "rand 0.9.1",
  "relay-common",
  "serde",
  "serde_json",
@@ -3927,7 +3925,7 @@ dependencies = [
  "insta",
  "itertools 0.13.0",
  "priority-queue",
- "rand 0.8.5",
+ "rand 0.9.1",
  "relay-base-schema",
  "relay-cardinality",
  "relay-cogs",
@@ -4150,7 +4148,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "insta",
- "rand 0.8.5",
+ "rand 0.9.1",
  "rand_pcg",
  "relay-base-schema",
  "relay-event-schema",
@@ -4203,7 +4201,7 @@ dependencies = [
  "priority-queue",
  "prost",
  "prost-types",
- "rand 0.8.5",
+ "rand 0.9.1",
  "regex",
  "relay-auth",
  "relay-base-schema",
@@ -4282,7 +4280,7 @@ dependencies = [
  "cadence",
  "crossbeam-channel",
  "parking_lot",
- "rand 0.8.5",
+ "rand 0.9.1",
  "relay-log",
  "statsdproxy",
 ]
@@ -4730,7 +4728,7 @@ version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00e9bd2cadaeda3af41e9fa5d14645127d6f6a4aec73da3ae38e477ecafd3682"
 dependencies = [
- "rand 0.9.0",
+ "rand 0.9.1",
  "sentry-types",
  "serde",
  "serde_json",
@@ -4828,7 +4826,7 @@ checksum = "a08e7154abe2cd557f26fd70038452810748aefdf39bc973f674421224b147c1"
 dependencies = [
  "debugid",
  "hex",
- "rand 0.9.0",
+ "rand 0.9.1",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
@@ -6715,16 +6713,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b9b4fd18abc82b8136838da5d50bae7bdea537c574d8dc1a34ed098d6c166f0"
 dependencies = [
  "byteorder",
- "zerocopy-derive 0.7.35",
-]
-
-[[package]]
-name = "zerocopy"
-version = "0.8.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2586fea28e186957ef732a5f8b3be2da217d65c5969d4b1e17f973ebbe876879"
-dependencies = [
- "zerocopy-derive 0.8.24",
+ "zerocopy-derive",
 ]
 
 [[package]]
@@ -6732,17 +6721,6 @@ name = "zerocopy-derive"
 version = "0.7.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "zerocopy-derive"
-version = "0.8.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a996a8f63c5c4448cd959ac1bab0aaa3306ccfd060472f85943ee0750f0169be"
 dependencies = [
  "proc-macro2",
  "quote",
