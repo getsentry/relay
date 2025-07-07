@@ -1178,12 +1178,12 @@ mod tests {
         let s = "transactions/foo:17.5|d|#foo,bar:baz";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric.tags, @r#"
-            {
-                "bar": "baz",
-                "foo": "",
-            }
-            "#);
+        insta::assert_debug_snapshot!(metric.tags, @r###"
+        {
+            "bar": "baz",
+            "foo": "",
+        }
+        "###);
     }
 
     #[test]
@@ -1191,11 +1191,11 @@ mod tests {
         let s = "transactions/foo:17.5|d|#foo:😅\\u{2c}🚀";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric.tags, @r#"
-            {
-                "foo": "😅,🚀",
-            }
-            "#);
+        insta::assert_debug_snapshot!(metric.tags, @r###"
+        {
+            "foo": "😅,🚀",
+        }
+        "###);
     }
 
     #[test]

@@ -418,7 +418,7 @@ mod tests {
     fn test_model_cost_config_v1() {
         let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
-        assert_debug_snapshot!(deserialized, @r#"
+        assert_debug_snapshot!(deserialized, @r###"
         ModelCosts {
             version: 1,
             costs: [
@@ -430,7 +430,7 @@ mod tests {
             ],
             models: {},
         }
-        "#);
+        "###);
 
         let serialized = serde_json::to_string(&deserialized).unwrap();
         assert_eq!(&serialized, original);
@@ -1373,7 +1373,7 @@ mod tests {
             ".event_id" => "[event-id]",
             ".received" => "[received]",
             ".timestamp" => "[timestamp]"
-        }, @r#"
+        }, @r###"
         {
           "event_id": "[event-id]",
           "level": "error",
@@ -1389,7 +1389,7 @@ mod tests {
             "id": "legacy:1234-12-12",
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1413,7 +1413,7 @@ mod tests {
 
         normalize_event(&mut event, &NormalizationConfig::default());
 
-        assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
+        assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
         {
           "event_id": "74ad1301f4df489ead37d757295442b1",
           "level": "error",
@@ -1444,7 +1444,8 @@ mod tests {
               }
             }
           }
-        }"#)
+        }
+        "###)
     }
 
     #[test]
@@ -1473,32 +1474,32 @@ mod tests {
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
-    }, @r#"
-    {
-      "event_id": "[event-id]",
-      "level": "error",
-      "type": "default",
-      "logger": "",
-      "platform": "other",
-      "timestamp": 946857600.0,
-      "received": 946857600.0,
-      "_meta": {
-        "timestamp": {
-          "": Meta(Some(MetaInner(
-            err: [
-              [
-                "future_timestamp",
-                {
-                  "sdk_time": "2000-01-03T00:02:00+00:00",
-                  "server_time": "2000-01-03T00:00:00+00:00",
-                },
-              ],
-            ],
-          ))),
-        },
-      },
-    }
-    "#);
+    }, @r###"
+        {
+          "event_id": "[event-id]",
+          "level": "error",
+          "type": "default",
+          "logger": "",
+          "platform": "other",
+          "timestamp": 946857600.0,
+          "received": 946857600.0,
+          "_meta": {
+            "timestamp": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "future_timestamp",
+                    {
+                      "sdk_time": "2000-01-03T00:02:00+00:00",
+                      "server_time": "2000-01-03T00:00:00+00:00",
+                    },
+                  ],
+                ],
+              ))),
+            },
+          },
+        }
+        "###);
     }
 
     #[test]
@@ -1527,32 +1528,32 @@ mod tests {
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
-    }, @r#"
-    {
-      "event_id": "[event-id]",
-      "level": "error",
-      "type": "default",
-      "logger": "",
-      "platform": "other",
-      "timestamp": 952041600.0,
-      "received": 952041600.0,
-      "_meta": {
-        "timestamp": {
-          "": Meta(Some(MetaInner(
-            err: [
-              [
-                "past_timestamp",
-                {
-                  "sdk_time": "2000-01-03T00:00:00+00:00",
-                  "server_time": "2000-03-03T00:00:00+00:00",
-                },
-              ],
-            ],
-          ))),
-        },
-      },
-    }
-    "#);
+    }, @r###"
+        {
+          "event_id": "[event-id]",
+          "level": "error",
+          "type": "default",
+          "logger": "",
+          "platform": "other",
+          "timestamp": 952041600.0,
+          "received": 952041600.0,
+          "_meta": {
+            "timestamp": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "past_timestamp",
+                    {
+                      "sdk_time": "2000-01-03T00:00:00+00:00",
+                      "server_time": "2000-03-03T00:00:00+00:00",
+                    },
+                  ],
+                ],
+              ))),
+            },
+          },
+        }
+        "###);
     }
 
     #[test]
@@ -1896,7 +1897,7 @@ mod tests {
             },
         );
 
-        assert_debug_snapshot!(event.value().unwrap().tags, @r#"
+        assert_debug_snapshot!(event.value().unwrap().tags, @r###"
         Tags(
             PairList(
                 [
@@ -1907,7 +1908,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 ---
-source: relay-general/src/store/trimming.rs
+source: relay-event-normalization/src/trimming.rs
 expression: stripped_extra
 ---
 {

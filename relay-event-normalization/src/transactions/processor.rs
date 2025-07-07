@@ -662,7 +662,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
+        assert_annotated_snapshot!(event, @r###"
         {
           "type": "transaction",
           "transaction": "/",
@@ -689,7 +689,7 @@ mod tests {
             }
           ]
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -833,28 +833,30 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "int",
-        range: Some(
-            (
-                5,
-                45,
-            ),
-        ),
-    },
-    Remark {
-        ty: Substituted,
-        rule_id: "int",
-        range: Some(
-            (
-                51,
-                54,
-            ),
-        ),
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "int",
+                range: Some(
+                    (
+                        5,
+                        45,
+                    ),
+                ),
+            },
+            Remark {
+                ty: Substituted,
+                rule_id: "int",
+                range: Some(
+                    (
+                        51,
+                        54,
+                    ),
+                ),
+            },
+        ]
+        "###);
     }
 
     /// When no identifiers are scrubbed, we should not set an original value in _meta.
@@ -994,23 +996,25 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "int",
-        range: Some(
-            (
-                22,
-                25,
-            ),
-        ),
-    },
-    Remark {
-        ty: Substituted,
-        rule_id: "/foo/*/user/*/**",
-        range: None,
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "int",
+                range: Some(
+                    (
+                        22,
+                        25,
+                    ),
+                ),
+            },
+            Remark {
+                ty: Substituted,
+                rule_id: "/foo/*/user/*/**",
+                range: None,
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1075,23 +1079,25 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "int",
-        range: Some(
-            (
-                22,
-                25,
-            ),
-        ),
-    },
-    Remark {
-        ty: Substituted,
-        rule_id: "/foo/*/**",
-        range: None,
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "int",
+                range: Some(
+                    (
+                        22,
+                        25,
+                    ),
+                ),
+            },
+            Remark {
+                ty: Substituted,
+                rule_id: "/foo/*/**",
+                range: None,
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1140,23 +1146,25 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "int",
-        range: Some(
-            (
-                22,
-                25,
-            ),
-        ),
-    },
-    Remark {
-        ty: Substituted,
-        rule_id: "/foo/*/user/*/**",
-        range: None,
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "int",
+                range: Some(
+                    (
+                        22,
+                        25,
+                    ),
+                ),
+            },
+            Remark {
+                ty: Substituted,
+                rule_id: "/foo/*/user/*/**",
+                range: None,
+            },
+        ]
+        "###);
 
         assert_eq!(
             get_value!(event.transaction_info.source!).as_str(),
@@ -1177,23 +1185,25 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "int",
-        range: Some(
-            (
-                22,
-                25,
-            ),
-        ),
-    },
-    Remark {
-        ty: Substituted,
-        rule_id: "/foo/*/user/*/**",
-        range: None,
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "int",
+                range: Some(
+                    (
+                        22,
+                        25,
+                    ),
+                ),
+            },
+            Remark {
+                ty: Substituted,
+                rule_id: "/foo/*/user/*/**",
+                range: None,
+            },
+        ]
+        "###);
 
         assert_eq!(
             get_value!(event.transaction_info.source!).as_str(),
@@ -1323,13 +1333,15 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "/user/*/**",
-        range: None,
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "/user/*/**",
+                range: None,
+            },
+        ]
+        "###);
 
         assert_eq!(
             get_value!(event.transaction_info.source!).as_str(),
@@ -1399,13 +1411,15 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "/foo/*/**",
-        range: None,
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "/foo/*/**",
+                range: None,
+            },
+        ]
+        "###);
 
         assert_eq!(
             get_value!(event.transaction_info.source!).as_str(),
@@ -1610,18 +1624,20 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "int",
-        range: Some(
-            (
-                21,
-                31,
-            ),
-        ),
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "int",
+                range: Some(
+                    (
+                        21,
+                        31,
+                    ),
+                ),
+            },
+        ]
+        "###);
         assert_eq!(
             get_value!(event.transaction_info.source!).as_str(),
             "sanitized"
@@ -1676,23 +1692,25 @@ mod tests {
             .meta()
             .iter_remarks()
             .collect_vec();
-        assert_debug_snapshot!(remarks, @r#"[
-    Remark {
-        ty: Substituted,
-        rule_id: "int",
-        range: Some(
-            (
-                21,
-                31,
-            ),
-        ),
-    },
-    Remark {
-        ty: Substituted,
-        rule_id: "/remains/*/**",
-        range: None,
-    },
-]"#);
+        assert_debug_snapshot!(remarks, @r###"
+        [
+            Remark {
+                ty: Substituted,
+                rule_id: "int",
+                range: Some(
+                    (
+                        21,
+                        31,
+                    ),
+                ),
+            },
+            Remark {
+                ty: Substituted,
+                rule_id: "/remains/*/**",
+                range: None,
+            },
+        ]
+        "###);
     }
 
     #[test]
