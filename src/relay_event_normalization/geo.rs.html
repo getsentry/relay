@@ -11,7 +11,7 @@
 <a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">type </span>ReaderType = Vec&lt;u8&gt;;
 <a href=#12 id=12 data-nosnippet>12</a>
 <a href=#13 id=13 data-nosnippet>13</a><span class="doccomment">/// An error in the `GeoIpLookup`.
-<a href=#14 id=14 data-nosnippet>14</a></span><span class="kw">pub type </span>GeoIpError = maxminddb::MaxMindDBError;
+<a href=#14 id=14 data-nosnippet>14</a></span><span class="kw">pub type </span>GeoIpError = maxminddb::MaxMindDbError;
 <a href=#15 id=15 data-nosnippet>15</a>
 <a href=#16 id=16 data-nosnippet>16</a><span class="doccomment">/// A geo ip lookup helper based on maxmind db files.
 <a href=#17 id=17 data-nosnippet>17</a></span><span class="kw">pub struct </span>GeoIpLookup(maxminddb::Reader&lt;ReaderType&gt;);
@@ -38,8 +38,8 @@
 <a href=#38 id=38 data-nosnippet>38</a>        };
 <a href=#39 id=39 data-nosnippet>39</a>
 <a href=#40 id=40 data-nosnippet>40</a>        <span class="kw">let </span>city: maxminddb::geoip2::City = <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.lookup(ip_address) {
-<a href=#41 id=41 data-nosnippet>41</a>            <span class="prelude-val">Ok</span>(x) =&gt; x,
-<a href=#42 id=42 data-nosnippet>42</a>            <span class="prelude-val">Err</span>(GeoIpError::AddressNotFoundError(<span class="kw">_</span>)) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+<a href=#41 id=41 data-nosnippet>41</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(x)) =&gt; x,
+<a href=#42 id=42 data-nosnippet>42</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
 <a href=#43 id=43 data-nosnippet>43</a>            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(e),
 <a href=#44 id=44 data-nosnippet>44</a>        };
 <a href=#45 id=45 data-nosnippet>45</a>
