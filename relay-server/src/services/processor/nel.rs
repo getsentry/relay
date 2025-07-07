@@ -2,7 +2,7 @@ use relay_event_normalization::nel;
 use relay_event_schema::protocol::{NetworkReportError, OurLog};
 use relay_protocol::Annotated;
 
-use crate::envelope::{ContainerItems, Item, ItemContainer, ItemType};
+use crate::envelope::{ContainerItems, Item, ItemContainer, ItemType, WithHeader};
 use crate::extractors::RequestMeta;
 use crate::managed::ManagedEnvelope;
 use crate::services::processor::ProcessingError;
@@ -15,7 +15,7 @@ pub fn convert_to_logs(envelope: &mut ManagedEnvelope) {
 
     for item in items {
         match log_from_nel_item(&item, envelope.meta()) {
-            Ok(Some(log)) => logs.push(log),
+            Ok(Some(log)) => logs.push(WithHeader::just(log)),
             Ok(None) => {}
             Err(error) => {
                 let mut payload = item.payload();

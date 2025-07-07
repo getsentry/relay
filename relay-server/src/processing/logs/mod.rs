@@ -3,11 +3,12 @@ use std::sync::Arc;
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::OurLog;
 use relay_pii::PiiConfigError;
-use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items};
+use crate::envelope::{
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
+};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
 };
@@ -286,7 +287,7 @@ pub struct ExpandedLogs {
     #[cfg(feature = "processing")]
     retention: Option<u16>,
     /// Expanded and parsed logs.
-    logs: Vec<Annotated<OurLog>>,
+    logs: ContainerItems<OurLog>,
 }
 
 impl Counted for ExpandedLogs {
