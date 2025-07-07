@@ -2,7 +2,7 @@
 
 # Unreleased
 
-- Add `trusted_relay_settings` to project config. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
 
 ## 0.9.9
 
