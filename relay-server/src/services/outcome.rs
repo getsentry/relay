@@ -110,7 +110,7 @@ trait TrackOutcomeLike {
     }
 
     /// Returns the number of items for that outcome.
-    fn quantity(&self) -> u32;
+    fn quantity(&self) -> Option<u32>;
 
     /// The project id for the outcomes.
     fn project_id(&self) -> ProjectId;
@@ -149,8 +149,8 @@ impl TrackOutcomeLike for TrackOutcome {
         self.outcome.to_outcome_id()
     }
 
-    fn quantity(&self) -> u32 {
-        self.quantity
+    fn quantity(&self) -> Option<u32> {
+        Some(self.quantity)
     }
 
     fn project_id(&self) -> ProjectId {
@@ -856,8 +856,8 @@ impl TrackOutcomeLike for TrackRawOutcome {
         self.outcome
     }
 
-    fn quantity(&self) -> u32 {
-        self.quantity.unwrap_or(1)
+    fn quantity(&self) -> Option<u32> {
+        self.quantity
     }
 
     fn project_id(&self) -> ProjectId {
@@ -1139,14 +1139,16 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
 }
 
 fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
-    metric!(
-        counter(RelayCounters::OutcomeQuantity) += message.quantity(),
-        hc.project_id = message.project_id().to_string().as_str(),
-        hc.reason = message.reason().as_deref().unwrap_or(""),
-        category = message.category().name(),
-        outcome = message.tag_name(),
-        to = to,
-    );
+    if let Some(quantity) = message.quantity() {
+        metric!(
+            counter(RelayCounters::OutcomeQuantity) += quantity,
+            hc.project_id = message.project_id().to_string().as_str(),
+            hc.reason = message.reason().as_deref().unwrap_or(""),
+            category = message.category().name(),
+            outcome = message.tag_name(),
+            to = to,
+        );
+    }
     metric!(
         counter(RelayCounters::Outcomes) += 1,
         reason = message.reason().as_deref().unwrap_or(""),

@@ -7,12 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::events::EventType;
 
-/// Error type for operations involving [`DataCategory`].
-#[derive(Debug, PartialEq)]
-pub enum DataCategoryError {
-    /// The number could not be converted into a [`DataCategory`].
-    InvalidValue(u8),
-}
+/// An error that occurs if a number cannot be converted into a [`DataCategory`].
+#[derive(Debug, PartialEq, thiserror::Error)]
+#[error("number could not be converted into a [`DataCategory`].")]
+pub struct UnknownDataCategory(pub u8);
 
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
@@ -273,9 +271,9 @@ impl From<EventType> for DataCategory {
 }
 
 impl TryFrom<u8> for DataCategory {
-    type Error = DataCategoryError;
+    type Error = UnknownDataCategory;
 
-    fn try_from(value: u8) -> Result<Self, DataCategoryError> {
+    fn try_from(value: u8) -> Result<Self, UnknownDataCategory> {
         match value {
             0 => Ok(Self::Default),
             1 => Ok(Self::Error),
@@ -306,7 +304,7 @@ impl TryFrom<u8> for DataCategory {
             26 => Ok(Self::ProfileChunkUi),
             27 => Ok(Self::SeerAutofix),
             28 => Ok(Self::SeerScanner),
-            other => Err(DataCategoryError::InvalidValue(other)),
+            other => Err(UnknownDataCategory(other)),
         }
     }
 }
@@ -316,11 +314,11 @@ mod tests {
     use super::*;
 
     #[test]
-    pub fn test_variant_mapping() {
+    pub fn test_last_variant_conversion() {
+        // If this test fails, update the numeric bounds so that the first assertion
+        // maps to the last variant in the enum and the second assertion produces an error
+        // that the DataCategory does not exist.
         assert_eq!(DataCategory::try_from(28), Ok(DataCategory::SeerScanner));
-        assert_eq!(
-            DataCategory::try_from(29),
-            Err(DataCategoryError::InvalidValue(29))
-        );
+        assert_eq!(DataCategory::try_from(29), Err(UnknownDataCategory(29)));
     }
 }
