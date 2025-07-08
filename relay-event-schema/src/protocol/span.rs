@@ -609,6 +609,30 @@ pub struct SpanData {
     )]
     pub gen_ai_usage_total_tokens: Annotated<Value>,
 
+    /// The client's browser name.
+    #[metastructure(field = "browser.name")]
+    pub browser_name: Annotated<String>,
+
+    /// The source code file name that identifies the code unit as uniquely as possible.
+    #[metastructure(field = "code.filepath", pii = "maybe")]
+    pub code_filepath: Annotated<Value>,
+
+    /// The line number in `code.filepath` best representing the operation.
+    #[metastructure(field = "code.lineno", pii = "maybe")]
+    pub code_lineno: Annotated<Value>,
+    /// The method or function name, or equivalent.
+    ///
+    /// Usually rightmost part of the code unit's name.
+    #[metastructure(field = "code.function", pii = "maybe")]
+    pub code_function: Annotated<Value>,
+    /// The "namespace" within which `code.function` is defined.
+    ///
+    /// Usually the qualified class or module name, such that
+    /// `code.namespace + some separator + code.function`
+    /// form a unique identifier for the code unit.
+    #[metastructure(field = "code.namespace", pii = "maybe")]
+    pub code_namespace: Annotated<Value>,
+
     /// The name of the operation being executed.
     ///
     /// E.g. the MongoDB command name such as findAndModify, or the SQL keyword.
