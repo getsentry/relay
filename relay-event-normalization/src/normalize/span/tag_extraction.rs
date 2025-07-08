@@ -2019,9 +2019,9 @@ LIMIT 1
         );
         assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
         {
-          "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
           "gen_ai.usage.output_tokens": 200,
+          "gen_ai.usage.total_tokens": 300,
           "ai.pipeline.name": "My AI pipeline",
           "ai.streaming": true
         }
@@ -2043,9 +2043,9 @@ LIMIT 1
                         "parent_span_id": "9756d8d7b2b364ff",
                         "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                         "data": {
-                            "gen_ai.usage.total_tokens": 300,
                             "gen_ai.usage.output_tokens": 200,
                             "gen_ai.usage.input_tokens": 100,
+                            "gen_ai.usage.total_tokens": 300,
                             "ai.streaming": true,
                             "ai.pipeline.name": "My AI pipeline"
                         },
