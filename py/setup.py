@@ -114,8 +114,8 @@ setup(
     zip_safe=False,
     platforms="any",
     python_requires=">=3.10",
-    install_requires=["milksnake>=0.1.6"],
-    setup_requires=["milksnake>=0.1.6"],
+    install_requires=["milksnake>=0.1.6", "cffi", "pycparser"],
+    setup_requires=["milksnake>=0.1.6", "cffi", "pycparser"],
     milksnake_tasks=[build_native],
     cmdclass={"sdist": CustomSDist},  # type: ignore
 )
