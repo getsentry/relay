@@ -20,6 +20,7 @@
 - Add support for playstation data requests. ([#4870](https://github.com/getsentry/relay/pull/4870))
 - Expand the NEL attributes & others. ([#4874](https://github.com/getsentry/relay/pull/4874))
 - Normalize legacy AI agents attributes to OTel compatible names. ([#4916](https://github.com/getsentry/relay/pull/4916))
+- Update GoCD agent scripts to use console script entry points. ([#4923](https://github.com/getsentry/relay/pull/4923))
 
 ## 25.6.2
 
