@@ -1395,6 +1395,19 @@ mod tests {
             gen_ai_usage_output_tokens_reasoning: ~,
             gen_ai_usage_total_cost: ~,
             gen_ai_usage_total_tokens: ~,
+            browser_name: ~,
+            code_filepath: String(
+                "task.py",
+            ),
+            code_lineno: I64(
+                123,
+            ),
+            code_function: String(
+                "fn()",
+            ),
+            code_namespace: String(
+                "ns",
+            ),
             db_operation: ~,
             db_system: String(
                 "mysql",
