@@ -253,7 +253,6 @@ pub fn create_log_with_trace_id(
         add_string_attribute!("url.domain", &url_domain);
     }
     add_attribute!("url.full", raw_report.url);
-    add_attribute!("http.request.duration", body.elapsed_time);
     add_attribute!("http.request.method", body.method);
     add_attribute!("http.request.header.referer", body.referrer.clone());
     add_attribute!("http.response.status_code", body.status_code);
@@ -280,6 +279,7 @@ pub fn create_log_with_trace_id(
     }
 
     // NEL-specific attributes
+    add_attribute!("nel.elapsed_time", body.elapsed_time);
     add_attribute!("nel.referrer", body.referrer);
     add_attribute!("nel.phase", body.phase.map_value(|s| s.to_string()));
     add_attribute!("nel.sampling_fraction", body.sampling_fraction);
