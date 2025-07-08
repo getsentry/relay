@@ -2078,9 +2078,9 @@ LIMIT 1
         );
         assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
         {
-          "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
           "gen_ai.usage.output_tokens": 200,
+          "gen_ai.usage.total_tokens": 300,
           "ai.pipeline.name": "My AI pipeline",
           "ai.streaming": true
         }
