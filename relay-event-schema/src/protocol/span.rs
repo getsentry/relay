@@ -469,7 +469,8 @@ pub struct SpanData {
     /// The input tokens used by an LLM call (usually cheaper than output tokens)
     #[metastructure(
         field = "gen_ai.usage.input_tokens",
-        legacy_alias = "ai.prompt_tokens.used"
+        legacy_alias = "ai.prompt_tokens.used",
+        legacy_alias = "gen_ai.usage.prompt_tokens"
     )]
     pub gen_ai_usage_input_tokens: Annotated<Value>,
 
@@ -481,7 +482,8 @@ pub struct SpanData {
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
     #[metastructure(
         field = "gen_ai.usage.output_tokens",
-        legacy_alias = "ai.completion_tokens.used"
+        legacy_alias = "ai.completion_tokens.used",
+        legacy_alias = "gen_ai.usage.completion_tokens"
     )]
     pub gen_ai_usage_output_tokens: Annotated<Value>,
 
