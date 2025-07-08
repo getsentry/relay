@@ -455,16 +455,122 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
+    /// Prompt passed to LLM (Vercel AI SDK)
+    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
+    pub gen_ai_prompt: Annotated<Value>,
+
+    /// The available tools for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.available_tools",
+        legacy_alias = "ai.tools",
+        pii = "maybe"
+    )]
+    pub gen_ai_request_available_tools: Annotated<Value>,
+
+    /// The frequency penalty for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.frequency_penalty",
+        legacy_alias = "ai.frequency_penalty"
+    )]
+    pub gen_ai_request_frequency_penalty: Annotated<Value>,
+
     /// The maximum number of tokens that should be used by an LLM call.
     #[metastructure(field = "gen_ai.request.max_tokens")]
     pub gen_ai_request_max_tokens: Annotated<Value>,
 
-    /// The total tokens that were used by an LLM call
+    /// Prompt passed to LLM
     #[metastructure(
-        field = "gen_ai.usage.total_tokens",
-        legacy_alias = "ai.total_tokens.used"
+        field = "gen_ai.request.messages",
+        legacy_alias = "ai.input_messages",
+        pii = "maybe"
     )]
-    pub gen_ai_usage_total_tokens: Annotated<Value>,
+    pub gen_ai_request_messages: Annotated<Value>,
+
+    /// The name of the model a request is being made to (e.g. gpt-4)
+    #[metastructure(field = "gen_ai.request.model")]
+    pub gen_ai_request_model: Annotated<Value>,
+
+    /// The presence penalty for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.presence_penalty",
+        legacy_alias = "ai.presence_penalty"
+    )]
+    pub gen_ai_request_presence_penalty: Annotated<Value>,
+
+    /// The seed for a request to an LLM
+    #[metastructure(field = "gen_ai.request.seed", legacy_alias = "ai.seed")]
+    pub gen_ai_request_seed: Annotated<Value>,
+
+    /// The temperature for a request to an LLM
+    #[metastructure(field = "gen_ai.request.temperature", legacy_alias = "ai.temperature")]
+    pub gen_ai_request_temperature: Annotated<Value>,
+
+    /// The top_k parameter for a request to an LLM
+    #[metastructure(field = "gen_ai.request.top_k", legacy_alias = "ai.top_k")]
+    pub gen_ai_request_top_k: Annotated<Value>,
+
+    /// The top_p parameter for a request to an LLM
+    #[metastructure(field = "gen_ai.request.top_p", legacy_alias = "ai.top_p")]
+    pub gen_ai_request_top_p: Annotated<Value>,
+
+    /// The finish reason for a response from an LLM
+    #[metastructure(
+        field = "gen_ai.response.finish_reason",
+        legacy_alias = "ai.finish_reason"
+    )]
+    pub gen_ai_response_finish_reason: Annotated<Value>,
+
+    /// The unique identifier for a response from an LLM
+    #[metastructure(field = "gen_ai.response.id", legacy_alias = "ai.generation_id")]
+    pub gen_ai_response_id: Annotated<Value>,
+
+    // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
+    #[metastructure(field = "gen_ai.response.model", legacy_alias = "ai.model_id")]
+    pub gen_ai_response_model: Annotated<Value>,
+
+    /// LLM response object (Vercel AI, generateObject)
+    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
+    pub gen_ai_response_object: Annotated<Value>,
+
+    /// LLM response text (Vercel AI, generateText)
+    #[metastructure(
+        field = "gen_ai.response.text",
+        legacy_alias = "ai.responses",
+        pii = "maybe"
+    )]
+    pub gen_ai_response_text: Annotated<Value>,
+
+    ///  Total output tokens per seconds throughput
+    #[metastructure(field = "gen_ai.response.tokens_per_second")]
+    pub gen_ai_response_tokens_per_second: Annotated<Value>,
+
+    /// LLM decisions to use calls
+    #[metastructure(
+        field = "gen_ai.response.tool_calls",
+        legacy_alias = "ai.tool_calls",
+        pii = "maybe"
+    )]
+    pub gen_ai_response_tool_calls: Annotated<Value>,
+
+    /// The GenAI system identifier
+    #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
+    pub gen_ai_system: Annotated<Value>,
+
+    /// Tool call arguments
+    #[metastructure(field = "gen_ai.tool.input", pii = "maybe")]
+    pub gen_ai_tool_input: Annotated<Value>,
+
+    /// The name of the tool being called
+    #[metastructure(
+        field = "gen_ai.tool.name",
+        legacy_alias = "ai.function_call",
+        pii = "maybe"
+    )]
+    pub gen_ai_tool_name: Annotated<Value>,
+
+    /// Tool call result
+    #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
+    pub gen_ai_tool_output: Annotated<Value>,
 
     /// The input tokens used by an LLM call (usually cheaper than output tokens)
     #[metastructure(
@@ -492,72 +598,16 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.usage.output_tokens.reasoning")]
     pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
 
-    // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
-    #[metastructure(field = "gen_ai.response.model")]
-    pub gen_ai_response_model: Annotated<Value>,
-
-    /// The name of the GenAI model a request is being made to (e.g. gpt-4)
-    #[metastructure(field = "gen_ai.request.model")]
-    pub gen_ai_request_model: Annotated<Value>,
-
     /// The total cost for the tokens used
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
 
-    /// Prompt passed to LLM (Vercel AI SDK)
-    #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
-    pub gen_ai_prompt: Annotated<Value>,
-
-    /// Prompt passed to LLM
-    #[metastructure(field = "gen_ai.request.messages", pii = "maybe")]
-    pub gen_ai_request_messages: Annotated<Value>,
-
-    /// Tool call arguments
-    #[metastructure(field = "gen_ai.tool.input", pii = "maybe")]
-    pub gen_ai_tool_input: Annotated<Value>,
-
-    /// Tool call result
-    #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
-    pub gen_ai_tool_output: Annotated<Value>,
-
-    /// LLM decisions to use calls
-    #[metastructure(field = "gen_ai.response.tool_calls", pii = "maybe")]
-    pub gen_ai_response_tool_calls: Annotated<Value>,
-
-    /// LLM response text (Vercel AI, generateText)
-    #[metastructure(field = "gen_ai.response.text", pii = "maybe")]
-    pub gen_ai_response_text: Annotated<Value>,
-
-    /// LLM response object (Vercel AI, generateObject)
-    #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
-    pub gen_ai_response_object: Annotated<Value>,
-
-    ///  Total output tokens per seconds throughput
-    #[metastructure(field = "gen_ai.response.tokens_per_second")]
-    pub gen_ai_response_tokens_per_second: Annotated<Value>,
-
-    /// The client's browser name.
-    #[metastructure(field = "browser.name")]
-    pub browser_name: Annotated<String>,
-
-    /// The source code file name that identifies the code unit as uniquely as possible.
-    #[metastructure(field = "code.filepath", pii = "maybe")]
-    pub code_filepath: Annotated<Value>,
-    /// The line number in `code.filepath` best representing the operation.
-    #[metastructure(field = "code.lineno", pii = "maybe")]
-    pub code_lineno: Annotated<Value>,
-    /// The method or function name, or equivalent.
-    ///
-    /// Usually rightmost part of the code unit's name.
-    #[metastructure(field = "code.function", pii = "maybe")]
-    pub code_function: Annotated<Value>,
-    /// The "namespace" within which `code.function` is defined.
-    ///
-    /// Usually the qualified class or module name, such that
-    /// `code.namespace + some separator + code.function`
-    /// form a unique identifier for the code unit.
-    #[metastructure(field = "code.namespace", pii = "maybe")]
-    pub code_namespace: Annotated<Value>,
+    /// The total tokens that were used by an LLM call
+    #[metastructure(
+        field = "gen_ai.usage.total_tokens",
+        legacy_alias = "ai.total_tokens.used"
+    )]
+    pub gen_ai_usage_total_tokens: Annotated<Value>,
 
     /// The name of the operation being executed.
     ///
@@ -1317,36 +1367,34 @@ mod tests {
         insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
+            gen_ai_prompt: ~,
+            gen_ai_request_available_tools: ~,
+            gen_ai_request_frequency_penalty: ~,
             gen_ai_request_max_tokens: ~,
-            gen_ai_usage_total_tokens: ~,
+            gen_ai_request_messages: ~,
+            gen_ai_request_model: ~,
+            gen_ai_request_presence_penalty: ~,
+            gen_ai_request_seed: ~,
+            gen_ai_request_temperature: ~,
+            gen_ai_request_top_k: ~,
+            gen_ai_request_top_p: ~,
+            gen_ai_response_finish_reason: ~,
+            gen_ai_response_id: ~,
+            gen_ai_response_model: ~,
+            gen_ai_response_object: ~,
+            gen_ai_response_text: ~,
+            gen_ai_response_tokens_per_second: ~,
+            gen_ai_response_tool_calls: ~,
+            gen_ai_system: ~,
+            gen_ai_tool_input: ~,
+            gen_ai_tool_name: ~,
+            gen_ai_tool_output: ~,
             gen_ai_usage_input_tokens: ~,
             gen_ai_usage_input_tokens_cached: ~,
             gen_ai_usage_output_tokens: ~,
             gen_ai_usage_output_tokens_reasoning: ~,
-            gen_ai_response_model: ~,
-            gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
-            gen_ai_prompt: ~,
-            gen_ai_request_messages: ~,
-            gen_ai_tool_input: ~,
-            gen_ai_tool_output: ~,
-            gen_ai_response_tool_calls: ~,
-            gen_ai_response_text: ~,
-            gen_ai_response_object: ~,
-            gen_ai_response_tokens_per_second: ~,
-            browser_name: ~,
-            code_filepath: String(
-                "task.py",
-            ),
-            code_lineno: I64(
-                123,
-            ),
-            code_function: String(
-                "fn()",
-            ),
-            code_namespace: String(
-                "ns",
-            ),
+            gen_ai_usage_total_tokens: ~,
             db_operation: ~,
             db_system: String(
                 "mysql",
