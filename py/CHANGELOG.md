@@ -1,12 +1,12 @@
 # Changelog
 
-# Unreleased
+## Unreleased
 
-- Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Explicitly keep `disabled` in `trusted_relay_settings` instead of defaulting to empty.
 
 ## 0.9.10
 
-- No documented changes.
+- Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
 
 ## 0.9.9
 

@@ -5,17 +5,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default, rename_all = "camelCase")]
 pub struct TrustedRelayConfig {
     /// Checks the signature of an event and rejects it if enabled.
-    #[serde(skip_serializing_if = "SignatureVerification::is_default")]
     pub verify_signature: SignatureVerification,
-}
-
-impl TrustedRelayConfig {
-    /// Checks whether the config can be considered empty.
-    ///
-    /// Empty here means that all values are equal to their default values.
-    pub fn is_empty(&self) -> bool {
-        self.verify_signature == SignatureVerification::default()
-    }
 }
 
 /// Types of verification that can be performed on the signature.
@@ -28,13 +18,6 @@ pub enum SignatureVerification {
     /// Does not perform any validation on the signature.
     #[default]
     Disabled,
-}
-
-impl SignatureVerification {
-    /// Checks if it is the default variant.
-    pub fn is_default(&self) -> bool {
-        *self == SignatureVerification::default()
-    }
 }
 
 #[cfg(test)]
@@ -72,6 +55,13 @@ mod tests {
     #[test]
     fn test_default_serialize() {
         let serialized = serde_json::to_string(&TrustedRelayConfig::default()).unwrap();
-        assert_eq!(serialized, r#"{}"#);
+        assert_eq!(serialized, r#"{"verifySignature":"disabled"}"#);
+    }
+
+    #[test]
+    fn test_serialize_empty_to_default() {
+        let json = "{}";
+        let result: TrustedRelayConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(result.verify_signature, SignatureVerification::Disabled);
     }
 }

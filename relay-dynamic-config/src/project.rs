@@ -28,7 +28,6 @@ pub struct ProjectConfig {
     /// List of relay public keys that are permitted to access this project.
     pub trusted_relays: Vec<PublicKey>,
     /// Configuration for trusted Relay behaviour.
-    #[serde(skip_serializing_if = "TrustedRelayConfig::is_empty")]
     pub trusted_relay_settings: TrustedRelayConfig,
     /// Configuration for PII stripping.
     pub pii_config: Option<PiiConfig>,
