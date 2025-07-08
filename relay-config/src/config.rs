@@ -12,7 +12,7 @@ use anyhow::Context;
 use relay_auth::{PublicKey, RelayId, SecretKey, generate_key_pair, generate_relay_id};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
+    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaTopic, KafkaTopicConfig,
     TopicAssignments,
 };
 use relay_metrics::MetricNamespace;
@@ -1484,6 +1484,16 @@ pub struct AuthConfig {
     /// Statically authenticated downstream relays.
     #[serde(default, with = "config_relay_info")]
     pub static_relays: HashMap<RelayId, RelayInfo>,
+
+    /// How old a signature can be before it is considered invalid, in seconds.
+    ///
+    /// Defaults to 5 minutes.
+    #[serde(default = "default_max_age")]
+    pub signature_max_age: u64,
+}
+
+fn default_max_age() -> u64 {
+    300
 }
 
 /// GeoIp database configuration options.
@@ -2247,7 +2257,7 @@ impl Config {
         }
 
         let file_name = path.file_name().and_then(|f| f.to_str())?;
-        let new_file_name = format!("{}.{}", file_name, partition_id);
+        let new_file_name = format!("{file_name}.{partition_id}");
         path.set_file_name(new_file_name);
 
         Some(path)
@@ -2504,8 +2514,11 @@ impl Config {
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaParams, KafkaConfigError> {
-        self.values.processing.topics.get(topic).kafka_config(
+    pub fn kafka_configs(
+        &self,
+        topic: KafkaTopic,
+    ) -> Result<KafkaTopicConfig<'_>, KafkaConfigError> {
+        self.values.processing.topics.get(topic).kafka_configs(
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
         )
@@ -2517,7 +2530,7 @@ impl Config {
     }
 
     /// All unused but configured topic assignments.
-    pub fn unused_topic_assignments(&self) -> &BTreeMap<String, TopicAssignment> {
+    pub fn unused_topic_assignments(&self) -> &relay_kafka::Unused {
         &self.values.processing.topics.unused
     }
 
@@ -2622,6 +2635,11 @@ impl Config {
     /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
         &self.values.auth.static_relays
+    }
+
+    /// Returns the max age a signature is considered valid, in seconds.
+    pub fn signature_max_age(&self) -> Duration {
+        Duration::from_secs(self.values.auth.signature_max_age)
     }
 
     /// Returns `true` if unknown items should be accepted and forwarded.

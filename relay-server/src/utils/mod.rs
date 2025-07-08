@@ -1,6 +1,5 @@
 mod api;
 mod dynamic_sampling;
-mod managed_envelope;
 mod multipart;
 mod param_parser;
 mod pick;
@@ -22,7 +21,6 @@ mod unreal;
 
 pub use self::api::*;
 pub use self::dynamic_sampling::*;
-pub use self::managed_envelope::*;
 pub use self::memory::*;
 pub use self::multipart::*;
 #[cfg(feature = "processing")]

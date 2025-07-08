@@ -1,7 +1,8 @@
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
+use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{Attributes, SpanId, Timestamp, TraceId};
@@ -36,6 +37,23 @@ pub struct OurLog {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
+}
+
+/// Relay specific metadata embedded into the log item.
+///
+/// This metadata is purely an internal protocol extension used by Relay,
+/// no one except Relay should be sending this data, nor should anyone except Relay rely on it.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct OurLogHeader {
+    /// Original (calculated) size of the log item when it was first received by a Relay.
+    ///
+    /// If this value exists, Relay uses it as quantity for all outcomes emitted to the
+    /// log byte data category.
+    pub byte_size: Option<u64>,
+
+    /// Forward compatibility for additional headers.
+    #[serde(flatten)]
+    pub other: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

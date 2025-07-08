@@ -530,6 +530,10 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
     pub gen_ai_response_object: Annotated<Value>,
 
+    ///  Total output tokens per seconds throughput
+    #[metastructure(field = "gen_ai.response.tokens_per_second")]
+    pub gen_ai_response_tokens_per_second: Annotated<Value>,
+
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
     pub browser_name: Annotated<String>,
@@ -1327,6 +1331,7 @@ mod tests {
             gen_ai_response_tool_calls: ~,
             gen_ai_response_text: ~,
             gen_ai_response_object: ~,
+            gen_ai_response_tokens_per_second: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",

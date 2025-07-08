@@ -1,4 +1,6 @@
 use std::convert::Infallible;
+use std::fmt;
+use std::iter::FusedIterator;
 use std::mem::ManuallyDrop;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -8,13 +10,23 @@ use chrono::{DateTime, Utc};
 use relay_event_schema::protocol::EventId;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
+use smallvec::SmallVec;
 
 use crate::Envelope;
-use crate::processing::{Counted, Quantities};
+use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
 use crate::services::test_store::TestStore;
-use crate::utils::ManagedEnvelope;
+
+#[cfg(test)]
+mod test;
+
+#[cfg(test)]
+#[expect(
+    unused,
+    reason = "currently unused, but these are testing utilities for all of Relay"
+)]
+pub use self::test::*;
 
 /// An error which can be extracted into an outcome.
 pub trait OutcomeError {
@@ -72,6 +84,14 @@ impl<T> Rejected<T> {
     pub fn into_inner(self) -> T {
         self.0
     }
+
+    /// Maps the rejected error to a different error.
+    pub fn map<F, S>(self, f: F) -> Rejected<S>
+    where
+        F: FnOnce(T) -> S,
+    {
+        Rejected(f(self.0))
+    }
 }
 
 pub struct Managed<T: Counted> {
@@ -115,6 +135,39 @@ impl<T: Counted> Managed<T> {
     /// Scoping information stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.meta.scoping
+    }
+
+    pub fn split<F, I, S>(self, mut f: F) -> Split<I::IntoIter, I::Item>
+    where
+        F: FnMut(T) -> I,
+        I: IntoIterator<Item = S>,
+        S: Counted,
+    {
+        self.split_with_context(|value| (f(value), ())).0
+    }
+
+    pub fn split_with_context<F, I, S, C>(self, mut f: F) -> (Split<I::IntoIter, I::Item>, C)
+    where
+        F: FnMut(T) -> (I, C),
+        I: IntoIterator<Item = S>,
+        S: Counted,
+    {
+        let (value, meta) = self.destructure();
+        #[cfg(debug_assertions)]
+        let quantities = value.quantities();
+
+        let (items, context) = f(value);
+
+        (
+            Split {
+                #[cfg(debug_assertions)]
+                quantities,
+                items: items.into_iter(),
+                meta,
+                exhausted: false,
+            },
+            context,
+        )
     }
 
     /// Maps a [`Managed<T>`] to [`Managed<S>`] by applying the mapping function `f`.
@@ -202,6 +255,61 @@ impl<T: Counted> Managed<T> {
         }
     }
 
+    /// Accepts the item of this managed instance.
+    ///
+    /// This should be called if the item has been or is about to be accepted by the upstream, which means that
+    /// the responsibility for logging outcomes has been moved. This function will not log any
+    /// outcomes.
+    ///
+    /// Like [`Self::try_accept`], but infallible.
+    pub fn accept<F, S>(self, f: F) -> S
+    where
+        F: FnOnce(T) -> S,
+    {
+        self.try_accept(|item| Ok::<_, Infallible>(f(item)))
+            .unwrap_or_else(|err| match err.0 {})
+    }
+
+    /// Accepts the item of this managed instance.
+    ///
+    /// This should be called if the item has been or is about to be accepted by the upstream.
+    ///
+    /// Outcomes are only emitted when the accepting closure returns an error, which means that
+    /// in the success case the responsibility for logging outcomes has been moved to the
+    /// caller/upstream.
+    pub fn try_accept<F, S, E>(self, f: F) -> Result<S, Rejected<E::Error>>
+    where
+        F: FnOnce(T) -> Result<S, E>,
+        E: OutcomeError,
+    {
+        debug_assert!(!self.is_done());
+
+        let (value, meta) = self.destructure();
+        let records = RecordKeeper::new(&meta, value.quantities());
+
+        match f(value) {
+            Ok(value) => {
+                records.accept();
+                Ok(value)
+            }
+            Err(err) => Err(records.failure(err)),
+        }
+    }
+
+    /// Rejects the entire [`Managed`] instance with an internal error.
+    ///
+    /// Internal errors should be reserved for uses where logical invariants are violated.
+    /// Cases which should never happen and always indicate a logical bug.
+    ///
+    /// This function will panic in debug builds, but discard the item
+    /// with an internal discard reason in release builds.
+    #[track_caller]
+    pub fn internal_error(&self, reason: &'static str) -> Rejected<()> {
+        relay_log::error!("internal error: {reason}");
+        debug_assert!(false, "internal error: {reason}");
+        self.reject_err((Outcome::Invalid(DiscardReason::Internal), ()))
+    }
+
     /// Rejects the entire [`Managed`] instance.
     pub fn reject_err<E>(&self, error: E) -> Rejected<E::Error>
     where
@@ -256,6 +364,27 @@ impl<T: Counted> Managed<T> {
     }
 }
 
+impl<T: Counted> Drop for Managed<T> {
+    fn drop(&mut self) {
+        self.do_reject(Outcome::Invalid(DiscardReason::Internal));
+    }
+}
+
+impl<T: Counted + fmt::Debug> fmt::Debug for Managed<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Managed<{}>[", std::any::type_name::<T>())?;
+        for (i, (category, quantity)) in self.value.quantities().iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{category}:{quantity}")?;
+        }
+        write!(f, "](")?;
+        self.value.fmt(f)?;
+        write!(f, ")")
+    }
+}
+
 impl From<Managed<Box<Envelope>>> for ManagedEnvelope {
     fn from(value: Managed<Box<Envelope>>) -> Self {
         let (value, meta) = value.destructure();
@@ -266,12 +395,6 @@ impl From<Managed<Box<Envelope>>> for ManagedEnvelope {
         );
         envelope.scope(meta.scoping);
         envelope
-    }
-}
-
-impl<T: Counted> Drop for Managed<T> {
-    fn drop(&mut self) {
-        self.do_reject(Outcome::Invalid(DiscardReason::Internal));
     }
 }
 
@@ -329,7 +452,9 @@ impl Meta {
 pub struct RecordKeeper<'a> {
     meta: &'a Meta,
     on_drop: Quantities,
-    in_flight: Vec<(DataCategory, usize, Option<Outcome>)>,
+    #[cfg(debug_assertions)]
+    lenient: SmallVec<[DataCategory; 1]>,
+    in_flight: SmallVec<[(DataCategory, usize, Option<Outcome>); 2]>,
 }
 
 impl<'a> RecordKeeper<'a> {
@@ -337,8 +462,20 @@ impl<'a> RecordKeeper<'a> {
         Self {
             meta,
             on_drop: quantities,
+            #[cfg(debug_assertions)]
+            lenient: Default::default(),
             in_flight: Default::default(),
         }
+    }
+
+    /// Marking a data category as lenient exempts this category from outcome quantity validations.
+    ///
+    /// This can be used in cases where the quantity is knowingly modified, which is quite common
+    /// for data categories which count bytes.
+    pub fn lenient(&mut self, category: DataCategory) {
+        let _category = category;
+        #[cfg(debug_assertions)]
+        self.lenient.push(_category);
     }
 
     /// Finalizes all records and emits the necessary outcomes.
@@ -357,6 +494,21 @@ impl<'a> RecordKeeper<'a> {
         }
 
         Rejected(error)
+    }
+
+    /// Finalizes all records and asserts that no additional outcomes have been tracked.
+    ///
+    /// Unlike [`Self::success`], this method does not allow for intermediate or partial outcomes,
+    /// it also does not verify any outcomes.
+    ///
+    /// This method is useful for using the record keeper to track failure outcomes, either
+    /// explicit failures or panics.
+    fn accept(mut self) {
+        debug_assert!(
+            self.in_flight.is_empty(),
+            "records accepted, but intermediate outcomes tracked"
+        );
+        self.on_drop.clear();
     }
 
     /// Finalizes all records and emits the created outcomes.
@@ -392,13 +544,11 @@ impl<'a> RecordKeeper<'a> {
 
         macro_rules! emit {
             ($category:expr, $($tt:tt)*) => {{
-                // Certain categories are known to be not always correct,
-                // they are logged instead.
-                match $category {
-                    // Log bytes may change when going from an unparsed to the parsed state,
-                    // as they are batched up in containers.
-                    DataCategory::LogByte => relay_log::debug!($($tt)*),
-                    _ => {
+                match self.lenient.contains(&$category) {
+                    // Certain categories are known to be not always correct,
+                    // they are logged instead.
+                    true => relay_log::debug!($($tt)*),
+                    false  => {
                         relay_log::error!("Original: {original:?}");
                         relay_log::error!("New: {new:?}");
                         relay_log::error!("In Flight: {:?}", self.in_flight);
@@ -496,5 +646,260 @@ impl RecordKeeper<'_> {
             self.in_flight.push((category, quantity, outcome.clone()))
         }
         err
+    }
+}
+
+/// Iterator returned by [`Managed::split`].
+pub struct Split<I, S>
+where
+    I: Iterator<Item = S>,
+    S: Counted,
+{
+    #[cfg(debug_assertions)]
+    quantities: Quantities,
+    items: I,
+    meta: Arc<Meta>,
+    exhausted: bool,
+}
+
+impl<I, S> Split<I, S>
+where
+    I: Iterator<Item = S>,
+    S: Counted,
+{
+    /// Subtracts passed quantities from the total quantities to verify total quantity counts are
+    /// matching.
+    #[cfg(debug_assertions)]
+    fn subtract(&mut self, q: Quantities) {
+        for (category, quantities) in q {
+            let Some(orig_quantities) = self
+                .quantities
+                .iter_mut()
+                .find_map(|(c, q)| (*c == category).then_some(q))
+            else {
+                debug_assert!(
+                    false,
+                    "mismatching quantities, item split into category {category}, \
+                    which originally was not present"
+                );
+                continue;
+            };
+
+            if *orig_quantities >= quantities {
+                *orig_quantities -= quantities;
+            } else {
+                debug_assert!(
+                    false,
+                    "in total more items produced in category {category} than originally available"
+                );
+            }
+        }
+    }
+}
+
+impl<I, S> Iterator for Split<I, S>
+where
+    I: Iterator<Item = S>,
+    S: Counted,
+{
+    type Item = Managed<S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = match self.items.next() {
+            Some(next) => next,
+            None => {
+                self.exhausted = true;
+                return None;
+            }
+        };
+
+        #[cfg(debug_assertions)]
+        self.subtract(next.quantities());
+
+        Some(Managed::from_parts(next, Arc::clone(&self.meta)))
+    }
+}
+
+impl<I, S> Drop for Split<I, S>
+where
+    I: Iterator<Item = S>,
+    S: Counted,
+{
+    fn drop(&mut self) {
+        // If the inner iterator was exhausted, no items should be remaining.
+        #[cfg(debug_assertions)]
+        if self.exhausted {
+            for (category, quantities) in &self.quantities {
+                debug_assert!(
+                    *quantities == 0,
+                    "items split, but still {quantities} remaining in category {category}"
+                );
+            }
+        }
+
+        if self.exhausted {
+            return;
+        }
+
+        // There may be items remaining in the iterator for multiple reasons:
+        // - there was a panic
+        // - the iterator was never fully consumed
+        //
+        // In any case, outcomes must be emitted for the remaining items.
+        for item in &mut self.items {
+            for (category, quantity) in item.quantities() {
+                self.meta.track_outcome(
+                    Outcome::Invalid(DiscardReason::Internal),
+                    category,
+                    quantity,
+                );
+            }
+        }
+    }
+}
+
+impl<I, S> FusedIterator for Split<I, S>
+where
+    I: Iterator<Item = S> + FusedIterator,
+    S: Counted,
+{
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct CountedVec(Vec<u32>);
+
+    impl Counted for CountedVec {
+        fn quantities(&self) -> Quantities {
+            smallvec::smallvec![(DataCategory::Error, self.0.len())]
+        }
+    }
+
+    struct CountedValue(u32);
+
+    impl Counted for CountedValue {
+        fn quantities(&self) -> Quantities {
+            smallvec::smallvec![(DataCategory::Error, 1)]
+        }
+    }
+
+    #[test]
+    fn test_split_fully_consumed() {
+        let value = CountedVec(vec![0, 1, 2, 3, 4, 5]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        let s = managed
+            .split(|value| value.0.into_iter().map(CountedValue))
+            // Fully consume the iterator to make sure there aren't any outcomes emitted on drop.
+            .collect::<Vec<_>>();
+
+        handle.assert_no_outcomes();
+
+        for (i, s) in s.into_iter().enumerate() {
+            assert_eq!(s.as_ref().0, i as u32);
+            let outcome = Outcome::Invalid(DiscardReason::Cors);
+            let _ = s.reject_err((outcome.clone(), ()));
+            handle.assert_outcome(&outcome, DataCategory::Error, 1);
+        }
+    }
+
+    #[test]
+    fn test_split_partially_consumed_emits_remaining() {
+        let value = CountedVec(vec![0, 1, 2, 3, 4, 5]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        let mut s = managed.split(|value| value.0.into_iter().map(CountedValue));
+        handle.assert_no_outcomes();
+
+        drop(s.next());
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        drop(s.next());
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        drop(s.next());
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        handle.assert_no_outcomes();
+
+        drop(s);
+
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+        handle.assert_internal_outcome(DataCategory::Error, 1);
+    }
+
+    #[test]
+    fn test_split_changing_quantities_should_panic() {
+        let value = CountedVec(vec![0, 1, 2, 3, 4, 5]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        let mut s = managed.split(|_| std::iter::once(CountedValue(0)));
+
+        s.next().unwrap().accept(|_| {});
+        handle.assert_no_outcomes();
+
+        assert!(s.next().is_none());
+
+        let r = std::panic::catch_unwind(move || {
+            drop(s);
+        });
+
+        assert!(
+            r.is_err(),
+            "expected split to panic because of mismatched (not enough) outcomes"
+        );
+    }
+
+    #[test]
+    fn test_split_more_outcomes_than_before_should_panic() {
+        let value = CountedVec(vec![0]);
+        let (managed, mut handle) = Managed::for_test(value).build();
+
+        let mut s = managed.split(|_| vec![CountedValue(0), CountedValue(2)].into_iter());
+
+        s.next().unwrap().accept(|_| {});
+        handle.assert_no_outcomes();
+
+        let r = std::panic::catch_unwind(move || {
+            s.next();
+        });
+
+        assert!(
+            r.is_err(),
+            "expected split to panic because of mismatched (too many) outcomes"
+        );
+    }
+
+    #[test]
+    fn test_split_changing_categories_should_panic() {
+        struct Special;
+        impl Counted for Special {
+            fn quantities(&self) -> Quantities {
+                smallvec::smallvec![(DataCategory::Error, 1), (DataCategory::Transaction, 1)]
+            }
+        }
+
+        let value = CountedVec(vec![0]);
+        let (managed, _handle) = Managed::for_test(value).build();
+
+        let mut s = managed.split(|value| value.0.into_iter().map(|_| Special));
+
+        let r = std::panic::catch_unwind(move || {
+            let _ = s.next();
+        });
+
+        assert!(
+            r.is_err(),
+            "expected split to panic because of mismatched outcome categories"
+        );
+    }
+
+    #[test]
+    fn test_split_assert_fused() {
+        fn only_fused<T: FusedIterator>(_: T) {}
+
+        let (managed, mut handle) = Managed::for_test(CountedVec(vec![0])).build();
+        only_fused(managed.split(|value| value.0.into_iter().map(CountedValue)));
+        handle.assert_internal_outcome(DataCategory::Error, 1);
     }
 }

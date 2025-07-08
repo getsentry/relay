@@ -64,11 +64,12 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
+use rand::Rng;
 pub use statsdproxy::config::DenyTagConfig;
 
 use cadence::{Metric, MetricBuilder, StatsdClient};
 use parking_lot::RwLock;
-use rand::distributions::{Distribution, Uniform};
+use rand::distr::StandardUniform;
 use statsdproxy::cadence::StatsdProxyMetricSink;
 use statsdproxy::config::AggregateMetricsConfig;
 use statsdproxy::middleware::deny_tag::DenyTag;
@@ -161,9 +162,9 @@ impl MetricsClient {
             // "optimized for the case that only a single sample is made from the given range".
             // See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more
             // details.
-            let mut rng = rand::thread_rng();
-            RNG_UNIFORM_DISTRIBUTION
-                .with(|uniform_dist| uniform_dist.sample(&mut rng) <= self.sample_rate)
+            let mut rng = rand::rng();
+            let s: f32 = rng.sample(StandardUniform);
+            s <= self.sample_rate
         }
     }
 }
@@ -172,7 +173,6 @@ static METRICS_CLIENT: RwLock<Option<Arc<MetricsClient>>> = RwLock::new(None);
 
 thread_local! {
     static CURRENT_CLIENT: std::cell::RefCell<Option<Arc<MetricsClient>>>  = METRICS_CLIENT.read().clone().into();
-    static RNG_UNIFORM_DISTRIBUTION: Uniform<f32> = Uniform::new(0.0, 1.0);
 }
 
 /// Internal prelude for the macro

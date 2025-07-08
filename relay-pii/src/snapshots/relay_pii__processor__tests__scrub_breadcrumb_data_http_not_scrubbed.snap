@@ -1,5 +1,5 @@
 ---
-source: relay-general/src/pii/processor.rs
+source: relay-pii/src/processor.rs
 expression: breadcrumb
 ---
 {

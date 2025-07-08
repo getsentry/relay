@@ -2,7 +2,7 @@
 
 use crate::{ModelCostV2, ModelCosts};
 use relay_event_schema::protocol::{Event, Span, SpanData};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Getter, Value};
 
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
@@ -11,31 +11,32 @@ fn calculate_ai_model_cost(model_cost: Option<ModelCostV2>, data: &SpanData) -> 
     let input_tokens_used = data
         .gen_ai_usage_input_tokens
         .value()
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+        .and_then(Value::as_f64);
 
     let output_tokens_used = data
         .gen_ai_usage_output_tokens
         .value()
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+        .and_then(Value::as_f64);
     let output_reasoning_tokens_used = data
         .gen_ai_usage_output_tokens_reasoning
         .value()
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+        .and_then(Value::as_f64);
     let input_cached_tokens_used = data
         .gen_ai_usage_input_tokens_cached
         .value()
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+        .and_then(Value::as_f64);
+
+    if input_tokens_used.is_none() && output_tokens_used.is_none() {
+        return None;
+    }
 
     let mut result = 0.0;
 
-    result += cost_per_token.input_per_token * input_tokens_used;
-    result += cost_per_token.output_per_token * output_tokens_used;
-    result += cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used;
-    result += cost_per_token.input_cached_per_token * input_cached_tokens_used;
+    result += cost_per_token.input_per_token * input_tokens_used.unwrap_or(0.0);
+    result += cost_per_token.output_per_token * output_tokens_used.unwrap_or(0.0);
+    result +=
+        cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
+    result += cost_per_token.input_cached_per_token * input_cached_tokens_used.unwrap_or(0.0);
 
     Some(result)
 }
@@ -72,28 +73,51 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
         let input_tokens = data
             .gen_ai_usage_input_tokens
             .value()
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
+            .and_then(Value::as_f64);
         let output_tokens = data
             .gen_ai_usage_output_tokens
             .value()
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
-        data.gen_ai_usage_total_tokens
-            .set_value(Value::F64(input_tokens + output_tokens).into());
+            .and_then(Value::as_f64);
+
+        if input_tokens.is_none() && output_tokens.is_none() {
+            // don't set total_tokens if there are no input nor output tokens
+            return;
+        }
+
+        data.gen_ai_usage_total_tokens.set_value(
+            Value::F64(input_tokens.unwrap_or(0.0) + output_tokens.unwrap_or(0.0)).into(),
+        );
     }
 }
 
-/// Extract the gen_ai_usage_total_cost data into the span
+/// Extract the additional data into the span
 pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
     if !is_ai_span(span) {
         return;
     }
 
+    let duration = span
+        .get_value("span.duration")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
     let Some(data) = span.data.value_mut() else {
         return;
     };
 
+    // Extracts the response tokens per second
+    if data.gen_ai_response_tokens_per_second.value().is_none() && duration > 0.0 {
+        if let Some(output_tokens) = data
+            .gen_ai_usage_output_tokens
+            .value()
+            .and_then(Value::as_f64)
+        {
+            data.gen_ai_response_tokens_per_second
+                .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
+        }
+    }
+
+    // Extracts the total cost of the AI model used
     if let Some(model_id) = data
         .gen_ai_request_model
         .value()
@@ -101,6 +125,11 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
         // xxx (vgrozdanic): temporal fallback to legacy field, until we fix
         // sentry conventions and standardize what SDKs send
         .or_else(|| data.ai_model_id.value().and_then(|val| val.as_str()))
+        .or_else(|| {
+            data.gen_ai_response_model
+                .value()
+                .and_then(|val| val.as_str())
+        })
     {
         if let Some(total_cost) =
             calculate_ai_model_cost(ai_model_costs.cost_per_token(model_id), data)

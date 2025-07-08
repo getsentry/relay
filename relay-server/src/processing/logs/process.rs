@@ -3,22 +3,27 @@ use relay_event_normalization::{
     ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, SchemaProcessor,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
-use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog};
+use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog, OurLogHeader};
 use relay_ourlogs::OtelLog;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, ErrorKind, Value};
-use smallvec::SmallVec;
+use relay_quotas::DataCategory;
 
-use crate::envelope::{ContainerItems, Item, ItemContainer};
+use crate::envelope::{ContainerItems, Item, ItemContainer, WithHeader};
 use crate::extractors::RequestMeta;
 use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed};
 use crate::services::outcome::DiscardReason;
 
-pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
+/// Parses all serialized logs into their [`ExpandedLogs`] representation.
+///
+/// Individual, invalid logs will be discarded.
+pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
     let received_at = logs.received_at();
     logs.map(|logs, records| {
-        let mut all_logs = SmallVec::with_capacity(logs.count());
+        records.lenient(DataCategory::LogByte);
+
+        let mut all_logs = Vec::with_capacity(logs.count());
 
         for logs in logs.logs {
             let expanded = expand_log_container(&logs, received_at);
@@ -38,12 +43,25 @@ pub fn expand(logs: Managed<SerializedLogs>) -> Managed<ExpandedLogs> {
 
         ExpandedLogs {
             headers: logs.headers,
+            #[cfg(feature = "processing")]
+            retention: _ctx.project_info.config.event_retention,
             logs: all_logs,
         }
     })
 }
 
-fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<Annotated<OurLog>> {
+/// Processes expanded logs.
+///
+/// Validates, scrubs, normalizes and enriches individual log entries.
+pub fn process(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+    logs.modify(|logs, records| {
+        let meta = logs.headers.meta();
+        logs.logs
+            .retain_mut(|log| records.or_default(process_log(log, meta, ctx).map(|_| true), &*log));
+    });
+}
+
+fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<WithHeader<OurLog>> {
     let log = serde_json::from_slice::<OtelLog>(&item.payload()).map_err(|err| {
         relay_log::debug!("failed to parse OTel Log: {err}");
         Error::Invalid(DiscardReason::InvalidJson)
@@ -54,7 +72,20 @@ fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<Annotated<
         Error::Invalid(DiscardReason::InvalidLog)
     })?;
 
-    Ok(Annotated::new(log))
+    // The OTel log conversion already adds certain Sentry attributes which are included in the
+    // cost here.
+    //
+    // As OTel logs are deprecated and to be removed, this is okay for now.
+    //
+    // See: <https://github.com/getsentry/relay/issues/4884>.
+    let byte_size = Some(relay_ourlogs::calculate_size(&log));
+    Ok(WithHeader {
+        value: Annotated::new(log),
+        header: Some(OurLogHeader {
+            byte_size,
+            other: Default::default(),
+        }),
+    })
 }
 
 fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<ContainerItems<OurLog>> {
@@ -66,18 +97,21 @@ fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<Conta
         .into_items();
 
     for log in &mut logs {
+        let byte_size = log.value().map(relay_ourlogs::calculate_size).unwrap_or(1);
+        let header = log.header.get_or_insert_default();
+        // Unconditionally override the size of the log, before making any modifications.
+        //
+        // Relay later may deem certain attributes to be invalid and therefore drop or modify them,
+        // we still keep the original size.
+        //
+        // Once there is processing of logs in other internal Relays, we will have to respect
+        // the value set by the header, if it is coming from an internal Relay.
+        header.byte_size = Some(byte_size);
+
         relay_ourlogs::ourlog_merge_otel(log, received_at);
     }
 
     Ok(logs)
-}
-
-pub fn process(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
-    logs.modify(|logs, records| {
-        let meta = logs.headers.meta();
-        logs.logs
-            .retain_mut(|log| records.or_default(process_log(log, meta, ctx).map(|_| true), &*log));
-    });
 }
 
 fn process_log(log: &mut Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {

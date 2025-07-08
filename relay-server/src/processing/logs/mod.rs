@@ -9,21 +9,22 @@ use crate::Envelope;
 use crate::envelope::{
     ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
 };
+use crate::managed::{
+    Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
+};
 use crate::processing::{
-    self, Context, Counted, Forward, Managed, ManagedResult as _, OutcomeError, Output, Quantities,
-    QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
+    self, Context, Forward, Output, QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::utils::ManagedEnvelope;
 
 mod filter;
 mod process;
+#[cfg(feature = "processing")]
+mod store;
+mod utils;
 mod validate;
 
-/// Temporary byte count of a single log.
-///
-/// This will be addressed at a later stage: #4824.
-pub const DUMMY_LOG_SIZE: usize = 500;
+pub use self::utils::get_calculated_byte_size;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -100,10 +101,12 @@ impl processing::Processor for LogsProcessor {
 
         let otel_logs = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLog));
+            .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLog))
+            .into_vec();
         let logs = envelope
             .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::Log));
+            .take_items_by(|item| matches!(*item.ty(), ItemType::Log))
+            .into_vec();
 
         let work = SerializedLogs {
             headers,
@@ -126,7 +129,7 @@ impl processing::Processor for LogsProcessor {
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
 
         if ctx.is_processing() {
-            let mut logs = process::expand(logs);
+            let mut logs = process::expand(logs, ctx);
             process::process(&mut logs, ctx);
 
             Ok(Output::just(LogOutput::Processed(logs)))
@@ -137,10 +140,7 @@ impl processing::Processor for LogsProcessor {
 }
 
 /// Output produced by [`LogsProcessor`].
-#[expect(
-    clippy::large_enum_variant,
-    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
-)]
+#[derive(Debug)]
 pub enum LogOutput {
     NotProcessed(Managed<SerializedLogs>),
     Processed(Managed<ExpandedLogs>),
@@ -150,36 +150,74 @@ impl Forward for LogOutput {
     fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
         let logs = match self {
             Self::NotProcessed(logs) => logs,
-            Self::Processed(logs) => logs.try_map(|logs, _| {
+            Self::Processed(logs) => logs.try_map(|logs, r| {
+                r.lenient(DataCategory::LogByte);
                 logs.serialize()
                     .map_err(drop)
                     .with_outcome(Outcome::Invalid(DiscardReason::Internal))
             })?,
         };
 
-        Ok(logs.map(|logs, _| logs.serialize_envelope()))
+        Ok(logs.map(|logs, r| {
+            r.lenient(DataCategory::LogByte);
+            logs.serialize_envelope()
+        }))
+    }
+
+    #[cfg(feature = "processing")]
+    fn forward_store(
+        self,
+        s: &relay_system::Addr<crate::services::store::Store>,
+    ) -> Result<(), Rejected<()>> {
+        let logs = match self {
+            LogOutput::NotProcessed(logs) => {
+                return Err(logs.internal_error(
+                    "logs must be processed before they can be forwarded to the store",
+                ));
+            }
+            LogOutput::Processed(logs) => logs,
+        };
+
+        let scoping = logs.scoping();
+        let received_at = logs.received_at();
+
+        let (logs, retention) = logs.split_with_context(|logs| (logs.logs, logs.retention));
+        let ctx = store::Context {
+            scoping,
+            received_at,
+            retention,
+        };
+
+        for log in logs {
+            if let Ok(log) = log.try_map(|log, _| store::convert(log, &ctx)) {
+                s.send(log)
+            };
+        }
+
+        Ok(())
     }
 }
 
 /// Logs in their serialized state, as transported in an envelope.
+#[derive(Debug)]
 pub struct SerializedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
     /// OTel Logs are not sent in containers, an envelope is very likely to contain multiple OTel logs.
-    otel_logs: Items,
+    otel_logs: Vec<Item>,
     /// Logs are sent in item containers, there is specified limit of a single container per
     /// envelope.
     ///
     /// But at this point this has not yet been validated.
-    logs: Items,
+    logs: Vec<Item>,
 }
 
 impl SerializedLogs {
     fn serialize_envelope(self) -> Box<Envelope> {
         let mut items = self.logs;
         items.extend(self.otel_logs);
-        Envelope::from_parts(self.headers, items)
+        Envelope::from_parts(self.headers, Items::from_vec(items))
     }
 
     fn items(&self) -> impl Iterator<Item = &Item> {
@@ -241,9 +279,13 @@ impl RateLimited for Managed<SerializedLogs> {
 }
 
 /// Logs which have been parsed and expanded from their serialized state.
+#[derive(Debug)]
 pub struct ExpandedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
+    /// Retention in days.
+    #[cfg(feature = "processing")]
+    retention: Option<u16>,
     /// Expanded and parsed logs.
     logs: ContainerItems<OurLog>,
 }
@@ -252,12 +294,17 @@ impl Counted for ExpandedLogs {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![
             (DataCategory::LogItem, self.logs.len()),
-            (DataCategory::LogByte, DUMMY_LOG_SIZE * self.logs.len())
+            (DataCategory::LogByte, self.bytes())
         ]
     }
 }
 
 impl ExpandedLogs {
+    /// Returns the sum of bytes of all logs contained.
+    fn bytes(&self) -> usize {
+        self.logs.iter().map(get_calculated_byte_size).sum()
+    }
+
     fn serialize(self) -> Result<SerializedLogs, ContainerWriteError> {
         let mut item = Item::new(ItemType::Log);
 
@@ -268,7 +315,7 @@ impl ExpandedLogs {
         Ok(SerializedLogs {
             headers: self.headers,
             otel_logs: Default::default(),
-            logs: smallvec::smallvec![item],
+            logs: vec![item],
         })
     }
 }

@@ -11,7 +11,7 @@ type ReaderType = maxminddb::Mmap;
 type ReaderType = Vec<u8>;
 
 /// An error in the `GeoIpLookup`.
-pub type GeoIpError = maxminddb::MaxMindDBError;
+pub type GeoIpError = maxminddb::MaxMindDbError;
 
 /// A geo ip lookup helper based on maxmind db files.
 pub struct GeoIpLookup(maxminddb::Reader<ReaderType>);
@@ -38,8 +38,8 @@ impl GeoIpLookup {
         };
 
         let city: maxminddb::geoip2::City = match self.0.lookup(ip_address) {
-            Ok(x) => x,
-            Err(GeoIpError::AddressNotFoundError(_)) => return Ok(None),
+            Ok(Some(x)) => x,
+            Ok(None) => return Ok(None),
             Err(e) => return Err(e),
         };
 

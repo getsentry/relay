@@ -10,6 +10,16 @@ class Resolution(StrEnum):
 
 
 def _to_datetime(v, resolution=Resolution.Seconds):
+    # Sometimes numbers are hidden as strings, make sure resolution changes work here.
+    if isinstance(v, str):
+        try:
+            v = int(v)
+        except ValueError:
+            try:
+                v = float(v)
+            except ValueError:
+                pass
+
     if isinstance(v, datetime):
         return v
     elif isinstance(v, (int, float)):
@@ -27,10 +37,31 @@ def _to_datetime(v, resolution=Resolution.Seconds):
         assert False, f"cannot convert {v} to datetime"
 
 
+def _truncate(dt, resolution=None):
+    if resolution is None:
+        return dt
+
+    return {
+        Resolution.Seconds: lambda x: x.replace(microsecond=0),
+        Resolution.MilliSeconds: lambda x: x.replace(
+            microsecond=int(x.microsecond / 1000) * 1000
+        ),
+        Resolution.MicroSeconds: lambda x: x,
+        # Resolution of the Python datetime itself is just in microseconds
+        Resolution.NanoSeconds: lambda x: x,
+    }[resolution](dt)
+
+
 class _WithinBounds:
-    def __init__(self, lower_bound, upper_bound, expect_resolution=Resolution.Seconds):
-        self._lower_bound = lower_bound
-        self._upper_bound = upper_bound
+    def __init__(
+        self,
+        lower_bound,
+        upper_bound,
+        expect_resolution=Resolution.Seconds,
+        precision=None,
+    ):
+        self._lower_bound = _truncate(lower_bound, precision)
+        self._upper_bound = _truncate(upper_bound, precision)
         self._expect_resolution = expect_resolution
 
     def __eq__(self, other):
@@ -49,9 +80,13 @@ def time_after(lower_bound, **kwargs):
     return time_within(lower_bound, upper_bound, **kwargs)
 
 
-def time_within(lower_bound, upper_bound, **kwargs):
+def time_within(lower_bound, upper_bound=None, **kwargs):
     lower_bound = _to_datetime(lower_bound)
-    upper_bound = _to_datetime(upper_bound)
+    upper_bound = (
+        _to_datetime(upper_bound)
+        if upper_bound is not None
+        else datetime.now(tz=timezone.utc)
+    )
     assert lower_bound <= upper_bound
     return _WithinBounds(lower_bound, upper_bound, **kwargs)
 
