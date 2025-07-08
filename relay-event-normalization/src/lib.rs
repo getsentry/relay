@@ -13,6 +13,7 @@ mod geo;
 mod legacy;
 mod logentry;
 mod mechanism;
+mod meta_collect;
 mod normalize;
 mod regexes;
 mod remove_other;
@@ -29,6 +30,7 @@ pub mod replay;
 pub use event::{
     NormalizationConfig, normalize_event, normalize_measurements, normalize_performance_score,
 };
+pub use meta_collect::MetaCollectProcessor;
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;
