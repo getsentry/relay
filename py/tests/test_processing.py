@@ -320,7 +320,12 @@ def test_validate_sampling_configuration():
 
 
 def test_normalize_project_config():
-    config = {"allowedDomains": ["*"], "trustedRelays": [], "piiConfig": None}
+    config = {
+        "allowedDomains": ["*"],
+        "trustedRelays": [],
+        "trustedRelaySettings": {"verifySignature": "disabled"},
+        "piiConfig": None,
+    }
     normalized = sentry_relay.normalize_project_config(config)
     assert config == normalized
 
