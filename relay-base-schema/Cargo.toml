@@ -17,6 +17,7 @@ regex = { workspace = true }
 relay-common = { workspace = true }
 relay-protocol = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
