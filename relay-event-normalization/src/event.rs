@@ -2330,8 +2330,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 3000,
-                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.usage.output_tokens.reasoning": 1000,
+                            "gen_ai.usage.input_tokens.cached": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2382,7 +2382,7 @@ mod tests {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
                                 output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                                input_cached_per_token: 0.04,
                             },
                         ),
                         (
@@ -2390,7 +2390,7 @@ mod tests {
                             ModelCostV2 {
                                 input_per_token: 0.09,
                                 output_per_token: 0.05,
-                                output_reasoning_per_token: 0.06,
+                                output_reasoning_per_token: 0.0,
                                 input_cached_per_token: 0.0,
                             },
                         ),
@@ -2408,7 +2408,7 @@ mod tests {
             .and_then(|span| span.data.value());
         assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(140.0))
+            Some(&Value::F64(75.0))
         );
         assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
@@ -2525,8 +2525,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 3000,
-                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.usage.output_tokens.reasoning": 1000,
+                            "gen_ai.usage.input_tokens.cached": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2562,8 +2562,8 @@ mod tests {
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
-                                output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                                output_reasoning_per_token: 0.0,
+                                input_cached_per_token: 0.04,
                             },
                         ),
                         (
@@ -2589,7 +2589,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(140.0))
+            Some(&Value::F64(65.0))
         );
         assert_eq!(
             spans
