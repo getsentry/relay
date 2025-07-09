@@ -493,7 +493,7 @@ pub struct SpanData {
     pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
 
     // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
-    #[metastructure(field = "gen_ai.response.model")]
+    #[metastructure(field = "gen_ai.response.model", legacy_alias = "ai.model_id")]
     pub gen_ai_response_model: Annotated<Value>,
 
     /// The name of the GenAI model a request is being made to (e.g. gpt-4)
@@ -520,12 +520,20 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
     pub gen_ai_tool_output: Annotated<Value>,
 
-    /// LLM decisions to use calls
-    #[metastructure(field = "gen_ai.response.tool_calls", pii = "maybe")]
+    /// LLM decisions to use tools
+    #[metastructure(
+        field = "gen_ai.response.tool_calls",
+        legacy_alias = "ai.tool_calls",
+        pii = "maybe"
+    )]
     pub gen_ai_response_tool_calls: Annotated<Value>,
 
     /// LLM response text (Vercel AI, generateText)
-    #[metastructure(field = "gen_ai.response.text", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.response.text",
+        legacy_alias = "ai.responses",
+        pii = "maybe"
+    )]
     pub gen_ai_response_text: Annotated<Value>,
 
     /// LLM response object (Vercel AI, generateObject)
@@ -535,6 +543,67 @@ pub struct SpanData {
     ///  Total output tokens per seconds throughput
     #[metastructure(field = "gen_ai.response.tokens_per_second")]
     pub gen_ai_response_tokens_per_second: Annotated<Value>,
+
+    /// The available tools for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.available_tools",
+        legacy_alias = "ai.tools",
+        pii = "maybe"
+    )]
+    pub gen_ai_request_available_tools: Annotated<Value>,
+
+    /// The frequency penalty for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.frequency_penalty",
+        legacy_alias = "ai.frequency_penalty"
+    )]
+    pub gen_ai_request_frequency_penalty: Annotated<Value>,
+
+    /// The presence penalty for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.presence_penalty",
+        legacy_alias = "ai.presence_penalty"
+    )]
+    pub gen_ai_request_presence_penalty: Annotated<Value>,
+
+    /// The seed for a request to an LLM
+    #[metastructure(field = "gen_ai.request.seed", legacy_alias = "ai.seed")]
+    pub gen_ai_request_seed: Annotated<Value>,
+
+    /// The temperature for a request to an LLM
+    #[metastructure(field = "gen_ai.request.temperature", legacy_alias = "ai.temperature")]
+    pub gen_ai_request_temperature: Annotated<Value>,
+
+    /// The top_k parameter for a request to an LLM
+    #[metastructure(field = "gen_ai.request.top_k", legacy_alias = "ai.top_k")]
+    pub gen_ai_request_top_k: Annotated<Value>,
+
+    /// The top_p parameter for a request to an LLM
+    #[metastructure(field = "gen_ai.request.top_p", legacy_alias = "ai.top_p")]
+    pub gen_ai_request_top_p: Annotated<Value>,
+
+    /// The finish reason for a response from an LLM
+    #[metastructure(
+        field = "gen_ai.response.finish_reason",
+        legacy_alias = "ai.finish_reason"
+    )]
+    pub gen_ai_response_finish_reason: Annotated<Value>,
+
+    /// The unique identifier for a response from an LLM
+    #[metastructure(field = "gen_ai.response.id", legacy_alias = "ai.generation_id")]
+    pub gen_ai_response_id: Annotated<Value>,
+
+    /// The GenAI system identifier
+    #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
+    pub gen_ai_system: Annotated<Value>,
+
+    /// The name of the tool being called
+    #[metastructure(
+        field = "gen_ai.tool.name",
+        legacy_alias = "ai.function_call",
+        pii = "maybe"
+    )]
+    pub gen_ai_tool_name: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
