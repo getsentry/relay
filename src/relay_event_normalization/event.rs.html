@@ -2330,8 +2330,8 @@
 <a href=#2330 id=2330 data-nosnippet>2330</a>                        "data": {
 <a href=#2331 id=2331 data-nosnippet>2331</a>                            "gen_ai.usage.input_tokens": 1000,
 <a href=#2332 id=2332 data-nosnippet>2332</a>                            "gen_ai.usage.output_tokens": 2000,
-<a href=#2333 id=2333 data-nosnippet>2333</a>                            "gen_ai.usage.output_tokens.reasoning": 3000,
-<a href=#2334 id=2334 data-nosnippet>2334</a>                            "gen_ai.usage.input_tokens.cached": 4000,
+<a href=#2333 id=2333 data-nosnippet>2333</a>                            "gen_ai.usage.output_tokens.reasoning": 1000,
+<a href=#2334 id=2334 data-nosnippet>2334</a>                            "gen_ai.usage.input_tokens.cached": 500,
 <a href=#2335 id=2335 data-nosnippet>2335</a>                            "gen_ai.request.model": "claude-2.1"
 <a href=#2336 id=2336 data-nosnippet>2336</a>                        }
 <a href=#2337 id=2337 data-nosnippet>2337</a>                    },
@@ -2382,7 +2382,7 @@
 <a href=#2382 id=2382 data-nosnippet>2382</a>                                input_per_token: <span class="number">0.01</span>,
 <a href=#2383 id=2383 data-nosnippet>2383</a>                                output_per_token: <span class="number">0.02</span>,
 <a href=#2384 id=2384 data-nosnippet>2384</a>                                output_reasoning_per_token: <span class="number">0.03</span>,
-<a href=#2385 id=2385 data-nosnippet>2385</a>                                input_cached_per_token: <span class="number">0.0</span>,
+<a href=#2385 id=2385 data-nosnippet>2385</a>                                input_cached_per_token: <span class="number">0.04</span>,
 <a href=#2386 id=2386 data-nosnippet>2386</a>                            },
 <a href=#2387 id=2387 data-nosnippet>2387</a>                        ),
 <a href=#2388 id=2388 data-nosnippet>2388</a>                        (
@@ -2390,7 +2390,7 @@
 <a href=#2390 id=2390 data-nosnippet>2390</a>                            ModelCostV2 {
 <a href=#2391 id=2391 data-nosnippet>2391</a>                                input_per_token: <span class="number">0.09</span>,
 <a href=#2392 id=2392 data-nosnippet>2392</a>                                output_per_token: <span class="number">0.05</span>,
-<a href=#2393 id=2393 data-nosnippet>2393</a>                                output_reasoning_per_token: <span class="number">0.06</span>,
+<a href=#2393 id=2393 data-nosnippet>2393</a>                                output_reasoning_per_token: <span class="number">0.0</span>,
 <a href=#2394 id=2394 data-nosnippet>2394</a>                                input_cached_per_token: <span class="number">0.0</span>,
 <a href=#2395 id=2395 data-nosnippet>2395</a>                            },
 <a href=#2396 id=2396 data-nosnippet>2396</a>                        ),
@@ -2408,7 +2408,7 @@
 <a href=#2408 id=2408 data-nosnippet>2408</a>            .and_then(|span| span.data.value());
 <a href=#2409 id=2409 data-nosnippet>2409</a>        <span class="macro">assert_eq!</span>(
 <a href=#2410 id=2410 data-nosnippet>2410</a>            first_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
-<a href=#2411 id=2411 data-nosnippet>2411</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::F64(<span class="number">140.0</span>))
+<a href=#2411 id=2411 data-nosnippet>2411</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::F64(<span class="number">75.0</span>))
 <a href=#2412 id=2412 data-nosnippet>2412</a>        );
 <a href=#2413 id=2413 data-nosnippet>2413</a>        <span class="macro">assert_eq!</span>(
 <a href=#2414 id=2414 data-nosnippet>2414</a>            first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
@@ -2525,8 +2525,8 @@
 <a href=#2525 id=2525 data-nosnippet>2525</a>                        "data": {
 <a href=#2526 id=2526 data-nosnippet>2526</a>                            "gen_ai.usage.input_tokens": 1000,
 <a href=#2527 id=2527 data-nosnippet>2527</a>                            "gen_ai.usage.output_tokens": 2000,
-<a href=#2528 id=2528 data-nosnippet>2528</a>                            "gen_ai.usage.output_tokens.reasoning": 3000,
-<a href=#2529 id=2529 data-nosnippet>2529</a>                            "gen_ai.usage.input_tokens.cached": 4000,
+<a href=#2528 id=2528 data-nosnippet>2528</a>                            "gen_ai.usage.output_tokens.reasoning": 1000,
+<a href=#2529 id=2529 data-nosnippet>2529</a>                            "gen_ai.usage.input_tokens.cached": 500,
 <a href=#2530 id=2530 data-nosnippet>2530</a>                            "gen_ai.request.model": "claude-2.1"
 <a href=#2531 id=2531 data-nosnippet>2531</a>                        }
 <a href=#2532 id=2532 data-nosnippet>2532</a>                    },
@@ -2562,8 +2562,8 @@
 <a href=#2562 id=2562 data-nosnippet>2562</a>                            ModelCostV2 {
 <a href=#2563 id=2563 data-nosnippet>2563</a>                                input_per_token: <span class="number">0.01</span>,
 <a href=#2564 id=2564 data-nosnippet>2564</a>                                output_per_token: <span class="number">0.02</span>,
-<a href=#2565 id=2565 data-nosnippet>2565</a>                                output_reasoning_per_token: <span class="number">0.03</span>,
-<a href=#2566 id=2566 data-nosnippet>2566</a>                                input_cached_per_token: <span class="number">0.0</span>,
+<a href=#2565 id=2565 data-nosnippet>2565</a>                                output_reasoning_per_token: <span class="number">0.0</span>,
+<a href=#2566 id=2566 data-nosnippet>2566</a>                                input_cached_per_token: <span class="number">0.04</span>,
 <a href=#2567 id=2567 data-nosnippet>2567</a>                            },
 <a href=#2568 id=2568 data-nosnippet>2568</a>                        ),
 <a href=#2569 id=2569 data-nosnippet>2569</a>                        (
@@ -2589,7 +2589,7 @@
 <a href=#2589 id=2589 data-nosnippet>2589</a>                .and_then(|span| span.value())
 <a href=#2590 id=2590 data-nosnippet>2590</a>                .and_then(|span| span.data.value())
 <a href=#2591 id=2591 data-nosnippet>2591</a>                .and_then(|data| data.gen_ai_usage_total_cost.value()),
-<a href=#2592 id=2592 data-nosnippet>2592</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::F64(<span class="number">140.0</span>))
+<a href=#2592 id=2592 data-nosnippet>2592</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Value::F64(<span class="number">65.0</span>))
 <a href=#2593 id=2593 data-nosnippet>2593</a>        );
 <a href=#2594 id=2594 data-nosnippet>2594</a>        <span class="macro">assert_eq!</span>(
 <a href=#2595 id=2595 data-nosnippet>2595</a>            spans
