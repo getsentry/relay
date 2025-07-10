@@ -1058,19 +1058,14 @@ pub fn extract_tags(
                     .data
                     .value()
                     .and_then(|data| data.client_address.value())
+                    && let Some(geoip_lookup) = geoip_lookup
+                    && let Ok(Some(geo)) = geoip_lookup.lookup(client_address.as_str())
+                    && let Some(country_code) = geo.country_code.value()
                 {
-                    if let Some(geoip_lookup) = geoip_lookup {
-                        if let Ok(Some(geo)) = geoip_lookup.lookup(client_address.as_str()) {
-                            if let Some(country_code) = geo.country_code.value() {
-                                span_tags.user_country_code = country_code.to_owned().into();
-                                if let Some(subregion) = Subregion::from_iso2(country_code.as_str())
-                                {
-                                    let numerical_subregion = subregion as u8;
-                                    span_tags.user_subregion =
-                                        numerical_subregion.to_string().into();
-                                }
-                            }
-                        }
+                    span_tags.user_country_code = country_code.to_owned().into();
+                    if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                        let numerical_subregion = subregion as u8;
+                        span_tags.user_subregion = numerical_subregion.to_string().into();
                     }
                 }
             }
