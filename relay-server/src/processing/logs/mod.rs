@@ -181,11 +181,13 @@ impl Forward for LogOutput {
         let scoping = logs.scoping();
         let received_at = logs.received_at();
 
-        let (logs, retention) = logs.split_with_context(|logs| (logs.logs, logs.retention));
+        let (logs, (retention, meta_attrs)) =
+            logs.split_with_context(|logs| (logs.logs, (logs.retention, logs.meta_attrs)));
         let ctx = store::Context {
             scoping,
             received_at,
             retention,
+            meta_attrs,
         };
 
         for log in logs {
@@ -283,11 +285,18 @@ impl RateLimited for Managed<SerializedLogs> {
 pub struct ExpandedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
+    /// Expanded and parsed logs.
+    logs: ContainerItems<OurLog>,
+
+    // These fields are currently necessary as we don't pass any project config context to the
+    // store serialization. The plan is to get rid of them by giving the serialization context,
+    // including the project info, where these are pulled from: #4878.
     /// Retention in days.
     #[cfg(feature = "processing")]
     retention: Option<u16>,
-    /// Expanded and parsed logs.
-    logs: ContainerItems<OurLog>,
+    /// Enables serialization of log metadata into attributes.
+    #[cfg(feature = "processing")]
+    meta_attrs: bool,
 }
 
 impl Counted for ExpandedLogs {
