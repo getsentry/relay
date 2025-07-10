@@ -146,7 +146,43 @@ fn otel_value_to_attr(otel_value: OtelValue) -> Option<Attribute> {
             let s = String::from_utf8(bytes).ok()?;
             (AttributeType::String, Value::String(s))
         }
-        OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => return None,
+        OtelValue::ArrayValue(array) => {
+            // Technically, `ArrayValue` can contain other arrays, or nested key-value lists. This
+            // is not usually allowed by the OTLP protocol, but for safety we filter those values
+            // out before serializing.
+            let safe_values: Vec<serde_json::Value> = array
+                .values
+                .into_iter()
+                .filter_map(|v| v.value)
+                .filter_map(|v| match v {
+                    OtelValue::StringValue(s) => Some(serde_json::Value::String(s)),
+                    OtelValue::BoolValue(b) => Some(serde_json::Value::Bool(b)),
+                    OtelValue::IntValue(i) => {
+                        Some(serde_json::Value::Number(serde_json::Number::from(i)))
+                    }
+                    OtelValue::DoubleValue(d) => {
+                        serde_json::Number::from_f64(d).map(serde_json::Value::Number)
+                    }
+                    OtelValue::BytesValue(bytes) => {
+                        String::from_utf8(bytes).ok().map(serde_json::Value::String)
+                    }
+                    OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => None,
+                })
+                .collect();
+
+            // Serialize the arrays values as a JSON string. Even though there is some nominal
+            // support for array values in Sentry, it's not robust and not ready to be used.
+            // Instead, serialize arrays to a JSON string, and have the UI decode the JSON if
+            // possible.
+            let json = serde_json::to_string(&safe_values).unwrap_or_default();
+            (AttributeType::String, Value::String(json))
+        }
+        OtelValue::KvlistValue(_) => {
+            // Key-value pairs are supported by the type definition, but the OTLP protocol does
+            // _not_ allow setting this kind of value on a span, so we don't need to handle this
+            // case
+            return None;
+        }
     };
 
     Some(Attribute::new(ty, value))
@@ -681,6 +717,10 @@ mod tests {
             "sentry.environment": {
               "type": "string",
               "value": "prod"
+            },
+            "sentry.metrics_summary.some_metric": {
+              "type": "string",
+              "value": "[]"
             },
             "sentry.op": {
               "type": "string",

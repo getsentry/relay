@@ -415,6 +415,22 @@ mod tests {
                             ]
                         }
                     }
+                },
+                {
+                    "key": "process.info",
+                    "value": {
+                        "arrayValue": {
+                            "values": [
+                                {"intValue": 41},
+                                {
+                                    "arrayValue": {
+                                        "values": [
+                                            {"intValue": 42}
+                                    ]}
+                                }
+                            ]
+                        }
+                    }
                 }
             ]
         }"#;
@@ -435,9 +451,10 @@ mod tests {
           "status": "ok",
           "description": "cmd.run",
           "data": {
+            "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]"
+            "process.info": "[41]",
             "sentry.name": "cmd.run",
             "sentry.status.message": ""
-            "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]"
           },
           "links": []
         }
