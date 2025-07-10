@@ -437,6 +437,7 @@ mod tests {
           "data": {
             "sentry.name": "cmd.run",
             "sentry.status.message": ""
+            "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]"
           },
           "links": []
         }
