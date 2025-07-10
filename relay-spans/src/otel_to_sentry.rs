@@ -451,7 +451,7 @@ mod tests {
           "status": "ok",
           "description": "cmd.run",
           "data": {
-            "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]"
+            "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]",
             "process.info": "[41]",
             "sentry.name": "cmd.run",
             "sentry.status.message": ""
@@ -613,6 +613,7 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
+            "sentry.metrics_summary.some_metric": "[]",
             "sentry.name": "myname",
             "sentry.status.message": "foo"
           },
