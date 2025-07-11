@@ -471,7 +471,7 @@ jobs:
         with:
           image_name: "${{ matrix.image_name }}"
           platforms: "${PLATFORMS}"
-          dockerfile: "Dockerfile.release"
+          dockerfile_path: "./Dockerfile.release"
           publish_to_ghcr: true
           publish_to_gar: false
 
