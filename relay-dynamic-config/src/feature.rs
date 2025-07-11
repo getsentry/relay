@@ -137,7 +137,7 @@ impl FeatureSet {
 
     /// Returns `true` if any spans are produced for this project.
     pub fn produces_spans(&self) -> bool {
-        self.has(Feature::ExtractSpansFromEvent)
+        self.has(Feature::ExtractSpansFromEvent) || self.has(Feature::StandaloneSpanIngestion)
     }
 }
 
