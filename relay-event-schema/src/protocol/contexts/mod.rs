@@ -273,7 +273,8 @@ impl FromValue for Contexts {
         if let Annotated(Some(Value::Object(ref mut items)), _) = annotated {
             for (key, value) in items.iter_mut() {
                 if let Annotated(Some(Value::Object(items)), _) = value {
-                    if !items.contains_key("type") {
+                    // Set the `"type"` if it's empty and overwrite it if it's an empty object or array.
+                    if value_is_empty(items.get("type")) {
                         items.insert(
                             "type".to_owned(),
                             Annotated::new(Value::String(key.to_string())),
@@ -283,6 +284,19 @@ impl FromValue for Contexts {
             }
         }
         FromValue::from_value(annotated).map_value(Contexts)
+    }
+}
+
+/// Returns `true` if `value` is `None`, empty object, or an empty array.
+fn value_is_empty(value: Option<&Annotated<Value>>) -> bool {
+    let Some(value) = value.and_then(|v| v.value()) else {
+        return true;
+    };
+
+    match value {
+        Value::Array(values) => values.is_empty(),
+        Value::Object(values) => values.is_empty(),
+        _ => false,
     }
 }
 
@@ -350,6 +364,23 @@ mod tests {
         let mut map = Contexts::new();
         map.add(OsContext {
             name: Annotated::new("Linux".to_owned()),
+            ..Default::default()
+        });
+
+        assert_eq!(Annotated::new(map), Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn test_context_empty_type_deserialize() {
+        let json = r#"{"os":{"name":"Linux","type":{}},"runtime":{"name":"rustc","type":[]}}"#;
+
+        let mut map = Contexts::new();
+        map.add(OsContext {
+            name: Annotated::new("Linux".to_owned()),
+            ..Default::default()
+        });
+        map.add(RuntimeContext {
+            name: Annotated::new("rustc".to_owned()),
             ..Default::default()
         });
 

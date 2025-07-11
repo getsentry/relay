@@ -644,6 +644,7 @@ fn normalize(
         is_mobile,
         None,
         allowed_hosts,
+        geo_lookup,
     );
     span.sentry_tags = Annotated::new(tags);
 
