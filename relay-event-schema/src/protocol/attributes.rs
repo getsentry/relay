@@ -4,6 +4,7 @@ use std::{borrow::Borrow, fmt};
 use crate::processor::ProcessValue;
 
 #[derive(Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(process_func = "process_attribute")]
 pub struct Attribute {
     #[metastructure(flatten)]
     pub value: AttributeValue,
