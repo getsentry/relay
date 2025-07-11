@@ -467,16 +467,13 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        run: |
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
-            --file Dockerfile.release \
-            --push \
-            .
+        uses: getsentry/action-build-and-push-images@3e678a5b35eb78afec14922aa822c8923a2d2e32
+        with:
+          image_name: "${{ matrix.image_name }}"
+          platforms: "${PLATFORMS}"
+          dockerfile: "./Dockerfile.release"
+          publish_to_ghcr: true
+          publish_to_gar: false
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
@@ -572,7 +569,7 @@ jobs:
       matrix:
         image_name: ["relay"] # Don't publish relay-pop (for now)
 
-    if: github.event_name == 'merge_group' 
+    if: github.event_name == 'merge_group'
 
     env:
       GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
