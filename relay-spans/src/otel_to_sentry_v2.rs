@@ -153,8 +153,7 @@ fn otel_value_to_attr(otel_value: OtelValue) -> Option<Attribute> {
             let safe_values: Vec<serde_json::Value> = array
                 .values
                 .into_iter()
-                .filter_map(|v| v.value)
-                .filter_map(|v| match v {
+                .filter_map(|v| match v.value? {
                     OtelValue::StringValue(s) => Some(serde_json::Value::String(s)),
                     OtelValue::BoolValue(b) => Some(serde_json::Value::Bool(b)),
                     OtelValue::IntValue(i) => {
