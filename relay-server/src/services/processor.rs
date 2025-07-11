@@ -1566,8 +1566,7 @@ impl EnvelopeProcessorService {
                 },
                 device_class_synthesis_config: project_info
                     .has_feature(Feature::DeviceClassSynthesis),
-                enrich_spans: project_info.has_feature(Feature::ExtractSpansFromEvent)
-                    || project_info.has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
+                enrich_spans: project_info.has_feature(Feature::ExtractSpansFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config

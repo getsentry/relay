@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::btree_map::Entry;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -11,7 +10,7 @@ use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
 use serde_json::Value;
 
-use crate::{ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups, defaults};
+use crate::{ErrorBoundary, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -85,21 +84,7 @@ impl GlobalConfig {
     /// Modifies the global config after deserialization.
     ///
     /// - Adds hard-coded groups to metrics extraction configs.
-    pub fn normalize(&mut self) {
-        if let ErrorBoundary::Ok(config) = &mut self.metric_extraction {
-            for (group_name, metrics, tags) in defaults::hardcoded_span_metrics() {
-                // We only define these groups if they haven't been defined by the upstream yet.
-                // This ensures that the innermost Relay always defines the metrics.
-                if let Entry::Vacant(entry) = config.groups.entry(group_name) {
-                    entry.insert(MetricExtractionGroup {
-                        is_enabled: false, // must be enabled via project config
-                        metrics,
-                        tags,
-                    });
-                }
-            }
-        }
-    }
+    pub fn normalize(&mut self) {}
 }
 
 fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
@@ -161,8 +146,7 @@ pub struct Options {
     /// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which
-    /// spans are extracted. It applies on top of [`crate::Feature::ExtractCommonSpanMetricsFromEvent`],
-    /// so both feature flag and sample rate need to be enabled to get any spans extracted.
+    /// spans are extracted.
     ///
     /// `None` is the default and interpreted as a value of 1.0 (extract everything).
     ///
