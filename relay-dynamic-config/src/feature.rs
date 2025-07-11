@@ -80,16 +80,6 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
     ContinuousProfilingBetaIngest,
-    /// Enables metric extraction from spans for common modules.
-    ///
-    /// Serialized as `projects:span-metrics-extraction`.
-    #[serde(rename = "projects:span-metrics-extraction")]
-    ExtractCommonSpanMetricsFromEvent,
-    /// Enables metric extraction from spans for addon modules.
-    ///
-    /// Serialized as `projects:span-metrics-extraction-addons`.
-    #[serde(rename = "projects:span-metrics-extraction-addons")]
-    ExtractAddonsSpanMetricsFromEvent,
     /// When enabled, spans will be extracted from a transaction.
     ///
     /// Serialized as `organizations:indexed-spans-extraction`.
@@ -148,8 +138,6 @@ impl FeatureSet {
     /// Returns `true` if any spans are produced for this project.
     pub fn produces_spans(&self) -> bool {
         self.has(Feature::ExtractSpansFromEvent)
-            || self.has(Feature::StandaloneSpanIngestion)
-            || self.has(Feature::ExtractCommonSpanMetricsFromEvent)
     }
 }
 
