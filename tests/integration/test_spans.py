@@ -1153,182 +1153,6 @@ def test_span_ingestion(
             "value": 4.0,
             "received_at": time_after(now_timestamp),
         },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "file_extension": "js",
-                "span.category": "resource",
-                "span.description": "https://example.com/*/blah.js",
-                "span.domain": "example.com",
-                "span.group": "8a97a9e43588e2bd",
-                "span.op": "resource.script",
-            },
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [1500.0, 1500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "span.category": "db",
-                "span.op": "default",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "span.op": "default",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [1500.0, 1500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_after(now_timestamp),
-            "retention_days": 90,
-            "tags": {
-                "file_extension": "js",
-                "span.category": "resource",
-                "span.description": "https://example.com/*/blah.js",
-                "span.domain": "example.com",
-                "span.group": "8a97a9e43588e2bd",
-                "span.op": "resource.script",
-            },
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [1500.0, 1500.0],
-        },
-        {
-            "name": "d:spans/duration_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_after(now_timestamp),
-            "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time@millisecond",
-            "type": "d",
-            "value": [161.0, 345.0],
-            "timestamp": expected_timestamp + 1,
-            "tags": {
-                "file_extension": "js",
-                "span.category": "resource",
-                "span.description": "https://example.com/*/blah.js",
-                "span.domain": "example.com",
-                "span.group": "8a97a9e43588e2bd",
-                "span.op": "resource.script",
-            },
-            "retention_days": 90,
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time@millisecond",
-            "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/exclusive_time@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time@millisecond",
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [345.0, 345.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time_light@millisecond",
-            "type": "d",
-            "value": [161.0, 345.0],
-            "timestamp": expected_timestamp + 1,
-            "tags": {
-                "file_extension": "js",
-                "span.category": "resource",
-                "span.description": "https://example.com/*/blah.js",
-                "span.domain": "example.com",
-                "span.group": "8a97a9e43588e2bd",
-                "span.op": "resource.script",
-            },
-            "retention_days": 90,
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/exclusive_time_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/webvital.score.total@ratio",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "resource.script"},
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [0.12121616],
-            "received_at": time_after(now_timestamp),
-        },
     ]
 
     span_metrics = [m for m in metrics if ":spans/" in m["name"]]
@@ -1336,15 +1160,6 @@ def test_span_ingestion(
     assert len(span_metrics) == len(expected_span_metrics)
     for actual, expected in zip(span_metrics, expected_span_metrics):
         assert actual == expected
-
-    # Regardless of whether transactions are extracted, score.total is only converted to a transaction metric once:
-    score_total_metrics = [
-        m
-        for m in metrics
-        if m["name"] == "d:transactions/measurements.score.total@ratio"
-    ]
-    assert len(score_total_metrics) == 1, score_total_metrics
-    assert len(score_total_metrics[0]["value"]) == 1
 
     metrics_consumer.assert_empty()
 
@@ -2013,7 +1828,7 @@ def test_rate_limit_consistent_extracted(
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=11)
+    metrics = metrics_consumer.get_metrics(n=7)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )

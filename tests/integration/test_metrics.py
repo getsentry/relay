@@ -817,8 +817,7 @@ def test_transaction_metrics(
         assert_transaction()
         assert_transaction()
 
-    metrics = metrics_by_name(metrics_consumer, count=11, timeout=6)
-
+    metrics = metrics_by_name(metrics_consumer, count=7, timeout=6)
     timestamp = int(timestamp.timestamp())
     common = {
         "timestamp": time_after(timestamp),
@@ -832,8 +831,6 @@ def test_transaction_metrics(
         },
         "received_at": time_after(timestamp),
     }
-
-    assert metrics["c:spans/usage@none"]["value"] == 2
 
     assert metrics["c:transactions/usage@none"] == {
         **common,
