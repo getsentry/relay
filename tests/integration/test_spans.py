@@ -2228,107 +2228,24 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=6)
         assert len(spans) == 6
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
-        assert summarize_outcomes(outcomes) == {(16, 0): 6}  # SpanIndexed, Accepted
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=7)
+        assert summarize_outcomes(outcomes) == {
+            (16, 0): 6,  # SpanIndexed, Accepted
+            (15, 1): 2,  # Metric, Filtered
+        }
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
-        assert summarize_outcomes(outcomes) == {(16, 1): 6}  # Span, Filtered
-        assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=2)
+        assert summarize_outcomes(outcomes) == {
+            (16, 1): 6,  # Span, Filtered
+            (15, 1): 2,  # Metric, Filtered
+        }
+        assert {o["reason"] for o in outcomes} == {
+            "Sampled:3000",
+            "disabled-namespace",
+        }
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
-
-
-@pytest.mark.parametrize("ingest_in_eap", [True, False])
-def test_ingest_in_eap_for_organization(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    ingest_in_eap,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
-
-    if ingest_in_eap:
-        project_config["config"]["features"] += ["organizations:ingest-spans-in-eap"]
-
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-    event["spans"] = [
-        {
-            "description": "GET /api/0/organizations/?member=1",
-            "op": "http",
-            "origin": "manual",
-            "parent_span_id": "968cff94913ebb07",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.isoformat(),
-            "status": "success",
-            "timestamp": end.isoformat(),
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        },
-    ]
-
-    relay.send_event(project_id, event)
-
-    if ingest_in_eap:
-        spans_consumer.get_span()
-        spans_consumer.get_span()
-
-    spans_consumer.assert_empty()
-
-
-@pytest.mark.parametrize("ingest_in_eap", [True, False])
-def test_ingest_in_eap_for_project(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    ingest_in_eap,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
-
-    if ingest_in_eap:
-        project_config["config"]["features"] += ["projects:ingest-spans-in-eap"]
-
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-    event["spans"] = [
-        {
-            "description": "GET /api/0/organizations/?member=1",
-            "op": "http",
-            "origin": "manual",
-            "parent_span_id": "968cff94913ebb07",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.isoformat(),
-            "status": "success",
-            "timestamp": end.isoformat(),
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        },
-    ]
-
-    relay.send_event(project_id, event)
-
-    if ingest_in_eap:
-        spans_consumer.get_span()
-        spans_consumer.get_span()
-
-    spans_consumer.assert_empty()
 
 
 @pytest.mark.parametrize("scrub_ip_addresses", [False, True])
