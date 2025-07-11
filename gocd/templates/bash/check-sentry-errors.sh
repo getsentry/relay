@@ -32,7 +32,7 @@ for project in "${projects[@]}"; do
     continue
   fi
 
-  /devinfra/scripts/checks/sentry/release_error_events.py \
+  checks-sentry-release-error-events \
     --project-id="${project_id}" \
     --project-slug="${project_slug}" \
     --release="${release_name}" \

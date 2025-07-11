@@ -1,6 +1,6 @@
 #!/bin/bash
 
-/devinfra/scripts/checks/githubactions/checkruns.py \
+checks-githubactions-checkruns \
     getsentry/relay \
     "${GO_REVISION_RELAY_REPO}" \
     "Integration Tests" \
