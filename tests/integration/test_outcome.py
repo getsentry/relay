@@ -1894,7 +1894,6 @@ def test_span_outcomes(
 
     project_config.setdefault("features", []).extend(
         [
-            "projects:span-metrics-extraction",
             "organizations:indexed-spans-extraction",
         ]
     )
@@ -2028,8 +2027,6 @@ def test_span_outcomes_invalid(
 
     project_config.setdefault("features", []).extend(
         [
-            "projects:span-metrics-extraction",
-            "projects:span-metrics-extraction-all-modules",
             "organizations:standalone-span-ingestion",
         ]
     )

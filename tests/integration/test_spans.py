@@ -45,7 +45,6 @@ def test_span_extraction(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
@@ -264,7 +263,6 @@ def test_span_extraction_with_sampling(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
@@ -309,7 +307,6 @@ def test_duplicate_performance_score(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
@@ -681,7 +678,6 @@ def test_span_ingestion(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
         "projects:relay-otel-endpoint",
     ]
     project_config["config"]["transactionMetrics"] = {
@@ -1375,7 +1371,6 @@ def test_standalone_span_ingestion_metric_extraction(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
         # "projects:relay-otel-endpoint",
     ]
 
@@ -1750,7 +1745,6 @@ def test_span_ingestion_with_performance_scores(
     project_config["config"]["features"] = [
         "organizations:performance-calculate-score-relay",
         "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
     ]
     project_config["config"]["txNameRules"] = [
         {
@@ -1980,7 +1974,6 @@ def test_rate_limit_indexed_consistent(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
     ]
     project_config["config"]["quotas"] = [
@@ -2040,7 +2033,6 @@ def test_rate_limit_consistent_extracted(
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
     }
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["quotas"] = [
@@ -2130,7 +2122,6 @@ def test_rate_limit_spans_in_envelope(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
     ]
     project_config["config"]["quotas"] = [
@@ -2188,7 +2179,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
         "organizations:indexed-spans-extraction",
     ]
@@ -2327,7 +2317,6 @@ def test_span_extraction_with_tags(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
 
@@ -2614,7 +2603,6 @@ def test_scrubs_ip_addresses(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"].setdefault("datascrubbingSettings", {})[
