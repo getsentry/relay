@@ -470,10 +470,10 @@ jobs:
         uses: getsentry/action-build-and-push-images@3e678a5b35eb78afec14922aa822c8923a2d2e32
         with:
           image_name: "${{ matrix.image_name }}"
-          platforms: "${PLATFORMS}"
+          platform: "${PLATFORMS}"
           dockerfile_path: "./Dockerfile.release"
-          publish_to_ghcr: true
-          publish_to_gar: false
+          ghcr: true
+          gar: false
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
