@@ -287,7 +287,7 @@ impl FromValue for Contexts {
     }
 }
 
-/// Returns `true` if `value` is a nonempty string, which is the only valid form
+/// Returns `true` if `value` is a non-empty string, which is the only valid value
 /// for the `"type"` field of a context.
 fn is_valid_context_type(value: Option<&Annotated<Value>>) -> bool {
     matches!(value.and_then(|v| v.value()), Some(Value::String(s)) if !s.is_empty())
