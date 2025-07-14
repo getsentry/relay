@@ -25,7 +25,7 @@ use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 mod utils;
 use utils::{Context, ThreadedProducer};
 
-#[cfg(feature = "schemas")]
+#[cfg(debug_assertions)]
 mod schemas;
 
 const REPORT_FREQUENCY_SECS: u64 = 1;
@@ -55,7 +55,7 @@ pub enum ClientError {
     InvalidJson(#[source] serde_json::Error),
 
     /// Failed to run schema validation on message.
-    #[cfg(feature = "schemas")]
+    #[cfg(debug_assertions)]
     #[error("failed to run schema validation on message")]
     SchemaValidationFailed(#[source] schemas::SchemaError),
 
@@ -91,9 +91,33 @@ pub trait Message {
     /// Serializes the message into its binary format.
     ///
     /// # Errors
-    /// Returns the [`ClientError::InvalidMsgPack`] or [`ClientError::InvalidJson`] if the
+    /// Returns the [`ClientError::InvalidMsgPack`], [`ClientError::InvalidJson`] or [`ClientError::ProtobufEncodingFailed`]  if the
     /// serialization failed.
-    fn serialize(&self) -> Result<Cow<'_, [u8]>, ClientError>;
+    fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError>;
+}
+
+/// The output of serializing a message for kafka.
+#[derive(Debug, Clone)]
+pub enum SerializationOutput<'a> {
+    /// Serialized as Json.
+    Json(Cow<'a, [u8]>),
+
+    /// Serialized as MsgPack.
+    MsgPack(Cow<'a, [u8]>),
+
+    /// Serialized as Protobuf.
+    Protobuf(Cow<'a, [u8]>),
+}
+
+impl SerializationOutput<'_> {
+    /// Return the serialized bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            SerializationOutput::Json(cow) => cow,
+            SerializationOutput::MsgPack(cow) => cow,
+            SerializationOutput::Protobuf(cow) => cow,
+        }
+    }
 }
 
 struct TopicProducers {
@@ -287,7 +311,7 @@ impl fmt::Debug for Producer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
-    #[cfg(feature = "schemas")]
+    #[cfg(debug_assertions)]
     schema_validator: schemas::Validator,
 }
 
@@ -306,17 +330,20 @@ impl KafkaClient {
         message: &impl Message,
     ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
-        #[cfg(feature = "schemas")]
-        self.schema_validator
-            .validate_message_schema(topic, &serialized)
-            .map_err(ClientError::SchemaValidationFailed)?;
+
+        #[cfg(debug_assertions)]
+        if let SerializationOutput::Json(ref bytes) = serialized {
+            self.schema_validator
+                .validate_message_schema(topic, bytes)
+                .map_err(ClientError::SchemaValidationFailed)?;
+        }
 
         self.send(
             topic,
             message.key(),
             message.headers(),
             message.variant(),
-            &serialized,
+            serialized.as_bytes(),
         )
     }
 
@@ -431,7 +458,7 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
-            #[cfg(feature = "schemas")]
+            #[cfg(debug_assertions)]
             schema_validator: schemas::Validator::default(),
         }
     }
