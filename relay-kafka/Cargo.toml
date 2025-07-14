@@ -21,19 +21,17 @@ rmp-serde = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
-sentry-kafka-schemas = { workspace = true, default-features = false, optional = true }
+sentry-kafka-schemas = { workspace = true, default-features = false }
 parking_lot = { workspace = true }
 hashbrown = { workspace = true }
 hash32 = { workspace = true }
 
 [dev-dependencies]
 serde_yaml = { workspace = true }
-sentry-kafka-schemas = { workspace = true, default-features = false }
 insta = { workspace = true }
 
 [features]
 default = []
-schemas = ["dep:sentry-kafka-schemas"]
 producer = [
   "dep:rdkafka",
   "dep:relay-log",
