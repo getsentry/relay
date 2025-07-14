@@ -365,9 +365,9 @@ impl ConstrainedMultipart {
 /// combined size of all fields is smaller than `max_attachments_size`.
 #[allow(dead_code)]
 pub struct UnconstrainedMultipart {
-    pub multipart: Multipart<'static>,
-    pub outcome_aggregator: Addr<TrackOutcome>,
-    pub request_meta: RequestMeta,
+    multipart: Multipart<'static>,
+    outcome_aggregator: Addr<TrackOutcome>,
+    request_meta: RequestMeta,
 }
 
 impl FromRequest<ServiceState> for UnconstrainedMultipart {
