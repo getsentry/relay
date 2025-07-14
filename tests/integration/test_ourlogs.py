@@ -35,7 +35,7 @@ def envelope_with_sentry_logs(*payloads: dict) -> Envelope:
 def envelope_with_otel_logs(ts: datetime) -> Envelope:
     envelope = Envelope()
 
-    timestamp_nanos = int(ts.timestamp() * 1e9)
+    timestamp_nanos = int(ts.timestamp() * 1_000_000_000)
     envelope.add_item(
         Item(
             type="otel_log",
@@ -77,12 +77,12 @@ def timestamps(ts: datetime):
         },
         "sentry.timestamp_nanos": {
             "stringValue": time_within_delta(
-                ts, delta=timedelta(milliseconds=2), expect_resolution="ns"
+                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
             )
         },
         "sentry.timestamp_precise": {
             "intValue": time_within_delta(
-                ts, delta=timedelta(milliseconds=2), expect_resolution="ns"
+                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
             )
         },
     }
