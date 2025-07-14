@@ -2874,3 +2874,83 @@ def test_spans_v2_multiple_containers_not_allowed(
             "reason": "duplicate_item",
         },
     ]
+
+
+@pytest.mark.parametrize("ingest_format", ["json", "proto"])
+def test_span_ingestion_kafka(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    ourlogs_consumer,
+    outcomes_consumer,
+    ingest_format,
+):
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+    ourlogs_consumer = ourlogs_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "span_producers": {
+                    "produce_json": ingest_format == "json",
+                    "produce_protobuf": ingest_format == "proto",
+                }
+            },
+            **TEST_CONFIG,
+        }
+    )
+    start = datetime.now(timezone.utc)
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                json={
+                    "items": [
+                        {
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": start.timestamp() + 0.500,
+                            "trace_id": "5b8efff798038103d269b633813fc60c",
+                            "span_id": "eee19b7ec3c1b175",
+                            "name": "some op",
+                        }
+                    ]
+                }
+            ),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": 1},
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    if ingest_format == "proto":
+        assert ourlogs_consumer.get_ourlog() is not None
+        spans_consumer.assert_empty()
+
+        outcomes = outcomes_consumer.get_outcomes(n=1)
+        outcomes.sort(key=lambda o: sorted(o.items()))
+
+        assert outcomes == [
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "timestamp": time_within_delta(),
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            }
+        ]
+    else:
+        assert spans_consumer.get_span() is not None
+        ourlogs_consumer.assert_empty()
+        outcomes_consumer.assert_empty()
