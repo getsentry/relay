@@ -115,6 +115,10 @@ fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<Conta
 }
 
 fn process_log(log: &mut Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {
+    filter(log, meta, ctx).inspect_err(|err| {
+        relay_log::debug!("failed to filter log: {err}");
+    })?;
+
     scrub(log, ctx).inspect_err(|err| {
         relay_log::debug!("failed to scrub pii from log: {err}");
     })?;
@@ -122,6 +126,21 @@ fn process_log(log: &mut Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>
     normalize(log, meta).inspect_err(|err| {
         relay_log::debug!("failed to normalize log: {err}");
     })?;
+
+    Ok(())
+}
+
+fn filter(log: &mut Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {
+    if let Some(log) = log.value() {
+        if let Err(filter_stat_key) = relay_filter::should_filter(
+            log,
+            meta.client_addr(),
+            &ctx.project_info.config.filter_settings,
+            ctx.global_config.filters(),
+        ) {
+            return Err(Error::Filtered(filter_stat_key));
+        }
+    }
 
     Ok(())
 }

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::OurLog;
+use relay_filter::FilterStatKey;
 use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -33,6 +34,9 @@ pub enum Error {
     /// A duplicated item container for logs.
     #[error("duplicate log container")]
     DuplicateContainer,
+    /// Events filtered because of inbound filters
+    #[error("filtered log")]
+    Filtered(FilterStatKey),
     /// Events filtered because of a missing feature flag.
     #[error("logs feature flag missing")]
     FilterFeatureFlag,
@@ -59,6 +63,7 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::Filtered(filter_stat_key) => Some(Outcome::Filtered(filter_stat_key.clone())),
             Self::FilterFeatureFlag => None,
             Self::FilterSampling => None,
             Self::RateLimited(limits) => {

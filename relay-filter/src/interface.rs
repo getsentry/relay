@@ -3,8 +3,8 @@
 use url::Url;
 
 use relay_event_schema::protocol::{
-    Csp, Event, EventType, Exception, LogEntry, Replay, SessionAggregates, SessionUpdate, Span,
-    Values,
+    Csp, Event, EventType, Exception, LogEntry, OurLog, Replay, SessionAggregates, SessionUpdate,
+    Span, Values,
 };
 
 /// A data item to which filters can be applied.
@@ -89,6 +89,46 @@ impl Filterable for Event {
             .headers
             .value()?
             .get_header(header_name)
+    }
+}
+
+impl Filterable for OurLog {
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
+
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
+
+    fn ip_addr(&self) -> Option<&str> {
+        None
+    }
+
+    fn logentry(&self) -> Option<&LogEntry> {
+        None
+    }
+
+    fn release(&self) -> Option<&str> {
+        let attributes = self.attributes.value()?;
+        let release = attributes.get_value("sentry.release")?;
+        release.as_str()
+    }
+
+    fn transaction(&self) -> Option<&str> {
+        None
+    }
+
+    fn url(&self) -> Option<Url> {
+        None
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        None
+    }
+
+    fn header(&self, header_name: &str) -> Option<&str> {
+        None
     }
 }
 
