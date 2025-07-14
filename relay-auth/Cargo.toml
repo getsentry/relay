@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Authentication and crypto for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.6.1"
+version = "25.6.2"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -16,7 +16,7 @@ workspace = true
 [dependencies]
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
-ed25519-dalek = { workspace = true, features = ["rand_core"] }
+ed25519-dalek = { workspace = true }
 hmac = { workspace = true }
 rand = { workspace = true }
 relay-common = { workspace = true }

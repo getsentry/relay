@@ -108,6 +108,15 @@ trait TrackOutcomeLike {
             _ => "<unknown>",
         }
     }
+
+    /// Returns the number of items for that outcome.
+    fn quantity(&self) -> Option<u32>;
+
+    /// The project id for the outcomes.
+    fn project_id(&self) -> ProjectId;
+
+    /// The category for the outcome.
+    fn category(&self) -> DataCategory;
 }
 
 /// Tracks an [`Outcome`] of an Envelope item.
@@ -138,6 +147,18 @@ impl TrackOutcomeLike for TrackOutcome {
 
     fn outcome_id(&self) -> OutcomeId {
         self.outcome.to_outcome_id()
+    }
+
+    fn quantity(&self) -> Option<u32> {
+        Some(self.quantity)
+    }
+
+    fn project_id(&self) -> ProjectId {
+        self.scoping.project_id
+    }
+
+    fn category(&self) -> DataCategory {
+        self.category
     }
 }
 
@@ -247,7 +268,7 @@ impl fmt::Display for Outcome {
             Outcome::RateLimited(None) => write!(f, "rate limited"),
             Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({})", id),
+            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({id})"),
             Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
@@ -469,6 +490,12 @@ pub enum DiscardReason {
 
     /// An attachment was submitted with a transaction.
     TransactionAttachment,
+
+    /// (Relay) The signature from a trusted Relay was invalid.
+    InvalidSignature,
+
+    /// (Relay) The signature from a trusted Relay was missing but required.
+    MissingSignature,
 }
 
 impl DiscardReason {
@@ -489,6 +516,8 @@ impl DiscardReason {
             DiscardReason::SecurityReport => "security_report",
             DiscardReason::Cors => "cors",
             DiscardReason::ProcessUnreal => "process_unreal",
+            DiscardReason::InvalidSignature => "invalid_signature",
+            DiscardReason::MissingSignature => "missing_signature",
 
             // Relay specific reasons (not present in Sentry)
             DiscardReason::Payload => "payload",
@@ -834,6 +863,21 @@ impl TrackOutcomeLike for TrackRawOutcome {
     fn outcome_id(&self) -> OutcomeId {
         self.outcome
     }
+
+    fn quantity(&self) -> Option<u32> {
+        self.quantity
+    }
+
+    fn project_id(&self) -> ProjectId {
+        self.project_id
+    }
+
+    fn category(&self) -> DataCategory {
+        match self.category {
+            Some(cat) => DataCategory::try_from(cat).unwrap_or(DataCategory::Unknown),
+            None => DataCategory::Unknown,
+        }
+    }
 }
 
 impl Interface for TrackRawOutcome {}
@@ -979,6 +1023,9 @@ impl ClientReportOutcomeProducer {
             Outcome::Filtered(_) => &mut client_report.filtered_events,
             Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
             Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
+            Outcome::Invalid(DiscardReason::InvalidSignature | DiscardReason::MissingSignature) => {
+                &mut client_report.discarded_events
+            }
             _ => {
                 relay_log::debug!(
                     "Outcome '{}' cannot be converted to client report",
@@ -1052,11 +1099,11 @@ impl KafkaOutcomesProducer {
         let mut client_builder = KafkaClient::builder();
 
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let kafka_config = &config
-                .kafka_config(*topic)
+            let kafka_config = config
+                .kafka_configs(*topic)
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
             client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
+                .add_kafka_topic_config(*topic, &kafka_config, config.kafka_validate_topics())
                 .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 
@@ -1103,9 +1150,21 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
 }
 
 fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
+    if let Some(quantity) = message.quantity() {
+        metric!(
+            counter(RelayCounters::OutcomeQuantity) += quantity,
+            hc.project_id = message.project_id().to_string().as_str(),
+            hc.reason = message.reason().as_deref().unwrap_or(""),
+            category = message.category().name(),
+            outcome = message.tag_name(),
+            to = to,
+        );
+    }
     metric!(
         counter(RelayCounters::Outcomes) += 1,
         reason = message.reason().as_deref().unwrap_or(""),
+        hc.category = message.category().name(),
+        hc.project_id = message.project_id().to_string().as_str(),
         outcome = message.tag_name(),
         to = to,
     );

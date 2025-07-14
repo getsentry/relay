@@ -171,6 +171,7 @@ mod tests {
                 gen_ai_response_tool_calls: ~,
                 gen_ai_response_text: ~,
                 gen_ai_response_object: ~,
+                gen_ai_response_tokens_per_second: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,

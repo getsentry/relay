@@ -168,33 +168,33 @@ mod tests {
 
         update_nested_value(&mut val, &["x", "y", "z"], "xx");
 
-        insta::assert_json_snapshot!(val, @r#"
-       ⋮{
-       ⋮  "x": {
-       ⋮    "y": {
-       ⋮      "z": "xx"
-       ⋮    }
-       ⋮  }
-       ⋮}
-        "#);
+        insta::assert_json_snapshot!(val, @r###"
+        {
+          "x": {
+            "y": {
+              "z": "xx"
+            }
+          }
+        }
+        "###);
 
         update_nested_value(&mut val, &["x", "y", "k"], "kk");
         update_nested_value(&mut val, &["w", ""], "w");
         update_nested_value(&mut val, &["z1"], "val1");
-        insta::assert_json_snapshot!(val, @r#"
-       ⋮{
-       ⋮  "w": {
-       ⋮    "": "w"
-       ⋮  },
-       ⋮  "x": {
-       ⋮    "y": {
-       ⋮      "k": "kk",
-       ⋮      "z": "xx"
-       ⋮    }
-       ⋮  },
-       ⋮  "z1": "val1"
-       ⋮}
-        "#);
+        insta::assert_json_snapshot!(val, @r###"
+        {
+          "w": {
+            "": "w"
+          },
+          "x": {
+            "y": {
+              "k": "kk",
+              "z": "xx"
+            }
+          },
+          "z1": "val1"
+        }
+        "###);
     }
 
     #[test]
@@ -218,22 +218,22 @@ mod tests {
         });
 
         merge_values(&mut original, modified);
-        insta::assert_json_snapshot!(original, @r#"
-       ⋮{
-       ⋮  "k1": "v1",
-       ⋮  "k2": {
-       ⋮    "k3": "v3",
-       ⋮    "k4": "v4",
-       ⋮    "k4-1": "v4-1"
-       ⋮  },
-       ⋮  "k5": [
-       ⋮    1,
-       ⋮    2,
-       ⋮    3
-       ⋮  ],
-       ⋮  "k6": "v6"
-       ⋮}
-        "#);
+        insta::assert_json_snapshot!(original, @r###"
+        {
+          "k1": "v1",
+          "k2": {
+            "k3": "v3",
+            "k4": "v4",
+            "k4-1": "v4-1"
+          },
+          "k5": [
+            1,
+            2,
+            3
+          ],
+          "k6": "v6"
+        }
+        "###);
     }
 
     #[test]

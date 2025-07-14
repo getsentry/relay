@@ -443,10 +443,7 @@ impl Inner {
         //
         // Also re-use the original hasher, no need to create a new/expensive one.
         self.slots.push_back(Slot {
-            buckets: HashMap::with_capacity_and_hasher(
-                slot.buckets.len(),
-                slot.buckets.hasher().clone(),
-            ),
+            buckets: HashMap::with_capacity_and_hasher(slot.buckets.len(), *slot.buckets.hasher()),
             ..slot
         });
 

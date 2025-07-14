@@ -162,7 +162,7 @@ impl IntoValue for AttributeType {
 
 /// Wrapper struct around a collection of attributes with some convenience methods.
 #[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct Attributes(Object<Attribute>);
+pub struct Attributes(pub Object<Attribute>);
 
 impl Attributes {
     /// Creates an empty collection of attributes.
@@ -215,7 +215,7 @@ impl Attributes {
         self.0.contains_key(key)
     }
 
-    /// Iterates mutably over this collection's attribute keys and values
+    /// Iterates mutably over this collection's attribute keys and values.
     pub fn iter_mut(
         &mut self,
     ) -> std::collections::btree_map::IterMut<String, Annotated<Attribute>> {

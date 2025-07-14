@@ -1,5 +1,13 @@
 # Changelog
 
+# Unreleased
+
+- Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
+
+## 0.9.10
+
+- No documented changes.
+
 ## 0.9.9
 
 - Add data categories for Seer. ([#4692](https://github.com/getsentry/relay/pull/4692))

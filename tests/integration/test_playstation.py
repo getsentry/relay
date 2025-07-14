@@ -428,3 +428,24 @@ def test_playstation_attachment_no_feature_flag(
     assert "exception" in payload
     assert payload["exception"]["values"][0]["type"] == "ValueError"
     assert payload["exception"]["values"][0]["value"] == "Should not happen"
+
+
+def test_data_request(mini_sentry, relay_processing_with_playstation):
+    PROJECT_ID = 42
+    mini_sentry.add_full_project_config(
+        PROJECT_ID,
+        extra={"config": {"features": ["organizations:relay-playstation-ingestion"]}},
+    )
+    relay = relay_processing_with_playstation()
+    response = relay.send_playstation_data_request(PROJECT_ID)
+
+    expected_response = {
+        "parts": {
+            "upload": [
+                "corefile",
+                "screenshot",
+            ],
+        }
+    }
+    assert response.status_code == 200
+    assert response.json() == expected_response

@@ -514,6 +514,10 @@ pub fn normalize_user_geoinfo(
     ip_addr: Option<&IpAddr>,
 ) {
     let user = user.value_mut().get_or_insert_with(User::default);
+    // The event was already populated with geo information so we don't have to do anything.
+    if user.geo.value().is_some() {
+        return;
+    }
     if let Some(ip_address) = user
         .ip_address
         .value()
@@ -1424,23 +1428,24 @@ fn remove_invalid_measurements(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in measurements_config.builtin_measurement_keys() {
-            if builtin_measurement.name() == name {
-                let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
-                // Drop negative values if the builtin measurement does not allow them.
-                if !builtin_measurement.allow_negative() && *value < 0.0 {
-                    meta.add_error(Error::invalid(format!(
-                        "Negative value for measurement {name} not allowed: {value}",
-                    )));
-                    removed_measurements
-                        .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
-                    return false;
-                }
-                // If the unit matches a built-in measurement, we allow it.
-                // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
-                // and just drop it instead.
-                return builtin_measurement.unit() == unit;
+        if let Some(builtin_measurement) = measurements_config
+            .builtin_measurement_keys()
+            .find(|builtin| builtin.name() == name)
+        {
+            let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
+            // Drop negative values if the builtin measurement does not allow them.
+            if !builtin_measurement.allow_negative() && *value < 0.0 {
+                meta.add_error(Error::invalid(format!(
+                    "Negative value for measurement {name} not allowed: {value}",
+                )));
+                removed_measurements
+                    .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+                return false;
             }
+            // If the unit matches a built-in measurement, we allow it.
+            // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
+            // and just drop it instead.
+            return builtin_measurement.unit() == unit;
         }
 
         // For custom measurements, check the budget:
@@ -1667,7 +1672,7 @@ mod tests {
 
         normalize_event_measurements(&mut event, None, None);
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -1703,7 +1708,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1740,7 +1745,7 @@ mod tests {
         normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -1780,7 +1785,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1795,7 +1800,7 @@ mod tests {
         .unwrap()
         .into_value()
         .unwrap();
-        insta::assert_debug_snapshot!(measurements, @r#"
+        insta::assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
                 "fcp": Measurement {
@@ -1812,9 +1817,9 @@ mod tests {
                 },
             },
         )
-        "#);
+        "###);
         normalize_units(&mut measurements);
-        insta::assert_debug_snapshot!(measurements, @r#"
+        insta::assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
                 "fcp": Measurement {
@@ -1833,7 +1838,7 @@ mod tests {
                 },
             },
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1928,7 +1933,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -1939,7 +1944,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1957,7 +1962,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -1968,7 +1973,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1988,7 +1993,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -1999,7 +2004,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2019,7 +2024,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2030,7 +2035,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2050,7 +2055,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2061,7 +2066,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2316,7 +2321,7 @@ mod tests {
             {
                 "spans": [
                     {
-                        "timestamp": 1702474613.0495,
+                        "timestamp": 1702474614.0175,
                         "start_timestamp": 1702474613.0175,
                         "description": "OpenAI ",
                         "op": "gen_ai.chat_completions.openai",
@@ -2326,13 +2331,13 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 3000,
-                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.usage.output_tokens.reasoning": 1000,
+                            "gen_ai.usage.input_tokens.cached": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
                     {
-                        "timestamp": 1702474613.0495,
+                        "timestamp": 1702474614.0175,
                         "start_timestamp": 1702474613.0175,
                         "description": "OpenAI ",
                         "op": "gen_ai.chat_completions.openai",
@@ -2343,6 +2348,20 @@ mod tests {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
                             "gen_ai.request.model": "gpt4-21-04"
+                        }
+                    },
+                    {
+                        "timestamp": 1702474614.0175,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "gen_ai.chat_completions.openai",
+                        "span_id": "ac01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 1000,
+                            "gen_ai.usage.output_tokens": 2000,
+                            "gen_ai.response.model": "gpt4-21-04"
                         }
                     }
                 ]
@@ -2364,7 +2383,7 @@ mod tests {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
                                 output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                                input_cached_per_token: 0.04,
                             },
                         ),
                         (
@@ -2372,7 +2391,7 @@ mod tests {
                             ModelCostV2 {
                                 input_per_token: 0.09,
                                 output_per_token: 0.05,
-                                output_reasoning_per_token: 0.06,
+                                output_reasoning_per_token: 0.0,
                                 input_cached_per_token: 0.0,
                             },
                         ),
@@ -2383,30 +2402,111 @@ mod tests {
         );
 
         let spans = event.value().unwrap().spans.value().unwrap();
-        assert_eq!(spans.len(), 2);
+        assert_eq!(spans.len(), 3);
+        let first_span_data = spans
+            .first()
+            .and_then(|span| span.value())
+            .and_then(|span| span.data.value());
+        assert_eq!(
+            first_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(75.0))
+        );
+        assert_eq!(
+            first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
+            Some(&Value::F64(2000.0))
+        );
+
+        let second_span_data = spans
+            .get(1)
+            .and_then(|span| span.value())
+            .and_then(|span| span.data.value());
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_usage_total_tokens.value()),
+            Some(&Value::F64(3000.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
+            Some(&Value::F64(2000.0))
+        );
+
+        // Cost calculation when there is only gen_ai.response.model present
+        let third_span_data = spans
+            .get(2)
+            .and_then(|span| span.value())
+            .and_then(|span| span.data.value());
+        assert_eq!(
+            third_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(190.0))
+        );
+    }
+
+    #[test]
+    fn test_ai_data_with_no_tokens() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "gen_ai.invoke_agent",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.request.model": "claude-2.1"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::from([(
+                        "claude-2.1".to_owned(),
+                        ModelCostV2 {
+                            input_per_token: 0.01,
+                            output_per_token: 0.02,
+                            output_reasoning_per_token: 0.03,
+                            input_cached_per_token: 0.0,
+                        },
+                    )]),
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let spans = event.value().unwrap().spans.value().unwrap();
+
+        assert_eq!(spans.len(), 1);
+        // total_cost shouldn't be set if no tokens are present on span data
         assert_eq!(
             spans
                 .first()
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(140.0))
+            None
         );
+        // total_tokens shouldn't be set if no tokens are present on span data
         assert_eq!(
             spans
-                .get(1)
-                .and_then(|span| span.value())
-                .and_then(|span| span.data.value())
-                .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(190.0))
-        );
-        assert_eq!(
-            spans
-                .get(1)
+                .first()
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_tokens.value()),
-            Some(&Value::F64(3000.0))
+            None
         );
     }
 
@@ -2426,8 +2526,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 3000,
-                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.usage.output_tokens.reasoning": 1000,
+                            "gen_ai.usage.input_tokens.cached": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2463,8 +2563,8 @@ mod tests {
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
-                                output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                                output_reasoning_per_token: 0.0,
+                                input_cached_per_token: 0.04,
                             },
                         ),
                         (
@@ -2490,7 +2590,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(140.0))
+            Some(&Value::F64(65.0))
         );
         assert_eq!(
             spans
@@ -2511,6 +2611,94 @@ mod tests {
     }
 
     #[test]
+    fn test_ai_response_tokens_per_second_no_output_tokens() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474614.0175,
+                        "start_timestamp": 1702474613.0175,
+                        "op": "gen_ai.chat_completions",
+                        "span_id": "9c01bd820a083e63",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.input_tokens": 500
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::new(),
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data = get_value!(event.spans[0].data!);
+
+        // Should not set response_tokens_per_second when there are no output tokens
+        assert!(
+            span_data
+                .gen_ai_response_tokens_per_second
+                .value()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_ai_response_tokens_per_second_zero_duration() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0175,
+                        "start_timestamp": 1702474613.0175,
+                        "op": "gen_ai.chat_completions",
+                        "span_id": "9c01bd820a083e63",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "data": {
+                            "gen_ai.usage.output_tokens": 1000
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 2,
+                    costs: vec![],
+                    models: HashMap::new(),
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data = get_value!(event.spans[0].data!);
+
+        // Should not set response_tokens_per_second when duration is zero
+        assert!(
+            span_data
+                .gen_ai_response_tokens_per_second
+                .value()
+                .is_none()
+        );
+    }
+
+    #[test]
     fn test_apple_high_device_class() {
         let mut event = Event {
             contexts: {
@@ -2525,7 +2713,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2536,7 +2724,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -4443,7 +4631,7 @@ mod tests {
             .first()
             .unwrap();
 
-        assert_debug_snapshot!(exception.meta(), @r#"
+        assert_debug_snapshot!(exception.meta(), @r###"
         Meta {
             remarks: [],
             errors: [
@@ -4470,7 +4658,8 @@ mod tests {
                     },
                 ),
             ),
-        }"#);
+        }
+        "###);
     }
 
     #[test]
@@ -4522,7 +4711,7 @@ mod tests {
             .first()
             .unwrap()
             .meta();
-        assert_debug_snapshot!(debug_image_meta, @r#"
+        assert_debug_snapshot!(debug_image_meta, @r###"
         Meta {
             remarks: [],
             errors: [
@@ -4541,7 +4730,8 @@ mod tests {
                     {},
                 ),
             ),
-        }"#);
+        }
+        "###);
     }
 
     #[test]
@@ -4611,7 +4801,7 @@ mod tests {
         }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
         normalize_trace_context_tags(&mut event);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 2.0,
@@ -4652,7 +4842,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -4683,7 +4873,7 @@ mod tests {
         }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
         normalize_trace_context_tags(&mut event);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 2.0,
@@ -4724,6 +4914,6 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 }

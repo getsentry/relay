@@ -4,6 +4,7 @@ use std::error::Error;
 use std::sync::Arc;
 
 use crate::envelope::{ContentType, Item, ItemType};
+use crate::managed::{ItemAction, ManagedEnvelope, TypedEnvelope};
 use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
@@ -12,7 +13,7 @@ use crate::services::processor::{
     TransactionGroup, dynamic_sampling, event_type,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{ItemAction, ManagedEnvelope, TypedEnvelope, sample};
+use crate::utils::sample;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -643,6 +644,7 @@ fn normalize(
         is_mobile,
         None,
         allowed_hosts,
+        geo_lookup,
     );
     span.sentry_tags = Annotated::new(tags);
 
@@ -820,9 +822,9 @@ mod tests {
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
+    use crate::managed::ManagedEnvelope;
     use crate::services::processor::ProcessingGroup;
     use crate::services::projects::project::ProjectInfo;
-    use crate::utils::ManagedEnvelope;
 
     use super::*;
 

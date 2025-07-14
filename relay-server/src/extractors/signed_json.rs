@@ -1,9 +1,10 @@
+use axum::RequestExt;
 use axum::extract::rejection::BytesRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
-use relay_auth::{RelayId, UnpackError};
+use relay_auth::{RelayId, Signature, UnpackError};
 use relay_config::RelayInfo;
 use serde::de::DeserializeOwned;
 
@@ -74,14 +75,15 @@ pub struct SignedBytes {
 impl FromRequest<ServiceState> for SignedBytes {
     type Rejection = SignatureError;
 
-    async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
+    async fn from_request(
+        mut request: Request,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
         let relay_id = get_header(&request, "x-sentry-relay-id")?
             .parse::<RelayId>()
             .map_err(|_| SignatureError::MalformedHeader("x-sentry-relay-id"))?;
 
         relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id));
-
-        let signature = get_header(&request, "x-sentry-relay-signature")?.to_owned();
 
         let relay = state
             .relay_cache()
@@ -89,11 +91,16 @@ impl FromRequest<ServiceState> for SignedBytes {
             .await?
             .ok_or(SignatureError::UnknownRelay)?;
 
+        let signature = request
+            .extract_parts_with_state::<Option<Signature>, ServiceState>(state)
+            .await?
+            .ok_or_else(|| SignatureError::MissingHeader("x-sentry-relay-signature"))?;
+
         let body = Bytes::from_request(request, state).await?;
-        if !relay.public_key.verify(&body, &signature) {
-            Err(SignatureError::BadSignature(UnpackError::BadSignature))
-        } else {
+        if signature.verify_bytes(body.as_ref(), &relay.public_key) {
             Ok(SignedBytes { body, relay })
+        } else {
+            Err(SignatureError::BadSignature(UnpackError::BadSignature))
         }
     }
 }

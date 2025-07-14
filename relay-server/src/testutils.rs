@@ -15,6 +15,7 @@ use relay_system::Service;
 use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
+use crate::managed::ManagedEnvelope;
 use crate::metrics::{MetricOutcomes, MetricStats};
 #[cfg(feature = "processing")]
 use crate::service::create_redis_clients;
@@ -26,7 +27,7 @@ use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcess
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::test_store::TestStore;
-use crate::utils::{ManagedEnvelope, ThreadPoolBuilder};
+use crate::utils::ThreadPoolBuilder;
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,

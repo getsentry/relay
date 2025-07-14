@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics protocol and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.6.1"
+version = "25.6.2"
 edition = "2024"
 license-file = "../LICENSE.md"
 publish = false
@@ -19,7 +19,6 @@ redis = ["relay-redis/impl"]
 ahash = { workspace = true }
 bytecount = { workspace = true }
 chrono = { workspace = true }
-fnv = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }

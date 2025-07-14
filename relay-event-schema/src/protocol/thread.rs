@@ -73,8 +73,8 @@ impl Empty for ThreadId {
 impl fmt::Display for ThreadId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ThreadId::Int(id) => write!(f, "{}", id),
-            ThreadId::String(id) => write!(f, "{}", id),
+            ThreadId::Int(id) => write!(f, "{id}"),
+            ThreadId::String(id) => write!(f, "{id}"),
         }
     }
 }

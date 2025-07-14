@@ -4,8 +4,33 @@
 
 **Features**:
 
+- Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
+
+**Bug Fixes**:
+
+- Preserve user specified event values in Unreal crash reports. ([#4882](https://github.com/getsentry/relay/pull/4882))
+- OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
+- Do not overwrite geo information if already set. ([#4888](https://github.com/getsentry/relay/pull/4888))
+
+**Internal**:
+
+- Forward logs to Kafka directly instead of serialized as envelope. ([#4875](https://github.com/getsentry/relay/pull/4875))
+- Remember accepted/ingested bytes for log outcomes. ([#4886](https://github.com/getsentry/relay/pull/4886))
+- Add `gen_ai.response.tokens_per_second` span attribute on AI spans. ([#4883](https://github.com/getsentry/relay/pull/4883))
+- Add support for playstation data requests. ([#4870](https://github.com/getsentry/relay/pull/4870))
+- Expand the NEL attributes & others. ([#4874](https://github.com/getsentry/relay/pull/4874))
+- Normalize legacy AI agents attributes to OTel compatible names. ([#4916](https://github.com/getsentry/relay/pull/4916))
+- Fix cost calculation for cached and reasoning tokens. ([#4922](https://github.com/getsentry/relay/pull/4922))
+
+## 25.6.2
+
+**Features**:
+
 - Add configuration to allow high cardinality tags in metrics. ([#4805](https://github.com/getsentry/relay/pull/4805))
 - Make client sdk mandatory for profile sample v2. ([#4853](https://github.com/getsentry/relay/pull/4853))
+- Sharding into many topics based on partition key. ([#4861](https://github.com/getsentry/relay/pull/4861))
+- Parse Chromium stability report from minidumps into context ([#4837](https://github.com/getsentry/relay/pull/4837))
+- Add additional web crawlers for inbound filtering. ([#4865](https://github.com/getsentry/relay/pull/4865))
 
 **Internal**:
 
@@ -14,16 +39,18 @@
 - Update opentelemetry-proto and sentry-protos dependencies. ([#4847](https://github.com/getsentry/relay/pull/4847))
 - Take into account more types of tokens when doing AI cost calculation. ([#4840](https://github.com/getsentry/relay/pull/4840))
 - Use the `FiniteF64` type for measurements. ([#4828](https://github.com/getsentry/relay/pull/4828))
-- Derive a `sentry.description` attribute for V2 spans ([#4832](https://github.com/getsentry/relay/pull/4832))
+- Derive a `sentry.description` attribute for V2 spans. ([#4832](https://github.com/getsentry/relay/pull/4832))
 - Consider `gen_ai` also as AI span op prefix. ([#4859](https://github.com/getsentry/relay/pull/4859))
-- Change pii scrubbing on some AI attributes to optional ([#4860](https://github.com/getsentry/relay/pull/4860))
+- Change pii scrubbing on some AI attributes to optional. ([#4860](https://github.com/getsentry/relay/pull/4860))
+- Conditionally set `total_cost` and `total_tokens` attributes on AI spans. ([#4868](https://github.com/getsentry/relay/pull/4868))
+- Write OTLP span status message to an attribute. ([#4876](https://github.com/getsentry/relay/pull/4876))
 
 ## 25.6.1
 
 **Features**:
 
 - Implements a minimum sample rate dynamic sampling rule. ([#4801](https://github.com/getsentry/relay/pull/4801))
-- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813)
+- Convert NEL reports into logs. ([#4813](https://github.com/getsentry/relay/pull/4813))
 - Add parsing for _Nintendo Switch_ to populate `os.name="Nintendo OS"`. ([#4821](https://github.com/getsentry/relay/pull/4821))
 
 **Internal**:

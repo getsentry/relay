@@ -1,11 +1,10 @@
 use relay_event_schema::protocol::OurLog;
-use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use smallvec::SmallVec;
 
-use crate::Envelope;
-use crate::envelope::Item;
+use crate::envelope::{Item, WithHeader};
 use crate::utils::EnvelopeSummary;
+use crate::{Envelope, processing};
 
 /// A list of data categories and amounts.
 pub type Quantities = SmallVec<[(DataCategory, usize); 1]>;
@@ -76,13 +75,13 @@ impl Counted for Box<Envelope> {
     }
 }
 
-impl Counted for Annotated<OurLog> {
+impl Counted for WithHeader<OurLog> {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![
             (DataCategory::LogItem, 1),
             (
                 DataCategory::LogByte,
-                crate::processing::logs::DUMMY_LOG_SIZE
+                processing::logs::get_calculated_byte_size(self)
             )
         ]
     }

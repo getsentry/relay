@@ -199,7 +199,6 @@ impl CategoryUnit {
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
             | DataCategory::LogItem
-            | DataCategory::LogByte
             | DataCategory::Span
             | DataCategory::SpanIndexed
             | DataCategory::MonitorSeat
@@ -214,7 +213,7 @@ impl CategoryUnit {
             | DataCategory::SeerAutofix
             | DataCategory::SeerScanner
             | DataCategory::Session => Some(Self::Count),
-            DataCategory::Attachment => Some(Self::Bytes),
+            DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
                 Some(Self::Milliseconds)
             }

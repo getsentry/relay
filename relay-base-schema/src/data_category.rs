@@ -7,6 +7,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::events::EventType;
 
+/// An error that occurs if a number cannot be converted into a [`DataCategory`].
+#[derive(Debug, PartialEq, thiserror::Error)]
+#[error("Unknown numeric data category {0} can not be converted into a DataCategory.")]
+pub struct UnknownDataCategory(pub u8);
+
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -262,5 +267,58 @@ impl From<EventType> for DataCategory {
             }
             EventType::UserReportV2 => Self::UserReportV2,
         }
+    }
+}
+
+impl TryFrom<u8> for DataCategory {
+    type Error = UnknownDataCategory;
+
+    fn try_from(value: u8) -> Result<Self, UnknownDataCategory> {
+        match value {
+            0 => Ok(Self::Default),
+            1 => Ok(Self::Error),
+            2 => Ok(Self::Transaction),
+            3 => Ok(Self::Security),
+            4 => Ok(Self::Attachment),
+            5 => Ok(Self::Session),
+            6 => Ok(Self::Profile),
+            7 => Ok(Self::Replay),
+            8 => Ok(Self::TransactionProcessed),
+            9 => Ok(Self::TransactionIndexed),
+            10 => Ok(Self::Monitor),
+            11 => Ok(Self::ProfileIndexed),
+            12 => Ok(Self::Span),
+            13 => Ok(Self::MonitorSeat),
+            14 => Ok(Self::UserReportV2),
+            15 => Ok(Self::MetricBucket),
+            16 => Ok(Self::SpanIndexed),
+            17 => Ok(Self::ProfileDuration),
+            18 => Ok(Self::ProfileChunk),
+            19 => Ok(Self::MetricSecond),
+            20 => Ok(Self::DoNotUseReplayVideo),
+            21 => Ok(Self::Uptime),
+            22 => Ok(Self::AttachmentItem),
+            23 => Ok(Self::LogItem),
+            24 => Ok(Self::LogByte),
+            25 => Ok(Self::ProfileDurationUi),
+            26 => Ok(Self::ProfileChunkUi),
+            27 => Ok(Self::SeerAutofix),
+            28 => Ok(Self::SeerScanner),
+            other => Err(UnknownDataCategory(other)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_last_variant_conversion() {
+        // If this test fails, update the numeric bounds so that the first assertion
+        // maps to the last variant in the enum and the second assertion produces an error
+        // that the DataCategory does not exist.
+        assert_eq!(DataCategory::try_from(28), Ok(DataCategory::SeerScanner));
+        assert_eq!(DataCategory::try_from(29), Err(UnknownDataCategory(29)));
     }
 }

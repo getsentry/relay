@@ -469,7 +469,8 @@ pub struct SpanData {
     /// The input tokens used by an LLM call (usually cheaper than output tokens)
     #[metastructure(
         field = "gen_ai.usage.input_tokens",
-        legacy_alias = "ai.prompt_tokens.used"
+        legacy_alias = "ai.prompt_tokens.used",
+        legacy_alias = "gen_ai.usage.prompt_tokens"
     )]
     pub gen_ai_usage_input_tokens: Annotated<Value>,
 
@@ -481,7 +482,8 @@ pub struct SpanData {
     /// The output tokens used by an LLM call (the ones the LLM actually generated)
     #[metastructure(
         field = "gen_ai.usage.output_tokens",
-        legacy_alias = "ai.completion_tokens.used"
+        legacy_alias = "ai.completion_tokens.used",
+        legacy_alias = "gen_ai.usage.completion_tokens"
     )]
     pub gen_ai_usage_output_tokens: Annotated<Value>,
 
@@ -529,6 +531,10 @@ pub struct SpanData {
     /// LLM response object (Vercel AI, generateObject)
     #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
     pub gen_ai_response_object: Annotated<Value>,
+
+    ///  Total output tokens per seconds throughput
+    #[metastructure(field = "gen_ai.response.tokens_per_second")]
+    pub gen_ai_response_tokens_per_second: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -1327,6 +1333,7 @@ mod tests {
             gen_ai_response_tool_calls: ~,
             gen_ai_response_text: ~,
             gen_ai_response_object: ~,
+            gen_ai_response_tokens_per_second: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",

@@ -230,16 +230,14 @@ fn mock_envelope(
     let project_key = (rand::random::<f64>() * project_count as f64) as u128;
     let mut envelope = format!(
         "\
-            {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{:032x}:@sentry.io/42\"}}\n\
-            {{\"type\":\"attachment\", \"length\":{}}}\n",
-        project_key,
-        payload_size,
+            {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{project_key:032x}:@sentry.io/42\"}}\n\
+            {{\"type\":\"attachment\", \"length\":{payload_size}}}\n",
     ).into_bytes();
 
     // Fill with random bytes to get estimated compression ratio:
     let mut payload = vec![0u8; payload_size];
     let fraction = (payload_size as f64 / compression_ratio) as usize;
-    rand::thread_rng().fill_bytes(&mut payload[..fraction]);
+    rand::rng().fill_bytes(&mut payload[..fraction]);
     envelope.extend(payload);
 
     let mut envelope = Envelope::parse_bytes(Bytes::from(envelope)).unwrap();

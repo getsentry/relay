@@ -3,8 +3,8 @@
 use relay_dynamic_config::GlobalConfig;
 
 use crate::envelope::ItemType;
+use crate::managed::{ItemAction, ManagedEnvelope};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::utils::{ItemAction, ManagedEnvelope};
 
 /// Drops attachments in transaction envelopes.
 pub fn drop_invalid_items(envelope: &mut ManagedEnvelope, global_config: &GlobalConfig) {

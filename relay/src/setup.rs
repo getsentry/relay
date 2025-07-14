@@ -44,16 +44,16 @@ pub fn check_config(config: &Config) -> Result<()> {
 
     #[cfg(feature = "processing")]
     if config.processing_enabled() {
-        for (name, topic) in config.unused_topic_assignments() {
+        for name in config.unused_topic_assignments().names() {
             relay_log::with_scope(
-                |scope| scope.set_extra("topic", format!("{topic:?}").into()),
+                |scope| scope.set_extra("topic", name.as_str().into()),
                 || relay_log::error!("unused topic assignment '{name}'"),
             );
         }
 
         for topic in relay_kafka::KafkaTopic::iter() {
             let _ = config
-                .kafka_config(*topic)
+                .kafka_configs(*topic)
                 .with_context(|| format!("invalid kafka configuration for topic '{topic:?}'"))?;
         }
     }
