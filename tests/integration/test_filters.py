@@ -2,8 +2,12 @@ import datetime
 import json
 from pathlib import Path
 from time import sleep
+from unittest import mock
+
+from .asserts import matches
 
 import pytest
+from google.protobuf.json_format import MessageToDict
 
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -630,3 +634,152 @@ def test_filters_are_applied_to_profiles(
         profile = json.loads(profile["payload"])
         assert profile["release"] == "foobar@1.0"
         outcomes_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    ["filter_config", "should_filter"],
+    [
+        pytest.param({}, False, id="log accepted"),
+        pytest.param(
+            {"releases": {"releases": ["foobar@1.0"]}}, True, id="log filtered"
+        ),
+    ],
+)
+def test_filters_are_applied_to_logs(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    ourlogs_consumer,
+    filter_config,
+    should_filter,
+    # envelope,
+    # data_category,
+):
+    outcomes_consumer = outcomes_consumer()
+    ourlogs_consumer = ourlogs_consumer()
+
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        ["organizations:ourlogs-ingestion"]
+    )
+
+    filter_settings = project_config["config"]["filterSettings"]
+    for key in filter_config.keys():
+        filter_settings[key] = filter_config[key]
+
+    timestamp = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+
+    payloads = [
+        {
+            "timestamp": timestamp.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "foo",
+            "attributes": {
+                "sentry.release": {"value": "foobar@1.0", "type": "string"},
+            },
+        },
+        {
+            "timestamp": timestamp.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "2cd0a5ed6775452c",
+            "level": "error",
+            "body": "bar",
+        },
+    ]
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="log",
+            payload=PayloadRef(json={"items": payloads}),
+            content_type="application/vnd.sentry.items.log+json",
+            headers={"item_count": len(payloads)},
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    if should_filter:
+        outcomes = outcomes_consumer.get_outcomes()
+        assert outcomes == [
+            {
+                "category": DataCategory.LOG_ITEM.value,
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 1,  # Filtered
+                "reason": "release-version",
+                "quantity": 1,
+                "timestamp": timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            },
+            {
+                "category": DataCategory.LOG_BYTE.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 1,
+                "project_id": 42,
+                "quantity": matches(lambda x: x >= 0),
+                "reason": "release-version",
+                "timestamp": timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            },
+            {
+                "category": DataCategory.LOG_ITEM.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+                "timestamp": timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            },
+            {
+                "category": DataCategory.LOG_BYTE.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": matches(lambda x: x >= 0),
+                "timestamp": timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            },
+        ]
+        outcomes_consumer.assert_empty()
+
+        log = ourlogs_consumer.get_ourlog()
+        log = MessageToDict(log)
+        assert log["attributes"]["sentry.body"] == {"stringValue": "bar"}
+        assert log["traceId"] == "5b8efff798038103d269b633813fc60c"
+        ourlogs_consumer.assert_empty()
+    else:
+        outcomes = outcomes_consumer.get_outcomes()
+        assert outcomes == [
+            {
+                "category": DataCategory.LOG_ITEM.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 2,
+                "timestamp": timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            },
+            {
+                "category": DataCategory.LOG_BYTE.value,
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": matches(lambda x: x >= 0),
+                "timestamp": timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            },
+        ]
+        outcomes_consumer.assert_empty()
+
+        logs = ourlogs_consumer.get_ourlogs()
+        logs = [MessageToDict(log) for log in logs]
+        assert logs[0]["attributes"]["sentry.body"] == {"stringValue": "foo"}
+        assert logs[0]["traceId"] == "5b8efff798038103d269b633813fc60c"
+        assert logs[1]["attributes"]["sentry.body"] == {"stringValue": "bar"}
+        assert logs[1]["traceId"] == "5b8efff798038103d269b633813fc60c"
+        ourlogs_consumer.assert_empty()

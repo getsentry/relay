@@ -2,6 +2,7 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSeriali
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
+use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
@@ -37,6 +38,21 @@ pub struct OurLog {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
+}
+
+impl Getter for OurLog {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        println!("path {:?}", path);
+        Some(match path.strip_prefix("event.")? {
+            "release" => self
+                .attributes
+                .value()?
+                .get_value("sentry.release")?
+                .as_str()?
+                .into(),
+            _ => return None,
+        })
+    }
 }
 
 /// Relay specific metadata embedded into the log item.
