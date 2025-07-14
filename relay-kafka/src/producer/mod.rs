@@ -91,7 +91,7 @@ pub trait Message {
     /// Serializes the message into its binary format.
     ///
     /// # Errors
-    /// Returns the [`ClientError::InvalidMsgPack`] , [`ClientError::InvalidJson`] or [`ClientError::ProtobufEncodingFailed`]  if the
+    /// Returns the [`ClientError::InvalidMsgPack`], [`ClientError::InvalidJson`] or [`ClientError::ProtobufEncodingFailed`]  if the
     /// serialization failed.
     fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError>;
 }
