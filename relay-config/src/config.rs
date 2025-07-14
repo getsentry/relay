@@ -2234,7 +2234,7 @@ impl Config {
     }
 
     /// Returns the interval in seconds in which fresh global configs should be
-    /// fetched from  upstream.
+    /// fetched from upstream.
     pub fn global_config_fetch_interval(&self) -> Duration {
         Duration::from_secs(self.values.cache.global_config_fetch_interval.into())
     }

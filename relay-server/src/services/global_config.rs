@@ -354,18 +354,16 @@ impl Service for GlobalConfigService {
                 }
                 Ok(None) => {
                     relay_log::info!(
-                        "serving default global configs due to lacking static global config file"
+                        "requesting global config due to lacking static global config file"
                     );
-                    self.global_config_watch
-                        .send_replace(Status::Ready(Arc::default()));
+                    self.request_global_config();
                 }
                 Err(e) => {
                     relay_log::error!("failed to load global config from file: {}", e);
                     relay_log::info!(
-                        "serving default global configs due to failure to load global config from file"
+                        "requesting global config due to failure to load global config from file"
                     );
-                    self.global_config_watch
-                        .send_replace(Status::Ready(Arc::default()));
+                    self.request_global_config();
                 }
             }
         };
@@ -458,12 +456,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn proxy_relay_does_not_make_upstream_request() {
+    #[should_panic]
+    async fn proxy_relay_does_make_upstream_request() {
         relay_test::setup();
         tokio::time::pause();
 
-        let (upstream, _) = mock_service("upstream", (), |(), _| {
-            panic!("upstream should not be called outside of managed mode");
+        // This will be called as there is no global_config.json in the .relay folder.
+        let (upstream, handle) = mock_service("upstream", (), |(), _| {
+            panic!();
         });
 
         let config = Config::from_json_value(serde_json::json!({
@@ -481,5 +481,6 @@ mod tests {
         service.send(Get).await.unwrap();
 
         tokio::time::sleep(fetch_interval * 2).await;
+        handle.await.unwrap();
     }
 }
