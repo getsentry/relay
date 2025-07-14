@@ -108,6 +108,15 @@ trait TrackOutcomeLike {
             _ => "<unknown>",
         }
     }
+
+    /// Returns the number of items for that outcome.
+    fn quantity(&self) -> Option<u32>;
+
+    /// The project id for the outcomes.
+    fn project_id(&self) -> ProjectId;
+
+    /// The category for the outcome.
+    fn category(&self) -> DataCategory;
 }
 
 /// Tracks an [`Outcome`] of an Envelope item.
@@ -138,6 +147,18 @@ impl TrackOutcomeLike for TrackOutcome {
 
     fn outcome_id(&self) -> OutcomeId {
         self.outcome.to_outcome_id()
+    }
+
+    fn quantity(&self) -> Option<u32> {
+        Some(self.quantity)
+    }
+
+    fn project_id(&self) -> ProjectId {
+        self.scoping.project_id
+    }
+
+    fn category(&self) -> DataCategory {
+        self.category
     }
 }
 
@@ -842,6 +863,21 @@ impl TrackOutcomeLike for TrackRawOutcome {
     fn outcome_id(&self) -> OutcomeId {
         self.outcome
     }
+
+    fn quantity(&self) -> Option<u32> {
+        self.quantity
+    }
+
+    fn project_id(&self) -> ProjectId {
+        self.project_id
+    }
+
+    fn category(&self) -> DataCategory {
+        match self.category {
+            Some(cat) => DataCategory::try_from(cat).unwrap_or(DataCategory::Unknown),
+            None => DataCategory::Unknown,
+        }
+    }
 }
 
 impl Interface for TrackRawOutcome {}
@@ -1114,9 +1150,21 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
 }
 
 fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
+    if let Some(quantity) = message.quantity() {
+        metric!(
+            counter(RelayCounters::OutcomeQuantity) += quantity,
+            hc.project_id = message.project_id().to_string().as_str(),
+            hc.reason = message.reason().as_deref().unwrap_or(""),
+            category = message.category().name(),
+            outcome = message.tag_name(),
+            to = to,
+        );
+    }
     metric!(
         counter(RelayCounters::Outcomes) += 1,
         reason = message.reason().as_deref().unwrap_or(""),
+        hc.category = message.category().name(),
+        hc.project_id = message.project_id().to_string().as_str(),
         outcome = message.tag_name(),
         to = to,
     );

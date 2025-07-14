@@ -841,13 +841,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = simple_enabled_pii_config();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data, @r#"
+        assert_annotated_snapshot!(data, @r###"
         {
           "extra": {
             "foo": "1453843029218310"
           }
         }
-        "#);
+        "###);
     }
 
     macro_rules! sanitize_url_test {
@@ -943,13 +943,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r#"
+        assert_annotated_snapshot!(data, @r###"
         {
           "extra": {
             "foo": 1
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1110,13 +1110,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r#"
+        assert_annotated_snapshot!(data, @r###"
         {
           "extra": {
             "foobar": "123-45-6789"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1138,13 +1138,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(data, @r#"
+        assert_annotated_snapshot!(data, @r###"
         {
           "extra": {
             "foobar": "xxx"
           }
         }
-        "#);
+        "###);
     }
 
     macro_rules! should_have_mysql_pwd_as_a_default_test {

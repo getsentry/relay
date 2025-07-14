@@ -1660,6 +1660,55 @@ def test_span_reject_invalid_timestamps(
     assert spans[0]["sentry_tags"]["op"] == "default"
 
 
+def test_span_filter_empty_measurements(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
+
+    start = datetime.now(UTC)
+    end = start + timedelta(seconds=1)
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "description": "https://example.com/p/blah.js",
+                        "op": "resource.script",
+                        "span_id": "b0429c44b67a3eb1",
+                        "segment_id": "b0429c44b67a3eb1",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "measurements": {
+                            "score.total": {"unit": "ratio", "value": 0.12121616},
+                            "missing": {"unit": "ratio", "value": None},
+                            "other_missing": {"unit": "ratio"},
+                        },
+                    },
+                ).encode()
+            ),
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    spans = spans_consumer.get_spans(timeout=10.0, n=1)
+    assert len(spans) == 1
+    assert spans[0]["measurements"] == {"score.total": {"value": 0.12121616}}
+
+
 def test_span_ingestion_with_performance_scores(
     mini_sentry, relay_with_processing, spans_consumer
 ):

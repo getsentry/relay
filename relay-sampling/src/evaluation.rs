@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
 use rand::Rng;
-use rand::distributions::Uniform;
+use rand::distr::StandardUniform;
 use rand_pcg::Pcg32;
 #[cfg(feature = "redis")]
 use relay_base_schema::organization::OrganizationId;
@@ -28,8 +28,7 @@ use crate::redis_sampling::{self, ReservoirRuleKey};
 fn pseudo_random_from_seed(seed: Uuid) -> f64 {
     let seed_number = seed.as_u128();
     let mut generator = Pcg32::new((seed_number >> 64) as u64, seed_number as u64);
-    let dist = Uniform::new(0f64, 1f64);
-    generator.sample(dist)
+    generator.sample(StandardUniform)
 }
 
 /// The amount of matches for each reservoir rule in a given project.

@@ -396,7 +396,7 @@ quotas:
             },
         });
 
-        assert_json_snapshot!(config, @r#"
+        assert_json_snapshot!(config, @r###"
         {
           "server": "redis://127.0.0.1:6379",
           "max_connections": 42,
@@ -405,7 +405,7 @@ quotas:
           "recycle_timeout": 2,
           "recycle_check_frequency": 100
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -418,7 +418,7 @@ quotas:
             },
         }));
 
-        assert_json_snapshot!(configs, @r#"
+        assert_json_snapshot!(configs, @r###"
         {
           "server": "redis://127.0.0.1:6379",
           "max_connections": 42,
@@ -427,7 +427,7 @@ quotas:
           "recycle_timeout": 2,
           "recycle_check_frequency": 100
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -534,7 +534,7 @@ max_connections: 20
             },
         };
 
-        assert_json_snapshot!(config, @r#"
+        assert_json_snapshot!(config, @r###"
         {
           "cluster_nodes": [
             "redis://127.0.0.1:6379",
@@ -546,7 +546,7 @@ max_connections: 20
           "recycle_timeout": 2,
           "recycle_check_frequency": 100
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -562,7 +562,7 @@ max_connections: 20
             },
         });
 
-        assert_json_snapshot!(configs, @r#"
+        assert_json_snapshot!(configs, @r###"
         {
           "cluster_nodes": [
             "redis://127.0.0.1:6379",
@@ -574,7 +574,7 @@ max_connections: 20
           "recycle_timeout": 2,
           "recycle_check_frequency": 100
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -603,7 +603,7 @@ max_connections: 20
             }),
         };
 
-        assert_json_snapshot!(configs, @r#"
+        assert_json_snapshot!(configs, @r###"
         {
           "project_configs": {
             "server": "redis://127.0.0.1:6379",
@@ -632,6 +632,6 @@ max_connections: 20
             "recycle_check_frequency": 100
           }
         }
-        "#);
+        "###);
     }
 }

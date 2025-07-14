@@ -31,7 +31,7 @@ use data_encoding::BASE64URL_NOPAD;
 use ed25519_dalek::{Signer, Verifier};
 use hmac::{Hmac, Mac};
 use rand::rngs::OsRng;
-use rand::{RngCore, thread_rng};
+use rand::{RngCore as _, TryRngCore as _};
 use relay_common::time::UnixTimestamp;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -416,7 +416,11 @@ pub fn generate_relay_id() -> RelayId {
 /// Generates a secret + public key pair.
 pub fn generate_key_pair() -> (SecretKey, PublicKey) {
     let mut csprng = OsRng;
-    let kp = ed25519_dalek::SigningKey::generate(&mut csprng);
+    let mut secret = [0; 32];
+    csprng
+        .try_fill_bytes(&mut secret)
+        .expect("os rng should be available");
+    let kp = ed25519_dalek::SigningKey::from_bytes(&secret);
     let pk = kp.verifying_key();
     (SecretKey { inner: kp }, PublicKey { inner: pk })
 }
@@ -545,7 +549,7 @@ impl RegisterState {
 
 /// Generates a new random token for the register state.
 fn nonce() -> String {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     let mut bytes = vec![0u8; 64];
     rng.fill_bytes(&mut bytes);
     BASE64URL_NOPAD.encode(&bytes)

@@ -1,5 +1,5 @@
 ---
-source: relay-general/src/store/normalize.rs
+source: relay-event-normalization/src/normalize/mod.rs
 expression: event
 ---
 {

@@ -1,5 +1,5 @@
 ---
-source: relay-general/src/pii/convert.rs
+source: relay-pii/src/convert.rs
 expression: data.value().unwrap().request
 ---
 {

@@ -1428,23 +1428,24 @@ fn remove_invalid_measurements(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in measurements_config.builtin_measurement_keys() {
-            if builtin_measurement.name() == name {
-                let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
-                // Drop negative values if the builtin measurement does not allow them.
-                if !builtin_measurement.allow_negative() && *value < 0.0 {
-                    meta.add_error(Error::invalid(format!(
-                        "Negative value for measurement {name} not allowed: {value}",
-                    )));
-                    removed_measurements
-                        .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
-                    return false;
-                }
-                // If the unit matches a built-in measurement, we allow it.
-                // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
-                // and just drop it instead.
-                return builtin_measurement.unit() == unit;
+        if let Some(builtin_measurement) = measurements_config
+            .builtin_measurement_keys()
+            .find(|builtin| builtin.name() == name)
+        {
+            let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
+            // Drop negative values if the builtin measurement does not allow them.
+            if !builtin_measurement.allow_negative() && *value < 0.0 {
+                meta.add_error(Error::invalid(format!(
+                    "Negative value for measurement {name} not allowed: {value}",
+                )));
+                removed_measurements
+                    .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+                return false;
             }
+            // If the unit matches a built-in measurement, we allow it.
+            // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
+            // and just drop it instead.
+            return builtin_measurement.unit() == unit;
         }
 
         // For custom measurements, check the budget:
@@ -1671,7 +1672,7 @@ mod tests {
 
         normalize_event_measurements(&mut event, None, None);
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -1707,7 +1708,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1744,7 +1745,7 @@ mod tests {
         normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -1784,7 +1785,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1799,7 +1800,7 @@ mod tests {
         .unwrap()
         .into_value()
         .unwrap();
-        insta::assert_debug_snapshot!(measurements, @r#"
+        insta::assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
                 "fcp": Measurement {
@@ -1816,9 +1817,9 @@ mod tests {
                 },
             },
         )
-        "#);
+        "###);
         normalize_units(&mut measurements);
-        insta::assert_debug_snapshot!(measurements, @r#"
+        insta::assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
                 "fcp": Measurement {
@@ -1837,7 +1838,7 @@ mod tests {
                 },
             },
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1932,7 +1933,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -1943,7 +1944,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1961,7 +1962,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -1972,7 +1973,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -1992,7 +1993,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2003,7 +2004,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2023,7 +2024,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2034,7 +2035,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2054,7 +2055,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2065,7 +2066,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -2330,8 +2331,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 3000,
-                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.usage.output_tokens.reasoning": 1000,
+                            "gen_ai.usage.input_tokens.cached": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2382,7 +2383,7 @@ mod tests {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
                                 output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                                input_cached_per_token: 0.04,
                             },
                         ),
                         (
@@ -2390,7 +2391,7 @@ mod tests {
                             ModelCostV2 {
                                 input_per_token: 0.09,
                                 output_per_token: 0.05,
-                                output_reasoning_per_token: 0.06,
+                                output_reasoning_per_token: 0.0,
                                 input_cached_per_token: 0.0,
                             },
                         ),
@@ -2408,7 +2409,7 @@ mod tests {
             .and_then(|span| span.data.value());
         assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(140.0))
+            Some(&Value::F64(75.0))
         );
         assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
@@ -2525,8 +2526,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 3000,
-                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.usage.output_tokens.reasoning": 1000,
+                            "gen_ai.usage.input_tokens.cached": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2562,8 +2563,8 @@ mod tests {
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
-                                output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                                output_reasoning_per_token: 0.0,
+                                input_cached_per_token: 0.04,
                             },
                         ),
                         (
@@ -2589,7 +2590,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(140.0))
+            Some(&Value::F64(65.0))
         );
         assert_eq!(
             spans
@@ -2712,7 +2713,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r#"
+        assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -2723,7 +2724,7 @@ mod tests {
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -4630,7 +4631,7 @@ mod tests {
             .first()
             .unwrap();
 
-        assert_debug_snapshot!(exception.meta(), @r#"
+        assert_debug_snapshot!(exception.meta(), @r###"
         Meta {
             remarks: [],
             errors: [
@@ -4657,7 +4658,8 @@ mod tests {
                     },
                 ),
             ),
-        }"#);
+        }
+        "###);
     }
 
     #[test]
@@ -4709,7 +4711,7 @@ mod tests {
             .first()
             .unwrap()
             .meta();
-        assert_debug_snapshot!(debug_image_meta, @r#"
+        assert_debug_snapshot!(debug_image_meta, @r###"
         Meta {
             remarks: [],
             errors: [
@@ -4728,7 +4730,8 @@ mod tests {
                     {},
                 ),
             ),
-        }"#);
+        }
+        "###);
     }
 
     #[test]
@@ -4798,7 +4801,7 @@ mod tests {
         }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
         normalize_trace_context_tags(&mut event);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 2.0,
@@ -4839,7 +4842,7 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -4870,7 +4873,7 @@ mod tests {
         }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
         normalize_trace_context_tags(&mut event);
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 2.0,
@@ -4911,6 +4914,6 @@ mod tests {
             },
           },
         }
-        "#);
+        "###);
     }
 }

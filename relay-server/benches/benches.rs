@@ -254,7 +254,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                     }
                 }
 
-                envelopes.shuffle(&mut rand::thread_rng());
+                envelopes.shuffle(&mut rand::rng());
 
                 envelopes
             },
@@ -286,7 +286,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                     }
                 }
 
-                envelopes.shuffle(&mut rand::thread_rng());
+                envelopes.shuffle(&mut rand::rng());
 
                 envelopes
             },

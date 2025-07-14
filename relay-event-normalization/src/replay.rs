@@ -486,26 +486,28 @@ mod tests {
         let mut replay = Annotated::<Replay>::from_json(json.as_str()).unwrap();
 
         normalize(&mut replay, None, RawUserAgentInfo::default(), None);
-        assert_annotated_snapshot!(replay, @r#"{
-  "platform": "other",
-  "dist": "0000000000000000000000000000000000000000000000000000000000000...",
-  "type": "replay_event",
-  "_meta": {
-    "dist": {
-      "": {
-        "rem": [
-          [
-            "!limit",
-            "s",
-            61,
-            64
-          ]
-        ],
-        "len": 100
-      }
-    }
-  }
-}"#);
+        assert_annotated_snapshot!(replay, @r###"
+        {
+          "platform": "other",
+          "dist": "0000000000000000000000000000000000000000000000000000000000000...",
+          "type": "replay_event",
+          "_meta": {
+            "dist": {
+              "": {
+                "rem": [
+                  [
+                    "!limit",
+                    "s",
+                    61,
+                    64
+                  ]
+                ],
+                "len": 100
+              }
+            }
+          }
+        }
+        "###);
     }
 
     #[test]

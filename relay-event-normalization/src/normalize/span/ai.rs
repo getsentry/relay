@@ -32,11 +32,24 @@ fn calculate_ai_model_cost(model_cost: Option<ModelCostV2>, data: &SpanData) -> 
 
     let mut result = 0.0;
 
-    result += cost_per_token.input_per_token * input_tokens_used.unwrap_or(0.0);
-    result += cost_per_token.output_per_token * output_tokens_used.unwrap_or(0.0);
-    result +=
-        cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
+    // Cached tokens are subset of the input tokens, so we need to subtract them
+    // from the input tokens
+    result += cost_per_token.input_per_token
+        * (input_tokens_used.unwrap_or(0.0) - input_cached_tokens_used.unwrap_or(0.0));
     result += cost_per_token.input_cached_per_token * input_cached_tokens_used.unwrap_or(0.0);
+    // Reasoning tokens are subset of the output tokens, so we need to subtract
+    // them from the output tokens
+    result += cost_per_token.output_per_token
+        * (output_tokens_used.unwrap_or(0.0) - output_reasoning_tokens_used.unwrap_or(0.0));
+
+    if cost_per_token.output_reasoning_per_token > 0.0 {
+        // for now most of the models do not differentiate between reasoning and output token cost,
+        // it costs the same
+        result +=
+            cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
+    } else {
+        result += cost_per_token.output_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
+    }
 
     Some(result)
 }
