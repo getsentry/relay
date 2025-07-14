@@ -6,8 +6,6 @@ from unittest import mock
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from sentry_relay.consts import DataCategory
 
-from google.protobuf.json_format import MessageToDict
-
 from .asserts import time_within_delta, time_within, matches
 
 import pytest
@@ -34,17 +32,18 @@ def envelope_with_sentry_logs(*payloads: dict) -> Envelope:
     return envelope
 
 
-def envelope_with_otel_logs(timestamp_nanos: str) -> Envelope:
+def envelope_with_otel_logs(ts: datetime) -> Envelope:
     envelope = Envelope()
 
+    timestamp_nanos = int(ts.timestamp() * 1e9)
     envelope.add_item(
         Item(
             type="otel_log",
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
-                        "timeUnixNano": timestamp_nanos,
-                        "observedTimeUnixNano": timestamp_nanos,
+                        "timeUnixNano": str(timestamp_nanos),
+                        "observedTimeUnixNano": str(timestamp_nanos),
                         "severityNumber": 10,
                         "severityText": "Information",
                         "traceId": "5B8EFFF798038103D269B633813FC60C",
@@ -78,12 +77,12 @@ def timestamps(ts: datetime):
         },
         "sentry.timestamp_nanos": {
             "stringValue": time_within_delta(
-                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
+                ts, delta=timedelta(milliseconds=2), expect_resolution="ns"
             )
         },
         "sentry.timestamp_precise": {
             "intValue": time_within_delta(
-                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
+                ts, delta=timedelta(milliseconds=2), expect_resolution="ns"
             )
         },
     }
@@ -101,47 +100,40 @@ def test_ourlog_extraction_with_otel_logs(
         "organizations:ourlogs-ingestion",
     ]
     relay = relay_with_processing(options=TEST_CONFIG)
-    start = datetime.now(timezone.utc)
-    timestamp = start.timestamp()
-    timestamp_nanos = int(timestamp * 1e9)
-    envelope = envelope_with_otel_logs(str(timestamp_nanos))
+
+    ts = datetime.now(timezone.utc)
+    envelope = envelope_with_otel_logs(ts)
 
     relay.send_envelope(project_id, envelope)
 
-    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
-
-    assert logs == [
-        {
-            "attributes": {
-                "boolean.attribute": {"boolValue": True},
-                "double.attribute": {"doubleValue": 637.704},
-                "int.attribute": {"intValue": "10"},
-                "sentry.body": {"stringValue": "Example log record"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.severity_number": {"intValue": "10"},
-                "sentry.severity_text": {"stringValue": "Information"},
-                "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-                "sentry.trace_flags": {"intValue": "0"},
-                "string.attribute": {"stringValue": "some string"},
-                **timestamps(start),
-            },
-            "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
-            "itemType": "TRACE_ITEM_TYPE_LOG",
-            "organizationId": "1",
-            "projectId": "42",
-            "received": time_within_delta(),
-            "retentionDays": 90,
-            "serverSampleRate": 1.0,
-            "timestamp": time_within_delta(
-                start, delta=timedelta(seconds=1), expect_resolution="ns"
-            ),
-            "traceId": "5b8efff798038103d269b633813fc60c",
+    assert ourlogs_consumer.get_ourlog() == {
+        "attributes": {
+            "boolean.attribute": {"boolValue": True},
+            "double.attribute": {"doubleValue": 637.704},
+            "int.attribute": {"intValue": "10"},
+            "sentry.body": {"stringValue": "Example log record"},
+            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "sentry.browser.version": {"stringValue": "2.32"},
+            "sentry.severity_number": {"intValue": "10"},
+            "sentry.severity_text": {"stringValue": "Information"},
+            "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
+            "sentry.trace_flags": {"intValue": "0"},
+            "string.attribute": {"stringValue": "some string"},
+            **timestamps(ts),
         },
-    ]
-
-    ourlogs_consumer.assert_empty()
+        "clientSampleRate": 1.0,
+        "itemId": mock.ANY,
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts, delta=timedelta(seconds=1), expect_resolution="ns"
+        ),
+        "traceId": "5b8efff798038103d269b633813fc60c",
+    }
 
 
 def test_ourlog_multiple_containers_not_allowed(
@@ -207,8 +199,6 @@ def test_ourlog_multiple_containers_not_allowed(
         },
     ]
 
-    ourlogs_consumer.assert_empty()
-
 
 @pytest.mark.parametrize("meta_enabled", [False, True])
 def test_ourlog_meta_attributes(
@@ -250,46 +240,40 @@ def test_ourlog_meta_attributes(
 
     relay.send_envelope(project_id, envelope)
 
-    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
-
-    assert logs == [
-        {
-            "attributes": {
-                "creditcard": {"stringValue": "[creditcard]"},
-                "sentry.body": {"stringValue": "oops, not again"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.severity_number": {"intValue": "17"},
-                "sentry.severity_text": {"stringValue": "error"},
-                "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-                "sentry.trace_flags": {"intValue": "0"},
-                **timestamps(ts),
-                **(
-                    {
-                        "sentry._meta.fields.attributes.creditcard": {
-                            "stringValue": '{"meta":{"value":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}'
-                        }
+    assert ourlogs_consumer.get_ourlog() == {
+        "attributes": {
+            "creditcard": {"stringValue": "[creditcard]"},
+            "sentry.body": {"stringValue": "oops, not again"},
+            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "sentry.browser.version": {"stringValue": "2.32"},
+            "sentry.severity_number": {"intValue": "17"},
+            "sentry.severity_text": {"stringValue": "error"},
+            "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+            "sentry.trace_flags": {"intValue": "0"},
+            **timestamps(ts),
+            **(
+                {
+                    "sentry._meta.fields.attributes.creditcard": {
+                        "stringValue": '{"meta":{"value":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}'
                     }
-                    if meta_enabled
-                    else {}
-                ),
-            },
-            "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
-            "itemType": "TRACE_ITEM_TYPE_LOG",
-            "organizationId": "1",
-            "projectId": "42",
-            "received": time_within_delta(),
-            "retentionDays": 90,
-            "serverSampleRate": 1.0,
-            "timestamp": time_within_delta(
-                ts, delta=timedelta(seconds=1), expect_resolution="ns"
+                }
+                if meta_enabled
+                else {}
             ),
-            "traceId": "5b8efff798038103d269b633813fc60c",
         },
-    ]
-
-    ourlogs_consumer.assert_empty()
+        "clientSampleRate": 1.0,
+        "itemId": mock.ANY,
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts, delta=timedelta(seconds=1), expect_resolution="ns"
+        ),
+        "traceId": "5b8efff798038103d269b633813fc60c",
+    }
 
 
 @pytest.mark.parametrize("calculated_byte_count", [False, True])
@@ -352,9 +336,7 @@ def test_ourlog_extraction_with_sentry_logs(
 
     relay.send_envelope(project_id, envelope)
 
-    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
-
-    assert logs == [
+    assert ourlogs_consumer.get_ourlogs(n=2) == [
         {
             "attributes": {
                 "sentry.body": {"stringValue": "This is really bad"},
@@ -438,8 +420,6 @@ def test_ourlog_extraction_with_sentry_logs(
         },
     ]
 
-    ourlogs_consumer.assert_empty()
-
 
 def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     mini_sentry,
@@ -466,34 +446,29 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
 
     relay.send_envelope(project_id, envelope)
 
-    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
-    assert logs == [
-        {
-            "attributes": {
-                "sentry.body": {"stringValue": "Example log record 2"},
-                "sentry.browser.name": {"stringValue": "Python Requests"},
-                "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.severity_number": {"intValue": "13"},
-                "sentry.severity_text": {"stringValue": "warn"},
-                "sentry.trace_flags": {"intValue": "0"},
-                **timestamps(ts),
-            },
-            "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
-            "itemType": "TRACE_ITEM_TYPE_LOG",
-            "organizationId": "1",
-            "projectId": "42",
-            "received": time_within_delta(),
-            "retentionDays": 90,
-            "serverSampleRate": 1.0,
-            "timestamp": time_within_delta(
-                ts, delta=timedelta(seconds=1), expect_resolution="ns"
-            ),
-            "traceId": "5b8efff798038103d269b633813fc60c",
+    assert ourlogs_consumer.get_ourlog() == {
+        "attributes": {
+            "sentry.body": {"stringValue": "Example log record 2"},
+            "sentry.browser.name": {"stringValue": "Python Requests"},
+            "sentry.browser.version": {"stringValue": "2.32"},
+            "sentry.severity_number": {"intValue": "13"},
+            "sentry.severity_text": {"stringValue": "warn"},
+            "sentry.trace_flags": {"intValue": "0"},
+            **timestamps(ts),
         },
-    ]
-
-    ourlogs_consumer.assert_empty()
+        "clientSampleRate": 1.0,
+        "itemId": mock.ANY,
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts, delta=timedelta(seconds=1), expect_resolution="ns"
+        ),
+        "traceId": "5b8efff798038103d269b633813fc60c",
+    }
 
 
 def test_ourlog_extraction_is_disabled_without_feature(
@@ -507,15 +482,9 @@ def test_ourlog_extraction_is_disabled_without_feature(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = []
 
-    start = datetime.now(timezone.utc)
-    timestamp_nanos = str(int(start.timestamp() * 1e9))
-    envelope = envelope_with_otel_logs(str(timestamp_nanos))
-
+    envelope = envelope_with_otel_logs(datetime.now(timezone.utc))
     relay.send_envelope(project_id, envelope)
 
-    ourlogs = ourlogs_consumer.get_ourlogs()
-
-    assert len(ourlogs) == 0
     ourlogs_consumer.assert_empty()
 
 
@@ -604,33 +573,27 @@ def test_browser_name_version_extraction(
 
     relay.send_envelope(project_id, envelope, headers={"User-Agent": user_agent})
 
-    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
-
-    assert logs == [
-        {
-            "attributes": {
-                "sentry.body": {"stringValue": "This is really bad"},
-                "sentry.browser.name": {"stringValue": expected_browser_name},
-                "sentry.browser.version": {"stringValue": expected_browser_version},
-                "sentry.severity_number": {"intValue": "17"},
-                "sentry.severity_text": {"stringValue": "error"},
-                "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-                "sentry.trace_flags": {"intValue": "0"},
-                **timestamps(ts),
-            },
-            "clientSampleRate": 1.0,
-            "itemId": mock.ANY,
-            "itemType": "TRACE_ITEM_TYPE_LOG",
-            "organizationId": "1",
-            "projectId": "42",
-            "received": time_within_delta(),
-            "retentionDays": 90,
-            "serverSampleRate": 1.0,
-            "timestamp": time_within_delta(
-                ts, delta=timedelta(seconds=1), expect_resolution="ns"
-            ),
-            "traceId": "5b8efff798038103d269b633813fc60c",
-        }
-    ]
-
-    ourlogs_consumer.assert_empty()
+    assert ourlogs_consumer.get_ourlog() == {
+        "attributes": {
+            "sentry.body": {"stringValue": "This is really bad"},
+            "sentry.browser.name": {"stringValue": expected_browser_name},
+            "sentry.browser.version": {"stringValue": expected_browser_version},
+            "sentry.severity_number": {"intValue": "17"},
+            "sentry.severity_text": {"stringValue": "error"},
+            "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+            "sentry.trace_flags": {"intValue": "0"},
+            **timestamps(ts),
+        },
+        "clientSampleRate": 1.0,
+        "itemId": mock.ANY,
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts, delta=timedelta(seconds=1), expect_resolution="ns"
+        ),
+        "traceId": "5b8efff798038103d269b633813fc60c",
+    }

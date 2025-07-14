@@ -1,5 +1,6 @@
 from collections import defaultdict
 import json
+from google.protobuf.json_format import MessageToDict
 import msgpack
 import uuid
 
@@ -578,27 +579,27 @@ class SpansConsumer(ConsumerBase):
 
 
 class OurLogsConsumer(ConsumerBase):
-    def get_ourlog(self):
-        message = self.poll()
+    def get_ourlog(self, **kwargs):
+        message = self.poll(**kwargs)
         assert message is not None
         assert message.error() is None
 
         trace_item = TraceItem()
         trace_item.ParseFromString(message.value())
 
-        return trace_item
+        return MessageToDict(trace_item)
 
-    def get_ourlogs(self):
+    def get_ourlogs(self, **kwargs):
         ourlogs = []
 
-        for message in self.poll_many():
+        for message in self.poll_many(**kwargs):
             assert message is not None
             assert message.error() is None
 
             trace_item = TraceItem()
             trace_item.ParseFromString(message.value())
 
-            ourlogs.append(trace_item)
+            ourlogs.append(MessageToDict(trace_item))
 
         return ourlogs
 
