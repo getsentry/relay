@@ -5,12 +5,15 @@
 **Features**:
 
 - Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Serialize OTEL span array attributes to JSON. ([#4930](https://github.com/getsentry/relay/pull/4930))
 
 **Bug Fixes**:
 
 - Preserve user specified event values in Unreal crash reports. ([#4882](https://github.com/getsentry/relay/pull/4882))
 - OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
 - Do not overwrite geo information if already set. ([#4888](https://github.com/getsentry/relay/pull/4888))
+- The `type` fields of contexts are now enforced to be strings. Non-string values are replaced with the
+  context's key. ([#4932](https://github.com/getsentry/relay/pull/4932))
 
 **Internal**:
 
