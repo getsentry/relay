@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::btree_map::Entry;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -10,7 +11,7 @@ use relay_quotas::Quota;
 use serde::{Deserialize, Serialize, de};
 use serde_json::Value;
 
-use crate::{ErrorBoundary, MetricExtractionGroups};
+use crate::{ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups, defaults};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -84,7 +85,21 @@ impl GlobalConfig {
     /// Modifies the global config after deserialization.
     ///
     /// - Adds hard-coded groups to metrics extraction configs.
-    pub fn normalize(&mut self) {}
+    pub fn normalize(&mut self) {
+        if let ErrorBoundary::Ok(config) = &mut self.metric_extraction {
+            for (group_name, metrics, tags) in defaults::hardcoded_span_metrics() {
+                // We only define these groups if they haven't been defined by the upstream yet.
+                // This ensures that the innermost Relay always defines the metrics.
+                if let Entry::Vacant(entry) = config.groups.entry(group_name) {
+                    entry.insert(MetricExtractionGroup {
+                        is_enabled: false, // must be enabled via project config
+                        metrics,
+                        tags,
+                    });
+                }
+            }
+        }
+    }
 }
 
 fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool {
