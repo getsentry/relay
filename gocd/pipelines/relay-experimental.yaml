@@ -74,7 +74,7 @@ pipelines:
               elastic_profile_id: relay
               tasks:
                 - script: |
-                    /devinfra/scripts/k8s/k8stunnel \
+                    /devinfra/scripts/get-cluster-credentials \
                     && k8s-deploy \
                     --label-selector="service=relay,deploy_if_canary=true" \
                     --image="us-central1-docker.pkg.dev/internal-sentry/relay/relay:${GO_REVISION_RELAY_REPO}" \
