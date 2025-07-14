@@ -5,6 +5,7 @@
 **Features**:
 
 - Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Handle inbound filters for logs. (#4938)
 
 **Bug Fixes**:
 
