@@ -42,7 +42,6 @@ pub struct OurLog {
 
 impl Getter for OurLog {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        println!("path {:?}", path);
         Some(match path.strip_prefix("event.")? {
             "release" => self
                 .attributes
