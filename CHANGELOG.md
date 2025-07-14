@@ -5,6 +5,7 @@
 **Features**:
 
 - Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Request global config from upstream if loading local fails. ([#4937](https://github.com/getsentry/relay/pull/4937))
 
 **Bug Fixes**:
 
