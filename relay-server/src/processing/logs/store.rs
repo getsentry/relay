@@ -84,7 +84,7 @@ fn ts(dt: DateTime<Utc>) -> Timestamp {
 
 /// The schema of a 'metadata attribute' stored in EAP.
 ///
-/// A metadata attribute is a regular attribute stored in EAP, but it carries metadata about fields
+/// A metadata attribute is a regular attribute stored in EAP that contains metadata about a field
 /// of the original payload processed by Relay and other components.
 ///
 /// It is also a place to store other, non-processing related, metadata on attributes, for example

@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use relay_dynamic_config::Feature;
 use relay_event_normalization::{
     ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, SchemaProcessor,
 };
@@ -47,9 +46,9 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
             #[cfg(feature = "processing")]
             retention: _ctx.project_info.config.event_retention,
             #[cfg(feature = "processing")]
-            meta_attrs: _ctx
+            serialize_meta_attrs: _ctx
                 .project_info
-                .has_feature(Feature::OurLogsMetaAttributes),
+                .has_feature(relay_dynamic_config::Feature::OurLogsMetaAttributes),
             logs: all_logs,
         }
     })

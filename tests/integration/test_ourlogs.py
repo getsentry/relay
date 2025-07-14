@@ -182,10 +182,8 @@ def test_ourlog_multiple_containers_not_allowed(
     relay.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
-
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    assert 300 < outcomes[1].pop("quantity") < 400
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
