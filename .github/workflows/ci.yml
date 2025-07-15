@@ -705,15 +705,12 @@ jobs:
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
-          VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/relay:${REVISION}" --version | cut -d" " -f2)"
+          VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          tree
-
           for PLATFORM in "linux/amd64" "linux/arm64"; do
-            echo $PLATFORM
             gsutil -m cp $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
-              "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${{ matrix.platform }}/"
+              "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${PLATFORM}/"
           done
 
   test_integration:
