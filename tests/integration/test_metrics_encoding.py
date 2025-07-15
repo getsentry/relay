@@ -69,7 +69,7 @@ def test_metric_bucket_encoding_legacy(
     assert metrics["s:transactions/bar@none"]["value"] == [42.0]
 
 
-@pytest.mark.parametrize("namespace", [None, "custom"])
+@pytest.mark.parametrize("namespace", [None, "transactions", "custom"])
 @pytest.mark.parametrize("ty", ["set", "distribution"])
 def test_metric_bucket_encoding_dynamic_global_config_option(
     mini_sentry, relay_with_processing, metrics_consumer, namespace, ty
