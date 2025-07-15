@@ -1349,10 +1349,9 @@ def test_limit_custom_measurements(
 
 
 @pytest.mark.parametrize("has_measurements_config", [True, False])
-def test_do_not_drop_custom_measurements(
+def test_do_not_drop_custom_measurements_in_static(
     mini_sentry,
     relay,
-    relay_with_processing,
     metrics_consumer,
     transactions_consumer,
     has_measurements_config,
@@ -1374,7 +1373,7 @@ def test_do_not_drop_custom_measurements(
         dir.join("projects").join(f"{project_id}.json").write(json.dumps(config))
 
     relay = relay(
-        relay_with_processing(options=TEST_CONFIG),
+        mini_sentry,
         options=TEST_CONFIG | {"relay": {"mode": "static"}},
         prepare=configure_static_project,
     )
@@ -1389,7 +1388,7 @@ def test_do_not_drop_custom_measurements(
     }
 
     relay.send_transaction(42, transaction)
-    event, _ = transactions_consumer.get_event()
+    event = mini_sentry.captured_events.get(timeout=2).items[0].payload.json
 
     if has_measurements_config:
         # With maxCustomMeasurements: 1, only 1 measurement should pass through
