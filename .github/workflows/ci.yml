@@ -470,6 +470,8 @@ jobs:
         run: |
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
 
+          tree
+          chmod +x */*/relay
           docker buildx build \
             --platform "${PLATFORMS}" \
             --tag "${DOCKER_IMAGE}:${REVISION}" \
@@ -554,6 +556,8 @@ jobs:
 
       - name: Build and push to Internal AR
         run: |
+          tree
+          chmod +x */*/relay
           docker buildx build \
             --platform "${PLATFORMS}" \
             --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
