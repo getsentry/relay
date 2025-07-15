@@ -2168,6 +2168,9 @@ def test_dynamic_sampling(
     }
 
     sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
     sampling_config["config"]["txNameRules"] = [
         {
@@ -2233,20 +2236,17 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=6)
         assert len(spans) == 6
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=7)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
         assert summarize_outcomes(outcomes) == {
             (16, 0): 6,  # SpanIndexed, Accepted
-            (15, 1): 2,  # Metric, Filtered
         }
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=2)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
         assert summarize_outcomes(outcomes) == {
-            (16, 1): 6,  # Span, Filtered
-            (15, 1): 2,  # Metric, Filtered
+            (16, 1): 6,  # SpanIndexed, Filtered
         }
         assert {o["reason"] for o in outcomes} == {
             "Sampled:3000",
-            "disabled-namespace",
         }
 
     spans_consumer.assert_empty()
