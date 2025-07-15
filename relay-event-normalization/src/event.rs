@@ -1391,7 +1391,7 @@ fn remove_invalid_measurements(
     measurements_config: CombinedMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
-    // If there is no project and global config allow all the custom measurements through.
+    // If there is no project or global config allow all the custom measurements through.
     let max_custom_measurements = measurements_config
         .max_custom_measurements()
         .unwrap_or(usize::MAX);
