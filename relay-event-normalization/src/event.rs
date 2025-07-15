@@ -2136,6 +2136,27 @@ mod tests {
     }
 
     #[test]
+    fn custom_measurement_not_dropped() {
+        let mut measurements = Measurements(BTreeMap::from([(
+            "custom_measurement".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(42.0.try_into().unwrap()),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        )]));
+
+        let original = measurements.clone();
+        remove_invalid_measurements(
+            &mut measurements,
+            &mut Meta::default(),
+            CombinedMeasurementsConfig::new(None, None),
+            Some(30),
+        );
+
+        assert_eq!(original, measurements);
+    }
+
+    #[test]
     fn test_normalize_app_start_measurements_does_not_add_measurements() {
         let mut measurements = Annotated::<Measurements>::from_json(r###"{}"###)
             .unwrap()
