@@ -33,16 +33,11 @@ for PLATFORM in "linux/amd64" "linux/arm64"; do
   gsutil cp \
     "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/${PLATFORM}/relay-debug.zip" \
     "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/${PLATFORM}/relay.src.zip" \
-    "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/${PLATFORM}/libs.tar" \
     .
   echo "Uploading debug information and source bundle for $PLATFORM..."
   sentry-cli upload-dif ./relay-debug.zip ./relay.src.zip
 
-  echo "Uploading system symbols for $PLATFORM..."
-  tar xf libs.tar
-  sentry-cli upload-dif lib/
-
-  rm relay-debug.zip relay.src.zip libs.tar
+  rm relay-debug.zip relay.src.zip
   rm -rf lib
 done
 
