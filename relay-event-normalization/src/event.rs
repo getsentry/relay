@@ -1391,7 +1391,10 @@ fn remove_invalid_measurements(
     measurements_config: CombinedMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
-    let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(0);
+    // If there is no project or global config allow all the custom measurements through.
+    let max_custom_measurements = measurements_config
+        .max_custom_measurements()
+        .unwrap_or(usize::MAX);
 
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
@@ -2130,6 +2133,27 @@ mod tests {
 
         // Checks whether the measurement is dropped.
         measurements.is_empty()
+    }
+
+    #[test]
+    fn test_custom_measurements_not_dropped() {
+        let mut measurements = Measurements(BTreeMap::from([(
+            "custom_measurement".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(42.0.try_into().unwrap()),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        )]));
+
+        let original = measurements.clone();
+        remove_invalid_measurements(
+            &mut measurements,
+            &mut Meta::default(),
+            CombinedMeasurementsConfig::new(None, None),
+            Some(30),
+        );
+
+        assert_eq!(original, measurements);
     }
 
     #[test]

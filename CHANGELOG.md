@@ -14,6 +14,7 @@
 - Do not overwrite geo information if already set. ([#4888](https://github.com/getsentry/relay/pull/4888))
 - The `type` fields of contexts are now enforced to be strings. Non-string values are replaced with the
   context's key. ([#4932](https://github.com/getsentry/relay/pull/4932))
+- Do not drop custom measurements if no config is present. ([#4941](https://github.com/getsentry/relay/pull/4941))
 
 **Internal**:
 
