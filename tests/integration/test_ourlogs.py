@@ -71,6 +71,24 @@ def envelope_with_otel_logs(timestamp_nanos: str) -> Envelope:
     return envelope
 
 
+def timestamps(ts: datetime):
+    return {
+        "sentry.observed_timestamp_nanos": {
+            "stringValue": time_within(ts, expect_resolution="ns", precision="s")
+        },
+        "sentry.timestamp_nanos": {
+            "stringValue": time_within_delta(
+                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
+            )
+        },
+        "sentry.timestamp_precise": {
+            "intValue": time_within_delta(
+                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
+            )
+        },
+    }
+
+
 def test_ourlog_extraction_with_otel_logs(
     mini_sentry,
     relay_with_processing,
@@ -101,18 +119,12 @@ def test_ourlog_extraction_with_otel_logs(
                 "sentry.body": {"stringValue": "Example log record"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.observed_timestamp_nanos": {
-                    "stringValue": time_within(
-                        start, expect_resolution="ns", precision="s"
-                    )
-                },
                 "sentry.severity_number": {"intValue": "10"},
                 "sentry.severity_text": {"stringValue": "Information"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-                "sentry.timestamp_nanos": {"stringValue": str(timestamp_nanos)},
-                "sentry.timestamp_precise": {"intValue": str(timestamp_nanos)},
                 "sentry.trace_flags": {"intValue": "0"},
                 "string.attribute": {"stringValue": "some string"},
+                **timestamps(start),
             },
             "clientSampleRate": 1.0,
             "itemId": mock.ANY,
@@ -170,10 +182,8 @@ def test_ourlog_multiple_containers_not_allowed(
     relay.send_envelope(project_id, envelope)
 
     outcomes = outcomes_consumer.get_outcomes()
-
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    assert 300 < outcomes[1].pop("quantity") < 400
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -192,7 +202,90 @@ def test_ourlog_multiple_containers_not_allowed(
             "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
+            "quantity": matches(lambda x: 300 < x < 400),
             "reason": "duplicate_item",
+        },
+    ]
+
+    ourlogs_consumer.assert_empty()
+
+
+@pytest.mark.parametrize("meta_enabled", [False, True])
+def test_ourlog_meta_attributes(
+    mini_sentry,
+    relay_with_processing,
+    ourlogs_consumer,
+    meta_enabled,
+):
+    ourlogs_consumer = ourlogs_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["datascrubbingSettings"] = {
+        "scrubData": True,
+    }
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+        "organizations:ourlogs-calculated-byte-count",
+        "organizations:ourlogs-meta-attributes" if meta_enabled else "",
+    ]
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "oops, not again",
+            "attributes": {
+                "creditcard": {
+                    "value": "4242424242424242",
+                    "type": "string",
+                }
+            },
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    logs = [MessageToDict(log) for log in ourlogs_consumer.get_ourlogs()]
+
+    assert logs == [
+        {
+            "attributes": {
+                "creditcard": {"stringValue": "[creditcard]"},
+                "sentry.body": {"stringValue": "oops, not again"},
+                "sentry.browser.name": {"stringValue": "Python Requests"},
+                "sentry.browser.version": {"stringValue": "2.32"},
+                "sentry.severity_number": {"intValue": "17"},
+                "sentry.severity_text": {"stringValue": "error"},
+                "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
+                "sentry.trace_flags": {"intValue": "0"},
+                **timestamps(ts),
+                **(
+                    {
+                        "sentry._meta.fields.attributes.creditcard": {
+                            "stringValue": '{"meta":{"value":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}'
+                        }
+                    }
+                    if meta_enabled
+                    else {}
+                ),
+            },
+            "clientSampleRate": 1.0,
+            "itemId": mock.ANY,
+            "itemType": "TRACE_ITEM_TYPE_LOG",
+            "organizationId": "1",
+            "projectId": "42",
+            "received": time_within_delta(),
+            "retentionDays": 90,
+            "serverSampleRate": 1.0,
+            "timestamp": time_within_delta(
+                ts, delta=timedelta(seconds=1), expect_resolution="ns"
+            ),
+            "traceId": "5b8efff798038103d269b633813fc60c",
         },
     ]
 
@@ -221,21 +314,18 @@ def test_ourlog_extraction_with_sentry_logs(
             "organizations:ourlogs-calculated-byte-count"
         )
     relay = relay(relay_with_processing(options=TEST_CONFIG))
-    start = datetime.now(timezone.utc)
-
-    timestamp = start.timestamp()
-    timestamp_nanos = int(timestamp * 1e6) * 1000
+    ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
         {
-            "timestamp": timestamp,
+            "timestamp": ts.timestamp(),
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
             "level": "error",
             "body": "This is really bad",
         },
         {
-            "timestamp": timestamp,
+            "timestamp": ts.timestamp(),
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
             "level": "info",
@@ -270,17 +360,11 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.body": {"stringValue": "This is really bad"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.observed_timestamp_nanos": {
-                    "stringValue": time_within(
-                        start, expect_resolution="ns", precision="s"
-                    )
-                },
                 "sentry.severity_number": {"intValue": "17"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-                "sentry.timestamp_nanos": {"stringValue": str(timestamp_nanos)},
-                "sentry.timestamp_precise": {"intValue": str(timestamp_nanos)},
                 "sentry.trace_flags": {"intValue": "0"},
+                **timestamps(ts),
             },
             "clientSampleRate": 1.0,
             "itemId": mock.ANY,
@@ -291,7 +375,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "retentionDays": 90,
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(
-                start, delta=timedelta(seconds=1), expect_resolution="ns"
+                ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
         },
@@ -304,19 +388,13 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.body": {"stringValue": "Example log record"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.observed_timestamp_nanos": {
-                    "stringValue": time_within(
-                        start, expect_resolution="ns", precision="s"
-                    )
-                },
                 "sentry.severity_number": {"intValue": "9"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-                "sentry.timestamp_nanos": {"stringValue": str(timestamp_nanos)},
-                "sentry.timestamp_precise": {"intValue": str(timestamp_nanos)},
                 "sentry.trace_flags": {"intValue": "0"},
                 "string.attribute": {"stringValue": "some string"},
                 "valid_string_with_other": {"stringValue": "test"},
+                **timestamps(ts),
             },
             "clientSampleRate": 1.0,
             "itemId": mock.ANY,
@@ -327,7 +405,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "retentionDays": 90,
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(
-                start, delta=timedelta(seconds=1), expect_resolution="ns"
+                ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
         },
@@ -375,12 +453,11 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "organizations:ourlogs-ingestion",
     ]
     relay = relay_with_processing(options=TEST_CONFIG)
-    start = datetime.now(timezone.utc)
-    timestamp = start.timestamp()
-    timestamp_nanos = int(timestamp * 1e6) * 1000
+    ts = datetime.now(timezone.utc)
+
     envelope = envelope_with_sentry_logs(
         {
-            "timestamp": timestamp,
+            "timestamp": ts.timestamp(),
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "level": "warn",
             "body": "Example log record 2",
@@ -396,16 +473,10 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
                 "sentry.body": {"stringValue": "Example log record 2"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.observed_timestamp_nanos": {
-                    "stringValue": time_within(
-                        start, expect_resolution="ns", precision="s"
-                    )
-                },
                 "sentry.severity_number": {"intValue": "13"},
                 "sentry.severity_text": {"stringValue": "warn"},
-                "sentry.timestamp_nanos": {"stringValue": str(timestamp_nanos)},
-                "sentry.timestamp_precise": {"intValue": str(timestamp_nanos)},
                 "sentry.trace_flags": {"intValue": "0"},
+                **timestamps(ts),
             },
             "clientSampleRate": 1.0,
             "itemId": mock.ANY,
@@ -416,7 +487,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             "retentionDays": 90,
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(
-                start, delta=timedelta(seconds=1), expect_resolution="ns"
+                ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
         },
@@ -519,12 +590,11 @@ def test_browser_name_version_extraction(
         "organizations:ourlogs-ingestion",
     ]
     relay = relay_with_processing(options=TEST_CONFIG)
-    start = datetime.now(timezone.utc)
-    timestamp = start.timestamp()
-    timestamp_nanos = int(timestamp * 1e6) * 1000
+    ts = datetime.now(timezone.utc)
+
     envelope = envelope_with_sentry_logs(
         {
-            "timestamp": timestamp,
+            "timestamp": ts.timestamp(),
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
             "level": "error",
@@ -542,17 +612,11 @@ def test_browser_name_version_extraction(
                 "sentry.body": {"stringValue": "This is really bad"},
                 "sentry.browser.name": {"stringValue": expected_browser_name},
                 "sentry.browser.version": {"stringValue": expected_browser_version},
-                "sentry.observed_timestamp_nanos": {
-                    "stringValue": time_within(
-                        start, expect_resolution="ns", precision="s"
-                    )
-                },
                 "sentry.severity_number": {"intValue": "17"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-                "sentry.timestamp_nanos": {"stringValue": str(timestamp_nanos)},
-                "sentry.timestamp_precise": {"intValue": str(timestamp_nanos)},
                 "sentry.trace_flags": {"intValue": "0"},
+                **timestamps(ts),
             },
             "clientSampleRate": 1.0,
             "itemId": mock.ANY,
@@ -563,7 +627,7 @@ def test_browser_name_version_extraction(
             "retentionDays": 90,
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(
-                start, delta=timedelta(seconds=1), expect_resolution="ns"
+                ts, delta=timedelta(seconds=1), expect_resolution="ns"
             ),
             "traceId": "5b8efff798038103d269b633813fc60c",
         }
