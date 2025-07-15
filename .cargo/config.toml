@@ -4,3 +4,6 @@ rustflags = ["--cfg", "tokio_unstable"]
 [env]
 # Workaround for https://github.com/confluentinc/librdkafka/pull/5012
 CMAKE_POLICY_VERSION_MINIMUM = "3.10"
+
+[target.'cfg(target_os = "linux")']
+rustflags = ["--cfg", "tokio_unstable", "-C", "link-arg=-Wl,--compress-debug-sections=zstd"]
