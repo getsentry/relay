@@ -21,6 +21,7 @@
 - Expand the NEL attributes & others. ([#4874](https://github.com/getsentry/relay/pull/4874))
 - Normalize legacy AI agents attributes to OTel compatible names. ([#4916](https://github.com/getsentry/relay/pull/4916))
 - Fix cost calculation for cached and reasoning tokens. ([#4922](https://github.com/getsentry/relay/pull/4922))
+- Emit outcomes for skipped large attachments on playstation crashes. ([#4862](https://github.com/getsentry/relay/pull/4862))
 
 ## 25.6.2
 
