@@ -47,6 +47,7 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
     for _ in range(count):
         metric, metric_headers = metrics_consumer.get_metric(timeout)
+        print(metric["name"])
         metric = metrics_without_keys([metric], keys={"metadata"})[0]
         metrics[metric["name"]] = metric
         metrics["headers"][metric["name"]] = metric_headers
@@ -737,6 +738,8 @@ def test_transaction_metrics(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
 
+    config.setdefault("features", []).append("organizations:indexed-spans-extraction")
+
     timestamp = datetime.now(tz=timezone.utc)
 
     if extract_metrics:
@@ -817,7 +820,7 @@ def test_transaction_metrics(
         assert_transaction()
         assert_transaction()
 
-    metrics = metrics_by_name(metrics_consumer, count=7, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=9, timeout=6)
     timestamp = int(timestamp.timestamp())
     common = {
         "timestamp": time_after(timestamp),
@@ -831,6 +834,8 @@ def test_transaction_metrics(
         },
         "received_at": time_after(timestamp),
     }
+
+    assert metrics["c:spans/usage@none"]["value"] == 2
 
     assert metrics["c:transactions/usage@none"] == {
         **common,
