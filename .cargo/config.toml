@@ -6,4 +6,4 @@ rustflags = ["--cfg", "tokio_unstable"]
 CMAKE_POLICY_VERSION_MINIMUM = "3.10"
 
 [target.'cfg(target_os = "linux")']
-rustflags = ["--cfg", "tokio_unstable", "-C", "link-arg=-Wl,--compress-debug-sections=zstd"]
+rustflags = ["--cfg", "tokio_unstable", "-C", "link-arg=-Wl,--compress-debug-sections=zlib"]
