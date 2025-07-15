@@ -1391,7 +1391,11 @@ fn remove_invalid_measurements(
     measurements_config: CombinedMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
-    let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(0);
+    // If there is no project and global config allow for all the custom configs to pass through
+    // instead of dropping them here.
+    let max_custom_measurements = measurements_config
+        .max_custom_measurements()
+        .unwrap_or(usize::MAX);
 
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
