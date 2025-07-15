@@ -80,6 +80,14 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
     ContinuousProfilingBetaIngest,
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-metrics-extraction")]
+    ExtractCommonSpanMetricsFromEvent,
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-metrics-extraction-addons")]
+    ExtractAddonsSpanMetricsFromEvent,
     /// When enabled, spans will be extracted from a transaction.
     ///
     /// Serialized as `organizations:indexed-spans-extraction`.
