@@ -648,15 +648,11 @@ jobs:
         run: docker buildx imagetools create --tag "${AR_DOCKER_IMAGE}:nightly" "${GHCR_DOCKER_IMAGE}:nightly"
 
   gocd-artifacts:
-    timeout-minutes: 5
+    timeout-minutes: 10
     needs: [build-setup, publish-to-ar-internal]
 
     name: Upload build artifacts to gocd
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        platform: ${{ fromJson(needs.build-setup.outputs.platforms) }}
 
     # required for google auth
     permissions:
@@ -708,8 +704,11 @@ jobs:
           VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/relay:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
+          tree
+
           for PLATFORM in "linux/amd64" "linux/arm64"; do
-            gsutil -m cp -L /dev/stderr $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
+            echo $PLATFORM
+            gsutil -m cp $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
               "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${{ matrix.platform }}/"
           done
 
