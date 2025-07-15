@@ -29,7 +29,7 @@ pipelines:
               elastic_profile_id: relay
               tasks:
                 - script: |
-                    /devinfra/scripts/checks/gocd/pipeline_status.py \
+                    checks-gocd-pipeline-status \
                     deploy-relay-processing \
                     deploy-relay-pop
       - deploy-relay:
@@ -46,7 +46,7 @@ pipelines:
               elastic_profile_id: relay
               tasks:
                 - script: |
-                    /devinfra/scripts/gocd/trigger_pipeline.py \
+                    gocd-trigger-pipeline \
                     --pipeline-name=deploy-relay-processing \
                     --pipeline-name=deploy-relay-pop \
                     --material-name=relay_repo \

@@ -393,6 +393,74 @@ mod tests {
         "###);
     }
 
+    #[test]
+    fn parse_array_attribute() {
+        let json = r#"{
+            "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
+            "spanId": "fa90fdead5f74052",
+            "parentSpanId": "fa90fdead5f74051",
+            "startTimeUnixNano": "123000000000",
+            "endTimeUnixNano": "123500000000",
+            "name": "cmd.run",
+            "status": {"code": 0},
+            "attributes": [
+                {
+                    "key": "process.args",
+                    "value": {
+                        "arrayValue": {
+                            "values": [
+                                {"stringValue": "node"},
+                                {"stringValue": "--require"},
+                                {"stringValue": "preflight.cjs"}
+                            ]
+                        }
+                    }
+                },
+                {
+                    "key": "process.info",
+                    "value": {
+                        "arrayValue": {
+                            "values": [
+                                {"intValue": 41},
+                                {
+                                    "arrayValue": {
+                                        "values": [
+                                            {"intValue": 42}
+                                    ]}
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        }"#;
+
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "default",
+          "span_id": "fa90fdead5f74052",
+          "parent_span_id": "fa90fdead5f74051",
+          "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+          "status": "ok",
+          "description": "cmd.run",
+          "data": {
+            "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]",
+            "process.info": "[41]",
+            "sentry.name": "cmd.run",
+            "sentry.status.message": ""
+          },
+          "links": []
+        }
+        "###);
+    }
+
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
     #[test]
     fn parse_sentry_attributes() {
@@ -545,6 +613,7 @@ mod tests {
             "sentry.release": "myapp@1.0.0",
             "sentry.segment.name": "my 1st transaction",
             "sentry.sdk.name": "sentry.php",
+            "sentry.metrics_summary.some_metric": "[]",
             "sentry.name": "myname",
             "sentry.status.message": "foo"
           },

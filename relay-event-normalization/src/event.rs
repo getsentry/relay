@@ -1428,23 +1428,24 @@ fn remove_invalid_measurements(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in measurements_config.builtin_measurement_keys() {
-            if builtin_measurement.name() == name {
-                let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
-                // Drop negative values if the builtin measurement does not allow them.
-                if !builtin_measurement.allow_negative() && *value < 0.0 {
-                    meta.add_error(Error::invalid(format!(
-                        "Negative value for measurement {name} not allowed: {value}",
-                    )));
-                    removed_measurements
-                        .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
-                    return false;
-                }
-                // If the unit matches a built-in measurement, we allow it.
-                // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
-                // and just drop it instead.
-                return builtin_measurement.unit() == unit;
+        if let Some(builtin_measurement) = measurements_config
+            .builtin_measurement_keys()
+            .find(|builtin| builtin.name() == name)
+        {
+            let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
+            // Drop negative values if the builtin measurement does not allow them.
+            if !builtin_measurement.allow_negative() && *value < 0.0 {
+                meta.add_error(Error::invalid(format!(
+                    "Negative value for measurement {name} not allowed: {value}",
+                )));
+                removed_measurements
+                    .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+                return false;
             }
+            // If the unit matches a built-in measurement, we allow it.
+            // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
+            // and just drop it instead.
+            return builtin_measurement.unit() == unit;
         }
 
         // For custom measurements, check the budget:

@@ -1,5 +1,5 @@
 #!/bin/bash
 
-/devinfra/scripts/checks/datadog/monitor_status.py \
+checks-datadog-monitor-status \
   ${DATADOG_MONITOR_IDS} \
   --skip-check=false
