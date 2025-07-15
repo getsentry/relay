@@ -6,7 +6,6 @@
 
 - Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
 - Serialize OTEL span array attributes to JSON. ([#4930](https://github.com/getsentry/relay/pull/4930))
-- Do not drop custom measurements if no config is present. ([#4941](https://github.com/getsentry/relay/pull/4941))
 
 **Bug Fixes**:
 
@@ -15,6 +14,7 @@
 - Do not overwrite geo information if already set. ([#4888](https://github.com/getsentry/relay/pull/4888))
 - The `type` fields of contexts are now enforced to be strings. Non-string values are replaced with the
   context's key. ([#4932](https://github.com/getsentry/relay/pull/4932))
+- Do not drop custom measurements if no config is present. ([#4941](https://github.com/getsentry/relay/pull/4941))
 
 **Internal**:
 
