@@ -5,15 +5,20 @@
 **Features**:
 
 - Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Serialize OTEL span array attributes to JSON. ([#4930](https://github.com/getsentry/relay/pull/4930))
 
 **Bug Fixes**:
 
 - Preserve user specified event values in Unreal crash reports. ([#4882](https://github.com/getsentry/relay/pull/4882))
 - OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
 - Do not overwrite geo information if already set. ([#4888](https://github.com/getsentry/relay/pull/4888))
+- The `type` fields of contexts are now enforced to be strings. Non-string values are replaced with the
+  context's key. ([#4932](https://github.com/getsentry/relay/pull/4932))
+- Do not drop custom measurements if no config is present. ([#4941](https://github.com/getsentry/relay/pull/4941))
 
 **Internal**:
 
+- No longer store debug symbols and the source in the docker image. ([#4942](https://github.com/getsentry/relay/pull/4942))
 - Forward logs to Kafka directly instead of serialized as envelope. ([#4875](https://github.com/getsentry/relay/pull/4875))
 - Remember accepted/ingested bytes for log outcomes. ([#4886](https://github.com/getsentry/relay/pull/4886))
 - Add `gen_ai.response.tokens_per_second` span attribute on AI spans. ([#4883](https://github.com/getsentry/relay/pull/4883))
@@ -22,6 +27,7 @@
 - Normalize legacy AI agents attributes to OTel compatible names. ([#4916](https://github.com/getsentry/relay/pull/4916))
 - Fix cost calculation for cached and reasoning tokens. ([#4922](https://github.com/getsentry/relay/pull/4922))
 - Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931))
+- Implement serialization of metadata for logs. ([#4929](https://github.com/getsentry/relay/pull/4929))
 
 ## 25.6.2
 

@@ -31,8 +31,7 @@ for project in "${projects[@]}"; do
 
     continue
   fi
-
-  /devinfra/scripts/checks/sentry/release_new_issues.py \
+  checks-sentry-release-new-issues \
     --project-id="${project_id}" \
     --project-slug="${project_slug}" \
     --release="${release_name}" \
