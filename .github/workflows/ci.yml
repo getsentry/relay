@@ -654,6 +654,10 @@ jobs:
     name: Upload build artifacts to gocd
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+
     # required for google auth
     permissions:
       contents: "read"
