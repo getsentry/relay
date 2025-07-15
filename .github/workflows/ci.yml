@@ -333,7 +333,7 @@ jobs:
 
       - name: Split debug info
         run: |
-          llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
+          llvm-objcopy --only-keep-debug --compress-debug-sections=zstd "${RELAY_BIN}"{,.debug}
           llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
@@ -414,7 +414,7 @@ jobs:
 
       - name: Split debug info
         run: |
-          llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
+          llvm-objcopy --only-keep-debug --compress-debug-sections=zstd "${RELAY_BIN}"{,.debug}
           llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
