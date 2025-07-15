@@ -38,7 +38,6 @@ for PLATFORM in "linux/amd64" "linux/arm64"; do
   sentry-cli upload-dif ./relay-debug.zip ./relay.src.zip
 
   rm relay-debug.zip relay.src.zip
-  rm -rf lib
 done
 
 gsutil cp "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/linux/amd64/release-name" .
