@@ -2136,7 +2136,7 @@ mod tests {
     }
 
     #[test]
-    fn custom_measurement_not_dropped() {
+    fn test_custom_measurements_not_dropped() {
         let mut measurements = Measurements(BTreeMap::from([(
             "custom_measurement".to_owned(),
             Annotated::new(Measurement {
