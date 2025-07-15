@@ -48,7 +48,6 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
     for _ in range(count):
         metric, metric_headers = metrics_consumer.get_metric(timeout)
-        print(metric["name"])
         metric = metrics_without_keys([metric], keys={"metadata"})[0]
         metrics[metric["name"]] = metric
         metrics["headers"][metric["name"]] = metric_headers
