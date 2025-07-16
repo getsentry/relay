@@ -647,6 +647,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     total_accepted = accepted_with_client_sampling + accepted_without_client_sampling
 
     # Expect to drop most of the events (allowing some variance)
+    # We expect at least 99% of the events dropped and accept that we can still receive up to 1% of sent events.
     assert (
         total_accepted <= total_events * 0.01
     ), f"Expected ~99% drop rate overall, got {total_accepted}/{total_events} accepted"
