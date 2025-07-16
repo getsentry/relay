@@ -1,5 +1,12 @@
 # Changelog
 
+
+## Unreleased
+
+**Internal**:
+
+- Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931))
+
 ## 25.7.0
 
 **Features**:
@@ -27,7 +34,6 @@
 - Only emit indexed span outcomes when producing directly to Snuba. ([#4936](https://github.com/getsentry/relay/pull/4936))
 - Normalize legacy AI agents attributes to OTel compatible names. ([#4916](https://github.com/getsentry/relay/pull/4916))
 - Fix cost calculation for cached and reasoning tokens. ([#4922](https://github.com/getsentry/relay/pull/4922))
-- Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931))
 - Implement serialization of metadata for logs. ([#4929](https://github.com/getsentry/relay/pull/4929))
 
 ## 25.6.2
