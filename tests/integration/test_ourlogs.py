@@ -91,9 +91,9 @@ def timestamps(ts: datetime):
 def test_ourlog_extraction_with_otel_logs(
     mini_sentry,
     relay_with_processing,
-    ourlogs_consumer,
+    items_consumer,
 ):
-    ourlogs_consumer = ourlogs_consumer()
+    items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -106,7 +106,7 @@ def test_ourlog_extraction_with_otel_logs(
 
     relay.send_envelope(project_id, envelope)
 
-    assert ourlogs_consumer.get_ourlog() == {
+    assert items_consumer.get_item() == {
         "attributes": {
             "boolean.attribute": {"boolValue": True},
             "double.attribute": {"doubleValue": 637.704},
@@ -139,10 +139,10 @@ def test_ourlog_extraction_with_otel_logs(
 def test_ourlog_multiple_containers_not_allowed(
     mini_sentry,
     relay_with_processing,
-    ourlogs_consumer,
+    items_consumer,
     outcomes_consumer,
 ):
-    ourlogs_consumer = ourlogs_consumer()
+    items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -204,10 +204,10 @@ def test_ourlog_multiple_containers_not_allowed(
 def test_ourlog_meta_attributes(
     mini_sentry,
     relay_with_processing,
-    ourlogs_consumer,
+    items_consumer,
     meta_enabled,
 ):
-    ourlogs_consumer = ourlogs_consumer()
+    items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["datascrubbingSettings"] = {
@@ -240,7 +240,7 @@ def test_ourlog_meta_attributes(
 
     relay.send_envelope(project_id, envelope)
 
-    assert ourlogs_consumer.get_ourlog() == {
+    assert items_consumer.get_item() == {
         "attributes": {
             "creditcard": {"stringValue": "[creditcard]"},
             "sentry.body": {"stringValue": "oops, not again"},
@@ -281,11 +281,11 @@ def test_ourlog_extraction_with_sentry_logs(
     mini_sentry,
     relay,
     relay_with_processing,
-    ourlogs_consumer,
+    items_consumer,
     outcomes_consumer,
     calculated_byte_count,
 ):
-    ourlogs_consumer = ourlogs_consumer()
+    items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
 
     project_id = 42
@@ -336,7 +336,7 @@ def test_ourlog_extraction_with_sentry_logs(
 
     relay.send_envelope(project_id, envelope)
 
-    assert ourlogs_consumer.get_ourlogs(n=2) == [
+    assert items_consumer.get_items(n=2) == [
         {
             "attributes": {
                 "sentry.body": {"stringValue": "This is really bad"},
@@ -424,9 +424,9 @@ def test_ourlog_extraction_with_sentry_logs(
 def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     mini_sentry,
     relay_with_processing,
-    ourlogs_consumer,
+    items_consumer,
 ):
-    ourlogs_consumer = ourlogs_consumer()
+    items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -446,7 +446,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
 
     relay.send_envelope(project_id, envelope)
 
-    assert ourlogs_consumer.get_ourlog() == {
+    assert items_consumer.get_item() == {
         "attributes": {
             "sentry.body": {"stringValue": "Example log record 2"},
             "sentry.browser.name": {"stringValue": "Python Requests"},
@@ -474,9 +474,9 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
 def test_ourlog_extraction_is_disabled_without_feature(
     mini_sentry,
     relay_with_processing,
-    ourlogs_consumer,
+    items_consumer,
 ):
-    ourlogs_consumer = ourlogs_consumer()
+    items_consumer = items_consumer()
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -485,7 +485,7 @@ def test_ourlog_extraction_is_disabled_without_feature(
     envelope = envelope_with_otel_logs(datetime.now(timezone.utc))
     relay.send_envelope(project_id, envelope)
 
-    ourlogs_consumer.assert_empty()
+    items_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(
@@ -547,12 +547,12 @@ def test_ourlog_extraction_is_disabled_without_feature(
 def test_browser_name_version_extraction(
     mini_sentry,
     relay_with_processing,
-    ourlogs_consumer,
+    items_consumer,
     user_agent,
     expected_browser_name,
     expected_browser_version,
 ):
-    ourlogs_consumer = ourlogs_consumer()
+    items_consumer = items_consumer()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -573,7 +573,7 @@ def test_browser_name_version_extraction(
 
     relay.send_envelope(project_id, envelope, headers={"User-Agent": user_agent})
 
-    assert ourlogs_consumer.get_ourlog() == {
+    assert items_consumer.get_item() == {
         "attributes": {
             "sentry.body": {"stringValue": "This is really bad"},
             "sentry.browser.name": {"stringValue": expected_browser_name},

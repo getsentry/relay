@@ -2891,13 +2891,13 @@ def test_span_ingestion_kafka(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
-    ourlogs_consumer,
+    items_consumer,
     outcomes_consumer,
     ingest_format,
 ):
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
-    ourlogs_consumer = ourlogs_consumer()
+    items_consumer = items_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -2943,7 +2943,7 @@ def test_span_ingestion_kafka(
     relay.send_envelope(project_id, envelope)
 
     if ingest_format == "proto":
-        assert ourlogs_consumer.get_ourlog() is not None
+        assert items_consumer.get_item() is not None
         spans_consumer.assert_empty()
 
         outcomes = outcomes_consumer.get_outcomes(n=1)
@@ -2962,5 +2962,5 @@ def test_span_ingestion_kafka(
         ]
     else:
         assert spans_consumer.get_span() is not None
-        ourlogs_consumer.assert_empty()
+        items_consumer.assert_empty()
         outcomes_consumer.assert_empty()
