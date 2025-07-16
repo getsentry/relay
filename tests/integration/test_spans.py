@@ -993,7 +993,7 @@ def test_span_ingestion(
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
                 "sentry.name": "my 2nd OTel span",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "default",
@@ -1067,7 +1067,7 @@ def test_span_ingestion(
                 "client.address": "127.0.0.1",
                 "sentry.name": "my 3rd protobuf OTel span",
                 "ui.component_name": "MyComponent",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "default",
@@ -1842,7 +1842,7 @@ def test_span_ingestion_with_performance_scores(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "ui.interaction.click",
@@ -1935,7 +1935,7 @@ def test_span_ingestion_with_performance_scores(
                 "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
                 "sentry.segment.name": "/page/with/click/interaction/*/*",
                 "user": "[email]",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "ui.interaction.click",
