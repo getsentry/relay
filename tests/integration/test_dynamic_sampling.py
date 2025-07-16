@@ -592,7 +592,6 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
 
     def collect_events_batch(expected_count, timeout_per_event=0.1):
         events_count = 0
-        client_reports = 0
 
         for _ in range(expected_count * 3):  # Allow for some extra attempts
             try:
@@ -604,12 +603,10 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
                     or received_envelope.get_event() is not None
                 ):
                     events_count += 1
-                else:
-                    client_reports += 1
             except queue.Empty:
                 break
 
-        return events_count, client_reports
+        return events_count
 
     project_id = 42
     relay = relay(mini_sentry)
@@ -635,7 +632,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
         )
         relay.send_envelope(project_id, envelope)
 
-    accepted_with_client_sampling, client_reports_1 = collect_events_batch(NUM_EVENTS)
+    accepted_with_client_sampling = collect_events_batch(NUM_EVENTS)
 
     # Test 2: Send events with client_sample_rate=1.0
     # The server should apply full sampling rate, dropping most of the event.
@@ -643,9 +640,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
         envelope, trace_id, event_id = event_factory(public_key, client_sample_rate=1.0)
         relay.send_envelope(project_id, envelope)
 
-    accepted_without_client_sampling, client_reports_2 = collect_events_batch(
-        NUM_EVENTS
-    )
+    accepted_without_client_sampling = collect_events_batch(NUM_EVENTS)
 
     # Both should drop most events due to the 0.001 sample rate
     total_events = NUM_EVENTS * 2
