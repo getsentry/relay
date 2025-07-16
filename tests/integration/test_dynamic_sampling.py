@@ -657,7 +657,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     ), f"Expected ~99% drop rate overall, got {total_accepted}/{total_events} accepted"
     assert (
         total_accepted >= 0
-    ), f"Expected some events to be accepted to show sampling is working"
+    ), "Expected some events to be accepted to show sampling is working"
     assert (
         total_accepted < total_events * 0.01
     ), f"Expected most events to be dropped to show sampling is working, got {total_accepted}/{total_events}"
