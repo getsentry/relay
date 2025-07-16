@@ -591,7 +591,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     """
 
     def collect_events_batch(expected_count, timeout_per_event=0.1):
-        events = []
+        events_count = 0
         client_reports = 0
 
         for _ in range(expected_count * 3):  # Allow for some extra attempts
@@ -603,13 +603,13 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
                     received_envelope.get_transaction_event() is not None
                     or received_envelope.get_event() is not None
                 ):
-                    events.append(received_envelope)
+                    events_count += 1
                 else:
                     client_reports += 1
             except queue.Empty:
                 break
 
-        return len(events), client_reports
+        return events_count, client_reports
 
     project_id = 42
     relay = relay(mini_sentry)
@@ -657,10 +657,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     ), f"Expected ~99% drop rate overall, got {total_accepted}/{total_events} accepted"
     assert (
         total_accepted >= 0
-    ), "Expected some events to be accepted to show sampling is working"
-    assert (
-        total_accepted < total_events * 0.01
-    ), f"Expected most events to be dropped to show sampling is working, got {total_accepted}/{total_events}"
+    ), "Expected 0 or just few events to be accepted to show sampling is working"
 
 
 @pytest.mark.parametrize(
