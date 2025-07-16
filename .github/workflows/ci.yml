@@ -478,24 +478,6 @@ jobs:
             --push \
             .
 
-      - name: Build and publish docker artifact
-        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            --file Dockerfile.release \
-            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
-            .
-
-      - name: Upload docker image
-        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: ${{ matrix.image_name }}-docker-image
-          path: "${{ matrix.image_name }}-docker-image"
-
   publish-to-ar-internal:
     timeout-minutes: 5
     needs: [build-setup, build-internal]
@@ -789,6 +771,7 @@ jobs:
     needs: build-docker
     env:
       USE_NEW_DEVSERVICES: 1
+      RELAY_TEST_IMAGE: "ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}"
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -804,10 +787,6 @@ jobs:
       - name: Setup steps
         id: setup
         run: |
-          # GITHUB_SHA in pull requests points to the merge commit
-          RELAY_TEST_IMAGE=ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
-          echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
-          echo "relay-test-image=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
           # We cannot execute actions that are not placed under .github of the main repo
           mkdir -p .github/actions
           cp -r sentry/.github/actions/setup-sentry .github/actions/
@@ -818,20 +797,12 @@ jobs:
           workdir: sentry
           mode: symbolicator
 
-      - name: Download Docker Image
-        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/download-artifact@v4
-        with:
-          name: relay-docker-image
-
       - name: Import Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: docker load -i relay-docker-image
+        run: docker pull "${RELAY_TEST_IMAGE}"
 
       - name: Run Sentry integration tests
         working-directory: sentry
-        env:
-          RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
