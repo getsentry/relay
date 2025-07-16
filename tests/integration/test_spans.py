@@ -151,6 +151,7 @@ def test_span_extraction(
         "origin": "manual",
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
+        "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
@@ -216,6 +217,7 @@ def test_span_extraction(
         "organization_id": 1,
         "origin": "manual",
         "project_id": 42,
+        "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
@@ -787,6 +789,7 @@ def test_span_ingestion(
             ],
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "a342abb1214ca181",
             "sentry_tags": {
@@ -830,6 +833,7 @@ def test_span_ingestion(
             ],
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "a342abb1214ca182",
             "sentry_tags": {
@@ -880,6 +884,7 @@ def test_span_ingestion(
             "measurements": {"score.total": {"value": 0.12121616}},
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "b0429c44b67a3eb1",
             "sentry_tags": {
@@ -932,6 +937,7 @@ def test_span_ingestion(
             ],
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "b0429c44b67a3eb2",
             "sentry_tags": {
@@ -968,6 +974,7 @@ def test_span_ingestion(
             "is_remote": False,
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "968cff94913ebb07",
             "sentry_tags": {"browser.name": "Chrome", "op": "default"},
@@ -982,7 +989,7 @@ def test_span_ingestion(
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
                 "sentry.name": "my 2nd OTel span",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "default",
@@ -1006,6 +1013,7 @@ def test_span_ingestion(
             ],
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "d342abb1214ca182",
             "sentry_tags": {
@@ -1036,6 +1044,7 @@ def test_span_ingestion(
             "is_remote": False,
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "968cff94913ebb07",
             "sentry_tags": {
@@ -1054,7 +1063,7 @@ def test_span_ingestion(
                 "client.address": "127.0.0.1",
                 "sentry.name": "my 3rd protobuf OTel span",
                 "ui.component_name": "MyComponent",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "default",
@@ -1080,6 +1089,7 @@ def test_span_ingestion(
             "organization_id": 1,
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
@@ -1573,7 +1583,7 @@ def test_span_ingestion_with_performance_scores(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "ui.interaction.click",
@@ -1606,6 +1616,7 @@ def test_span_ingestion_with_performance_scores(
             "is_remote": False,
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
@@ -1665,7 +1676,7 @@ def test_span_ingestion_with_performance_scores(
                 "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
                 "sentry.segment.name": "/page/with/click/interaction/*/*",
                 "user": "[email]",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "ui.interaction.click",
@@ -1686,6 +1697,7 @@ def test_span_ingestion_with_performance_scores(
             "profile_id": "3d9428087fda4ba0936788b70a7587d0",
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
@@ -1751,7 +1763,6 @@ def test_rate_limit_indexed_consistent(
     relay.send_envelope(project_id, envelope)
     spans = spans_consumer.get_spans(n=6, timeout=10)
     assert len(spans) == 6
-    assert summarize_outcomes() == {(16, 0): 6}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
@@ -1826,7 +1837,6 @@ def test_rate_limit_consistent_extracted(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
     metrics = metrics_consumer.get_metrics(n=7)
     span_count = sum(
@@ -1978,7 +1988,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     assert usage_metrics() == (1, 2)
 
     # Second batch nothing passes
@@ -2236,10 +2245,7 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=6)
         assert len(spans) == 6
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
-        assert summarize_outcomes(outcomes) == {
-            (16, 0): 6,  # SpanIndexed, Accepted
-        }
+        outcomes_consumer.assert_empty()
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
         assert summarize_outcomes(outcomes) == {
@@ -2349,6 +2355,7 @@ def test_scrubs_ip_addresses(
         "origin": "manual",
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
+        "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
@@ -2423,6 +2430,7 @@ def test_scrubs_ip_addresses(
         "is_remote": True,
         "organization_id": 1,
         "project_id": 42,
+        "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
@@ -2526,3 +2534,83 @@ def test_spans_v2_multiple_containers_not_allowed(
             "reason": "duplicate_item",
         },
     ]
+
+
+@pytest.mark.parametrize("ingest_format", ["json", "proto"])
+def test_span_ingestion_kafka(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    items_consumer,
+    outcomes_consumer,
+    ingest_format,
+):
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "span_producers": {
+                    "produce_json": ingest_format == "json",
+                    "produce_protobuf": ingest_format == "proto",
+                }
+            },
+            **TEST_CONFIG,
+        }
+    )
+    start = datetime.now(timezone.utc)
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                json={
+                    "items": [
+                        {
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": start.timestamp() + 0.500,
+                            "trace_id": "5b8efff798038103d269b633813fc60c",
+                            "span_id": "eee19b7ec3c1b175",
+                            "name": "some op",
+                        }
+                    ]
+                }
+            ),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": 1},
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    if ingest_format == "proto":
+        assert items_consumer.get_item() is not None
+        spans_consumer.assert_empty()
+
+        outcomes = outcomes_consumer.get_outcomes(n=1)
+        outcomes.sort(key=lambda o: sorted(o.items()))
+
+        assert outcomes == [
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "timestamp": time_within_delta(),
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            }
+        ]
+    else:
+        assert spans_consumer.get_span() is not None
+        items_consumer.assert_empty()
+        outcomes_consumer.assert_empty()

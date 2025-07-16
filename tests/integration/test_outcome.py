@@ -1993,16 +1993,6 @@ def test_span_outcomes(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,  # Accepted
-            "project_id": 42,
-            "quantity": 2,
-            "source": "processing-relay",
-        },
-        {
-            "timestamp": time_within_delta(),
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 2,

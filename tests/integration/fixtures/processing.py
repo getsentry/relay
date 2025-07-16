@@ -403,8 +403,8 @@ def spans_consumer(consumer_fixture):
 
 
 @pytest.fixture
-def ourlogs_consumer(consumer_fixture):
-    yield from consumer_fixture(OurLogsConsumer, "items")
+def items_consumer(consumer_fixture):
+    yield from consumer_fixture(ItemsConsumer, "items")
 
 
 @pytest.fixture
@@ -578,8 +578,8 @@ class SpansConsumer(ConsumerBase):
         return spans
 
 
-class OurLogsConsumer(ConsumerBase):
-    def get_ourlog(self, **kwargs):
+class ItemsConsumer(ConsumerBase):
+    def get_item(self, **kwargs):
         message = self.poll(**kwargs)
         assert message is not None
         assert message.error() is None
@@ -589,8 +589,8 @@ class OurLogsConsumer(ConsumerBase):
 
         return MessageToDict(trace_item)
 
-    def get_ourlogs(self, **kwargs):
-        ourlogs = []
+    def get_items(self, **kwargs):
+        items = []
 
         for message in self.poll_many(**kwargs):
             assert message is not None
@@ -599,9 +599,9 @@ class OurLogsConsumer(ConsumerBase):
             trace_item = TraceItem()
             trace_item.ParseFromString(message.value())
 
-            ourlogs.append(MessageToDict(trace_item))
+            items.append(MessageToDict(trace_item))
 
-        return ourlogs
+        return items
 
 
 class ProfileConsumer(ConsumerBase):
