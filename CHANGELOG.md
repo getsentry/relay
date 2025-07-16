@@ -24,6 +24,7 @@
 - Add `gen_ai.response.tokens_per_second` span attribute on AI spans. ([#4883](https://github.com/getsentry/relay/pull/4883))
 - Add support for playstation data requests. ([#4870](https://github.com/getsentry/relay/pull/4870))
 - Expand the NEL attributes & others. ([#4874](https://github.com/getsentry/relay/pull/4874))
+- Only emit indexed span outcomes when producing directly to Snuba. ([#4936](https://github.com/getsentry/relay/pull/4936))
 - Normalize legacy AI agents attributes to OTel compatible names. ([#4916](https://github.com/getsentry/relay/pull/4916))
 - Fix cost calculation for cached and reasoning tokens. ([#4922](https://github.com/getsentry/relay/pull/4922))
 - Implement serialization of metadata for logs. ([#4929](https://github.com/getsentry/relay/pull/4929))

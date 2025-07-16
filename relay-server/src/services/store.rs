@@ -1014,6 +1014,7 @@ impl StoreService {
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
+        span.key_id = scoping.key_id;
 
         if self.config.produce_protobuf_spans() {
             self.inner_produce_protobuf_span(
@@ -1023,21 +1024,21 @@ impl StoreService {
                 retention_days,
                 span.clone(),
             )?;
+
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::SpanIndexed,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: received_at,
+            });
         }
 
         if self.config.produce_json_spans() {
             self.inner_produce_json_span(scoping, span)?;
         }
-
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::SpanIndexed,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
 
         Ok(())
     }
@@ -1812,6 +1813,10 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     _performance_issues_spans: Option<bool>,
+
+    // Required for the buffer to emit outcomes scoped to the DSN.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_id: Option<u64>,
 }
 
 impl SpanKafkaMessage<'_> {
