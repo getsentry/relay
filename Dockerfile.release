@@ -18,3 +18,4 @@ WORKDIR /work
 COPY --chmod=755 $TARGETPLATFORM/relay /bin/relay
 
 ENTRYPOINT ["/bin/relay"]
+CMD ["run"]
