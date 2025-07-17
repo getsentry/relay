@@ -140,6 +140,16 @@ impl PartialDsn {
     pub fn public_key(&self) -> ProjectKey {
         self.public_key
     }
+
+    /// Returns the organization identifier that the DSN points to.
+    pub fn organization_id(&self) -> Option<OrganizationId> {
+        self.host
+            .split('.')
+            .next()
+            .and_then(|x| x.strip_prefix("o"))
+            .and_then(|x| x.parse().ok())
+            .map(OrganizationId::new)
+    }
 }
 
 impl fmt::Display for PartialDsn {
@@ -383,6 +393,13 @@ impl RequestMeta {
         self.dsn.project_id
     }
 
+    /// Returns the organization identifier that the DSN points to.
+    ///
+    /// Returns `None` if the DSN does not contain an organization identifier.
+    pub fn organization_id(&self) -> Option<OrganizationId> {
+        self.dsn.organization_id()
+    }
+
     /// Updates the DSN to the given project ID.
     pub fn set_project_id(&mut self, project_id: ProjectId) {
         self.dsn.project_id = Some(project_id);
@@ -417,7 +434,9 @@ impl RequestMeta {
     /// state. To fetch full scoping information, invoke the `GetScoping` message on `Project`.
     pub fn get_partial_scoping(&self) -> Scoping {
         Scoping {
-            organization_id: OrganizationId::new(0),
+            organization_id: self
+                .organization_id()
+                .unwrap_or_else(|| OrganizationId::new(0)),
             project_id: self.project_id().unwrap_or_else(|| ProjectId::new(0)),
             project_key: self.public_key(),
             key_id: None,
@@ -781,5 +800,23 @@ mod tests {
         let serialized_without_signature = serde_json::to_string(&without_signature).unwrap();
         let serialized_with_signature = serde_json::to_string(&with_signature).unwrap();
         assert_eq!(serialized_with_signature, serialized_without_signature);
+    }
+
+    #[test]
+    fn test_organization_id_extraction() {
+        let dsn = PartialDsn::from_str(
+            "https://e12d836b15bb49d7bbf99e64295d995b@o123.ingest.us.sentry.io/456",
+        )
+        .unwrap();
+
+        assert_eq!(dsn.organization_id(), Some(OrganizationId::new(123)));
+    }
+
+    #[test]
+    fn test_organization_id_extraction_deprecated_dsn() {
+        let dsn =
+            PartialDsn::from_str("https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42").unwrap();
+
+        assert_eq!(dsn.organization_id(), None);
     }
 }
