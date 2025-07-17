@@ -857,6 +857,7 @@ jobs:
       - name: Inspect failure
         if: failure()
         run: |
+          cd /home/runner/work/_actions/getsentry/self-hosted/master
           docker compose ps
           docker compose logs
 
