@@ -80,14 +80,6 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
     ContinuousProfilingBetaIngest,
-    /// This feature has graduated and is hard-coded for external Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:span-metrics-extraction")]
-    ExtractCommonSpanMetricsFromEvent,
-    /// This feature has graduated and is hard-coded for external Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:span-metrics-extraction-addons")]
-    ExtractAddonsSpanMetricsFromEvent,
     /// When enabled, spans will be extracted from a transaction.
     ///
     /// Serialized as `organizations:indexed-spans-extraction`.
@@ -122,6 +114,14 @@ pub enum Feature {
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
+    /// This feature has deprecated and is kept for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-metrics-extraction")]
+    DeprecatedExtractCommonSpanMetricsFromEvent,
+    /// This feature has been deprecated and is kept for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-metrics-extraction-addons")]
+    DeprecatedExtractAddonsSpanMetricsFromEvent,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
