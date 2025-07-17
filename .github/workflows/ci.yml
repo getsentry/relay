@@ -449,8 +449,8 @@ jobs:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
-      env:
-        PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
+    env:
+      PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
 
     steps:
       - uses: actions/download-artifact@v4
