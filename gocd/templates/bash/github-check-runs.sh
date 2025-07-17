@@ -7,7 +7,5 @@ checks-githubactions-checkruns \
     "Test All Features (ubuntu-latest)" \
     "Publish Relay to Internal AR (relay)" \
     "Publish Relay to Internal AR (relay-pop)" \
-    "Upload build artifacts to gocd (relay, linux/amd64)" \
-    "Upload build artifacts to gocd (relay, linux/arm64)" \
-    "Upload build artifacts to gocd (relay-pop, linux/amd64)" \
-    "Upload build artifacts to gocd (relay-pop, linux/arm64)" \
+    "Upload build artifacts to gocd (relay)" \
+    "Upload build artifacts to gocd (relay-pop)" \
