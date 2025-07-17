@@ -572,7 +572,7 @@ jobs:
       matrix:
         image_name: ["relay"] # Don't publish relay-pop (for now)
 
-    if: github.event_name == 'merge_group' 
+    if: github.event_name == 'merge_group'
 
     env:
       GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
@@ -853,6 +853,13 @@ jobs:
           project_name: relay
           image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Inspect failure
+        if: failure()
+        run: |
+          cd /home/runner/work/_actions/getsentry/self-hosted/master
+          docker compose ps
+          docker compose logs
 
   validate-devservices-config:
       runs-on: ubuntu-24.04
