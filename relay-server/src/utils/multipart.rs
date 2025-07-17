@@ -200,7 +200,7 @@ async fn multipart_items<F, G>(
 ) -> Result<Items, multer::Error>
 where
     F: FnMut(Option<&str>, &str) -> AttachmentType,
-    G: FnMut(u32),
+    G: FnMut(Outcome, u32),
 {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
@@ -216,7 +216,12 @@ where
             let field = LimitedField::new(field, config.max_attachment_size());
             match field.bytes().await {
                 Err(multer::Error::FieldSizeExceeded { limit, .. }) if ignore_large_fields => {
-                    emit_outcome(u32::try_from(limit).unwrap_or(u32::MAX));
+                    emit_outcome(
+                        Outcome::Invalid(DiscardReason::TooLarge(DiscardItemType::Attachment(
+                            DiscardAttachmentType::Attachment,
+                        ))),
+                        u32::try_from(limit).unwrap_or(u32::MAX),
+                    );
                     continue;
                 }
                 Err(err) => return Err(err),
@@ -356,7 +361,7 @@ impl ConstrainedMultipart {
     {
         // The emit outcome closure here does nothing since in this code branch we don't want to
         // emit outcomes as we already return an error to the request.
-        multipart_items(self.0, infer_type, |_| (), config, false).await
+        multipart_items(self.0, infer_type, |_, _| (), config, false).await
     }
 }
 
@@ -405,13 +410,11 @@ impl UnconstrainedMultipart {
         multipart_items(
             multipart,
             infer_type,
-            |quantity| {
+            |outcome, quantity| {
                 outcome_aggregator.send(TrackOutcome {
                     timestamp: request_meta.received_at(),
                     scoping: request_meta.get_partial_scoping(),
-                    outcome: Outcome::Invalid(DiscardReason::TooLarge(
-                        DiscardItemType::Attachment(DiscardAttachmentType::Attachment),
-                    )),
+                    outcome,
                     event_id: None,
                     remote_addr: request_meta.remote_addr(),
                     category: DataCategory::Attachment,
@@ -543,7 +546,7 @@ mod tests {
         let items = multipart_items(
             multipart,
             |_, _| AttachmentType::Attachment,
-            |x| (mock_outcomes.push(x)),
+            |_, x| (mock_outcomes.push(x)),
             &config,
             true,
         )
