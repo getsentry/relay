@@ -449,17 +449,10 @@ jobs:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
-    env:
-      PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
-      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
-      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+      env:
+        PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-
       - uses: actions/download-artifact@v4
         with:
           pattern: "${{ matrix.image_name }}@*"
@@ -467,23 +460,14 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@3e678a5b35eb78afec14922aa822c8923a2d2e32
+        uses: getsentry/action-build-and-push-images@845ca2858b930130fc39268d7df9e60fe5009e0c
         with:
-          image_name: "${{ matrix.image_name }}"
-          platform: "${PLATFORMS}"
+          image_name: ${{ matrix.image_name }}
+          platforms: $PLATFORMS
           dockerfile_path: "./Dockerfile.release"
           ghcr: true
-          gar: false
-
-      - name: Build and publish docker artifact
-        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            --file Dockerfile.release \
-            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
-            .
+          google_ar: false
+          publish_on_pr: true
 
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
