@@ -1,5 +1,12 @@
 # Changelog
 
+
+## Unreleased
+
+**Internal**:
+
+- Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931))
+
 ## 25.7.0
 
 **Features**:
