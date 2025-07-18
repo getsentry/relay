@@ -6,7 +6,7 @@
 **Internal**:
 
 - Emit outcomes for skipped large attachments on playstation crashes. ([#4862](https://github.com/getsentry/relay/pull/4862))
-- Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931))
+- Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931),[#4955](https://github.com/getsentry/relay/pull/4955))
 
 ## 25.7.0
 
