@@ -385,13 +385,12 @@ impl FromRequest<ServiceState> for UnconstrainedMultipart {
         let mut parts = request.extract_parts().await?;
         let request_meta = RequestMeta::<PartialDsn>::from_request_parts(&mut parts, state).await?;
 
-        multipart_from_request(request, multer::Constraints::new())
-            .map(|multipart| UnconstrainedMultipart {
-                multipart,
-                outcome_aggregator: state.outcome_aggregator().clone(),
-                request_meta,
-            })
-            .map_err(Into::into)
+        let multipart = multipart_from_request(request, multer::Constraints::new())?;
+        Ok(UnconstrainedMultipart {
+            multipart,
+            outcome_aggregator: state.outcome_aggregator().clone(),
+            request_meta,
+        })
     }
 }
 
