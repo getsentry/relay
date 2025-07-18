@@ -148,6 +148,33 @@ pub fn extract_session_metrics<T: SessionLike>(
         }
     }
 
+    if session.unhandled_count() > 0 {
+        target.push(
+            SessionMetric::Session {
+                counter: session.unhandled_count().into(),
+                tags: SessionSessionTags {
+                    status: "unhandled".to_owned(),
+                    common_tags: common_tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
+        );
+
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
+            target.push(
+                SessionMetric::User {
+                    distinct_id: distinct_id.clone(),
+                    tags: SessionUserTags {
+                        status: Some(SessionStatus::Unhandled),
+                        abnormal_mechanism: None,
+                        common_tags,
+                    },
+                }
+                .into_metric(timestamp),
+            );
+        }
+    }
+
     if session.crashed_count() > 0 {
         target.push(
             SessionMetric::Session {
