@@ -2293,7 +2293,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
@@ -2399,7 +2398,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
@@ -2496,7 +2494,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([(
                         "claude-2.1".to_owned(),
                         ModelCostV2 {
@@ -2580,7 +2577,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
@@ -2660,7 +2656,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
@@ -2704,7 +2699,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
