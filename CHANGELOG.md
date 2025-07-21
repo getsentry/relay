@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
+
 **Internal**:
 
 - Emit outcomes for skipped large attachments on playstation crashes. ([#4862](https://github.com/getsentry/relay/pull/4862))
