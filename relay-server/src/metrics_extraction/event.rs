@@ -1232,8 +1232,7 @@ mod tests {
                     "parent_span_id": "bd429c44b67a3eb4",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
-                        "gen_ai.usage.total_tokens": 20,
-                        "ai.pipeline.name": "Autofix Pipeline"
+                        "gen_ai.usage.total_tokens": 20
                     }
                 },
                 {

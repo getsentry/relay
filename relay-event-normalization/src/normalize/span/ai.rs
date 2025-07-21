@@ -135,9 +135,6 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
         .gen_ai_request_model
         .value()
         .and_then(|val| val.as_str())
-        // xxx (vgrozdanic): temporal fallback to legacy field, until we fix
-        // sentry conventions and standardize what SDKs send
-        .or_else(|| data.ai_model_id.value().and_then(|val| val.as_str()))
         .or_else(|| {
             data.gen_ai_response_model
                 .value()

@@ -2257,7 +2257,6 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
                             "ai.model_id": "claude-2.1"
                         }
                     },
@@ -2278,7 +2277,6 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
                             "ai.model_id": "gpt4-21-04"
                         }
                     }

@@ -297,8 +297,6 @@ pub struct SentryTags {
     #[metastructure(field = "os.name")]
     pub os_name: Annotated<String>,
     pub action: Annotated<String>,
-    /// The group of the ancestral span with op ai.pipeline.(String)*
-    pub ai_pipeline_group: Annotated<String>,
     pub category: Annotated<String>,
     pub description: Annotated<String>,
     pub domain: Annotated<String>,
@@ -358,7 +356,6 @@ impl Getter for SentryTags {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         let value = match path {
             "action" => &self.action,
-            "ai_pipeline_group" => &self.ai_pipeline_group,
             "app_start_type" => &self.app_start_type,
             "browser.name" => &self.browser_name,
             "cache.hit" => &self.cache_hit,
@@ -497,7 +494,7 @@ pub struct SpanData {
     pub gen_ai_response_model: Annotated<Value>,
 
     /// The name of the GenAI model a request is being made to (e.g. gpt-4)
-    #[metastructure(field = "gen_ai.request.model")]
+    #[metastructure(field = "gen_ai.request.model", legacy_alias = "ai.model_id")]
     pub gen_ai_request_model: Annotated<Value>,
 
     /// The total cost for the tokens used
@@ -509,23 +506,47 @@ pub struct SpanData {
     pub gen_ai_prompt: Annotated<Value>,
 
     /// Prompt passed to LLM
-    #[metastructure(field = "gen_ai.request.messages", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.request.messages",
+        pii = "maybe",
+        legacy_alias = "ai.prompt.messages"
+    )]
     pub gen_ai_request_messages: Annotated<Value>,
 
     /// Tool call arguments
-    #[metastructure(field = "gen_ai.tool.input", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.tool.input",
+        pii = "maybe",
+        legacy_alias = "ai.toolCall.args"
+    )]
     pub gen_ai_tool_input: Annotated<Value>,
 
     /// Tool call result
-    #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.tool.output",
+        pii = "maybe",
+        legacy_alias = "ai.toolCall.result"
+    )]
     pub gen_ai_tool_output: Annotated<Value>,
 
     /// LLM decisions to use calls
-    #[metastructure(field = "gen_ai.response.tool_calls", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.response.tool_calls",
+        pii = "maybe",
+        legacy_alias = "ai.response.toolCalls"
+    )]
     pub gen_ai_response_tool_calls: Annotated<Value>,
 
+    /// Name of the tool that was called
+    #[metastructure(field = "gen_ai.tool.name")]
+    pub gen_ai_tool_name: Annotated<Value>,
+
     /// LLM response text (Vercel AI, generateText)
-    #[metastructure(field = "gen_ai.response.text", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.response.text",
+        pii = "maybe",
+        legacy_alias = "ai.response.text"
+    )]
     pub gen_ai_response_text: Annotated<Value>,
 
     /// LLM response object (Vercel AI, generateObject)
@@ -635,22 +656,6 @@ pub struct SpanData {
     /// The status HTTP response.
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
-
-    /// The 'name' field of the ancestor span with op ai.pipeline.*
-    #[metastructure(field = "ai.pipeline.name")]
-    pub ai_pipeline_name: Annotated<Value>,
-
-    /// The Model ID of an AI pipeline, e.g., gpt-4
-    #[metastructure(field = "ai.model_id")]
-    pub ai_model_id: Annotated<Value>,
-
-    /// The input messages to an AI model call
-    #[metastructure(field = "ai.input_messages")]
-    pub ai_input_messages: Annotated<Value>,
-
-    /// The responses to an AI model call
-    #[metastructure(field = "ai.responses")]
-    pub ai_responses: Annotated<Value>,
 
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
@@ -1314,7 +1319,7 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r###"
+        insta::assert_debug_snapshot!(data, @r#"
         SpanData {
             app_start_type: ~,
             gen_ai_request_max_tokens: ~,
@@ -1331,6 +1336,7 @@ mod tests {
             gen_ai_tool_input: ~,
             gen_ai_tool_output: ~,
             gen_ai_response_tool_calls: ~,
+            gen_ai_tool_name: ~,
             gen_ai_response_text: ~,
             gen_ai_response_object: ~,
             gen_ai_response_tokens_per_second: ~,
@@ -1364,10 +1370,6 @@ mod tests {
             cache_key: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
-            ai_pipeline_name: ~,
-            ai_model_id: ~,
-            ai_input_messages: ~,
-            ai_responses: ~,
             thread_name: ~,
             thread_id: ~,
             segment_name: ~,
@@ -1434,7 +1436,7 @@ mod tests {
                 ),
             },
         }
-        "###);
+        "#);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));
