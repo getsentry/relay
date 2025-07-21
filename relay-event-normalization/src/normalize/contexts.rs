@@ -286,8 +286,14 @@ fn compute_os_context(os: &mut OsContext) {
     // Calculation of the computed context for the os.
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if os.os.value().is_none() {
-        if let (Some(name), Some(version)) = (os.name.value(), os.version.value()) {
-            os.os = Annotated::from(format!("{name} {version}"));
+        let name = match (os.name.value(), os.version.value()) {
+            (Some(name), Some(version)) => Some(format!("{name} {version}")),
+            (Some(name), _) => Some(name.to_owned()),
+            _ => None,
+        };
+
+        if let Some(name) = name {
+            os.os = Annotated::new(name);
         }
     }
 }
@@ -296,8 +302,14 @@ fn normalize_browser_context(browser: &mut BrowserContext) {
     // Calculation of the computed context for the browser.
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if browser.browser.value().is_none() {
-        if let (Some(name), Some(version)) = (browser.name.value(), browser.version.value()) {
-            browser.browser = Annotated::from(format!("{name} {version}"));
+        let name = match (browser.name.value(), browser.version.value()) {
+            (Some(name), Some(version)) => Some(format!("{name} {version}")),
+            (Some(name), _) => Some(name.to_owned()),
+            _ => None,
+        };
+
+        if let Some(name) = name {
+            browser.browser = Annotated::new(name);
         }
     }
 }
