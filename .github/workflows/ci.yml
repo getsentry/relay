@@ -463,7 +463,7 @@ jobs:
         uses: getsentry/action-build-and-push-images@845ca2858b930130fc39268d7df9e60fe5009e0c
         with:
           image_name: ${{ matrix.image_name }}
-          platforms: $PLATFORMS
+          platforms: ${{ env.PLATFORMS }}
           dockerfile_path: "./Dockerfile.release"
           ghcr: true
           google_ar: false
