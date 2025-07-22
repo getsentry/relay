@@ -169,7 +169,6 @@ mod tests {
                 gen_ai_tool_input: ~,
                 gen_ai_tool_output: ~,
                 gen_ai_response_tool_calls: ~,
-                gen_ai_tool_name: ~,
                 gen_ai_response_text: ~,
                 gen_ai_response_object: ~,
                 gen_ai_response_tokens_per_second: ~,
