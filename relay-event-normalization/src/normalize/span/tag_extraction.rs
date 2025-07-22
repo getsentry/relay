@@ -800,19 +800,6 @@ pub fn extract_tags(
             _ => None,
         };
 
-        if category.as_deref() == Some("ai") {
-            if let Some(ai_pipeline_name) = span
-                .data
-                .value()
-                .and_then(|data| data.ai_pipeline_name.value())
-                .and_then(|val| val.as_str())
-            {
-                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
-                ai_pipeline_group.truncate(16);
-                span_tags.ai_pipeline_group = ai_pipeline_group.into();
-            }
-        }
-
         if let Some(category) = category {
             span_tags.category = category.into_owned().into();
         }
@@ -2004,9 +1991,7 @@ LIMIT 1
                         "data": {
                             "ai.total_tokens.used": 300,
                             "ai.completion_tokens.used": 200,
-                            "ai.prompt_tokens.used": 100,
-                            "ai.streaming": true,
-                            "ai.pipeline.name": "My AI pipeline"
+                            "ai.prompt_tokens.used": 100
                         },
                         "hash": "e2fae740cccd3781"
                     }
@@ -2029,21 +2014,14 @@ LIMIT 1
             .unwrap()
             .value()
             .unwrap();
-        let tags = span.sentry_tags.value().unwrap();
 
-        assert_eq!(
-            tags.get_value("ai_pipeline_group").unwrap().as_str(),
-            Some("68e6cafc5b68d276")
-        );
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
         {
           "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200,
-          "ai.pipeline.name": "My AI pipeline",
-          "ai.streaming": true
+          "gen_ai.usage.output_tokens": 200
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2063,9 +2041,7 @@ LIMIT 1
                         "data": {
                             "gen_ai.usage.total_tokens": 300,
                             "gen_ai.usage.output_tokens": 200,
-                            "gen_ai.usage.input_tokens": 100,
-                            "ai.streaming": true,
-                            "ai.pipeline.name": "My AI pipeline"
+                            "gen_ai.usage.input_tokens": 100
                         },
                         "hash": "e2fae740cccd3781"
                     }
@@ -2088,21 +2064,14 @@ LIMIT 1
             .unwrap()
             .value()
             .unwrap();
-        let tags = span.sentry_tags.value().unwrap();
 
-        assert_eq!(
-            tags.get_value("ai_pipeline_group").unwrap().as_str(),
-            Some("68e6cafc5b68d276")
-        );
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
         {
           "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200,
-          "ai.pipeline.name": "My AI pipeline",
-          "ai.streaming": true
+          "gen_ai.usage.output_tokens": 200
         }
-        "###);
+        "#);
     }
 
     #[test]

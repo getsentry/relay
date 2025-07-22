@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Emit outcomes for skipped large attachments on playstation crashes. ([#4862](https://github.com/getsentry/relay/pull/4862))
+- Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931),[#4955](https://github.com/getsentry/relay/pull/4955))
+- Deprecate old AI monitoring attributes. ([#4960](https://github.com/getsentry/relay/pull/4960))
+
+## 25.7.0
+
 **Features**:
 
 - Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
@@ -14,16 +22,20 @@
 - Do not overwrite geo information if already set. ([#4888](https://github.com/getsentry/relay/pull/4888))
 - The `type` fields of contexts are now enforced to be strings. Non-string values are replaced with the
   context's key. ([#4932](https://github.com/getsentry/relay/pull/4932))
+- Do not drop custom measurements if no config is present. ([#4941](https://github.com/getsentry/relay/pull/4941))
 
 **Internal**:
 
+- No longer store debug symbols and the source in the docker image. ([#4942](https://github.com/getsentry/relay/pull/4942))
 - Forward logs to Kafka directly instead of serialized as envelope. ([#4875](https://github.com/getsentry/relay/pull/4875))
 - Remember accepted/ingested bytes for log outcomes. ([#4886](https://github.com/getsentry/relay/pull/4886))
 - Add `gen_ai.response.tokens_per_second` span attribute on AI spans. ([#4883](https://github.com/getsentry/relay/pull/4883))
 - Add support for playstation data requests. ([#4870](https://github.com/getsentry/relay/pull/4870))
 - Expand the NEL attributes & others. ([#4874](https://github.com/getsentry/relay/pull/4874))
+- Only emit indexed span outcomes when producing directly to Snuba. ([#4936](https://github.com/getsentry/relay/pull/4936))
 - Normalize legacy AI agents attributes to OTel compatible names. ([#4916](https://github.com/getsentry/relay/pull/4916))
 - Fix cost calculation for cached and reasoning tokens. ([#4922](https://github.com/getsentry/relay/pull/4922))
+- Implement serialization of metadata for logs. ([#4929](https://github.com/getsentry/relay/pull/4929))
 
 ## 25.6.2
 

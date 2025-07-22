@@ -130,7 +130,7 @@ jobs:
     name: Windows
     # Make sure to update documentation once the version is updated:
     # https://docs.sentry.io/product/relay/operating-guidelines/
-    runs-on: windows-2019
+    runs-on: windows-2022
 
     steps:
       - uses: actions/checkout@v4

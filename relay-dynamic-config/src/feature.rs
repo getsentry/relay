@@ -80,16 +80,6 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
     ContinuousProfilingBetaIngest,
-    /// Enables metric extraction from spans for common modules.
-    ///
-    /// Serialized as `projects:span-metrics-extraction`.
-    #[serde(rename = "projects:span-metrics-extraction")]
-    ExtractCommonSpanMetricsFromEvent,
-    /// Enables metric extraction from spans for addon modules.
-    ///
-    /// Serialized as `projects:span-metrics-extraction-addons`.
-    #[serde(rename = "projects:span-metrics-extraction-addons")]
-    ExtractAddonsSpanMetricsFromEvent,
     /// When enabled, spans will be extracted from a transaction.
     ///
     /// Serialized as `organizations:indexed-spans-extraction`.
@@ -124,6 +114,14 @@ pub enum Feature {
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
+    /// This feature has deprecated and is kept for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-metrics-extraction")]
+    DeprecatedExtractCommonSpanMetricsFromEvent,
+    /// This feature has been deprecated and is kept for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-metrics-extraction-addons")]
+    DeprecatedExtractAddonsSpanMetricsFromEvent,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
@@ -147,9 +145,7 @@ impl FeatureSet {
 
     /// Returns `true` if any spans are produced for this project.
     pub fn produces_spans(&self) -> bool {
-        self.has(Feature::ExtractSpansFromEvent)
-            || self.has(Feature::StandaloneSpanIngestion)
-            || self.has(Feature::ExtractCommonSpanMetricsFromEvent)
+        self.has(Feature::ExtractSpansFromEvent) || self.has(Feature::StandaloneSpanIngestion)
     }
 }
 

@@ -1391,7 +1391,10 @@ fn remove_invalid_measurements(
     measurements_config: CombinedMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
-    let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(0);
+    // If there is no project or global config allow all the custom measurements through.
+    let max_custom_measurements = measurements_config
+        .max_custom_measurements()
+        .unwrap_or(usize::MAX);
 
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
@@ -2133,6 +2136,27 @@ mod tests {
     }
 
     #[test]
+    fn test_custom_measurements_not_dropped() {
+        let mut measurements = Measurements(BTreeMap::from([(
+            "custom_measurement".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(42.0.try_into().unwrap()),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        )]));
+
+        let original = measurements.clone();
+        remove_invalid_measurements(
+            &mut measurements,
+            &mut Meta::default(),
+            CombinedMeasurementsConfig::new(None, None),
+            Some(30),
+        );
+
+        assert_eq!(original, measurements);
+    }
+
+    #[test]
     fn test_normalize_app_start_measurements_does_not_add_measurements() {
         let mut measurements = Annotated::<Measurements>::from_json(r###"{}"###)
             .unwrap()
@@ -2233,7 +2257,6 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
                             "ai.model_id": "claude-2.1"
                         }
                     },
@@ -2254,7 +2277,6 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
                             "ai.model_id": "gpt4-21-04"
                         }
                     }
@@ -2269,7 +2291,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
@@ -2375,7 +2396,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
@@ -2472,7 +2492,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([(
                         "claude-2.1".to_owned(),
                         ModelCostV2 {
@@ -2556,7 +2575,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
@@ -2636,7 +2654,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
@@ -2680,7 +2697,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()

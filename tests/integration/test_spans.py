@@ -45,7 +45,6 @@ def test_span_extraction(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
@@ -152,6 +151,7 @@ def test_span_extraction(
         "origin": "manual",
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
+        "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
@@ -217,6 +217,7 @@ def test_span_extraction(
         "organization_id": 1,
         "origin": "manual",
         "project_id": 42,
+        "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
@@ -242,8 +243,8 @@ def test_span_extraction(
 @pytest.mark.parametrize(
     "sample_rate,expected_spans,expected_metrics",
     [
-        (None, 2, 7),
-        (1.0, 2, 7),
+        (None, 2, 3),
+        (1.0, 2, 3),
         (0.0, 0, 0),
     ],
 )
@@ -264,7 +265,6 @@ def test_span_extraction_with_sampling(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
@@ -309,7 +309,6 @@ def test_duplicate_performance_score(mini_sentry, relay):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
@@ -681,7 +680,6 @@ def test_span_ingestion(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
         "projects:relay-otel-endpoint",
     ]
     project_config["config"]["transactionMetrics"] = {
@@ -791,6 +789,7 @@ def test_span_ingestion(
             ],
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "a342abb1214ca181",
             "sentry_tags": {
@@ -834,6 +833,7 @@ def test_span_ingestion(
             ],
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "a342abb1214ca182",
             "sentry_tags": {
@@ -884,6 +884,7 @@ def test_span_ingestion(
             "measurements": {"score.total": {"value": 0.12121616}},
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "b0429c44b67a3eb1",
             "sentry_tags": {
@@ -936,6 +937,7 @@ def test_span_ingestion(
             ],
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "b0429c44b67a3eb2",
             "sentry_tags": {
@@ -972,6 +974,7 @@ def test_span_ingestion(
             "is_remote": False,
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "968cff94913ebb07",
             "sentry_tags": {"browser.name": "Chrome", "op": "default"},
@@ -986,7 +989,7 @@ def test_span_ingestion(
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
                 "sentry.name": "my 2nd OTel span",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "default",
@@ -1010,6 +1013,7 @@ def test_span_ingestion(
             ],
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "d342abb1214ca182",
             "sentry_tags": {
@@ -1040,6 +1044,7 @@ def test_span_ingestion(
             "is_remote": False,
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "segment_id": "968cff94913ebb07",
             "sentry_tags": {
@@ -1058,7 +1063,7 @@ def test_span_ingestion(
                 "client.address": "127.0.0.1",
                 "sentry.name": "my 3rd protobuf OTel span",
                 "ui.component_name": "MyComponent",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "default",
@@ -1084,6 +1089,7 @@ def test_span_ingestion(
             "organization_id": 1,
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
@@ -1157,182 +1163,6 @@ def test_span_ingestion(
             "value": 4.0,
             "received_at": time_after(now_timestamp),
         },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "file_extension": "js",
-                "span.category": "resource",
-                "span.description": "https://example.com/*/blah.js",
-                "span.domain": "example.com",
-                "span.group": "8a97a9e43588e2bd",
-                "span.op": "resource.script",
-            },
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [1500.0, 1500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "span.category": "db",
-                "span.op": "default",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "span.op": "default",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [1500.0, 1500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_after(now_timestamp),
-            "retention_days": 90,
-            "tags": {
-                "file_extension": "js",
-                "span.category": "resource",
-                "span.description": "https://example.com/*/blah.js",
-                "span.domain": "example.com",
-                "span.group": "8a97a9e43588e2bd",
-                "span.op": "resource.script",
-            },
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [1500.0, 1500.0],
-        },
-        {
-            "name": "d:spans/duration_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": time_after(now_timestamp),
-            "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time@millisecond",
-            "type": "d",
-            "value": [161.0, 345.0],
-            "timestamp": expected_timestamp + 1,
-            "tags": {
-                "file_extension": "js",
-                "span.category": "resource",
-                "span.description": "https://example.com/*/blah.js",
-                "span.domain": "example.com",
-                "span.group": "8a97a9e43588e2bd",
-                "span.op": "resource.script",
-            },
-            "retention_days": 90,
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time@millisecond",
-            "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/exclusive_time@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time@millisecond",
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [345.0, 345.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time_light@millisecond",
-            "type": "d",
-            "value": [161.0, 345.0],
-            "timestamp": expected_timestamp + 1,
-            "tags": {
-                "file_extension": "js",
-                "span.category": "resource",
-                "span.description": "https://example.com/*/blah.js",
-                "span.domain": "example.com",
-                "span.group": "8a97a9e43588e2bd",
-                "span.op": "resource.script",
-            },
-            "retention_days": 90,
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/exclusive_time_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.category": "db", "span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/webvital.score.total@ratio",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "resource.script"},
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [0.12121616],
-            "received_at": time_after(now_timestamp),
-        },
     ]
 
     span_metrics = [m for m in metrics if ":spans/" in m["name"]]
@@ -1340,15 +1170,6 @@ def test_span_ingestion(
     assert len(span_metrics) == len(expected_span_metrics)
     for actual, expected in zip(span_metrics, expected_span_metrics):
         assert actual == expected
-
-    # Regardless of whether transactions are extracted, score.total is only converted to a transaction metric once:
-    score_total_metrics = [
-        m
-        for m in metrics
-        if m["name"] == "d:transactions/measurements.score.total@ratio"
-    ]
-    assert len(score_total_metrics) == 1, score_total_metrics
-    assert len(score_total_metrics[0]["value"]) == 1
 
     metrics_consumer.assert_empty()
 
@@ -1375,7 +1196,6 @@ def test_standalone_span_ingestion_metric_extraction(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
         # "projects:relay-otel-endpoint",
     ]
 
@@ -1453,74 +1273,6 @@ def test_standalone_span_ingestion_metric_extraction(
             "timestamp": expected_timestamp,
             "type": "c",
             "value": 1.0,
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": expected_received,
-            "retention_days": 90,
-            "tags": {
-                "span.action": "SELECT",
-                "span.category": "db",
-                "span.description": "SELECT from",
-                "span.group": "e7ef86adbb98803e",
-                "span.op": "db",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
-        },
-        {
-            "name": "d:spans/duration_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": expected_received,
-            "retention_days": 90,
-            "tags": {
-                "span.action": "SELECT",
-                "span.op": "db",
-                "span.category": "db",
-                "span.description": "SELECT from",
-                "span.group": "e7ef86adbb98803e",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
-        },
-        {
-            "name": "d:spans/exclusive_time@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": expected_received,
-            "retention_days": 90,
-            "tags": {
-                "span.action": "SELECT",
-                "span.category": "db",
-                "span.description": "SELECT from",
-                "span.group": "e7ef86adbb98803e",
-                "span.op": "db",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
-        },
-        {
-            "name": "d:spans/exclusive_time_light@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "received_at": expected_received,
-            "retention_days": 90,
-            "tags": {
-                "span.action": "SELECT",
-                "span.op": "db",
-                "span.category": "db",
-                "span.description": "SELECT from",
-                "span.group": "e7ef86adbb98803e",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0],
         },
     ]
 
@@ -1750,7 +1502,6 @@ def test_span_ingestion_with_performance_scores(
     project_config["config"]["features"] = [
         "organizations:performance-calculate-score-relay",
         "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
     ]
     project_config["config"]["txNameRules"] = [
         {
@@ -1832,7 +1583,7 @@ def test_span_ingestion_with_performance_scores(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "ui.interaction.click",
@@ -1865,6 +1616,7 @@ def test_span_ingestion_with_performance_scores(
             "is_remote": False,
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
@@ -1924,7 +1676,7 @@ def test_span_ingestion_with_performance_scores(
                 "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
                 "sentry.segment.name": "/page/with/click/interaction/*/*",
                 "user": "[email]",
-                "user_agent.original": "python-requests/2.32.2",
+                "user_agent.original": "python-requests/2.32.4",
                 # Backfilled from `sentry_tags`:
                 "sentry.browser.name": "Python Requests",
                 "sentry.op": "ui.interaction.click",
@@ -1945,6 +1697,7 @@ def test_span_ingestion_with_performance_scores(
             "profile_id": "3d9428087fda4ba0936788b70a7587d0",
             "organization_id": 1,
             "project_id": 42,
+            "key_id": 123,
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
@@ -1980,7 +1733,6 @@ def test_rate_limit_indexed_consistent(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
     ]
     project_config["config"]["quotas"] = [
@@ -2011,7 +1763,6 @@ def test_rate_limit_indexed_consistent(
     relay.send_envelope(project_id, envelope)
     spans = spans_consumer.get_spans(n=6, timeout=10)
     assert len(spans) == 6
-    assert summarize_outcomes() == {(16, 0): 6}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
@@ -2040,7 +1791,6 @@ def test_rate_limit_consistent_extracted(
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
     }
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["quotas"] = [
@@ -2087,9 +1837,8 @@ def test_rate_limit_consistent_extracted(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=11)
+    metrics = metrics_consumer.get_metrics(n=7)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )
@@ -2130,7 +1879,6 @@ def test_rate_limit_spans_in_envelope(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
     ]
     project_config["config"]["quotas"] = [
@@ -2188,7 +1936,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
         "organizations:indexed-spans-extraction",
     ]
@@ -2241,7 +1988,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     assert usage_metrics() == (1, 2)
 
     # Second batch nothing passes
@@ -2327,7 +2073,6 @@ def test_span_extraction_with_tags(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
 
@@ -2432,6 +2177,9 @@ def test_dynamic_sampling(
     }
 
     sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
     sampling_config["config"]["txNameRules"] = [
         {
@@ -2497,107 +2245,18 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = spans_consumer.get_spans(timeout=10, n=6)
         assert len(spans) == 6
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=6)
-        assert summarize_outcomes(outcomes) == {(16, 0): 6}  # SpanIndexed, Accepted
+        outcomes_consumer.assert_empty()
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
-        assert summarize_outcomes(outcomes) == {(16, 1): 6}  # Span, Filtered
-        assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
+        assert summarize_outcomes(outcomes) == {
+            (16, 1): 6,  # SpanIndexed, Filtered
+        }
+        assert {o["reason"] for o in outcomes} == {
+            "Sampled:3000",
+        }
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
-
-
-@pytest.mark.parametrize("ingest_in_eap", [True, False])
-def test_ingest_in_eap_for_organization(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    ingest_in_eap,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
-
-    if ingest_in_eap:
-        project_config["config"]["features"] += ["organizations:ingest-spans-in-eap"]
-
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-    event["spans"] = [
-        {
-            "description": "GET /api/0/organizations/?member=1",
-            "op": "http",
-            "origin": "manual",
-            "parent_span_id": "968cff94913ebb07",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.isoformat(),
-            "status": "success",
-            "timestamp": end.isoformat(),
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        },
-    ]
-
-    relay.send_event(project_id, event)
-
-    if ingest_in_eap:
-        spans_consumer.get_span()
-        spans_consumer.get_span()
-
-    spans_consumer.assert_empty()
-
-
-@pytest.mark.parametrize("ingest_in_eap", [True, False])
-def test_ingest_in_eap_for_project(
-    mini_sentry,
-    relay_with_processing,
-    spans_consumer,
-    ingest_in_eap,
-):
-    spans_consumer = spans_consumer()
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:indexed-spans-extraction",
-    ]
-
-    if ingest_in_eap:
-        project_config["config"]["features"] += ["projects:ingest-spans-in-eap"]
-
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-    event["spans"] = [
-        {
-            "description": "GET /api/0/organizations/?member=1",
-            "op": "http",
-            "origin": "manual",
-            "parent_span_id": "968cff94913ebb07",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.isoformat(),
-            "status": "success",
-            "timestamp": end.isoformat(),
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        },
-    ]
-
-    relay.send_event(project_id, event)
-
-    if ingest_in_eap:
-        spans_consumer.get_span()
-        spans_consumer.get_span()
-
-    spans_consumer.assert_empty()
 
 
 @pytest.mark.parametrize("scrub_ip_addresses", [False, True])
@@ -2614,7 +2273,6 @@ def test_scrubs_ip_addresses(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"].setdefault("datascrubbingSettings", {})[
@@ -2697,6 +2355,7 @@ def test_scrubs_ip_addresses(
         "origin": "manual",
         "parent_span_id": "968cff94913ebb07",
         "project_id": 42,
+        "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
@@ -2771,6 +2430,7 @@ def test_scrubs_ip_addresses(
         "is_remote": True,
         "organization_id": 1,
         "project_id": 42,
+        "key_id": 123,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {
@@ -2874,3 +2534,83 @@ def test_spans_v2_multiple_containers_not_allowed(
             "reason": "duplicate_item",
         },
     ]
+
+
+@pytest.mark.parametrize("ingest_format", ["json", "proto"])
+def test_span_ingestion_kafka(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    items_consumer,
+    outcomes_consumer,
+    ingest_format,
+):
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+    items_consumer = items_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
+
+    relay = relay_with_processing(
+        options={
+            "processing": {
+                "span_producers": {
+                    "produce_json": ingest_format == "json",
+                    "produce_protobuf": ingest_format == "proto",
+                }
+            },
+            **TEST_CONFIG,
+        }
+    )
+    start = datetime.now(timezone.utc)
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                json={
+                    "items": [
+                        {
+                            "start_timestamp": start.timestamp(),
+                            "end_timestamp": start.timestamp() + 0.500,
+                            "trace_id": "5b8efff798038103d269b633813fc60c",
+                            "span_id": "eee19b7ec3c1b175",
+                            "name": "some op",
+                        }
+                    ]
+                }
+            ),
+            content_type="application/vnd.sentry.items.span.v2+json",
+            headers={"item_count": 1},
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    if ingest_format == "proto":
+        assert items_consumer.get_item() is not None
+        spans_consumer.assert_empty()
+
+        outcomes = outcomes_consumer.get_outcomes(n=1)
+        outcomes.sort(key=lambda o: sorted(o.items()))
+
+        assert outcomes == [
+            {
+                "category": DataCategory.SPAN_INDEXED.value,
+                "timestamp": time_within_delta(),
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 0,
+                "project_id": 42,
+                "quantity": 1,
+            }
+        ]
+    else:
+        assert spans_consumer.get_span() is not None
+        items_consumer.assert_empty()
+        outcomes_consumer.assert_empty()

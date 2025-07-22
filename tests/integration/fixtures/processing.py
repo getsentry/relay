@@ -1,5 +1,6 @@
 from collections import defaultdict
 import json
+from google.protobuf.json_format import MessageToDict
 import msgpack
 import uuid
 
@@ -402,8 +403,8 @@ def spans_consumer(consumer_fixture):
 
 
 @pytest.fixture
-def ourlogs_consumer(consumer_fixture):
-    yield from consumer_fixture(OurLogsConsumer, "items")
+def items_consumer(consumer_fixture):
+    yield from consumer_fixture(ItemsConsumer, "items")
 
 
 @pytest.fixture
@@ -577,30 +578,30 @@ class SpansConsumer(ConsumerBase):
         return spans
 
 
-class OurLogsConsumer(ConsumerBase):
-    def get_ourlog(self):
-        message = self.poll()
+class ItemsConsumer(ConsumerBase):
+    def get_item(self, **kwargs):
+        message = self.poll(**kwargs)
         assert message is not None
         assert message.error() is None
 
         trace_item = TraceItem()
         trace_item.ParseFromString(message.value())
 
-        return trace_item
+        return MessageToDict(trace_item)
 
-    def get_ourlogs(self):
-        ourlogs = []
+    def get_items(self, **kwargs):
+        items = []
 
-        for message in self.poll_many():
+        for message in self.poll_many(**kwargs):
             assert message is not None
             assert message.error() is None
 
             trace_item = TraceItem()
             trace_item.ParseFromString(message.value())
 
-            ourlogs.append(trace_item)
+            items.append(MessageToDict(trace_item))
 
-        return ourlogs
+        return items
 
 
 class ProfileConsumer(ConsumerBase):

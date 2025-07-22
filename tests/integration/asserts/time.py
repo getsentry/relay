@@ -52,6 +52,18 @@ def _truncate(dt, resolution=None):
     }[resolution](dt)
 
 
+def _format_resolution(dt: datetime, resolution):
+    match resolution:
+        case Resolution.Seconds:
+            return str(dt.timestamp())
+        case Resolution.MilliSeconds:
+            return str(dt.timestamp() * 1_000)
+        case Resolution.MicroSeconds:
+            return str(int(dt.timestamp() * 1_000_000))
+        case Resolution.NanoSeconds:
+            return str(int(dt.timestamp() * 1_000_000_000))
+
+
 class _WithinBounds:
     def __init__(
         self,
@@ -69,7 +81,12 @@ class _WithinBounds:
         return self._lower_bound <= other <= self._upper_bound
 
     def __str__(self):
-        return f"{self._lower_bound} <= x <= {self._upper_bound}"
+        if self._expect_resolution is None:
+            return f"{self._lower_bound} <= x <= {self._upper_bound}"
+
+        lower = _format_resolution(self._lower_bound, self._expect_resolution)
+        upper = _format_resolution(self._upper_bound, self._expect_resolution)
+        return f"{self._lower_bound} ({lower}) <= x <= {self._upper_bound} ({upper})"
 
     def __repr__(self) -> str:
         return str(self)
