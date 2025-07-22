@@ -24,6 +24,8 @@ pub enum SessionStatus {
     Abnormal,
     /// The session exited cleanly but experienced some errors during its run.
     Errored,
+    /// The session had an unhandled error, but did not crash.
+    Unhandled,
     /// Unknown status, for forward compatibility.
     Unknown(String),
 }
@@ -50,6 +52,7 @@ impl SessionStatus {
             SessionStatus::Abnormal => "abnormal",
             SessionStatus::Exited => "exited",
             SessionStatus::Errored => "errored",
+            SessionStatus::Unhandled => "unhandled",
             SessionStatus::Unknown(s) => s.as_str(),
         }
     }
@@ -73,6 +76,7 @@ impl std::str::FromStr for SessionStatus {
             "abnormal" => SessionStatus::Abnormal,
             "exited" => SessionStatus::Exited,
             "errored" => SessionStatus::Errored,
+            "unhandled" => SessionStatus::Unhandled,
             other => SessionStatus::Unknown(other.to_owned()),
         })
     }
@@ -173,6 +177,7 @@ pub trait SessionLike {
     fn distinct_id(&self) -> Option<&String>;
     fn total_count(&self) -> u32;
     fn abnormal_count(&self) -> u32;
+    fn unhandled_count(&self) -> u32;
     fn crashed_count(&self) -> u32;
     fn all_errors(&self) -> Option<SessionErrored>;
     fn abnormal_mechanism(&self) -> AbnormalMechanism;
@@ -250,6 +255,13 @@ impl SessionLike for SessionUpdate {
         }
     }
 
+    fn unhandled_count(&self) -> u32 {
+        match self.status {
+            SessionStatus::Unhandled => 1,
+            _ => 0,
+        }
+    }
+
     fn crashed_count(&self) -> u32 {
         match self.status {
             SessionStatus::Crashed => 1,
@@ -299,6 +311,9 @@ pub struct SessionAggregateItem {
     /// The number of abnormal sessions that ocurred.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub abnormal: u32,
+    /// The number of unhandled sessions that ocurred.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub unhandled: u32,
     /// The number of crashed sessions that ocurred.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub crashed: u32,
@@ -314,11 +329,15 @@ impl SessionLike for SessionAggregateItem {
     }
 
     fn total_count(&self) -> u32 {
-        self.exited + self.errored + self.abnormal + self.crashed
+        self.exited + self.abnormal + self.errored + self.unhandled + self.crashed
     }
 
     fn abnormal_count(&self) -> u32 {
         self.abnormal
+    }
+
+    fn unhandled_count(&self) -> u32 {
+        self.unhandled
     }
 
     fn crashed_count(&self) -> u32 {
@@ -326,9 +345,9 @@ impl SessionLike for SessionAggregateItem {
     }
 
     fn all_errors(&self) -> Option<SessionErrored> {
-        // Errors contain crashed & abnormal as well.
+        // Errors contain all of: abnormal, unhandled, and crashed.
         // See https://github.com/getsentry/snuba/blob/c45f2a8636f9ea3dfada4e2d0ae5efef6c6248de/snuba/migrations/snuba_migrations/sessions/0003_sessions_matview.py#L80-L81
-        let all_errored = self.abnormal + self.crashed + self.errored;
+        let all_errored = self.abnormal + self.errored + self.unhandled + self.crashed;
         if all_errored > 0 {
             Some(SessionErrored::Aggregated(all_errored))
         } else {
