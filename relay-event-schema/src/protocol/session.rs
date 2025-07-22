@@ -18,14 +18,14 @@ pub enum SessionStatus {
     Ok,
     /// The session terminated normally.
     Exited,
+    /// The session resulted in an application crash.
+    Crashed,
     /// The session had an unexpected abrupt termination (not crashing).
     Abnormal,
     /// The session exited cleanly but experienced some errors during its run.
     Errored,
     /// The session had an unhandled error, but did not crash.
     Unhandled,
-    /// The session resulted in an application crash.
-    Crashed,
     /// Unknown status, for forward compatibility.
     Unknown(String),
 }
@@ -48,11 +48,11 @@ impl SessionStatus {
     fn as_str(&self) -> &str {
         match self {
             SessionStatus::Ok => "ok",
-            SessionStatus::Exited => "exited",
+            SessionStatus::Crashed => "crashed",
             SessionStatus::Abnormal => "abnormal",
+            SessionStatus::Exited => "exited",
             SessionStatus::Errored => "errored",
             SessionStatus::Unhandled => "unhandled",
-            SessionStatus::Crashed => "crashed",
             SessionStatus::Unknown(s) => s.as_str(),
         }
     }
@@ -72,11 +72,11 @@ impl std::str::FromStr for SessionStatus {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "ok" => SessionStatus::Ok,
-            "exited" => SessionStatus::Exited,
+            "crashed" => SessionStatus::Crashed,
             "abnormal" => SessionStatus::Abnormal,
+            "exited" => SessionStatus::Exited,
             "errored" => SessionStatus::Errored,
             "unhandled" => SessionStatus::Unhandled,
-            "crashed" => SessionStatus::Crashed,
             other => SessionStatus::Unknown(other.to_owned()),
         })
     }
