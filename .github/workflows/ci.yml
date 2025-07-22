@@ -458,6 +458,8 @@ jobs:
           pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
 
+      - uses: actions/checkout@v4
+
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
         uses: getsentry/action-build-and-push-images@845ca2858b930130fc39268d7df9e60fe5009e0c
