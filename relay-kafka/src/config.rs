@@ -442,15 +442,6 @@ transactions: "ingest-transactions-kafka-topic"
                     },
                 ],
             ),
-            ourlogs: TopicAssignment(
-                [
-                    TopicConfig {
-                        topic_name: "snuba-ourlogs",
-                        kafka_config_name: None,
-                        key_rate_limit: None,
-                    },
-                ],
-            ),
             monitors: TopicAssignment(
                 [
                     TopicConfig {
