@@ -167,7 +167,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     tags: SessionUserTags {
                         status: Some(SessionStatus::Unhandled),
                         abnormal_mechanism: None,
-                        common_tags,
+                        common_tags: common_tags.clone(),
                     },
                 }
                 .into_metric(timestamp),
