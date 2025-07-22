@@ -41,8 +41,6 @@ pub enum KafkaTopic {
     ReplayRecordings,
     /// Monitor check-ins.
     Monitors,
-    /// Logs (our log product).
-    OurLogs,
     /// Standalone spans without a transaction.
     Spans,
     /// Feedback events topic.
@@ -56,7 +54,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 15] = [
+        static TOPICS: [KafkaTopic; 14] = [
             Events,
             Attachments,
             Transactions,
@@ -68,7 +66,6 @@ impl KafkaTopic {
             ReplayEvents,
             ReplayRecordings,
             Monitors,
-            OurLogs,
             Spans,
             Feedback,
             Items,
