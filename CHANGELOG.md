@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Features**:
+- Add `unhandled` status type for Release Health `session` and `sessions` envelopes. ([#4939](https://github.com/getsentry/relay/pull/4939))
+
 **Internal**:
 
 - Emit outcomes for skipped large attachments on playstation crashes. ([#4862](https://github.com/getsentry/relay/pull/4862))
