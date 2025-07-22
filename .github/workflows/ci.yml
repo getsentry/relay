@@ -453,12 +453,12 @@ jobs:
       PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
-
-      - uses: actions/checkout@v4
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
@@ -504,21 +504,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-
-      # Logic taken from: publish-to-gcr
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
-
-      - name: Configure docker
-        run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev
-
       # Logic taken from: build-docker
       - uses: actions/download-artifact@v4
         with:
@@ -536,14 +521,15 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
-            --file Dockerfile.release \
-            --push \
-            .
+        uses: getsentry/action-build-and-push-images@845ca2858b930130fc39268d7df9e60fe5009e0c
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "Dockerfile.release"
+          ghcr: false
+          google_ar: true
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
