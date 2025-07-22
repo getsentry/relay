@@ -493,6 +493,7 @@ pub struct SpanData {
     pub gen_ai_usage_output_tokens_reasoning: Annotated<Value>,
 
     // Exact model used to generate the response (e.g. gpt-4o-mini-2024-07-18)
+    #[metastructure(field = "gen_ai.response.model")]
     pub gen_ai_response_model: Annotated<Value>,
 
     /// The name of the GenAI model a request is being made to (e.g. gpt-4)
