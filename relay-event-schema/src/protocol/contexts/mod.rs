@@ -273,7 +273,8 @@ impl FromValue for Contexts {
         if let Annotated(Some(Value::Object(ref mut items)), _) = annotated {
             for (key, value) in items.iter_mut() {
                 if let Annotated(Some(Value::Object(items)), _) = value {
-                    if !items.contains_key("type") {
+                    // Set the `"type"` if it's empty and overwrite it if it's an empty object or array.
+                    if !is_valid_context_type(items.get("type")) {
                         items.insert(
                             "type".to_owned(),
                             Annotated::new(Value::String(key.to_string())),
@@ -284,6 +285,12 @@ impl FromValue for Contexts {
         }
         FromValue::from_value(annotated).map_value(Contexts)
     }
+}
+
+/// Returns `true` if `value` is a non-empty string, which is the only valid value
+/// for the `"type"` field of a context.
+fn is_valid_context_type(value: Option<&Annotated<Value>>) -> bool {
+    matches!(value.and_then(|v| v.value()), Some(Value::String(s)) if !s.is_empty())
 }
 
 /// A well-known context in the [`Contexts`] interface.
@@ -350,6 +357,37 @@ mod tests {
         let mut map = Contexts::new();
         map.add(OsContext {
             name: Annotated::new("Linux".to_owned()),
+            ..Default::default()
+        });
+
+        assert_eq!(Annotated::new(map), Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn test_context_invalid_type_deserialize() {
+        let json = r#"{
+            "monitor":{"name":"Foobar","type":17},
+            "os":{"name":"Linux","type":{}},
+            "profile":{"profile_id":"52df9022835246eeb317dbd739ccd059","type":""},
+            "runtime":{"name":"rustc","type":["invalid"]}
+        }"#;
+
+        let mut map = Contexts::new();
+        map.add(MonitorContext(
+            [("name".to_owned(), Value::String("Foobar".to_owned()).into())]
+                .into_iter()
+                .collect(),
+        ));
+        map.add(OsContext {
+            name: Annotated::new("Linux".to_owned()),
+            ..Default::default()
+        });
+        map.add(ProfileContext {
+            profile_id: Annotated::new("52df9022835246eeb317dbd739ccd059".parse().unwrap()),
+            ..Default::default()
+        });
+        map.add(RuntimeContext {
+            name: Annotated::new("rustc".to_owned()),
             ..Default::default()
         });
 

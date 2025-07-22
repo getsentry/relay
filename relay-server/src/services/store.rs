@@ -26,7 +26,7 @@ use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
-use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
+use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message, SerializationOutput};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, GaugeValue, MetricName,
     MetricNamespace, SetView,
@@ -1014,6 +1014,7 @@ impl StoreService {
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
+        span.key_id = scoping.key_id;
 
         if self.config.produce_protobuf_spans() {
             self.inner_produce_protobuf_span(
@@ -1023,21 +1024,21 @@ impl StoreService {
                 retention_days,
                 span.clone(),
             )?;
+
+            self.outcome_aggregator.send(TrackOutcome {
+                category: DataCategory::SpanIndexed,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: received_at,
+            });
         }
 
         if self.config.produce_json_spans() {
             self.inner_produce_json_span(scoping, span)?;
         }
-
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::SpanIndexed,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
 
         Ok(())
     }
@@ -1812,6 +1813,10 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     _performance_issues_spans: Option<bool>,
+
+    // Required for the buffer to emit outcomes scoped to the DSN.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_id: Option<u64>,
 }
 
 impl SpanKafkaMessage<'_> {
@@ -2073,29 +2078,32 @@ impl Message for KafkaMessage<'_> {
         }
     }
 
-    /// Serializes the message into its binary format.
-    fn serialize(&self) -> Result<Cow<'_, [u8]>, ClientError> {
+    fn serialize(&self) -> Result<SerializationOutput<'_>, ClientError> {
         match self {
-            KafkaMessage::Metric { message, .. } => serde_json::to_vec(message)
-                .map(Cow::Owned)
-                .map_err(ClientError::InvalidJson),
-            KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
-                .map(Cow::Owned)
-                .map_err(ClientError::InvalidJson),
-            KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
-                .map(Cow::Owned)
-                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Metric { message, .. } => serialize_as_json(message),
+            KafkaMessage::ReplayEvent(message) => serialize_as_json(message),
+            KafkaMessage::Span { message, .. } => serialize_as_json(message),
             KafkaMessage::Item { message, .. } => {
                 let mut payload = Vec::new();
-                if message.encode(&mut payload).is_err() {
-                    return Err(ClientError::ProtobufEncodingFailed);
+                match message.encode(&mut payload) {
+                    Ok(_) => Ok(SerializationOutput::Protobuf(Cow::Owned(payload))),
+                    Err(_) => Err(ClientError::ProtobufEncodingFailed),
                 }
-                Ok(Cow::Owned(payload))
             }
-            _ => rmp_serde::to_vec_named(&self)
-                .map(Cow::Owned)
-                .map_err(ClientError::InvalidMsgPack),
+            _ => match rmp_serde::to_vec_named(&self) {
+                Ok(x) => Ok(SerializationOutput::MsgPack(Cow::Owned(x))),
+                Err(err) => Err(ClientError::InvalidMsgPack(err)),
+            },
         }
+    }
+}
+
+fn serialize_as_json<T: serde::Serialize>(
+    value: &T,
+) -> Result<SerializationOutput<'_>, ClientError> {
+    match serde_json::to_vec(value) {
+        Ok(vec) => Ok(SerializationOutput::Json(Cow::Owned(vec))),
+        Err(err) => Err(ClientError::InvalidJson(err)),
     }
 }
 

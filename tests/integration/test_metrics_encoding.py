@@ -69,7 +69,7 @@ def test_metric_bucket_encoding_legacy(
     assert metrics["s:transactions/bar@none"]["value"] == [42.0]
 
 
-@pytest.mark.parametrize("namespace", [None, "spans", "custom"])
+@pytest.mark.parametrize("namespace", [None, "transactions", "custom"])
 @pytest.mark.parametrize("ty", ["set", "distribution"])
 def test_metric_bucket_encoding_dynamic_global_config_option(
     mini_sentry, relay_with_processing, metrics_consumer, namespace, ty
@@ -86,7 +86,6 @@ def test_metric_bucket_encoding_dynamic_global_config_option(
     project_config = mini_sentry.add_basic_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
-        "projects:span-metrics-extraction",
     ]
 
     metrics_payload = (

@@ -297,8 +297,6 @@ pub struct SentryTags {
     #[metastructure(field = "os.name")]
     pub os_name: Annotated<String>,
     pub action: Annotated<String>,
-    /// The group of the ancestral span with op ai.pipeline.(String)*
-    pub ai_pipeline_group: Annotated<String>,
     pub category: Annotated<String>,
     pub description: Annotated<String>,
     pub domain: Annotated<String>,
@@ -358,7 +356,6 @@ impl Getter for SentryTags {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         let value = match path {
             "action" => &self.action,
-            "ai_pipeline_group" => &self.ai_pipeline_group,
             "app_start_type" => &self.app_start_type,
             "browser.name" => &self.browser_name,
             "cache.hit" => &self.cache_hit,
@@ -509,20 +506,33 @@ pub struct SpanData {
     pub gen_ai_prompt: Annotated<Value>,
 
     /// Prompt passed to LLM
-    #[metastructure(field = "gen_ai.request.messages", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.request.messages",
+        pii = "maybe",
+        legacy_alias = "ai.prompt.messages"
+    )]
     pub gen_ai_request_messages: Annotated<Value>,
 
     /// Tool call arguments
-    #[metastructure(field = "gen_ai.tool.input", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.tool.input",
+        pii = "maybe",
+        legacy_alias = "ai.toolCall.args"
+    )]
     pub gen_ai_tool_input: Annotated<Value>,
 
     /// Tool call result
-    #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.tool.output",
+        pii = "maybe",
+        legacy_alias = "ai.toolCall.result"
+    )]
     pub gen_ai_tool_output: Annotated<Value>,
 
     /// LLM decisions to use tools
     #[metastructure(
         field = "gen_ai.response.tool_calls",
+        legacy_alias = "ai.response.toolCalls",
         legacy_alias = "ai.tool_calls",
         pii = "maybe"
     )]
@@ -531,6 +541,7 @@ pub struct SpanData {
     /// LLM response text (Vercel AI, generateText)
     #[metastructure(
         field = "gen_ai.response.text",
+        legacy_alias = "ai.response.text",
         legacy_alias = "ai.responses",
         pii = "maybe"
     )]
@@ -704,14 +715,6 @@ pub struct SpanData {
     /// The status HTTP response.
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
-
-    /// The 'name' field of the ancestor span with op ai.pipeline.*
-    #[metastructure(field = "ai.pipeline.name")]
-    pub ai_pipeline_name: Annotated<Value>,
-
-    /// The input messages to an AI model call
-    #[metastructure(field = "ai.input_messages")]
-    pub ai_input_messages: Annotated<Value>,
 
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
@@ -1375,7 +1378,7 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r###"
+        insta::assert_debug_snapshot!(data, @r#"
         SpanData {
             app_start_type: ~,
             gen_ai_request_max_tokens: ~,
@@ -1436,10 +1439,6 @@ mod tests {
             cache_key: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
-            ai_pipeline_name: ~,
-            ai_model_id: ~,
-            ai_input_messages: ~,
-            ai_responses: ~,
             thread_name: ~,
             thread_id: ~,
             segment_name: ~,
@@ -1506,7 +1505,7 @@ mod tests {
                 ),
             },
         }
-        "###);
+        "#);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));

@@ -1391,7 +1391,10 @@ fn remove_invalid_measurements(
     measurements_config: CombinedMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
-    let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(0);
+    // If there is no project or global config allow all the custom measurements through.
+    let max_custom_measurements = measurements_config
+        .max_custom_measurements()
+        .unwrap_or(usize::MAX);
 
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
@@ -1428,23 +1431,24 @@ fn remove_invalid_measurements(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in measurements_config.builtin_measurement_keys() {
-            if builtin_measurement.name() == name {
-                let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
-                // Drop negative values if the builtin measurement does not allow them.
-                if !builtin_measurement.allow_negative() && *value < 0.0 {
-                    meta.add_error(Error::invalid(format!(
-                        "Negative value for measurement {name} not allowed: {value}",
-                    )));
-                    removed_measurements
-                        .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
-                    return false;
-                }
-                // If the unit matches a built-in measurement, we allow it.
-                // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
-                // and just drop it instead.
-                return builtin_measurement.unit() == unit;
+        if let Some(builtin_measurement) = measurements_config
+            .builtin_measurement_keys()
+            .find(|builtin| builtin.name() == name)
+        {
+            let value = measurement.value.value().unwrap_or(&FiniteF64::ZERO);
+            // Drop negative values if the builtin measurement does not allow them.
+            if !builtin_measurement.allow_negative() && *value < 0.0 {
+                meta.add_error(Error::invalid(format!(
+                    "Negative value for measurement {name} not allowed: {value}",
+                )));
+                removed_measurements
+                    .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+                return false;
             }
+            // If the unit matches a built-in measurement, we allow it.
+            // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
+            // and just drop it instead.
+            return builtin_measurement.unit() == unit;
         }
 
         // For custom measurements, check the budget:
@@ -2132,6 +2136,27 @@ mod tests {
     }
 
     #[test]
+    fn test_custom_measurements_not_dropped() {
+        let mut measurements = Measurements(BTreeMap::from([(
+            "custom_measurement".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(42.0.try_into().unwrap()),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+            }),
+        )]));
+
+        let original = measurements.clone();
+        remove_invalid_measurements(
+            &mut measurements,
+            &mut Meta::default(),
+            CombinedMeasurementsConfig::new(None, None),
+            Some(30),
+        );
+
+        assert_eq!(original, measurements);
+    }
+
+    #[test]
     fn test_normalize_app_start_measurements_does_not_add_measurements() {
         let mut measurements = Annotated::<Measurements>::from_json(r###"{}"###)
             .unwrap()
@@ -2232,7 +2257,6 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
                             "ai.model_id": "claude-2.1"
                         }
                     },
@@ -2253,7 +2277,6 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
                             "ai.model_id": "gpt4-21-04"
                         }
                     }
@@ -2268,7 +2291,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
@@ -2330,8 +2352,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 3000,
-                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.usage.output_tokens.reasoning": 1000,
+                            "gen_ai.usage.input_tokens.cached": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2374,7 +2396,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
@@ -2382,7 +2403,7 @@ mod tests {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
                                 output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                                input_cached_per_token: 0.04,
                             },
                         ),
                         (
@@ -2390,7 +2411,7 @@ mod tests {
                             ModelCostV2 {
                                 input_per_token: 0.09,
                                 output_per_token: 0.05,
-                                output_reasoning_per_token: 0.06,
+                                output_reasoning_per_token: 0.0,
                                 input_cached_per_token: 0.0,
                             },
                         ),
@@ -2408,7 +2429,7 @@ mod tests {
             .and_then(|span| span.data.value());
         assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(140.0))
+            Some(&Value::F64(75.0))
         );
         assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
@@ -2471,7 +2492,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([(
                         "claude-2.1".to_owned(),
                         ModelCostV2 {
@@ -2525,8 +2545,8 @@ mod tests {
                         "data": {
                             "gen_ai.usage.input_tokens": 1000,
                             "gen_ai.usage.output_tokens": 2000,
-                            "gen_ai.usage.output_tokens.reasoning": 3000,
-                            "gen_ai.usage.input_tokens.cached": 4000,
+                            "gen_ai.usage.output_tokens.reasoning": 1000,
+                            "gen_ai.usage.input_tokens.cached": 500,
                             "gen_ai.request.model": "claude-2.1"
                         }
                     },
@@ -2555,15 +2575,14 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::from([
                         (
                             "claude-2.1".to_owned(),
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
-                                output_reasoning_per_token: 0.03,
-                                input_cached_per_token: 0.0,
+                                output_reasoning_per_token: 0.0,
+                                input_cached_per_token: 0.04,
                             },
                         ),
                         (
@@ -2589,7 +2608,7 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
-            Some(&Value::F64(140.0))
+            Some(&Value::F64(65.0))
         );
         assert_eq!(
             spans
@@ -2635,7 +2654,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()
@@ -2679,7 +2697,6 @@ mod tests {
             &NormalizationConfig {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
-                    costs: vec![],
                     models: HashMap::new(),
                 }),
                 ..NormalizationConfig::default()

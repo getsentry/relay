@@ -1894,7 +1894,6 @@ def test_span_outcomes(
 
     project_config.setdefault("features", []).extend(
         [
-            "projects:span-metrics-extraction",
             "organizations:indexed-spans-extraction",
         ]
     )
@@ -1994,16 +1993,6 @@ def test_span_outcomes(
             "category": DataCategory.SPAN_INDEXED.value,
             "key_id": 123,
             "org_id": 1,
-            "outcome": 0,  # Accepted
-            "project_id": 42,
-            "quantity": 2,
-            "source": "processing-relay",
-        },
-        {
-            "timestamp": time_within_delta(),
-            "category": DataCategory.SPAN_INDEXED.value,
-            "key_id": 123,
-            "org_id": 1,
             "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 2,
@@ -2028,8 +2017,6 @@ def test_span_outcomes_invalid(
 
     project_config.setdefault("features", []).extend(
         [
-            "projects:span-metrics-extraction",
-            "projects:span-metrics-extraction-all-modules",
             "organizations:standalone-span-ingestion",
         ]
     )

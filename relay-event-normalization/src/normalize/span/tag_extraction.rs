@@ -114,6 +114,7 @@ pub fn extract_span_tags(
             is_mobile,
             start_type,
             span_allowed_hosts,
+            None,
         );
 
         shared_tags.copy_into(&mut tags);
@@ -741,6 +742,7 @@ pub fn extract_tags(
     is_mobile: bool,
     start_type: Option<&str>,
     span_allowed_hosts: &[String],
+    geoip_lookup: Option<&crate::GeoIpLookup>,
 ) -> SentryTags {
     let mut span_tags = SentryTags::default();
 
@@ -797,19 +799,6 @@ pub fn extract_tags(
             }
             _ => None,
         };
-
-        if category.as_deref() == Some("ai") {
-            if let Some(ai_pipeline_name) = span
-                .data
-                .value()
-                .and_then(|data| data.ai_pipeline_name.value())
-                .and_then(|val| val.as_str())
-            {
-                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
-                ai_pipeline_group.truncate(16);
-                span_tags.ai_pipeline_group = ai_pipeline_group.into();
-            }
-        }
 
         if let Some(category) = category {
             span_tags.category = category.into_owned().into();
@@ -1049,6 +1038,22 @@ pub fn extract_tags(
                 }
                 if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
                     span_tags.release = release.to_owned().into();
+                }
+                // Standalone vital spans don't come from an event with geo data.
+                // Derive geo data from the client address inferred on the span.
+                if let Some(client_address) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.client_address.value())
+                    && let Some(geoip_lookup) = geoip_lookup
+                    && let Ok(Some(geo)) = geoip_lookup.lookup(client_address.as_str())
+                    && let Some(country_code) = geo.country_code.value()
+                {
+                    span_tags.user_country_code = country_code.to_owned().into();
+                    if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                        let numerical_subregion = subregion as u8;
+                        span_tags.user_subregion = numerical_subregion.to_string().into();
+                    }
                 }
             }
         }
@@ -1469,7 +1474,7 @@ mod tests {
 
     use super::*;
     use crate::span::description::{Mode, scrub_queries};
-    use crate::{NormalizationConfig, normalize_event};
+    use crate::{GeoIpLookup, NormalizationConfig, normalize_event};
 
     #[test]
     fn test_truncate_string_no_panic() {
@@ -1986,9 +1991,7 @@ LIMIT 1
                         "data": {
                             "ai.total_tokens.used": 300,
                             "ai.completion_tokens.used": 200,
-                            "ai.prompt_tokens.used": 100,
-                            "ai.streaming": true,
-                            "ai.pipeline.name": "My AI pipeline"
+                            "ai.prompt_tokens.used": 100
                         },
                         "hash": "e2fae740cccd3781"
                     }
@@ -2011,21 +2014,14 @@ LIMIT 1
             .unwrap()
             .value()
             .unwrap();
-        let tags = span.sentry_tags.value().unwrap();
 
-        assert_eq!(
-            tags.get_value("ai_pipeline_group").unwrap().as_str(),
-            Some("68e6cafc5b68d276")
-        );
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
         {
           "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200,
-          "ai.pipeline.name": "My AI pipeline",
-          "ai.streaming": true
+          "gen_ai.usage.output_tokens": 200
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2045,9 +2041,7 @@ LIMIT 1
                         "data": {
                             "gen_ai.usage.total_tokens": 300,
                             "gen_ai.usage.output_tokens": 200,
-                            "gen_ai.usage.input_tokens": 100,
-                            "ai.streaming": true,
-                            "ai.pipeline.name": "My AI pipeline"
+                            "gen_ai.usage.input_tokens": 100
                         },
                         "hash": "e2fae740cccd3781"
                     }
@@ -2070,21 +2064,14 @@ LIMIT 1
             .unwrap()
             .value()
             .unwrap();
-        let tags = span.sentry_tags.value().unwrap();
 
-        assert_eq!(
-            tags.get_value("ai_pipeline_group").unwrap().as_str(),
-            Some("68e6cafc5b68d276")
-        );
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
         {
           "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200,
-          "ai.pipeline.name": "My AI pipeline",
-          "ai.streaming": true
+          "gen_ai.usage.output_tokens": 200
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2491,7 +2478,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[]);
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.browser_name.value(), Some(&"Chrome".to_owned()));
     }
@@ -2558,7 +2545,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[]);
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(
             tags.messaging_destination_name.value(),
@@ -2864,7 +2851,7 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(&span, 200, None, None, false, None, &[])
+        extract_tags(&span, 200, None, None, false, None, &[], None)
     }
 
     #[test]
@@ -2919,7 +2906,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[]);
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.action.value(), Some(&"FIND".to_owned()));
 
@@ -2946,7 +2933,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[]);
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
 
         assert_eq!(tags.domain.value(), Some(&"documents_{%s}".to_owned()));
     }
@@ -3307,5 +3294,35 @@ LIMIT 1
             ..Default::default()
         };
         assert_eq!(category_for_span(&span), Some("browser".into()));
+    }
+
+    #[test]
+    fn extract_geo_location_on_standalone_vital_span() {
+        let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let span: Span = Annotated::<Span>::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "client.address": "2.125.160.216"
+            },
+            "op": "ui.webvital.lcp",
+            "measurements": {
+                "lcp": {
+                    "value": 632,
+                    "unit": "millisecond"
+                }
+            }
+        }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], Some(&lookup));
+        assert_eq!(tags.user_country_code.value(), Some(&"GB".to_owned()));
+        assert_eq!(tags.user_subregion.value(), Some(&"154".to_owned()));
     }
 }

@@ -644,6 +644,7 @@ fn normalize(
         is_mobile,
         None,
         allowed_hosts,
+        geo_lookup,
     );
     span.sentry_tags = Annotated::new(tags);
 
@@ -840,19 +841,12 @@ mod tests {
         );
 
         let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-        let mut project_info = ProjectInfo::default();
-        project_info
-            .config
-            .features
-            .0
-            .insert(Feature::ExtractCommonSpanMetricsFromEvent);
-        let project_info = Arc::new(project_info);
+        let project_info = Arc::new(ProjectInfo::default());
 
         let event = Event {
             ty: EventType::Transaction.into(),
             start_timestamp: Timestamp(DateTime::from_timestamp(0, 0).unwrap()).into(),
             timestamp: Timestamp(DateTime::from_timestamp(1, 0).unwrap()).into(),
-
             contexts: Contexts(BTreeMap::from([(
                 "trace".into(),
                 ContextInner(Context::Trace(Box::new(TraceContext {

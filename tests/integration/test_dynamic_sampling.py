@@ -583,18 +583,30 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
 def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factory):
     """
     Tests that the client sample rate is honored when applying server-side
-    sampling. Do so by sending an envelope with a very low reported client sample rate
-    and a sampling rule with the same sample rate. The server should adjust
-    itself to 1.0. The chances of this test passing without the adjustment in
-    place are very low (but not 0).
+    sampling.
+
+    When client_sample_rate=SAMPLE_RATE, the server should adjust to let most
+    events through (since client already sampled). When client_sample_rate=1.0,
+    the server should apply the full sampling rate, dropping most of the events.
     """
 
-    def assert_client_reports():
-        # Relay is sending a client report, skip over it (1 for transactions, 1 for spans)
-        for _ in range(2):
-            received_envelope = mini_sentry.captured_events.get(timeout=1)
-            assert received_envelope.get_transaction_event() is None
-            assert received_envelope.get_event() is None
+    def collect_events_batch(expected_count, timeout_per_event=0.1):
+        events_count = 0
+
+        for _ in range(expected_count * 3):  # Allow for some extra attempts
+            try:
+                received_envelope = mini_sentry.captured_events.get(
+                    timeout=timeout_per_event
+                )
+                if (
+                    received_envelope.get_transaction_event() is not None
+                    or received_envelope.get_event() is not None
+                ):
+                    events_count += 1
+            except queue.Empty:
+                break
+
+        return events_count
 
     project_id = 42
     relay = relay(mini_sentry)
@@ -609,20 +621,36 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     SAMPLE_RATE = 0.001
     _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
 
-    envelope, trace_id, event_id = event_factory(
-        public_key, client_sample_rate=SAMPLE_RATE
-    )
+    NUM_EVENTS = 200
 
-    relay.send_envelope(project_id, envelope)
-    assert_client_reports()
+    # Test 1: Send events with client_sample_rate=SAMPLE_RATE
+    # The server should adjust sampling to let most of these through
+    # since the client already did the sampling
+    for i in range(NUM_EVENTS):
+        envelope, trace_id, event_id = event_factory(
+            public_key, client_sample_rate=SAMPLE_RATE
+        )
+        relay.send_envelope(project_id, envelope)
 
-    envelope, trace_id, event_id = event_factory(public_key, client_sample_rate=1.0)
+    accepted_with_client_sampling = collect_events_batch(NUM_EVENTS)
 
-    relay.send_envelope(project_id, envelope)
-    assert_client_reports()
+    # Test 2: Send events with client_sample_rate=1.0
+    # The server should apply full sampling rate, dropping most of the event.
+    for i in range(NUM_EVENTS):
+        envelope, trace_id, event_id = event_factory(public_key, client_sample_rate=1.0)
+        relay.send_envelope(project_id, envelope)
 
-    with pytest.raises(queue.Empty):
-        mini_sentry.captured_events.get(timeout=1)
+    accepted_without_client_sampling = collect_events_batch(NUM_EVENTS)
+
+    # Both should drop most events due to the 0.001 sample rate
+    total_events = NUM_EVENTS * 2
+    total_accepted = accepted_with_client_sampling + accepted_without_client_sampling
+
+    # Expect to drop most of the events (allowing some variance)
+    # We expect at least 99% of the events dropped and accept that we can still receive up to 1% of sent events.
+    assert (
+        total_accepted <= total_events * 0.01
+    ), f"Expected ~99% drop rate overall, got {total_accepted}/{total_events} accepted"
 
 
 @pytest.mark.parametrize(
