@@ -1055,8 +1055,8 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "data": {
-            "gen_ai.system": "openai",
             "gen_ai.agent.name": "Seer"
+            "gen_ai.system": "openai",
           },
           "kind": "client"
         }

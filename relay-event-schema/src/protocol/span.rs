@@ -709,17 +709,9 @@ pub struct SpanData {
     #[metastructure(field = "ai.pipeline.name")]
     pub ai_pipeline_name: Annotated<Value>,
 
-    /// The Model ID of an AI pipeline, e.g., gpt-4
-    #[metastructure(field = "ai.model_id")]
-    pub ai_model_id: Annotated<Value>,
-
     /// The input messages to an AI model call
     #[metastructure(field = "ai.input_messages")]
     pub ai_input_messages: Annotated<Value>,
-
-    /// The responses to an AI model call
-    #[metastructure(field = "ai.responses")]
-    pub ai_responses: Annotated<Value>,
 
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
