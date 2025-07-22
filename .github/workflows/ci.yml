@@ -528,8 +528,9 @@ jobs:
           dockerfile_path: "Dockerfile.release"
           ghcr: false
           google_ar: true
-          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+          google_ar_image_name: ${{ env.AR_DOCKER_IMAGE }}
+          google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
