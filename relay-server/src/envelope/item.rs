@@ -106,7 +106,10 @@ impl Item {
 
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, item_count)],
-            ItemType::Transaction => smallvec![(DataCategory::Transaction, item_count)],
+            ItemType::Transaction => smallvec![
+                (DataCategory::Transaction, item_count),
+                (DataCategory::Span, item_count)
+            ],
             ItemType::Security | ItemType::RawSecurity => {
                 smallvec![(DataCategory::Security, item_count)]
             }
