@@ -527,6 +527,7 @@ jobs:
           platforms: ${{ env.PLATFORMS }}
           dockerfile_path: "Dockerfile.release"
           ghcr: false
+          publish_on_pr: true
           google_ar: true
           google_ar_image_name: ${{ env.AR_DOCKER_IMAGE }}
           google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
