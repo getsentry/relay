@@ -521,7 +521,7 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        uses: getsentry/action-build-and-push-images@cb4206c1367563e36f57239f9bcbca800614df09
+        uses: getsentry/action-build-and-push-images@ef6319b9c3bcea62400fb31b2379bc0082043f01
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
