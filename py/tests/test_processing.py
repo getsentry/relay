@@ -126,7 +126,7 @@ def test_normalize_user_agent(must_normalize):
                 "version": "15.0.1",
                 "type": "browser",
             },
-            "client_os": {"name": "Ubuntu", "type": "os"},
+            "client_os": {"name": "Ubuntu", "os": "Ubuntu", "type": "os"},
         }
     else:
         assert "contexts" not in event

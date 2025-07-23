@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
+
 **Internal**:
 
 - Enforce span limits for transactions and vice versa. ([#4963](https://github.com/getsentry/relay/pull/4963))
