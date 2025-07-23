@@ -529,23 +529,21 @@ pub struct SpanData {
     )]
     pub gen_ai_tool_output: Annotated<Value>,
 
-    /// LLM decisions to use calls
+    /// LLM decisions to use tools
     #[metastructure(
         field = "gen_ai.response.tool_calls",
-        pii = "maybe",
-        legacy_alias = "ai.response.toolCalls"
+        legacy_alias = "ai.response.toolCalls",
+        legacy_alias = "ai.tool_calls",
+        pii = "maybe"
     )]
     pub gen_ai_response_tool_calls: Annotated<Value>,
-
-    /// Name of the tool that was called
-    #[metastructure(field = "gen_ai.tool.name")]
-    pub gen_ai_tool_name: Annotated<Value>,
 
     /// LLM response text (Vercel AI, generateText)
     #[metastructure(
         field = "gen_ai.response.text",
-        pii = "maybe",
-        legacy_alias = "ai.response.text"
+        legacy_alias = "ai.response.text",
+        legacy_alias = "ai.responses",
+        pii = "maybe"
     )]
     pub gen_ai_response_text: Annotated<Value>,
 
@@ -556,6 +554,67 @@ pub struct SpanData {
     ///  Total output tokens per seconds throughput
     #[metastructure(field = "gen_ai.response.tokens_per_second")]
     pub gen_ai_response_tokens_per_second: Annotated<Value>,
+
+    /// The available tools for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.available_tools",
+        legacy_alias = "ai.tools",
+        pii = "maybe"
+    )]
+    pub gen_ai_request_available_tools: Annotated<Value>,
+
+    /// The frequency penalty for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.frequency_penalty",
+        legacy_alias = "ai.frequency_penalty"
+    )]
+    pub gen_ai_request_frequency_penalty: Annotated<Value>,
+
+    /// The presence penalty for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.presence_penalty",
+        legacy_alias = "ai.presence_penalty"
+    )]
+    pub gen_ai_request_presence_penalty: Annotated<Value>,
+
+    /// The seed for a request to an LLM
+    #[metastructure(field = "gen_ai.request.seed", legacy_alias = "ai.seed")]
+    pub gen_ai_request_seed: Annotated<Value>,
+
+    /// The temperature for a request to an LLM
+    #[metastructure(field = "gen_ai.request.temperature", legacy_alias = "ai.temperature")]
+    pub gen_ai_request_temperature: Annotated<Value>,
+
+    /// The top_k parameter for a request to an LLM
+    #[metastructure(field = "gen_ai.request.top_k", legacy_alias = "ai.top_k")]
+    pub gen_ai_request_top_k: Annotated<Value>,
+
+    /// The top_p parameter for a request to an LLM
+    #[metastructure(field = "gen_ai.request.top_p", legacy_alias = "ai.top_p")]
+    pub gen_ai_request_top_p: Annotated<Value>,
+
+    /// The finish reason for a response from an LLM
+    #[metastructure(
+        field = "gen_ai.response.finish_reason",
+        legacy_alias = "ai.finish_reason"
+    )]
+    pub gen_ai_response_finish_reason: Annotated<Value>,
+
+    /// The unique identifier for a response from an LLM
+    #[metastructure(field = "gen_ai.response.id", legacy_alias = "ai.generation_id")]
+    pub gen_ai_response_id: Annotated<Value>,
+
+    /// The GenAI system identifier
+    #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
+    pub gen_ai_system: Annotated<Value>,
+
+    /// The name of the tool being called
+    #[metastructure(
+        field = "gen_ai.tool.name",
+        legacy_alias = "ai.function_call",
+        pii = "maybe"
+    )]
+    pub gen_ai_tool_name: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -1336,10 +1395,20 @@ mod tests {
             gen_ai_tool_input: ~,
             gen_ai_tool_output: ~,
             gen_ai_response_tool_calls: ~,
-            gen_ai_tool_name: ~,
             gen_ai_response_text: ~,
             gen_ai_response_object: ~,
             gen_ai_response_tokens_per_second: ~,
+            gen_ai_request_available_tools: ~,
+            gen_ai_request_frequency_penalty: ~,
+            gen_ai_request_presence_penalty: ~,
+            gen_ai_request_seed: ~,
+            gen_ai_request_temperature: ~,
+            gen_ai_request_top_k: ~,
+            gen_ai_request_top_p: ~,
+            gen_ai_response_finish_reason: ~,
+            gen_ai_response_id: ~,
+            gen_ai_system: ~,
+            gen_ai_tool_name: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
