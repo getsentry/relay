@@ -4,6 +4,7 @@
 
 **Internal**:
 
+- Enforce span limits for transactions and vice versa. ([#4963](https://github.com/getsentry/relay/pull/4963))
 - Emit outcomes for skipped large attachments on playstation crashes. ([#4862](https://github.com/getsentry/relay/pull/4862))
 - Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931),[#4955](https://github.com/getsentry/relay/pull/4955))
 - Deprecate old AI monitoring attributes. ([#4960](https://github.com/getsentry/relay/pull/4960))
