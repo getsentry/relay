@@ -47,8 +47,8 @@ for i=0, num_quotas - 1 do
     local rejected = false
     -- limit=-1 means "no limit"
     if limit >= 0 then
-        local main_value = tonumber(all_values[k]) or 0
-        local refund_value = tonumber(all_values[k + 1]) or 0
+        local main_value = all_values[k] or 0
+        local refund_value = all_values[k + 1] or 0
         local consumed = main_value - refund_value
         -- Without over_accept_once, we never increment past the limit. if quantity is 0, check instead if we reached limit.
         -- With over_accept_once, we only reject if the previous update already reached the limit. 
