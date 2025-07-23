@@ -390,7 +390,7 @@ pub fn normalize_context(context: &mut Context) {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::{Headers, LenientString, PairList};
-    use relay_protocol::{Object, SerializableAnnotated};
+    use relay_protocol::SerializableAnnotated;
     use similar_asserts::assert_eq;
 
     use super::*;
