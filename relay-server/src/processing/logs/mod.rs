@@ -121,21 +121,27 @@ impl processing::Processor for LogsProcessor {
         mut logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
-        validate::container(&logs, ctx)?;
-        filter::feature_flag(ctx).reject(&logs)?;
+        validate::container(&logs)?;
 
+        if ctx.is_proxy() {
+            // If running in proxy mode, just apply cached rate limits and forward without
+            // processing.
+            //
+            // Static mode needs processing, as users can override project settings manually.
+            self.limiter.enforce_quotas(&mut logs, ctx).await?;
+            return Ok(Output::just(LogOutput::NotProcessed(logs)));
+        }
+
+        // Fast filters, which do not need expanded logs.
+        filter::feature_flag(ctx).reject(&logs)?;
         filter::sampled(ctx).reject(&logs)?;
+
+        let mut logs = process::expand(logs, ctx);
+        process::process(&mut logs, ctx);
 
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
 
-        if ctx.is_processing() {
-            let mut logs = process::expand(logs, ctx);
-            process::process(&mut logs, ctx);
-
-            Ok(Output::just(LogOutput::Processed(logs)))
-        } else {
-            Ok(Output::just(LogOutput::NotProcessed(logs)))
-        }
+        Ok(Output::just(LogOutput::Processed(logs)))
     }
 }
 
@@ -309,6 +315,11 @@ impl Counted for ExpandedLogs {
 }
 
 impl ExpandedLogs {
+    /// Returns the total count of all logs contained.
+    fn count(&self) -> usize {
+        self.logs.len()
+    }
+
     /// Returns the sum of bytes of all logs contained.
     fn bytes(&self) -> usize {
         self.logs.iter().map(get_calculated_byte_size).sum()
@@ -326,5 +337,34 @@ impl ExpandedLogs {
             otel_logs: Default::default(),
             logs: vec![item],
         })
+    }
+}
+
+impl RateLimited for Managed<ExpandedLogs> {
+    type Error = Error;
+
+    async fn enforce<T>(
+        &mut self,
+        mut rate_limiter: T,
+        _ctx: Context<'_>,
+    ) -> Result<(), Rejected<Self::Error>>
+    where
+        T: RateLimiter,
+    {
+        let scoping = self.scoping();
+
+        let items = rate_limiter
+            .try_consume(scoping.item(DataCategory::LogItem), self.count())
+            .await;
+        let bytes = rate_limiter
+            .try_consume(scoping.item(DataCategory::LogByte), self.bytes())
+            .await;
+
+        let limits = items.merge_with(bytes);
+        if !limits.is_empty() {
+            return Err(self.reject_err(Error::RateLimited(limits)));
+        }
+
+        Ok(())
     }
 }

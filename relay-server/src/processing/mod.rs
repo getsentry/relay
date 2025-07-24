@@ -66,9 +66,9 @@ pub struct Context<'a> {
 }
 
 impl Context<'_> {
-    /// Returns `true` if Relay is running in processing mode.
-    pub fn is_processing(&self) -> bool {
-        self.config.processing_enabled()
+    /// Returns `true` if Relay is running in proxy mode.
+    pub fn is_proxy(&self) -> bool {
+        matches!(self.config.relay_mode(), relay_config::RelayMode::Proxy)
     }
 
     /// Checks on-off feature flags for envelope items, like profiles and spans.
