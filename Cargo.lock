@@ -4146,6 +4146,7 @@ dependencies = [
  "relay-log",
  "relay-protocol",
  "relay-redis",
+ "relay-statsd",
  "serde",
  "serde_json",
  "similar-asserts",

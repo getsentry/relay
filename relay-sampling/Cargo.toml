@@ -11,7 +11,7 @@ publish = false
 
 [features]
 default = []
-redis = ["dep:anyhow", "relay-redis/impl"]
+redis = ["dep:anyhow", "relay-redis/impl", "dep:relay-statsd"]
 
 [lints]
 workspace = true
@@ -26,6 +26,7 @@ relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-protocol = { workspace = true }
 relay-redis = { workspace = true, optional = true }
+relay-statsd = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

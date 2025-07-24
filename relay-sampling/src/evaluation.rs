@@ -78,12 +78,14 @@ impl ReservoirEvaluator<'_> {
         client: &AsyncRedisClient,
         rule_expiry: Option<&DateTime<Utc>>,
     ) -> anyhow::Result<i64> {
-        let mut connection = client.get_connection().await?;
+        relay_statsd::metric!(timer(crate::statsd::SamplingTimers::RedisReservoir), {
+            let mut connection = client.get_connection().await?;
 
-        let val = redis_sampling::increment_redis_reservoir_count(&mut connection, key).await?;
-        redis_sampling::set_redis_expiry(&mut connection, key, rule_expiry).await?;
+            let val = redis_sampling::increment_redis_reservoir_count(&mut connection, key).await?;
+            redis_sampling::set_redis_expiry(&mut connection, key, rule_expiry).await?;
 
-        Ok(val)
+            Ok(val)
+        })
     }
 
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
