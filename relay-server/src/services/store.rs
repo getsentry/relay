@@ -2046,13 +2046,10 @@ impl Message for KafkaMessage<'_> {
             // This results in significantly more work for Kafka, but we've seen that the metrics
             // indexer consumer in Sentry, cannot deal with this load shape.
             // Until the metric indexer is updated, we still need to assign random keys here.
-            Self::Metric { .. } => Some(Uuid::new_v4()),
+            Self::Metric { .. } | Self::Item { .. } => Some(Uuid::new_v4()),
 
             // Random partitioning
-            Self::Profile(_)
-            | Self::ReplayRecordingNotChunked(_)
-            | Self::ProfileChunk(_)
-            | Self::Item { .. } => None,
+            Self::Profile(_) | Self::ReplayRecordingNotChunked(_) | Self::ProfileChunk(_) => None,
         }
         .filter(|uuid| !uuid.is_nil())
         .map(|uuid| uuid.into_bytes())
