@@ -78,6 +78,8 @@ pub mod dsc;
 pub mod evaluation;
 #[cfg(feature = "redis")]
 mod redis_sampling;
+#[cfg(feature = "redis")]
+mod statsd;
 
 pub use config::SamplingConfig;
 pub use dsc::DynamicSamplingContext;
