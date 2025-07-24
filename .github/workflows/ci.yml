@@ -462,7 +462,7 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@845ca2858b930130fc39268d7df9e60fe5009e0c
+        uses: getsentry/action-build-and-push-images@7a95ee2424cf3ab7ea99f5d753911546ad6460cc
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -521,7 +521,7 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        uses: getsentry/action-build-and-push-images@ef6319b9c3bcea62400fb31b2379bc0082043f01
+        uses: getsentry/action-build-and-push-images@7a95ee2424cf3ab7ea99f5d753911546ad6460cc
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
