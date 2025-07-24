@@ -122,20 +122,23 @@ impl processing::Processor for LogsProcessor {
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
         validate::container(&logs, ctx)?;
-        filter::feature_flag(ctx).reject(&logs)?;
 
+        // If running in a non managed mode, skip all processing and just forward the data
+        // to the next layer, where eventually it will be processed.
+        if !ctx.is_managed() {
+            return Ok(Output::just(LogOutput::NotProcessed(logs)));
+        }
+
+        // Fast filters, which do not need expanded logs.
+        filter::feature_flag(ctx).reject(&logs)?;
         filter::sampled(ctx).reject(&logs)?;
 
-        self.limiter.enforce_quotas(&mut logs, ctx).await?;
+        let mut logs = process::expand(logs, ctx);
+        process::process(&mut logs, ctx);
 
-        if ctx.is_processing() {
-            let mut logs = process::expand(logs, ctx);
-            process::process(&mut logs, ctx);
+        //self.limiter.enforce_quotas(&mut logs, ctx).await?;
 
-            Ok(Output::just(LogOutput::Processed(logs)))
-        } else {
-            Ok(Output::just(LogOutput::NotProcessed(logs)))
-        }
+        Ok(Output::just(LogOutput::Processed(logs)))
     }
 }
 
