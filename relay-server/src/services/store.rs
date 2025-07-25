@@ -2040,16 +2040,8 @@ impl Message for KafkaMessage<'_> {
             // recieve the routing_key_hint form their envelopes.
             Self::CheckIn(message) => message.routing_key_hint,
 
-            // Generate a new random routing key, instead of defaulting to `rdkafka` behaviour
-            // for no routing key.
-            //
-            // This results in significantly more work for Kafka, but we've seen that the metrics
-            // indexer consumer in Sentry, cannot deal with this load shape.
-            // Until the metric indexer is updated, we still need to assign random keys here.
-            Self::Metric { .. } | Self::Item { .. } => Some(Uuid::new_v4()),
-
             // Random partitioning
-            Self::Profile(_) | Self::ReplayRecordingNotChunked(_) | Self::ProfileChunk(_) => None,
+            _ => None,
         }
         .filter(|uuid| !uuid.is_nil())
         .map(|uuid| uuid.into_bytes())
@@ -2059,18 +2051,8 @@ impl Message for KafkaMessage<'_> {
         match &self {
             KafkaMessage::Metric { headers, .. }
             | KafkaMessage::Span { headers, .. }
-            | KafkaMessage::Item { headers, .. } => {
-                if !headers.is_empty() {
-                    return Some(headers);
-                }
-                None
-            }
-            KafkaMessage::Profile(profile) => {
-                if !profile.headers.is_empty() {
-                    return Some(&profile.headers);
-                }
-                None
-            }
+            | KafkaMessage::Item { headers, .. }
+            | KafkaMessage::Profile(ProfileKafkaMessage { headers, .. }) => Some(headers),
             _ => None,
         }
     }
