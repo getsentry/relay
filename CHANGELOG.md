@@ -13,6 +13,7 @@
 - Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931),[#4955](https://github.com/getsentry/relay/pull/4955))
 - Deprecate old AI monitoring attributes. ([#4960](https://github.com/getsentry/relay/pull/4960))
 - Normalize legacy `ai.*` attributes to `gen_ai.*` names. ([#4924](https://github.com/getsentry/relay/pull/4924))
+- Add Jwm to the supported image types. ([#4975](https://github.com/getsentry/relay/pull/4975))
 
 ## 25.7.0
 
