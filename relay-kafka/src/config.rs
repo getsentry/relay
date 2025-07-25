@@ -142,7 +142,7 @@ define_topic_assignments! {
     replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events", "Replay Events topic name."),
     replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
-    spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
+    spans: (KafkaTopic::Spans, "ingest-spans", "Standalone spans without a transaction."),
     feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
     items: (KafkaTopic::Items, "snuba-items", "Items topic."),
 }
