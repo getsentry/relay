@@ -3,12 +3,10 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::hash::Hasher as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
-use hash32::{FnvHasher, Hasher};
 use rdkafka::ClientConfig;
 use rdkafka::message::Header;
 use rdkafka::producer::{BaseRecord, Producer as _};
@@ -123,19 +121,16 @@ impl SerializationOutput<'_> {
 struct TopicProducers {
     /// All configured producers.
     producers: Vec<TopicProducer>,
-    /// Round-robin counter for keyless messages.
-    round_robin: AtomicU32,
 }
 
 impl TopicProducers {
     fn new() -> Self {
         Self {
             producers: Vec::new(),
-            round_robin: AtomicU32::new(0),
         }
     }
 
-    fn select(&self, key: Option<[u8; 16]>) -> Option<&TopicProducer> {
+    fn select(&self, key: [u8; 16]) -> Option<&TopicProducer> {
         debug_assert!(!self.producers.is_empty());
 
         if self.producers.is_empty() {
@@ -144,16 +139,8 @@ impl TopicProducers {
             return self.producers.first();
         }
 
-        let select = match key {
-            Some(ref key) => {
-                let mut hasher = FnvHasher::default();
-                hasher.write(key);
-                hasher.finish32()
-            }
-            None => self.round_robin.fetch_add(1, Ordering::Relaxed),
-        };
-
-        self.producers.get(select as usize % self.producers.len())
+        let select = (u128::from_be_bytes(key) % self.producers.len() as u128) as usize;
+        self.producers.get(select)
     }
 
     /// Validates the topic by fetching the metadata of the topic directly from Kafka.
@@ -187,6 +174,7 @@ struct Producer {
     topic_producers: TopicProducers,
     /// Debouncer for metrics.
     metrics: Debounced,
+    next_key: AtomicU32,
 }
 
 impl Producer {
@@ -194,6 +182,7 @@ impl Producer {
         Self {
             topic_producers,
             metrics: Debounced::new(REPORT_FREQUENCY_SECS),
+            next_key: AtomicU32::new(0),
         }
     }
 }
@@ -208,6 +197,12 @@ impl Producer {
         payload: &[u8],
     ) -> Result<&str, ClientError> {
         let now = Instant::now();
+
+        // Remember if the user specified the key.
+        let has_key = key.is_some();
+        // Always generate a key to force a slightly more equal distribution across partitions,
+        // see also the documentation for `Self::next_key`.
+        let mut key = key.unwrap_or_else(|| self.next_key());
 
         let Some(TopicProducer {
             topic_name,
@@ -233,36 +228,29 @@ impl Producer {
             })
             .collect::<KafkaHeaders>();
 
-        let key = match (key, rate_limiter.as_ref()) {
-            (Some(key), Some(limiter)) => {
-                let is_limited = limiter.try_increment(now, key, 1) < 1;
+        if has_key && let Some(limiter) = &rate_limiter {
+            let is_limited = limiter.try_increment(now, key, 1) < 1;
 
-                if is_limited {
-                    metric!(
-                        counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
-                        variant = variant,
-                        topic = topic_name,
-                    );
+            if is_limited {
+                metric!(
+                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
+                    variant = variant,
+                    topic = topic_name,
+                );
 
-                    headers.insert(Header {
-                        key: "sentry-reshuffled",
-                        value: Some("1"),
-                    });
+                headers.insert(Header {
+                    key: "sentry-reshuffled",
+                    value: Some("1"),
+                });
 
-                    None
-                } else {
-                    Some(key)
-                }
+                // Force a 'random partition, instead the originally assigned partition.
+                key = self.next_key();
             }
-            (key, _) => key,
-        };
+        }
 
-        let mut record = BaseRecord::to(topic_name).payload(payload);
+        let mut record = BaseRecord::to(topic_name).payload(payload).key(&key);
         if let Some(headers) = headers.into_inner() {
             record = record.headers(headers);
-        }
-        if let Some(key) = key.as_ref() {
-            record = record.key(key);
         }
 
         self.metrics.debounce(now, || {
@@ -289,6 +277,18 @@ impl Producer {
         })?;
 
         Ok(topic_name)
+    }
+
+    /// Returns a newly generated key.
+    ///
+    /// Keys are created in sequence, they can be used as a Kafka partition key to force an equal
+    /// distribution across partitions.
+    ///
+    /// Producing a Kafka message without a 'random' key, produces slightly uneven batches to
+    /// partitions. We've seen that this pattern does not play well with our Arroyo consumers
+    /// and leads to higher partition lags.
+    fn next_key(&self) -> [u8; 16] {
+        u128::to_be_bytes(self.next_key.fetch_add(1, Ordering::Relaxed) as u128)
     }
 }
 
