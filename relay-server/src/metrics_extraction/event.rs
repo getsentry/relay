@@ -1276,7 +1276,14 @@ mod tests {
     #[test]
     fn no_feature_flags_enabled() {
         let metrics = extract_span_metrics([]);
-        assert!(metrics.project_metrics.is_empty());
+
+        assert_eq!(metrics.project_metrics.len(), 75);
+        assert!(
+            metrics
+                .project_metrics
+                .into_iter()
+                .all(|x| &x.name == "c:spans/usage@none")
+        );
 
         assert_eq!(metrics.sampling_metrics.len(), 1);
         assert_eq!(
