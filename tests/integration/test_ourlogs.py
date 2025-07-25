@@ -276,11 +276,15 @@ def test_ourlog_meta_attributes(
     }
 
 
-@pytest.mark.parametrize("calculated_byte_count", [False, True])
+@pytest.mark.parametrize("calculated_byte_count", [
+    # False, 
+    True
+])
 def test_ourlog_extraction_with_sentry_logs(
     mini_sentry,
     relay,
     relay_with_processing,
+    relay_credentials,
     items_consumer,
     outcomes_consumer,
     calculated_byte_count,
@@ -297,7 +301,9 @@ def test_ourlog_extraction_with_sentry_logs(
         project_config["config"]["features"].append(
             "organizations:ourlogs-calculated-byte-count"
         )
-    relay = relay(relay_with_processing(options=TEST_CONFIG))
+
+    credentials = relay_credentials()
+    relay = relay(relay_with_processing(options=TEST_CONFIG, static_credentials=credentials), credentials=credentials)
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(

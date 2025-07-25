@@ -247,7 +247,7 @@ pub struct RequestMeta<D = PartialDsn> {
     ///
     /// NOTE: This is internal-only and not exposed to Envelope headers.
     #[serde(skip)]
-    from_internal_relay: bool,
+    request_trust: RequestTrust,
 }
 
 impl<D> RequestMeta<D> {
@@ -326,14 +326,15 @@ impl<D> RequestMeta<D> {
         self.received_at = received_at
     }
 
-    /// Whether the request is coming from a statically configured internal Relay.
-    pub fn is_from_internal_relay(&self) -> bool {
-        self.from_internal_relay
+    /// Returns the request trust, indicating whether the request was sent
+    /// from a statically configured, trusted Relay or some external, untrusted, source.
+    pub fn request_trust(&self) -> RequestTrust {
+        self.request_trust
     }
 
-    /// Overwrite internal property.
-    pub fn set_from_internal_relay(&mut self, value: bool) {
-        self.from_internal_relay = value;
+    /// Overwrites the request trust property.
+    pub fn set_request_trust(&mut self, value: RequestTrust) {
+        self.request_trust = value;
     }
 
     /// Sets the client for this [`RequestMeta`] on the current envelope.
@@ -362,7 +363,7 @@ impl RequestMeta {
             received_at: Utc::now(),
             client_hints: ClientHints::default(),
             signature: None,
-            from_internal_relay: false,
+            request_trust: RequestTrust::Untrusted,
         }
     }
 
@@ -425,6 +426,33 @@ impl RequestMeta {
     }
 }
 
+/// Whether a request can be considered coming from a trusted source.
+///
+/// An internal/trusted source is a Relay which is statically configured as internal
+/// in Relay's configuration. Notably this does not include fully authenticated
+/// customer Relays, as they can still be tampered with.
+///
+/// Data coming from a trusted source may skip processing steps, as we can rely
+/// on the behaviour/implementation of the downstream Relay.
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+pub enum RequestTrust {
+    /// The result came from a potentially untrusted source.
+    #[default]
+    Untrusted,
+    /// The request was sent from an internally trusted Relay.
+    Trusted,
+}
+
+impl RequestTrust {
+    pub fn is_trusted(self) -> bool {
+        matches!(self, Self::Trusted)
+    }
+
+    pub fn is_untrusted(self) -> bool {
+        !self.is_trusted()
+    }
+}
+
 /// Request information without required authentication parts.
 ///
 /// This is identical to [`RequestMeta`] with the exception that the DSN, used to authenticate, is
@@ -464,10 +492,6 @@ impl PartialMeta {
         if self.user_agent.is_some() {
             complete.user_agent = self.user_agent;
         }
-        if self.from_internal_relay {
-            complete.from_internal_relay = self.from_internal_relay;
-        }
-
         complete.client_hints.copy_from(self.client_hints);
 
         if self.no_cache {
@@ -506,6 +530,11 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                 .is_some_and(|ri| ri.internal);
         }
 
+        let request_trust = match from_internal_relay {
+            true => RequestTrust::Trusted,
+            false => RequestTrust::Untrusted,
+        };
+
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
 
         let signature = Signature::from_request_parts(parts, state)
@@ -530,7 +559,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
             received_at,
             client_hints: ua.client_hints,
             signature,
-            from_internal_relay,
+            request_trust,
         })
     }
 }
@@ -693,7 +722,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             received_at: partial_meta.received_at,
             client_hints: partial_meta.client_hints,
             signature: partial_meta.signature,
-            from_internal_relay: partial_meta.from_internal_relay,
+            request_trust: partial_meta.request_trust,
         })
     }
 }
@@ -716,7 +745,7 @@ mod tests {
                 no_cache: false,
                 received_at: Utc::now(),
                 client_hints: ClientHints::default(),
-                from_internal_relay: false,
+                request_trust: RequestTrust::Untrusted,
                 signature: None,
             }
         }
@@ -762,7 +791,7 @@ mod tests {
                 ),
                 sec_ch_ua_model: None,
             },
-            from_internal_relay: false,
+            request_trust: RequestTrust::Untrusted,
             signature: None,
         };
         deserialized.received_at = reqmeta.received_at;

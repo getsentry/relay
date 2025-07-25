@@ -149,9 +149,10 @@ impl ProjectInfo {
         envelope: &Envelope,
         config: &Config,
     ) -> Result<(), DiscardReason> {
-        if envelope.meta().is_from_internal_relay() {
+        if envelope.meta().request_trust().is_trusted() {
             return Ok(());
         }
+
         match self.config.trusted_relay_settings.verify_signature {
             SignatureVerification::Disabled => Ok(()),
             SignatureVerification::Enabled => match envelope.meta().signature() {

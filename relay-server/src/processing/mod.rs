@@ -71,6 +71,11 @@ impl Context<'_> {
         self.config.processing_enabled()
     }
 
+    /// Returns `true` if Relay is running in a managed mode.
+    pub fn is_managed(&self) -> bool {
+        matches!(self.config.relay_mode(), relay_config::RelayMode::Managed)
+    }
+
     /// Checks on-off feature flags for envelope items, like profiles and spans.
     ///
     /// It checks for the presence of the passed feature flag, but does not filter items
