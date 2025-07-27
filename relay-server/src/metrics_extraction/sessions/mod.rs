@@ -356,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_session_metrics_fatal() {
+    fn test_extract_session_metrics_crashed() {
         let session = SessionUpdate::parse(
             r#"{
                 "init": false,
@@ -392,6 +392,45 @@ mod tests {
         assert_eq!(&*user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, BucketValue::Set(_)));
         assert_eq!(user_metric.tags["session.status"], "crashed");
+    }
+
+    #[test]
+    fn test_extract_session_metrics_unhandled() {
+        let session = SessionUpdate::parse(
+            r#"{
+                "init": false,
+                "started": "2021-04-26T08:00:00+0100",
+                "attrs": {
+                    "release": "1.0.0"
+                },
+                "did": "user123",
+                "status": "unhandled"
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let mut metrics = vec![];
+
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
+
+        assert_eq!(metrics.len(), 4);
+
+        assert_eq!(&*metrics[0].name, "s:sessions/error@none");
+        assert_eq!(&*metrics[1].name, "s:sessions/user@none");
+        assert_eq!(metrics[1].tags["session.status"], "errored");
+
+        let session_metric = &metrics[2];
+        assert_eq!(session_metric.timestamp, started());
+        assert_eq!(&*session_metric.name, "c:sessions/session@none");
+        assert!(matches!(session_metric.value, BucketValue::Counter(_)));
+        assert_eq!(session_metric.tags["session.status"], "unhandled");
+
+        let user_metric = &metrics[3];
+        assert_eq!(user_metric.timestamp, started());
+        assert_eq!(&*user_metric.name, "s:sessions/user@none");
+        assert!(matches!(user_metric.value, BucketValue::Set(_)));
+        assert_eq!(user_metric.tags["session.status"], "unhandled");
     }
 
     #[test]
@@ -470,16 +509,18 @@ mod tests {
             r#"{
                 "aggregates": [
                     {
-                    "started": "2020-02-07T14:16:00Z",
-                    "exited": 123,
-                    "abnormal": 5,
-                    "crashed": 7
+                        "started": "2020-02-07T14:16:00Z",
+                        "exited": 143,
+                        "abnormal": 5,
+                        "crashed": 7,
+                        "unhandled": 10
                     },
                     {
-                    "started": "2020-02-07T14:16:01Z",
-                    "did": "optional distinct user id",
-                    "exited": 12,
-                    "errored": 3
+                        "started": "2020-02-07T14:16:01Z",
+                        "did": "optional distinct user id",
+                        "exited": 22,
+                        "errored": 3,
+                        "unhandled": 10
                     }
                 ],
                 "attrs": {
@@ -510,7 +551,7 @@ mod tests {
                     "c:sessions/session@none",
                 ),
                 value: Counter(
-                    135.0,
+                    165.0,
                 ),
                 tags: {
                     "environment": "development",
@@ -533,7 +574,7 @@ mod tests {
                     "c:sessions/session@none",
                 ),
                 value: Counter(
-                    12.0,
+                    22.0,
                 ),
                 tags: {
                     "environment": "development",
@@ -579,6 +620,29 @@ mod tests {
                     "c:sessions/session@none",
                 ),
                 value: Counter(
+                    10.0,
+                ),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
+                    "session.status": "unhandled",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
+                value: Counter(
                     7.0,
                 ),
                 tags: {
@@ -602,7 +666,7 @@ mod tests {
                     "c:sessions/session@none",
                 ),
                 value: Counter(
-                    15.0,
+                    35.0,
                 ),
                 tags: {
                     "environment": "development",
@@ -625,7 +689,7 @@ mod tests {
                     "c:sessions/session@none",
                 ),
                 value: Counter(
-                    3.0,
+                    13.0,
                 ),
                 tags: {
                     "environment": "development",
@@ -657,6 +721,54 @@ mod tests {
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "errored",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1581084961),
+                width: 0,
+                name: MetricName(
+                    "c:sessions/session@none",
+                ),
+                value: Counter(
+                    10.0,
+                ),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
+                    "session.status": "unhandled",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1581084961),
+                width: 0,
+                name: MetricName(
+                    "s:sessions/user@none",
+                ),
+                value: Set(
+                    {
+                        3097475539,
+                    },
+                ),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
+                    "session.status": "unhandled",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
