@@ -460,6 +460,15 @@ fn create_async_redis_client(config: &RedisConfigRef<'_>) -> Result<AsyncRedisCl
             options,
         } => AsyncRedisClient::cluster(cluster_nodes.iter().map(|s| s.as_str()), options),
         RedisConfigRef::Single { server, options } => AsyncRedisClient::single(server, options),
+        RedisConfigRef::Sentinel {
+            sentinel_nodes,
+            master_name,
+            options,
+        } => AsyncRedisClient::sentinel(
+            sentinel_nodes.iter().map(|s| s.as_str()),
+            master_name,
+            options,
+        ),
     }
 }
 
