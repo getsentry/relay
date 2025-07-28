@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Features:
+
+- Support PII scrubbing in `logentry.formatted` avoiding replacing the entire value, still preserving the context. ([#4985](https://github.com/getsentry/relay/pull/4985))
+
 **Bug Fixes**:
 
 - Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
