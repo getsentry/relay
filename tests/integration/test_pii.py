@@ -189,3 +189,32 @@ def test_logentry_formatted_never_fully_filtered_integration(mini_sentry, relay)
     assert "[Email]" in formatted_value
     # Context should be preserved (not completely filtered)
     assert "User" in formatted_value and "sensitive data" in formatted_value
+
+
+def test_logentry_formatted_bearer_token_scrubbing(mini_sentry, relay):
+    """Test that Bearer tokens are properly scrubbed in logentry.formatted"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {
+                "formatted": "API request failed with Bearer ABC123XYZ789TOKEN and returned 401"
+            },
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    # Should scrub Bearer token but preserve "Bearer" prefix and context
+    formatted_value = event["logentry"]["formatted"]
+    assert "Bearer [Token]" in formatted_value
+    assert "ABC123XYZ789TOKEN" not in formatted_value
+
+    # Should preserve context
+    assert "API request failed" in formatted_value
+    assert "returned 401" in formatted_value

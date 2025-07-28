@@ -17,8 +17,8 @@ use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
 use crate::redactions::Redaction;
 use crate::regexes::{
-    self, ANYTHING_REGEX, CREDITCARD_REGEX, EMAIL_REGEX, IBAN_REGEX, PatternType, ReplaceBehavior,
-    US_SSN_REGEX,
+    self, ANYTHING_REGEX, BEARER_TOKEN_REGEX, CREDITCARD_REGEX, EMAIL_REGEX, IBAN_REGEX,
+    PatternType, ReplaceBehavior, US_SSN_REGEX,
 };
 use crate::utils;
 
@@ -57,6 +57,11 @@ fn smart_scrub_logentry_formatted(
             regex: &US_SSN_REGEX,
             replacement: "[SSN]",
             remark_suffix: "ssn",
+        },
+        SelectedPattern {
+            regex: &BEARER_TOKEN_REGEX,
+            replacement: "${1}[Token]",
+            remark_suffix: "bearer_token",
         },
     ];
 
@@ -1347,6 +1352,79 @@ mod tests {
         // Should preserve context
         assert!(formatted_str.contains("User"));
         assert!(formatted_str.contains("failed login"));
+    }
+
+    #[test]
+    fn test_logentry_formatted_bearer_token_scrubbing() {
+        let config = PiiConfig::default();
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new(
+                    "API request failed with Bearer ABC123XYZ789TOKEN and other data"
+                        .to_owned()
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let formatted_value = event
+            .value()
+            .unwrap()
+            .logentry
+            .value()
+            .unwrap()
+            .formatted
+            .value();
+
+        assert!(formatted_value.is_some());
+        let formatted_str = formatted_value.unwrap().as_ref();
+
+        // Should have Bearer token scrubbed but preserve "Bearer" prefix
+        assert!(
+            formatted_str
+                .eq_ignore_ascii_case("API request failed with Bearer [Token] and other data")
+        );
+        assert!(!formatted_str.contains("ABC123XYZ789TOKEN"));
+    }
+
+    #[test]
+    fn test_logentry_formatted_password_word_not_scrubbed() {
+        let config = PiiConfig::default();
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new(
+                    "User password is secret123 for authentication"
+                        .to_owned()
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let formatted_value = event
+            .value()
+            .unwrap()
+            .logentry
+            .value()
+            .unwrap()
+            .formatted
+            .value();
+
+        assert!(formatted_value.is_some());
+        let formatted_str = formatted_value.unwrap().as_ref();
+        assert_eq!(
+            formatted_str,
+            "User password is secret123 for authentication"
+        );
     }
 
     #[test]
