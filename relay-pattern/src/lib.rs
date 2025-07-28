@@ -115,7 +115,7 @@ impl Pattern {
 
     /// Create a new [`PatternBuilder`]. The builder can be used to adjust the
     /// pattern settings.
-    pub fn builder(pattern: &str) -> PatternBuilder {
+    pub fn builder(pattern: &str) -> PatternBuilder<'_> {
         PatternBuilder {
             pattern,
             options: Options::default(),
