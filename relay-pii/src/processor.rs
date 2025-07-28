@@ -37,6 +37,10 @@ fn smart_scrub_logentry_formatted(
     state: &ProcessingState<'_>,
     compiled_config: &CompiledPiiConfig,
 ) -> ProcessingResult {
+    // If the compiled_config is empty, there are not applications, meaning that PiiConfig is empty.
+    if compiled_config.applications.is_empty() {
+        return Ok(());
+    }
     let patterns = [
         SelectedPattern {
             regex: &EMAIL_REGEX,

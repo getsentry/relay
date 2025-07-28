@@ -218,3 +218,72 @@ def test_logentry_formatted_bearer_token_scrubbing(mini_sentry, relay):
     # Should preserve context
     assert "API request failed" in formatted_value
     assert "returned 401" in formatted_value
+
+
+def test_logentry_formatted_no_scrubbing_when_disabled(mini_sentry, relay):
+    """Test that logentry.formatted is not scrubbed when data scrubbing is disabled"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["piiConfig"] = {}
+    config["config"]["datascrubbingSettings"] = {
+        "scrubData": False,
+        "scrubDefaults": True,
+    }
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {
+                "formatted": "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111"
+            },
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    # Should remain unchanged when data scrubbing is disabled.
+    formatted_value = event["logentry"]["formatted"]
+    assert (
+        formatted_value
+        == "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111"
+    )
+
+
+def test_logentry_formatted_scrubbing_enabled(mini_sentry, relay):
+    """Test that logentry.formatted is scrubbed when data scrubbing is enabled"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["piiConfig"] = {}
+
+    # Enable default and scrubing, we should scrub the logentry as well.
+    config["config"]["datascrubbingSettings"] = {
+        "scrubData": True,
+        "scrubDefaults": True,
+    }
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {
+                "formatted": "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111"
+            },
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    from pprint import pprint
+
+    pprint(event)
+
+    formatted_value = event["logentry"]["formatted"]
+    assert (
+        formatted_value
+        == "API failed with Bearer [Token] for [Email] using card [CreditCard]"
+    )
