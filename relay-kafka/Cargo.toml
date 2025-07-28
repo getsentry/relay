@@ -13,7 +13,7 @@ publish = false
 workspace = true
 
 [dependencies]
-rdkafka = { workspace = true, optional = true, features = ["tracing", "ssl"] }
+rdkafka = { workspace = true, optional = true, features = ["tracing", "ssl", "libz-static"] }
 rdkafka-sys = { workspace = true, optional = true }
 relay-log = { workspace = true, optional = true }
 relay-statsd = { workspace = true, optional = true }
