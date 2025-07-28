@@ -70,25 +70,21 @@ fn smart_scrub_logentry_formatted(
 
     for pattern in &patterns {
         let new_value = pattern.regex.replace_all(value, pattern.replacement);
-        if matches!(new_value, std::borrow::Cow::Owned(_)) {
-            *value = new_value.into_owned();
+        if let std::borrow::Cow::Owned(new_value) = new_value {
+            *value = new_value;
             applied_patterns.push(pattern.remark_suffix);
         }
     }
 
-    // Add all remarks for applied patterns and set original length if needed.
-    if !applied_patterns.is_empty() {
-        for suffix in applied_patterns {
-            meta.add_remark(Remark::new(
-                RemarkType::Substituted,
-                format!("logentry.formatted:{suffix}"),
-            ));
-        }
+    for suffix in &applied_patterns {
+        meta.add_remark(Remark::new(
+            RemarkType::Substituted,
+            format!("logentry.formatted:{suffix}"),
+        ));
+    }
 
-        // Set original length if the length changed.
-        if original_length != value.len() {
-            meta.set_original_length(Some(original_length));
-        }
+    if !applied_patterns.is_empty() && original_length != value.len() {
+        meta.set_original_length(Some(original_length));
     }
 
     // Apply user-configured PII rules, but avoid rules that would completely filter logentry.formatted.
@@ -97,26 +93,23 @@ fn smart_scrub_logentry_formatted(
         if selector.matches_path(&state.path()) {
             for rule in rules {
                 // Skip @anything rules for logentry.formatted to avoid complete filtering.
-                if rule.ty == RuleType::Anything {
-                    continue;
-                }
-
-                // Also skip rules with Default or Remove redaction that could delete everything.
-                if matches!(
-                    rule.redaction,
-                    Redaction::Default | Redaction::Remove | Redaction::Mask
-                ) {
+                // And if redaction is Default or Remove that could also delete everything.
+                if rule.ty == RuleType::Anything
+                    || matches!(
+                        rule.redaction,
+                        Redaction::Default | Redaction::Remove | Redaction::Mask
+                    )
+                {
                     continue;
                 }
 
                 // Skip RedactPair rules that would replace the entire value with "[Filtered]".
                 // This prevents sensitive_fields configuration from completely filtering logentry.formatted.
-                if matches!(rule.ty, RuleType::RedactPair(_)) {
-                    if let Redaction::Replace(replace_redaction) = &rule.redaction {
-                        if replace_redaction.text == "[Filtered]" {
-                            continue;
-                        }
-                    }
+                if matches!(rule.ty, RuleType::RedactPair(_))
+                    && let Redaction::Replace(replace_redaction) = &rule.redaction
+                    && replace_redaction.text == "[Filtered]"
+                {
+                    continue;
                 }
 
                 apply_rule_to_value(meta, rule, state.path().key(), Some(value))?;
