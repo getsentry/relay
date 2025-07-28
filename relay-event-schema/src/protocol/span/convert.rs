@@ -156,6 +156,7 @@ mod tests {
             data: SpanData {
                 app_start_type: ~,
                 gen_ai_request_max_tokens: ~,
+                gen_ai_pipeline_name: ~,
                 gen_ai_usage_total_tokens: ~,
                 gen_ai_usage_input_tokens: ~,
                 gen_ai_usage_input_tokens_cached: ~,
@@ -171,6 +172,7 @@ mod tests {
                 gen_ai_response_tool_calls: ~,
                 gen_ai_response_text: ~,
                 gen_ai_response_object: ~,
+                gen_ai_response_streaming: ~,
                 gen_ai_response_tokens_per_second: ~,
                 gen_ai_request_available_tools: ~,
                 gen_ai_request_frequency_penalty: ~,
