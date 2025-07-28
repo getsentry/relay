@@ -64,8 +64,6 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
         received_at_nanos.to_string(),
     );
     attribute_data.insert("sentry.trace_flags".to_owned(), 0);
-    attribute_data.insert("sentry.body".to_owned(), body.clone());
-    attribute_data.insert("sentry.span_id".to_owned(), span_id.to_string());
 
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
@@ -151,14 +149,6 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
         received_at_nanos.to_string(),
     );
     attributes.insert("sentry.trace_flags".to_owned(), 0);
-    attributes.insert(
-        "sentry.body".to_owned(),
-        ourlog_value.body.value().cloned().unwrap_or_default(),
-    );
-
-    if let Some(span_id) = ourlog_value.span_id.value() {
-        attributes.insert("sentry.span_id".to_owned(), span_id.to_string());
-    }
 }
 
 fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
@@ -441,10 +431,6 @@ mod tests {
               "type": "string",
               "value": "9"
             },
-            "sentry.body": {
-              "type": "string",
-              "value": "Example log record"
-            },
             "sentry.observed_timestamp_nanos": {
               "type": "string",
               "value": "946684800000000000"
@@ -456,10 +442,6 @@ mod tests {
             "sentry.severity_text": {
               "type": "string",
               "value": "info"
-            },
-            "sentry.span_id": {
-              "type": "string",
-              "value": "eee19b7ec3c1b174"
             },
             "sentry.timestamp_nanos": {
               "type": "string",
@@ -537,10 +519,6 @@ mod tests {
             "foo": {
               "type": "string",
               "value": "9"
-            },
-            "sentry.body": {
-              "type": "string",
-              "value": "somebody"
             },
             "sentry.observed_timestamp_nanos": {
               "type": "string",
