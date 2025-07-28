@@ -456,6 +456,10 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.request.max_tokens")]
     pub gen_ai_request_max_tokens: Annotated<Value>,
 
+    /// Name of the AI pipeline or chain being executed.
+    #[metastructure(field = "gen_ai.pipeline.name", legacy_alias = "ai.pipeline.name")]
+    pub gen_ai_pipeline_name: Annotated<Value>,
+
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
@@ -550,6 +554,10 @@ pub struct SpanData {
     /// LLM response object (Vercel AI, generateObject)
     #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
     pub gen_ai_response_object: Annotated<Value>,
+
+    /// Whether or not the AI model call's response was streamed back asynchronously
+    #[metastructure(field = "gen_ai.response.streaming", legacy_alias = "ai.streaming")]
+    pub gen_ai_response_streaming: Annotated<Value>,
 
     ///  Total output tokens per seconds throughput
     #[metastructure(field = "gen_ai.response.tokens_per_second")]
