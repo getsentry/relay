@@ -171,10 +171,6 @@ mod tests {
                 "sentry.observed_timestamp_nanos": {
                     "value": "1544712660300000000",
                     "type": "integer"
-                },
-                "sentry.trace_flags": {
-                    "value": "10",
-                    "type": "integer"
                 }
             }
         }"#;
@@ -208,10 +204,6 @@ mod tests {
             "sentry.severity_text": {
               "type": "string",
               "value": "info"
-            },
-            "sentry.trace_flags": {
-              "type": "integer",
-              "value": "10"
             },
             "string.attribute": {
               "type": "string",

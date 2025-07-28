@@ -63,7 +63,6 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
         "sentry.observed_timestamp_nanos".to_owned(),
         received_at_nanos.to_string(),
     );
-    attribute_data.insert("sentry.trace_flags".to_owned(), 0);
 
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
@@ -148,7 +147,6 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
         "sentry.observed_timestamp_nanos".to_owned(),
         received_at_nanos.to_string(),
     );
-    attributes.insert("sentry.trace_flags".to_owned(), 0);
 }
 
 fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
@@ -450,10 +448,6 @@ mod tests {
             "sentry.timestamp_precise": {
               "type": "integer",
               "value": 946684800000000000
-            },
-            "sentry.trace_flags": {
-              "type": "integer",
-              "value": 0
             }
           }
         }
@@ -539,10 +533,6 @@ mod tests {
             "sentry.timestamp_precise": {
               "type": "integer",
               "value": 1638144000000000000
-            },
-            "sentry.trace_flags": {
-              "type": "integer",
-              "value": 0
             }
           }
         }
