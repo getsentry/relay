@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
+- Normalize AI pipeline name and streaming flag to `gen_ai.*` names ([#4982](https://github.com/getsentry/relay/pull/4982))
 
 **Internal**:
 
@@ -15,6 +16,7 @@
 - Normalize legacy `ai.*` attributes to `gen_ai.*` names. ([#4924](https://github.com/getsentry/relay/pull/4924))
 - Force the routing key to be random instead of letting Kafka handle the randomization. ([#4974](https://github.com/getsentry/relay/pull/4974))
 - Stop extracting the `sentry.severity_number` attribute for logs. ([#4989](https://github.com/getsentry/relay/pull/4989))
+- Stop extracting the `sentry.trace_flags` attribute for logs. ([#4988](https://github.com/getsentry/relay/pull/4988))
 - Add Jwm to the supported image types. ([#4975](https://github.com/getsentry/relay/pull/4975))
 
 ## 25.7.0
