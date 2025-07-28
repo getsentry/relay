@@ -109,7 +109,7 @@ pub struct StoreMetrics {
 
 /// Publishes a log item to Sentry core application through Kafka.
 #[derive(Debug)]
-pub struct StoreLog {
+pub struct StoreTraceItem {
     /// The final trace item which will be produced to Kafka.
     pub trace_item: TraceItem,
     /// Outcomes to be emitted when successfully producing the item to Kafka.
@@ -119,7 +119,7 @@ pub struct StoreLog {
     pub quantities: Quantities,
 }
 
-impl Counted for StoreLog {
+impl Counted for StoreTraceItem {
     fn quantities(&self) -> Quantities {
         self.quantities.clone()
     }
@@ -134,15 +134,15 @@ pub enum Store {
     /// An envelope containing a mixture of items.
     ///
     /// Note: Some envelope items are not supported to be submitted at all or through an envelope,
-    /// for example logs must be submitted via [`Self::Log`] instead.
+    /// for example logs must be submitted via [`Self::TraceItem`] instead.
     ///
     /// Long term this variant is going to be replaced with fully typed variants of items which can
     /// be stored instead.
     Envelope(StoreEnvelope),
     /// Aggregated generic metrics.
     Metrics(StoreMetrics),
-    /// A singular log item.
-    Log(Managed<StoreLog>),
+    /// A singular [`TraceItem`].
+    TraceItem(Managed<StoreTraceItem>),
 }
 
 impl Store {
@@ -151,7 +151,7 @@ impl Store {
         match self {
             Store::Envelope(_) => "envelope",
             Store::Metrics(_) => "metrics",
-            Store::Log(_) => "log",
+            Store::TraceItem(_) => "log",
         }
     }
 }
@@ -174,11 +174,11 @@ impl FromMessage<StoreMetrics> for Store {
     }
 }
 
-impl FromMessage<Managed<StoreLog>> for Store {
+impl FromMessage<Managed<StoreTraceItem>> for Store {
     type Response = NoResponse;
 
-    fn from_message(message: Managed<StoreLog>, _: ()) -> Self {
-        Self::Log(message)
+    fn from_message(message: Managed<StoreTraceItem>, _: ()) -> Self {
+        Self::TraceItem(message)
     }
 }
 
@@ -217,7 +217,7 @@ impl StoreService {
             match message {
                 Store::Envelope(message) => self.handle_store_envelope(message),
                 Store::Metrics(message) => self.handle_store_metrics(message),
-                Store::Log(message) => self.handle_store_log(message),
+                Store::TraceItem(message) => self.handle_store_trace_item(message),
             }
         })
     }
@@ -525,25 +525,23 @@ impl StoreService {
         }
     }
 
-    fn handle_store_log(&self, message: Managed<StoreLog>) {
+    fn handle_store_trace_item(&self, message: Managed<StoreTraceItem>) {
         let scoping = message.scoping();
         let received_at = message.received_at();
 
-        let quantities = message.try_accept(|log| {
+        let quantities = message.try_accept(|item| {
+            let item_type = item.trace_item.item_type();
             let message = KafkaMessage::Item {
                 headers: BTreeMap::from([
                     ("project_id".to_owned(), scoping.project_id.to_string()),
-                    (
-                        "item_type".to_owned(),
-                        (TraceItemType::Log as i32).to_string(),
-                    ),
+                    ("item_type".to_owned(), (item_type as i32).to_string()),
                 ]),
-                message: log.trace_item,
-                item_type: TraceItemType::Log,
+                message: item.trace_item,
+                item_type,
             };
 
             self.produce(KafkaTopic::Items, message)
-                .map(|()| log.quantities)
+                .map(|()| item.quantities)
         });
 
         // Accepted outcomes when items have been successfully produced to rdkafka.

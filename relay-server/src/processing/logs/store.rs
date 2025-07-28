@@ -14,7 +14,7 @@ use crate::envelope::WithHeader;
 use crate::processing::Counted;
 use crate::processing::logs::{Error, Result};
 use crate::services::outcome::DiscardReason;
-use crate::services::store::StoreLog;
+use crate::services::store::StoreTraceItem;
 
 macro_rules! required {
     ($value:expr) => {{
@@ -44,7 +44,7 @@ pub struct Context {
     pub meta_attrs: bool,
 }
 
-pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreLog> {
+pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem> {
     let quantities = log.quantities();
 
     let log = required!(log.value);
@@ -74,7 +74,7 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreLog> {
         server_sample_rate: 1.0,
     };
 
-    Ok(StoreLog {
+    Ok(StoreTraceItem {
         trace_item,
         quantities,
     })
