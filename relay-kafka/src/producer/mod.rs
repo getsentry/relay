@@ -3,12 +3,10 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::hash::Hasher as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
-use hash32::{FnvHasher, Hasher};
 use rdkafka::ClientConfig;
 use rdkafka::message::Header;
 use rdkafka::producer::{BaseRecord, Producer as _};
@@ -30,6 +28,9 @@ mod schemas;
 
 const REPORT_FREQUENCY_SECS: u64 = 1;
 const KAFKA_FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Key type used for partitioning.
+pub type Key = u128;
 
 /// Kafka producer errors.
 #[derive(Error, Debug)]
@@ -80,7 +81,7 @@ pub enum ClientError {
 /// Describes the type which can be sent using kafka producer provided by this crate.
 pub trait Message {
     /// Returns the partitioning key for this kafka message determining.
-    fn key(&self) -> Option<[u8; 16]>;
+    fn key(&self) -> Option<Key>;
 
     /// Returns the type of the message.
     fn variant(&self) -> &'static str;
@@ -123,19 +124,16 @@ impl SerializationOutput<'_> {
 struct TopicProducers {
     /// All configured producers.
     producers: Vec<TopicProducer>,
-    /// Round-robin counter for keyless messages.
-    round_robin: AtomicU32,
 }
 
 impl TopicProducers {
     fn new() -> Self {
         Self {
             producers: Vec::new(),
-            round_robin: AtomicU32::new(0),
         }
     }
 
-    fn select(&self, key: Option<[u8; 16]>) -> Option<&TopicProducer> {
+    fn select(&self, key: u128) -> Option<&TopicProducer> {
         debug_assert!(!self.producers.is_empty());
 
         if self.producers.is_empty() {
@@ -144,16 +142,8 @@ impl TopicProducers {
             return self.producers.first();
         }
 
-        let select = match key {
-            Some(ref key) => {
-                let mut hasher = FnvHasher::default();
-                hasher.write(key);
-                hasher.finish32()
-            }
-            None => self.round_robin.fetch_add(1, Ordering::Relaxed),
-        };
-
-        self.producers.get(select as usize % self.producers.len())
+        let select = (key % self.producers.len() as u128) as usize;
+        self.producers.get(select)
     }
 
     /// Validates the topic by fetching the metadata of the topic directly from Kafka.
@@ -187,6 +177,7 @@ struct Producer {
     topic_producers: TopicProducers,
     /// Debouncer for metrics.
     metrics: Debounced,
+    next_key: AtomicU32,
 }
 
 impl Producer {
@@ -194,6 +185,7 @@ impl Producer {
         Self {
             topic_producers,
             metrics: Debounced::new(REPORT_FREQUENCY_SECS),
+            next_key: AtomicU32::new(0),
         }
     }
 }
@@ -202,12 +194,16 @@ impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        key: Option<[u8; 16]>,
+        key: Option<Key>,
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
     ) -> Result<&str, ClientError> {
         let now = Instant::now();
+
+        // Always generate a key to force a slightly more equal distribution across partitions,
+        // see also the documentation for `Self::next_key`.
+        let mut key = key.unwrap_or_else(|| self.next_key());
 
         let Some(TopicProducer {
             topic_name,
@@ -233,36 +229,33 @@ impl Producer {
             })
             .collect::<KafkaHeaders>();
 
-        let key = match (key, rate_limiter.as_ref()) {
-            (Some(key), Some(limiter)) => {
-                let is_limited = limiter.try_increment(now, key, 1) < 1;
+        // Always rate limit if there is a rate limiter defined.
+        // Defining a rate limiter for a topic which does not have a consistent routing key is just
+        // a misconfiguration.
+        if let Some(limiter) = &rate_limiter {
+            let is_limited = limiter.try_increment(now, key, 1) < 1;
 
-                if is_limited {
-                    metric!(
-                        counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
-                        variant = variant,
-                        topic = topic_name,
-                    );
+            if is_limited {
+                metric!(
+                    counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
+                    variant = variant,
+                    topic = topic_name,
+                );
 
-                    headers.insert(Header {
-                        key: "sentry-reshuffled",
-                        value: Some("1"),
-                    });
+                headers.insert(Header {
+                    key: "sentry-reshuffled",
+                    value: Some("1"),
+                });
 
-                    None
-                } else {
-                    Some(key)
-                }
+                // Force a 'random' partition, instead the originally assigned partition.
+                key = self.next_key();
             }
-            (key, _) => key,
-        };
+        }
 
-        let mut record = BaseRecord::to(topic_name).payload(payload);
+        let key = u128::to_be_bytes(key);
+        let mut record = BaseRecord::to(topic_name).payload(payload).key(&key);
         if let Some(headers) = headers.into_inner() {
             record = record.headers(headers);
-        }
-        if let Some(key) = key.as_ref() {
-            record = record.key(key);
         }
 
         self.metrics.debounce(now, || {
@@ -290,6 +283,20 @@ impl Producer {
 
         Ok(topic_name)
     }
+
+    /// Returns a newly generated key.
+    ///
+    /// Keys are created in sequence, they can be used as a Kafka partition key to force an equal
+    /// distribution across partitions.
+    ///
+    /// Producing a Kafka message without a 'random' key, produces slightly uneven batches to
+    /// partitions. We've seen that this pattern does not play well with our Arroyo consumers
+    /// and leads to higher partition lags.
+    fn next_key(&self) -> u128 {
+        // Overflowing is fine, as it would wrap. The only use for the atomic is to generate
+        // a different key to the one before.
+        self.next_key.fetch_add(1, Ordering::Relaxed) as u128
+    }
 }
 
 impl fmt::Debug for Producer {
@@ -307,7 +314,7 @@ impl fmt::Debug for Producer {
     }
 }
 
-/// Keeps all the configured kafka producers and responsible for the routing of the messages.
+/// Keeps all the configured Kafka producers and responsible for the routing of the messages.
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
@@ -321,9 +328,9 @@ impl KafkaClient {
         KafkaClientBuilder::default()
     }
 
-    /// Sends message to the provided kafka topic.
+    /// Sends message to the provided Kafka topic.
     ///
-    /// Returns the name of the kafka topic to which the message was produced.
+    /// Returns the name of the Kafka topic to which the message was produced.
     pub fn send_message(
         &self,
         topic: KafkaTopic,
@@ -349,11 +356,11 @@ impl KafkaClient {
 
     /// Sends the payload to the correct producer for the current topic.
     ///
-    /// Returns the name of the kafka topic to which the message was produced.
+    /// Returns the name of the Kafka topic to which the message was produced.
     pub fn send(
         &self,
         topic: KafkaTopic,
-        key: Option<[u8; 16]>,
+        key: Option<Key>,
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
