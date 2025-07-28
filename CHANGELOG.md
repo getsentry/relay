@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
+- Normalize AI pipeline name and streaming flag to `gen_ai.*` names ([#4982](https://github.com/getsentry/relay/pull/4982))
 
 **Internal**:
 
