@@ -1,0 +1,24 @@
+---
+source: relay-pii/src/processor.rs
+expression: event
+---
+{
+  "logentry": {
+    "formatted": "API request failed with Bearer [Token] and other data"
+  },
+  "_meta": {
+    "logentry": {
+      "formatted": {
+        "": {
+          "rem": [
+            [
+              "logentry.formatted:bearer_token",
+              "s"
+            ]
+          ],
+          "len": 63
+        }
+      }
+    }
+  }
+}

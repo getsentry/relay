@@ -37,10 +37,11 @@ fn smart_scrub_logentry_formatted(
     state: &ProcessingState<'_>,
     compiled_config: &CompiledPiiConfig,
 ) -> ProcessingResult {
-    // If the compiled_config is empty, there are not applications, meaning that PiiConfig is empty.
+    // If there are no applications the PII scrubbing was disabled, we can skip.
     if compiled_config.applications.is_empty() {
         return Ok(());
     }
+
     let patterns = [
         SelectedPattern {
             regex: &EMAIL_REGEX,
@@ -91,26 +92,13 @@ fn smart_scrub_logentry_formatted(
         meta.set_original_length(Some(original_length));
     }
 
-    // Apply user-configured PII rules, but avoid rules that would completely filter logentry.formatted.
-    // We skip @anything rules and only apply pattern-based rules to preserve context.
+    // Apply user-configured PII rules second, but skip problematic ones that would completely filter
     for (selector, rules) in compiled_config.applications.iter() {
         if selector.matches_path(&state.path()) {
             for rule in rules {
-                // Skip @anything rules for logentry.formatted to avoid complete filtering.
-                // And if redaction is Default or Remove that could also delete everything.
-                if rule.ty == RuleType::Anything
-                    || matches!(
-                        rule.redaction,
-                        Redaction::Default | Redaction::Remove | Redaction::Mask
-                    )
-                {
-                    continue;
-                }
-
-                // Skip RedactPair rules that would replace the entire value with "[Filtered]".
-                // This prevents sensitive_fields configuration from completely filtering logentry.formatted.
-                if matches!(rule.ty, RuleType::RedactPair(_))
-                    && let Redaction::Replace(replace_redaction) = &rule.redaction
+                // Skip any Replace rules that would replace with "[Filtered]"
+                // This prevents @common:filter rules from completely filtering logentry.formatted
+                if let Redaction::Replace(replace_redaction) = &rule.redaction
                     && replace_redaction.text == "[Filtered]"
                 {
                     continue;
@@ -258,7 +246,8 @@ impl Processor for PiiProcessor<'_> {
             return Ok(());
         }
 
-        // Special handling for logentry.formatted - use smart scrubbing instead of blanket exclusion.
+        // Special handling for logentry.formatted - always use smart scrubbing to protect against PII
+        // in issue titles, regardless of PII configuration
         if state.path().key() == Some("formatted") {
             let path_str = state.path().to_string();
             if path_str.eq_ignore_ascii_case("logentry.formatted") {
@@ -1280,9 +1269,6 @@ mod tests {
 
             let mut processor = PiiProcessor::new(config.compiled());
             process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-            // logentry.formatted should never be completely removed - it should preserve context
-            // even when @anything:remove rules are applied.
             assert!(
                 event
                     .value()
@@ -1292,7 +1278,7 @@ mod tests {
                     .unwrap()
                     .formatted
                     .value()
-                    .is_some()
+                    .is_none()
             );
         }
     }
@@ -1304,7 +1290,7 @@ mod tests {
             r#"
         {
             "applications": {
-                "$logentry.formatted": ["@anything:remove"]
+                "$logentry.formatted": ["@ip:remove"]
             }
         }
         "#,
@@ -1325,35 +1311,21 @@ mod tests {
 
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-        let formatted_value = event
-            .value()
-            .unwrap()
-            .logentry
-            .value()
-            .unwrap()
-            .formatted
-            .value();
-
-        // Should never be None (completely removed)
-        assert!(formatted_value.is_some());
-
-        // Should have smart scrubbing applied (emails and credit cards scrubbed)
-        let formatted_str = formatted_value.unwrap().as_ref();
-        assert!(formatted_str.contains("[Email]"));
-        assert!(formatted_str.contains("[CreditCard]"));
-
-        // Should not be "[Filtered]"
-        assert_ne!(formatted_str, "[Filtered]");
-
-        // Should preserve context
-        assert!(formatted_str.contains("User"));
-        assert!(formatted_str.contains("failed login"));
+        assert_annotated_snapshot!(event);
     }
 
     #[test]
     fn test_logentry_formatted_bearer_token_scrubbing() {
-        let config = PiiConfig::default();
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+        {
+            "applications": {
+                "$logentry.formatted": ["@ip:remove"]
+            }
+        }
+        "#,
+        )
+        .unwrap();
         let mut event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
                 formatted: Annotated::new(
@@ -1368,25 +1340,7 @@ mod tests {
 
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-        let formatted_value = event
-            .value()
-            .unwrap()
-            .logentry
-            .value()
-            .unwrap()
-            .formatted
-            .value();
-
-        assert!(formatted_value.is_some());
-        let formatted_str = formatted_value.unwrap().as_ref();
-
-        // Should have Bearer token scrubbed but preserve "Bearer" prefix
-        assert!(
-            formatted_str
-                .eq_ignore_ascii_case("API request failed with Bearer [Token] and other data")
-        );
-        assert!(!formatted_str.contains("ABC123XYZ789TOKEN"));
+        assert_annotated_snapshot!(event);
     }
 
     #[test]
@@ -1406,22 +1360,7 @@ mod tests {
 
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-        let formatted_value = event
-            .value()
-            .unwrap()
-            .logentry
-            .value()
-            .unwrap()
-            .formatted
-            .value();
-
-        assert!(formatted_value.is_some());
-        let formatted_str = formatted_value.unwrap().as_ref();
-        assert_eq!(
-            formatted_str,
-            "User password is secret123 for authentication"
-        );
+        assert_annotated_snapshot!(event);
     }
 
     #[test]

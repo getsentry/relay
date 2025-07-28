@@ -243,7 +243,6 @@ def test_logentry_formatted_no_scrubbing_when_disabled(mini_sentry, relay):
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
-
     # Should remain unchanged when data scrubbing is disabled.
     formatted_value = event["logentry"]["formatted"]
     assert (
@@ -277,11 +276,6 @@ def test_logentry_formatted_scrubbing_enabled(mini_sentry, relay):
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
-
-    from pprint import pprint
-
-    pprint(event)
-
     formatted_value = event["logentry"]["formatted"]
     assert (
         formatted_value

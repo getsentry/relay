@@ -1,0 +1,28 @@
+---
+source: relay-pii/src/processor.rs
+expression: event
+---
+{
+  "logentry": {
+    "formatted": "User [Email] failed login with card [CreditCard]"
+  },
+  "_meta": {
+    "logentry": {
+      "formatted": {
+        "": {
+          "rem": [
+            [
+              "logentry.formatted:email",
+              "s"
+            ],
+            [
+              "logentry.formatted:creditcard",
+              "s"
+            ]
+          ],
+          "len": 68
+        }
+      }
+    }
+  }
+}
