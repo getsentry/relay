@@ -552,8 +552,6 @@ pub enum ProcessingError {
     ProcessingGroupMismatch,
     #[error("new processing pipeline failed")]
     ProcessingFailure,
-    #[error("failed to serialize processing result to an envelope")]
-    ProcessingEnvelopeSerialization,
 }
 
 impl ProcessingError {
@@ -599,9 +597,6 @@ impl ProcessingError {
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
             // Outcomes are emitted in the new processing pipeline already.
             Self::ProcessingFailure => None,
-            Self::ProcessingEnvelopeSerialization => {
-                Some(Outcome::Invalid(DiscardReason::Internal))
-            }
         }
     }
 
@@ -2462,9 +2457,6 @@ impl EnvelopeProcessorService {
         let project_key = envelope.envelope().meta().public_key();
         let sampling_key = envelope.envelope().sampling_key();
 
-        let has_ourlogs_new_byte_count =
-            project_info.has_feature(Feature::OurLogsCalculatedByteCount);
-
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
         relay_log::configure_scope(|scope| {
@@ -2517,16 +2509,7 @@ impl EnvelopeProcessorService {
                     &self.inner.addrs.aggregator,
                 );
 
-                if has_ourlogs_new_byte_count {
-                    Ok(Some(Submit::Logs(main)))
-                } else {
-                    let envelope = main
-                        .serialize_envelope()
-                        .map_err(|_| ProcessingError::ProcessingEnvelopeSerialization)?;
-                    let managed_envelope = ManagedEnvelope::from(envelope);
-
-                    Ok(Some(Submit::Envelope(managed_envelope.into_processed())))
-                }
+                Ok(Some(Submit::Logs(main)))
             }
             Err(err) => Err(err),
         };
