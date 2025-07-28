@@ -16,8 +16,111 @@ use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
 use crate::redactions::Redaction;
-use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
+use crate::regexes::{
+    self, ANYTHING_REGEX, CREDITCARD_REGEX, EMAIL_REGEX, IBAN_REGEX, PatternType, ReplaceBehavior,
+    US_SSN_REGEX,
+};
 use crate::utils;
+
+/// A PII pattern for smart scrubbing with its associated metadata.
+struct SelectedPattern<'a> {
+    regex: &'a regex::Regex,
+    replacement: &'static str,
+    remark_suffix: &'static str,
+}
+
+/// Smart PII scrubbing for logentry.formatted that preserves context while removing sensitive
+/// data.
+fn smart_scrub_logentry_formatted(
+    value: &mut String,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+    compiled_config: &CompiledPiiConfig,
+) -> ProcessingResult {
+    let patterns = [
+        SelectedPattern {
+            regex: &EMAIL_REGEX,
+            replacement: "[Email]",
+            remark_suffix: "email",
+        },
+        SelectedPattern {
+            regex: &CREDITCARD_REGEX,
+            replacement: "[CreditCard]",
+            remark_suffix: "creditcard",
+        },
+        SelectedPattern {
+            regex: &IBAN_REGEX,
+            replacement: "[IBAN]",
+            remark_suffix: "iban",
+        },
+        SelectedPattern {
+            regex: &US_SSN_REGEX,
+            replacement: "[SSN]",
+            remark_suffix: "ssn",
+        },
+    ];
+
+    let original_length = value.len();
+    let mut applied_patterns = Vec::with_capacity(patterns.len());
+
+    for pattern in &patterns {
+        let new_value = pattern.regex.replace_all(value, pattern.replacement);
+        if matches!(new_value, std::borrow::Cow::Owned(_)) {
+            *value = new_value.into_owned();
+            applied_patterns.push(pattern.remark_suffix);
+        }
+    }
+
+    // Add all remarks for applied patterns and set original length if needed.
+    if !applied_patterns.is_empty() {
+        for suffix in applied_patterns {
+            meta.add_remark(Remark::new(
+                RemarkType::Substituted,
+                format!("logentry.formatted:{suffix}"),
+            ));
+        }
+
+        // Set original length if the length changed.
+        if original_length != value.len() {
+            meta.set_original_length(Some(original_length));
+        }
+    }
+
+    // Apply user-configured PII rules, but avoid rules that would completely filter logentry.formatted.
+    // We skip @anything rules and only apply pattern-based rules to preserve context.
+    for (selector, rules) in compiled_config.applications.iter() {
+        if selector.matches_path(&state.path()) {
+            for rule in rules {
+                // Skip @anything rules for logentry.formatted to avoid complete filtering.
+                if rule.ty == RuleType::Anything {
+                    continue;
+                }
+
+                // Also skip rules with Default or Remove redaction that could delete everything.
+                if matches!(
+                    rule.redaction,
+                    Redaction::Default | Redaction::Remove | Redaction::Mask
+                ) {
+                    continue;
+                }
+
+                // Skip RedactPair rules that would replace the entire value with "[Filtered]".
+                // This prevents sensitive_fields configuration from completely filtering logentry.formatted.
+                if matches!(rule.ty, RuleType::RedactPair(_)) {
+                    if let Redaction::Replace(replace_redaction) = &rule.redaction {
+                        if replace_redaction.text == "[Filtered]" {
+                            continue;
+                        }
+                    }
+                }
+
+                apply_rule_to_value(meta, rule, state.path().key(), Some(value))?;
+            }
+        }
+    }
+
+    Ok(())
+}
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
@@ -151,6 +254,14 @@ impl Processor for PiiProcessor<'_> {
     ) -> ProcessingResult {
         if let "" | "true" | "false" | "null" | "undefined" = value.as_str() {
             return Ok(());
+        }
+
+        // Special handling for logentry.formatted - use smart scrubbing instead of blanket exclusion.
+        if state.path().key() == Some("formatted") {
+            let path_str = state.path().to_string();
+            if path_str.eq_ignore_ascii_case("logentry.formatted") {
+                return smart_scrub_logentry_formatted(value, meta, state, self.compiled_config);
+            }
         }
 
         // same as before_process. duplicated here because we can only check for "true",
@@ -1139,7 +1250,7 @@ mod tests {
 
     #[test]
     fn test_logentry_value_types() {
-        // Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted
+        // Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted.
         for formatted_selector in &[
             "$logentry.formatted",
             "$message",
@@ -1168,6 +1279,8 @@ mod tests {
             let mut processor = PiiProcessor::new(config.compiled());
             process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
+            // logentry.formatted should never be completely removed - it should preserve context
+            // even when @anything:remove rules are applied.
             assert!(
                 event
                     .value()
@@ -1177,9 +1290,63 @@ mod tests {
                     .unwrap()
                     .formatted
                     .value()
-                    .is_none()
+                    .is_some()
             );
         }
+    }
+
+    #[test]
+    fn test_logentry_formatted_never_fully_filtered() {
+        // Test that logentry.formatted is never completely filtered even with aggressive PII rules
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+        {
+            "applications": {
+                "$logentry.formatted": ["@anything:remove"]
+            }
+        }
+        "#,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new(
+                    "User john.doe@company.com failed login with card 4111-1111-1111-1111"
+                        .to_owned()
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let formatted_value = event
+            .value()
+            .unwrap()
+            .logentry
+            .value()
+            .unwrap()
+            .formatted
+            .value();
+
+        // Should never be None (completely removed)
+        assert!(formatted_value.is_some());
+
+        // Should have smart scrubbing applied (emails and credit cards scrubbed)
+        let formatted_str = formatted_value.unwrap().as_ref();
+        assert!(formatted_str.contains("[Email]"));
+        assert!(formatted_str.contains("[CreditCard]"));
+
+        // Should not be "[Filtered]"
+        assert_ne!(formatted_str, "[Filtered]");
+
+        // Should preserve context
+        assert!(formatted_str.contains("User"));
+        assert!(formatted_str.contains("failed login"));
     }
 
     #[test]

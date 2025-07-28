@@ -110,7 +110,7 @@ macro_rules! ip {
 macro_rules! regex {
     ($name:ident, $rule:expr) => {
         #[allow(non_snake_case)]
-        mod $name {
+        pub mod $name {
             use super::*;
             pub static $name: LazyLock<Regex> = LazyLock::new(|| Regex::new($rule).unwrap());
 
@@ -126,7 +126,7 @@ macro_rules! regex {
                 );
             }
         }
-        use $name::$name;
+        pub use $name::$name;
     };
 }
 

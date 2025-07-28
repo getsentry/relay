@@ -35,3 +35,157 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
     event = envelope.get_event()
     assert event["spans"][0]["sentry_tags"]["user.geo.country_code"] == "**"
     assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "**"
+
+
+def test_logentry_formatted_smart_scrubbing_email(mini_sentry, relay):
+    """Test that logentry.formatted gets smart email scrubbing"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {
+                "formatted": "User john.doe@company.com failed authentication"
+            },
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    # Should scrub entire email for security
+    assert event["logentry"]["formatted"] == "User [Email] failed authentication"
+
+
+def test_logentry_formatted_smart_scrubbing_credit_card(mini_sentry, relay):
+    """Test credit card scrubbing in logentry.formatted"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {"formatted": "Payment failed for card 4111-1111-1111-1111"},
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    assert event["logentry"]["formatted"] == "Payment failed for card [CreditCard]"
+
+
+def test_logentry_formatted_mixed_pii(mini_sentry, relay):
+    """Test multiple PII types in same message"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {
+                "formatted": "User alice@test.com with SSN 123-45-6789 used card 4111-1111-1111-1111"
+            },
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    # Smart scrubbing applies to all patterns: email, SSN, and credit card
+    expected = "User [Email] with SSN [SSN] used card [CreditCard]"
+    assert event["logentry"]["formatted"] == expected
+
+
+def test_logentry_formatted_no_pii(mini_sentry, relay):
+    """Test that messages without PII are unchanged"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {
+                "formatted": "Database connection failed to prod-db-01 at 10:30"
+            },
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    # Should remain unchanged
+    assert (
+        event["logentry"]["formatted"]
+        == "Database connection failed to prod-db-01 at 10:30"
+    )
+
+
+def test_logentry_formatted_user_rules(mini_sentry, relay):
+    """Test that user-configured PII rules apply to logentry.formatted"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["piiConfig"] = {
+        "rules": {
+            "custom_secret": {
+                "type": "pattern",
+                "pattern": r"SECRET_\w+",
+                "redaction": {"method": "replace", "text": "[secret]"},
+            }
+        },
+        "applications": {"$logentry.formatted": ["custom_secret"]},
+    }
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {"formatted": "Auth failed with SECRET_KEY_12345"},
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    assert event["logentry"]["formatted"] == "Auth failed with [secret]"
+
+
+def test_logentry_formatted_never_fully_filtered_integration(mini_sentry, relay):
+    """Test that logentry.formatted is never completely filtered even with @anything rules"""
+    project_id = 42
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["piiConfig"] = {
+        "applications": {"$logentry.formatted": ["@anything:remove"]}
+    }
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {"formatted": "User alice@test.com with sensitive data"},
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+
+    # Should never be "[Filtered]" or None - should preserve context with smart scrubbing
+    # Even when @anything:remove is configured, smart scrubbing should still apply
+    formatted_value = event["logentry"]["formatted"]
+    assert formatted_value is not None
+    assert formatted_value != "[Filtered]"
+    # Smart scrubbing should be applied (email should be scrubbed)
+    assert "[Email]" in formatted_value
+    # Context should be preserved (not completely filtered)
+    assert "User" in formatted_value and "sensitive data" in formatted_value
