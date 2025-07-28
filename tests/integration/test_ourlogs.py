@@ -215,7 +215,6 @@ def test_ourlog_meta_attributes(
     }
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
-        "organizations:ourlogs-calculated-byte-count",
         "organizations:ourlogs-meta-attributes" if meta_enabled else "",
     ]
 
@@ -276,14 +275,12 @@ def test_ourlog_meta_attributes(
     }
 
 
-@pytest.mark.parametrize("calculated_byte_count", [False, True])
 def test_ourlog_extraction_with_sentry_logs(
     mini_sentry,
     relay,
     relay_with_processing,
     items_consumer,
     outcomes_consumer,
-    calculated_byte_count,
 ):
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -293,10 +290,6 @@ def test_ourlog_extraction_with_sentry_logs(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-    if calculated_byte_count:
-        project_config["config"]["features"].append(
-            "organizations:ourlogs-calculated-byte-count"
-        )
     relay = relay(relay_with_processing(options=TEST_CONFIG))
     ts = datetime.now(timezone.utc)
 
@@ -393,9 +386,7 @@ def test_ourlog_extraction_with_sentry_logs(
         },
     ]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(
-        n=4 if calculated_byte_count else 2
-    )
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -411,12 +402,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            # This is a billing relevant number, do not just adjust this because it changed.
-            #
-            # This is 'fuzzy' for the non-calculated outcome, as timestamps do not have a constant size.
-            "quantity": (
-                260 if calculated_byte_count else matches(lambda x: 2470 <= x <= 2480)
-            ),
+            "quantity": 260,
         },
     ]
 
