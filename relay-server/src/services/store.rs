@@ -2024,8 +2024,8 @@ impl Message for KafkaMessage<'_> {
         }
     }
 
-    /// Returns the partitioning key for this kafka message determining.
-    fn key(&self) -> Option<[u8; 16]> {
+    /// Returns the partitioning key for this Kafka message determining.
+    fn key(&self) -> Option<relay_kafka::Key> {
         match self {
             Self::Event(message) => Some(message.event_id.0),
             Self::Attachment(message) => Some(message.event_id.0),
@@ -2044,7 +2044,7 @@ impl Message for KafkaMessage<'_> {
             _ => None,
         }
         .filter(|uuid| !uuid.is_nil())
-        .map(|uuid| uuid.into_bytes())
+        .map(|uuid| uuid.as_u128())
     }
 
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
@@ -2122,7 +2122,7 @@ mod tests {
         for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             let res = producer
                 .client
-                .send(topic, Some(*b"0123456789abcdef"), None, "foo", b"");
+                .send(topic, Some(0x0123456789abcdef), None, "foo", b"");
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }

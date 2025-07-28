@@ -29,6 +29,9 @@ mod schemas;
 const REPORT_FREQUENCY_SECS: u64 = 1;
 const KAFKA_FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Key type used for partitioning.
+pub type Key = u128;
+
 /// Kafka producer errors.
 #[derive(Error, Debug)]
 pub enum ClientError {
@@ -78,7 +81,7 @@ pub enum ClientError {
 /// Describes the type which can be sent using kafka producer provided by this crate.
 pub trait Message {
     /// Returns the partitioning key for this kafka message determining.
-    fn key(&self) -> Option<[u8; 16]>;
+    fn key(&self) -> Option<Key>;
 
     /// Returns the type of the message.
     fn variant(&self) -> &'static str;
@@ -130,7 +133,7 @@ impl TopicProducers {
         }
     }
 
-    fn select(&self, key: [u8; 16]) -> Option<&TopicProducer> {
+    fn select(&self, key: u128) -> Option<&TopicProducer> {
         debug_assert!(!self.producers.is_empty());
 
         if self.producers.is_empty() {
@@ -139,7 +142,7 @@ impl TopicProducers {
             return self.producers.first();
         }
 
-        let select = (u128::from_be_bytes(key) % self.producers.len() as u128) as usize;
+        let select = (key % self.producers.len() as u128) as usize;
         self.producers.get(select)
     }
 
@@ -191,15 +194,13 @@ impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        key: Option<[u8; 16]>,
+        key: Option<Key>,
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
     ) -> Result<&str, ClientError> {
         let now = Instant::now();
 
-        // Remember if the user specified the key.
-        let has_key = key.is_some();
         // Always generate a key to force a slightly more equal distribution across partitions,
         // see also the documentation for `Self::next_key`.
         let mut key = key.unwrap_or_else(|| self.next_key());
@@ -228,7 +229,10 @@ impl Producer {
             })
             .collect::<KafkaHeaders>();
 
-        if has_key && let Some(limiter) = &rate_limiter {
+        // Always rate limit if there is a rate limiter defined.
+        // Defining a rate limiter for a topic which does not have a consistent routing key is just
+        // a misconfiguration.
+        if let Some(limiter) = &rate_limiter {
             let is_limited = limiter.try_increment(now, key, 1) < 1;
 
             if is_limited {
@@ -243,11 +247,12 @@ impl Producer {
                     value: Some("1"),
                 });
 
-                // Force a 'random partition, instead the originally assigned partition.
+                // Force a 'random' partition, instead the originally assigned partition.
                 key = self.next_key();
             }
         }
 
+        let key = u128::to_be_bytes(key);
         let mut record = BaseRecord::to(topic_name).payload(payload).key(&key);
         if let Some(headers) = headers.into_inner() {
             record = record.headers(headers);
@@ -287,8 +292,10 @@ impl Producer {
     /// Producing a Kafka message without a 'random' key, produces slightly uneven batches to
     /// partitions. We've seen that this pattern does not play well with our Arroyo consumers
     /// and leads to higher partition lags.
-    fn next_key(&self) -> [u8; 16] {
-        u128::to_be_bytes(self.next_key.fetch_add(1, Ordering::Relaxed) as u128)
+    fn next_key(&self) -> u128 {
+        // Overflowing is fine, as it would wrap. The only use for the atomic is to generate
+        // a different key to the one before.
+        self.next_key.fetch_add(1, Ordering::Relaxed) as u128
     }
 }
 
@@ -307,7 +314,7 @@ impl fmt::Debug for Producer {
     }
 }
 
-/// Keeps all the configured kafka producers and responsible for the routing of the messages.
+/// Keeps all the configured Kafka producers and responsible for the routing of the messages.
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
@@ -321,9 +328,9 @@ impl KafkaClient {
         KafkaClientBuilder::default()
     }
 
-    /// Sends message to the provided kafka topic.
+    /// Sends message to the provided Kafka topic.
     ///
-    /// Returns the name of the kafka topic to which the message was produced.
+    /// Returns the name of the Kafka topic to which the message was produced.
     pub fn send_message(
         &self,
         topic: KafkaTopic,
@@ -349,11 +356,11 @@ impl KafkaClient {
 
     /// Sends the payload to the correct producer for the current topic.
     ///
-    /// Returns the name of the kafka topic to which the message was produced.
+    /// Returns the name of the Kafka topic to which the message was produced.
     pub fn send(
         &self,
         topic: KafkaTopic,
-        key: Option<[u8; 16]>,
+        key: Option<Key>,
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
