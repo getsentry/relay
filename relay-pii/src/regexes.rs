@@ -61,13 +61,13 @@ pub fn get_regex_for_rule_type(
             }
         }
         RuleType::Bearer => {
-            smallvec![(kv, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match())]
+            smallvec![(v, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match())]
         }
         RuleType::Password => {
             smallvec![
                 // Bearer token was moved to its own regest and type out of the passwords, but we
                 // still keep it here for backwards compatibility.
-                (kv, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match()),
+                (v, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match()),
                 (kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value()),
             ]
         }
