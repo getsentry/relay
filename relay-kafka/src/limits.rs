@@ -6,9 +6,8 @@ use std::time::{Duration, Instant};
 use hashbrown::HashMap;
 use parking_lot::RwLock;
 
+use crate::Key;
 use crate::debounced::Debounced;
-
-type Key = [u8; 16];
 
 /// A really basic rate limiter to protect downstream systems from partition imbalance on ingestion
 /// topics.
@@ -78,7 +77,7 @@ mod tests {
     fn test_limits() {
         let limiter = KafkaRateLimits::new(10, Duration::from_secs(10));
         let now = Instant::now();
-        let key = [0; 16];
+        let key = 42;
 
         for i in 1..=5 {
             assert_eq!(
