@@ -12,7 +12,7 @@ expression: event
         "": {
           "rem": [
             [
-              "@bearer",
+              "@bearer:replace",
               "s",
               24,
               38

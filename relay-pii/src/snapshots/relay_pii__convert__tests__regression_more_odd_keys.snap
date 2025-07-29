@@ -4,7 +4,7 @@ expression: pii_config
 ---
 {
   "rules": {
-    "@bearer": {
+    "@bearer:replace": {
       "type": "pattern",
       "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
       "replaceGroups": null,
@@ -30,7 +30,7 @@ expression: pii_config
       "@creditcard:replace",
       "@iban:replace",
       "@usssn:replace",
-      "@bearer"
+      "@bearer:replace"
     ]
   }
 }

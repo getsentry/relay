@@ -75,7 +75,7 @@ pub fn to_pii_config(
 
         // Custom PII rules for logentry.formatted handling.
         custom_rules.insert(
-            "@bearer".to_owned(),
+            "@bearer:replace".to_owned(),
             RuleSpec {
                 ty: RuleType::Pattern(crate::PatternRule {
                     pattern: LazyPattern::new(BEARER_TOKEN_REGEX.as_str()),
@@ -98,7 +98,7 @@ pub fn to_pii_config(
                 "@creditcard:replace".to_owned(),
                 "@iban:replace".to_owned(),
                 "@usssn:replace".to_owned(),
-                "@bearer".to_owned(),
+                "@bearer:replace".to_owned(),
             ],
         );
     }
@@ -315,7 +315,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(simple_enabled_pii_config(), @r#"
         {
           "rules": {
-            "@bearer": {
+            "@bearer:replace": {
               "type": "pattern",
               "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
               "replaceGroups": null,
@@ -341,7 +341,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
-              "@bearer"
+              "@bearer:replace"
             ]
           }
         }
@@ -358,7 +358,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
-            "@bearer": {
+            "@bearer:replace": {
               "type": "pattern",
               "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
               "replaceGroups": null,
@@ -384,7 +384,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
-              "@bearer"
+              "@bearer:replace"
             ]
           }
         }
@@ -401,7 +401,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
-            "@bearer": {
+            "@bearer:replace": {
               "type": "pattern",
               "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
               "replaceGroups": null,
@@ -436,7 +436,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
-              "@bearer"
+              "@bearer:replace"
             ]
           }
         }
@@ -453,7 +453,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
-            "@bearer": {
+            "@bearer:replace": {
               "type": "pattern",
               "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
               "replaceGroups": null,
@@ -479,7 +479,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
-              "@bearer"
+              "@bearer:replace"
             ]
           }
         }
@@ -1374,7 +1374,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
-            "@bearer": {
+            "@bearer:replace": {
               "type": "pattern",
               "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
               "replaceGroups": null,
@@ -1409,7 +1409,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@creditcard:replace",
               "@iban:replace",
               "@usssn:replace",
-              "@bearer"
+              "@bearer:replace"
             ]
           }
         }
