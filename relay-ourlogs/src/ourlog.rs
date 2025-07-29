@@ -135,10 +135,6 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
             .unwrap_or_else(|| "info".to_owned()),
     );
     attributes.insert(
-        "sentry.severity_number".to_owned(),
-        level_to_otel_severity_number(ourlog_value.level.value().cloned()),
-    );
-    attributes.insert(
         "sentry.timestamp_nanos".to_owned(),
         timestamp_nanos.to_string(),
     );
@@ -147,20 +143,6 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
         "sentry.observed_timestamp_nanos".to_owned(),
         received_at_nanos.to_string(),
     );
-}
-
-fn level_to_otel_severity_number(level: Option<OurLogLevel>) -> i64 {
-    match level {
-        Some(OurLogLevel::Trace) => 1,
-        Some(OurLogLevel::Debug) => 5,
-        Some(OurLogLevel::Info) => 9,
-        Some(OurLogLevel::Warn) => 13,
-        Some(OurLogLevel::Error) => 17,
-        Some(OurLogLevel::Fatal) => 21,
-        // 0 is the default value.
-        // https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/68e1d6cd94bfca9bdf725327d4221f97ce0e0564/pkg/stanza/docs/types/severity.md
-        _ => 0,
-    }
 }
 
 #[cfg(test)]
@@ -433,10 +415,6 @@ mod tests {
               "type": "string",
               "value": "946684800000000000"
             },
-            "sentry.severity_number": {
-              "type": "integer",
-              "value": 9
-            },
             "sentry.severity_text": {
               "type": "string",
               "value": "info"
@@ -452,39 +430,6 @@ mod tests {
           }
         }
         "###);
-    }
-
-    #[test]
-    fn ourlog_merge_otel_log_with_unknown_severity_number() {
-        let json = r#"{
-            "timestamp": 946684800.0,
-            "level": "abc",
-            "trace_id": "5B8EFFF798038103D269B633813FC60C",
-            "span_id": "EEE19B7EC3C1B174",
-            "body": "Example log record",
-            "attributes": {
-                "foo": {
-                    "value": "9",
-                    "type": "string"
-                }
-            }
-        }"#;
-
-        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
-        ourlog_merge_otel(
-            &mut data,
-            DateTime::from_timestamp_nanos(946684800000000000),
-        );
-        assert_eq!(
-            data.value()
-                .unwrap()
-                .attributes
-                .value()
-                .unwrap()
-                .get_attribute("sentry.severity_number")
-                .unwrap(),
-            &Attribute::new(AttributeType::Integer, Value::I64(0)),
-        );
     }
 
     #[test]
@@ -517,10 +462,6 @@ mod tests {
             "sentry.observed_timestamp_nanos": {
               "type": "string",
               "value": "946684800000000000"
-            },
-            "sentry.severity_number": {
-              "type": "integer",
-              "value": 0
             },
             "sentry.severity_text": {
               "type": "string",
