@@ -4,7 +4,7 @@ expression: event
 ---
 {
   "logentry": {
-    "formatted": "API request failed with Bearer [Token] and other data"
+    "formatted": "API request failed with Bearer [token] and other data"
   },
   "_meta": {
     "logentry": {
@@ -12,8 +12,10 @@ expression: event
         "": {
           "rem": [
             [
-              "logentry.formatted:bearer_token",
-              "s"
+              "@bearer",
+              "s",
+              24,
+              38
             ]
           ],
           "len": 63

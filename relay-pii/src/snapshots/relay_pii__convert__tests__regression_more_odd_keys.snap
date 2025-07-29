@@ -3,8 +3,19 @@ source: relay-pii/src/convert.rs
 expression: pii_config
 ---
 {
+  "rules": {
+    "@bearer": {
+      "type": "pattern",
+      "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
+      "replaceGroups": null,
+      "redaction": {
+        "method": "replace",
+        "text": "Bearer [token]"
+      }
+    }
+  },
   "applications": {
-    "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $error.value || $http.headers.user-agent) && !url && !message && !http.request.url && !'*url*' && !'*message*' && !'*http.request.url*'": [
+    "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) && !url && !message && !http.request.url && !'*url*' && !'*message*' && !'*http.request.url*'": [
       "@common:filter",
       "@ip:replace"
     ],
@@ -13,6 +24,13 @@ expression: pii_config
     ],
     "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
       "@anything:filter"
+    ],
+    "$logentry.formatted": [
+      "@email:replace",
+      "@creditcard:replace",
+      "@iban:replace",
+      "@usssn:replace",
+      "@bearer"
     ]
   }
 }

@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use once_cell::sync::Lazy;
 use relay_event_schema::processor::ValueType;
 
+use crate::regexes::BEARER_TOKEN_REGEX;
 use crate::selector::{SelectorPathItem, SelectorSpec};
 use crate::{
     DataScrubbingConfig, LazyPattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction,
@@ -14,7 +15,7 @@ use crate::{
 /// We define this list independently of `metastructure(pii = true/false)` because the new PII
 /// scrubber should be able to strip more.
 static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
-    "(debug_meta.** | $frame.filename | $frame.abs_path | $error.value | $request.headers.user-agent)"
+    "(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value | $request.headers.user-agent)"
         .parse()
         .unwrap()
 });
@@ -70,6 +71,35 @@ pub fn to_pii_config(
         applications.insert(
             SENSITIVE_COOKIES.clone(),
             vec!["@anything:filter".to_owned()],
+        );
+
+        // Custom PII rules for logentry.formatted handling.
+        custom_rules.insert(
+            "@bearer".to_owned(),
+            RuleSpec {
+                ty: RuleType::Pattern(crate::PatternRule {
+                    pattern: LazyPattern::new(BEARER_TOKEN_REGEX.as_str()),
+                    replace_groups: None,
+                }),
+                redaction: Redaction::Replace("Bearer [token]".to_owned().into()),
+            },
+        );
+
+        let logentry_selector: SelectorSpec = SelectorSpec::Path(vec![
+            SelectorPathItem::Type(ValueType::LogEntry),
+            SelectorPathItem::Key("formatted".to_owned()),
+        ]);
+
+        // Apply smart scrubbing rules only to logentry.formatted
+        applications.insert(
+            logentry_selector,
+            vec![
+                "@email:replace".to_owned(),
+                "@creditcard:replace".to_owned(),
+                "@iban:replace".to_owned(),
+                "@usssn:replace".to_owned(),
+                "@bearer".to_owned(),
+            ],
         );
     }
 
@@ -284,8 +314,19 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_convert_default_pii_config() {
         insta::assert_json_snapshot!(simple_enabled_pii_config(), @r#"
         {
+          "rules": {
+            "@bearer": {
+              "type": "pattern",
+              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
+              "replaceGroups": null,
+              "redaction": {
+                "method": "replace",
+                "text": "Bearer [token]"
+              }
+            }
+          },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $error.value || $http.headers.user-agent)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -294,6 +335,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer"
             ]
           }
         }
@@ -309,8 +357,19 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r#"
         {
+          "rules": {
+            "@bearer": {
+              "type": "pattern",
+              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
+              "replaceGroups": null,
+              "redaction": {
+                "method": "replace",
+                "text": "Bearer [token]"
+              }
+            }
+          },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $error.value || $http.headers.user-agent)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -319,6 +378,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer"
             ]
           }
         }
@@ -335,6 +401,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
+            "@bearer": {
+              "type": "pattern",
+              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
+              "replaceGroups": null,
+              "redaction": {
+                "method": "replace",
+                "text": "Bearer [token]"
+              }
+            },
             "strip-fields": {
               "type": "redact_pair",
               "keyPattern": "fieldy_field|moar_other_field",
@@ -345,7 +420,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $error.value || $http.headers.user-agent)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace",
               "strip-fields"
@@ -355,6 +430,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer"
             ]
           }
         }
@@ -370,8 +452,19 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r#"
         {
+          "rules": {
+            "@bearer": {
+              "type": "pattern",
+              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
+              "replaceGroups": null,
+              "redaction": {
+                "method": "replace",
+                "text": "Bearer [token]"
+              }
+            }
+          },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $error.value || $http.headers.user-agent) && !foobar": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) && !foobar": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -380,6 +473,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer"
             ]
           }
         }
@@ -398,7 +498,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $error.value || $http.headers.user-agent)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
@@ -1274,6 +1374,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
+            "@bearer": {
+              "type": "pattern",
+              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
+              "replaceGroups": null,
+              "redaction": {
+                "method": "replace",
+                "text": "Bearer [token]"
+              }
+            },
             "strip-fields": {
               "type": "redact_pair",
               "keyPattern": "session_key",
@@ -1284,7 +1393,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $error.value || $http.headers.user-agent)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace",
               "strip-fields"
@@ -1294,6 +1403,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer"
             ]
           }
         }

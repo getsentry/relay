@@ -16,101 +16,8 @@ use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
 use crate::redactions::Redaction;
-use crate::regexes::{
-    self, ANYTHING_REGEX, BEARER_TOKEN_REGEX, CREDITCARD_REGEX, EMAIL_REGEX, IBAN_REGEX,
-    PatternType, ReplaceBehavior, US_SSN_REGEX,
-};
+use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
 use crate::utils;
-
-/// A PII pattern for smart scrubbing with its associated metadata.
-struct SelectedPattern<'a> {
-    regex: &'a regex::Regex,
-    replacement: &'static str,
-    remark_suffix: &'static str,
-}
-
-/// Smart PII scrubbing for logentry.formatted that preserves context while removing sensitive
-/// data.
-fn smart_scrub_logentry_formatted(
-    value: &mut String,
-    meta: &mut Meta,
-    state: &ProcessingState<'_>,
-    compiled_config: &CompiledPiiConfig,
-) -> ProcessingResult {
-    // If there are no applications the PII scrubbing was disabled, we can skip.
-    if compiled_config.applications.is_empty() {
-        return Ok(());
-    }
-
-    let patterns = [
-        SelectedPattern {
-            regex: &EMAIL_REGEX,
-            replacement: "[Email]",
-            remark_suffix: "email",
-        },
-        SelectedPattern {
-            regex: &CREDITCARD_REGEX,
-            replacement: "[CreditCard]",
-            remark_suffix: "creditcard",
-        },
-        SelectedPattern {
-            regex: &IBAN_REGEX,
-            replacement: "[IBAN]",
-            remark_suffix: "iban",
-        },
-        SelectedPattern {
-            regex: &US_SSN_REGEX,
-            replacement: "[SSN]",
-            remark_suffix: "ssn",
-        },
-        SelectedPattern {
-            regex: &BEARER_TOKEN_REGEX,
-            replacement: "${1}[Token]",
-            remark_suffix: "bearer_token",
-        },
-    ];
-
-    let original_length = value.len();
-    let mut applied_patterns = Vec::with_capacity(patterns.len());
-
-    for pattern in &patterns {
-        let new_value = pattern.regex.replace_all(value, pattern.replacement);
-        if let std::borrow::Cow::Owned(new_value) = new_value {
-            *value = new_value;
-            applied_patterns.push(pattern.remark_suffix);
-        }
-    }
-
-    for suffix in &applied_patterns {
-        meta.add_remark(Remark::new(
-            RemarkType::Substituted,
-            format!("logentry.formatted:{suffix}"),
-        ));
-    }
-
-    if !applied_patterns.is_empty() && original_length != value.len() {
-        meta.set_original_length(Some(original_length));
-    }
-
-    // Apply user-configured PII rules second, but skip problematic ones that would completely filter
-    for (selector, rules) in compiled_config.applications.iter() {
-        if selector.matches_path(&state.path()) {
-            for rule in rules {
-                // Skip any Replace rules that would replace with "[Filtered]"
-                // This prevents @common:filter rules from completely filtering logentry.formatted
-                if let Redaction::Replace(replace_redaction) = &rule.redaction
-                    && replace_redaction.text == "[Filtered]"
-                {
-                    continue;
-                }
-
-                apply_rule_to_value(meta, rule, state.path().key(), Some(value))?;
-            }
-        }
-    }
-
-    Ok(())
-}
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
@@ -244,15 +151,6 @@ impl Processor for PiiProcessor<'_> {
     ) -> ProcessingResult {
         if let "" | "true" | "false" | "null" | "undefined" = value.as_str() {
             return Ok(());
-        }
-
-        // Special handling for logentry.formatted - always use smart scrubbing to protect against PII
-        // in issue titles, regardless of PII configuration
-        if state.path().key() == Some("formatted") {
-            let path_str = state.path().to_string();
-            if path_str.eq_ignore_ascii_case("logentry.formatted") {
-                return smart_scrub_logentry_formatted(value, meta, state, self.compiled_config);
-            }
         }
 
         // same as before_process. duplicated here because we can only check for "true",
@@ -1285,16 +1183,15 @@ mod tests {
 
     #[test]
     fn test_logentry_formatted_never_fully_filtered() {
-        // Test that logentry.formatted is never completely filtered even with aggressive PII rules
-        let config = serde_json::from_str::<PiiConfig>(
-            r#"
-        {
-            "applications": {
-                "$logentry.formatted": ["@ip:remove"]
-            }
-        }
-        "#,
-        )
+        // Test that logentry.formatted gets smart PII scrubbing via to_pii_config
+        // and is never completely filtered even with aggressive PII rules
+        let config = crate::convert::to_pii_config(&crate::DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            scrub_ip_addresses: true,
+            ..Default::default()
+        })
+        .unwrap()
         .unwrap();
 
         let mut event = Annotated::new(Event {
@@ -1316,16 +1213,15 @@ mod tests {
 
     #[test]
     fn test_logentry_formatted_bearer_token_scrubbing() {
-        let config = serde_json::from_str::<PiiConfig>(
-            r#"
-        {
-            "applications": {
-                "$logentry.formatted": ["@ip:remove"]
-            }
-        }
-        "#,
-        )
+        // Test that bearer tokens are properly scrubbed in logentry.formatted
+        let config = crate::convert::to_pii_config(&crate::DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        })
+        .unwrap()
         .unwrap();
+
         let mut event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
                 formatted: Annotated::new(

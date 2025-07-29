@@ -4,7 +4,7 @@ expression: event
 ---
 {
   "logentry": {
-    "formatted": "User [Email] failed login with card [CreditCard]"
+    "formatted": "User [email] failed login with card [creditcard]"
   },
   "_meta": {
     "logentry": {
@@ -12,12 +12,16 @@ expression: event
         "": {
           "rem": [
             [
-              "logentry.formatted:email",
-              "s"
+              "@email:replace",
+              "s",
+              5,
+              12
             ],
             [
-              "logentry.formatted:creditcard",
-              "s"
+              "@creditcard:replace",
+              "s",
+              36,
+              48
             ]
           ],
           "len": 68
