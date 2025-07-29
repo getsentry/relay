@@ -37,14 +37,29 @@ def _to_datetime(v, resolution=Resolution.Seconds):
         assert False, f"cannot convert {v} to datetime"
 
 
-def _truncate(dt, resolution=None):
+def _dt_floor(dt, resolution=None):
     if resolution is None:
         return dt
 
     return {
         Resolution.Seconds: lambda x: x.replace(microsecond=0),
         Resolution.MilliSeconds: lambda x: x.replace(
-            microsecond=int(x.microsecond / 1000) * 1000
+            microsecond=int(x.microsecond * 1000) / 1000
+        ),
+        Resolution.MicroSeconds: lambda x: x,
+        # Resolution of the Python datetime itself is just in microseconds
+        Resolution.NanoSeconds: lambda x: x,
+    }[resolution](dt)
+
+
+def _dt_ceil(dt, resolution=None):
+    if resolution is None:
+        return dt
+
+    return {
+        Resolution.Seconds: lambda x: x.replace(microsecond=999999),
+        Resolution.MilliSeconds: lambda x: x.replace(
+            microsecond=int(x.microsecond * 1000) / 1000 + 999
         ),
         Resolution.MicroSeconds: lambda x: x,
         # Resolution of the Python datetime itself is just in microseconds
@@ -72,8 +87,9 @@ class _WithinBounds:
         expect_resolution=Resolution.Seconds,
         precision=None,
     ):
-        self._lower_bound = _truncate(lower_bound, precision)
-        self._upper_bound = _truncate(upper_bound, precision)
+        self._lower_bound = _dt_floor(lower_bound, precision)
+        self._upper_bound = _dt_ceil(upper_bound, precision)
+        self._precision = precision
         self._expect_resolution = expect_resolution
 
     def __eq__(self, other):

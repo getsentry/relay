@@ -77,12 +77,12 @@ def timestamps(ts: datetime):
         },
         "sentry.timestamp_nanos": {
             "stringValue": time_within_delta(
-                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
+                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="ms"
             )
         },
         "sentry.timestamp_precise": {
             "intValue": time_within_delta(
-                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="us"
+                ts, delta=timedelta(seconds=0), expect_resolution="ns", precision="ms"
             )
         },
     }
