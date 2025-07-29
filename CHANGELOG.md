@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
+
 **Bug Fixes**:
 
 - Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
