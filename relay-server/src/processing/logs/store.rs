@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
-use relay_event_schema::protocol::{Attributes, OurLog, SpanId};
+use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId};
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
@@ -56,6 +56,7 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
 
     let attrs = log.attributes.0.unwrap_or_default();
     let fields = FieldAttributes {
+        level: required!(log.level),
         body: required!(log.body),
         span_id: log.span_id.into_value(),
     };
@@ -200,6 +201,10 @@ fn size_of_meta_tree(meta: &MetaTree) -> usize {
 
 /// Fields on the log message which are stored as fields.
 struct FieldAttributes {
+    /// The log level.
+    ///
+    /// See: [`OurLog::level`].
+    level: OurLogLevel,
     /// The log body.
     ///
     /// See: [`OurLog::body`].
@@ -218,8 +223,9 @@ fn attributes(
     ctx: &Context,
 ) -> HashMap<String, AnyValue> {
     let mut result = meta;
-    // +2 for field attributes.
-    result.reserve(attributes.0.len() + 2);
+    // +3 for field attributes.
+    result.reserve(attributes.0.len() + 3);
+    let capacity = result.capacity();
 
     for (name, attribute) in attributes {
         let meta = AttributeMeta {
@@ -260,12 +266,22 @@ fn attributes(
         result.insert(name, AnyValue { value: Some(value) });
     }
 
-    let FieldAttributes { body, span_id } = fields;
+    let FieldAttributes {
+        level,
+        body,
+        span_id,
+    } = fields;
     // Unconditionally override any prior set attributes with the same key, as they should always
     // come from the log itself.
     //
     // Ideally these attributes are marked as private in sentry-conventions and potentially
     // validated against.
+    result.insert(
+        "sentry.severity_text".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::StringValue(level.to_string())),
+        },
+    );
     result.insert(
         "sentry.body".to_owned(),
         AnyValue {
@@ -280,6 +296,11 @@ fn attributes(
             },
         );
     }
+
+    debug_assert!(
+        capacity == result.capacity(),
+        "attribute size should be reserved correctly upfront"
+    );
 
     result
 }
@@ -408,6 +429,13 @@ mod tests {
                 value: Some(
                     StringValue(
                         "Example log record",
+                    ),
+                ),
+            },
+            "sentry.severity_text": AnyValue {
+                value: Some(
+                    StringValue(
+                        "info",
                     ),
                 ),
             },

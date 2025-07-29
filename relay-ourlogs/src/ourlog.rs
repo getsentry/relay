@@ -52,7 +52,6 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
 
     let mut attribute_data = Attributes::default();
 
-    attribute_data.insert("sentry.severity_text".to_owned(), severity_text.clone());
     attribute_data.insert("sentry.severity_number".to_owned(), severity_number as i64);
     attribute_data.insert(
         "sentry.timestamp_nanos".to_owned(),
@@ -126,14 +125,6 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
         .timestamp_nanos_opt()
         .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64);
 
-    attributes.insert(
-        "sentry.severity_text".to_owned(),
-        ourlog_value
-            .level
-            .value()
-            .map(|level| level.to_string())
-            .unwrap_or_else(|| "info".to_owned()),
-    );
     attributes.insert(
         "sentry.timestamp_nanos".to_owned(),
         timestamp_nanos.to_string(),
@@ -415,10 +406,6 @@ mod tests {
               "type": "string",
               "value": "946684800000000000"
             },
-            "sentry.severity_text": {
-              "type": "string",
-              "value": "info"
-            },
             "sentry.timestamp_nanos": {
               "type": "string",
               "value": "946684800000000000"
@@ -462,10 +449,6 @@ mod tests {
             "sentry.observed_timestamp_nanos": {
               "type": "string",
               "value": "946684800000000000"
-            },
-            "sentry.severity_text": {
-              "type": "string",
-              "value": "info"
             },
             "sentry.timestamp_nanos": {
               "type": "string",
