@@ -1439,7 +1439,6 @@ impl EnvelopeProcessorService {
                 .aggregator_config_for(MetricNamespace::Spans)
                 .max_tag_value_length,
             extract_spans,
-            project_info.config.features.produces_spans(),
         );
 
         extracted_metrics.extend(metrics, Some(sampling_decision));

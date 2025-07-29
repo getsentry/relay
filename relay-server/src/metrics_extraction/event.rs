@@ -57,7 +57,6 @@ pub fn extract_metrics(
     target_project_id: ProjectId,
     max_tag_value_size: usize,
     extract_spans: bool,
-    produces_spans: bool,
 ) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics {
         project_metrics: generic::extract_metrics(event, config),
@@ -71,7 +70,6 @@ pub fn extract_metrics(
             sampling_decision,
             target_project_id,
             max_tag_value_size,
-            produces_spans,
             &mut metrics,
         );
     }
@@ -85,7 +83,6 @@ fn extract_span_metrics_for_event(
     sampling_decision: SamplingDecision,
     target_project_id: ProjectId,
     max_tag_value_size: usize,
-    produces_spans: bool,
     output: &mut ExtractedMetrics,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
@@ -107,18 +104,18 @@ fn extract_span_metrics_for_event(
             }
         }
 
-        // Extract the count per root metric, only if Relay will also produce standalone spans.
-        if produces_spans {
-            let transaction = transactions::get_transaction_name(event);
-            let bucket = create_span_root_counter(
-                event,
-                transaction,
-                span_count,
-                sampling_decision,
-                target_project_id,
-            );
-            output.sampling_metrics.extend(bucket);
-        }
+        // We unconditionally run metric extraction for spans. The count per root, is technically
+        // only required for configurations which do have dynamic sampling enabled. But for the
+        // sake of simplicity we always add it here.
+        let transaction = transactions::get_transaction_name(event);
+        let bucket = create_span_root_counter(
+            event,
+            transaction,
+            span_count,
+            sampling_decision,
+            target_project_id,
+        );
+        output.sampling_metrics.extend(bucket);
     });
 }
 
@@ -1273,7 +1270,6 @@ mod tests {
             SamplingDecision::Keep,
             ProjectId::new(4711),
             200,
-            true,
             true,
         )
     }
