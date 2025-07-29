@@ -5,12 +5,24 @@
 **Features**:
 
 - Add `unhandled` status type for Release Health `session` and `sessions` envelopes. ([#4939](https://github.com/getsentry/relay/pull/4939))
+- Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
+
+**Bug Fixes**:
+
+- Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
+- Normalize AI pipeline name and streaming flag to `gen_ai.*` names ([#4982](https://github.com/getsentry/relay/pull/4982))
 
 **Internal**:
 
+- Enforce span limits for transactions and vice versa. ([#4963](https://github.com/getsentry/relay/pull/4963))
 - Emit outcomes for skipped large attachments on playstation crashes. ([#4862](https://github.com/getsentry/relay/pull/4862))
 - Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931),[#4955](https://github.com/getsentry/relay/pull/4955))
 - Deprecate old AI monitoring attributes. ([#4960](https://github.com/getsentry/relay/pull/4960))
+- Normalize legacy `ai.*` attributes to `gen_ai.*` names. ([#4924](https://github.com/getsentry/relay/pull/4924))
+- Force the routing key to be random instead of letting Kafka handle the randomization. ([#4974](https://github.com/getsentry/relay/pull/4974))
+- Stop extracting the `sentry.severity_number` attribute for logs. ([#4989](https://github.com/getsentry/relay/pull/4989))
+- Stop extracting the `sentry.trace_flags` attribute for logs. ([#4988](https://github.com/getsentry/relay/pull/4988))
+- Add Jwm to the supported image types. ([#4975](https://github.com/getsentry/relay/pull/4975))
 
 ## 25.7.0
 

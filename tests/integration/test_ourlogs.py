@@ -115,9 +115,8 @@ def test_ourlog_extraction_with_otel_logs(
             "sentry.browser.name": {"stringValue": "Python Requests"},
             "sentry.browser.version": {"stringValue": "2.32"},
             "sentry.severity_number": {"intValue": "10"},
-            "sentry.severity_text": {"stringValue": "Information"},
+            "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-            "sentry.trace_flags": {"intValue": "0"},
             "string.attribute": {"stringValue": "some string"},
             **timestamps(ts),
         },
@@ -215,7 +214,6 @@ def test_ourlog_meta_attributes(
     }
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
-        "organizations:ourlogs-calculated-byte-count",
         "organizations:ourlogs-meta-attributes" if meta_enabled else "",
     ]
 
@@ -246,10 +244,8 @@ def test_ourlog_meta_attributes(
             "sentry.body": {"stringValue": "oops, not again"},
             "sentry.browser.name": {"stringValue": "Python Requests"},
             "sentry.browser.version": {"stringValue": "2.32"},
-            "sentry.severity_number": {"intValue": "17"},
             "sentry.severity_text": {"stringValue": "error"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-            "sentry.trace_flags": {"intValue": "0"},
             **timestamps(ts),
             **(
                 {
@@ -276,14 +272,12 @@ def test_ourlog_meta_attributes(
     }
 
 
-@pytest.mark.parametrize("calculated_byte_count", [False, True])
 def test_ourlog_extraction_with_sentry_logs(
     mini_sentry,
     relay,
     relay_with_processing,
     items_consumer,
     outcomes_consumer,
-    calculated_byte_count,
 ):
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -293,10 +287,6 @@ def test_ourlog_extraction_with_sentry_logs(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-    if calculated_byte_count:
-        project_config["config"]["features"].append(
-            "organizations:ourlogs-calculated-byte-count"
-        )
     relay = relay(relay_with_processing(options=TEST_CONFIG))
     ts = datetime.now(timezone.utc)
 
@@ -314,7 +304,6 @@ def test_ourlog_extraction_with_sentry_logs(
             "span_id": "eee19b7ec3c1b174",
             "level": "info",
             "body": "Example log record",
-            "severity_number": 10,
             "attributes": {
                 "boolean.attribute": {"value": True, "type": "boolean"},
                 "integer.attribute": {"value": 42, "type": "integer"},
@@ -342,10 +331,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.body": {"stringValue": "This is really bad"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.severity_number": {"intValue": "17"},
                 "sentry.severity_text": {"stringValue": "error"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-                "sentry.trace_flags": {"intValue": "0"},
                 **timestamps(ts),
             },
             "clientSampleRate": 1.0,
@@ -370,10 +357,8 @@ def test_ourlog_extraction_with_sentry_logs(
                 "sentry.body": {"stringValue": "Example log record"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},
-                "sentry.severity_number": {"intValue": "9"},
                 "sentry.severity_text": {"stringValue": "info"},
                 "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
-                "sentry.trace_flags": {"intValue": "0"},
                 "string.attribute": {"stringValue": "some string"},
                 "valid_string_with_other": {"stringValue": "test"},
                 **timestamps(ts),
@@ -393,9 +378,7 @@ def test_ourlog_extraction_with_sentry_logs(
         },
     ]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(
-        n=4 if calculated_byte_count else 2
-    )
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -411,12 +394,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            # This is a billing relevant number, do not just adjust this because it changed.
-            #
-            # This is 'fuzzy' for the non-calculated outcome, as timestamps do not have a constant size.
-            "quantity": (
-                260 if calculated_byte_count else matches(lambda x: 2470 <= x <= 2480)
-            ),
+            "quantity": 260,
         },
     ]
 
@@ -451,9 +429,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
             "sentry.body": {"stringValue": "Example log record 2"},
             "sentry.browser.name": {"stringValue": "Python Requests"},
             "sentry.browser.version": {"stringValue": "2.32"},
-            "sentry.severity_number": {"intValue": "13"},
             "sentry.severity_text": {"stringValue": "warn"},
-            "sentry.trace_flags": {"intValue": "0"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,
@@ -578,10 +554,8 @@ def test_browser_name_version_extraction(
             "sentry.body": {"stringValue": "This is really bad"},
             "sentry.browser.name": {"stringValue": expected_browser_name},
             "sentry.browser.version": {"stringValue": expected_browser_version},
-            "sentry.severity_number": {"intValue": "17"},
             "sentry.severity_text": {"stringValue": "error"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-            "sentry.trace_flags": {"intValue": "0"},
             **timestamps(ts),
         },
         "clientSampleRate": 1.0,

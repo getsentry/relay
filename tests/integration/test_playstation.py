@@ -37,7 +37,7 @@ def event_json(response):
                 "manufacturer": "Sony",
                 "type": "device",
             },
-            "os": {"name": "Prospero", "type": "os"},
+            "os": {"name": "Prospero", "os": "Prospero", "type": "os"},
             "runtime": {
                 "runtime": "PS5 11.20.00.05-00.00.00.0.1",
                 "name": "PS5",

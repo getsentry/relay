@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
-use relay_event_schema::protocol::{Attributes, OurLog};
+use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId};
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
@@ -14,7 +14,7 @@ use crate::envelope::WithHeader;
 use crate::processing::Counted;
 use crate::processing::logs::{Error, Result};
 use crate::services::outcome::DiscardReason;
-use crate::services::store::StoreLog;
+use crate::services::store::StoreTraceItem;
 
 macro_rules! required {
     ($value:expr) => {{
@@ -44,7 +44,7 @@ pub struct Context {
     pub meta_attrs: bool,
 }
 
-pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreLog> {
+pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem> {
     let quantities = log.quantities();
 
     let log = required!(log.value);
@@ -53,7 +53,13 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreLog> {
         false => HashMap::new(),
     };
     let timestamp = required!(log.timestamp);
+
     let attrs = log.attributes.0.unwrap_or_default();
+    let fields = FieldAttributes {
+        level: required!(log.level),
+        body: required!(log.body),
+        span_id: log.span_id.into_value(),
+    };
 
     let trace_item = TraceItem {
         item_type: TraceItemType::Log.into(),
@@ -64,12 +70,12 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreLog> {
         timestamp: Some(ts(timestamp.0)),
         trace_id: required!(log.trace_id).to_string(),
         item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
-        attributes: attributes(meta, attrs, ctx),
+        attributes: attributes(meta, attrs, fields, ctx),
         client_sample_rate: 1.0,
         server_sample_rate: 1.0,
     };
 
-    Ok(StoreLog {
+    Ok(StoreTraceItem {
         trace_item,
         quantities,
     })
@@ -193,14 +199,33 @@ fn size_of_meta_tree(meta: &MetaTree) -> usize {
     size
 }
 
+/// Fields on the log message which are stored as fields.
+struct FieldAttributes {
+    /// The log level.
+    ///
+    /// See: [`OurLog::level`].
+    level: OurLogLevel,
+    /// The log body.
+    ///
+    /// See: [`OurLog::body`].
+    body: String,
+    /// The optionally associated span id.
+    ///
+    /// See: [`OurLog::span_id`].
+    span_id: Option<SpanId>,
+}
+
 /// Extracts all attributes of a log, combines it with extracted meta attributes.
 fn attributes(
     meta: HashMap<String, AnyValue>,
     attributes: Attributes,
+    fields: FieldAttributes,
     ctx: &Context,
 ) -> HashMap<String, AnyValue> {
     let mut result = meta;
-    result.reserve(attributes.0.len());
+    // +3 for field attributes.
+    result.reserve(attributes.0.len() + 3);
+    let capacity = result.capacity();
 
     for (name, attribute) in attributes {
         let meta = AttributeMeta {
@@ -240,6 +265,42 @@ fn attributes(
 
         result.insert(name, AnyValue { value: Some(value) });
     }
+
+    let FieldAttributes {
+        level,
+        body,
+        span_id,
+    } = fields;
+    // Unconditionally override any prior set attributes with the same key, as they should always
+    // come from the log itself.
+    //
+    // Ideally these attributes are marked as private in sentry-conventions and potentially
+    // validated against.
+    result.insert(
+        "sentry.severity_text".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::StringValue(level.to_string())),
+        },
+    );
+    result.insert(
+        "sentry.body".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::StringValue(body)),
+        },
+    );
+    if let Some(span_id) = span_id {
+        result.insert(
+            "sentry.span_id".to_owned(),
+            AnyValue {
+                value: Some(any_value::Value::StringValue(span_id.to_string())),
+            },
+        );
+    }
+
+    debug_assert!(
+        capacity == result.capacity(),
+        "attribute size should be reserved correctly upfront"
+    );
 
     result
 }
@@ -361,6 +422,27 @@ mod tests {
                 value: Some(
                     StringValue(
                         "{\"meta\":{\"\":{\"err\":[[\"invalid_data\",{\"reason\":\"expected something in the body\"}]]}}}",
+                    ),
+                ),
+            },
+            "sentry.body": AnyValue {
+                value: Some(
+                    StringValue(
+                        "Example log record",
+                    ),
+                ),
+            },
+            "sentry.severity_text": AnyValue {
+                value: Some(
+                    StringValue(
+                        "info",
+                    ),
+                ),
+            },
+            "sentry.span_id": AnyValue {
+                value: Some(
+                    StringValue(
+                        "eee19b7ec3c1b174",
                     ),
                 ),
             },

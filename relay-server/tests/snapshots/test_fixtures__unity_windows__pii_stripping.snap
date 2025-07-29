@@ -168,6 +168,7 @@ expression: SerializableAnnotated(& event)
       "type": "gpu"
     },
     "os": {
+      "os": "Windows 10  (10.0.19042) 64bit",
       "name": "Windows 10  (10.0.19042) 64bit",
       "type": "os"
     },

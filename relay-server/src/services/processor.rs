@@ -552,8 +552,6 @@ pub enum ProcessingError {
     ProcessingGroupMismatch,
     #[error("new processing pipeline failed")]
     ProcessingFailure,
-    #[error("failed to serialize processing result to an envelope")]
-    ProcessingEnvelopeSerialization,
 }
 
 impl ProcessingError {
@@ -599,9 +597,6 @@ impl ProcessingError {
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
             // Outcomes are emitted in the new processing pipeline already.
             Self::ProcessingFailure => None,
-            Self::ProcessingEnvelopeSerialization => {
-                Some(Outcome::Invalid(DiscardReason::Internal))
-            }
         }
     }
 
@@ -1432,7 +1427,6 @@ impl EnvelopeProcessorService {
 
         // If spans were already extracted for an event, we rely on span processing to extract metrics.
         let extract_spans = !spans_extracted.0
-            && project_info.config.features.produces_spans()
             && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0)).is_keep();
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
@@ -2462,9 +2456,6 @@ impl EnvelopeProcessorService {
         let project_key = envelope.envelope().meta().public_key();
         let sampling_key = envelope.envelope().sampling_key();
 
-        let has_ourlogs_new_byte_count =
-            project_info.has_feature(Feature::OurLogsCalculatedByteCount);
-
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
         relay_log::configure_scope(|scope| {
@@ -2517,16 +2508,7 @@ impl EnvelopeProcessorService {
                     &self.inner.addrs.aggregator,
                 );
 
-                if has_ourlogs_new_byte_count {
-                    Ok(Some(Submit::Logs(main)))
-                } else {
-                    let envelope = main
-                        .serialize_envelope()
-                        .map_err(|_| ProcessingError::ProcessingEnvelopeSerialization)?;
-                    let managed_envelope = ManagedEnvelope::from(envelope);
-
-                    Ok(Some(Submit::Envelope(managed_envelope.into_processed())))
-                }
+                Ok(Some(Submit::Logs(main)))
             }
             Err(err) => Err(err),
         };

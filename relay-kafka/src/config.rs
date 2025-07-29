@@ -41,8 +41,6 @@ pub enum KafkaTopic {
     ReplayRecordings,
     /// Monitor check-ins.
     Monitors,
-    /// Logs (our log product).
-    OurLogs,
     /// Standalone spans without a transaction.
     Spans,
     /// Feedback events topic.
@@ -56,7 +54,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 15] = [
+        static TOPICS: [KafkaTopic; 14] = [
             Events,
             Attachments,
             Transactions,
@@ -68,7 +66,6 @@ impl KafkaTopic {
             ReplayEvents,
             ReplayRecordings,
             Monitors,
-            OurLogs,
             Spans,
             Feedback,
             Items,
@@ -144,7 +141,6 @@ define_topic_assignments! {
     profiles: (KafkaTopic::Profiles, "profiles", "Stacktrace topic name"),
     replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events", "Replay Events topic name."),
     replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
-    ourlogs: (KafkaTopic::OurLogs, "snuba-ourlogs", "Logs from our logs product."),
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
     spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
     feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
@@ -441,15 +437,6 @@ transactions: "ingest-transactions-kafka-topic"
                 [
                     TopicConfig {
                         topic_name: "ingest-replay-recordings",
-                        kafka_config_name: None,
-                        key_rate_limit: None,
-                    },
-                ],
-            ),
-            ourlogs: TopicAssignment(
-                [
-                    TopicConfig {
-                        topic_name: "snuba-ourlogs",
                         kafka_config_name: None,
                         key_rate_limit: None,
                     },

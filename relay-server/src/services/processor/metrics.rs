@@ -60,7 +60,7 @@ fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) ->
     match namespace {
         MetricNamespace::Sessions => true,
         MetricNamespace::Transactions => true,
-        MetricNamespace::Spans => state.config.features.produces_spans(),
+        MetricNamespace::Spans => true,
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Stats => true,
         MetricNamespace::Unsupported => false,
