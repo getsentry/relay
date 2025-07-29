@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use once_cell::sync::Lazy;
 use relay_event_schema::processor::ValueType;
 
-use crate::regexes::BEARER_TOKEN_REGEX;
 use crate::selector::{SelectorPathItem, SelectorSpec};
 use crate::{
     DataScrubbingConfig, LazyPattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction,
@@ -71,18 +70,6 @@ pub fn to_pii_config(
         applications.insert(
             SENSITIVE_COOKIES.clone(),
             vec!["@anything:filter".to_owned()],
-        );
-
-        // Custom PII rules for logentry.formatted handling.
-        custom_rules.insert(
-            "@bearer:replace".to_owned(),
-            RuleSpec {
-                ty: RuleType::Pattern(crate::PatternRule {
-                    pattern: LazyPattern::new(BEARER_TOKEN_REGEX.as_str()),
-                    replace_groups: None,
-                }),
-                redaction: Redaction::Replace("Bearer [token]".to_owned().into()),
-            },
         );
 
         let logentry_selector: SelectorSpec = SelectorSpec::Path(vec![
@@ -314,17 +301,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_convert_default_pii_config() {
         insta::assert_json_snapshot!(simple_enabled_pii_config(), @r#"
         {
-          "rules": {
-            "@bearer:replace": {
-              "type": "pattern",
-              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
-              "replaceGroups": null,
-              "redaction": {
-                "method": "replace",
-                "text": "Bearer [token]"
-              }
-            }
-          },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
@@ -357,17 +333,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r#"
         {
-          "rules": {
-            "@bearer:replace": {
-              "type": "pattern",
-              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
-              "replaceGroups": null,
-              "redaction": {
-                "method": "replace",
-                "text": "Bearer [token]"
-              }
-            }
-          },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
@@ -401,15 +366,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
-            "@bearer:replace": {
-              "type": "pattern",
-              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
-              "replaceGroups": null,
-              "redaction": {
-                "method": "replace",
-                "text": "Bearer [token]"
-              }
-            },
             "strip-fields": {
               "type": "redact_pair",
               "keyPattern": "fieldy_field|moar_other_field",
@@ -452,17 +408,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         insta::assert_json_snapshot!(pii_config, @r#"
         {
-          "rules": {
-            "@bearer:replace": {
-              "type": "pattern",
-              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
-              "replaceGroups": null,
-              "redaction": {
-                "method": "replace",
-                "text": "Bearer [token]"
-              }
-            }
-          },
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) && !foobar": [
               "@common:filter",
@@ -1374,15 +1319,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
-            "@bearer:replace": {
-              "type": "pattern",
-              "pattern": "(?i)\\b(Bearer\\s+)([A-Za-z0-9+/=._-]{1,})",
-              "replaceGroups": null,
-              "redaction": {
-                "method": "replace",
-                "text": "Bearer [token]"
-              }
-            },
             "strip-fields": {
               "type": "redact_pair",
               "keyPattern": "session_key",

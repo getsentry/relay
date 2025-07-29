@@ -60,10 +60,15 @@ pub fn get_regex_for_rule_type(
                 smallvec![]
             }
         }
+        RuleType::Bearer => {
+            smallvec![(kv, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match())]
+        }
         RuleType::Password => {
             smallvec![
+                // Bearer token was moved to its own regest and type out of the passwords, but we
+                // still keep it here for backwards compatibility.
+                (kv, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match()),
                 (kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value()),
-                (kv, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match())
             ]
         }
         RuleType::Anything => smallvec![(v, &*ANYTHING_REGEX, ReplaceBehavior::replace_match())],
@@ -113,7 +118,7 @@ macro_rules! ip {
 macro_rules! regex {
     ($name:ident, $rule:expr) => {
         #[allow(non_snake_case)]
-        pub mod $name {
+        mod $name {
             use super::*;
             pub static $name: LazyLock<Regex> = LazyLock::new(|| Regex::new($rule).unwrap());
 
@@ -129,7 +134,7 @@ macro_rules! regex {
                 );
             }
         }
-        pub use $name::$name;
+        use $name::$name;
     };
 }
 
@@ -327,10 +332,7 @@ regex!(
     "
 );
 
-regex!(
-    BEARER_TOKEN_REGEX,
-    r"(?i)\b(Bearer\s+)([A-Za-z0-9+/=._-]{1,})"
-);
+regex!(BEARER_TOKEN_REGEX, r"(?i)\b(Bearer\s+)([^\s]+)");
 
 regex!(
     PASSWORD_KEY_REGEX,
