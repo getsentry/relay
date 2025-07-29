@@ -255,3 +255,26 @@ def test_logentry_formatted_scrubbing_enabled(mini_sentry, relay):
         formatted_value
         == "API failed with Bearer [token] for [email] using card [creditcard]"
     )
+
+
+def test_logentry_formatted_password_not_scrubbed(mini_sentry, relay):
+    project_id = 42
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["datascrubbingSettings"] = {
+        "scrubData": True,
+        "scrubDefaults": True,
+    }
+
+    relay.send_event(
+        project_id,
+        {
+            "logentry": {"formatted": "User's password is 12345"},
+            "timestamp": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    formatted_value = event["logentry"]["formatted"]
+    assert formatted_value == "User's password is 12345"
