@@ -115,7 +115,7 @@ def test_ourlog_extraction_with_otel_logs(
             "sentry.browser.name": {"stringValue": "Python Requests"},
             "sentry.browser.version": {"stringValue": "2.32"},
             "sentry.severity_number": {"intValue": "10"},
-            "sentry.severity_text": {"stringValue": "Information"},
+            "sentry.severity_text": {"stringValue": "info"},
             "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
             "string.attribute": {"stringValue": "some string"},
             **timestamps(ts),
