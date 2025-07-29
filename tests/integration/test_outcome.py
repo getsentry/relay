@@ -1452,11 +1452,11 @@ def test_profile_outcomes_invalid(
             "source": "pop-relay",
             "timestamp": time_within_delta(),
         }
-        for category in [6, 11]  # Profile, ProfileIndexed
+        for category in [DataCategory.PROFILE.value, DataCategory.PROFILE_INDEXED.value]
     ]
 
     # Make sure the profile will not be counted as accepted:
-    metrics = metrics_by_name(metrics_consumer, 4)
+    metrics = metrics_by_name(metrics_consumer, 7)
     assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
     assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
@@ -1621,10 +1621,10 @@ def test_profile_outcomes_data_invalid(
             "source": "processing-relay",
             "timestamp": time_within_delta(),
         }
-        for category in [6, 11]  # Profile, ProfileIndexed
+        for category in [DataCategory.PROFILE.value, DataCategory.PROFILE_INDEXED.value]
     ]
 
-    metrics = metrics_by_name(metrics_consumer, 4)
+    metrics = metrics_by_name(metrics_consumer, 7)
     assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
     assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
