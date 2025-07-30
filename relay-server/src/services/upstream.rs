@@ -22,6 +22,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
 };
+use relay_statsd::metric;
 use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
@@ -311,8 +312,20 @@ impl SignatureType {
     /// Creates a signature data based on the variant.
     pub fn create_signature(self, secret_key: &SecretKey) -> Signature {
         match self {
-            SignatureType::Body(data) => secret_key.sign(data.as_ref()),
-            SignatureType::RequestSign => secret_key.sign(&[]),
+            SignatureType::Body(data) => {
+                metric!(
+                    timer(RelayTimers::SignatureCreationDuration),
+                    signature_type = "body",
+                    { secret_key.sign(data.as_ref()) }
+                )
+            }
+            SignatureType::RequestSign => {
+                metric!(
+                    timer(RelayTimers::SignatureCreationDuration),
+                    signature_type = "request_sign",
+                    { secret_key.sign(&[]) }
+                )
+            }
         }
     }
 }
