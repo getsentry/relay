@@ -10,7 +10,8 @@
 **Bug Fixes**:
 
 - Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
-- Normalize AI pipeline name and streaming flag to `gen_ai.*` names ([#4982](https://github.com/getsentry/relay/pull/4982))
+- Normalize AI pipeline name and streaming flag to `gen_ai.*` names. ([#4982](https://github.com/getsentry/relay/pull/4982))
+- Deal with sub-microsecond floating point inaccuracies for logs and spans correctly. ([#5002](https://github.com/getsentry/relay/pull/5002))
 
 **Internal**:
 

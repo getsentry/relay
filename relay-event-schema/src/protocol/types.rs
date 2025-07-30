@@ -887,24 +887,39 @@ impl fmt::Display for Timestamp {
     }
 }
 
+/// Converts a [`DateTime`] to a `f64`, dealing with sub-microsecond float inaccuracies.
+///
+/// f64s cannot store nanoseconds. To verify this just try to fit the current timestamp in
+/// nanoseconds into a 52-bit number (which is the significant of a double).
+///
+/// Round off to microseconds to not show more decimal points than we know are correct. Anything
+/// else might trick the user into thinking the nanoseconds in those timestamps mean anything.
+///
+/// This needs to be done regardless of whether the input value was a ISO-formatted string or a
+/// number because it all ends up as a f64 on serialization.
+///
+/// If we want to support nanoseconds at some point we will probably have to start using strings
+/// everywhere. Even then it's unclear how to deal with it in Python code as a `datetime` cannot
+/// store nanoseconds.
+///
+/// See also: [`timestamp_to_datetime`].
 pub fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
-    // f64s cannot store nanoseconds. To verify this just try to fit the current timestamp in
-    // nanoseconds into a 52-bit number (which is the significand of a double).
-    //
-    // Round off to microseconds to not show more decimal points than we know are correct. Anything
-    // else might trick the user into thinking the nanoseconds in those timestamps mean anything.
-    //
-    // This needs to be done regardless of whether the input value was a ISO-formatted string or a
-    // number because it all ends up as a f64 on serialization.
-    //
-    // If we want to support nanoseconds at some point we will probably have to start using strings
-    // everywhere. Even then it's unclear how to deal with it in Python code as a `datetime` cannot
-    // store nanoseconds.
-    //
     // We use `timestamp_subsec_nanos` instead of `timestamp_subsec_micros` anyway to get better
     // rounding behavior.
     let micros = (f64::from(dt.timestamp_subsec_nanos()) / 1_000f64).round();
     dt.timestamp() as f64 + (micros / 1_000_000f64)
+}
+
+/// Converts a `f64` Unix timestamp to a [`DateTime`], dealing with sub-microsecond float
+/// inaccuracies.
+///
+/// See also: [`datetime_to_timestamp`].
+pub fn timestamp_to_datetime(ts: f64) -> LocalResult<DateTime<Utc>> {
+    let secs = ts as i64;
+    // Multiplying the float to microseconds introduces a higher inaccuracy than only multiplying
+    // the fraction and rounding that.
+    let micros = (ts.fract() * 1_000_000f64).round() as u32;
+    Utc.timestamp_opt(secs, micros * 1_000)
 }
 
 fn utc_result_to_annotated<V: IntoValue>(
@@ -959,11 +974,7 @@ impl FromValue for Timestamp {
                 utc_result_to_annotated(Utc.timestamp_opt(ts, 0), ts, meta)
             }
             Annotated(Some(Value::F64(ts)), meta) => {
-                let secs = ts as i64;
-                // at this point we probably already lose nanosecond precision, but we deal with
-                // this in `datetime_to_timestamp`.
-                let nanos = (ts.fract() * 1_000_000_000f64) as u32;
-                utc_result_to_annotated(Utc.timestamp_opt(secs, nanos), ts, meta)
+                utc_result_to_annotated(timestamp_to_datetime(ts), ts, meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {

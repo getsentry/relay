@@ -961,7 +961,7 @@ mod tests {
         {
           "timestamp": 123.1,
           "start_timestamp": 123.0,
-          "exclusive_time": 99.999999,
+          "exclusive_time": 100.0,
           "op": "cache.hit",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
