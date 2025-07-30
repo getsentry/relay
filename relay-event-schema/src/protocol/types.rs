@@ -890,7 +890,7 @@ impl fmt::Display for Timestamp {
 /// Converts a [`DateTime`] to a `f64`, dealing with sub-microsecond float inaccuracies.
 ///
 /// f64s cannot store nanoseconds. To verify this just try to fit the current timestamp in
-/// nanoseconds into a 52-bit number (which is the significant of a double).
+/// nanoseconds into a 52-bit number (which is the significand of a double).
 ///
 /// Round off to microseconds to not show more decimal points than we know are correct. Anything
 /// else might trick the user into thinking the nanoseconds in those timestamps mean anything.
@@ -915,11 +915,17 @@ pub fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
 ///
 /// See also: [`datetime_to_timestamp`].
 pub fn timestamp_to_datetime(ts: f64) -> LocalResult<DateTime<Utc>> {
-    let secs = ts as i64;
-    // Multiplying the float to microseconds introduces a higher inaccuracy than only multiplying
-    // the fraction and rounding that.
-    let micros = (ts.fract() * 1_000_000f64).round() as u32;
-    Utc.timestamp_opt(secs, micros * 1_000)
+    // Always floor, this works correctly for negative numbers as well.
+    let secs = ts.floor();
+    // This is always going to be positive, because we floored the seconds.
+    let fract = ts - secs;
+    let micros = (fract * 1_000_000f64).round() as u32;
+    // Rounding may produce another full second, in which case we need to manually handle the extra
+    // second.
+    match micros == 1_000_000 {
+        true => Utc.timestamp_opt(secs as i64 + 1, 0),
+        false => Utc.timestamp_opt(secs as i64, micros * 1_000),
+    }
 }
 
 fn utc_result_to_annotated<V: IntoValue>(
@@ -1027,6 +1033,34 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_timestamp_to_datetime() {
+        assert_eq!(timestamp_to_datetime(0.), Utc.timestamp_opt(0, 0));
+        assert_eq!(timestamp_to_datetime(1000.), Utc.timestamp_opt(1000, 0));
+        assert_eq!(timestamp_to_datetime(-1000.), Utc.timestamp_opt(-1000, 0));
+        assert_eq!(
+            timestamp_to_datetime(1.234_567),
+            Utc.timestamp_opt(1, 234_567_000)
+        );
+        assert_eq!(timestamp_to_datetime(2.999_999_51), Utc.timestamp_opt(3, 0));
+        assert_eq!(
+            timestamp_to_datetime(2.999_999_45),
+            Utc.timestamp_opt(2, 999_999_000)
+        );
+        assert_eq!(
+            timestamp_to_datetime(-0.000_001),
+            Utc.timestamp_opt(-1, 999_999_000)
+        );
+        assert_eq!(
+            timestamp_to_datetime(-3.000_000_49),
+            Utc.timestamp_opt(-3, 0)
+        );
+        assert_eq!(
+            timestamp_to_datetime(-3.000_000_51),
+            Utc.timestamp_opt(-4, 999_999_000)
+        );
+    }
 
     #[test]
     fn test_values_serialization() {
