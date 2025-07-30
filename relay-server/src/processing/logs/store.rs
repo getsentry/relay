@@ -228,7 +228,7 @@ fn attributes(
     ctx: &Context,
 ) -> HashMap<String, AnyValue> {
     let mut result = meta;
-    // +3 for field attributes.
+    // +N, one for each field attribute added.
     result.reserve(attributes.0.len() + 5);
     let capacity = result.capacity();
 
