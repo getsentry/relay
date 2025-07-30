@@ -1347,14 +1347,14 @@
 <a href=#1347 id=1347 data-nosnippet>1347</a>        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(
 <a href=#1348 id=1348 data-nosnippet>1348</a>            <span class="string">r#"{
 <a href=#1349 id=1349 data-nosnippet>1349</a>                "start_timestamp": 1694732407.8367,
-<a href=#1350 id=1350 data-nosnippet>1350</a>                "timestamp": 1694732408.3145
+<a href=#1350 id=1350 data-nosnippet>1350</a>                "timestamp": 1694732408.31451233
 <a href=#1351 id=1351 data-nosnippet>1351</a>            }"#</span>,
 <a href=#1352 id=1352 data-nosnippet>1352</a>        )
 <a href=#1353 id=1353 data-nosnippet>1353</a>        .unwrap()
 <a href=#1354 id=1354 data-nosnippet>1354</a>        .into_value()
 <a href=#1355 id=1355 data-nosnippet>1355</a>        .unwrap();
 <a href=#1356 id=1356 data-nosnippet>1356</a>
-<a href=#1357 id=1357 data-nosnippet>1357</a>        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">"span.duration"</span>), <span class="prelude-val">Some</span>(Val::F64(<span class="number">477.800131</span>)));
+<a href=#1357 id=1357 data-nosnippet>1357</a>        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">"span.duration"</span>), <span class="prelude-val">Some</span>(Val::F64(<span class="number">477.812</span>)));
 <a href=#1358 id=1358 data-nosnippet>1358</a>    }
 <a href=#1359 id=1359 data-nosnippet>1359</a>
 <a href=#1360 id=1360 data-nosnippet>1360</a>    <span class="attr">#[test]
