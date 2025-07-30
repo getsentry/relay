@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
     project_id = 42
     relay = relay(
@@ -37,8 +40,35 @@ def test_scrub_span_sentry_tags_advanced_rules(mini_sentry, relay):
     assert event["spans"][0]["sentry_tags"]["user.geo.subregion"] == "**"
 
 
-def test_logentry_formatted_smart_scrubbing_email(mini_sentry, relay):
-    """Test that logentry.formatted gets smart email scrubbing"""
+@pytest.mark.parametrize(
+    ["input_message", "expected_output"],
+    [
+        pytest.param(
+            "User john.doe@company.com failed authentication",
+            "User [email] failed authentication",
+            id="email_scrubbing",
+        ),
+        pytest.param(
+            "Payment failed for card 4111-1111-1111-1111",
+            "Payment failed for card [creditcard]",
+            id="credit_card_scrubbing",
+        ),
+        pytest.param(
+            "User alice@test.com with used card 4111-1111-1111-1111",
+            "User [email] with used card [creditcard]",
+            id="mixed_pii_scrubbing",
+        ),
+        pytest.param(
+            "Database connection failed to prod-db-01 at 10:30",
+            "Database connection failed to prod-db-01 at 10:30",
+            id="no_pii",
+        ),
+    ],
+)
+def test_logentry_formatted_smart_scrubbing(
+    mini_sentry, relay, input_message, expected_output
+):
+    """Test various smart scrubbing scenarios in logentry.formatted"""
     project_id = 42
     relay = relay(mini_sentry)
     mini_sentry.add_basic_project_config(project_id)
@@ -46,9 +76,7 @@ def test_logentry_formatted_smart_scrubbing_email(mini_sentry, relay):
     relay.send_event(
         project_id,
         {
-            "logentry": {
-                "formatted": "User john.doe@company.com failed authentication"
-            },
+            "logentry": {"formatted": input_message},
             "timestamp": "2024-01-01T00:00:00Z",
         },
     )
@@ -56,78 +84,7 @@ def test_logentry_formatted_smart_scrubbing_email(mini_sentry, relay):
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
 
-    # Should scrub entire email for security
-    assert event["logentry"]["formatted"] == "User [email] failed authentication"
-
-
-def test_logentry_formatted_smart_scrubbing_credit_card(mini_sentry, relay):
-    """Test credit card scrubbing in logentry.formatted"""
-    project_id = 42
-    relay = relay(mini_sentry)
-    mini_sentry.add_basic_project_config(project_id)
-
-    relay.send_event(
-        project_id,
-        {
-            "logentry": {"formatted": "Payment failed for card 4111-1111-1111-1111"},
-            "timestamp": "2024-01-01T00:00:00Z",
-        },
-    )
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-
-    assert event["logentry"]["formatted"] == "Payment failed for card [creditcard]"
-
-
-def test_logentry_formatted_mixed_pii(mini_sentry, relay):
-    """Test multiple PII types in same message"""
-    project_id = 42
-    relay = relay(mini_sentry)
-    mini_sentry.add_basic_project_config(project_id)
-
-    relay.send_event(
-        project_id,
-        {
-            "logentry": {
-                "formatted": "User alice@test.com with used card 4111-1111-1111-1111"
-            },
-            "timestamp": "2024-01-01T00:00:00Z",
-        },
-    )
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-
-    # Smart scrubbing applies to all patterns: email, SSN, and credit card
-    expected = "User [email] with used card [creditcard]"
-    assert event["logentry"]["formatted"] == expected
-
-
-def test_logentry_formatted_no_pii(mini_sentry, relay):
-    """Test that messages without PII are unchanged"""
-    project_id = 42
-    relay = relay(mini_sentry)
-    mini_sentry.add_basic_project_config(project_id)
-
-    relay.send_event(
-        project_id,
-        {
-            "logentry": {
-                "formatted": "Database connection failed to prod-db-01 at 10:30"
-            },
-            "timestamp": "2024-01-01T00:00:00Z",
-        },
-    )
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-
-    # Should remain unchanged
-    assert (
-        event["logentry"]["formatted"]
-        == "Database connection failed to prod-db-01 at 10:30"
-    )
+    assert event["logentry"]["formatted"] == expected_output
 
 
 def test_logentry_formatted_user_rules(mini_sentry, relay):
@@ -160,90 +117,83 @@ def test_logentry_formatted_user_rules(mini_sentry, relay):
     assert event["logentry"]["formatted"] == "Auth failed with [secret]"
 
 
-def test_logentry_formatted_bearer_token_scrubbing(mini_sentry, relay):
-    """Test that Bearer tokens are properly scrubbed in logentry.formatted"""
+@pytest.mark.parametrize(
+    [
+        "pii_config",
+        "scrub_data",
+        "scrub_defaults",
+        "input_message",
+        "expected_output",
+        "additional_checks",
+    ],
+    [
+        pytest.param(
+            None,
+            True,
+            True,
+            "API request failed with Bearer ABC123XYZ789TOKEN and returned 401",
+            "API request failed with Bearer [token] and returned 401",
+            lambda formatted_value: (
+                "Bearer [token]" in formatted_value
+                and "ABC123XYZ789TOKEN" not in formatted_value
+                and "API request failed" in formatted_value
+                and "returned 401" in formatted_value
+            ),
+            id="bearer_token_scrubbing",
+        ),
+        pytest.param(
+            {},
+            False,
+            True,
+            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            None,
+            id="no_scrubbing_when_disabled",
+        ),
+        pytest.param(
+            {},
+            True,
+            True,
+            "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111",
+            "API failed with Bearer [token] for [email] using card [creditcard]",
+            None,
+            id="all_scrubbing_when_enabled",
+        ),
+        pytest.param(
+            None,
+            True,
+            True,
+            "User's password is 12345",
+            "User's password is 12345",
+            None,
+            id="password_not_scrubbed",
+        ),
+    ],
+)
+def test_logentry_formatted_data_scrubbing_settings(
+    mini_sentry,
+    relay,
+    pii_config,
+    scrub_data,
+    scrub_defaults,
+    input_message,
+    expected_output,
+    additional_checks,
+):
+    """Test logentry.formatted scrubbing with various data scrubbing settings"""
     project_id = 42
     relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["piiConfig"] = None
+    config["config"]["piiConfig"] = pii_config
     config["config"]["datascrubbingSettings"] = {
-        "scrubData": True,
-        "scrubDefaults": True,
+        "scrubData": scrub_data,
+        "scrubDefaults": scrub_defaults,
     }
 
     relay.send_event(
         project_id,
         {
-            "logentry": {
-                "formatted": "API request failed with Bearer ABC123XYZ789TOKEN and returned 401"
-            },
-            "timestamp": "2024-01-01T00:00:00Z",
-        },
-    )
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-
-    # Should scrub Bearer token but preserve "Bearer" prefix and context
-    formatted_value = event["logentry"]["formatted"]
-    assert "Bearer [token]" in formatted_value
-    assert "ABC123XYZ789TOKEN" not in formatted_value
-
-    # Should preserve context
-    assert "API request failed" in formatted_value
-    assert "returned 401" in formatted_value
-
-
-def test_logentry_formatted_no_scrubbing_when_disabled(mini_sentry, relay):
-    """Test that logentry.formatted is not scrubbed when data scrubbing is disabled"""
-    project_id = 42
-    relay = relay(mini_sentry)
-    config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["piiConfig"] = {}
-    config["config"]["datascrubbingSettings"] = {
-        "scrubData": False,
-        "scrubDefaults": True,
-    }
-
-    relay.send_event(
-        project_id,
-        {
-            "logentry": {
-                "formatted": "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111"
-            },
-            "timestamp": "2024-01-01T00:00:00Z",
-        },
-    )
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-    # Should remain unchanged when data scrubbing is disabled.
-    formatted_value = event["logentry"]["formatted"]
-    assert (
-        formatted_value
-        == "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111"
-    )
-
-
-def test_logentry_formatted_scrubbing_enabled(mini_sentry, relay):
-    """Test that logentry.formatted is scrubbed when data scrubbing is enabled"""
-    project_id = 42
-    relay = relay(mini_sentry)
-    config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["piiConfig"] = {}
-
-    # Enable default and scrubing, we should scrub the logentry as well.
-    config["config"]["datascrubbingSettings"] = {
-        "scrubData": True,
-        "scrubDefaults": True,
-    }
-
-    relay.send_event(
-        project_id,
-        {
-            "logentry": {
-                "formatted": "API failed with Bearer ABC123TOKEN for user@example.com using card 4111-1111-1111-1111"
-            },
+            "logentry": {"formatted": input_message},
             "timestamp": "2024-01-01T00:00:00Z",
         },
     )
@@ -251,30 +201,8 @@ def test_logentry_formatted_scrubbing_enabled(mini_sentry, relay):
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
     formatted_value = event["logentry"]["formatted"]
-    assert (
-        formatted_value
-        == "API failed with Bearer [token] for [email] using card [creditcard]"
-    )
 
+    assert formatted_value == expected_output
 
-def test_logentry_formatted_password_not_scrubbed(mini_sentry, relay):
-    project_id = 42
-    relay = relay(mini_sentry)
-    config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["datascrubbingSettings"] = {
-        "scrubData": True,
-        "scrubDefaults": True,
-    }
-
-    relay.send_event(
-        project_id,
-        {
-            "logentry": {"formatted": "User's password is 12345"},
-            "timestamp": "2024-01-01T00:00:00Z",
-        },
-    )
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    event = envelope.get_event()
-    formatted_value = event["logentry"]["formatted"]
-    assert formatted_value == "User's password is 12345"
+    if additional_checks:
+        assert additional_checks(formatted_value)
