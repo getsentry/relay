@@ -12,6 +12,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
+use crate::statsd::{RelayHistograms, RelayTimers};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
@@ -22,6 +25,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode, RetryAfter,
     Scoping,
 };
+use relay_statsd::metric;
 use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
 };
@@ -31,10 +35,6 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
-
-use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::statsd::{RelayHistograms, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
 /// Rate limits returned by the upstream.
 ///
@@ -311,8 +311,20 @@ impl SignatureType {
     /// Creates a signature data based on the variant.
     pub fn create_signature(self, secret_key: &SecretKey) -> Signature {
         match self {
-            SignatureType::Body(data) => secret_key.sign(data.as_ref()),
-            SignatureType::RequestSign => secret_key.sign(&[]),
+            SignatureType::Body(data) => {
+                metric!(
+                    timer(RelayTimers::SignatureCreationDuration),
+                    signature_type = "body",
+                    { secret_key.sign(data.as_ref()) }
+                )
+            }
+            SignatureType::RequestSign => {
+                metric!(
+                    timer(RelayTimers::SignatureCreationDuration),
+                    signature_type = "request_sign",
+                    { secret_key.sign(&[]) }
+                )
+            }
         }
     }
 }
