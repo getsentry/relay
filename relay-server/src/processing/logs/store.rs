@@ -57,6 +57,7 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
     let attrs = log.attributes.0.unwrap_or_default();
     let fields = FieldAttributes {
         level: required!(log.level),
+        timestamp,
         body: required!(log.body),
         span_id: log.span_id.into_value(),
     };
@@ -205,6 +206,10 @@ struct FieldAttributes {
     ///
     /// See: [`OurLog::level`].
     level: OurLogLevel,
+    /// The original timestamp when the log was created.
+    ///
+    /// See: [`OurLog::timestamp`].
+    timestamp: relay_event_schema::protocol::Timestamp,
     /// The log body.
     ///
     /// See: [`OurLog::body`].
@@ -223,8 +228,8 @@ fn attributes(
     ctx: &Context,
 ) -> HashMap<String, AnyValue> {
     let mut result = meta;
-    // +3 for field attributes.
-    result.reserve(attributes.0.len() + 3);
+    // +N, one for each field attribute added.
+    result.reserve(attributes.0.len() + 5);
     let capacity = result.capacity();
 
     for (name, attribute) in attributes {
@@ -268,6 +273,7 @@ fn attributes(
 
     let FieldAttributes {
         level,
+        timestamp,
         body,
         span_id,
     } = fields;
@@ -280,6 +286,24 @@ fn attributes(
         "sentry.severity_text".to_owned(),
         AnyValue {
             value: Some(any_value::Value::StringValue(level.to_string())),
+        },
+    );
+    let timestamp_nanos = timestamp
+        .into_inner()
+        .timestamp_nanos_opt()
+        // We can expect valid timestamps at this point, clock drift correction / normalization
+        // should've taken care of this already.
+        .unwrap_or_default();
+    result.insert(
+        "sentry.timestamp_nanos".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::StringValue(timestamp_nanos.to_string())),
+        },
+    );
+    result.insert(
+        "sentry.timestamp_precise".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::IntValue(timestamp_nanos)),
         },
     );
     result.insert(
@@ -443,6 +467,20 @@ mod tests {
                 value: Some(
                     StringValue(
                         "eee19b7ec3c1b174",
+                    ),
+                ),
+            },
+            "sentry.timestamp_nanos": AnyValue {
+                value: Some(
+                    StringValue(
+                        "946684800000000000",
+                    ),
+                ),
+            },
+            "sentry.timestamp_precise": AnyValue {
+                value: Some(
+                    IntValue(
+                        946684800000000000,
                     ),
                 ),
             },
