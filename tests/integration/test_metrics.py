@@ -791,17 +791,11 @@ def test_transaction_metrics(
 
     def assert_transaction():
         event, _ = transactions_consumer.get_event()
-        if with_external_relay:
-            # there is some rounding error while serializing/deserializing
-            # timestamps... haven't investigated too closely
-            span_time = 9.910107
-        else:
-            span_time = 9.910106
 
         assert event["breakdowns"] == {
             "span_ops": {
-                "ops.react.mount": {"value": span_time, "unit": "millisecond"},
-                "total.time": {"value": span_time, "unit": "millisecond"},
+                "ops.react.mount": {"value": 9.91, "unit": "millisecond"},
+                "total.time": {"value": 9.91, "unit": "millisecond"},
             }
         }
 
@@ -866,7 +860,7 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
         "type": "d",
-        "value": [9.910106, 9.910106],
+        "value": [9.91, 9.91],
     }
     assert metrics["c:transactions/count_per_root_project@none"] == {
         "timestamp": time_after(timestamp),

@@ -73,7 +73,7 @@ def envelope_with_otel_logs(ts: datetime) -> Envelope:
 def timestamps(ts: datetime):
     return {
         "sentry.observed_timestamp_nanos": {
-            "stringValue": time_within(ts, expect_resolution="ns", precision="s")
+            "stringValue": time_within(ts, expect_resolution="ns")
         },
         "sentry.timestamp_nanos": {
             "stringValue": time_within_delta(

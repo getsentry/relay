@@ -1347,14 +1347,14 @@ mod tests {
         let span = Annotated::<Span>::from_json(
             r#"{
                 "start_timestamp": 1694732407.8367,
-                "timestamp": 1694732408.3145
+                "timestamp": 1694732408.31451233
             }"#,
         )
         .unwrap()
         .into_value()
         .unwrap();
 
-        assert_eq!(span.get_value("span.duration"), Some(Val::F64(477.800131)));
+        assert_eq!(span.get_value("span.duration"), Some(Val::F64(477.812)));
     }
 
     #[test]
