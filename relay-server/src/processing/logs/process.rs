@@ -1,9 +1,9 @@
-use chrono::{DateTime, Utc};
 use relay_event_normalization::{
     ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, SchemaProcessor,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog, OurLogHeader};
+use relay_metrics::UnixTimestamp;
 use relay_ourlogs::OtelLog;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, ErrorKind, Value};
@@ -19,7 +19,6 @@ use crate::services::outcome::DiscardReason;
 ///
 /// Individual, invalid logs will be discarded.
 pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
-    let received_at = logs.received_at();
     let trust = logs.headers.meta().request_trust();
 
     logs.map(|logs, records| {
@@ -27,13 +26,13 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
 
         let mut all_logs = Vec::with_capacity(logs.count());
         for logs in logs.logs {
-            let expanded = expand_log_container(&logs, received_at, trust);
+            let expanded = expand_log_container(&logs, trust);
             let expanded = records.or_default(expanded, logs);
             all_logs.extend(expanded);
         }
 
         for otel_log in logs.otel_logs {
-            match expand_otel_log(&otel_log, received_at) {
+            match expand_otel_log(&otel_log) {
                 Ok(log) => all_logs.push(log),
                 Err(err) => {
                     records.reject_err(err, otel_log);
@@ -62,23 +61,17 @@ pub fn process(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
     });
 }
 
-fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<WithHeader<OurLog>> {
+fn expand_otel_log(item: &Item) -> Result<WithHeader<OurLog>> {
     let log = serde_json::from_slice::<OtelLog>(&item.payload()).map_err(|err| {
         relay_log::debug!("failed to parse OTel Log: {err}");
         Error::Invalid(DiscardReason::InvalidJson)
     })?;
 
-    let log = relay_ourlogs::otel_to_sentry_log(log, received_at).map_err(|err| {
+    let log = relay_ourlogs::otel_to_sentry_log(log).map_err(|err| {
         relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
         Error::Invalid(DiscardReason::InvalidLog)
     })?;
 
-    // The OTel log conversion already adds certain Sentry attributes which are included in the
-    // cost here.
-    //
-    // As OTel logs are deprecated and to be removed, this is okay for now.
-    //
-    // See: <https://github.com/getsentry/relay/issues/4884>.
     let byte_size = Some(relay_ourlogs::calculate_size(&log));
     Ok(WithHeader {
         value: Annotated::new(log),
@@ -89,11 +82,7 @@ fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<WithHeader
     })
 }
 
-fn expand_log_container(
-    item: &Item,
-    received_at: DateTime<Utc>,
-    trust: RequestTrust,
-) -> Result<ContainerItems<OurLog>> {
+fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerItems<OurLog>> {
     let mut logs = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
@@ -116,8 +105,6 @@ fn expand_log_container(
             let byte_size = log.value().map(relay_ourlogs::calculate_size).unwrap_or(1);
             log.header.get_or_insert_default().byte_size = Some(byte_size);
         }
-
-        relay_ourlogs::ourlog_merge_otel(log, received_at);
     }
 
     Ok(logs)
@@ -163,8 +150,17 @@ fn normalize(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
         return Err(Error::Invalid(DiscardReason::NoData));
     };
 
-    process_attribute_types(log);
+    log.attributes
+        .get_or_insert_with(Default::default)
+        .insert_if_missing("sentry.observed_timestamp_nanos", || {
+            meta.received_at()
+                .timestamp_nanos_opt()
+                .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
+                .to_string()
+        });
+
     populate_ua_fields(log, meta.user_agent(), meta.client_hints().as_deref());
+    process_attribute_types(log);
 
     Ok(())
 }
