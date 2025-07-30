@@ -12,9 +12,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::statsd::{RelayHistograms, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{
@@ -35,6 +32,10 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
+
+use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
+use crate::statsd::{RelayHistograms, RelayTimers};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction, RetryBackoff};
 
 /// Rate limits returned by the upstream.
 ///
