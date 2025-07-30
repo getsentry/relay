@@ -5,7 +5,7 @@
 **Features**:
 
 - Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
-- Avoid replacing the entire value of `logentry.formatted` during PII scrubbing. ([#4985](https://github.com/getsentry/relay/pull/4985))
+- Improve PII scrubbing for `logentry.formatted` by ensuring only sensitive data is redacted, rather than replacing the entire field value. ([#4985](https://github.com/getsentry/relay/pull/4985))
 
 **Bug Fixes**:
 

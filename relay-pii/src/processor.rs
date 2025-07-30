@@ -1208,7 +1208,36 @@ mod tests {
 
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(event);
+        assert_annotated_snapshot!(event, @r#"
+        {
+          "logentry": {
+            "formatted": "User [email] failed login with card [creditcard]"
+          },
+          "_meta": {
+            "logentry": {
+              "formatted": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      5,
+                      12
+                    ],
+                    [
+                      "@creditcard:replace",
+                      "s",
+                      36,
+                      48
+                    ]
+                  ],
+                  "len": 68
+                }
+              }
+            }
+          }
+        }
+        "#);
     }
 
     #[test]
@@ -1236,7 +1265,30 @@ mod tests {
 
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(event);
+        assert_annotated_snapshot!(event, @r#"
+        {
+          "logentry": {
+            "formatted": "API request failed with Bearer [token] and other data"
+          },
+          "_meta": {
+            "logentry": {
+              "formatted": {
+                "": {
+                  "rem": [
+                    [
+                      "@bearer:replace",
+                      "s",
+                      24,
+                      38
+                    ]
+                  ],
+                  "len": 63
+                }
+              }
+            }
+          }
+        }
+        "#);
     }
 
     #[test]
@@ -1256,7 +1308,13 @@ mod tests {
 
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(event);
+        assert_annotated_snapshot!(event, @r#"
+        {
+          "logentry": {
+            "formatted": "User password is secret123 for authentication"
+          }
+        }
+        "#);
     }
 
     #[test]
