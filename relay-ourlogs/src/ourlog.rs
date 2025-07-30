@@ -54,11 +54,6 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
 
     attribute_data.insert("sentry.severity_number".to_owned(), severity_number as i64);
     attribute_data.insert(
-        "sentry.timestamp_nanos".to_owned(),
-        time_unix_nano.to_string(),
-    );
-    attribute_data.insert("sentry.timestamp_precise".to_owned(), time_unix_nano as i64);
-    attribute_data.insert(
         "sentry.observed_timestamp_nanos".to_owned(),
         received_at_nanos.to_string(),
     );
@@ -116,17 +111,6 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
         .timestamp_nanos_opt()
         .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64);
 
-    let timestamp_nanos = ourlog_value
-        .timestamp
-        .value()
-        .and_then(|timestamp| timestamp.into_inner().timestamp_nanos_opt())
-        .unwrap_or(received_at_nanos);
-
-    attributes.insert(
-        "sentry.timestamp_nanos".to_owned(),
-        timestamp_nanos.to_string(),
-    );
-    attributes.insert("sentry.timestamp_precise".to_owned(), timestamp_nanos);
     attributes.insert(
         "sentry.observed_timestamp_nanos".to_owned(),
         received_at_nanos.to_string(),
@@ -402,14 +386,6 @@ mod tests {
             "sentry.observed_timestamp_nanos": {
               "type": "string",
               "value": "946684800000000000"
-            },
-            "sentry.timestamp_nanos": {
-              "type": "string",
-              "value": "946684800000000000"
-            },
-            "sentry.timestamp_precise": {
-              "type": "integer",
-              "value": 946684800000000000
             }
           }
         }
@@ -446,14 +422,6 @@ mod tests {
             "sentry.observed_timestamp_nanos": {
               "type": "string",
               "value": "946684800000000000"
-            },
-            "sentry.timestamp_nanos": {
-              "type": "string",
-              "value": "1638144000000000000"
-            },
-            "sentry.timestamp_precise": {
-              "type": "integer",
-              "value": 1638144000000000000
             }
           }
         }
