@@ -181,13 +181,11 @@ impl Forward for LogOutput {
         let scoping = logs.scoping();
         let received_at = logs.received_at();
 
-        let (logs, (retention, meta_attrs)) = logs
-            .split_with_context(|logs| (logs.logs, (logs.retention, logs.serialize_meta_attrs)));
+        let (logs, retention) = logs.split_with_context(|logs| (logs.logs, logs.retention));
         let ctx = store::Context {
             scoping,
             received_at,
             retention,
-            meta_attrs,
         };
 
         for log in logs {
@@ -294,9 +292,6 @@ pub struct ExpandedLogs {
     /// Retention in days.
     #[cfg(feature = "processing")]
     retention: Option<u16>,
-    /// Enables serialization of log metadata into attributes.
-    #[cfg(feature = "processing")]
-    serialize_meta_attrs: bool,
 }
 
 impl Counted for ExpandedLogs {

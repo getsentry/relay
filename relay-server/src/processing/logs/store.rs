@@ -40,20 +40,15 @@ pub struct Context {
     pub scoping: Scoping,
     /// Storage retention in days.
     pub retention: Option<u16>,
-    /// Enables serialization of log metadata into attributes.
-    pub meta_attrs: bool,
 }
 
 pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem> {
     let quantities = log.quantities();
 
     let log = required!(log.value);
-    let meta = match ctx.meta_attrs {
-        true => extract_meta_attributes(&log),
-        false => HashMap::new(),
-    };
     let timestamp = required!(log.timestamp);
 
+    let meta = extract_meta_attributes(&log);
     let attrs = log.attributes.0.unwrap_or_default();
     let fields = FieldAttributes {
         level: required!(log.level),
@@ -71,7 +66,7 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         timestamp: Some(ts(timestamp.0)),
         trace_id: required!(log.trace_id).to_string(),
         item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
-        attributes: attributes(meta, attrs, fields, ctx),
+        attributes: attributes(meta, attrs, fields),
         client_sample_rate: 1.0,
         server_sample_rate: 1.0,
     };
@@ -225,20 +220,16 @@ fn attributes(
     meta: HashMap<String, AnyValue>,
     attributes: Attributes,
     fields: FieldAttributes,
-    ctx: &Context,
 ) -> HashMap<String, AnyValue> {
     let mut result = meta;
-    // +N, one for each field attribute added.
-    result.reserve(attributes.0.len() + 5);
-    let capacity = result.capacity();
+    // +N, one for each field attribute added and some extra for potential meta.
+    result.reserve(attributes.0.len() + 5 + 3);
 
     for (name, attribute) in attributes {
         let meta = AttributeMeta {
             meta: IntoValue::extract_meta_tree(&attribute),
         };
-        if let Some(meta) = meta.to_any_value()
-            && ctx.meta_attrs
-        {
+        if let Some(meta) = meta.to_any_value() {
             result.insert(format!("sentry._meta.fields.attributes.{name}"), meta);
         }
 
@@ -321,11 +312,6 @@ fn attributes(
         );
     }
 
-    debug_assert!(
-        capacity == result.capacity(),
-        "attribute size should be reserved correctly upfront"
-    );
-
     result
 }
 
@@ -366,7 +352,6 @@ mod tests {
                 key_id: Some(3),
             },
             retention: Some(42),
-            meta_attrs: true,
         }
     }
 
