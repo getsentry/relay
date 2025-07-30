@@ -3,10 +3,10 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use crate::OtelLog;
 use relay_common::time::UnixTimestamp;
+use relay_event_schema::protocol::Attributes;
 use relay_event_schema::protocol::{
     Attribute, AttributeType, OurLog, OurLogLevel, SpanId, Timestamp, TraceId,
 };
-use relay_event_schema::protocol::{Attributes, datetime_to_timestamp};
 use relay_protocol::{Annotated, Error, Object, Value};
 
 fn otel_value_to_log_attribute(value: OtelValue) -> Option<Attribute> {
@@ -53,11 +53,6 @@ pub fn otel_to_sentry_log(otel_log: OtelLog, received_at: DateTime<Utc>) -> Resu
     let mut attribute_data = Attributes::default();
 
     attribute_data.insert("sentry.severity_number".to_owned(), severity_number as i64);
-    attribute_data.insert(
-        "sentry.timestamp_nanos".to_owned(),
-        time_unix_nano.to_string(),
-    );
-    attribute_data.insert("sentry.timestamp_precise".to_owned(), time_unix_nano as i64);
     attribute_data.insert(
         "sentry.observed_timestamp_nanos".to_owned(),
         received_at_nanos.to_string(),
@@ -111,25 +106,11 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
         return;
     };
     let attributes = ourlog_value.attributes.value_mut().get_or_insert_default();
-    // We can only extract microseconds as the conversion from float to Timestamp
-    // messes up with the precision and nanoseconds are never preserved.
-    let timestamp_nanos = ourlog_value
-        .timestamp
-        .value()
-        .map(|timestamp| {
-            ((datetime_to_timestamp(timestamp.into_inner()) * 1e6).round() as i64) * 1000
-        })
-        .unwrap_or_default();
 
     let received_at_nanos = received_at
         .timestamp_nanos_opt()
         .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64);
 
-    attributes.insert(
-        "sentry.timestamp_nanos".to_owned(),
-        timestamp_nanos.to_string(),
-    );
-    attributes.insert("sentry.timestamp_precise".to_owned(), timestamp_nanos);
     attributes.insert(
         "sentry.observed_timestamp_nanos".to_owned(),
         received_at_nanos.to_string(),
@@ -405,14 +386,6 @@ mod tests {
             "sentry.observed_timestamp_nanos": {
               "type": "string",
               "value": "946684800000000000"
-            },
-            "sentry.timestamp_nanos": {
-              "type": "string",
-              "value": "946684800000000000"
-            },
-            "sentry.timestamp_precise": {
-              "type": "integer",
-              "value": 946684800000000000
             }
           }
         }
@@ -449,14 +422,6 @@ mod tests {
             "sentry.observed_timestamp_nanos": {
               "type": "string",
               "value": "946684800000000000"
-            },
-            "sentry.timestamp_nanos": {
-              "type": "string",
-              "value": "1638144000000000000"
-            },
-            "sentry.timestamp_precise": {
-              "type": "integer",
-              "value": 1638144000000000000
             }
           }
         }
