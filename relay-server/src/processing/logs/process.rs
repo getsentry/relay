@@ -107,8 +107,8 @@ fn expand_log_container(
 
     for log in &mut logs {
         // Calculate the received byte size and remember it as metadata, in the header.
-        // As Relay may later modify the payload later, adding attributes or removing them
-        // and in any case we want to track the originally received size.
+        // This is to keep track of the originally received size even as Relay adds, removes or
+        // modifies attributes.
         //
         // Since Relay can be deployed in multiple layers, we need to remember the size of the
         // first Relay which received the log, but at the same time we must be able to trust that
