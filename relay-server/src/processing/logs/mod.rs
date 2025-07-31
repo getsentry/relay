@@ -137,7 +137,8 @@ impl processing::Processor for LogsProcessor {
         filter::sampled(ctx).reject(&logs)?;
 
         let mut logs = process::expand(logs, ctx);
-        process::process(&mut logs, ctx);
+        process::normalize(&mut logs);
+        process::scrub(&mut logs, ctx);
 
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
 
