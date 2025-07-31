@@ -108,7 +108,7 @@ deadpool-redis = "0.20.0"
 debugid = "0.8.0"
 dialoguer = "0.11.0"
 dynfmt = "0.1.5"
-ed25519-dalek = "2.1.1"
+ed25519-dalek = { version = "2.1.1", features = ["digest"] }
 enumset = "1.0.13"
 flate2 = "1.0.35"
 flume = { version = "0.11.1", default-features = false }
