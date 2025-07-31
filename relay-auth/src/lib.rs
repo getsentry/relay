@@ -171,8 +171,8 @@ pub struct SignatureHeader {
     ///
     /// Defaults to [`SignatureAlgorithm::Regular`] because that was used before the introduction
     /// of this field.
-    #[serde(default, rename = "v")]
-    pub signature_variant: SignatureAlgorithm,
+    #[serde(default, rename = "a")]
+    pub signature_algorithm: SignatureAlgorithm,
 }
 
 impl SignatureHeader {
@@ -190,7 +190,7 @@ impl Default for SignatureHeader {
     fn default() -> SignatureHeader {
         SignatureHeader {
             timestamp: Some(Utc::now()),
-            signature_variant: SignatureAlgorithm::Regular,
+            signature_algorithm: SignatureAlgorithm::Regular,
         }
     }
 }
@@ -237,7 +237,7 @@ impl SecretKey {
         let mut header =
             serde_json::to_vec(&sig_header).expect("attempted to pack non json safe header");
         let header_encoded = BASE64URL_NOPAD.encode(&header);
-        let sig = match sig_header.signature_variant {
+        let sig = match sig_header.signature_algorithm {
             SignatureAlgorithm::Regular => {
                 header.push(b'\x00');
                 header.extend_from_slice(data);
@@ -353,7 +353,7 @@ impl PublicKey {
         };
         let parsed: SignatureHeader = serde_json::from_slice(&header).ok()?;
 
-        let verification_result = match parsed.signature_variant {
+        let verification_result = match parsed.signature_algorithm {
             SignatureAlgorithm::Regular => {
                 let mut to_verify = header.clone();
                 to_verify.push(b'\x00');
@@ -1084,7 +1084,7 @@ mod tests {
 
         let header = SignatureHeader {
             timestamp: Some(start_time),
-            signature_variant: SignatureAlgorithm::Regular,
+            signature_algorithm: SignatureAlgorithm::Regular,
         };
         let signature = pair3.0.sign_with_header(&[], &header);
 
@@ -1105,25 +1105,25 @@ mod tests {
     }
 
     #[test]
-    fn test_regular_variant() {
+    fn test_regular_algorithm() {
         let (secret, public) = generate_key_pair();
         let signature = secret.sign(&[]);
         assert!(signature.verify(&public, Utc::now(), Duration::seconds(10)));
     }
 
     #[test]
-    fn test_prehashed_variant() {
+    fn test_prehashed_algorithm() {
         let (secret, public) = generate_key_pair();
         let header = SignatureHeader {
             timestamp: Some(Utc::now()),
-            signature_variant: SignatureAlgorithm::Prehashed,
+            signature_algorithm: SignatureAlgorithm::Prehashed,
         };
         let signature = secret.sign_with_header(&[], &header);
         assert!(signature.verify(&public, Utc::now(), Duration::seconds(10)));
     }
 
     #[test]
-    fn test_legacy_signature_works_with_new() {
+    fn test_legacy_signature_can_be_verified() {
         // TestHeader struct is used to mimic old version that do not have
         // the `signature_variant` fields.
         #[derive(Serialize)]
