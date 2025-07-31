@@ -50,14 +50,33 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
     })
 }
 
-/// Processes expanded logs.
+/// Normalizes individual log entries.
 ///
-/// Validates, scrubs, normalizes and enriches individual log entries.
-pub fn process(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+/// Normalization must happen before any filters are applied or other procedures which rely on the
+/// presence and well-formedness of attributes and fields.
+pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
     logs.modify(|logs, records| {
         let meta = logs.headers.meta();
-        logs.logs
-            .retain_mut(|log| records.or_default(process_log(log, meta, ctx).map(|_| true), &*log));
+        logs.logs.retain_mut(|log| {
+            let r = normalize_log(log, meta).inspect_err(|err| {
+                relay_log::debug!("failed to normalize log: {err}");
+            });
+
+            records.or_default(r.map(|_| true), &*log)
+        })
+    });
+}
+
+/// Applies PII scrubbing to individual log entries.
+pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+    logs.modify(|logs, records| {
+        logs.logs.retain_mut(|log| {
+            let r = scrub_log(log, ctx).inspect_err(|err| {
+                relay_log::debug!("failed to scrub pii from log: {err}");
+            });
+
+            records.or_default(r.map(|_| true), &*log)
+        })
     });
 }
 
@@ -110,19 +129,7 @@ fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerIte
     Ok(logs)
 }
 
-fn process_log(log: &mut Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {
-    scrub(log, ctx).inspect_err(|err| {
-        relay_log::debug!("failed to scrub pii from log: {err}");
-    })?;
-
-    normalize(log, meta).inspect_err(|err| {
-        relay_log::debug!("failed to normalize log: {err}");
-    })?;
-
-    Ok(())
-}
-
-fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
+fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     let pii_config = ctx
         .project_info
         .config
@@ -143,7 +150,7 @@ fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     Ok(())
 }
 
-fn normalize(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
+fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
     process_value(log, &mut SchemaProcessor, ProcessingState::root())?;
 
     let Some(log) = log.value_mut() else {
