@@ -90,10 +90,7 @@ pub enum Feature {
     /// Serialized as `organizations:ourlogs-ingestion`.
     #[serde(rename = "organizations:ourlogs-ingestion")]
     OurLogsIngestion,
-    /// Enables extraction of meta attributes, which will be added to EAP.
-    #[serde(rename = "organizations:ourlogs-meta-attributes")]
-    OurLogsMetaAttributes,
-    /// This feature has graduated and is hard-coded for external Relays.
+    /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
     IngestUnsampledProfiles,

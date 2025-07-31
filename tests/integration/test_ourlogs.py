@@ -82,7 +82,7 @@ def envelope_with_otel_logs(ts: datetime) -> Envelope:
 def timestamps(ts: datetime):
     return {
         "sentry.observed_timestamp_nanos": {
-            "stringValue": time_within(ts, expect_resolution="ns", precision="s")
+            "stringValue": time_within(ts, expect_resolution="ns")
         },
         "sentry.timestamp_nanos": {
             "stringValue": time_within_delta(
@@ -210,80 +210,6 @@ def test_ourlog_multiple_containers_not_allowed(
     ]
 
 
-@pytest.mark.parametrize("meta_enabled", [False, True])
-def test_ourlog_meta_attributes(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    items_consumer,
-    meta_enabled,
-):
-    items_consumer = items_consumer()
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["datascrubbingSettings"] = {
-        "scrubData": True,
-    }
-    project_config["config"]["features"] = [
-        "organizations:ourlogs-ingestion",
-        "organizations:ourlogs-meta-attributes" if meta_enabled else "",
-    ]
-
-    relay = relay(relay_with_processing(options=TEST_CONFIG))
-    ts = datetime.now(timezone.utc)
-
-    envelope = envelope_with_sentry_logs(
-        {
-            "timestamp": ts.timestamp(),
-            "trace_id": "5b8efff798038103d269b633813fc60c",
-            "span_id": "eee19b7ec3c1b175",
-            "level": "error",
-            "body": "oops, not again",
-            "attributes": {
-                "creditcard": {
-                    "value": "4242424242424242",
-                    "type": "string",
-                }
-            },
-        }
-    )
-
-    relay.send_envelope(project_id, envelope)
-
-    assert items_consumer.get_item() == {
-        "attributes": {
-            "creditcard": {"stringValue": "[creditcard]"},
-            "sentry.body": {"stringValue": "oops, not again"},
-            "sentry.browser.name": {"stringValue": "Python Requests"},
-            "sentry.browser.version": {"stringValue": "2.32"},
-            "sentry.severity_text": {"stringValue": "error"},
-            "sentry.span_id": {"stringValue": "eee19b7ec3c1b175"},
-            **timestamps(ts),
-            **(
-                {
-                    "sentry._meta.fields.attributes.creditcard": {
-                        "stringValue": '{"meta":{"value":{"":{"rem":[["@creditcard","s",0,12]],"len":16}}}}'
-                    }
-                }
-                if meta_enabled
-                else {}
-            ),
-        },
-        "clientSampleRate": 1.0,
-        "itemId": mock.ANY,
-        "itemType": "TRACE_ITEM_TYPE_LOG",
-        "organizationId": "1",
-        "projectId": "42",
-        "received": time_within_delta(),
-        "retentionDays": 90,
-        "serverSampleRate": 1.0,
-        "timestamp": time_within_delta(
-            ts, delta=timedelta(seconds=1), expect_resolution="ns"
-        ),
-        "traceId": "5b8efff798038103d269b633813fc60c",
-    }
-
-
 @pytest.mark.parametrize(
     "external_mode,expected_byte_size",
     [
@@ -393,10 +319,23 @@ def test_ourlog_extraction_with_sentry_logs(
         },
         {
             "attributes": {
+                "sentry._meta.fields.attributes.broken_type": {
+                    "stringValue": '{"meta":{"":{"err":["invalid_data"],"val":{"type":"not_a_real_type","value":"info"}}}}'
+                },
+                "sentry._meta.fields.attributes.mismatched_type": {
+                    "stringValue": '{"meta":{"":{"err":["invalid_data"],"val":{"type":"boolean","value":"some '
+                    'string"}}}}'
+                },
+                "sentry._meta.fields.attributes.unknown_type": {
+                    "stringValue": '{"meta":{"":{"err":["invalid_data"],"val":{"type":"unknown","value":"info"}}}}'
+                },
                 "boolean.attribute": {"boolValue": True},
                 "double.attribute": {"doubleValue": 1.23},
                 "integer.attribute": {"intValue": "42"},
                 "pii": {"stringValue": "[creditcard]"},
+                "sentry._meta.fields.attributes.pii": {
+                    "stringValue": '{"meta":{"value":{"":{"rem":[["@creditcard","s",0,12]],"len":19}}}}'
+                },
                 "sentry.body": {"stringValue": "Example log record"},
                 "sentry.browser.name": {"stringValue": "Python Requests"},
                 "sentry.browser.version": {"stringValue": "2.32"},

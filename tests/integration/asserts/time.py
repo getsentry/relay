@@ -61,7 +61,9 @@ def _format_resolution(dt: datetime, resolution):
         case Resolution.MicroSeconds:
             return str(int(dt.timestamp() * 1_000_000))
         case Resolution.NanoSeconds:
-            return str(int(dt.timestamp() * 1_000_000_000))
+            # Python datetime does not support nanosecond precision, convert to micros,
+            # then integer, then convert to nanos to avoid floating point inaccuracies.
+            return str(int(dt.timestamp() * 1_000_000) * 1_000)
 
 
 class _WithinBounds:
