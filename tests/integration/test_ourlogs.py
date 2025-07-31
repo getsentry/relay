@@ -554,3 +554,115 @@ def test_browser_name_version_extraction(
         ),
         "traceId": "5b8efff798038103d269b633813fc60c",
     }
+
+
+@pytest.mark.parametrize(
+    "filter_name,filter_config",
+    [
+        pytest.param(
+            "release-version", {"releases": {"releases": ["foobar@1.0"]}}, id="release"
+        ),
+        pytest.param(
+            "gen_body",
+            {
+                "generic": {
+                    "version": 1,
+                    "filters": [
+                        {
+                            "id": "gen_body",
+                            "isEnabled": True,
+                            "condition": {
+                                "op": "glob",
+                                "name": "log.body",
+                                "value": ["fo*"],
+                            },
+                        }
+                    ],
+                }
+            },
+            id="gen_body",
+        ),
+        pytest.param(
+            "gen_attr",
+            {
+                "generic": {
+                    "version": 1,
+                    "filters": [
+                        {
+                            "id": "gen_attr",
+                            "isEnabled": True,
+                            "condition": {
+                                "op": "gte",
+                                "name": "log.attributes.some_integer.value",
+                                "value": 123,
+                            },
+                        }
+                    ],
+                }
+            },
+            id="gen_attr",
+        ),
+    ],
+)
+def test_filters_are_applied_to_logs(
+    mini_sentry,
+    relay,
+    filter_name,
+    filter_config,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    project_config["config"]["filterSettings"] = filter_config
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "level": "error",
+            "body": "foo",
+            "attributes": {
+                "some_integer": {"value": 123, "type": "integer"},
+                "sentry.release": {"value": "foobar@1.0", "type": "string"},
+            },
+        },
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    outcomes = []
+    for _ in range(2):
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
+    outcomes.sort(key=lambda x: x["category"])
+
+    assert outcomes == [
+        {
+            "category": DataCategory.LOG_ITEM.value,
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,  # Filtered
+            "reason": filter_name,
+            "quantity": 1,
+            "timestamp": time_within_delta(ts),
+        },
+        {
+            "category": DataCategory.LOG_BYTE.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,
+            "project_id": 42,
+            "quantity": mock.ANY,
+            "reason": filter_name,
+            "timestamp": time_within_delta(ts),
+        },
+    ]
+
+    assert mini_sentry.captured_events.empty()

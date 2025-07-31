@@ -5,6 +5,7 @@
 **Features**:
 
 - Add `unhandled` status type for Release Health `session` and `sessions` envelopes. ([#4939](https://github.com/getsentry/relay/pull/4939))
+- Implements basic inbound filters for logs. ([#5011](https://github.com/getsentry/relay/pull/5011))
 - Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
 
 **Bug Fixes**:
