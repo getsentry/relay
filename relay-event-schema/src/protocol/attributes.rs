@@ -201,6 +201,17 @@ impl Attributes {
         inner(self, key, value);
     }
 
+    /// Inserts an attribute with the given value if it was not already present.
+    pub fn insert_if_missing<F, V>(&mut self, key: &str, value: F)
+    where
+        F: FnOnce() -> V,
+        V: Into<AttributeValue>,
+    {
+        if !self.0.contains_key(key) {
+            self.insert(key.to_owned(), value());
+        }
+    }
+
     /// Inserts an annotated attribute into this collection.
     pub fn insert_raw(&mut self, key: String, attribute: Annotated<Attribute>) {
         self.0.insert(key, attribute);

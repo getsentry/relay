@@ -10,7 +10,7 @@ use relay_protocol::{Annotated, ErrorKind, Value};
 use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer, WithHeader};
-use crate::extractors::RequestMeta;
+use crate::extractors::{RequestMeta, RequestTrust};
 use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed};
 use crate::services::outcome::DiscardReason;
@@ -20,13 +20,14 @@ use crate::services::outcome::DiscardReason;
 /// Individual, invalid logs will be discarded.
 pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
     let received_at = logs.received_at();
+    let trust = logs.headers.meta().request_trust();
+
     logs.map(|logs, records| {
         records.lenient(DataCategory::LogByte);
 
         let mut all_logs = Vec::with_capacity(logs.count());
-
         for logs in logs.logs {
-            let expanded = expand_log_container(&logs, received_at);
+            let expanded = expand_log_container(&logs, received_at, trust);
             let expanded = records.or_default(expanded, logs);
             all_logs.extend(expanded);
         }
@@ -88,7 +89,11 @@ fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<WithHeader
     })
 }
 
-fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<ContainerItems<OurLog>> {
+fn expand_log_container(
+    item: &Item,
+    received_at: DateTime<Utc>,
+    trust: RequestTrust,
+) -> Result<ContainerItems<OurLog>> {
     let mut logs = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
@@ -97,16 +102,20 @@ fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<Conta
         .into_items();
 
     for log in &mut logs {
-        let byte_size = log.value().map(relay_ourlogs::calculate_size).unwrap_or(1);
-        let header = log.header.get_or_insert_default();
-        // Unconditionally override the size of the log, before making any modifications.
+        // Calculate the received byte size and remember it as metadata, in the header.
+        // This is to keep track of the originally received size even as Relay adds, removes or
+        // modifies attributes.
         //
-        // Relay later may deem certain attributes to be invalid and therefore drop or modify them,
-        // we still keep the original size.
+        // Since Relay can be deployed in multiple layers, we need to remember the size of the
+        // first Relay which received the log, but at the same time we must be able to trust that
+        // size.
         //
-        // Once there is processing of logs in other internal Relays, we will have to respect
-        // the value set by the header, if it is coming from an internal Relay.
-        header.byte_size = Some(byte_size);
+        // If there is no size calculated or we cannot trust the source, we re-calculate the size.
+        let byte_size = log.header.as_ref().and_then(|h: &OurLogHeader| h.byte_size);
+        if trust.is_untrusted() || matches!(byte_size, None | Some(0)) {
+            let byte_size = log.value().map(relay_ourlogs::calculate_size).unwrap_or(1);
+            log.header.get_or_insert_default().byte_size = Some(byte_size);
+        }
 
         relay_ourlogs::ourlog_merge_otel(log, received_at);
     }
@@ -162,21 +171,26 @@ fn normalize(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
 
 fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: ClientHints<&str>) {
     let attributes = log.attributes.get_or_insert_with(Default::default);
-    if let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+
+    const BROWSER_NAME: &str = "sentry.browser.name";
+    const BROWSER_VERSION: &str = "sentry.browser.version";
+
+    if attributes.contains_key(BROWSER_NAME) && attributes.contains_key(BROWSER_VERSION) {
+        return;
+    }
+
+    let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
         user_agent,
         client_hints,
-    }) {
-        if !attributes.contains_key("sentry.browser.name") {
-            if let Some(name) = context.name.value() {
-                attributes.insert("sentry.browser.name".to_owned(), name.to_owned());
-            }
-        }
+    }) else {
+        return;
+    };
 
-        if !attributes.contains_key("sentry.browser.version") {
-            if let Some(version) = context.version.value() {
-                attributes.insert("sentry.browser.version".to_owned(), version.to_owned());
-            }
-        }
+    if let Some(name) = context.name.into_value() {
+        attributes.insert_if_missing(BROWSER_NAME, || name);
+    }
+    if let Some(version) = context.version.into_value() {
+        attributes.insert_if_missing(BROWSER_VERSION, || version);
     }
 }
 

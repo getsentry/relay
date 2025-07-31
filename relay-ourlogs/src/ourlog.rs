@@ -105,16 +105,16 @@ pub fn ourlog_merge_otel(ourlog: &mut Annotated<OurLog>, received_at: DateTime<U
     let Some(ourlog_value) = ourlog.value_mut() else {
         return;
     };
+
     let attributes = ourlog_value.attributes.value_mut().get_or_insert_default();
 
     let received_at_nanos = received_at
         .timestamp_nanos_opt()
         .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64);
 
-    attributes.insert(
-        "sentry.observed_timestamp_nanos".to_owned(),
-        received_at_nanos.to_string(),
-    );
+    attributes.insert_if_missing("sentry.observed_timestamp_nanos", || {
+        received_at_nanos.to_string()
+    });
 }
 
 #[cfg(test)]

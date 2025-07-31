@@ -12,10 +12,19 @@ import pytest
 
 
 TEST_CONFIG = {
+    "outcomes": {
+        "emit_outcomes": True,
+        "batch_size": 1,
+        "batch_interval": 1,
+        "aggregator": {
+            "bucket_interval": 1,
+            "flush_interval": 1,
+        },
+    },
     "aggregator": {
         "bucket_interval": 1,
         "initial_delay": 0,
-    }
+    },
 }
 
 
@@ -90,6 +99,7 @@ def timestamps(ts: datetime):
 
 def test_ourlog_extraction_with_otel_logs(
     mini_sentry,
+    relay,
     relay_with_processing,
     items_consumer,
 ):
@@ -99,7 +109,7 @@ def test_ourlog_extraction_with_otel_logs(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay(relay_with_processing(options=TEST_CONFIG))
 
     ts = datetime.now(timezone.utc)
     envelope = envelope_with_otel_logs(ts)
@@ -137,6 +147,7 @@ def test_ourlog_extraction_with_otel_logs(
 
 def test_ourlog_multiple_containers_not_allowed(
     mini_sentry,
+    relay,
     relay_with_processing,
     items_consumer,
     outcomes_consumer,
@@ -149,7 +160,7 @@ def test_ourlog_multiple_containers_not_allowed(
         "organizations:ourlogs-ingestion",
     ]
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
     start = datetime.now(timezone.utc)
     envelope = Envelope()
 
@@ -199,13 +210,33 @@ def test_ourlog_multiple_containers_not_allowed(
     ]
 
 
+@pytest.mark.parametrize(
+    "external_mode,expected_byte_size",
+    [
+        # 260 here is a billing relevant metric, do not arbitrarily change it,
+        # this value is supposed to be static and purely based on data received,
+        # independent of any normalization.
+        (None, 260),
+        # Same applies as above, a proxy Relay does not need to run normalization.
+        ("proxy", 260),
+        # If an external Relay/Client makes modifications, sizes can change,
+        # this is fuzzy due to slight changes in sizes due to added timestamps
+        # and may need to be adjusted when changing normalization.
+        ("managed", 454),
+    ],
+)
 def test_ourlog_extraction_with_sentry_logs(
     mini_sentry,
     relay,
     relay_with_processing,
+    relay_credentials,
     items_consumer,
     outcomes_consumer,
+    external_mode,
+    expected_byte_size,
 ):
+    relay_fn = relay
+
     items_consumer = items_consumer()
     outcomes_consumer = outcomes_consumer()
 
@@ -214,7 +245,18 @@ def test_ourlog_extraction_with_sentry_logs(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-    relay = relay(relay_with_processing(options=TEST_CONFIG))
+
+    credentials = relay_credentials()
+    relay = relay_fn(
+        relay_with_processing(options=TEST_CONFIG, static_credentials=credentials),
+        credentials=credentials,
+        options=TEST_CONFIG,
+    )
+    if external_mode is not None:
+        relay = relay_fn(
+            relay, options={"relay": {"mode": external_mode}, **TEST_CONFIG}
+        )
+
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(
@@ -318,7 +360,7 @@ def test_ourlog_extraction_with_sentry_logs(
         },
     ]
 
-    outcomes = outcomes_consumer.get_aggregated_outcomes(n=4)
+    outcomes = outcomes_consumer.get_aggregated_outcomes(n=2)
     assert outcomes == [
         {
             "category": DataCategory.LOG_ITEM.value,
@@ -334,7 +376,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "org_id": 1,
             "outcome": 0,
             "project_id": 42,
-            "quantity": 260,
+            "quantity": expected_byte_size,
         },
     ]
 
@@ -462,6 +504,7 @@ def test_ourlog_extraction_is_disabled_without_feature(
 )
 def test_browser_name_version_extraction(
     mini_sentry,
+    relay,
     relay_with_processing,
     items_consumer,
     user_agent,
@@ -474,7 +517,7 @@ def test_browser_name_version_extraction(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
-    relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay(relay_with_processing(options=TEST_CONFIG))
     ts = datetime.now(timezone.utc)
 
     envelope = envelope_with_sentry_logs(

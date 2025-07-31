@@ -44,7 +44,7 @@ use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
-use crate::extractors::{PartialDsn, RequestMeta};
+use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -824,7 +824,7 @@ struct EventFullyNormalized(bool);
 impl EventFullyNormalized {
     /// Returns `true` if the event is fully normalized, `false` otherwise.
     pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
             && envelope
                 .items()
                 .any(|item| item.creates_event() && item.fully_normalized());
@@ -1035,11 +1035,11 @@ pub enum BucketSource {
 }
 
 impl BucketSource {
-    /// Infers the bucket source from [`RequestMeta::is_from_internal_relay`].
+    /// Infers the bucket source from [`RequestMeta::request_trust`].
     pub fn from_meta(meta: &RequestMeta) -> Self {
-        match meta.is_from_internal_relay() {
-            true => Self::Internal,
-            false => Self::External,
+        match meta.request_trust() {
+            RequestTrust::Trusted => Self::Internal,
+            RequestTrust::Untrusted => Self::External,
         }
     }
 }
