@@ -275,6 +275,8 @@ impl Filterable for OurLog {
 
     fn logentry(&self) -> Option<&LogEntry> {
         // This is very scoped for errors, but may make sense to also support for logs.
+        //
+        // See <https://github.com/getsentry/relay/issues/5009>.
         None
     }
 
@@ -297,6 +299,8 @@ impl Filterable for OurLog {
         // Logs currently only store `browser.name` and `browser.version`,
         // we need to add support to `relay-filter` to either parse from a user agent
         // or already parsed user agent.
+        //
+        // See <https://github.com/getsentry/relay/issues/5010>.
         None
     }
 
