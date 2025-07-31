@@ -149,186 +149,187 @@
 <a href=#149 id=149 data-nosnippet>149</a>        envelope: <span class="kw-2">&amp;</span>Envelope,
 <a href=#150 id=150 data-nosnippet>150</a>        config: <span class="kw-2">&amp;</span>Config,
 <a href=#151 id=151 data-nosnippet>151</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), DiscardReason&gt; {
-<a href=#152 id=152 data-nosnippet>152</a>        <span class="kw">if </span>envelope.meta().is_from_internal_relay() {
+<a href=#152 id=152 data-nosnippet>152</a>        <span class="kw">if </span>envelope.meta().request_trust().is_trusted() {
 <a href=#153 id=153 data-nosnippet>153</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#154 id=154 data-nosnippet>154</a>        }
-<a href=#155 id=155 data-nosnippet>155</a>        <span class="kw">match </span><span class="self">self</span>.config.trusted_relay_settings.verify_signature {
-<a href=#156 id=156 data-nosnippet>156</a>            SignatureVerification::Disabled =&gt; <span class="prelude-val">Ok</span>(()),
-<a href=#157 id=157 data-nosnippet>157</a>            SignatureVerification::Enabled =&gt; <span class="kw">match </span>envelope.meta().signature() {
-<a href=#158 id=158 data-nosnippet>158</a>                <span class="prelude-val">Some</span>(signature) =&gt; {
-<a href=#159 id=159 data-nosnippet>159</a>                    <span class="kw">if </span>signature.verify_any(
-<a href=#160 id=160 data-nosnippet>160</a>                        <span class="kw-2">&amp;</span><span class="self">self</span>.config.trusted_relays,
-<a href=#161 id=161 data-nosnippet>161</a>                        envelope.received_at(),
-<a href=#162 id=162 data-nosnippet>162</a>                        <span class="comment">// conversion should never fail here
-<a href=#163 id=163 data-nosnippet>163</a>                        </span>Duration::from_std(config.signature_max_age())
-<a href=#164 id=164 data-nosnippet>164</a>                            .unwrap_or(Duration::milliseconds(i64::MAX)),
-<a href=#165 id=165 data-nosnippet>165</a>                    ) {
-<a href=#166 id=166 data-nosnippet>166</a>                        <span class="prelude-val">Ok</span>(())
-<a href=#167 id=167 data-nosnippet>167</a>                    } <span class="kw">else </span>{
-<a href=#168 id=168 data-nosnippet>168</a>                        <span class="prelude-val">Err</span>(DiscardReason::InvalidSignature)
-<a href=#169 id=169 data-nosnippet>169</a>                    }
-<a href=#170 id=170 data-nosnippet>170</a>                }
-<a href=#171 id=171 data-nosnippet>171</a>                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(DiscardReason::MissingSignature),
-<a href=#172 id=172 data-nosnippet>172</a>            },
-<a href=#173 id=173 data-nosnippet>173</a>        }
-<a href=#174 id=174 data-nosnippet>174</a>    }
-<a href=#175 id=175 data-nosnippet>175</a>
-<a href=#176 id=176 data-nosnippet>176</a>    <span class="doccomment">/// Returns `true` if the given project ID matches this project.
-<a href=#177 id=177 data-nosnippet>177</a>    ///
-<a href=#178 id=178 data-nosnippet>178</a>    /// If the project state has not been loaded, this check is skipped because the project
-<a href=#179 id=179 data-nosnippet>179</a>    /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
-<a href=#180 id=180 data-nosnippet>180</a>    /// which comes without a project ID. The id is later overwritten in `check_envelope`.
-<a href=#181 id=181 data-nosnippet>181</a>    </span><span class="kw">fn </span>is_valid_project_id(<span class="kw-2">&amp;</span><span class="self">self</span>, stated_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; bool {
-<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">match </span>(<span class="self">self</span>.project_id, stated_id, config.override_project_ids()) {
-<a href=#183 id=183 data-nosnippet>183</a>            (<span class="prelude-val">Some</span>(actual_id), <span class="prelude-val">Some</span>(stated_id), <span class="bool-val">false</span>) =&gt; actual_id == stated_id,
-<a href=#184 id=184 data-nosnippet>184</a>            <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
-<a href=#185 id=185 data-nosnippet>185</a>        }
-<a href=#186 id=186 data-nosnippet>186</a>    }
-<a href=#187 id=187 data-nosnippet>187</a>
-<a href=#188 id=188 data-nosnippet>188</a>    <span class="doccomment">/// Checks if this origin is allowed for this project.
-<a href=#189 id=189 data-nosnippet>189</a>    </span><span class="kw">fn </span>is_valid_origin(<span class="kw-2">&amp;</span><span class="self">self</span>, origin: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Url&gt;) -&gt; bool {
-<a href=#190 id=190 data-nosnippet>190</a>        <span class="comment">// Generally accept any event without an origin.
-<a href=#191 id=191 data-nosnippet>191</a>        </span><span class="kw">let </span>origin = <span class="kw">match </span>origin {
-<a href=#192 id=192 data-nosnippet>192</a>            <span class="prelude-val">Some</span>(origin) =&gt; origin,
-<a href=#193 id=193 data-nosnippet>193</a>            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="bool-val">true</span>,
-<a href=#194 id=194 data-nosnippet>194</a>        };
-<a href=#195 id=195 data-nosnippet>195</a>
-<a href=#196 id=196 data-nosnippet>196</a>        <span class="comment">// Match against list of allowed origins. If the list is empty we always reject.
-<a href=#197 id=197 data-nosnippet>197</a>        </span><span class="kw">let </span>allowed = <span class="kw-2">&amp;</span><span class="self">self</span>.config().allowed_domains;
-<a href=#198 id=198 data-nosnippet>198</a>        <span class="kw">if </span>allowed.is_empty() {
-<a href=#199 id=199 data-nosnippet>199</a>            <span class="kw">return </span><span class="bool-val">false</span>;
-<a href=#200 id=200 data-nosnippet>200</a>        }
-<a href=#201 id=201 data-nosnippet>201</a>
-<a href=#202 id=202 data-nosnippet>202</a>        <span class="kw">let </span>allowed: Vec&lt;<span class="kw">_</span>&gt; = allowed
-<a href=#203 id=203 data-nosnippet>203</a>            .iter()
-<a href=#204 id=204 data-nosnippet>204</a>            .map(|origin| origin.as_str().into())
-<a href=#205 id=205 data-nosnippet>205</a>            .collect();
-<a href=#206 id=206 data-nosnippet>206</a>
-<a href=#207 id=207 data-nosnippet>207</a>        matches_any_origin(<span class="prelude-val">Some</span>(origin.as_str()), <span class="kw-2">&amp;</span>allowed)
-<a href=#208 id=208 data-nosnippet>208</a>    }
-<a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a>    <span class="doccomment">/// Returns `true` if the given public key matches this state.
-<a href=#211 id=211 data-nosnippet>211</a>    ///
-<a href=#212 id=212 data-nosnippet>212</a>    /// This is a sanity check since project states are keyed by the DSN public key. Unless the
-<a href=#213 id=213 data-nosnippet>213</a>    /// state is invalid or unloaded, it must always match the public key.
-<a href=#214 id=214 data-nosnippet>214</a>    </span><span class="kw">fn </span>is_matching_key(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) -&gt; bool {
-<a href=#215 id=215 data-nosnippet>215</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(key_config) = <span class="self">self</span>.get_public_key_config() {
-<a href=#216 id=216 data-nosnippet>216</a>            <span class="comment">// Always validate if we have a key config.
-<a href=#217 id=217 data-nosnippet>217</a>            </span>key_config.public_key == project_key
-<a href=#218 id=218 data-nosnippet>218</a>        } <span class="kw">else </span>{
-<a href=#219 id=219 data-nosnippet>219</a>            <span class="comment">// Loaded states must have a key config, but ignore missing and invalid states.
-<a href=#220 id=220 data-nosnippet>220</a>            </span><span class="self">self</span>.project_id.is_none()
-<a href=#221 id=221 data-nosnippet>221</a>        }
-<a href=#222 id=222 data-nosnippet>222</a>    }
-<a href=#223 id=223 data-nosnippet>223</a>
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="doccomment">/// Amends request `Scoping` with information from this project state.
-<a href=#225 id=225 data-nosnippet>225</a>    ///
-<a href=#226 id=226 data-nosnippet>226</a>    /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
-<a href=#227 id=227 data-nosnippet>227</a>    /// The processor must fetch the full scoping before attempting to rate limit with partial
-<a href=#228 id=228 data-nosnippet>228</a>    /// scoping.
-<a href=#229 id=229 data-nosnippet>229</a>    </span><span class="kw">pub fn </span>scope_request(<span class="kw-2">&amp;</span><span class="self">self</span>, meta: <span class="kw-2">&amp;</span>RequestMeta) -&gt; Scoping {
-<a href=#230 id=230 data-nosnippet>230</a>        <span class="kw">let </span><span class="kw-2">mut </span>scoping = meta.get_partial_scoping();
-<a href=#231 id=231 data-nosnippet>231</a>
-<a href=#232 id=232 data-nosnippet>232</a>        <span class="comment">// The key configuration may be missing if the event has been queued for extended times and
-<a href=#233 id=233 data-nosnippet>233</a>        // project was refetched in between. In such a case, access to key quotas is not availabe,
-<a href=#234 id=234 data-nosnippet>234</a>        // but we can gracefully execute all other rate limiting.
-<a href=#235 id=235 data-nosnippet>235</a>        </span>scoping.key_id = <span class="self">self
-<a href=#236 id=236 data-nosnippet>236</a>            </span>.get_public_key_config()
-<a href=#237 id=237 data-nosnippet>237</a>            .and_then(|config| config.numeric_id);
-<a href=#238 id=238 data-nosnippet>238</a>
-<a href=#239 id=239 data-nosnippet>239</a>        <span class="comment">// The original project identifier is part of the DSN. If the DSN was moved to another
-<a href=#240 id=240 data-nosnippet>240</a>        // project, the actual project identifier is different and can be obtained from project
-<a href=#241 id=241 data-nosnippet>241</a>        // states. This is only possible when the project state has been loaded.
-<a href=#242 id=242 data-nosnippet>242</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(project_id) = <span class="self">self</span>.project_id {
-<a href=#243 id=243 data-nosnippet>243</a>            scoping.project_id = project_id;
-<a href=#244 id=244 data-nosnippet>244</a>        }
-<a href=#245 id=245 data-nosnippet>245</a>
-<a href=#246 id=246 data-nosnippet>246</a>        <span class="comment">// This is a hack covering three cases:
-<a href=#247 id=247 data-nosnippet>247</a>        //  1. Relay has not fetched the project state. In this case we have no way of knowing
-<a href=#248 id=248 data-nosnippet>248</a>        //     which organization this project belongs to and we need to ignore any
-<a href=#249 id=249 data-nosnippet>249</a>        //     organization-wide rate limits stored globally. This project state cannot hold
-<a href=#250 id=250 data-nosnippet>250</a>        //     organization rate limits yet.
-<a href=#251 id=251 data-nosnippet>251</a>        //  2. The state has been loaded, but the organization_id is not available. This is only
-<a href=#252 id=252 data-nosnippet>252</a>        //     the case for legacy Sentry servers that do not reply with organization rate
-<a href=#253 id=253 data-nosnippet>253</a>        //     limits. Thus, the organization_id doesn't matter.
-<a href=#254 id=254 data-nosnippet>254</a>        //  3. An organization id is available and can be matched against rate limits. In this
-<a href=#255 id=255 data-nosnippet>255</a>        //     project, all organizations will match automatically, unless the organization id
-<a href=#256 id=256 data-nosnippet>256</a>        //     has changed since the last fetch.
-<a href=#257 id=257 data-nosnippet>257</a>        </span>scoping.organization_id = <span class="self">self</span>.organization_id.unwrap_or(OrganizationId::new(<span class="number">0</span>));
-<a href=#258 id=258 data-nosnippet>258</a>
-<a href=#259 id=259 data-nosnippet>259</a>        scoping
-<a href=#260 id=260 data-nosnippet>260</a>    }
-<a href=#261 id=261 data-nosnippet>261</a>
-<a href=#262 id=262 data-nosnippet>262</a>    <span class="doccomment">/// Returns quotas declared in this project state.
-<a href=#263 id=263 data-nosnippet>263</a>    </span><span class="kw">pub fn </span>get_quotas(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Quota] {
-<a href=#264 id=264 data-nosnippet>264</a>        <span class="self">self</span>.config.quotas.as_slice()
-<a href=#265 id=265 data-nosnippet>265</a>    }
-<a href=#266 id=266 data-nosnippet>266</a>
-<a href=#267 id=267 data-nosnippet>267</a>    <span class="doccomment">/// Returns cardinality limits declared in this project state.
-<a href=#268 id=268 data-nosnippet>268</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#269 id=269 data-nosnippet>269</a>    </span><span class="kw">pub fn </span>get_cardinality_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[CardinalityLimit] {
-<a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">match </span><span class="self">self</span>.config.metrics {
-<a href=#271 id=271 data-nosnippet>271</a>            ErrorBoundary::Ok(<span class="kw-2">ref </span>m) =&gt; m.cardinality_limits.as_slice(),
-<a href=#272 id=272 data-nosnippet>272</a>            <span class="kw">_ </span>=&gt; <span class="kw-2">&amp;</span>[],
-<a href=#273 id=273 data-nosnippet>273</a>        }
-<a href=#274 id=274 data-nosnippet>274</a>    }
-<a href=#275 id=275 data-nosnippet>275</a>
-<a href=#276 id=276 data-nosnippet>276</a>    <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.
-<a href=#277 id=277 data-nosnippet>277</a>    </span><span class="kw">pub fn </span>sanitized(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-<a href=#278 id=278 data-nosnippet>278</a>        <span class="self">self</span>.config.sanitize();
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="self">self
-<a href=#280 id=280 data-nosnippet>280</a>    </span>}
-<a href=#281 id=281 data-nosnippet>281</a>
-<a href=#282 id=282 data-nosnippet>282</a>    <span class="doccomment">/// Returns `true` if the given feature is enabled for this project.
-<a href=#283 id=283 data-nosnippet>283</a>    </span><span class="kw">pub fn </span>has_feature(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="self">self</span>.config.features.has(feature)
-<a href=#285 id=285 data-nosnippet>285</a>    }
-<a href=#286 id=286 data-nosnippet>286</a>}
-<a href=#287 id=287 data-nosnippet>287</a>
-<a href=#288 id=288 data-nosnippet>288</a><span class="doccomment">/// Represents a public key received from the projectconfig endpoint.
-<a href=#289 id=289 data-nosnippet>289</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-<a href=#290 id=290 data-nosnippet>290</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
-<a href=#291 id=291 data-nosnippet>291</a></span><span class="kw">pub struct </span>PublicKeyConfig {
-<a href=#292 id=292 data-nosnippet>292</a>    <span class="doccomment">/// Public part of key (random hash).
-<a href=#293 id=293 data-nosnippet>293</a>    </span><span class="kw">pub </span>public_key: ProjectKey,
-<a href=#294 id=294 data-nosnippet>294</a>
-<a href=#295 id=295 data-nosnippet>295</a>    <span class="doccomment">/// The primary key of the DSN in Sentry's main database.
-<a href=#296 id=296 data-nosnippet>296</a>    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="kw">pub </span>numeric_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-<a href=#298 id=298 data-nosnippet>298</a>}
-<a href=#299 id=299 data-nosnippet>299</a>
-<a href=#300 id=300 data-nosnippet>300</a><span class="doccomment">/// Represents a project info revision.
-<a href=#301 id=301 data-nosnippet>301</a>///
-<a href=#302 id=302 data-nosnippet>302</a>/// A revision can be missing, a missing revision never compares equal
-<a href=#303 id=303 data-nosnippet>303</a>/// to any other revision.
-<a href=#304 id=304 data-nosnippet>304</a>///
-<a href=#305 id=305 data-nosnippet>305</a>/// Revisions are internally reference counted and cheap to create.
-<a href=#306 id=306 data-nosnippet>306</a></span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-<a href=#307 id=307 data-nosnippet>307</a>#[serde(transparent)]
-<a href=#308 id=308 data-nosnippet>308</a></span><span class="kw">pub struct </span>Revision(<span class="prelude-ty">Option</span>&lt;Arc&lt;str&gt;&gt;);
-<a href=#309 id=309 data-nosnippet>309</a>
-<a href=#310 id=310 data-nosnippet>310</a><span class="kw">impl </span>Revision {
-<a href=#311 id=311 data-nosnippet>311</a>    <span class="doccomment">/// Returns the revision as a string reference.
-<a href=#312 id=312 data-nosnippet>312</a>    ///
-<a href=#313 id=313 data-nosnippet>313</a>    /// `None` is a revision that does not match any other revision,
-<a href=#314 id=314 data-nosnippet>314</a>    /// not even another revision which is represented as `None`.
-<a href=#315 id=315 data-nosnippet>315</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-<a href=#316 id=316 data-nosnippet>316</a>        <span class="self">self</span>.<span class="number">0</span>.as_deref()
-<a href=#317 id=317 data-nosnippet>317</a>    }
-<a href=#318 id=318 data-nosnippet>318</a>}
-<a href=#319 id=319 data-nosnippet>319</a>
-<a href=#320 id=320 data-nosnippet>320</a><span class="kw">impl </span>PartialEq <span class="kw">for </span>Revision {
-<a href=#321 id=321 data-nosnippet>321</a>    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>other.<span class="number">0</span>) {
-<a href=#323 id=323 data-nosnippet>323</a>            (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-<a href=#324 id=324 data-nosnippet>324</a>            (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="bool-val">false</span>,
-<a href=#325 id=325 data-nosnippet>325</a>            (<span class="prelude-val">Some</span>(left), <span class="prelude-val">Some</span>(right)) =&gt; left == right,
-<a href=#326 id=326 data-nosnippet>326</a>        }
-<a href=#327 id=327 data-nosnippet>327</a>    }
-<a href=#328 id=328 data-nosnippet>328</a>}
-<a href=#329 id=329 data-nosnippet>329</a>
-<a href=#330 id=330 data-nosnippet>330</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>str&gt; <span class="kw">for </span>Revision {
-<a href=#331 id=331 data-nosnippet>331</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
-<a href=#332 id=332 data-nosnippet>332</a>        <span class="self">Self</span>(<span class="prelude-val">Some</span>(value.into()))
-<a href=#333 id=333 data-nosnippet>333</a>    }
-<a href=#334 id=334 data-nosnippet>334</a>}</code></pre></div></section></main></body></html>
+<a href=#155 id=155 data-nosnippet>155</a>
+<a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">match </span><span class="self">self</span>.config.trusted_relay_settings.verify_signature {
+<a href=#157 id=157 data-nosnippet>157</a>            SignatureVerification::Disabled =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#158 id=158 data-nosnippet>158</a>            SignatureVerification::Enabled =&gt; <span class="kw">match </span>envelope.meta().signature() {
+<a href=#159 id=159 data-nosnippet>159</a>                <span class="prelude-val">Some</span>(signature) =&gt; {
+<a href=#160 id=160 data-nosnippet>160</a>                    <span class="kw">if </span>signature.verify_any(
+<a href=#161 id=161 data-nosnippet>161</a>                        <span class="kw-2">&amp;</span><span class="self">self</span>.config.trusted_relays,
+<a href=#162 id=162 data-nosnippet>162</a>                        envelope.received_at(),
+<a href=#163 id=163 data-nosnippet>163</a>                        <span class="comment">// conversion should never fail here
+<a href=#164 id=164 data-nosnippet>164</a>                        </span>Duration::from_std(config.signature_max_age())
+<a href=#165 id=165 data-nosnippet>165</a>                            .unwrap_or(Duration::milliseconds(i64::MAX)),
+<a href=#166 id=166 data-nosnippet>166</a>                    ) {
+<a href=#167 id=167 data-nosnippet>167</a>                        <span class="prelude-val">Ok</span>(())
+<a href=#168 id=168 data-nosnippet>168</a>                    } <span class="kw">else </span>{
+<a href=#169 id=169 data-nosnippet>169</a>                        <span class="prelude-val">Err</span>(DiscardReason::InvalidSignature)
+<a href=#170 id=170 data-nosnippet>170</a>                    }
+<a href=#171 id=171 data-nosnippet>171</a>                }
+<a href=#172 id=172 data-nosnippet>172</a>                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(DiscardReason::MissingSignature),
+<a href=#173 id=173 data-nosnippet>173</a>            },
+<a href=#174 id=174 data-nosnippet>174</a>        }
+<a href=#175 id=175 data-nosnippet>175</a>    }
+<a href=#176 id=176 data-nosnippet>176</a>
+<a href=#177 id=177 data-nosnippet>177</a>    <span class="doccomment">/// Returns `true` if the given project ID matches this project.
+<a href=#178 id=178 data-nosnippet>178</a>    ///
+<a href=#179 id=179 data-nosnippet>179</a>    /// If the project state has not been loaded, this check is skipped because the project
+<a href=#180 id=180 data-nosnippet>180</a>    /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
+<a href=#181 id=181 data-nosnippet>181</a>    /// which comes without a project ID. The id is later overwritten in `check_envelope`.
+<a href=#182 id=182 data-nosnippet>182</a>    </span><span class="kw">fn </span>is_valid_project_id(<span class="kw-2">&amp;</span><span class="self">self</span>, stated_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; bool {
+<a href=#183 id=183 data-nosnippet>183</a>        <span class="kw">match </span>(<span class="self">self</span>.project_id, stated_id, config.override_project_ids()) {
+<a href=#184 id=184 data-nosnippet>184</a>            (<span class="prelude-val">Some</span>(actual_id), <span class="prelude-val">Some</span>(stated_id), <span class="bool-val">false</span>) =&gt; actual_id == stated_id,
+<a href=#185 id=185 data-nosnippet>185</a>            <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
+<a href=#186 id=186 data-nosnippet>186</a>        }
+<a href=#187 id=187 data-nosnippet>187</a>    }
+<a href=#188 id=188 data-nosnippet>188</a>
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="doccomment">/// Checks if this origin is allowed for this project.
+<a href=#190 id=190 data-nosnippet>190</a>    </span><span class="kw">fn </span>is_valid_origin(<span class="kw-2">&amp;</span><span class="self">self</span>, origin: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Url&gt;) -&gt; bool {
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="comment">// Generally accept any event without an origin.
+<a href=#192 id=192 data-nosnippet>192</a>        </span><span class="kw">let </span>origin = <span class="kw">match </span>origin {
+<a href=#193 id=193 data-nosnippet>193</a>            <span class="prelude-val">Some</span>(origin) =&gt; origin,
+<a href=#194 id=194 data-nosnippet>194</a>            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="bool-val">true</span>,
+<a href=#195 id=195 data-nosnippet>195</a>        };
+<a href=#196 id=196 data-nosnippet>196</a>
+<a href=#197 id=197 data-nosnippet>197</a>        <span class="comment">// Match against list of allowed origins. If the list is empty we always reject.
+<a href=#198 id=198 data-nosnippet>198</a>        </span><span class="kw">let </span>allowed = <span class="kw-2">&amp;</span><span class="self">self</span>.config().allowed_domains;
+<a href=#199 id=199 data-nosnippet>199</a>        <span class="kw">if </span>allowed.is_empty() {
+<a href=#200 id=200 data-nosnippet>200</a>            <span class="kw">return </span><span class="bool-val">false</span>;
+<a href=#201 id=201 data-nosnippet>201</a>        }
+<a href=#202 id=202 data-nosnippet>202</a>
+<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">let </span>allowed: Vec&lt;<span class="kw">_</span>&gt; = allowed
+<a href=#204 id=204 data-nosnippet>204</a>            .iter()
+<a href=#205 id=205 data-nosnippet>205</a>            .map(|origin| origin.as_str().into())
+<a href=#206 id=206 data-nosnippet>206</a>            .collect();
+<a href=#207 id=207 data-nosnippet>207</a>
+<a href=#208 id=208 data-nosnippet>208</a>        matches_any_origin(<span class="prelude-val">Some</span>(origin.as_str()), <span class="kw-2">&amp;</span>allowed)
+<a href=#209 id=209 data-nosnippet>209</a>    }
+<a href=#210 id=210 data-nosnippet>210</a>
+<a href=#211 id=211 data-nosnippet>211</a>    <span class="doccomment">/// Returns `true` if the given public key matches this state.
+<a href=#212 id=212 data-nosnippet>212</a>    ///
+<a href=#213 id=213 data-nosnippet>213</a>    /// This is a sanity check since project states are keyed by the DSN public key. Unless the
+<a href=#214 id=214 data-nosnippet>214</a>    /// state is invalid or unloaded, it must always match the public key.
+<a href=#215 id=215 data-nosnippet>215</a>    </span><span class="kw">fn </span>is_matching_key(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) -&gt; bool {
+<a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(key_config) = <span class="self">self</span>.get_public_key_config() {
+<a href=#217 id=217 data-nosnippet>217</a>            <span class="comment">// Always validate if we have a key config.
+<a href=#218 id=218 data-nosnippet>218</a>            </span>key_config.public_key == project_key
+<a href=#219 id=219 data-nosnippet>219</a>        } <span class="kw">else </span>{
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="comment">// Loaded states must have a key config, but ignore missing and invalid states.
+<a href=#221 id=221 data-nosnippet>221</a>            </span><span class="self">self</span>.project_id.is_none()
+<a href=#222 id=222 data-nosnippet>222</a>        }
+<a href=#223 id=223 data-nosnippet>223</a>    }
+<a href=#224 id=224 data-nosnippet>224</a>
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="doccomment">/// Amends request `Scoping` with information from this project state.
+<a href=#226 id=226 data-nosnippet>226</a>    ///
+<a href=#227 id=227 data-nosnippet>227</a>    /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
+<a href=#228 id=228 data-nosnippet>228</a>    /// The processor must fetch the full scoping before attempting to rate limit with partial
+<a href=#229 id=229 data-nosnippet>229</a>    /// scoping.
+<a href=#230 id=230 data-nosnippet>230</a>    </span><span class="kw">pub fn </span>scope_request(<span class="kw-2">&amp;</span><span class="self">self</span>, meta: <span class="kw-2">&amp;</span>RequestMeta) -&gt; Scoping {
+<a href=#231 id=231 data-nosnippet>231</a>        <span class="kw">let </span><span class="kw-2">mut </span>scoping = meta.get_partial_scoping();
+<a href=#232 id=232 data-nosnippet>232</a>
+<a href=#233 id=233 data-nosnippet>233</a>        <span class="comment">// The key configuration may be missing if the event has been queued for extended times and
+<a href=#234 id=234 data-nosnippet>234</a>        // project was refetched in between. In such a case, access to key quotas is not availabe,
+<a href=#235 id=235 data-nosnippet>235</a>        // but we can gracefully execute all other rate limiting.
+<a href=#236 id=236 data-nosnippet>236</a>        </span>scoping.key_id = <span class="self">self
+<a href=#237 id=237 data-nosnippet>237</a>            </span>.get_public_key_config()
+<a href=#238 id=238 data-nosnippet>238</a>            .and_then(|config| config.numeric_id);
+<a href=#239 id=239 data-nosnippet>239</a>
+<a href=#240 id=240 data-nosnippet>240</a>        <span class="comment">// The original project identifier is part of the DSN. If the DSN was moved to another
+<a href=#241 id=241 data-nosnippet>241</a>        // project, the actual project identifier is different and can be obtained from project
+<a href=#242 id=242 data-nosnippet>242</a>        // states. This is only possible when the project state has been loaded.
+<a href=#243 id=243 data-nosnippet>243</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(project_id) = <span class="self">self</span>.project_id {
+<a href=#244 id=244 data-nosnippet>244</a>            scoping.project_id = project_id;
+<a href=#245 id=245 data-nosnippet>245</a>        }
+<a href=#246 id=246 data-nosnippet>246</a>
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="comment">// This is a hack covering three cases:
+<a href=#248 id=248 data-nosnippet>248</a>        //  1. Relay has not fetched the project state. In this case we have no way of knowing
+<a href=#249 id=249 data-nosnippet>249</a>        //     which organization this project belongs to and we need to ignore any
+<a href=#250 id=250 data-nosnippet>250</a>        //     organization-wide rate limits stored globally. This project state cannot hold
+<a href=#251 id=251 data-nosnippet>251</a>        //     organization rate limits yet.
+<a href=#252 id=252 data-nosnippet>252</a>        //  2. The state has been loaded, but the organization_id is not available. This is only
+<a href=#253 id=253 data-nosnippet>253</a>        //     the case for legacy Sentry servers that do not reply with organization rate
+<a href=#254 id=254 data-nosnippet>254</a>        //     limits. Thus, the organization_id doesn't matter.
+<a href=#255 id=255 data-nosnippet>255</a>        //  3. An organization id is available and can be matched against rate limits. In this
+<a href=#256 id=256 data-nosnippet>256</a>        //     project, all organizations will match automatically, unless the organization id
+<a href=#257 id=257 data-nosnippet>257</a>        //     has changed since the last fetch.
+<a href=#258 id=258 data-nosnippet>258</a>        </span>scoping.organization_id = <span class="self">self</span>.organization_id.unwrap_or(OrganizationId::new(<span class="number">0</span>));
+<a href=#259 id=259 data-nosnippet>259</a>
+<a href=#260 id=260 data-nosnippet>260</a>        scoping
+<a href=#261 id=261 data-nosnippet>261</a>    }
+<a href=#262 id=262 data-nosnippet>262</a>
+<a href=#263 id=263 data-nosnippet>263</a>    <span class="doccomment">/// Returns quotas declared in this project state.
+<a href=#264 id=264 data-nosnippet>264</a>    </span><span class="kw">pub fn </span>get_quotas(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Quota] {
+<a href=#265 id=265 data-nosnippet>265</a>        <span class="self">self</span>.config.quotas.as_slice()
+<a href=#266 id=266 data-nosnippet>266</a>    }
+<a href=#267 id=267 data-nosnippet>267</a>
+<a href=#268 id=268 data-nosnippet>268</a>    <span class="doccomment">/// Returns cardinality limits declared in this project state.
+<a href=#269 id=269 data-nosnippet>269</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#270 id=270 data-nosnippet>270</a>    </span><span class="kw">pub fn </span>get_cardinality_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[CardinalityLimit] {
+<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">match </span><span class="self">self</span>.config.metrics {
+<a href=#272 id=272 data-nosnippet>272</a>            ErrorBoundary::Ok(<span class="kw-2">ref </span>m) =&gt; m.cardinality_limits.as_slice(),
+<a href=#273 id=273 data-nosnippet>273</a>            <span class="kw">_ </span>=&gt; <span class="kw-2">&amp;</span>[],
+<a href=#274 id=274 data-nosnippet>274</a>        }
+<a href=#275 id=275 data-nosnippet>275</a>    }
+<a href=#276 id=276 data-nosnippet>276</a>
+<a href=#277 id=277 data-nosnippet>277</a>    <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.
+<a href=#278 id=278 data-nosnippet>278</a>    </span><span class="kw">pub fn </span>sanitized(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+<a href=#279 id=279 data-nosnippet>279</a>        <span class="self">self</span>.config.sanitize();
+<a href=#280 id=280 data-nosnippet>280</a>        <span class="self">self
+<a href=#281 id=281 data-nosnippet>281</a>    </span>}
+<a href=#282 id=282 data-nosnippet>282</a>
+<a href=#283 id=283 data-nosnippet>283</a>    <span class="doccomment">/// Returns `true` if the given feature is enabled for this project.
+<a href=#284 id=284 data-nosnippet>284</a>    </span><span class="kw">pub fn </span>has_feature(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="self">self</span>.config.features.has(feature)
+<a href=#286 id=286 data-nosnippet>286</a>    }
+<a href=#287 id=287 data-nosnippet>287</a>}
+<a href=#288 id=288 data-nosnippet>288</a>
+<a href=#289 id=289 data-nosnippet>289</a><span class="doccomment">/// Represents a public key received from the projectconfig endpoint.
+<a href=#290 id=290 data-nosnippet>290</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+<a href=#291 id=291 data-nosnippet>291</a>#[serde(rename_all = <span class="string">"camelCase"</span>)]
+<a href=#292 id=292 data-nosnippet>292</a></span><span class="kw">pub struct </span>PublicKeyConfig {
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="doccomment">/// Public part of key (random hash).
+<a href=#294 id=294 data-nosnippet>294</a>    </span><span class="kw">pub </span>public_key: ProjectKey,
+<a href=#295 id=295 data-nosnippet>295</a>
+<a href=#296 id=296 data-nosnippet>296</a>    <span class="doccomment">/// The primary key of the DSN in Sentry's main database.
+<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+<a href=#298 id=298 data-nosnippet>298</a>    </span><span class="kw">pub </span>numeric_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+<a href=#299 id=299 data-nosnippet>299</a>}
+<a href=#300 id=300 data-nosnippet>300</a>
+<a href=#301 id=301 data-nosnippet>301</a><span class="doccomment">/// Represents a project info revision.
+<a href=#302 id=302 data-nosnippet>302</a>///
+<a href=#303 id=303 data-nosnippet>303</a>/// A revision can be missing, a missing revision never compares equal
+<a href=#304 id=304 data-nosnippet>304</a>/// to any other revision.
+<a href=#305 id=305 data-nosnippet>305</a>///
+<a href=#306 id=306 data-nosnippet>306</a>/// Revisions are internally reference counted and cheap to create.
+<a href=#307 id=307 data-nosnippet>307</a></span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+<a href=#308 id=308 data-nosnippet>308</a>#[serde(transparent)]
+<a href=#309 id=309 data-nosnippet>309</a></span><span class="kw">pub struct </span>Revision(<span class="prelude-ty">Option</span>&lt;Arc&lt;str&gt;&gt;);
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a><span class="kw">impl </span>Revision {
+<a href=#312 id=312 data-nosnippet>312</a>    <span class="doccomment">/// Returns the revision as a string reference.
+<a href=#313 id=313 data-nosnippet>313</a>    ///
+<a href=#314 id=314 data-nosnippet>314</a>    /// `None` is a revision that does not match any other revision,
+<a href=#315 id=315 data-nosnippet>315</a>    /// not even another revision which is represented as `None`.
+<a href=#316 id=316 data-nosnippet>316</a>    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+<a href=#317 id=317 data-nosnippet>317</a>        <span class="self">self</span>.<span class="number">0</span>.as_deref()
+<a href=#318 id=318 data-nosnippet>318</a>    }
+<a href=#319 id=319 data-nosnippet>319</a>}
+<a href=#320 id=320 data-nosnippet>320</a>
+<a href=#321 id=321 data-nosnippet>321</a><span class="kw">impl </span>PartialEq <span class="kw">for </span>Revision {
+<a href=#322 id=322 data-nosnippet>322</a>    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+<a href=#323 id=323 data-nosnippet>323</a>        <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>other.<span class="number">0</span>) {
+<a href=#324 id=324 data-nosnippet>324</a>            (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+<a href=#325 id=325 data-nosnippet>325</a>            (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="bool-val">false</span>,
+<a href=#326 id=326 data-nosnippet>326</a>            (<span class="prelude-val">Some</span>(left), <span class="prelude-val">Some</span>(right)) =&gt; left == right,
+<a href=#327 id=327 data-nosnippet>327</a>        }
+<a href=#328 id=328 data-nosnippet>328</a>    }
+<a href=#329 id=329 data-nosnippet>329</a>}
+<a href=#330 id=330 data-nosnippet>330</a>
+<a href=#331 id=331 data-nosnippet>331</a><span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>str&gt; <span class="kw">for </span>Revision {
+<a href=#332 id=332 data-nosnippet>332</a>    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="self">Self</span>(<span class="prelude-val">Some</span>(value.into()))
+<a href=#334 id=334 data-nosnippet>334</a>    }
+<a href=#335 id=335 data-nosnippet>335</a>}</code></pre></div></section></main></body></html>
