@@ -1748,15 +1748,13 @@ impl EnvelopeProcessorService {
 
         transaction::drop_invalid_items(managed_envelope, &global_config);
 
-        relay_cogs::with!(cogs, "event_extract", {
-            // We extract the main event from the envelope.
-            let extraction_result = event::extract(
-                managed_envelope,
-                &mut metrics,
-                event_fully_normalized,
-                &self.inner.config,
-            )?;
-        });
+        // We extract the main event from the envelope.
+        let extraction_result = event::extract(
+            managed_envelope,
+            &mut metrics,
+            event_fully_normalized,
+            &self.inner.config,
+        )?;
 
         // If metrics were extracted we mark that.
         if let Some(inner_event_metrics_extracted) = extraction_result.event_metrics_extracted {
@@ -1769,53 +1767,43 @@ impl EnvelopeProcessorService {
         // We take the main event out of the result.
         let mut event = extraction_result.event;
 
-        relay_cogs::with!(cogs, "profile_filter", {
-            let profile_id = profile::filter(
-                managed_envelope,
-                &event,
-                config.clone(),
-                project_id,
-                &project_info,
-            );
-            profile::transfer_id(&mut event, profile_id);
-        });
+        let profile_id = profile::filter(
+            managed_envelope,
+            &event,
+            config.clone(),
+            project_id,
+            &project_info,
+        );
+        profile::transfer_id(&mut event, profile_id);
 
-        relay_cogs::with!(cogs, "dynamic_sampling_dsc", {
-            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-                managed_envelope,
-                &mut event,
-                project_info.clone(),
-                sampling_project_info,
-            );
-        });
+        sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+            managed_envelope,
+            &mut event,
+            project_info.clone(),
+            sampling_project_info,
+        );
 
-        relay_cogs::with!(cogs, "event_finalize", {
-            event::finalize(
-                managed_envelope,
-                &mut event,
-                &mut metrics,
-                &self.inner.config,
-            )?;
-        });
+        event::finalize(
+            managed_envelope,
+            &mut event,
+            &mut metrics,
+            &self.inner.config,
+        )?;
 
-        relay_cogs::with!(cogs, "event_normalize", {
-            event_fully_normalized = self.normalize_event(
-                managed_envelope,
-                &mut event,
-                project_id,
-                project_info.clone(),
-                event_fully_normalized,
-            )?;
-        });
+        event_fully_normalized = self.normalize_event(
+            managed_envelope,
+            &mut event,
+            project_id,
+            project_info.clone(),
+            event_fully_normalized,
+        )?;
 
-        relay_cogs::with!(cogs, "filter", {
-            let filter_run = event::filter(
-                managed_envelope,
-                &mut event,
-                project_info.clone(),
-                &self.inner.global_config.current(),
-            )?;
-        });
+        let filter_run = event::filter(
+            managed_envelope,
+            &mut event,
+            project_info.clone(),
+            &self.inner.global_config.current(),
+        )?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
@@ -1827,22 +1815,20 @@ impl EnvelopeProcessorService {
             reservoir_counters,
         );
 
-        relay_cogs::with!(cogs, "dynamic_sampling_run", {
-            let sampling_result = match run_dynamic_sampling {
-                true => {
-                    dynamic_sampling::run(
-                        managed_envelope,
-                        &mut event,
-                        config.clone(),
-                        project_info.clone(),
-                        sampling_project_info,
-                        &reservoir,
-                    )
-                    .await
-                }
-                false => SamplingResult::Pending,
-            };
-        });
+        let sampling_result = match run_dynamic_sampling {
+            true => {
+                dynamic_sampling::run(
+                    managed_envelope,
+                    &mut event,
+                    config.clone(),
+                    project_info.clone(),
+                    sampling_project_info,
+                    &reservoir,
+                )
+                .await
+            }
+            false => SamplingResult::Pending,
+        };
 
         #[cfg(feature = "processing")]
         let server_sample_rate = match sampling_result {
