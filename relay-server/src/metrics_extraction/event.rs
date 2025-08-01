@@ -104,8 +104,9 @@ fn extract_span_metrics_for_event(
             }
         }
 
-        // This function assumes it is only called when span metrics should be extracted, hence we
-        // extract the span root counter unconditionally.
+        // We unconditionally run metric extraction for spans. The count per root, is technically
+        // only required for configurations which do have dynamic sampling enabled. But for the
+        // sake of simplicity we always add it here.
         let transaction = transactions::get_transaction_name(event);
         let bucket = create_span_root_counter(
             event,
@@ -1276,7 +1277,14 @@ mod tests {
     #[test]
     fn no_feature_flags_enabled() {
         let metrics = extract_span_metrics([]);
-        assert!(metrics.project_metrics.is_empty());
+
+        assert_eq!(metrics.project_metrics.len(), 75);
+        assert!(
+            metrics
+                .project_metrics
+                .into_iter()
+                .all(|x| &x.name == "c:spans/usage@none")
+        );
 
         assert_eq!(metrics.sampling_metrics.len(), 1);
         assert_eq!(

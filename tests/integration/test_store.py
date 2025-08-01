@@ -916,6 +916,14 @@ def test_processing_quota_transaction_indexing(
         timeout=3,
     )
 
+    # Ignore span metrics, they may be emitted because rate limits from transactions are not
+    # currently enforced for spans, which they should be. See: https://github.com/getsentry/relay/issues/4961.
+    metrics = {metric["name"] for (metric, _) in metrics_consumer.get_metrics()}
+    assert metrics == {
+        "c:spans/count_per_root_project@none",
+        "c:spans/usage@none",
+    }
+
 
 def test_events_buffered_before_auth(relay, mini_sentry):
     evt = threading.Event()

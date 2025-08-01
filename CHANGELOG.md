@@ -5,10 +5,14 @@
 **Features**:
 
 - Build and publish Relay containers with a distroless base image. ([#4940](https://github.com/getsentry/relay/pull/4940))
+- Add `unhandled` status type for Release Health `session` and `sessions` envelopes. ([#4939](https://github.com/getsentry/relay/pull/4939))
+- Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
 
 **Bug Fixes**:
 
 - Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
+- Normalize AI pipeline name and streaming flag to `gen_ai.*` names. ([#4982](https://github.com/getsentry/relay/pull/4982))
+- Deal with sub-microsecond floating point inaccuracies for logs and spans correctly. ([#5002](https://github.com/getsentry/relay/pull/5002))
 
 **Internal**:
 
@@ -18,7 +22,10 @@
 - Deprecate old AI monitoring attributes. ([#4960](https://github.com/getsentry/relay/pull/4960))
 - Normalize legacy `ai.*` attributes to `gen_ai.*` names. ([#4924](https://github.com/getsentry/relay/pull/4924))
 - Force the routing key to be random instead of letting Kafka handle the randomization. ([#4974](https://github.com/getsentry/relay/pull/4974))
+- Stop extracting the `sentry.severity_number` attribute for logs. ([#4989](https://github.com/getsentry/relay/pull/4989))
+- Stop extracting the `sentry.trace_flags` attribute for logs. ([#4988](https://github.com/getsentry/relay/pull/4988))
 - Add Jwm to the supported image types. ([#4975](https://github.com/getsentry/relay/pull/4975))
+- Process logs in all non-proxy Relays. ([#4973](https://github.com/getsentry/relay/pull/4973))
 
 ## 25.7.0
 

@@ -1212,7 +1212,7 @@ impl OutcomeBroker {
 
         let result = producer.client.send(
             topic,
-            Some(key.into_bytes()),
+            Some(key.as_u128()),
             None,
             "outcome",
             payload.as_bytes(),

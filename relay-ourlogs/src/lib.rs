@@ -10,6 +10,5 @@ mod ourlog;
 mod size;
 
 pub use self::ourlog::otel_to_sentry_log;
-pub use self::ourlog::ourlog_merge_otel;
 pub use self::size::calculate_size;
 pub use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLog;
