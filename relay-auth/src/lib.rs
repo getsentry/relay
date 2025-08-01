@@ -149,12 +149,13 @@ pub enum UnpackError {
 }
 
 /// Used to tell which algorithm was used for signature creation.
-#[derive(Default, Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SignatureAlgorithm {
     /// Regular signature creation which clones the data internally.
-    #[default]
+    #[serde(rename = "v0")]
     Regular,
     /// Pre-hashed signature which allows incremental hashing.
+    #[serde(rename = "v1")]
     Prehashed,
 }
 
@@ -171,8 +172,8 @@ pub struct SignatureHeader {
     ///
     /// Defaults to [`SignatureAlgorithm::Regular`] because that was used before the introduction
     /// of this field.
-    #[serde(default, rename = "a")]
-    pub signature_algorithm: SignatureAlgorithm,
+    #[serde(rename = "a", skip_serializing_if = "Option::is_none")]
+    pub signature_algorithm: Option<SignatureAlgorithm>,
 }
 
 impl SignatureHeader {
@@ -190,7 +191,7 @@ impl Default for SignatureHeader {
     fn default() -> SignatureHeader {
         SignatureHeader {
             timestamp: Some(Utc::now()),
-            signature_algorithm: SignatureAlgorithm::Regular,
+            signature_algorithm: None,
         }
     }
 }
@@ -237,7 +238,10 @@ impl SecretKey {
         let mut header =
             serde_json::to_vec(&sig_header).expect("attempted to pack non json safe header");
         let header_encoded = BASE64URL_NOPAD.encode(&header);
-        let sig = match sig_header.signature_algorithm {
+        let sig = match sig_header
+            .signature_algorithm
+            .unwrap_or(SignatureAlgorithm::Regular)
+        {
             SignatureAlgorithm::Regular => {
                 header.push(b'\x00');
                 header.extend_from_slice(data);
@@ -353,7 +357,10 @@ impl PublicKey {
         };
         let parsed: SignatureHeader = serde_json::from_slice(&header).ok()?;
 
-        let verification_result = match parsed.signature_algorithm {
+        let verification_result = match parsed
+            .signature_algorithm
+            .unwrap_or(SignatureAlgorithm::Regular)
+        {
             SignatureAlgorithm::Regular => {
                 let mut to_verify = header.clone();
                 to_verify.push(b'\x00');
@@ -1084,7 +1091,7 @@ mod tests {
 
         let header = SignatureHeader {
             timestamp: Some(start_time),
-            signature_algorithm: SignatureAlgorithm::Regular,
+            signature_algorithm: Some(SignatureAlgorithm::Regular),
         };
         let signature = pair3.0.sign_with_header(&[], &header);
 
@@ -1116,7 +1123,7 @@ mod tests {
         let (secret, public) = generate_key_pair();
         let header = SignatureHeader {
             timestamp: Some(Utc::now()),
-            signature_algorithm: SignatureAlgorithm::Prehashed,
+            signature_algorithm: Some(SignatureAlgorithm::Prehashed),
         };
         let signature = secret.sign_with_header(&[], &header);
         assert!(signature.verify(&public, Utc::now(), Duration::seconds(10)));
