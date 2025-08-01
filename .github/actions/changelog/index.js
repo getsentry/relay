@@ -51,7 +51,7 @@ module.exports = async ({github, context, core}) => {
   }
 
   async function checkChangelog(pr) {
-    const hasSkipLabel = (pr.labels || []).some(label => label.name == 'skip-changelog');
+    const hasSkipLabel = (pr.labels || []).some(label => label.name === 'skip-changelog');
     if (hasSkipLabel) {
       return;
     }
