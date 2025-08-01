@@ -5,7 +5,7 @@ use relay_protocol::Annotated;
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::processing::Context;
-use crate::processing::logs::{Error, Result};
+use crate::processing::logs::{Error, ExpandedLogs, Result};
 
 /// Filters logs sent for a project which does not allow logs ingestion.
 pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
