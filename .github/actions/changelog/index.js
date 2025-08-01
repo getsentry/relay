@@ -80,6 +80,28 @@ module.exports = async ({github, context, core}) => {
     core.info("CHANGELOG entry is added, we're good to go.");
   }
 
+  async function checkPrTitle(pr) {
+    // Provide an opt out just in case, but this should never be used.
+    const hasIgnoreLabel = (pr.labels || []).some(label => label.name === 'ignore-title');
+    if (hasIgnoreLabel) {
+      return;
+    }
+
+    // From: <https://develop.sentry.dev/engineering-practices/commit-messages/>.
+    const TITLE_RE = /^(ci|build|docs|feat|fix|perf|ref|style|test|meta|license)(\([^)]+\))?: [A-Z].*\w$/;
+
+    if (pr.title.match(TITLE_RE) === null) {
+      core.setFailed('PR title does not match Sentry conventions.');
+      core.info('Please follow the Sentry commit message conventions: https://develop.sentry.dev/engineering-practices/commit-messages/');
+      core.info('')
+      core.info('Format: <type>(<scope>): <subject>');
+      core.info('Subject line must be capitalized and must not end with a period.')
+      return;
+    }
+
+    core.info("PR title matches Sentry conventions!");
+  }
+
   async function checkAll() {
     const {data: pr} = await github.rest.pulls.get({
       owner: context.repo.owner,
@@ -92,6 +114,7 @@ module.exports = async ({github, context, core}) => {
       return;
     }
 
+    await checkPrTitle(pr);
     await checkChangelog(pr);
   }
 
