@@ -9,8 +9,8 @@ ARG TARGETPLATFORM
 
 EXPOSE 3000
 
-COPY --from=builder --chown=nonroot:noonroot /etc/relay /etc/relay
-COPY --from=builder --chown=nonroot:noonroot /work /work
+COPY --from=builder --chown=nonroot:nonroot /etc/relay /etc/relay
+COPY --from=builder --chown=nonroot:nonroot /work /work
 
 VOLUME ["/etc/relay", "/work"]
 WORKDIR /work
