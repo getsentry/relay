@@ -5,23 +5,13 @@ use relay_protocol::Annotated;
 use crate::extractors::RequestMeta;
 use crate::managed::Managed;
 use crate::processing::Context;
-use crate::processing::logs::{Error, ExpandedLogs, Result};
-use crate::utils::{PickResult, sample};
+use crate::processing::logs::{Error, Result};
 
 /// Filters logs sent for a project which does not allow logs ingestion.
 pub fn feature_flag(ctx: Context<'_>) -> Result<()> {
     match ctx.should_filter(Feature::OurLogsIngestion) {
         true => Err(Error::FilterFeatureFlag),
         false => Ok(()),
-    }
-}
-
-pub fn sampled(ctx: Context<'_>) -> Result<()> {
-    let sample_rate = ctx.global_config.options.ourlogs_ingestion_sample_rate;
-
-    match sample_rate.map(sample).unwrap_or_default() {
-        PickResult::Discard => Err(Error::FilterSampling),
-        PickResult::Keep => Ok(()),
     }
 }
 

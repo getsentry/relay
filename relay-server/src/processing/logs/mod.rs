@@ -37,9 +37,6 @@ pub enum Error {
     /// Logs filtered because of a missing feature flag.
     #[error("logs feature flag missing")]
     FilterFeatureFlag,
-    /// Logs filtered either due to a global sampling rule.
-    #[error("logs dropped due to sampling")]
-    FilterSampling,
     /// Logs filtered due to a filtering rule.
     #[error("log filtered")]
     Filtered(FilterStatKey),
@@ -64,7 +61,6 @@ impl OutcomeError for Error {
         let outcome = match &self {
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
-            Self::FilterSampling => None,
             Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
@@ -139,7 +135,6 @@ impl processing::Processor for LogsProcessor {
 
         // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
-        filter::sampled(ctx).reject(&logs)?;
 
         let mut logs = process::expand(logs, ctx);
         process::normalize(&mut logs);
