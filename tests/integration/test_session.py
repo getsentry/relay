@@ -39,9 +39,9 @@ def test_sessions(mini_sentry, relay_chain):
     assert session == session_payload
 
 
-def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consumer):
+def test_session_age_discard(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -60,14 +60,14 @@ def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consum
         },
     )
 
-    sessions_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
 def test_session_age_discard_aggregates(
-    mini_sentry, relay_with_processing, sessions_consumer
+    mini_sentry, relay_with_processing, metrics_consumer
 ):
     relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -94,14 +94,12 @@ def test_session_age_discard_aggregates(
         },
     )
 
-    sessions_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
-def test_session_release_required(
-    mini_sentry, relay_with_processing, sessions_consumer
-):
+def test_session_release_required(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -119,14 +117,14 @@ def test_session_release_required(
         },
     )
 
-    sessions_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
 def test_session_aggregates_release_required(
-    mini_sentry, relay_with_processing, sessions_consumer
+    mini_sentry, relay_with_processing, metrics_consumer
 ):
     relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -151,12 +149,12 @@ def test_session_aggregates_release_required(
         },
     )
 
-    sessions_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
-def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer):
+def test_session_disabled(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -184,12 +182,12 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
         },
     )
 
-    sessions_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
-def test_session_invalid_release(mini_sentry, relay_with_processing, sessions_consumer):
+def test_session_invalid_release(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
+    metrics_consumer = metrics_consumer()
 
     PROJECT_ID = 42
     project_config = mini_sentry.add_full_project_config(PROJECT_ID)
@@ -206,14 +204,14 @@ def test_session_invalid_release(mini_sentry, relay_with_processing, sessions_co
         },
     )
 
-    sessions_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
 def test_session_aggregates_invalid_release(
-    mini_sentry, relay_with_processing, sessions_consumer
+    mini_sentry, relay_with_processing, metrics_consumer
 ):
     relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -235,12 +233,12 @@ def test_session_aggregates_invalid_release(
         },
     )
 
-    sessions_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
-def test_session_filtering(mini_sentry, relay_with_processing, sessions_consumer):
+def test_session_filtering(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing()
-    sessions_consumer = sessions_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -361,4 +359,4 @@ def test_session_filtering(mini_sentry, relay_with_processing, sessions_consumer
         },
     )
 
-    sessions_consumer.assert_empty()
+    metrics_consumer.assert_empty()

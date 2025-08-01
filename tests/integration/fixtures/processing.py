@@ -368,11 +368,6 @@ def attachments_consumer(consumer_fixture):
 
 
 @pytest.fixture
-def sessions_consumer(consumer_fixture):
-    yield from consumer_fixture(SessionsConsumer, "sessions")
-
-
-@pytest.fixture
 def metrics_consumer(consumer_fixture):
     yield from consumer_fixture(MetricsConsumer, "metrics")
 
@@ -428,15 +423,6 @@ class MetricsConsumer(ConsumerBase):
             metrics.append((json.loads(message.value()), message.headers()))
 
         return metrics
-
-
-class SessionsConsumer(ConsumerBase):
-    def get_session(self):
-        message = self.poll()
-        assert message is not None
-        assert message.error() is None
-
-        return json.loads(message.value())
 
 
 class EventsConsumer(ConsumerBase):
