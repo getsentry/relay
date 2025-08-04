@@ -3,8 +3,8 @@
 use url::Url;
 
 use relay_event_schema::protocol::{
-    Csp, Event, EventType, Exception, LogEntry, Replay, SessionAggregates, SessionUpdate, Span,
-    Values,
+    Csp, Event, EventType, Exception, LogEntry, OurLog, Replay, SessionAggregates, SessionUpdate,
+    Span, Values,
 };
 
 /// A data item to which filters can be applied.
@@ -253,6 +253,55 @@ impl Filterable for SessionAggregates {
 
     fn user_agent(&self) -> Option<&str> {
         self.attributes.user_agent.as_deref()
+    }
+
+    fn header(&self, _header_name: &str) -> Option<&str> {
+        None
+    }
+}
+
+impl Filterable for OurLog {
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
+
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
+
+    fn ip_addr(&self) -> Option<&str> {
+        None
+    }
+
+    fn logentry(&self) -> Option<&LogEntry> {
+        // This is very scoped for errors, but may make sense to also support for logs.
+        //
+        // See <https://github.com/getsentry/relay/issues/5009>.
+        None
+    }
+
+    fn release(&self) -> Option<&str> {
+        self.attributes
+            .value()?
+            .get_value("sentry.release")?
+            .as_str()
+    }
+
+    fn transaction(&self) -> Option<&str> {
+        None
+    }
+
+    fn url(&self) -> Option<Url> {
+        None
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        // Logs currently only store `browser.name` and `browser.version`,
+        // we need to add support to `relay-filter` to either parse from a user agent
+        // or already parsed user agent.
+        //
+        // See <https://github.com/getsentry/relay/issues/5010>.
+        None
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {

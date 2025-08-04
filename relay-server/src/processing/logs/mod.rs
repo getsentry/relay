@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::OurLog;
+use relay_filter::FilterStatKey;
 use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -33,9 +34,12 @@ pub enum Error {
     /// A duplicated item container for logs.
     #[error("duplicate log container")]
     DuplicateContainer,
-    /// Events filtered because of a missing feature flag.
+    /// Logs filtered because of a missing feature flag.
     #[error("logs feature flag missing")]
     FilterFeatureFlag,
+    /// Logs filtered due to a filtering rule.
+    #[error("log filtered")]
+    Filtered(FilterStatKey),
     /// The logs are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -57,6 +61,7 @@ impl OutcomeError for Error {
         let outcome = match &self {
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
+            Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
@@ -133,6 +138,7 @@ impl processing::Processor for LogsProcessor {
 
         let mut logs = process::expand(logs, ctx);
         process::normalize(&mut logs);
+        filter::filter(&mut logs, ctx);
         process::scrub(&mut logs, ctx);
 
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
@@ -317,16 +323,20 @@ impl ExpandedLogs {
     }
 
     fn serialize(self) -> Result<SerializedLogs, ContainerWriteError> {
-        let mut item = Item::new(ItemType::Log);
+        let mut logs = Vec::new();
 
-        ItemContainer::from(self.logs)
-            .write_to(&mut item)
-            .inspect_err(|err| relay_log::error!("failed to serialize logs: {err}"))?;
+        if !self.logs.is_empty() {
+            let mut item = Item::new(ItemType::Log);
+            ItemContainer::from(self.logs)
+                .write_to(&mut item)
+                .inspect_err(|err| relay_log::error!("failed to serialize logs: {err}"))?;
+            logs.push(item);
+        }
 
         Ok(SerializedLogs {
             headers: self.headers,
             otel_logs: Default::default(),
-            logs: vec![item],
+            logs,
         })
     }
 }

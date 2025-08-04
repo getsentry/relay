@@ -2693,6 +2693,11 @@ impl EnvelopeProcessorService {
             },
         };
 
+        if envelope.envelope_mut().is_empty() {
+            envelope.accept();
+            return;
+        }
+
         // If we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.inner.config) {
             relay_log::trace!("capturing envelope in memory");
