@@ -23,7 +23,7 @@ module.exports = async ({github, context, core}) => {
   \`\`\`md
   - ${title}. (${PR_LINK})
   \`\`\`
-  If none of the above apply, you can opt out by adding _#skip-changelog_ to the PR description.
+  If none of the above apply, you can opt out by adding the _skip-changelog_ label to the PR.
   `;
   }
 
@@ -51,8 +51,8 @@ module.exports = async ({github, context, core}) => {
   }
 
   async function checkChangelog(pr) {
-    if ((pr.body || '').includes('#skip-changelog')) {
-      core.info('#skip-changelog is set. Skipping the checks.');
+    const hasSkipLabel = (pr.labels || []).some(label => label.name === 'skip-changelog');
+    if (hasSkipLabel) {
       return;
     }
 
