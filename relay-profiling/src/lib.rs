@@ -146,8 +146,8 @@ impl Filterable for MinimalProfile {
         None
     }
 
-    fn user_agent(&self) -> Option<UserAgent<'_>> {
-        None
+    fn user_agent(&self) -> UserAgent<'_> {
+        Default::default()
     }
 
     fn header(&self, _: &str) -> Option<&str> {

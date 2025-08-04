@@ -3,7 +3,6 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::interface::UserAgent;
 use crate::{FilterConfig, FilterStatKey, Filterable};
 
 static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
@@ -71,9 +70,7 @@ pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(
         return Ok(());
     }
 
-    if let Some(UserAgent::Raw(user_agent)) = item.user_agent()
-        && matches(user_agent)
-    {
+    if item.user_agent().raw.is_some_and(matches) {
         return Err(FilterStatKey::WebCrawlers);
     }
 

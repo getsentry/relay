@@ -8,11 +8,25 @@ use relay_event_schema::protocol::{
 };
 
 /// A user agent returned from [`Filterable::user_agent`].
-pub enum UserAgent<'a> {
-    /// The raw, unparsed user agent string.
-    Raw(&'a str),
-    /// A already parsed user agent.
-    Parsed(relay_ua::UserAgent<'a>),
+#[derive(Clone, Debug, Default)]
+pub struct UserAgent<'a> {
+    /// The raw, unparsed user agent string, if available.
+    pub raw: Option<&'a str>,
+    /// A already fully parsed user agent, if available.
+    pub parsed: Option<relay_ua::UserAgent<'a>>,
+}
+
+impl<'a> UserAgent<'a> {
+    /// Parses the raw user agent, if it is not already parsed and returns it.
+    pub fn parsed(&mut self) -> Option<&'_ relay_ua::UserAgent<'a>> {
+        match &mut self.parsed {
+            Some(parsed) => Some(parsed),
+            parsed @ None => {
+                *parsed = Some(relay_ua::parse_user_agent(self.raw?));
+                parsed.as_ref()
+            }
+        }
+    }
 }
 
 /// A data item to which filters can be applied.
@@ -39,7 +53,7 @@ pub trait Filterable {
     fn url(&self) -> Option<Url>;
 
     /// The user agent of the client that sent the data.
-    fn user_agent(&self) -> Option<UserAgent<'_>>;
+    fn user_agent(&self) -> UserAgent<'_>;
 
     /// Retrieves a request headers from the item.
     ///
@@ -87,8 +101,11 @@ impl Filterable for Event {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<UserAgent<'_>> {
-        self.user_agent().map(UserAgent::Raw)
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.user_agent(),
+            parsed: None,
+        }
     }
 
     fn header(&self, header_name: &str) -> Option<&str> {
@@ -131,8 +148,11 @@ impl Filterable for Replay {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<UserAgent<'_>> {
-        self.user_agent().map(UserAgent::Raw)
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.user_agent(),
+            parsed: None,
+        }
     }
 
     fn header(&self, header_name: &str) -> Option<&str> {
@@ -177,12 +197,12 @@ impl Filterable for Span {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<UserAgent<'_>> {
-        self.data
-            .value()?
-            .user_agent_original
-            .as_str()
-            .map(UserAgent::Raw)
+    fn user_agent(&self) -> UserAgent<'_> {
+        let raw = self
+            .data
+            .value()
+            .and_then(|data| data.user_agent_original.as_str());
+        UserAgent { raw, parsed: None }
     }
 
     fn header(&self, _: &str) -> Option<&str> {
@@ -222,8 +242,11 @@ impl Filterable for SessionUpdate {
         None
     }
 
-    fn user_agent(&self) -> Option<UserAgent<'_>> {
-        self.attributes.user_agent.as_deref().map(UserAgent::Raw)
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.attributes.user_agent.as_deref(),
+            parsed: None,
+        }
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {
@@ -263,8 +286,11 @@ impl Filterable for SessionAggregates {
         None
     }
 
-    fn user_agent(&self) -> Option<UserAgent<'_>> {
-        self.attributes.user_agent.as_deref().map(UserAgent::Raw)
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.attributes.user_agent.as_deref(),
+            parsed: None,
+        }
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {
@@ -304,19 +330,23 @@ impl Filterable for OurLog {
         None
     }
 
-    fn user_agent(&self) -> Option<UserAgent<'_>> {
-        let attributes = self.attributes.value()?;
+    fn user_agent(&self) -> UserAgent<'_> {
+        let parsed = (|| {
+            let attributes = self.attributes.value()?;
 
-        let family = attributes.get_value("sentry.browser.name")?.as_str()?;
-        let version = attributes.get_value("sentry.browser.version")?.as_str()?;
-        let mut parts = version.splitn(3, '.');
+            let family = attributes.get_value("sentry.browser.name")?.as_str()?;
+            let version = attributes.get_value("sentry.browser.version")?.as_str()?;
+            let mut parts = version.splitn(3, '.');
 
-        Some(UserAgent::Parsed(relay_ua::UserAgent {
-            family: family.into(),
-            major: parts.next().map(Into::into),
-            minor: parts.next().map(Into::into),
-            patch: parts.next().map(Into::into),
-        }))
+            Some(relay_ua::UserAgent {
+                family: family.into(),
+                major: parts.next().map(Into::into),
+                minor: parts.next().map(Into::into),
+                patch: parts.next().map(Into::into),
+            })
+        })();
+
+        UserAgent { raw: None, parsed }
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {
