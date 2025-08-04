@@ -2,13 +2,15 @@
 
 use std::collections::BTreeSet;
 
-use relay_ua::UserAgent;
-
+use crate::interface::UserAgent;
 use crate::{FilterStatKey, Filterable, LegacyBrowser, LegacyBrowsersFilterConfig};
 
 /// Checks if the event originates from legacy browsers.
-fn matches(user_agent: &str, browsers: &BTreeSet<LegacyBrowser>) -> bool {
-    let user_agent = relay_ua::parse_user_agent(user_agent);
+fn matches(user_agent: UserAgent<'_>, browsers: &BTreeSet<LegacyBrowser>) -> bool {
+    let user_agent = match user_agent {
+        UserAgent::Raw(user_agent) => relay_ua::parse_user_agent(user_agent),
+        UserAgent::Parsed(user_agent) => user_agent,
+    };
 
     // remap IE Mobile to IE (sentry python, filter compatibility)
     let family = match user_agent.family.as_ref() {
@@ -73,7 +75,7 @@ pub fn should_filter<F: Filterable>(
     }
 }
 
-fn get_browser_major_version(user_agent: &UserAgent) -> Option<i32> {
+fn get_browser_major_version(user_agent: &relay_ua::UserAgent<'_>) -> Option<i32> {
     if let Some(browser_major_version_str) = &user_agent.major
         && let Ok(browser_major_version) = browser_major_version_str.parse::<i32>()
     {
@@ -97,7 +99,7 @@ fn min_version(family: &str) -> Option<i32> {
     }
 }
 
-fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> bool {
+fn default_filter(mapped_family: &str, user_agent: &relay_ua::UserAgent<'_>) -> bool {
     if let Some(browser_major_version) = get_browser_major_version(user_agent)
         && let Some(min_version) = min_version(mapped_family)
         && min_version > browser_major_version
@@ -109,7 +111,7 @@ fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> bool {
 
 fn filter_browser<F>(
     mapped_family: &str,
-    user_agent: &UserAgent,
+    user_agent: &relay_ua::UserAgent<'_>,
     family: &str,
     should_filter: F,
 ) -> bool

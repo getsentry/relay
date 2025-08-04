@@ -38,7 +38,7 @@ pub use crate::common::*;
 pub use crate::config::*;
 pub use crate::csp::matches_any_origin;
 pub use crate::generic::are_generic_filters_supported;
-pub use interface::Filterable;
+pub use interface::{Filterable, UserAgent};
 
 /// Checks whether an event should be filtered for a particular configuration.
 ///

@@ -563,6 +563,11 @@ def test_browser_name_version_extraction(
             "release-version", {"releases": {"releases": ["foobar@1.0"]}}, id="release"
         ),
         pytest.param(
+            "legacy-browsers",
+            {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
+            id="legacy-browsers",
+        ),
+        pytest.param(
             "gen_body",
             {
                 "generic": {
@@ -635,7 +640,10 @@ def test_filters_are_applied_to_logs(
         },
     )
 
-    relay.send_envelope(project_id, envelope)
+    headers = {
+        "User-Agent": "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0)"
+    }
+    relay.send_envelope(project_id, envelope, headers=headers)
 
     outcomes = []
     for _ in range(2):

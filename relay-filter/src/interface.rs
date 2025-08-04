@@ -7,6 +7,14 @@ use relay_event_schema::protocol::{
     Span, Values,
 };
 
+/// A user agent returned from [`Filterable::user_agent`].
+pub enum UserAgent<'a> {
+    /// The raw, unparsed user agent string.
+    Raw(&'a str),
+    /// A already parsed user agent.
+    Parsed(relay_ua::UserAgent<'a>),
+}
+
 /// A data item to which filters can be applied.
 pub trait Filterable {
     /// The CSP report contained in the item. Only for CSP reports.
@@ -31,7 +39,7 @@ pub trait Filterable {
     fn url(&self) -> Option<Url>;
 
     /// The user agent of the client that sent the data.
-    fn user_agent(&self) -> Option<&str>;
+    fn user_agent(&self) -> Option<UserAgent<'_>>;
 
     /// Retrieves a request headers from the item.
     ///
@@ -79,8 +87,8 @@ impl Filterable for Event {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent()
+    fn user_agent(&self) -> Option<UserAgent<'_>> {
+        self.user_agent().map(UserAgent::Raw)
     }
 
     fn header(&self, header_name: &str) -> Option<&str> {
@@ -123,8 +131,8 @@ impl Filterable for Replay {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent()
+    fn user_agent(&self) -> Option<UserAgent<'_>> {
+        self.user_agent().map(UserAgent::Raw)
     }
 
     fn header(&self, header_name: &str) -> Option<&str> {
@@ -169,8 +177,12 @@ impl Filterable for Span {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.data.value()?.user_agent_original.as_str()
+    fn user_agent(&self) -> Option<UserAgent<'_>> {
+        self.data
+            .value()?
+            .user_agent_original
+            .as_str()
+            .map(UserAgent::Raw)
     }
 
     fn header(&self, _: &str) -> Option<&str> {
@@ -210,8 +222,8 @@ impl Filterable for SessionUpdate {
         None
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.attributes.user_agent.as_deref()
+    fn user_agent(&self) -> Option<UserAgent<'_>> {
+        self.attributes.user_agent.as_deref().map(UserAgent::Raw)
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {
@@ -251,8 +263,8 @@ impl Filterable for SessionAggregates {
         None
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.attributes.user_agent.as_deref()
+    fn user_agent(&self) -> Option<UserAgent<'_>> {
+        self.attributes.user_agent.as_deref().map(UserAgent::Raw)
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {
@@ -274,9 +286,6 @@ impl Filterable for OurLog {
     }
 
     fn logentry(&self) -> Option<&LogEntry> {
-        // This is very scoped for errors, but may make sense to also support for logs.
-        //
-        // See <https://github.com/getsentry/relay/issues/5009>.
         None
     }
 
@@ -295,13 +304,19 @@ impl Filterable for OurLog {
         None
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        // Logs currently only store `browser.name` and `browser.version`,
-        // we need to add support to `relay-filter` to either parse from a user agent
-        // or already parsed user agent.
-        //
-        // See <https://github.com/getsentry/relay/issues/5010>.
-        None
+    fn user_agent(&self) -> Option<UserAgent<'_>> {
+        let attributes = self.attributes.value()?;
+
+        let family = attributes.get_value("sentry.browser.name")?.as_str()?;
+        let version = attributes.get_value("sentry.browser.version")?.as_str()?;
+        let mut parts = version.splitn(3, '.');
+
+        Some(UserAgent::Parsed(relay_ua::UserAgent {
+            family: family.into(),
+            major: parts.next().map(Into::into),
+            minor: parts.next().map(Into::into),
+            patch: parts.next().map(Into::into),
+        }))
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {
