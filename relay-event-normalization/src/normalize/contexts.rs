@@ -91,62 +91,61 @@ static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy::ne
 });
 
 fn normalize_runtime_context(runtime: &mut RuntimeContext) {
-    if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
-        if let Some(raw_description) = runtime.raw_description.as_str() {
-            if let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
-                runtime.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
-                runtime.version = captures
-                    .name("version")
-                    .map(|m| m.as_str().to_owned())
-                    .into();
-            }
-        }
+    if runtime.name.value().is_empty()
+        && runtime.version.value().is_empty()
+        && let Some(raw_description) = runtime.raw_description.as_str()
+        && let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description)
+    {
+        runtime.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
+        runtime.version = captures
+            .name("version")
+            .map(|m| m.as_str().to_owned())
+            .into();
     }
 
     // RuntimeInformation.FrameworkDescription doesn't return a very useful value.
     // Example: ".NET Framework 4.7.3056.0"
     // Use release keys from registry sent as #build
-    if let Some(name) = runtime.name.as_str() {
-        if let Some(build) = runtime.build.as_str() {
-            if name.starts_with(".NET Framework") {
-                let version = match build {
-                    "378389" => Some("4.5".to_owned()),
-                    "378675" => Some("4.5.1".to_owned()),
-                    "378758" => Some("4.5.1".to_owned()),
-                    "379893" => Some("4.5.2".to_owned()),
-                    "393295" => Some("4.6".to_owned()),
-                    "393297" => Some("4.6".to_owned()),
-                    "394254" => Some("4.6.1".to_owned()),
-                    "394271" => Some("4.6.1".to_owned()),
-                    "394802" => Some("4.6.2".to_owned()),
-                    "394806" => Some("4.6.2".to_owned()),
-                    "460798" => Some("4.7".to_owned()),
-                    "460805" => Some("4.7".to_owned()),
-                    "461308" => Some("4.7.1".to_owned()),
-                    "461310" => Some("4.7.1".to_owned()),
-                    "461808" => Some("4.7.2".to_owned()),
-                    "461814" => Some("4.7.2".to_owned()),
-                    "528040" => Some("4.8".to_owned()),
-                    "528049" => Some("4.8".to_owned()),
-                    "528209" => Some("4.8".to_owned()),
-                    "528372" => Some("4.8".to_owned()),
-                    "528449" => Some("4.8".to_owned()),
-                    _ => None,
-                };
+    if let Some(name) = runtime.name.as_str()
+        && let Some(build) = runtime.build.as_str()
+        && name.starts_with(".NET Framework")
+    {
+        let version = match build {
+            "378389" => Some("4.5".to_owned()),
+            "378675" => Some("4.5.1".to_owned()),
+            "378758" => Some("4.5.1".to_owned()),
+            "379893" => Some("4.5.2".to_owned()),
+            "393295" => Some("4.6".to_owned()),
+            "393297" => Some("4.6".to_owned()),
+            "394254" => Some("4.6.1".to_owned()),
+            "394271" => Some("4.6.1".to_owned()),
+            "394802" => Some("4.6.2".to_owned()),
+            "394806" => Some("4.6.2".to_owned()),
+            "460798" => Some("4.7".to_owned()),
+            "460805" => Some("4.7".to_owned()),
+            "461308" => Some("4.7.1".to_owned()),
+            "461310" => Some("4.7.1".to_owned()),
+            "461808" => Some("4.7.2".to_owned()),
+            "461814" => Some("4.7.2".to_owned()),
+            "528040" => Some("4.8".to_owned()),
+            "528049" => Some("4.8".to_owned()),
+            "528209" => Some("4.8".to_owned()),
+            "528372" => Some("4.8".to_owned()),
+            "528449" => Some("4.8".to_owned()),
+            _ => None,
+        };
 
-                if let Some(version) = version {
-                    runtime.version = version.into();
-                }
-            }
+        if let Some(version) = version {
+            runtime.version = version.into();
         }
     }
 
     // Calculation of the computed context for the runtime.
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
-    if runtime.runtime.value().is_none() {
-        if let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value()) {
-            runtime.runtime = Annotated::from(format!("{name} {version}"));
-        }
+    if runtime.runtime.value().is_none()
+        && let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value())
+    {
+        runtime.runtime = Annotated::from(format!("{name} {version}"));
     }
 }
 

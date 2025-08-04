@@ -229,7 +229,7 @@ impl Attributes {
     /// Iterates mutably over this collection's attribute keys and values.
     pub fn iter_mut(
         &mut self,
-    ) -> std::collections::btree_map::IterMut<String, Annotated<Attribute>> {
+    ) -> std::collections::btree_map::IterMut<'_, String, Annotated<Attribute>> {
         self.0.iter_mut()
     }
 }

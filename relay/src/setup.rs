@@ -106,10 +106,10 @@ pub fn init_metrics(config: &Config) -> Result<()> {
     }
 
     let mut default_tags = config.metrics_default_tags().clone();
-    if let Some(hostname_tag) = config.metrics_hostname_tag() {
-        if let Some(hostname) = hostname::get().ok().and_then(|s| s.into_string().ok()) {
-            default_tags.insert(hostname_tag.to_owned(), hostname);
-        }
+    if let Some(hostname_tag) = config.metrics_hostname_tag()
+        && let Some(hostname) = hostname::get().ok().and_then(|s| s.into_string().ok())
+    {
+        default_tags.insert(hostname_tag.to_owned(), hostname);
     }
     relay_statsd::init(MetricsClientConfig {
         prefix: config.metrics_prefix(),

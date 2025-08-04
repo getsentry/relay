@@ -57,12 +57,12 @@ pub fn expand(
 ) -> std::result::Result<(), ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
-    if let Some(item) = envelope.take_item_by(is_dying_message) {
-        if let Err(e) = expand_dying_message(item.payload(), envelope) {
-            // If we fail to process the dying message, we need to add back the original attachment.
-            envelope.add_item(item);
-            return Err(ProcessingError::InvalidNintendoDyingMessage(e));
-        }
+    if let Some(item) = envelope.take_item_by(is_dying_message)
+        && let Err(e) = expand_dying_message(item.payload(), envelope)
+    {
+        // If we fail to process the dying message, we need to add back the original attachment.
+        envelope.add_item(item);
+        return Err(ProcessingError::InvalidNintendoDyingMessage(e));
     }
 
     Ok(())
@@ -131,12 +131,12 @@ fn expand_dying_message_from_envelope_items(data: Bytes, envelope: &mut Envelope
         Envelope::parse_items_bytes(data).map_err(SwitchProcessingError::EnvelopeParsing)?;
     for item in items {
         // If it's an event type, merge it with the main event one already in the envelope.
-        if item.ty() == &ItemType::Event {
-            if let Some(event) = envelope.get_item_by_mut(|it| it.ty() == &ItemType::Event) {
-                update_event(item, event).map_err(SwitchProcessingError::InvalidJson)?;
-                // Don't add this item as a new envelope item now that it's merged.
-                continue;
-            }
+        if item.ty() == &ItemType::Event
+            && let Some(event) = envelope.get_item_by_mut(|it| it.ty() == &ItemType::Event)
+        {
+            update_event(item, event).map_err(SwitchProcessingError::InvalidJson)?;
+            // Don't add this item as a new envelope item now that it's merged.
+            continue;
         }
         envelope.add_item(item);
     }

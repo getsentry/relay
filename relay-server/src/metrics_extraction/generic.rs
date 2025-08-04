@@ -48,10 +48,10 @@ where
             continue;
         }
 
-        if let Some(condition) = &metric_spec.condition {
-            if !condition.matches(instance) {
-                continue;
-            }
+        if let Some(condition) = &metric_spec.condition
+            && !condition.matches(instance)
+        {
+            continue;
         }
 
         // Parse the MRI so that we can obtain the type, but subsequently re-serialize it into the
@@ -112,10 +112,10 @@ where
     let mut map = BTreeMap::new();
 
     for tag_spec in tags {
-        if let Some(ref condition) = tag_spec.condition {
-            if !condition.matches(instance) {
-                continue;
-            }
+        if let Some(ref condition) = tag_spec.condition
+            && !condition.matches(instance)
+        {
+            continue;
         }
 
         let value_opt = match tag_spec.source() {

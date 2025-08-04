@@ -90,7 +90,7 @@ impl OutcomeId {
 
 trait TrackOutcomeLike {
     /// TODO: Doc
-    fn reason(&self) -> Option<Cow<str>>;
+    fn reason(&self) -> Option<Cow<'_, str>>;
 
     /// TODO: Doc
     fn outcome_id(&self) -> OutcomeId;
@@ -141,7 +141,7 @@ pub struct TrackOutcome {
 }
 
 impl TrackOutcomeLike for TrackOutcome {
-    fn reason(&self) -> Option<Cow<str>> {
+    fn reason(&self) -> Option<Cow<'_, str>> {
         self.outcome.to_reason()
     }
 
@@ -856,7 +856,7 @@ impl TrackRawOutcome {
 }
 
 impl TrackOutcomeLike for TrackRawOutcome {
-    fn reason(&self) -> Option<Cow<str>> {
+    fn reason(&self) -> Option<Cow<'_, str>> {
         self.reason.as_ref().map(|s| s.into())
     }
 

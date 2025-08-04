@@ -74,10 +74,10 @@ pub fn should_filter<F: Filterable>(
 }
 
 fn get_browser_major_version(user_agent: &UserAgent) -> Option<i32> {
-    if let Some(browser_major_version_str) = &user_agent.major {
-        if let Ok(browser_major_version) = browser_major_version_str.parse::<i32>() {
-            return Some(browser_major_version);
-        }
+    if let Some(browser_major_version_str) = &user_agent.major
+        && let Ok(browser_major_version) = browser_major_version_str.parse::<i32>()
+    {
+        return Some(browser_major_version);
     }
 
     None
@@ -98,12 +98,11 @@ fn min_version(family: &str) -> Option<i32> {
 }
 
 fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> bool {
-    if let Some(browser_major_version) = get_browser_major_version(user_agent) {
-        if let Some(min_version) = min_version(mapped_family) {
-            if min_version > browser_major_version {
-                return true;
-            }
-        }
+    if let Some(browser_major_version) = get_browser_major_version(user_agent)
+        && let Some(min_version) = min_version(mapped_family)
+        && min_version > browser_major_version
+    {
+        return true;
     }
     false
 }
@@ -117,12 +116,11 @@ fn filter_browser<F>(
 where
     F: FnOnce(i32) -> bool,
 {
-    if mapped_family == family {
-        if let Some(browser_major_version) = get_browser_major_version(user_agent) {
-            if should_filter(browser_major_version) {
-                return true;
-            }
-        }
+    if mapped_family == family
+        && let Some(browser_major_version) = get_browser_major_version(user_agent)
+        && should_filter(browser_major_version)
+    {
+        return true;
     }
     false
 }
@@ -323,7 +321,7 @@ mod tests {
             let evt = testutils::get_event_with_user_agent(user_agent);
             let filter_result = should_filter(
                 &evt,
-                &get_legacy_browsers_config(true, &[active_filter.clone()]),
+                &get_legacy_browsers_config(true, std::slice::from_ref(active_filter)),
             );
             assert_eq!(
                 filter_result,
@@ -389,7 +387,7 @@ mod tests {
                 let evt = testutils::get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
-                    &get_legacy_browsers_config(true, &[active_filter.clone()]),
+                    &get_legacy_browsers_config(true, std::slice::from_ref(active_filter)),
                 );
                 assert_ne!(
                     filter_result,
@@ -418,7 +416,7 @@ mod tests {
                 let evt = testutils::get_event_with_user_agent(user_agent);
                 let filter_result = should_filter(
                     &evt,
-                    &get_legacy_browsers_config(true, &[active_filter.clone()]),
+                    &get_legacy_browsers_config(true, std::slice::from_ref(active_filter)),
                 );
                 assert_eq!(
                     filter_result,

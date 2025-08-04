@@ -859,21 +859,20 @@ impl SharedClient {
             let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
             builder.header("Host", host_header.as_bytes());
 
-            if request.set_relay_id() {
-                if let Some(credentials) = self.config.credentials() {
-                    builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
-                }
+            if request.set_relay_id()
+                && let Some(credentials) = self.config.credentials()
+            {
+                builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
             }
 
             request.build(&mut builder)?;
 
-            if let Some(payload) = request.sign() {
-                if let Some(signature) = payload
+            if let Some(payload) = request.sign()
+                && let Some(signature) = payload
                     .create_signature(self.config.credentials().map(|cred| &cred.secret_key))
                     .map_err(|_| UpstreamRequestError::NoCredentials)?
-                {
-                    builder.header("x-sentry-relay-signature", &signature.0);
-                }
+            {
+                builder.header("x-sentry-relay-signature", &signature.0);
             }
 
             match builder.finish() {
@@ -1367,10 +1366,10 @@ impl ConnectionMonitor {
 
     /// Resets `Reconnecting` if the connection task has completed.
     fn clean_state(&mut self) -> &ConnectionState {
-        if let ConnectionState::Reconnecting(ref task) = self.state {
-            if task.is_finished() {
-                self.state = ConnectionState::Connected;
-            }
+        if let ConnectionState::Reconnecting(ref task) = self.state
+            && task.is_finished()
+        {
+            self.state = ConnectionState::Connected;
         }
 
         &self.state

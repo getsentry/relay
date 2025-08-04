@@ -183,7 +183,7 @@ mod tests {
     }
 
     impl OwnedConfig {
-        fn combined(&self) -> CombinedMetricExtractionConfig {
+        fn combined(&self) -> CombinedMetricExtractionConfig<'_> {
             CombinedMetricExtractionConfig::new(&self.global, &self.project)
         }
     }

@@ -114,10 +114,10 @@ impl ReservoirEvaluator<'_> {
     ) -> bool {
         #[cfg(feature = "redis")]
         if let Some((org_id, client)) = self.org_id_and_client {
-            if let Ok(guard) = self.counters.lock() {
-                if *guard.get(&rule).unwrap_or(&0) > limit {
-                    return false;
-                }
+            if let Ok(guard) = self.counters.lock()
+                && *guard.get(&rule).unwrap_or(&0) > limit
+            {
+                return false;
             }
 
             let key = ReservoirRuleKey::new(org_id, rule);

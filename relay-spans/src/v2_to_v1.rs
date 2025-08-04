@@ -114,12 +114,11 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         );
     }
 
-    if exclusive_time_ms == 0f64 {
-        if let (Some(start), Some(end)) = (start_timestamp.value(), end_timestamp.value()) {
-            if let Some(nanos) = (end.0 - start.0).num_nanoseconds() {
-                exclusive_time_ms = nanos as f64 / 1e6f64;
-            }
-        }
+    if exclusive_time_ms == 0f64
+        && let (Some(start), Some(end)) = (start_timestamp.value(), end_timestamp.value())
+        && let Some(nanos) = (end.0 - start.0).num_nanoseconds()
+    {
+        exclusive_time_ms = nanos as f64 / 1e6f64;
     }
 
     let links = links.map_value(|links| {

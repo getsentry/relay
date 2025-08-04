@@ -18,10 +18,11 @@ fn load_config(path: impl AsRef<Path>, require: bool) -> Result<Config> {
     match Config::from_path(path) {
         Ok(config) => Ok(config),
         Err(error) => {
-            if let Some(config_error) = error.downcast_ref::<ConfigError>() {
-                if !require && config_error.kind() == ConfigErrorKind::CouldNotOpenFile {
-                    return Ok(Config::default());
-                }
+            if let Some(config_error) = error.downcast_ref::<ConfigError>()
+                && !require
+                && config_error.kind() == ConfigErrorKind::CouldNotOpenFile
+            {
+                return Ok(Config::default());
             }
 
             Err(error)

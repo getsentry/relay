@@ -198,23 +198,22 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     }
 
     // The product only uses the subregion for web data at the moment
-    if let Some(_browser_name) = extract_browser_name(event) {
-        if let Some(geo_country_code) = extract_geo_country_code(event) {
-            if let Some(subregion) = Subregion::from_iso2(geo_country_code.as_str()) {
-                let numerical_subregion = subregion as u8;
-                tags.insert(CommonTag::UserSubregion, numerical_subregion.to_string());
-            }
-        }
+    if let Some(_browser_name) = extract_browser_name(event)
+        && let Some(geo_country_code) = extract_geo_country_code(event)
+        && let Some(subregion) = Subregion::from_iso2(geo_country_code.as_str())
+    {
+        let numerical_subregion = subregion as u8;
+        tags.insert(CommonTag::UserSubregion, numerical_subregion.to_string());
     }
 
     if let Some(status_code) = normalize_utils::extract_http_status_code(event) {
         tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
-    if normalize_utils::MOBILE_SDKS.contains(&event.sdk_name()) {
-        if let Some(device_class) = event.tag_value("device.class") {
-            tags.insert(CommonTag::DeviceClass, device_class.to_owned());
-        }
+    if normalize_utils::MOBILE_SDKS.contains(&event.sdk_name())
+        && let Some(device_class) = event.tag_value("device.class")
+    {
+        tags.insert(CommonTag::DeviceClass, device_class.to_owned());
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -224,10 +223,10 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
             for tag_entry in &**event_tags {
                 if let Some(entry) = tag_entry.value() {
                     let (key, value) = entry.as_pair();
-                    if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
-                        if custom_tags.contains(key) {
-                            tags.insert(CommonTag::Custom(key.to_owned()), value.to_owned());
-                        }
+                    if let (Some(key), Some(value)) = (key.as_str(), value.as_str())
+                        && custom_tags.contains(key)
+                    {
+                        tags.insert(CommonTag::Custom(key.to_owned()), value.to_owned());
                     }
                 }
             }
@@ -427,16 +426,16 @@ impl TransactionExtractor<'_> {
         );
 
         // User
-        if let Some(user) = event.user.value() {
-            if let Some(value) = user.sentry_user.value() {
-                metrics.project_metrics.push(
-                    TransactionMetric::User {
-                        value: value.clone(),
-                        tags,
-                    }
-                    .into_metric(timestamp),
-                );
-            }
+        if let Some(user) = event.user.value()
+            && let Some(value) = user.sentry_user.value()
+        {
+            metrics.project_metrics.push(
+                TransactionMetric::User {
+                    value: value.clone(),
+                    tags,
+                }
+                .into_metric(timestamp),
+            );
         }
 
         // Apply shared tags from generic metric extraction. Transaction metrics will adopt generic

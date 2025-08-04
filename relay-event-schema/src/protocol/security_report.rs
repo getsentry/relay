@@ -395,10 +395,10 @@ impl CspRaw {
 
         let mut uri = self.blocked_uri.clone();
 
-        if uri.starts_with("https://api.stripe.com/") {
-            if let Some(index) = uri.find(&['#', '?'][..]) {
-                uri.truncate(index);
-            }
+        if uri.starts_with("https://api.stripe.com/")
+            && let Some(index) = uri.find(&['#', '?'][..])
+        {
+            uri.truncate(index);
         }
 
         uri
@@ -476,13 +476,13 @@ impl CspRaw {
             )),
         ];
 
-        if let Ok(url) = Url::parse(&self.blocked_uri) {
-            if let ("http" | "https", Some(host)) = (url.scheme(), url.host_str()) {
-                tags.push(Annotated::new(TagEntry(
-                    Annotated::new("blocked-host".to_owned()),
-                    Annotated::new(host.to_owned()),
-                )));
-            }
+        if let Ok(url) = Url::parse(&self.blocked_uri)
+            && let ("http" | "https", Some(host)) = (url.scheme(), url.host_str())
+        {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("blocked-host".to_owned()),
+                Annotated::new(host.to_owned()),
+            )));
         }
 
         Tags(PairList::from(tags))

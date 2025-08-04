@@ -35,20 +35,20 @@ pub fn init_parser() {
 /// Returns the family and version of a user agent client.
 ///
 /// Defaults to an empty user agent.
-pub fn parse_user_agent(user_agent: &str) -> UserAgent {
+pub fn parse_user_agent(user_agent: &str) -> UserAgent<'_> {
     UA_PARSER.parse_user_agent(user_agent)
 }
 
 /// Returns the family, brand, and model of the device of the requesting client.
 ///
 /// Defaults to an empty device.
-pub fn parse_device(user_agent: &str) -> Device {
+pub fn parse_device(user_agent: &str) -> Device<'_> {
     UA_PARSER.parse_device(user_agent)
 }
 
 /// Returns the family and version of the operating system of the requesting client.
 ///
 /// Defaults to an empty operating system.
-pub fn parse_os(user_agent: &str) -> OS {
+pub fn parse_os(user_agent: &str) -> OS<'_> {
     UA_PARSER.parse_os(user_agent)
 }

@@ -162,10 +162,10 @@ static NEL_CULPRITS_MAP: LazyLock<HashMap<&'static str, &'static str>> =
 #[allow(rustdoc::bare_urls)]
 fn extract_server_address(server_address: &str) -> String {
     // Try to parse as URL and extract host
-    if let Ok(url) = Url::parse(server_address) {
-        if let Some(host) = url.host_str() {
-            return host.to_owned();
-        }
+    if let Ok(url) = Url::parse(server_address)
+        && let Some(host) = url.host_str()
+    {
+        return host.to_owned();
     }
     // Fallback: URL parsing failed or no host found, return original
     server_address.to_owned()
@@ -260,17 +260,17 @@ pub fn create_log_with_trace_id(
     // Split protocol into name and version components
     if let Some(protocol) = body.protocol.value() {
         let mut parts = protocol.split('/');
-        if let Some(protocol) = parts.next() {
-            if !protocol.is_empty() {
-                // e.g. "http"
-                add_string_attribute!("network.protocol.name", protocol);
-            }
+        if let Some(protocol) = parts.next()
+            && !protocol.is_empty()
+        {
+            // e.g. "http"
+            add_string_attribute!("network.protocol.name", protocol);
         }
-        if let Some(version) = parts.next() {
-            if !version.is_empty() {
-                // e.g. "1.1"
-                add_string_attribute!("network.protocol.version", version);
-            }
+        if let Some(version) = parts.next()
+            && !version.is_empty()
+        {
+            // e.g. "1.1"
+            add_string_attribute!("network.protocol.version", version);
         }
     }
 

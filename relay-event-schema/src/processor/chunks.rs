@@ -115,12 +115,12 @@ where
         pos = to;
     }
 
-    if pos < text.len() {
-        if let Some(piece) = text.get(pos..) {
-            rv.push(Chunk::Text {
-                text: Cow::Borrowed(piece),
-            });
-        }
+    if pos < text.len()
+        && let Some(piece) = text.get(pos..)
+    {
+        rv.push(Chunk::Text {
+            text: Cow::Borrowed(piece),
+        });
     }
 
     rv

@@ -116,10 +116,10 @@ fn get_match_pair(arm: syn::Arm) -> Option<(syn::Ident, String)> {
         _ => return None,
     };
 
-    if let syn::Expr::Lit(lit) = *arm.body {
-        if let syn::Lit::Str(s) = lit.lit {
-            return Some((variant, s.value()));
-        }
+    if let syn::Expr::Lit(lit) = *arm.body
+        && let syn::Lit::Str(s) = lit.lit
+    {
+        return Some((variant, s.value()));
     }
 
     None

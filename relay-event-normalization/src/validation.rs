@@ -99,20 +99,20 @@ fn normalize_timestamps(
     let mut error_kind = ErrorKind::ClockDrift;
 
     let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
-        if let Some(secs) = max_secs_in_future {
-            if *timestamp > received_at + Duration::seconds(secs) {
-                error_kind = ErrorKind::FutureTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
+        if let Some(secs) = max_secs_in_future
+            && *timestamp > received_at + Duration::seconds(secs)
+        {
+            error_kind = ErrorKind::FutureTimestamp;
+            sent_at = Some(*timestamp);
+            return Ok(());
         }
 
-        if let Some(secs) = max_secs_in_past {
-            if *timestamp < received_at - Duration::seconds(secs) {
-                error_kind = ErrorKind::PastTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
+        if let Some(secs) = max_secs_in_past
+            && *timestamp < received_at - Duration::seconds(secs)
+        {
+            error_kind = ErrorKind::PastTimestamp;
+            sent_at = Some(*timestamp);
+            return Ok(());
         }
 
         Ok(())
@@ -220,13 +220,12 @@ fn validate_trace_context(transaction: &Event) -> ProcessingResult {
 fn end_all_spans(event: &mut Event) {
     let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     for span in spans {
-        if let Some(span) = span.value_mut() {
-            if span.timestamp.value().is_none() {
-                // event timestamp guaranteed to be `Some` due to validate_transaction call
-                span.timestamp.set_value(event.timestamp.value().cloned());
-                span.status =
-                    Annotated::new(relay_base_schema::spans::SpanStatus::DeadlineExceeded);
-            }
+        if let Some(span) = span.value_mut()
+            && span.timestamp.value().is_none()
+        {
+            // event timestamp guaranteed to be `Some` due to validate_transaction call
+            span.timestamp.set_value(event.timestamp.value().cloned());
+            span.status = Annotated::new(relay_base_schema::spans::SpanStatus::DeadlineExceeded);
         }
     }
 }

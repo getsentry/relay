@@ -307,11 +307,11 @@ impl RelayCacheService {
             return;
         }
 
-        if let Some(key) = self.relays.get(&relay_id) {
-            if key.is_valid_cache(&self.config) {
-                sender.send(key.as_option().cloned());
-                return;
-            }
+        if let Some(key) = self.relays.get(&relay_id)
+            && key.is_valid_cache(&self.config)
+        {
+            sender.send(key.as_option().cloned());
+            return;
         }
 
         if self.config.credentials().is_none() {

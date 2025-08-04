@@ -43,10 +43,10 @@ impl Processor for GenerateSelectorsProcessor {
         let mut insert_path = |path: SelectorSpec| {
             if path.matches_path(&state.path()) {
                 let mut string_value = None;
-                if let Some(value) = value {
-                    if let Value::String(s) = value.clone().into_value() {
-                        string_value = Some(s);
-                    }
+                if let Some(value) = value
+                    && let Value::String(s) = value.clone().into_value()
+                {
+                    string_value = Some(s);
                 }
                 self.selectors.insert(SelectorSuggestion {
                     path,

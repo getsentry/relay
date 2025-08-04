@@ -34,10 +34,10 @@ fn list_crates() -> Vec<String> {
             continue;
         }
 
-        if let Some(s) = entry.file_name().to_str() {
-            if s.starts_with("relay") {
-                crates.push(s.to_owned());
-            }
+        if let Some(s) = entry.file_name().to_str()
+            && s.starts_with("relay")
+        {
+            crates.push(s.to_owned());
         }
     }
 

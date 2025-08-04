@@ -65,28 +65,27 @@ pub fn extract_http_status_code(event: &Event) -> Option<String> {
 
     if let Some(spans) = event.spans.value() {
         for span in spans {
-            if let Some(span_value) = span.value() {
-                if let Some(status_code) = http_status_code_from_span(span_value) {
-                    return Some(status_code);
-                }
+            if let Some(span_value) = span.value()
+                && let Some(status_code) = http_status_code_from_span(span_value)
+            {
+                return Some(status_code);
             }
         }
     }
 
     // For SDKs which put the HTTP status code into the breadcrumbs data.
-    if let Some(breadcrumbs) = event.breadcrumbs.value() {
-        if let Some(values) = breadcrumbs.values.value() {
-            for breadcrumb in values {
-                // We need only the `http` type.
-                if let Some(crumb) = breadcrumb
-                    .value()
-                    .filter(|bc| bc.ty.as_str() == Some("http"))
-                {
-                    // Try to get the status code om the map.
-                    if let Some(status_code) = crumb.data.value().and_then(|v| v.get("status_code"))
-                    {
-                        return status_code.value().and_then(|v| v.as_str()).map(Into::into);
-                    }
+    if let Some(breadcrumbs) = event.breadcrumbs.value()
+        && let Some(values) = breadcrumbs.values.value()
+    {
+        for breadcrumb in values {
+            // We need only the `http` type.
+            if let Some(crumb) = breadcrumb
+                .value()
+                .filter(|bc| bc.ty.as_str() == Some("http"))
+            {
+                // Try to get the status code om the map.
+                if let Some(status_code) = crumb.data.value().and_then(|v| v.get("status_code")) {
+                    return status_code.value().and_then(|v| v.as_str()).map(Into::into);
                 }
             }
         }
