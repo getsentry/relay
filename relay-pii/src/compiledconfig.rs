@@ -53,6 +53,7 @@ impl CompiledPiiConfig {
                 | RuleType::Pemkey
                 | RuleType::UrlAuth
                 | RuleType::UsSsn
+                | RuleType::Bearer
                 | RuleType::Password
                 | RuleType::Multiple(_)
                 | RuleType::Alias(_)

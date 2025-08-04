@@ -7,6 +7,7 @@
 - Build and publish Relay containers with a distroless base image. ([#4940](https://github.com/getsentry/relay/pull/4940))
 - Add `unhandled` status type for Release Health `session` and `sessions` envelopes. ([#4939](https://github.com/getsentry/relay/pull/4939))
 - Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
+- Improve PII scrubbing for `logentry.formatted` by ensuring only sensitive data is redacted, rather than replacing the entire field value. ([#4985](https://github.com/getsentry/relay/pull/4985))
 
 **Bug Fixes**:
 

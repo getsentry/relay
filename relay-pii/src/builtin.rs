@@ -43,6 +43,7 @@ declare_builtin_rules! {
                 "@pemkey".into(),
                 "@urlauth".into(),
                 "@userpath".into(),
+                "@bearer".into(),
                 "@password".into(),
                 "@usssn".into(),
             ],
@@ -59,6 +60,7 @@ declare_builtin_rules! {
                 "@pemkey:filter".into(),
                 "@urlauth:legacy".into(),
                 "@userpath:filter".into(),
+                "@bearer:filter".into(),
                 "@password:filter".into(),
                 "@usssn:filter".into(),
             ],
@@ -88,6 +90,33 @@ declare_builtin_rules! {
     "@anything:filter" => RuleSpec {
         ty: RuleType::Anything,
         redaction: Redaction::Replace(ReplaceRedaction::default()),
+    };
+
+    // bearer
+    "@bearer" => rule_alias!("@bearer:replace");
+    "@bearer:replace" => RuleSpec {
+        ty: RuleType::Bearer,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "Bearer [token]".into(),
+        }),
+    };
+    "@bearer:filter" => RuleSpec {
+        ty: RuleType::Bearer,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[Filtered]".into(),
+        }),
+    };
+    "@bearer:hash" => RuleSpec {
+        ty: RuleType::Bearer,
+        redaction: Redaction::Hash,
+    };
+    "@bearer:mask" => RuleSpec {
+        ty: RuleType::Bearer,
+        redaction: Redaction::Mask,
+    };
+    "@bearer:remove" => RuleSpec {
+        ty: RuleType::Bearer,
+        redaction: Redaction::Remove,
     };
 
     // ip rules
