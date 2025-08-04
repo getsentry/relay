@@ -90,7 +90,7 @@
 <a href=#90 id=90 data-nosnippet>90</a>
 <a href=#91 id=91 data-nosnippet>91</a><span class="kw">trait </span>TrackOutcomeLike {
 <a href=#92 id=92 data-nosnippet>92</a>    <span class="doccomment">/// TODO: Doc
-<a href=#93 id=93 data-nosnippet>93</a>    </span><span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt;;
+<a href=#93 id=93 data-nosnippet>93</a>    </span><span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">'_</span>, str&gt;&gt;;
 <a href=#94 id=94 data-nosnippet>94</a>
 <a href=#95 id=95 data-nosnippet>95</a>    <span class="doccomment">/// TODO: Doc
 <a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">fn </span>outcome_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OutcomeId;
@@ -141,7 +141,7 @@
 <a href=#141 id=141 data-nosnippet>141</a>}
 <a href=#142 id=142 data-nosnippet>142</a>
 <a href=#143 id=143 data-nosnippet>143</a><span class="kw">impl </span>TrackOutcomeLike <span class="kw">for </span>TrackOutcome {
-<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
+<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">'_</span>, str&gt;&gt; {
 <a href=#145 id=145 data-nosnippet>145</a>        <span class="self">self</span>.outcome.to_reason()
 <a href=#146 id=146 data-nosnippet>146</a>    }
 <a href=#147 id=147 data-nosnippet>147</a>
@@ -856,7 +856,7 @@
 <a href=#856 id=856 data-nosnippet>856</a>}
 <a href=#857 id=857 data-nosnippet>857</a>
 <a href=#858 id=858 data-nosnippet>858</a><span class="kw">impl </span>TrackOutcomeLike <span class="kw">for </span>TrackRawOutcome {
-<a href=#859 id=859 data-nosnippet>859</a>    <span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
+<a href=#859 id=859 data-nosnippet>859</a>    <span class="kw">fn </span>reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">'_</span>, str&gt;&gt; {
 <a href=#860 id=860 data-nosnippet>860</a>        <span class="self">self</span>.reason.as_ref().map(|s| s.into())
 <a href=#861 id=861 data-nosnippet>861</a>    }
 <a href=#862 id=862 data-nosnippet>862</a>

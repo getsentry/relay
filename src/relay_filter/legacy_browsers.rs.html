@@ -74,10 +74,10 @@
 <a href=#74 id=74 data-nosnippet>74</a>}
 <a href=#75 id=75 data-nosnippet>75</a>
 <a href=#76 id=76 data-nosnippet>76</a><span class="kw">fn </span>get_browser_major_version(user_agent: <span class="kw-2">&amp;</span>UserAgent) -&gt; <span class="prelude-ty">Option</span>&lt;i32&gt; {
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_major_version_str) = <span class="kw-2">&amp;</span>user_agent.major {
-<a href=#78 id=78 data-nosnippet>78</a>        <span class="kw">if let </span><span class="prelude-val">Ok</span>(browser_major_version) = browser_major_version_str.parse::&lt;i32&gt;() {
-<a href=#79 id=79 data-nosnippet>79</a>            <span class="kw">return </span><span class="prelude-val">Some</span>(browser_major_version);
-<a href=#80 id=80 data-nosnippet>80</a>        }
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_major_version_str) = <span class="kw-2">&amp;</span>user_agent.major
+<a href=#78 id=78 data-nosnippet>78</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(browser_major_version) = browser_major_version_str.parse::&lt;i32&gt;()
+<a href=#79 id=79 data-nosnippet>79</a>    {
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(browser_major_version);
 <a href=#81 id=81 data-nosnippet>81</a>    }
 <a href=#82 id=82 data-nosnippet>82</a>
 <a href=#83 id=83 data-nosnippet>83</a>    <span class="prelude-val">None
@@ -98,334 +98,332 @@
 <a href=#98 id=98 data-nosnippet>98</a>}
 <a href=#99 id=99 data-nosnippet>99</a>
 <a href=#100 id=100 data-nosnippet>100</a><span class="kw">fn </span>default_filter(mapped_family: <span class="kw-2">&amp;</span>str, user_agent: <span class="kw-2">&amp;</span>UserAgent) -&gt; bool {
-<a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_major_version) = get_browser_major_version(user_agent) {
-<a href=#102 id=102 data-nosnippet>102</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(min_version) = min_version(mapped_family) {
-<a href=#103 id=103 data-nosnippet>103</a>            <span class="kw">if </span>min_version &gt; browser_major_version {
-<a href=#104 id=104 data-nosnippet>104</a>                <span class="kw">return </span><span class="bool-val">true</span>;
-<a href=#105 id=105 data-nosnippet>105</a>            }
-<a href=#106 id=106 data-nosnippet>106</a>        }
-<a href=#107 id=107 data-nosnippet>107</a>    }
-<a href=#108 id=108 data-nosnippet>108</a>    <span class="bool-val">false
-<a href=#109 id=109 data-nosnippet>109</a></span>}
-<a href=#110 id=110 data-nosnippet>110</a>
-<a href=#111 id=111 data-nosnippet>111</a><span class="kw">fn </span>filter_browser&lt;F&gt;(
-<a href=#112 id=112 data-nosnippet>112</a>    mapped_family: <span class="kw-2">&amp;</span>str,
-<a href=#113 id=113 data-nosnippet>113</a>    user_agent: <span class="kw-2">&amp;</span>UserAgent,
-<a href=#114 id=114 data-nosnippet>114</a>    family: <span class="kw-2">&amp;</span>str,
-<a href=#115 id=115 data-nosnippet>115</a>    should_filter: F,
-<a href=#116 id=116 data-nosnippet>116</a>) -&gt; bool
-<a href=#117 id=117 data-nosnippet>117</a><span class="kw">where
-<a href=#118 id=118 data-nosnippet>118</a>    </span>F: FnOnce(i32) -&gt; bool,
-<a href=#119 id=119 data-nosnippet>119</a>{
-<a href=#120 id=120 data-nosnippet>120</a>    <span class="kw">if </span>mapped_family == family {
-<a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_major_version) = get_browser_major_version(user_agent) {
-<a href=#122 id=122 data-nosnippet>122</a>            <span class="kw">if </span>should_filter(browser_major_version) {
-<a href=#123 id=123 data-nosnippet>123</a>                <span class="kw">return </span><span class="bool-val">true</span>;
-<a href=#124 id=124 data-nosnippet>124</a>            }
-<a href=#125 id=125 data-nosnippet>125</a>        }
-<a href=#126 id=126 data-nosnippet>126</a>    }
-<a href=#127 id=127 data-nosnippet>127</a>    <span class="bool-val">false
-<a href=#128 id=128 data-nosnippet>128</a></span>}
-<a href=#129 id=129 data-nosnippet>129</a>
-<a href=#130 id=130 data-nosnippet>130</a><span class="attr">#[cfg(test)]
-<a href=#131 id=131 data-nosnippet>131</a></span><span class="kw">mod </span>tests {
-<a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">const </span>IE8_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.0; Trident/4.0)"</span>;
-<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">const </span>IE_MOBILE9_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 9.0; Windows Phone OS 7.5; Trident/5.0; IEMobile/9.0; NOKIA; Lumia 710)"</span>;
-<a href=#134 id=134 data-nosnippet>134</a>    <span class="kw">const </span>IE9_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 7.1; Trident/5.0)"</span>;
-<a href=#135 id=135 data-nosnippet>135</a>    <span class="kw">const </span>IE10_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)"</span>;
-<a href=#136 id=136 data-nosnippet>136</a>    <span class="kw">const </span>IE11_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko"</span>;
-<a href=#137 id=137 data-nosnippet>137</a>    <span class="kw">const </span>OPERA_MINI_PRE8_UA: <span class="kw-2">&amp;</span>str =
-<a href=#138 id=138 data-nosnippet>138</a>        <span class="string">"Opera/9.80 (J2ME/MIDP; Opera Mini/7.0.32796/59.323; U; fr) Presto/2.12.423 Version/12.16"</span>;
-<a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">const </span>OPERA_MINI_8_UA: <span class="kw-2">&amp;</span>str =
-<a href=#140 id=140 data-nosnippet>140</a>        <span class="string">"Opera/9.80 (J2ME/MIDP; Opera Mini/8.0.35158/36.2534; U; en) Presto/2.12.423 Version/12.16"</span>;
-<a href=#141 id=141 data-nosnippet>141</a>    <span class="kw">const </span>OPERA_PRE15_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.12 Safari/537.36 OPR/14.0.1116.4"</span>;
-<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">const </span>OPERA_15_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.45 Safari/537.36 OPR/15.0.1147.61 (Edition Next)"</span>;
-<a href=#143 id=143 data-nosnippet>143</a>    <span class="kw">const </span>ANDROID_PRE4_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; U; Android 3.2; nl-nl; GT-P6800 Build/HTJ85B) AppleWebKit/534.13 (KHTML, like Gecko) Version/4.0 Safari/534.13"</span>;
-<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">const </span>ANDROID_4_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; U; Android 4.1.1; en-gb; Build/KLP) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Safari/534.30"</span>;
-<a href=#145 id=145 data-nosnippet>145</a>    <span class="kw">const </span>SAFARI_PRE6_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Macintosh; U; Intel Mac OS X 1063; tr-DE) AppleWebKit/533.16 (KHTML like Gecko) Version/5.0 Safari/533.16"</span>;
-<a href=#146 id=146 data-nosnippet>146</a>    <span class="kw">const </span>SAFARI_6_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5"</span>;
-<a href=#147 id=147 data-nosnippet>147</a>    <span class="kw">const </span>EDGE_ANDROID_118_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.80 Mobile Safari/537.36 EdgA/118.0.2088.58"</span>;
-<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">const </span>EDGE_79_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3919.0 Safari/537.36 Edg/79.0.294.1"</span>;
-<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">const </span>EDGE_18_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582"</span>;
-<a href=#150 id=150 data-nosnippet>150</a>    <span class="kw">const </span>EDGE_12_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"</span>;
-<a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">const </span>OPERA_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.45 Safari/537.36 OPR/49.0.1147.61"</span>;
-<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">const </span>OPERA_MINI_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Opera/20.80 (J2ME/MIDP; Opera Mini/16.0.35158/36.2534; U; en) Presto/2.12.423 Version/12.16"</span>;
-<a href=#153 id=153 data-nosnippet>153</a>    <span class="kw">const </span>CHROME_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.2228.0 Safari/537.36"</span>;
-<a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">const </span>FIREFOX_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"</span>;
-<a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">const </span>IE_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko"</span>;
-<a href=#156 id=156 data-nosnippet>156</a>    <span class="kw">const </span>EDGE_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582"</span>;
-<a href=#157 id=157 data-nosnippet>157</a>    <span class="kw">const </span>SAFARI_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5"</span>;
-<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">const </span>ANDROID_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; U; Android 3.2; nl-nl; GT-P6800 Build/HTJ85B) AppleWebKit/534.13 (KHTML, like Gecko) Version/4.0 Safari/534.13"</span>;
-<a href=#159 id=159 data-nosnippet>159</a>
-<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils;
-<a href=#162 id=162 data-nosnippet>162</a>
-<a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">fn </span>get_legacy_browsers_config(
-<a href=#164 id=164 data-nosnippet>164</a>        is_enabled: bool,
-<a href=#165 id=165 data-nosnippet>165</a>        legacy_browsers: <span class="kw-2">&amp;</span>[LegacyBrowser],
-<a href=#166 id=166 data-nosnippet>166</a>    ) -&gt; LegacyBrowsersFilterConfig {
-<a href=#167 id=167 data-nosnippet>167</a>        LegacyBrowsersFilterConfig {
-<a href=#168 id=168 data-nosnippet>168</a>            is_enabled,
-<a href=#169 id=169 data-nosnippet>169</a>            browsers: {
-<a href=#170 id=170 data-nosnippet>170</a>                <span class="kw">let </span><span class="kw-2">mut </span>browsers = BTreeSet::&lt;LegacyBrowser&gt;::new();
-<a href=#171 id=171 data-nosnippet>171</a>                <span class="kw">for </span>elm <span class="kw">in </span>legacy_browsers {
-<a href=#172 id=172 data-nosnippet>172</a>                    browsers.insert(elm.clone());
-<a href=#173 id=173 data-nosnippet>173</a>                }
-<a href=#174 id=174 data-nosnippet>174</a>                browsers
-<a href=#175 id=175 data-nosnippet>175</a>            },
-<a href=#176 id=176 data-nosnippet>176</a>        }
-<a href=#177 id=177 data-nosnippet>177</a>    }
-<a href=#178 id=178 data-nosnippet>178</a>
-<a href=#179 id=179 data-nosnippet>179</a>    <span class="attr">#[test]
-<a href=#180 id=180 data-nosnippet>180</a>    </span><span class="kw">fn </span>test_dont_filter_when_disabled() {
-<a href=#181 id=181 data-nosnippet>181</a>        <span class="kw">let </span>evt = testutils::get_event_with_user_agent(IE8_UA);
-<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">let </span>filter_result = should_filter(
-<a href=#183 id=183 data-nosnippet>183</a>            <span class="kw-2">&amp;</span>evt,
-<a href=#184 id=184 data-nosnippet>184</a>            <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">false</span>, <span class="kw-2">&amp;</span>[LegacyBrowser::Default]),
-<a href=#185 id=185 data-nosnippet>185</a>        );
-<a href=#186 id=186 data-nosnippet>186</a>        <span class="macro">assert_eq!</span>(
-<a href=#187 id=187 data-nosnippet>187</a>            filter_result,
-<a href=#188 id=188 data-nosnippet>188</a>            <span class="prelude-val">Ok</span>(()),
-<a href=#189 id=189 data-nosnippet>189</a>            <span class="string">"Event filtered although filter should have been disabled"
-<a href=#190 id=190 data-nosnippet>190</a>        </span>)
-<a href=#191 id=191 data-nosnippet>191</a>    }
-<a href=#192 id=192 data-nosnippet>192</a>
-<a href=#193 id=193 data-nosnippet>193</a>    <span class="attr">#[test]
-<a href=#194 id=194 data-nosnippet>194</a>    </span><span class="kw">fn </span>test_filter_default_browsers() {
-<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">for </span>old_user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>[
-<a href=#196 id=196 data-nosnippet>196</a>            IE9_UA,
-<a href=#197 id=197 data-nosnippet>197</a>            IE_MOBILE9_UA,
-<a href=#198 id=198 data-nosnippet>198</a>            SAFARI_PRE6_UA,
-<a href=#199 id=199 data-nosnippet>199</a>            OPERA_PRE15_UA,
-<a href=#200 id=200 data-nosnippet>200</a>            ANDROID_PRE4_UA,
-<a href=#201 id=201 data-nosnippet>201</a>            OPERA_MINI_PRE8_UA,
-<a href=#202 id=202 data-nosnippet>202</a>        ] {
-<a href=#203 id=203 data-nosnippet>203</a>            <span class="kw">let </span>evt = testutils::get_event_with_user_agent(old_user_agent);
-<a href=#204 id=204 data-nosnippet>204</a>            <span class="kw">let </span>filter_result = should_filter(
-<a href=#205 id=205 data-nosnippet>205</a>                <span class="kw-2">&amp;</span>evt,
-<a href=#206 id=206 data-nosnippet>206</a>                <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>[LegacyBrowser::Default]),
-<a href=#207 id=207 data-nosnippet>207</a>            );
-<a href=#208 id=208 data-nosnippet>208</a>            <span class="macro">assert_ne!</span>(
-<a href=#209 id=209 data-nosnippet>209</a>                filter_result,
-<a href=#210 id=210 data-nosnippet>210</a>                <span class="prelude-val">Ok</span>(()),
-<a href=#211 id=211 data-nosnippet>211</a>                <span class="string">"Default filter should have filtered User Agent\n{old_user_agent}"
-<a href=#212 id=212 data-nosnippet>212</a>            </span>)
-<a href=#213 id=213 data-nosnippet>213</a>        }
-<a href=#214 id=214 data-nosnippet>214</a>    }
-<a href=#215 id=215 data-nosnippet>215</a>
-<a href=#216 id=216 data-nosnippet>216</a>    <span class="attr">#[test]
-<a href=#217 id=217 data-nosnippet>217</a>    </span><span class="kw">fn </span>test_dont_filter_default_above_minimum_versions() {
-<a href=#218 id=218 data-nosnippet>218</a>        <span class="kw">for </span>old_user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>[
-<a href=#219 id=219 data-nosnippet>219</a>            IE10_UA,
-<a href=#220 id=220 data-nosnippet>220</a>            SAFARI_6_UA,
-<a href=#221 id=221 data-nosnippet>221</a>            OPERA_15_UA,
-<a href=#222 id=222 data-nosnippet>222</a>            ANDROID_4_UA,
-<a href=#223 id=223 data-nosnippet>223</a>            OPERA_MINI_8_UA,
-<a href=#224 id=224 data-nosnippet>224</a>        ] {
-<a href=#225 id=225 data-nosnippet>225</a>            <span class="kw">let </span>evt = testutils::get_event_with_user_agent(old_user_agent);
-<a href=#226 id=226 data-nosnippet>226</a>            <span class="kw">let </span>filter_result = should_filter(
-<a href=#227 id=227 data-nosnippet>227</a>                <span class="kw-2">&amp;</span>evt,
-<a href=#228 id=228 data-nosnippet>228</a>                <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>[LegacyBrowser::Default]),
-<a href=#229 id=229 data-nosnippet>229</a>            );
-<a href=#230 id=230 data-nosnippet>230</a>            <span class="macro">assert_eq!</span>(
-<a href=#231 id=231 data-nosnippet>231</a>                filter_result,
-<a href=#232 id=232 data-nosnippet>232</a>                <span class="prelude-val">Ok</span>(()),
-<a href=#233 id=233 data-nosnippet>233</a>                <span class="string">"Default filter shouldn't have filtered User Agent\n{old_user_agent}"
-<a href=#234 id=234 data-nosnippet>234</a>            </span>)
-<a href=#235 id=235 data-nosnippet>235</a>        }
-<a href=#236 id=236 data-nosnippet>236</a>    }
-<a href=#237 id=237 data-nosnippet>237</a>
-<a href=#238 id=238 data-nosnippet>238</a>    <span class="attr">#[test]
-<a href=#239 id=239 data-nosnippet>239</a>    </span><span class="kw">fn </span>test_filter_configured_browsers() {
-<a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">let </span>test_configs = [
-<a href=#241 id=241 data-nosnippet>241</a>            (
-<a href=#242 id=242 data-nosnippet>242</a>                IE10_UA,
-<a href=#243 id=243 data-nosnippet>243</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::AndroidPre4, LegacyBrowser::Ie10][..],
-<a href=#244 id=244 data-nosnippet>244</a>            ),
-<a href=#245 id=245 data-nosnippet>245</a>            (IE11_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie11][..]),
-<a href=#246 id=246 data-nosnippet>246</a>            (IE10_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie10][..]),
-<a href=#247 id=247 data-nosnippet>247</a>            (IE9_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie9][..]),
-<a href=#248 id=248 data-nosnippet>248</a>            (IE_MOBILE9_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie9][..]),
-<a href=#249 id=249 data-nosnippet>249</a>            (
-<a href=#250 id=250 data-nosnippet>250</a>                IE9_UA,
-<a href=#251 id=251 data-nosnippet>251</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::AndroidPre4, LegacyBrowser::Ie9][..],
-<a href=#252 id=252 data-nosnippet>252</a>            ),
-<a href=#253 id=253 data-nosnippet>253</a>            (IE8_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::IePre9][..]),
-<a href=#254 id=254 data-nosnippet>254</a>            (
-<a href=#255 id=255 data-nosnippet>255</a>                IE8_UA,
-<a href=#256 id=256 data-nosnippet>256</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15, LegacyBrowser::IePre9][..],
-<a href=#257 id=257 data-nosnippet>257</a>            ),
-<a href=#258 id=258 data-nosnippet>258</a>            (OPERA_PRE15_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15][..]),
-<a href=#259 id=259 data-nosnippet>259</a>            (
-<a href=#260 id=260 data-nosnippet>260</a>                OPERA_PRE15_UA,
-<a href=#261 id=261 data-nosnippet>261</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::Ie10, LegacyBrowser::OperaPre15][..],
-<a href=#262 id=262 data-nosnippet>262</a>            ),
-<a href=#263 id=263 data-nosnippet>263</a>            (OPERA_MINI_PRE8_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::OperaMiniPre8][..]),
-<a href=#264 id=264 data-nosnippet>264</a>            (
-<a href=#265 id=265 data-nosnippet>265</a>                OPERA_MINI_PRE8_UA,
-<a href=#266 id=266 data-nosnippet>266</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::Ie10, LegacyBrowser::OperaMiniPre8][..],
-<a href=#267 id=267 data-nosnippet>267</a>            ),
-<a href=#268 id=268 data-nosnippet>268</a>            (ANDROID_PRE4_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::AndroidPre4][..]),
-<a href=#269 id=269 data-nosnippet>269</a>            (
-<a href=#270 id=270 data-nosnippet>270</a>                ANDROID_PRE4_UA,
-<a href=#271 id=271 data-nosnippet>271</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::Ie10, LegacyBrowser::AndroidPre4][..],
-<a href=#272 id=272 data-nosnippet>272</a>            ),
-<a href=#273 id=273 data-nosnippet>273</a>            (SAFARI_PRE6_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::SafariPre6][..]),
-<a href=#274 id=274 data-nosnippet>274</a>            (
-<a href=#275 id=275 data-nosnippet>275</a>                SAFARI_PRE6_UA,
-<a href=#276 id=276 data-nosnippet>276</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15, LegacyBrowser::SafariPre6][..],
-<a href=#277 id=277 data-nosnippet>277</a>            ),
-<a href=#278 id=278 data-nosnippet>278</a>            (EDGE_12_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::EdgePre79][..]),
-<a href=#279 id=279 data-nosnippet>279</a>            (
-<a href=#280 id=280 data-nosnippet>280</a>                EDGE_18_UA,
-<a href=#281 id=281 data-nosnippet>281</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15, LegacyBrowser::EdgePre79][..],
-<a href=#282 id=282 data-nosnippet>282</a>            ),
-<a href=#283 id=283 data-nosnippet>283</a>            (OPERA_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Opera][..]),
-<a href=#284 id=284 data-nosnippet>284</a>            (OPERA_MINI_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::OperaMini][..]),
-<a href=#285 id=285 data-nosnippet>285</a>            (CHROME_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Chrome][..]),
-<a href=#286 id=286 data-nosnippet>286</a>            (FIREFOX_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Firefox][..]),
-<a href=#287 id=287 data-nosnippet>287</a>            (IE_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie][..]),
-<a href=#288 id=288 data-nosnippet>288</a>            (EDGE_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Edge][..]),
-<a href=#289 id=289 data-nosnippet>289</a>            (SAFARI_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Safari][..]),
-<a href=#290 id=290 data-nosnippet>290</a>            (ANDROID_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Android][..]),
-<a href=#291 id=291 data-nosnippet>291</a>        ];
-<a href=#292 id=292 data-nosnippet>292</a>
-<a href=#293 id=293 data-nosnippet>293</a>        <span class="kw">for </span>(user_agent, active_filters) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
-<a href=#294 id=294 data-nosnippet>294</a>            <span class="kw">let </span>evt = testutils::get_event_with_user_agent(user_agent);
-<a href=#295 id=295 data-nosnippet>295</a>            <span class="kw">let </span>filter_result =
-<a href=#296 id=296 data-nosnippet>296</a>                should_filter(<span class="kw-2">&amp;</span>evt, <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, active_filters));
-<a href=#297 id=297 data-nosnippet>297</a>            <span class="macro">assert_ne!</span>(
-<a href=#298 id=298 data-nosnippet>298</a>                filter_result,
-<a href=#299 id=299 data-nosnippet>299</a>                <span class="prelude-val">Ok</span>(()),
-<a href=#300 id=300 data-nosnippet>300</a>                <span class="string">"Filters {active_filters:?} should have filtered User Agent\n{user_agent} for "
-<a href=#301 id=301 data-nosnippet>301</a>            </span>)
-<a href=#302 id=302 data-nosnippet>302</a>        }
-<a href=#303 id=303 data-nosnippet>303</a>    }
-<a href=#304 id=304 data-nosnippet>304</a>
-<a href=#305 id=305 data-nosnippet>305</a>    <span class="attr">#[test]
-<a href=#306 id=306 data-nosnippet>306</a>    </span><span class="kw">fn </span>test_dont_filter_unconfigured_browsers() {
-<a href=#307 id=307 data-nosnippet>307</a>        <span class="kw">let </span>test_configs = [
-<a href=#308 id=308 data-nosnippet>308</a>            (IE11_UA, LegacyBrowser::Ie10),
-<a href=#309 id=309 data-nosnippet>309</a>            (IE10_UA, LegacyBrowser::Ie9),
-<a href=#310 id=310 data-nosnippet>310</a>            (IE10_UA, LegacyBrowser::Ie11),
-<a href=#311 id=311 data-nosnippet>311</a>            (IE9_UA, LegacyBrowser::IePre9),
-<a href=#312 id=312 data-nosnippet>312</a>            (OPERA_15_UA, LegacyBrowser::OperaPre15),
-<a href=#313 id=313 data-nosnippet>313</a>            (OPERA_MINI_8_UA, LegacyBrowser::OperaMiniPre8),
-<a href=#314 id=314 data-nosnippet>314</a>            (ANDROID_4_UA, LegacyBrowser::AndroidPre4),
-<a href=#315 id=315 data-nosnippet>315</a>            (SAFARI_6_UA, LegacyBrowser::SafariPre6),
-<a href=#316 id=316 data-nosnippet>316</a>            (EDGE_12_UA, LegacyBrowser::Ie10),
-<a href=#317 id=317 data-nosnippet>317</a>            (EDGE_18_UA, LegacyBrowser::Ie10),
-<a href=#318 id=318 data-nosnippet>318</a>            (EDGE_79_UA, LegacyBrowser::EdgePre79),
-<a href=#319 id=319 data-nosnippet>319</a>            (EDGE_ANDROID_118_UA, LegacyBrowser::EdgePre79),
-<a href=#320 id=320 data-nosnippet>320</a>        ];
-<a href=#321 id=321 data-nosnippet>321</a>
-<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">for </span>(user_agent, active_filter) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
-<a href=#323 id=323 data-nosnippet>323</a>            <span class="kw">let </span>evt = testutils::get_event_with_user_agent(user_agent);
-<a href=#324 id=324 data-nosnippet>324</a>            <span class="kw">let </span>filter_result = should_filter(
-<a href=#325 id=325 data-nosnippet>325</a>                <span class="kw-2">&amp;</span>evt,
-<a href=#326 id=326 data-nosnippet>326</a>                <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>[active_filter.clone()]),
-<a href=#327 id=327 data-nosnippet>327</a>            );
-<a href=#328 id=328 data-nosnippet>328</a>            <span class="macro">assert_eq!</span>(
-<a href=#329 id=329 data-nosnippet>329</a>                filter_result,
-<a href=#330 id=330 data-nosnippet>330</a>                <span class="prelude-val">Ok</span>(()),
-<a href=#331 id=331 data-nosnippet>331</a>                <span class="string">"Filter {active_filter:?} shouldn't have filtered User Agent\n{user_agent} for "
-<a href=#332 id=332 data-nosnippet>332</a>            </span>)
-<a href=#333 id=333 data-nosnippet>333</a>        }
-<a href=#334 id=334 data-nosnippet>334</a>    }
-<a href=#335 id=335 data-nosnippet>335</a>
-<a href=#336 id=336 data-nosnippet>336</a>    <span class="doccomment">/// Test to ensure Sentry filter compatibility.
-<a href=#337 id=337 data-nosnippet>337</a>    ///
-<a href=#338 id=338 data-nosnippet>338</a>    /// To be remove if/when Sentry backward compatibility is no longer required.
-<a href=#339 id=339 data-nosnippet>339</a>    </span><span class="kw">mod </span>sentry_compatibility {
-<a href=#340 id=340 data-nosnippet>340</a>        <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#341 id=341 data-nosnippet>341</a>
-<a href=#342 id=342 data-nosnippet>342</a>        <span class="comment">// User agents used by Sentry tests
-<a href=#343 id=343 data-nosnippet>343</a>        </span><span class="kw">const </span>ANDROID2_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; U; Android 2.3.5; en-us; HTC Vision Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1"</span>;
-<a href=#344 id=344 data-nosnippet>344</a>        <span class="kw">const </span>ANDROID4_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19"</span>;
-<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">const </span>IE5_S_UA: <span class="kw-2">&amp;</span>str =
-<a href=#346 id=346 data-nosnippet>346</a>            <span class="string">"Mozilla/4.0 (compatible; MSIE 5.50; Windows NT; SiteKiosk 4.9; SiteCoach 1.0)"</span>;
-<a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">const </span>IE8_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Win64; x64; Trident/4.0; .NET CLR 2.0.50727; SLCC2; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; MDDC; Tablet PC 2.0)"</span>;
-<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">const </span>IE9_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))"</span>;
-<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">const </span>IE_MOBILE9_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 9.0; Windows Phone OS 7.5; Trident/5.0; IEMobile/9.0; NOKIA; Lumia 710)"</span>;
-<a href=#350 id=350 data-nosnippet>350</a>        <span class="kw">const </span>IE10_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 7.0; InfoPath.3; .NET CLR 3.1.40767; Trident/6.0; en-IN)"</span>;
-<a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">const </span>IE_MOBILE10_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 10.0; Windows Phone 8.0; Trident/6.0; IEMobile/10.0; ARM; Touch; NOKIA; Lumia 520)"</span>;
-<a href=#352 id=352 data-nosnippet>352</a>        <span class="kw">const </span>OPERA11_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Opera/9.80 (Windows NT 5.1; U; it) Presto/2.7.62 Version/11.00"</span>;
-<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">const </span>OPERA_12_S_UA: <span class="kw-2">&amp;</span>str =
-<a href=#354 id=354 data-nosnippet>354</a>            <span class="string">"Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16"</span>;
-<a href=#355 id=355 data-nosnippet>355</a>        <span class="kw">const </span>OPERA_15_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (X11; Linux x86_64; Debian) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.52 Safari/537.36 OPR/15.0.1147.100"</span>;
-<a href=#356 id=356 data-nosnippet>356</a>        <span class="kw">const </span>CHROME_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"</span>;
-<a href=#357 id=357 data-nosnippet>357</a>        <span class="kw">const </span>EDGE_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10136"</span>;
-<a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">const </span>SAFARI5_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows; U; Windows NT 6.1; zh-HK) AppleWebKit/533.18.1 (KHTML, like Gecko) Version/5.0.2 Safari/533.18.5"</span>;
-<a href=#359 id=359 data-nosnippet>359</a>        <span class="kw">const </span>SAFARI7_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A"</span>;
-<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">const </span>OPERA_MINI8_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Opera/9.80 (J2ME/MIDP; Opera Mini/8.0.35158/36.2534; U; en) Presto/2.12.423 Version/12.16"</span>;
-<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw">const </span>OPERA_MINI7_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Opera/9.80 (J2ME/MIDP; Opera Mini/7.0.32796/59.323; U; fr) Presto/2.12.423 Version/12.16"</span>;
-<a href=#362 id=362 data-nosnippet>362</a>
-<a href=#363 id=363 data-nosnippet>363</a>        <span class="attr">#[test]
-<a href=#364 id=364 data-nosnippet>364</a>        </span><span class="kw">fn </span>test_filter_sentry_user_agents() {
-<a href=#365 id=365 data-nosnippet>365</a>            <span class="kw">let </span>test_configs = [
-<a href=#366 id=366 data-nosnippet>366</a>                (ANDROID2_S_UA, LegacyBrowser::Default),
-<a href=#367 id=367 data-nosnippet>367</a>                (IE9_S_UA, LegacyBrowser::Default),
-<a href=#368 id=368 data-nosnippet>368</a>                (IE_MOBILE9_S_UA, LegacyBrowser::Default),
-<a href=#369 id=369 data-nosnippet>369</a>                (IE5_S_UA, LegacyBrowser::Default),
-<a href=#370 id=370 data-nosnippet>370</a>                (OPERA11_S_UA, LegacyBrowser::Default),
-<a href=#371 id=371 data-nosnippet>371</a>                (OPERA_12_S_UA, LegacyBrowser::Default),
-<a href=#372 id=372 data-nosnippet>372</a>                (OPERA_MINI7_S_UA, LegacyBrowser::Default),
-<a href=#373 id=373 data-nosnippet>373</a>                (OPERA_12_S_UA, LegacyBrowser::OperaPre15),
-<a href=#374 id=374 data-nosnippet>374</a>                (OPERA_MINI7_S_UA, LegacyBrowser::OperaMiniPre8),
-<a href=#375 id=375 data-nosnippet>375</a>                (OPERA_MINI7_S_UA, LegacyBrowser::Default),
-<a href=#376 id=376 data-nosnippet>376</a>                (OPERA_MINI7_S_UA, LegacyBrowser::Default),
-<a href=#377 id=377 data-nosnippet>377</a>                (IE8_S_UA, LegacyBrowser::IePre9),
-<a href=#378 id=378 data-nosnippet>378</a>                (IE8_S_UA, LegacyBrowser::Default),
-<a href=#379 id=379 data-nosnippet>379</a>                (IE9_S_UA, LegacyBrowser::Ie9),
-<a href=#380 id=380 data-nosnippet>380</a>                (IE_MOBILE9_S_UA, LegacyBrowser::Ie9),
-<a href=#381 id=381 data-nosnippet>381</a>                (IE10_S_UA, LegacyBrowser::Ie10),
-<a href=#382 id=382 data-nosnippet>382</a>                (IE_MOBILE10_S_UA, LegacyBrowser::Ie10),
-<a href=#383 id=383 data-nosnippet>383</a>                (SAFARI5_S_UA, LegacyBrowser::SafariPre6),
-<a href=#384 id=384 data-nosnippet>384</a>                (SAFARI5_S_UA, LegacyBrowser::Default),
-<a href=#385 id=385 data-nosnippet>385</a>                (ANDROID2_S_UA, LegacyBrowser::AndroidPre4),
-<a href=#386 id=386 data-nosnippet>386</a>            ];
-<a href=#387 id=387 data-nosnippet>387</a>
-<a href=#388 id=388 data-nosnippet>388</a>            <span class="kw">for </span>(user_agent, active_filter) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
-<a href=#389 id=389 data-nosnippet>389</a>                <span class="kw">let </span>evt = testutils::get_event_with_user_agent(user_agent);
-<a href=#390 id=390 data-nosnippet>390</a>                <span class="kw">let </span>filter_result = should_filter(
-<a href=#391 id=391 data-nosnippet>391</a>                    <span class="kw-2">&amp;</span>evt,
-<a href=#392 id=392 data-nosnippet>392</a>                    <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>[active_filter.clone()]),
-<a href=#393 id=393 data-nosnippet>393</a>                );
-<a href=#394 id=394 data-nosnippet>394</a>                <span class="macro">assert_ne!</span>(
-<a href=#395 id=395 data-nosnippet>395</a>                    filter_result,
-<a href=#396 id=396 data-nosnippet>396</a>                    <span class="prelude-val">Ok</span>(()),
-<a href=#397 id=397 data-nosnippet>397</a>                    <span class="string">"Filter &lt;{active_filter:?}&gt; should have filtered User Agent\n{user_agent} for "
-<a href=#398 id=398 data-nosnippet>398</a>                </span>)
-<a href=#399 id=399 data-nosnippet>399</a>            }
-<a href=#400 id=400 data-nosnippet>400</a>        }
-<a href=#401 id=401 data-nosnippet>401</a>
-<a href=#402 id=402 data-nosnippet>402</a>        <span class="attr">#[test]
-<a href=#403 id=403 data-nosnippet>403</a>        </span><span class="kw">fn </span>test_dont_filter_sentry_allowed_user_agents() {
-<a href=#404 id=404 data-nosnippet>404</a>            <span class="kw">let </span>test_configs = [
-<a href=#405 id=405 data-nosnippet>405</a>                (ANDROID4_S_UA, LegacyBrowser::Default),
-<a href=#406 id=406 data-nosnippet>406</a>                (IE10_S_UA, LegacyBrowser::Default),
-<a href=#407 id=407 data-nosnippet>407</a>                (IE_MOBILE10_S_UA, LegacyBrowser::Default),
-<a href=#408 id=408 data-nosnippet>408</a>                (CHROME_S_UA, LegacyBrowser::Default),
-<a href=#409 id=409 data-nosnippet>409</a>                (EDGE_S_UA, LegacyBrowser::Default),
-<a href=#410 id=410 data-nosnippet>410</a>                (OPERA_15_S_UA, LegacyBrowser::Default),
-<a href=#411 id=411 data-nosnippet>411</a>                (OPERA_MINI8_S_UA, LegacyBrowser::Default),
-<a href=#412 id=412 data-nosnippet>412</a>                (IE10_S_UA, LegacyBrowser::Default),
-<a href=#413 id=413 data-nosnippet>413</a>                (IE_MOBILE10_S_UA, LegacyBrowser::Default),
-<a href=#414 id=414 data-nosnippet>414</a>                (SAFARI7_S_UA, LegacyBrowser::Default),
-<a href=#415 id=415 data-nosnippet>415</a>            ];
-<a href=#416 id=416 data-nosnippet>416</a>
-<a href=#417 id=417 data-nosnippet>417</a>            <span class="kw">for </span>(user_agent, active_filter) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
-<a href=#418 id=418 data-nosnippet>418</a>                <span class="kw">let </span>evt = testutils::get_event_with_user_agent(user_agent);
-<a href=#419 id=419 data-nosnippet>419</a>                <span class="kw">let </span>filter_result = should_filter(
-<a href=#420 id=420 data-nosnippet>420</a>                    <span class="kw-2">&amp;</span>evt,
-<a href=#421 id=421 data-nosnippet>421</a>                    <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>[active_filter.clone()]),
-<a href=#422 id=422 data-nosnippet>422</a>                );
-<a href=#423 id=423 data-nosnippet>423</a>                <span class="macro">assert_eq!</span>(
-<a href=#424 id=424 data-nosnippet>424</a>                    filter_result,
-<a href=#425 id=425 data-nosnippet>425</a>                    <span class="prelude-val">Ok</span>(()),
-<a href=#426 id=426 data-nosnippet>426</a>                    <span class="string">"Filter {active_filter:?} shouldn't have filtered User Agent\n{user_agent} for "
-<a href=#427 id=427 data-nosnippet>427</a>                </span>)
-<a href=#428 id=428 data-nosnippet>428</a>            }
-<a href=#429 id=429 data-nosnippet>429</a>        }
-<a href=#430 id=430 data-nosnippet>430</a>    }
-<a href=#431 id=431 data-nosnippet>431</a>}</code></pre></div></section></main></body></html>
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_major_version) = get_browser_major_version(user_agent)
+<a href=#102 id=102 data-nosnippet>102</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(min_version) = min_version(mapped_family)
+<a href=#103 id=103 data-nosnippet>103</a>        &amp;&amp; min_version &gt; browser_major_version
+<a href=#104 id=104 data-nosnippet>104</a>    {
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">return </span><span class="bool-val">true</span>;
+<a href=#106 id=106 data-nosnippet>106</a>    }
+<a href=#107 id=107 data-nosnippet>107</a>    <span class="bool-val">false
+<a href=#108 id=108 data-nosnippet>108</a></span>}
+<a href=#109 id=109 data-nosnippet>109</a>
+<a href=#110 id=110 data-nosnippet>110</a><span class="kw">fn </span>filter_browser&lt;F&gt;(
+<a href=#111 id=111 data-nosnippet>111</a>    mapped_family: <span class="kw-2">&amp;</span>str,
+<a href=#112 id=112 data-nosnippet>112</a>    user_agent: <span class="kw-2">&amp;</span>UserAgent,
+<a href=#113 id=113 data-nosnippet>113</a>    family: <span class="kw-2">&amp;</span>str,
+<a href=#114 id=114 data-nosnippet>114</a>    should_filter: F,
+<a href=#115 id=115 data-nosnippet>115</a>) -&gt; bool
+<a href=#116 id=116 data-nosnippet>116</a><span class="kw">where
+<a href=#117 id=117 data-nosnippet>117</a>    </span>F: FnOnce(i32) -&gt; bool,
+<a href=#118 id=118 data-nosnippet>118</a>{
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">if </span>mapped_family == family
+<a href=#120 id=120 data-nosnippet>120</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(browser_major_version) = get_browser_major_version(user_agent)
+<a href=#121 id=121 data-nosnippet>121</a>        &amp;&amp; should_filter(browser_major_version)
+<a href=#122 id=122 data-nosnippet>122</a>    {
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="kw">return </span><span class="bool-val">true</span>;
+<a href=#124 id=124 data-nosnippet>124</a>    }
+<a href=#125 id=125 data-nosnippet>125</a>    <span class="bool-val">false
+<a href=#126 id=126 data-nosnippet>126</a></span>}
+<a href=#127 id=127 data-nosnippet>127</a>
+<a href=#128 id=128 data-nosnippet>128</a><span class="attr">#[cfg(test)]
+<a href=#129 id=129 data-nosnippet>129</a></span><span class="kw">mod </span>tests {
+<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">const </span>IE8_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.0; Trident/4.0)"</span>;
+<a href=#131 id=131 data-nosnippet>131</a>    <span class="kw">const </span>IE_MOBILE9_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 9.0; Windows Phone OS 7.5; Trident/5.0; IEMobile/9.0; NOKIA; Lumia 710)"</span>;
+<a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">const </span>IE9_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 7.1; Trident/5.0)"</span>;
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">const </span>IE10_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)"</span>;
+<a href=#134 id=134 data-nosnippet>134</a>    <span class="kw">const </span>IE11_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko"</span>;
+<a href=#135 id=135 data-nosnippet>135</a>    <span class="kw">const </span>OPERA_MINI_PRE8_UA: <span class="kw-2">&amp;</span>str =
+<a href=#136 id=136 data-nosnippet>136</a>        <span class="string">"Opera/9.80 (J2ME/MIDP; Opera Mini/7.0.32796/59.323; U; fr) Presto/2.12.423 Version/12.16"</span>;
+<a href=#137 id=137 data-nosnippet>137</a>    <span class="kw">const </span>OPERA_MINI_8_UA: <span class="kw-2">&amp;</span>str =
+<a href=#138 id=138 data-nosnippet>138</a>        <span class="string">"Opera/9.80 (J2ME/MIDP; Opera Mini/8.0.35158/36.2534; U; en) Presto/2.12.423 Version/12.16"</span>;
+<a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">const </span>OPERA_PRE15_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.12 Safari/537.36 OPR/14.0.1116.4"</span>;
+<a href=#140 id=140 data-nosnippet>140</a>    <span class="kw">const </span>OPERA_15_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.45 Safari/537.36 OPR/15.0.1147.61 (Edition Next)"</span>;
+<a href=#141 id=141 data-nosnippet>141</a>    <span class="kw">const </span>ANDROID_PRE4_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; U; Android 3.2; nl-nl; GT-P6800 Build/HTJ85B) AppleWebKit/534.13 (KHTML, like Gecko) Version/4.0 Safari/534.13"</span>;
+<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">const </span>ANDROID_4_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; U; Android 4.1.1; en-gb; Build/KLP) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Safari/534.30"</span>;
+<a href=#143 id=143 data-nosnippet>143</a>    <span class="kw">const </span>SAFARI_PRE6_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Macintosh; U; Intel Mac OS X 1063; tr-DE) AppleWebKit/533.16 (KHTML like Gecko) Version/5.0 Safari/533.16"</span>;
+<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">const </span>SAFARI_6_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5"</span>;
+<a href=#145 id=145 data-nosnippet>145</a>    <span class="kw">const </span>EDGE_ANDROID_118_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.80 Mobile Safari/537.36 EdgA/118.0.2088.58"</span>;
+<a href=#146 id=146 data-nosnippet>146</a>    <span class="kw">const </span>EDGE_79_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3919.0 Safari/537.36 Edg/79.0.294.1"</span>;
+<a href=#147 id=147 data-nosnippet>147</a>    <span class="kw">const </span>EDGE_18_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582"</span>;
+<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">const </span>EDGE_12_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"</span>;
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">const </span>OPERA_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.45 Safari/537.36 OPR/49.0.1147.61"</span>;
+<a href=#150 id=150 data-nosnippet>150</a>    <span class="kw">const </span>OPERA_MINI_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Opera/20.80 (J2ME/MIDP; Opera Mini/16.0.35158/36.2534; U; en) Presto/2.12.423 Version/12.16"</span>;
+<a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">const </span>CHROME_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.2228.0 Safari/537.36"</span>;
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">const </span>FIREFOX_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"</span>;
+<a href=#153 id=153 data-nosnippet>153</a>    <span class="kw">const </span>IE_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko"</span>;
+<a href=#154 id=154 data-nosnippet>154</a>    <span class="kw">const </span>EDGE_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582"</span>;
+<a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">const </span>SAFARI_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5"</span>;
+<a href=#156 id=156 data-nosnippet>156</a>    <span class="kw">const </span>ANDROID_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; U; Android 3.2; nl-nl; GT-P6800 Build/HTJ85B) AppleWebKit/534.13 (KHTML, like Gecko) Version/4.0 Safari/534.13"</span>;
+<a href=#157 id=157 data-nosnippet>157</a>
+<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils;
+<a href=#160 id=160 data-nosnippet>160</a>
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">fn </span>get_legacy_browsers_config(
+<a href=#162 id=162 data-nosnippet>162</a>        is_enabled: bool,
+<a href=#163 id=163 data-nosnippet>163</a>        legacy_browsers: <span class="kw-2">&amp;</span>[LegacyBrowser],
+<a href=#164 id=164 data-nosnippet>164</a>    ) -&gt; LegacyBrowsersFilterConfig {
+<a href=#165 id=165 data-nosnippet>165</a>        LegacyBrowsersFilterConfig {
+<a href=#166 id=166 data-nosnippet>166</a>            is_enabled,
+<a href=#167 id=167 data-nosnippet>167</a>            browsers: {
+<a href=#168 id=168 data-nosnippet>168</a>                <span class="kw">let </span><span class="kw-2">mut </span>browsers = BTreeSet::&lt;LegacyBrowser&gt;::new();
+<a href=#169 id=169 data-nosnippet>169</a>                <span class="kw">for </span>elm <span class="kw">in </span>legacy_browsers {
+<a href=#170 id=170 data-nosnippet>170</a>                    browsers.insert(elm.clone());
+<a href=#171 id=171 data-nosnippet>171</a>                }
+<a href=#172 id=172 data-nosnippet>172</a>                browsers
+<a href=#173 id=173 data-nosnippet>173</a>            },
+<a href=#174 id=174 data-nosnippet>174</a>        }
+<a href=#175 id=175 data-nosnippet>175</a>    }
+<a href=#176 id=176 data-nosnippet>176</a>
+<a href=#177 id=177 data-nosnippet>177</a>    <span class="attr">#[test]
+<a href=#178 id=178 data-nosnippet>178</a>    </span><span class="kw">fn </span>test_dont_filter_when_disabled() {
+<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>evt = testutils::get_event_with_user_agent(IE8_UA);
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">let </span>filter_result = should_filter(
+<a href=#181 id=181 data-nosnippet>181</a>            <span class="kw-2">&amp;</span>evt,
+<a href=#182 id=182 data-nosnippet>182</a>            <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">false</span>, <span class="kw-2">&amp;</span>[LegacyBrowser::Default]),
+<a href=#183 id=183 data-nosnippet>183</a>        );
+<a href=#184 id=184 data-nosnippet>184</a>        <span class="macro">assert_eq!</span>(
+<a href=#185 id=185 data-nosnippet>185</a>            filter_result,
+<a href=#186 id=186 data-nosnippet>186</a>            <span class="prelude-val">Ok</span>(()),
+<a href=#187 id=187 data-nosnippet>187</a>            <span class="string">"Event filtered although filter should have been disabled"
+<a href=#188 id=188 data-nosnippet>188</a>        </span>)
+<a href=#189 id=189 data-nosnippet>189</a>    }
+<a href=#190 id=190 data-nosnippet>190</a>
+<a href=#191 id=191 data-nosnippet>191</a>    <span class="attr">#[test]
+<a href=#192 id=192 data-nosnippet>192</a>    </span><span class="kw">fn </span>test_filter_default_browsers() {
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">for </span>old_user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>[
+<a href=#194 id=194 data-nosnippet>194</a>            IE9_UA,
+<a href=#195 id=195 data-nosnippet>195</a>            IE_MOBILE9_UA,
+<a href=#196 id=196 data-nosnippet>196</a>            SAFARI_PRE6_UA,
+<a href=#197 id=197 data-nosnippet>197</a>            OPERA_PRE15_UA,
+<a href=#198 id=198 data-nosnippet>198</a>            ANDROID_PRE4_UA,
+<a href=#199 id=199 data-nosnippet>199</a>            OPERA_MINI_PRE8_UA,
+<a href=#200 id=200 data-nosnippet>200</a>        ] {
+<a href=#201 id=201 data-nosnippet>201</a>            <span class="kw">let </span>evt = testutils::get_event_with_user_agent(old_user_agent);
+<a href=#202 id=202 data-nosnippet>202</a>            <span class="kw">let </span>filter_result = should_filter(
+<a href=#203 id=203 data-nosnippet>203</a>                <span class="kw-2">&amp;</span>evt,
+<a href=#204 id=204 data-nosnippet>204</a>                <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>[LegacyBrowser::Default]),
+<a href=#205 id=205 data-nosnippet>205</a>            );
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="macro">assert_ne!</span>(
+<a href=#207 id=207 data-nosnippet>207</a>                filter_result,
+<a href=#208 id=208 data-nosnippet>208</a>                <span class="prelude-val">Ok</span>(()),
+<a href=#209 id=209 data-nosnippet>209</a>                <span class="string">"Default filter should have filtered User Agent\n{old_user_agent}"
+<a href=#210 id=210 data-nosnippet>210</a>            </span>)
+<a href=#211 id=211 data-nosnippet>211</a>        }
+<a href=#212 id=212 data-nosnippet>212</a>    }
+<a href=#213 id=213 data-nosnippet>213</a>
+<a href=#214 id=214 data-nosnippet>214</a>    <span class="attr">#[test]
+<a href=#215 id=215 data-nosnippet>215</a>    </span><span class="kw">fn </span>test_dont_filter_default_above_minimum_versions() {
+<a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">for </span>old_user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>[
+<a href=#217 id=217 data-nosnippet>217</a>            IE10_UA,
+<a href=#218 id=218 data-nosnippet>218</a>            SAFARI_6_UA,
+<a href=#219 id=219 data-nosnippet>219</a>            OPERA_15_UA,
+<a href=#220 id=220 data-nosnippet>220</a>            ANDROID_4_UA,
+<a href=#221 id=221 data-nosnippet>221</a>            OPERA_MINI_8_UA,
+<a href=#222 id=222 data-nosnippet>222</a>        ] {
+<a href=#223 id=223 data-nosnippet>223</a>            <span class="kw">let </span>evt = testutils::get_event_with_user_agent(old_user_agent);
+<a href=#224 id=224 data-nosnippet>224</a>            <span class="kw">let </span>filter_result = should_filter(
+<a href=#225 id=225 data-nosnippet>225</a>                <span class="kw-2">&amp;</span>evt,
+<a href=#226 id=226 data-nosnippet>226</a>                <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>[LegacyBrowser::Default]),
+<a href=#227 id=227 data-nosnippet>227</a>            );
+<a href=#228 id=228 data-nosnippet>228</a>            <span class="macro">assert_eq!</span>(
+<a href=#229 id=229 data-nosnippet>229</a>                filter_result,
+<a href=#230 id=230 data-nosnippet>230</a>                <span class="prelude-val">Ok</span>(()),
+<a href=#231 id=231 data-nosnippet>231</a>                <span class="string">"Default filter shouldn't have filtered User Agent\n{old_user_agent}"
+<a href=#232 id=232 data-nosnippet>232</a>            </span>)
+<a href=#233 id=233 data-nosnippet>233</a>        }
+<a href=#234 id=234 data-nosnippet>234</a>    }
+<a href=#235 id=235 data-nosnippet>235</a>
+<a href=#236 id=236 data-nosnippet>236</a>    <span class="attr">#[test]
+<a href=#237 id=237 data-nosnippet>237</a>    </span><span class="kw">fn </span>test_filter_configured_browsers() {
+<a href=#238 id=238 data-nosnippet>238</a>        <span class="kw">let </span>test_configs = [
+<a href=#239 id=239 data-nosnippet>239</a>            (
+<a href=#240 id=240 data-nosnippet>240</a>                IE10_UA,
+<a href=#241 id=241 data-nosnippet>241</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::AndroidPre4, LegacyBrowser::Ie10][..],
+<a href=#242 id=242 data-nosnippet>242</a>            ),
+<a href=#243 id=243 data-nosnippet>243</a>            (IE11_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie11][..]),
+<a href=#244 id=244 data-nosnippet>244</a>            (IE10_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie10][..]),
+<a href=#245 id=245 data-nosnippet>245</a>            (IE9_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie9][..]),
+<a href=#246 id=246 data-nosnippet>246</a>            (IE_MOBILE9_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie9][..]),
+<a href=#247 id=247 data-nosnippet>247</a>            (
+<a href=#248 id=248 data-nosnippet>248</a>                IE9_UA,
+<a href=#249 id=249 data-nosnippet>249</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::AndroidPre4, LegacyBrowser::Ie9][..],
+<a href=#250 id=250 data-nosnippet>250</a>            ),
+<a href=#251 id=251 data-nosnippet>251</a>            (IE8_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::IePre9][..]),
+<a href=#252 id=252 data-nosnippet>252</a>            (
+<a href=#253 id=253 data-nosnippet>253</a>                IE8_UA,
+<a href=#254 id=254 data-nosnippet>254</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15, LegacyBrowser::IePre9][..],
+<a href=#255 id=255 data-nosnippet>255</a>            ),
+<a href=#256 id=256 data-nosnippet>256</a>            (OPERA_PRE15_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15][..]),
+<a href=#257 id=257 data-nosnippet>257</a>            (
+<a href=#258 id=258 data-nosnippet>258</a>                OPERA_PRE15_UA,
+<a href=#259 id=259 data-nosnippet>259</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::Ie10, LegacyBrowser::OperaPre15][..],
+<a href=#260 id=260 data-nosnippet>260</a>            ),
+<a href=#261 id=261 data-nosnippet>261</a>            (OPERA_MINI_PRE8_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::OperaMiniPre8][..]),
+<a href=#262 id=262 data-nosnippet>262</a>            (
+<a href=#263 id=263 data-nosnippet>263</a>                OPERA_MINI_PRE8_UA,
+<a href=#264 id=264 data-nosnippet>264</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::Ie10, LegacyBrowser::OperaMiniPre8][..],
+<a href=#265 id=265 data-nosnippet>265</a>            ),
+<a href=#266 id=266 data-nosnippet>266</a>            (ANDROID_PRE4_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::AndroidPre4][..]),
+<a href=#267 id=267 data-nosnippet>267</a>            (
+<a href=#268 id=268 data-nosnippet>268</a>                ANDROID_PRE4_UA,
+<a href=#269 id=269 data-nosnippet>269</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::Ie10, LegacyBrowser::AndroidPre4][..],
+<a href=#270 id=270 data-nosnippet>270</a>            ),
+<a href=#271 id=271 data-nosnippet>271</a>            (SAFARI_PRE6_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::SafariPre6][..]),
+<a href=#272 id=272 data-nosnippet>272</a>            (
+<a href=#273 id=273 data-nosnippet>273</a>                SAFARI_PRE6_UA,
+<a href=#274 id=274 data-nosnippet>274</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15, LegacyBrowser::SafariPre6][..],
+<a href=#275 id=275 data-nosnippet>275</a>            ),
+<a href=#276 id=276 data-nosnippet>276</a>            (EDGE_12_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::EdgePre79][..]),
+<a href=#277 id=277 data-nosnippet>277</a>            (
+<a href=#278 id=278 data-nosnippet>278</a>                EDGE_18_UA,
+<a href=#279 id=279 data-nosnippet>279</a>                <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15, LegacyBrowser::EdgePre79][..],
+<a href=#280 id=280 data-nosnippet>280</a>            ),
+<a href=#281 id=281 data-nosnippet>281</a>            (OPERA_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Opera][..]),
+<a href=#282 id=282 data-nosnippet>282</a>            (OPERA_MINI_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::OperaMini][..]),
+<a href=#283 id=283 data-nosnippet>283</a>            (CHROME_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Chrome][..]),
+<a href=#284 id=284 data-nosnippet>284</a>            (FIREFOX_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Firefox][..]),
+<a href=#285 id=285 data-nosnippet>285</a>            (IE_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Ie][..]),
+<a href=#286 id=286 data-nosnippet>286</a>            (EDGE_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Edge][..]),
+<a href=#287 id=287 data-nosnippet>287</a>            (SAFARI_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Safari][..]),
+<a href=#288 id=288 data-nosnippet>288</a>            (ANDROID_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::Android][..]),
+<a href=#289 id=289 data-nosnippet>289</a>        ];
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="kw">for </span>(user_agent, active_filters) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
+<a href=#292 id=292 data-nosnippet>292</a>            <span class="kw">let </span>evt = testutils::get_event_with_user_agent(user_agent);
+<a href=#293 id=293 data-nosnippet>293</a>            <span class="kw">let </span>filter_result =
+<a href=#294 id=294 data-nosnippet>294</a>                should_filter(<span class="kw-2">&amp;</span>evt, <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, active_filters));
+<a href=#295 id=295 data-nosnippet>295</a>            <span class="macro">assert_ne!</span>(
+<a href=#296 id=296 data-nosnippet>296</a>                filter_result,
+<a href=#297 id=297 data-nosnippet>297</a>                <span class="prelude-val">Ok</span>(()),
+<a href=#298 id=298 data-nosnippet>298</a>                <span class="string">"Filters {active_filters:?} should have filtered User Agent\n{user_agent} for "
+<a href=#299 id=299 data-nosnippet>299</a>            </span>)
+<a href=#300 id=300 data-nosnippet>300</a>        }
+<a href=#301 id=301 data-nosnippet>301</a>    }
+<a href=#302 id=302 data-nosnippet>302</a>
+<a href=#303 id=303 data-nosnippet>303</a>    <span class="attr">#[test]
+<a href=#304 id=304 data-nosnippet>304</a>    </span><span class="kw">fn </span>test_dont_filter_unconfigured_browsers() {
+<a href=#305 id=305 data-nosnippet>305</a>        <span class="kw">let </span>test_configs = [
+<a href=#306 id=306 data-nosnippet>306</a>            (IE11_UA, LegacyBrowser::Ie10),
+<a href=#307 id=307 data-nosnippet>307</a>            (IE10_UA, LegacyBrowser::Ie9),
+<a href=#308 id=308 data-nosnippet>308</a>            (IE10_UA, LegacyBrowser::Ie11),
+<a href=#309 id=309 data-nosnippet>309</a>            (IE9_UA, LegacyBrowser::IePre9),
+<a href=#310 id=310 data-nosnippet>310</a>            (OPERA_15_UA, LegacyBrowser::OperaPre15),
+<a href=#311 id=311 data-nosnippet>311</a>            (OPERA_MINI_8_UA, LegacyBrowser::OperaMiniPre8),
+<a href=#312 id=312 data-nosnippet>312</a>            (ANDROID_4_UA, LegacyBrowser::AndroidPre4),
+<a href=#313 id=313 data-nosnippet>313</a>            (SAFARI_6_UA, LegacyBrowser::SafariPre6),
+<a href=#314 id=314 data-nosnippet>314</a>            (EDGE_12_UA, LegacyBrowser::Ie10),
+<a href=#315 id=315 data-nosnippet>315</a>            (EDGE_18_UA, LegacyBrowser::Ie10),
+<a href=#316 id=316 data-nosnippet>316</a>            (EDGE_79_UA, LegacyBrowser::EdgePre79),
+<a href=#317 id=317 data-nosnippet>317</a>            (EDGE_ANDROID_118_UA, LegacyBrowser::EdgePre79),
+<a href=#318 id=318 data-nosnippet>318</a>        ];
+<a href=#319 id=319 data-nosnippet>319</a>
+<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">for </span>(user_agent, active_filter) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
+<a href=#321 id=321 data-nosnippet>321</a>            <span class="kw">let </span>evt = testutils::get_event_with_user_agent(user_agent);
+<a href=#322 id=322 data-nosnippet>322</a>            <span class="kw">let </span>filter_result = should_filter(
+<a href=#323 id=323 data-nosnippet>323</a>                <span class="kw-2">&amp;</span>evt,
+<a href=#324 id=324 data-nosnippet>324</a>                <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, std::slice::from_ref(active_filter)),
+<a href=#325 id=325 data-nosnippet>325</a>            );
+<a href=#326 id=326 data-nosnippet>326</a>            <span class="macro">assert_eq!</span>(
+<a href=#327 id=327 data-nosnippet>327</a>                filter_result,
+<a href=#328 id=328 data-nosnippet>328</a>                <span class="prelude-val">Ok</span>(()),
+<a href=#329 id=329 data-nosnippet>329</a>                <span class="string">"Filter {active_filter:?} shouldn't have filtered User Agent\n{user_agent} for "
+<a href=#330 id=330 data-nosnippet>330</a>            </span>)
+<a href=#331 id=331 data-nosnippet>331</a>        }
+<a href=#332 id=332 data-nosnippet>332</a>    }
+<a href=#333 id=333 data-nosnippet>333</a>
+<a href=#334 id=334 data-nosnippet>334</a>    <span class="doccomment">/// Test to ensure Sentry filter compatibility.
+<a href=#335 id=335 data-nosnippet>335</a>    ///
+<a href=#336 id=336 data-nosnippet>336</a>    /// To be remove if/when Sentry backward compatibility is no longer required.
+<a href=#337 id=337 data-nosnippet>337</a>    </span><span class="kw">mod </span>sentry_compatibility {
+<a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#339 id=339 data-nosnippet>339</a>
+<a href=#340 id=340 data-nosnippet>340</a>        <span class="comment">// User agents used by Sentry tests
+<a href=#341 id=341 data-nosnippet>341</a>        </span><span class="kw">const </span>ANDROID2_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; U; Android 2.3.5; en-us; HTC Vision Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1"</span>;
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">const </span>ANDROID4_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19"</span>;
+<a href=#343 id=343 data-nosnippet>343</a>        <span class="kw">const </span>IE5_S_UA: <span class="kw-2">&amp;</span>str =
+<a href=#344 id=344 data-nosnippet>344</a>            <span class="string">"Mozilla/4.0 (compatible; MSIE 5.50; Windows NT; SiteKiosk 4.9; SiteCoach 1.0)"</span>;
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">const </span>IE8_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Win64; x64; Trident/4.0; .NET CLR 2.0.50727; SLCC2; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; MDDC; Tablet PC 2.0)"</span>;
+<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">const </span>IE9_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))"</span>;
+<a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">const </span>IE_MOBILE9_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 9.0; Windows Phone OS 7.5; Trident/5.0; IEMobile/9.0; NOKIA; Lumia 710)"</span>;
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">const </span>IE10_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 7.0; InfoPath.3; .NET CLR 3.1.40767; Trident/6.0; en-IN)"</span>;
+<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">const </span>IE_MOBILE10_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (compatible; MSIE 10.0; Windows Phone 8.0; Trident/6.0; IEMobile/10.0; ARM; Touch; NOKIA; Lumia 520)"</span>;
+<a href=#350 id=350 data-nosnippet>350</a>        <span class="kw">const </span>OPERA11_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Opera/9.80 (Windows NT 5.1; U; it) Presto/2.7.62 Version/11.00"</span>;
+<a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">const </span>OPERA_12_S_UA: <span class="kw-2">&amp;</span>str =
+<a href=#352 id=352 data-nosnippet>352</a>            <span class="string">"Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16"</span>;
+<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">const </span>OPERA_15_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (X11; Linux x86_64; Debian) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.52 Safari/537.36 OPR/15.0.1147.100"</span>;
+<a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">const </span>CHROME_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"</span>;
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="kw">const </span>EDGE_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10136"</span>;
+<a href=#356 id=356 data-nosnippet>356</a>        <span class="kw">const </span>SAFARI5_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Windows; U; Windows NT 6.1; zh-HK) AppleWebKit/533.18.1 (KHTML, like Gecko) Version/5.0.2 Safari/533.18.5"</span>;
+<a href=#357 id=357 data-nosnippet>357</a>        <span class="kw">const </span>SAFARI7_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A"</span>;
+<a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">const </span>OPERA_MINI8_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Opera/9.80 (J2ME/MIDP; Opera Mini/8.0.35158/36.2534; U; en) Presto/2.12.423 Version/12.16"</span>;
+<a href=#359 id=359 data-nosnippet>359</a>        <span class="kw">const </span>OPERA_MINI7_S_UA: <span class="kw-2">&amp;</span>str = <span class="string">"Opera/9.80 (J2ME/MIDP; Opera Mini/7.0.32796/59.323; U; fr) Presto/2.12.423 Version/12.16"</span>;
+<a href=#360 id=360 data-nosnippet>360</a>
+<a href=#361 id=361 data-nosnippet>361</a>        <span class="attr">#[test]
+<a href=#362 id=362 data-nosnippet>362</a>        </span><span class="kw">fn </span>test_filter_sentry_user_agents() {
+<a href=#363 id=363 data-nosnippet>363</a>            <span class="kw">let </span>test_configs = [
+<a href=#364 id=364 data-nosnippet>364</a>                (ANDROID2_S_UA, LegacyBrowser::Default),
+<a href=#365 id=365 data-nosnippet>365</a>                (IE9_S_UA, LegacyBrowser::Default),
+<a href=#366 id=366 data-nosnippet>366</a>                (IE_MOBILE9_S_UA, LegacyBrowser::Default),
+<a href=#367 id=367 data-nosnippet>367</a>                (IE5_S_UA, LegacyBrowser::Default),
+<a href=#368 id=368 data-nosnippet>368</a>                (OPERA11_S_UA, LegacyBrowser::Default),
+<a href=#369 id=369 data-nosnippet>369</a>                (OPERA_12_S_UA, LegacyBrowser::Default),
+<a href=#370 id=370 data-nosnippet>370</a>                (OPERA_MINI7_S_UA, LegacyBrowser::Default),
+<a href=#371 id=371 data-nosnippet>371</a>                (OPERA_12_S_UA, LegacyBrowser::OperaPre15),
+<a href=#372 id=372 data-nosnippet>372</a>                (OPERA_MINI7_S_UA, LegacyBrowser::OperaMiniPre8),
+<a href=#373 id=373 data-nosnippet>373</a>                (OPERA_MINI7_S_UA, LegacyBrowser::Default),
+<a href=#374 id=374 data-nosnippet>374</a>                (OPERA_MINI7_S_UA, LegacyBrowser::Default),
+<a href=#375 id=375 data-nosnippet>375</a>                (IE8_S_UA, LegacyBrowser::IePre9),
+<a href=#376 id=376 data-nosnippet>376</a>                (IE8_S_UA, LegacyBrowser::Default),
+<a href=#377 id=377 data-nosnippet>377</a>                (IE9_S_UA, LegacyBrowser::Ie9),
+<a href=#378 id=378 data-nosnippet>378</a>                (IE_MOBILE9_S_UA, LegacyBrowser::Ie9),
+<a href=#379 id=379 data-nosnippet>379</a>                (IE10_S_UA, LegacyBrowser::Ie10),
+<a href=#380 id=380 data-nosnippet>380</a>                (IE_MOBILE10_S_UA, LegacyBrowser::Ie10),
+<a href=#381 id=381 data-nosnippet>381</a>                (SAFARI5_S_UA, LegacyBrowser::SafariPre6),
+<a href=#382 id=382 data-nosnippet>382</a>                (SAFARI5_S_UA, LegacyBrowser::Default),
+<a href=#383 id=383 data-nosnippet>383</a>                (ANDROID2_S_UA, LegacyBrowser::AndroidPre4),
+<a href=#384 id=384 data-nosnippet>384</a>            ];
+<a href=#385 id=385 data-nosnippet>385</a>
+<a href=#386 id=386 data-nosnippet>386</a>            <span class="kw">for </span>(user_agent, active_filter) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
+<a href=#387 id=387 data-nosnippet>387</a>                <span class="kw">let </span>evt = testutils::get_event_with_user_agent(user_agent);
+<a href=#388 id=388 data-nosnippet>388</a>                <span class="kw">let </span>filter_result = should_filter(
+<a href=#389 id=389 data-nosnippet>389</a>                    <span class="kw-2">&amp;</span>evt,
+<a href=#390 id=390 data-nosnippet>390</a>                    <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, std::slice::from_ref(active_filter)),
+<a href=#391 id=391 data-nosnippet>391</a>                );
+<a href=#392 id=392 data-nosnippet>392</a>                <span class="macro">assert_ne!</span>(
+<a href=#393 id=393 data-nosnippet>393</a>                    filter_result,
+<a href=#394 id=394 data-nosnippet>394</a>                    <span class="prelude-val">Ok</span>(()),
+<a href=#395 id=395 data-nosnippet>395</a>                    <span class="string">"Filter &lt;{active_filter:?}&gt; should have filtered User Agent\n{user_agent} for "
+<a href=#396 id=396 data-nosnippet>396</a>                </span>)
+<a href=#397 id=397 data-nosnippet>397</a>            }
+<a href=#398 id=398 data-nosnippet>398</a>        }
+<a href=#399 id=399 data-nosnippet>399</a>
+<a href=#400 id=400 data-nosnippet>400</a>        <span class="attr">#[test]
+<a href=#401 id=401 data-nosnippet>401</a>        </span><span class="kw">fn </span>test_dont_filter_sentry_allowed_user_agents() {
+<a href=#402 id=402 data-nosnippet>402</a>            <span class="kw">let </span>test_configs = [
+<a href=#403 id=403 data-nosnippet>403</a>                (ANDROID4_S_UA, LegacyBrowser::Default),
+<a href=#404 id=404 data-nosnippet>404</a>                (IE10_S_UA, LegacyBrowser::Default),
+<a href=#405 id=405 data-nosnippet>405</a>                (IE_MOBILE10_S_UA, LegacyBrowser::Default),
+<a href=#406 id=406 data-nosnippet>406</a>                (CHROME_S_UA, LegacyBrowser::Default),
+<a href=#407 id=407 data-nosnippet>407</a>                (EDGE_S_UA, LegacyBrowser::Default),
+<a href=#408 id=408 data-nosnippet>408</a>                (OPERA_15_S_UA, LegacyBrowser::Default),
+<a href=#409 id=409 data-nosnippet>409</a>                (OPERA_MINI8_S_UA, LegacyBrowser::Default),
+<a href=#410 id=410 data-nosnippet>410</a>                (IE10_S_UA, LegacyBrowser::Default),
+<a href=#411 id=411 data-nosnippet>411</a>                (IE_MOBILE10_S_UA, LegacyBrowser::Default),
+<a href=#412 id=412 data-nosnippet>412</a>                (SAFARI7_S_UA, LegacyBrowser::Default),
+<a href=#413 id=413 data-nosnippet>413</a>            ];
+<a href=#414 id=414 data-nosnippet>414</a>
+<a href=#415 id=415 data-nosnippet>415</a>            <span class="kw">for </span>(user_agent, active_filter) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
+<a href=#416 id=416 data-nosnippet>416</a>                <span class="kw">let </span>evt = testutils::get_event_with_user_agent(user_agent);
+<a href=#417 id=417 data-nosnippet>417</a>                <span class="kw">let </span>filter_result = should_filter(
+<a href=#418 id=418 data-nosnippet>418</a>                    <span class="kw-2">&amp;</span>evt,
+<a href=#419 id=419 data-nosnippet>419</a>                    <span class="kw-2">&amp;</span>get_legacy_browsers_config(<span class="bool-val">true</span>, std::slice::from_ref(active_filter)),
+<a href=#420 id=420 data-nosnippet>420</a>                );
+<a href=#421 id=421 data-nosnippet>421</a>                <span class="macro">assert_eq!</span>(
+<a href=#422 id=422 data-nosnippet>422</a>                    filter_result,
+<a href=#423 id=423 data-nosnippet>423</a>                    <span class="prelude-val">Ok</span>(()),
+<a href=#424 id=424 data-nosnippet>424</a>                    <span class="string">"Filter {active_filter:?} shouldn't have filtered User Agent\n{user_agent} for "
+<a href=#425 id=425 data-nosnippet>425</a>                </span>)
+<a href=#426 id=426 data-nosnippet>426</a>            }
+<a href=#427 id=427 data-nosnippet>427</a>        }
+<a href=#428 id=428 data-nosnippet>428</a>    }
+<a href=#429 id=429 data-nosnippet>429</a>}</code></pre></div></section></main></body></html>

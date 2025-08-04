@@ -37,7 +37,7 @@
 <a href=#37 id=37 data-nosnippet>37</a>    }
 <a href=#38 id=38 data-nosnippet>38</a>
 <a href=#39 id=39 data-nosnippet>39</a>    <span class="doccomment">/// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
-<a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">pub fn </span>metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AsyncPoolMetrics {
+<a href=#40 id=40 data-nosnippet>40</a>    </span><span class="kw">pub fn </span>metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AsyncPoolMetrics&lt;<span class="lifetime">'_</span>&gt; {
 <a href=#41 id=41 data-nosnippet>41</a>        AsyncPoolMetrics {
 <a href=#42 id=42 data-nosnippet>42</a>            max_tasks: <span class="self">self</span>.max_tasks,
 <a href=#43 id=43 data-nosnippet>43</a>            queue_size: <span class="self">self</span>.tx.len() <span class="kw">as </span>u64,

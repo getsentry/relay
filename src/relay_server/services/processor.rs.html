@@ -2670,16 +2670,16 @@
 <a href=#2670 id=2670 data-nosnippet>2670</a>        <span class="kw">let </span>_submit = cogs.start_category(<span class="string">"submit"</span>);
 <a href=#2671 id=2671 data-nosnippet>2671</a>
 <a href=#2672 id=2672 data-nosnippet>2672</a>        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#2673 id=2673 data-nosnippet>2673</a>        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
-<a href=#2674 id=2674 data-nosnippet>2674</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(store_forwarder) = <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.store_forwarder {
-<a href=#2675 id=2675 data-nosnippet>2675</a>                <span class="kw">match </span>submit {
-<a href=#2676 id=2676 data-nosnippet>2676</a>                    Submit::Envelope(envelope) =&gt; store_forwarder.send(StoreEnvelope { envelope }),
-<a href=#2677 id=2677 data-nosnippet>2677</a>                    Submit::Logs(output) =&gt; output
-<a href=#2678 id=2678 data-nosnippet>2678</a>                        .forward_store(store_forwarder)
-<a href=#2679 id=2679 data-nosnippet>2679</a>                        .unwrap_or_else(|err| err.into_inner()),
-<a href=#2680 id=2680 data-nosnippet>2680</a>                }
-<a href=#2681 id=2681 data-nosnippet>2681</a>                <span class="kw">return</span>;
-<a href=#2682 id=2682 data-nosnippet>2682</a>            }
+<a href=#2673 id=2673 data-nosnippet>2673</a>        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
+<a href=#2674 id=2674 data-nosnippet>2674</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(store_forwarder) = <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.store_forwarder
+<a href=#2675 id=2675 data-nosnippet>2675</a>        {
+<a href=#2676 id=2676 data-nosnippet>2676</a>            <span class="kw">match </span>submit {
+<a href=#2677 id=2677 data-nosnippet>2677</a>                Submit::Envelope(envelope) =&gt; store_forwarder.send(StoreEnvelope { envelope }),
+<a href=#2678 id=2678 data-nosnippet>2678</a>                Submit::Logs(output) =&gt; output
+<a href=#2679 id=2679 data-nosnippet>2679</a>                    .forward_store(store_forwarder)
+<a href=#2680 id=2680 data-nosnippet>2680</a>                    .unwrap_or_else(|err| err.into_inner()),
+<a href=#2681 id=2681 data-nosnippet>2681</a>            }
+<a href=#2682 id=2682 data-nosnippet>2682</a>            <span class="kw">return</span>;
 <a href=#2683 id=2683 data-nosnippet>2683</a>        }
 <a href=#2684 id=2684 data-nosnippet>2684</a>
 <a href=#2685 id=2685 data-nosnippet>2685</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="kw">match </span>submit {
@@ -3247,12 +3247,12 @@
 <a href=#3247 id=3247 data-nosnippet>3247</a>        }
 <a href=#3248 id=3248 data-nosnippet>3248</a>
 <a href=#3249 id=3249 data-nosnippet>3249</a>        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#3250 id=3250 data-nosnippet>3250</a>        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
-<a href=#3251 id=3251 data-nosnippet>3251</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.addrs.store_forwarder {
-<a href=#3252 id=3252 data-nosnippet>3252</a>                <span class="kw">return </span><span class="self">self
-<a href=#3253 id=3253 data-nosnippet>3253</a>                    </span>.encode_metrics_processing(message, store_forwarder)
-<a href=#3254 id=3254 data-nosnippet>3254</a>                    .<span class="kw">await</span>;
-<a href=#3255 id=3255 data-nosnippet>3255</a>            }
+<a href=#3250 id=3250 data-nosnippet>3250</a>        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
+<a href=#3251 id=3251 data-nosnippet>3251</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.addrs.store_forwarder
+<a href=#3252 id=3252 data-nosnippet>3252</a>        {
+<a href=#3253 id=3253 data-nosnippet>3253</a>            <span class="kw">return </span><span class="self">self
+<a href=#3254 id=3254 data-nosnippet>3254</a>                </span>.encode_metrics_processing(message, store_forwarder)
+<a href=#3255 id=3255 data-nosnippet>3255</a>                .<span class="kw">await</span>;
 <a href=#3256 id=3256 data-nosnippet>3256</a>        }
 <a href=#3257 id=3257 data-nosnippet>3257</a>
 <a href=#3258 id=3258 data-nosnippet>3258</a>        <span class="kw">if </span><span class="self">self</span>.inner.config.http_global_metrics() {
@@ -3321,7 +3321,7 @@
 <a href=#3321 id=3321 data-nosnippet>3321</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#3322 id=3322 data-nosnippet>3322</a>        _organization_id: OrganizationId,
 <a href=#3323 id=3323 data-nosnippet>3323</a>        reservoir_counters: ReservoirCounters,
-<a href=#3324 id=3324 data-nosnippet>3324</a>    ) -&gt; ReservoirEvaluator {
+<a href=#3324 id=3324 data-nosnippet>3324</a>    ) -&gt; ReservoirEvaluator&lt;<span class="lifetime">'_</span>&gt; {
 <a href=#3325 id=3325 data-nosnippet>3325</a>        <span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(unused_mut))]
 <a href=#3326 id=3326 data-nosnippet>3326</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>reservoir = ReservoirEvaluator::new(reservoir_counters);
 <a href=#3327 id=3327 data-nosnippet>3327</a>

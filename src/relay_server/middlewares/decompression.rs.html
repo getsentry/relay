@@ -6,10 +6,10 @@
 <a href=#6 id=6 data-nosnippet>6</a>///
 <a href=#7 id=7 data-nosnippet>7</a>/// This is to be used along with the [`RequestDecompressionLayer`].
 <a href=#8 id=8 data-nosnippet>8</a></span><span class="kw">pub fn </span>remove_empty_encoding(<span class="kw-2">mut </span>request: Request) -&gt; Request {
-<a href=#9 id=9 data-nosnippet>9</a>    <span class="kw">if let </span>header::Entry::Occupied(entry) = request.headers_mut().entry(header::CONTENT_ENCODING) {
-<a href=#10 id=10 data-nosnippet>10</a>        <span class="kw">if </span>should_ignore_encoding(entry.get().as_bytes()) {
-<a href=#11 id=11 data-nosnippet>11</a>            entry.remove();
-<a href=#12 id=12 data-nosnippet>12</a>        }
+<a href=#9 id=9 data-nosnippet>9</a>    <span class="kw">if let </span>header::Entry::Occupied(entry) = request.headers_mut().entry(header::CONTENT_ENCODING)
+<a href=#10 id=10 data-nosnippet>10</a>        &amp;&amp; should_ignore_encoding(entry.get().as_bytes())
+<a href=#11 id=11 data-nosnippet>11</a>    {
+<a href=#12 id=12 data-nosnippet>12</a>        entry.remove();
 <a href=#13 id=13 data-nosnippet>13</a>    }
 <a href=#14 id=14 data-nosnippet>14</a>
 <a href=#15 id=15 data-nosnippet>15</a>    request

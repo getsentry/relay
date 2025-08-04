@@ -261,7 +261,7 @@
 <a href=#261 id=261 data-nosnippet>261</a>    <span class="doccomment">/// Returns the name of the client that sent the event without version.
 <a href=#262 id=262 data-nosnippet>262</a>    ///
 <a href=#263 id=263 data-nosnippet>263</a>    /// If the client is not sent in standard format, this method returns `None`.
-<a href=#264 id=264 data-nosnippet>264</a>    </span><span class="kw">pub fn </span>client_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClientName {
+<a href=#264 id=264 data-nosnippet>264</a>    </span><span class="kw">pub fn </span>client_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClientName&lt;<span class="lifetime">'_</span>&gt; {
 <a href=#265 id=265 data-nosnippet>265</a>        <span class="self">self</span>.client()
 <a href=#266 id=266 data-nosnippet>266</a>            .and_then(|client| client.split_once(<span class="string">'/'</span>))
 <a href=#267 id=267 data-nosnippet>267</a>            .map(|(client, <span class="kw">_</span>)| client)

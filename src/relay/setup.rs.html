@@ -106,10 +106,10 @@
 <a href=#106 id=106 data-nosnippet>106</a>    }
 <a href=#107 id=107 data-nosnippet>107</a>
 <a href=#108 id=108 data-nosnippet>108</a>    <span class="kw">let </span><span class="kw-2">mut </span>default_tags = config.metrics_default_tags().clone();
-<a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(hostname_tag) = config.metrics_hostname_tag() {
-<a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(hostname) = hostname::get().ok().and_then(|s| s.into_string().ok()) {
-<a href=#111 id=111 data-nosnippet>111</a>            default_tags.insert(hostname_tag.to_owned(), hostname);
-<a href=#112 id=112 data-nosnippet>112</a>        }
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(hostname_tag) = config.metrics_hostname_tag()
+<a href=#110 id=110 data-nosnippet>110</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(hostname) = hostname::get().ok().and_then(|s| s.into_string().ok())
+<a href=#111 id=111 data-nosnippet>111</a>    {
+<a href=#112 id=112 data-nosnippet>112</a>        default_tags.insert(hostname_tag.to_owned(), hostname);
 <a href=#113 id=113 data-nosnippet>113</a>    }
 <a href=#114 id=114 data-nosnippet>114</a>    relay_statsd::init(MetricsClientConfig {
 <a href=#115 id=115 data-nosnippet>115</a>        prefix: config.metrics_prefix(),

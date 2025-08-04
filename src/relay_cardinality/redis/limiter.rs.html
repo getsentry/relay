@@ -517,7 +517,7 @@
 <a href=#517 id=517 data-nosnippet>517</a>        };
 <a href=#518 id=518 data-nosnippet>518</a>
 <a href=#519 id=519 data-nosnippet>519</a>        <span class="kw">let </span>rejected = limiter
-<a href=#520 id=520 data-nosnippet>520</a>            .test_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries)
+<a href=#520 id=520 data-nosnippet>520</a>            .test_limits(scoping, std::slice::from_ref(<span class="kw-2">&amp;</span>limit), entries)
 <a href=#521 id=521 data-nosnippet>521</a>            .<span class="kw">await</span>;
 <a href=#522 id=522 data-nosnippet>522</a>        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">2</span>);
 <a href=#523 id=523 data-nosnippet>523</a>        <span class="macro">assert!</span>(rejected.contains_any([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>]));
@@ -580,7 +580,7 @@
 <a href=#580 id=580 data-nosnippet>580</a>        };
 <a href=#581 id=581 data-nosnippet>581</a>
 <a href=#582 id=582 data-nosnippet>582</a>        <span class="kw">let </span>rejected = limiter
-<a href=#583 id=583 data-nosnippet>583</a>            .test_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries)
+<a href=#583 id=583 data-nosnippet>583</a>            .test_limits(scoping, std::slice::from_ref(<span class="kw-2">&amp;</span>limit), entries)
 <a href=#584 id=584 data-nosnippet>584</a>            .<span class="kw">await</span>;
 <a href=#585 id=585 data-nosnippet>585</a>        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">2</span>);
 <a href=#586 id=586 data-nosnippet>586</a>        <span class="macro">assert!</span>(rejected.contains_any([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>]));

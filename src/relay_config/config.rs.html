@@ -1847,10 +1847,10 @@
 <a href=#1847 id=1847 data-nosnippet>1847</a>        }
 <a href=#1848 id=1848 data-nosnippet>1848</a>
 <a href=#1849 id=1849 data-nosnippet>1849</a>        <span class="kw">let </span>limits = <span class="kw-2">&amp;mut </span><span class="self">self</span>.values.limits;
-<a href=#1850 id=1850 data-nosnippet>1850</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(shutdown_timeout) = overrides.shutdown_timeout {
-<a href=#1851 id=1851 data-nosnippet>1851</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(shutdown_timeout) = shutdown_timeout.parse::&lt;u64&gt;() {
-<a href=#1852 id=1852 data-nosnippet>1852</a>                limits.shutdown_timeout = shutdown_timeout;
-<a href=#1853 id=1853 data-nosnippet>1853</a>            }
+<a href=#1850 id=1850 data-nosnippet>1850</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(shutdown_timeout) = overrides.shutdown_timeout
+<a href=#1851 id=1851 data-nosnippet>1851</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(shutdown_timeout) = shutdown_timeout.parse::&lt;u64&gt;()
+<a href=#1852 id=1852 data-nosnippet>1852</a>        {
+<a href=#1853 id=1853 data-nosnippet>1853</a>            limits.shutdown_timeout = shutdown_timeout;
 <a href=#1854 id=1854 data-nosnippet>1854</a>        }
 <a href=#1855 id=1855 data-nosnippet>1855</a>
 <a href=#1856 id=1856 data-nosnippet>1856</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(server_name) = overrides.server_name {
@@ -2536,7 +2536,7 @@
 <a href=#2536 id=2536 data-nosnippet>2536</a>
 <a href=#2537 id=2537 data-nosnippet>2537</a>    <span class="doccomment">/// Redis servers to connect to for project configs, cardinality limits,
 <a href=#2538 id=2538 data-nosnippet>2538</a>    /// rate limiting, and metrics metadata.
-<a href=#2539 id=2539 data-nosnippet>2539</a>    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;RedisConfigsRef&gt; {
+<a href=#2539 id=2539 data-nosnippet>2539</a>    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;RedisConfigsRef&lt;<span class="lifetime">'_</span>&gt;&gt; {
 <a href=#2540 id=2540 data-nosnippet>2540</a>        <span class="kw">let </span>redis_configs = <span class="self">self</span>.values.processing.redis.as_ref()<span class="question-mark">?</span>;
 <a href=#2541 id=2541 data-nosnippet>2541</a>
 <a href=#2542 id=2542 data-nosnippet>2542</a>        <span class="prelude-val">Some</span>(build_redis_configs(

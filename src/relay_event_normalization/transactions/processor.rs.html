@@ -54,19 +54,19 @@
 <a href=#54 id=54 data-nosnippet>54</a>                .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
 <a href=#55 id=55 data-nosnippet>55</a>        });
 <a href=#56 id=56 data-nosnippet>56</a>
-<a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((rule, result)) = result {
-<a href=#58 id=58 data-nosnippet>58</a>            <span class="kw">if </span><span class="kw-2">*</span>transaction != result {
-<a href=#59 id=59 data-nosnippet>59</a>                <span class="comment">// If another rule was applied before, we don't want to
-<a href=#60 id=60 data-nosnippet>60</a>                // rename the transaction name to keep the original one.
-<a href=#61 id=61 data-nosnippet>61</a>                // We do want to continue adding remarks though, in
-<a href=#62 id=62 data-nosnippet>62</a>                // order to keep track of all rules applied.
-<a href=#63 id=63 data-nosnippet>63</a>                </span><span class="kw">if </span>meta.original_value().is_none() {
-<a href=#64 id=64 data-nosnippet>64</a>                    meta.set_original_value(<span class="prelude-val">Some</span>(transaction.clone()));
-<a href=#65 id=65 data-nosnippet>65</a>                }
-<a href=#66 id=66 data-nosnippet>66</a>                <span class="comment">// add also the rule which was applied to the transaction name
-<a href=#67 id=67 data-nosnippet>67</a>                </span>meta.add_remark(Remark::new(RemarkType::Substituted, rule));
-<a href=#68 id=68 data-nosnippet>68</a>                <span class="kw-2">*</span>transaction = result;
-<a href=#69 id=69 data-nosnippet>69</a>            }
+<a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((rule, result)) = result
+<a href=#58 id=58 data-nosnippet>58</a>            &amp;&amp; <span class="kw-2">*</span>transaction != result
+<a href=#59 id=59 data-nosnippet>59</a>        {
+<a href=#60 id=60 data-nosnippet>60</a>            <span class="comment">// If another rule was applied before, we don't want to
+<a href=#61 id=61 data-nosnippet>61</a>            // rename the transaction name to keep the original one.
+<a href=#62 id=62 data-nosnippet>62</a>            // We do want to continue adding remarks though, in
+<a href=#63 id=63 data-nosnippet>63</a>            // order to keep track of all rules applied.
+<a href=#64 id=64 data-nosnippet>64</a>            </span><span class="kw">if </span>meta.original_value().is_none() {
+<a href=#65 id=65 data-nosnippet>65</a>                meta.set_original_value(<span class="prelude-val">Some</span>(transaction.clone()));
+<a href=#66 id=66 data-nosnippet>66</a>            }
+<a href=#67 id=67 data-nosnippet>67</a>            <span class="comment">// add also the rule which was applied to the transaction name
+<a href=#68 id=68 data-nosnippet>68</a>            </span>meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+<a href=#69 id=69 data-nosnippet>69</a>            <span class="kw-2">*</span>transaction = result;
 <a href=#70 id=70 data-nosnippet>70</a>        }
 <a href=#71 id=71 data-nosnippet>71</a>
 <a href=#72 id=72 data-nosnippet>72</a>        <span class="prelude-val">Ok</span>(())
@@ -197,7 +197,7 @@
 <a href=#197 id=197 data-nosnippet>197</a>
 <a href=#198 id=198 data-nosnippet>198</a><span class="kw">impl </span>SpanOpDefaults {
 <a href=#199 id=199 data-nosnippet>199</a>    <span class="doccomment">/// Gets a borrowed version of this config.
-<a href=#200 id=200 data-nosnippet>200</a>    </span><span class="kw">pub fn </span>borrow(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BorrowedSpanOpDefaults {
+<a href=#200 id=200 data-nosnippet>200</a>    </span><span class="kw">pub fn </span>borrow(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BorrowedSpanOpDefaults&lt;<span class="lifetime">'_</span>&gt; {
 <a href=#201 id=201 data-nosnippet>201</a>        BorrowedSpanOpDefaults {
 <a href=#202 id=202 data-nosnippet>202</a>            rules: <span class="self">self</span>.rules.as_slice(),
 <a href=#203 id=203 data-nosnippet>203</a>        }
@@ -300,12 +300,12 @@
 <a href=#300 id=300 data-nosnippet>300</a>        <span class="kw">return </span><span class="bool-val">true</span>;
 <a href=#301 id=301 data-nosnippet>301</a>    }
 <a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">if </span>sdk_name == <span class="string">"sentry.ruby" </span>&amp;&amp; event.has_module(<span class="string">"rack"</span>) {
-<a href=#304 id=304 data-nosnippet>304</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(trace) = event.context::&lt;TraceContext&gt;() {
-<a href=#305 id=305 data-nosnippet>305</a>            <span class="kw">if </span>RUBY_URL_STATUSES.contains(trace.status.value().unwrap_or(<span class="kw-2">&amp;</span>SpanStatus::Unknown)) {
-<a href=#306 id=306 data-nosnippet>306</a>                <span class="kw">return </span><span class="bool-val">true</span>;
-<a href=#307 id=307 data-nosnippet>307</a>            }
-<a href=#308 id=308 data-nosnippet>308</a>        }
+<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">if </span>sdk_name == <span class="string">"sentry.ruby"
+<a href=#304 id=304 data-nosnippet>304</a>        </span>&amp;&amp; event.has_module(<span class="string">"rack"</span>)
+<a href=#305 id=305 data-nosnippet>305</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(trace) = event.context::&lt;TraceContext&gt;()
+<a href=#306 id=306 data-nosnippet>306</a>        &amp;&amp; RUBY_URL_STATUSES.contains(trace.status.value().unwrap_or(<span class="kw-2">&amp;</span>SpanStatus::Unknown))
+<a href=#307 id=307 data-nosnippet>307</a>    {
+<a href=#308 id=308 data-nosnippet>308</a>        <span class="kw">return </span><span class="bool-val">true</span>;
 <a href=#309 id=309 data-nosnippet>309</a>    }
 <a href=#310 id=310 data-nosnippet>310</a>
 <a href=#311 id=311 data-nosnippet>311</a>    <span class="bool-val">false

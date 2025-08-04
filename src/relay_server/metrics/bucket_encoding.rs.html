@@ -144,7 +144,7 @@
 <a href=#144 id=144 data-nosnippet>144</a>    }
 <a href=#145 id=145 data-nosnippet>145</a>}
 <a href=#146 id=146 data-nosnippet>146</a>
-<a href=#147 id=147 data-nosnippet>147</a><span class="kw">fn </span>base64&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
+<a href=#147 id=147 data-nosnippet>147</a><span class="kw">fn </span>base64&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;<span class="lifetime">'_</span>, T&gt;&gt; {
 <a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">let </span><span class="kw-2">mut </span>writer = EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer));
 <a href=#149 id=149 data-nosnippet>149</a>    data.write_to(<span class="kw-2">&amp;mut </span>writer)<span class="question-mark">?</span>;
 <a href=#150 id=150 data-nosnippet>150</a>    drop(writer);
@@ -154,7 +154,7 @@
 <a href=#154 id=154 data-nosnippet>154</a>    }))
 <a href=#155 id=155 data-nosnippet>155</a>}
 <a href=#156 id=156 data-nosnippet>156</a>
-<a href=#157 id=157 data-nosnippet>157</a><span class="kw">fn </span>zstd&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
+<a href=#157 id=157 data-nosnippet>157</a><span class="kw">fn </span>zstd&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;<span class="lifetime">'_</span>, T&gt;&gt; {
 <a href=#158 id=158 data-nosnippet>158</a>    <span class="comment">// Use the fastest compression level, our main objective here is to get the best
 <a href=#159 id=159 data-nosnippet>159</a>    // compression ratio for least amount of time spent.
 <a href=#160 id=160 data-nosnippet>160</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>writer = zstd::Encoder::new(EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer)), <span class="number">1</span>)<span class="question-mark">?</span>;

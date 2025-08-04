@@ -89,10 +89,10 @@
 <a href=#89 id=89 data-nosnippet>89</a>            <span class="kw">let </span>(<span class="kw-2">mut </span>annotated_event, len) = event_from_json_payload(item, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
 <a href=#90 id=90 data-nosnippet>90</a>            <span class="comment">// Event items can never include transactions, so retain the event type and let
 <a href=#91 id=91 data-nosnippet>91</a>            // inference deal with this during normalization.
-<a href=#92 id=92 data-nosnippet>92</a>            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = annotated_event.value_mut() {
-<a href=#93 id=93 data-nosnippet>93</a>                <span class="kw">if </span>!skip_normalization {
-<a href=#94 id=94 data-nosnippet>94</a>                    event.ty.set_value(<span class="prelude-val">None</span>);
-<a href=#95 id=95 data-nosnippet>95</a>                }
+<a href=#92 id=92 data-nosnippet>92</a>            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = annotated_event.value_mut()
+<a href=#93 id=93 data-nosnippet>93</a>                &amp;&amp; !skip_normalization
+<a href=#94 id=94 data-nosnippet>94</a>            {
+<a href=#95 id=95 data-nosnippet>95</a>                event.ty.set_value(<span class="prelude-val">None</span>);
 <a href=#96 id=96 data-nosnippet>96</a>            }
 <a href=#97 id=97 data-nosnippet>97</a>            (annotated_event, len)
 <a href=#98 id=98 data-nosnippet>98</a>        })
@@ -242,10 +242,10 @@
 <a href=#242 id=242 data-nosnippet>242</a>            }
 <a href=#243 id=243 data-nosnippet>243</a>        }
 <a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = envelope.dsc() {
-<a href=#246 id=246 data-nosnippet>246</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(value)) = relay_protocol::to_value(dsc) {
-<a href=#247 id=247 data-nosnippet>247</a>                inner_event._dsc = Annotated::new(value);
-<a href=#248 id=248 data-nosnippet>248</a>            }
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = envelope.dsc()
+<a href=#246 id=246 data-nosnippet>246</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(value)) = relay_protocol::to_value(dsc)
+<a href=#247 id=247 data-nosnippet>247</a>        {
+<a href=#248 id=248 data-nosnippet>248</a>            inner_event._dsc = Annotated::new(value);
 <a href=#249 id=249 data-nosnippet>249</a>        }
 <a href=#250 id=250 data-nosnippet>250</a>    }
 <a href=#251 id=251 data-nosnippet>251</a>
@@ -342,10 +342,10 @@
 <a href=#342 id=342 data-nosnippet>342</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
 <a href=#343 id=343 data-nosnippet>343</a>    <span class="kw">let </span>config = <span class="kw-2">&amp;</span>project_info.config;
 <a href=#344 id=344 data-nosnippet>344</a>
-<a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">if </span>config.datascrubbing_settings.scrub_data {
-<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = event.value_mut() {
-<a href=#347 id=347 data-nosnippet>347</a>            relay_pii::scrub_graphql(event);
-<a href=#348 id=348 data-nosnippet>348</a>        }
+<a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">if </span>config.datascrubbing_settings.scrub_data
+<a href=#346 id=346 data-nosnippet>346</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(event) = event.value_mut()
+<a href=#347 id=347 data-nosnippet>347</a>    {
+<a href=#348 id=348 data-nosnippet>348</a>        relay_pii::scrub_graphql(event);
 <a href=#349 id=349 data-nosnippet>349</a>    }
 <a href=#350 id=350 data-nosnippet>350</a>
 <a href=#351 id=351 data-nosnippet>351</a>    <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingPii), {
@@ -482,10 +482,10 @@
 <a href=#482 id=482 data-nosnippet>482</a>    <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json_bytes(<span class="kw-2">&amp;</span>item.payload())
 <a href=#483 id=483 data-nosnippet>483</a>        .map_err(ProcessingError::InvalidJson)<span class="question-mark">?</span>;
 <a href=#484 id=484 data-nosnippet>484</a>
-<a href=#485 id=485 data-nosnippet>485</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(event_value) = event.value_mut() {
-<a href=#486 id=486 data-nosnippet>486</a>        <span class="kw">if </span>event_type.is_some() {
-<a href=#487 id=487 data-nosnippet>487</a>            event_value.ty.set_value(event_type);
-<a href=#488 id=488 data-nosnippet>488</a>        }
+<a href=#485 id=485 data-nosnippet>485</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(event_value) = event.value_mut()
+<a href=#486 id=486 data-nosnippet>486</a>        &amp;&amp; event_type.is_some()
+<a href=#487 id=487 data-nosnippet>487</a>    {
+<a href=#488 id=488 data-nosnippet>488</a>        event_value.ty.set_value(event_type);
 <a href=#489 id=489 data-nosnippet>489</a>    }
 <a href=#490 id=490 data-nosnippet>490</a>
 <a href=#491 id=491 data-nosnippet>491</a>    <span class="prelude-val">Ok</span>((event, item.len()))

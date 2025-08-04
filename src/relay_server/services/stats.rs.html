@@ -143,10 +143,10 @@
 <a href=#143 id=143 data-nosnippet>143</a>    }
 <a href=#144 id=144 data-nosnippet>144</a>
 <a href=#145 id=145 data-nosnippet>145</a>    <span class="kw">async fn </span>upstream_status(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-<a href=#146 id=146 data-nosnippet>146</a>        <span class="kw">if </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed {
-<a href=#147 id=147 data-nosnippet>147</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(is_outage) = <span class="self">self</span>.upstream_relay.send(IsNetworkOutage).<span class="kw">await </span>{
-<a href=#148 id=148 data-nosnippet>148</a>                <span class="macro">metric!</span>(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
-<a href=#149 id=149 data-nosnippet>149</a>            }
+<a href=#146 id=146 data-nosnippet>146</a>        <span class="kw">if </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed
+<a href=#147 id=147 data-nosnippet>147</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(is_outage) = <span class="self">self</span>.upstream_relay.send(IsNetworkOutage).<span class="kw">await
+<a href=#148 id=148 data-nosnippet>148</a>        </span>{
+<a href=#149 id=149 data-nosnippet>149</a>            <span class="macro">metric!</span>(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
 <a href=#150 id=150 data-nosnippet>150</a>        }
 <a href=#151 id=151 data-nosnippet>151</a>    }
 <a href=#152 id=152 data-nosnippet>152</a>

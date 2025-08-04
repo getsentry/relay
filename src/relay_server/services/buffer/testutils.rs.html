@@ -18,72 +18,73 @@
 <a href=#18 id=18 data-nosnippet>18</a>    </span><span class="kw">pub async fn </span>setup_db(run_migrations: bool) -&gt; Pool&lt;Sqlite&gt; {
 <a href=#19 id=19 data-nosnippet>19</a>        <span class="kw">let </span>path = std::env::temp_dir().join(Uuid::new_v4().to_string());
 <a href=#20 id=20 data-nosnippet>20</a>
-<a href=#21 id=21 data-nosnippet>21</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = path.parent() {
-<a href=#22 id=22 data-nosnippet>22</a>            <span class="kw">if </span>!parent.as_os_str().is_empty() &amp;&amp; !parent.exists() {
-<a href=#23 id=23 data-nosnippet>23</a>                <span class="macro">relay_log::debug!</span>(<span class="string">"creating directory for spooling file: {}"</span>, parent.display());
-<a href=#24 id=24 data-nosnippet>24</a>                DirBuilder::new()
-<a href=#25 id=25 data-nosnippet>25</a>                    .recursive(<span class="bool-val">true</span>)
-<a href=#26 id=26 data-nosnippet>26</a>                    .create(<span class="kw-2">&amp;</span>parent)
-<a href=#27 id=27 data-nosnippet>27</a>                    .<span class="kw">await
-<a href=#28 id=28 data-nosnippet>28</a>                    </span>.unwrap();
-<a href=#29 id=29 data-nosnippet>29</a>            }
-<a href=#30 id=30 data-nosnippet>30</a>        }
-<a href=#31 id=31 data-nosnippet>31</a>
-<a href=#32 id=32 data-nosnippet>32</a>        <span class="kw">let </span>options = SqliteConnectOptions::new()
-<a href=#33 id=33 data-nosnippet>33</a>            .filename(<span class="kw-2">&amp;</span>path)
-<a href=#34 id=34 data-nosnippet>34</a>            .journal_mode(SqliteJournalMode::Wal)
-<a href=#35 id=35 data-nosnippet>35</a>            .create_if_missing(<span class="bool-val">true</span>);
-<a href=#36 id=36 data-nosnippet>36</a>
-<a href=#37 id=37 data-nosnippet>37</a>        <span class="kw">let </span>db = SqlitePoolOptions::new()
-<a href=#38 id=38 data-nosnippet>38</a>            .connect_with(options)
-<a href=#39 id=39 data-nosnippet>39</a>            .<span class="kw">await
-<a href=#40 id=40 data-nosnippet>40</a>            </span>.unwrap();
-<a href=#41 id=41 data-nosnippet>41</a>
-<a href=#42 id=42 data-nosnippet>42</a>        <span class="kw">if </span>run_migrations {
-<a href=#43 id=43 data-nosnippet>43</a>            <span class="macro">sqlx::migrate!</span>(<span class="string">"../migrations"</span>).run(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>.unwrap();
-<a href=#44 id=44 data-nosnippet>44</a>        }
-<a href=#45 id=45 data-nosnippet>45</a>
-<a href=#46 id=46 data-nosnippet>46</a>        db
-<a href=#47 id=47 data-nosnippet>47</a>    }
-<a href=#48 id=48 data-nosnippet>48</a>
-<a href=#49 id=49 data-nosnippet>49</a>    <span class="kw">pub fn </span>request_meta() -&gt; RequestMeta {
-<a href=#50 id=50 data-nosnippet>50</a>        <span class="kw">let </span>dsn = <span class="string">"https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
-<a href=#51 id=51 data-nosnippet>51</a>            </span>.parse()
-<a href=#52 id=52 data-nosnippet>52</a>            .unwrap();
-<a href=#53 id=53 data-nosnippet>53</a>
-<a href=#54 id=54 data-nosnippet>54</a>        RequestMeta::new(dsn)
-<a href=#55 id=55 data-nosnippet>55</a>    }
-<a href=#56 id=56 data-nosnippet>56</a>
-<a href=#57 id=57 data-nosnippet>57</a>    <span class="kw">pub fn </span>mock_envelope(received_at: DateTime&lt;Utc&gt;) -&gt; Box&lt;Envelope&gt; {
-<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">let </span>event_id = EventId::new();
-<a href=#59 id=59 data-nosnippet>59</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta());
-<a href=#60 id=60 data-nosnippet>60</a>
-<a href=#61 id=61 data-nosnippet>61</a>        <span class="kw">let </span>dsc = DynamicSamplingContext {
-<a href=#62 id=62 data-nosnippet>62</a>            trace_id: <span class="string">"67e5504410b1426f9247bb680e5fe0c8"</span>.parse().unwrap(),
-<a href=#63 id=63 data-nosnippet>63</a>            public_key: ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap(),
-<a href=#64 id=64 data-nosnippet>64</a>            release: <span class="prelude-val">Some</span>(<span class="string">"1.1.1"</span>.to_owned()),
-<a href=#65 id=65 data-nosnippet>65</a>            user: Default::default(),
-<a href=#66 id=66 data-nosnippet>66</a>            replay_id: <span class="prelude-val">None</span>,
-<a href=#67 id=67 data-nosnippet>67</a>            environment: <span class="prelude-val">None</span>,
-<a href=#68 id=68 data-nosnippet>68</a>            transaction: <span class="prelude-val">Some</span>(<span class="string">"transaction1"</span>.into()),
-<a href=#69 id=69 data-nosnippet>69</a>            sample_rate: <span class="prelude-val">None</span>,
-<a href=#70 id=70 data-nosnippet>70</a>            sampled: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-<a href=#71 id=71 data-nosnippet>71</a>            other: BTreeMap::new(),
-<a href=#72 id=72 data-nosnippet>72</a>        };
-<a href=#73 id=73 data-nosnippet>73</a>
-<a href=#74 id=74 data-nosnippet>74</a>        envelope.set_dsc(dsc);
-<a href=#75 id=75 data-nosnippet>75</a>        envelope.set_received_at(received_at);
-<a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a>        envelope.add_item(Item::new(ItemType::Transaction));
-<a href=#78 id=78 data-nosnippet>78</a>
-<a href=#79 id=79 data-nosnippet>79</a>        envelope
-<a href=#80 id=80 data-nosnippet>80</a>    }
-<a href=#81 id=81 data-nosnippet>81</a>
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="attr">#[allow(clippy::vec_box)]
-<a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">pub fn </span>mock_envelopes(count: usize) -&gt; Vec&lt;Box&lt;Envelope&gt;&gt; {
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>now = Utc::now();
-<a href=#85 id=85 data-nosnippet>85</a>        (<span class="number">0</span>..count)
-<a href=#86 id=86 data-nosnippet>86</a>            .map(|i| mock_envelope(now - chrono::Duration::seconds((count - i) <span class="kw">as </span>i64)))
-<a href=#87 id=87 data-nosnippet>87</a>            .collect()
-<a href=#88 id=88 data-nosnippet>88</a>    }
-<a href=#89 id=89 data-nosnippet>89</a>}</code></pre></div></section></main></body></html>
+<a href=#21 id=21 data-nosnippet>21</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = path.parent()
+<a href=#22 id=22 data-nosnippet>22</a>            &amp;&amp; !parent.as_os_str().is_empty()
+<a href=#23 id=23 data-nosnippet>23</a>            &amp;&amp; !parent.exists()
+<a href=#24 id=24 data-nosnippet>24</a>        {
+<a href=#25 id=25 data-nosnippet>25</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"creating directory for spooling file: {}"</span>, parent.display());
+<a href=#26 id=26 data-nosnippet>26</a>            DirBuilder::new()
+<a href=#27 id=27 data-nosnippet>27</a>                .recursive(<span class="bool-val">true</span>)
+<a href=#28 id=28 data-nosnippet>28</a>                .create(<span class="kw-2">&amp;</span>parent)
+<a href=#29 id=29 data-nosnippet>29</a>                .<span class="kw">await
+<a href=#30 id=30 data-nosnippet>30</a>                </span>.unwrap();
+<a href=#31 id=31 data-nosnippet>31</a>        }
+<a href=#32 id=32 data-nosnippet>32</a>
+<a href=#33 id=33 data-nosnippet>33</a>        <span class="kw">let </span>options = SqliteConnectOptions::new()
+<a href=#34 id=34 data-nosnippet>34</a>            .filename(<span class="kw-2">&amp;</span>path)
+<a href=#35 id=35 data-nosnippet>35</a>            .journal_mode(SqliteJournalMode::Wal)
+<a href=#36 id=36 data-nosnippet>36</a>            .create_if_missing(<span class="bool-val">true</span>);
+<a href=#37 id=37 data-nosnippet>37</a>
+<a href=#38 id=38 data-nosnippet>38</a>        <span class="kw">let </span>db = SqlitePoolOptions::new()
+<a href=#39 id=39 data-nosnippet>39</a>            .connect_with(options)
+<a href=#40 id=40 data-nosnippet>40</a>            .<span class="kw">await
+<a href=#41 id=41 data-nosnippet>41</a>            </span>.unwrap();
+<a href=#42 id=42 data-nosnippet>42</a>
+<a href=#43 id=43 data-nosnippet>43</a>        <span class="kw">if </span>run_migrations {
+<a href=#44 id=44 data-nosnippet>44</a>            <span class="macro">sqlx::migrate!</span>(<span class="string">"../migrations"</span>).run(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>.unwrap();
+<a href=#45 id=45 data-nosnippet>45</a>        }
+<a href=#46 id=46 data-nosnippet>46</a>
+<a href=#47 id=47 data-nosnippet>47</a>        db
+<a href=#48 id=48 data-nosnippet>48</a>    }
+<a href=#49 id=49 data-nosnippet>49</a>
+<a href=#50 id=50 data-nosnippet>50</a>    <span class="kw">pub fn </span>request_meta() -&gt; RequestMeta {
+<a href=#51 id=51 data-nosnippet>51</a>        <span class="kw">let </span>dsn = <span class="string">"https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+<a href=#52 id=52 data-nosnippet>52</a>            </span>.parse()
+<a href=#53 id=53 data-nosnippet>53</a>            .unwrap();
+<a href=#54 id=54 data-nosnippet>54</a>
+<a href=#55 id=55 data-nosnippet>55</a>        RequestMeta::new(dsn)
+<a href=#56 id=56 data-nosnippet>56</a>    }
+<a href=#57 id=57 data-nosnippet>57</a>
+<a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">pub fn </span>mock_envelope(received_at: DateTime&lt;Utc&gt;) -&gt; Box&lt;Envelope&gt; {
+<a href=#59 id=59 data-nosnippet>59</a>        <span class="kw">let </span>event_id = EventId::new();
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta());
+<a href=#61 id=61 data-nosnippet>61</a>
+<a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">let </span>dsc = DynamicSamplingContext {
+<a href=#63 id=63 data-nosnippet>63</a>            trace_id: <span class="string">"67e5504410b1426f9247bb680e5fe0c8"</span>.parse().unwrap(),
+<a href=#64 id=64 data-nosnippet>64</a>            public_key: ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap(),
+<a href=#65 id=65 data-nosnippet>65</a>            release: <span class="prelude-val">Some</span>(<span class="string">"1.1.1"</span>.to_owned()),
+<a href=#66 id=66 data-nosnippet>66</a>            user: Default::default(),
+<a href=#67 id=67 data-nosnippet>67</a>            replay_id: <span class="prelude-val">None</span>,
+<a href=#68 id=68 data-nosnippet>68</a>            environment: <span class="prelude-val">None</span>,
+<a href=#69 id=69 data-nosnippet>69</a>            transaction: <span class="prelude-val">Some</span>(<span class="string">"transaction1"</span>.into()),
+<a href=#70 id=70 data-nosnippet>70</a>            sample_rate: <span class="prelude-val">None</span>,
+<a href=#71 id=71 data-nosnippet>71</a>            sampled: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+<a href=#72 id=72 data-nosnippet>72</a>            other: BTreeMap::new(),
+<a href=#73 id=73 data-nosnippet>73</a>        };
+<a href=#74 id=74 data-nosnippet>74</a>
+<a href=#75 id=75 data-nosnippet>75</a>        envelope.set_dsc(dsc);
+<a href=#76 id=76 data-nosnippet>76</a>        envelope.set_received_at(received_at);
+<a href=#77 id=77 data-nosnippet>77</a>
+<a href=#78 id=78 data-nosnippet>78</a>        envelope.add_item(Item::new(ItemType::Transaction));
+<a href=#79 id=79 data-nosnippet>79</a>
+<a href=#80 id=80 data-nosnippet>80</a>        envelope
+<a href=#81 id=81 data-nosnippet>81</a>    }
+<a href=#82 id=82 data-nosnippet>82</a>
+<a href=#83 id=83 data-nosnippet>83</a>    <span class="attr">#[allow(clippy::vec_box)]
+<a href=#84 id=84 data-nosnippet>84</a>    </span><span class="kw">pub fn </span>mock_envelopes(count: usize) -&gt; Vec&lt;Box&lt;Envelope&gt;&gt; {
+<a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">let </span>now = Utc::now();
+<a href=#86 id=86 data-nosnippet>86</a>        (<span class="number">0</span>..count)
+<a href=#87 id=87 data-nosnippet>87</a>            .map(|i| mock_envelope(now - chrono::Duration::seconds((count - i) <span class="kw">as </span>i64)))
+<a href=#88 id=88 data-nosnippet>88</a>            .collect()
+<a href=#89 id=89 data-nosnippet>89</a>    }
+<a href=#90 id=90 data-nosnippet>90</a>}</code></pre></div></section></main></body></html>

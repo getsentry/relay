@@ -116,10 +116,10 @@
 <a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
 <a href=#117 id=117 data-nosnippet>117</a>    };
 <a href=#118 id=118 data-nosnippet>118</a>
-<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">if let </span>syn::Expr::Lit(lit) = <span class="kw-2">*</span>arm.body {
-<a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">if let </span>syn::Lit::Str(s) = lit.lit {
-<a href=#121 id=121 data-nosnippet>121</a>            <span class="kw">return </span><span class="prelude-val">Some</span>((variant, s.value()));
-<a href=#122 id=122 data-nosnippet>122</a>        }
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">if let </span>syn::Expr::Lit(lit) = <span class="kw-2">*</span>arm.body
+<a href=#120 id=120 data-nosnippet>120</a>        &amp;&amp; <span class="kw">let </span>syn::Lit::Str(s) = lit.lit
+<a href=#121 id=121 data-nosnippet>121</a>    {
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="kw">return </span><span class="prelude-val">Some</span>((variant, s.value()));
 <a href=#123 id=123 data-nosnippet>123</a>    }
 <a href=#124 id=124 data-nosnippet>124</a>
 <a href=#125 id=125 data-nosnippet>125</a>    <span class="prelude-val">None

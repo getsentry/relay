@@ -57,12 +57,12 @@
 <a href=#57 id=57 data-nosnippet>57</a>) -&gt; std::result::Result&lt;(), ProcessingError&gt; {
 <a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
 <a href=#59 id=59 data-nosnippet>59</a>
-<a href=#60 id=60 data-nosnippet>60</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = envelope.take_item_by(is_dying_message) {
-<a href=#61 id=61 data-nosnippet>61</a>        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = expand_dying_message(item.payload(), envelope) {
-<a href=#62 id=62 data-nosnippet>62</a>            <span class="comment">// If we fail to process the dying message, we need to add back the original attachment.
-<a href=#63 id=63 data-nosnippet>63</a>            </span>envelope.add_item(item);
-<a href=#64 id=64 data-nosnippet>64</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::InvalidNintendoDyingMessage(e));
-<a href=#65 id=65 data-nosnippet>65</a>        }
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = envelope.take_item_by(is_dying_message)
+<a href=#61 id=61 data-nosnippet>61</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Err</span>(e) = expand_dying_message(item.payload(), envelope)
+<a href=#62 id=62 data-nosnippet>62</a>    {
+<a href=#63 id=63 data-nosnippet>63</a>        <span class="comment">// If we fail to process the dying message, we need to add back the original attachment.
+<a href=#64 id=64 data-nosnippet>64</a>        </span>envelope.add_item(item);
+<a href=#65 id=65 data-nosnippet>65</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::InvalidNintendoDyingMessage(e));
 <a href=#66 id=66 data-nosnippet>66</a>    }
 <a href=#67 id=67 data-nosnippet>67</a>
 <a href=#68 id=68 data-nosnippet>68</a>    <span class="prelude-val">Ok</span>(())
@@ -131,12 +131,12 @@
 <a href=#131 id=131 data-nosnippet>131</a>        Envelope::parse_items_bytes(data).map_err(SwitchProcessingError::EnvelopeParsing)<span class="question-mark">?</span>;
 <a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">for </span>item <span class="kw">in </span>items {
 <a href=#133 id=133 data-nosnippet>133</a>        <span class="comment">// If it's an event type, merge it with the main event one already in the envelope.
-<a href=#134 id=134 data-nosnippet>134</a>        </span><span class="kw">if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::Event {
-<a href=#135 id=135 data-nosnippet>135</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = envelope.get_item_by_mut(|it| it.ty() == <span class="kw-2">&amp;</span>ItemType::Event) {
-<a href=#136 id=136 data-nosnippet>136</a>                update_event(item, event).map_err(SwitchProcessingError::InvalidJson)<span class="question-mark">?</span>;
-<a href=#137 id=137 data-nosnippet>137</a>                <span class="comment">// Don't add this item as a new envelope item now that it's merged.
-<a href=#138 id=138 data-nosnippet>138</a>                </span><span class="kw">continue</span>;
-<a href=#139 id=139 data-nosnippet>139</a>            }
+<a href=#134 id=134 data-nosnippet>134</a>        </span><span class="kw">if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::Event
+<a href=#135 id=135 data-nosnippet>135</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(event) = envelope.get_item_by_mut(|it| it.ty() == <span class="kw-2">&amp;</span>ItemType::Event)
+<a href=#136 id=136 data-nosnippet>136</a>        {
+<a href=#137 id=137 data-nosnippet>137</a>            update_event(item, event).map_err(SwitchProcessingError::InvalidJson)<span class="question-mark">?</span>;
+<a href=#138 id=138 data-nosnippet>138</a>            <span class="comment">// Don't add this item as a new envelope item now that it's merged.
+<a href=#139 id=139 data-nosnippet>139</a>            </span><span class="kw">continue</span>;
 <a href=#140 id=140 data-nosnippet>140</a>        }
 <a href=#141 id=141 data-nosnippet>141</a>        envelope.add_item(item);
 <a href=#142 id=142 data-nosnippet>142</a>    }

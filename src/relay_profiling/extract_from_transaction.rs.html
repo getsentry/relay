@@ -56,10 +56,10 @@
 <a href=#56 id=56 data-nosnippet>56</a>        );
 <a href=#57 id=57 data-nosnippet>57</a>    }
 <a href=#58 id=58 data-nosnippet>58</a>
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_context) = event.context::&lt;AppContext&gt;() {
-<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(app_identifier) = app_context.app_identifier.value() {
-<a href=#61 id=61 data-nosnippet>61</a>            tags.insert(<span class="string">"app.identifier"</span>.to_owned(), app_identifier.to_owned());
-<a href=#62 id=62 data-nosnippet>62</a>        }
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_context) = event.context::&lt;AppContext&gt;()
+<a href=#60 id=60 data-nosnippet>60</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(app_identifier) = app_context.app_identifier.value()
+<a href=#61 id=61 data-nosnippet>61</a>    {
+<a href=#62 id=62 data-nosnippet>62</a>        tags.insert(<span class="string">"app.identifier"</span>.to_owned(), app_identifier.to_owned());
 <a href=#63 id=63 data-nosnippet>63</a>    }
 <a href=#64 id=64 data-nosnippet>64</a>
 <a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(client_sdk) = event.client_sdk.value() {

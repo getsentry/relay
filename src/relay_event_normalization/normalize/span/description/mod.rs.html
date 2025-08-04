@@ -364,7 +364,7 @@
 <a href=#364 id=364 data-nosnippet>364</a>/// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), None), "my.domain.com");
 <a href=#365 id=365 data-nosnippet>365</a>/// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), Some(1919)), "my.domain.com:1919");
 <a href=#366 id=366 data-nosnippet>366</a>/// ```
-<a href=#367 id=367 data-nosnippet>367</a></span><span class="kw">pub fn </span>concatenate_host_and_port(host: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, port: <span class="prelude-ty">Option</span>&lt;u16&gt;) -&gt; Cow&lt;str&gt; {
+<a href=#367 id=367 data-nosnippet>367</a></span><span class="kw">pub fn </span>concatenate_host_and_port(host: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, port: <span class="prelude-ty">Option</span>&lt;u16&gt;) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt; {
 <a href=#368 id=368 data-nosnippet>368</a>    <span class="kw">match </span>(host, port) {
 <a href=#369 id=369 data-nosnippet>369</a>        (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; Cow::Borrowed(<span class="string">""</span>),
 <a href=#370 id=370 data-nosnippet>370</a>        (<span class="prelude-val">Some</span>(host), <span class="prelude-val">None</span>) =&gt; Cow::Borrowed(host),
@@ -502,7 +502,7 @@
 <a href=#502 id=502 data-nosnippet>502</a>    }
 <a href=#503 id=503 data-nosnippet>503</a>}
 <a href=#504 id=504 data-nosnippet>504</a>
-<a href=#505 id=505 data-nosnippet>505</a><span class="kw">fn </span>scrub_resource_segment(segment: <span class="kw-2">&amp;</span>str) -&gt; Cow&lt;str&gt; {
+<a href=#505 id=505 data-nosnippet>505</a><span class="kw">fn </span>scrub_resource_segment(segment: <span class="kw-2">&amp;</span>str) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt; {
 <a href=#506 id=506 data-nosnippet>506</a>    <span class="kw">let </span>segment = RESOURCE_NORMALIZER_REGEX.replace_all(segment, <span class="string">"$pre*$post"</span>);
 <a href=#507 id=507 data-nosnippet>507</a>
 <a href=#508 id=508 data-nosnippet>508</a>    <span class="comment">// Crude heuristic: treat long segments as idendifiers.
