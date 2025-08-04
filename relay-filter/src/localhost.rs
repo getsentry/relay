@@ -11,10 +11,10 @@ const HOST_HEADER: &str = "Host";
 
 /// Check if the event originates from the local host.
 fn matches<F: Filterable>(item: &F) -> bool {
-    if let Some(ip_addr) = item.ip_addr() {
-        if LOCAL_IPS.contains(&ip_addr) {
-            return true;
-        }
+    if let Some(ip_addr) = item.ip_addr()
+        && LOCAL_IPS.contains(&ip_addr)
+    {
+        return true;
     }
 
     if let Some(url) = item.url() {
@@ -32,12 +32,12 @@ fn matches<F: Filterable>(item: &F) -> bool {
     }
 
     for header_name in [HOST_HEADER, FORWARDED_HOST_HEADER] {
-        if let Some(header) = item.header(header_name) {
-            if let Some(domain_part) = header.split(":").next() {
-                // header values here will usually look like "localhost:3000" or "127.0.0.1:8080"
-                if LOCAL_DOMAINS.contains(&domain_part) {
-                    return true;
-                }
+        if let Some(header) = item.header(header_name)
+            && let Some(domain_part) = header.split(":").next()
+        {
+            // header values here will usually look like "localhost:3000" or "127.0.0.1:8080"
+            if LOCAL_DOMAINS.contains(&domain_part) {
+                return true;
             }
         }
     }

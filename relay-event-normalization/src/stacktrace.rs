@@ -27,18 +27,18 @@ pub fn normalize_non_raw_frame(frame: &mut Annotated<Frame>) {
             frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
         }
 
-        if frame.filename.value().is_empty() {
-            if let Some(abs_path) = frame.abs_path.value_mut() {
-                frame.filename = Annotated::new(abs_path.clone());
+        if frame.filename.value().is_empty()
+            && let Some(abs_path) = frame.abs_path.value_mut()
+        {
+            frame.filename = Annotated::new(abs_path.clone());
 
-                if is_url(abs_path.as_str()) {
-                    if let Ok(url) = Url::parse(abs_path.as_str()) {
-                        let path = url.path();
+            if is_url(abs_path.as_str())
+                && let Ok(url) = Url::parse(abs_path.as_str())
+            {
+                let path = url.path();
 
-                        if !path.is_empty() && path != "/" {
-                            frame.filename = Annotated::new(path.into());
-                        }
-                    }
+                if !path.is_empty() && path != "/" {
+                    frame.filename = Annotated::new(path.into());
                 }
             }
         }

@@ -261,7 +261,7 @@ impl<D> RequestMeta<D> {
     /// Returns the name of the client that sent the event without version.
     ///
     /// If the client is not sent in standard format, this method returns `None`.
-    pub fn client_name(&self) -> ClientName {
+    pub fn client_name(&self) -> ClientName<'_> {
         self.client()
             .and_then(|client| client.split_once('/'))
             .map(|(client, _)| client)

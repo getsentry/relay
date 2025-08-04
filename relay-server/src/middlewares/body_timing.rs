@@ -114,10 +114,10 @@ impl hyper::body::Body for TimedBody {
         let pinned = Pin::new(&mut self.inner);
         let poll_result = pinned.poll_frame(cx);
 
-        if let Poll::Ready(Some(Ok(frame))) = &poll_result {
-            if let Some(data) = frame.data_ref() {
-                self.size += data.len();
-            }
+        if let Poll::Ready(Some(Ok(frame))) = &poll_result
+            && let Some(data) = frame.data_ref()
+        {
+            self.size += data.len();
         }
 
         match &poll_result {

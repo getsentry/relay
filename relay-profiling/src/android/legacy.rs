@@ -239,10 +239,9 @@ pub fn parse_android_profile(
     if let Some(segment_id) = transaction_metadata
         .get("segment_id")
         .and_then(|segment_id| segment_id.parse().ok())
+        && let Some(transaction_metadata) = profile.metadata.transaction.as_mut()
     {
-        if let Some(transaction_metadata) = profile.metadata.transaction.as_mut() {
-            transaction_metadata.segment_id = Some(segment_id);
-        }
+        transaction_metadata.segment_id = Some(segment_id);
     }
 
     profile.metadata.client_sdk = match (

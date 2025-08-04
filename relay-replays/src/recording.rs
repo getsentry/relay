@@ -145,22 +145,20 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
     }
 
     fn transform_string(&mut self, mut value: String) -> Cow<'static, str> {
-        if let Some(ref mut processor) = self.processor1 {
-            if processor
+        if let Some(ref mut processor) = self.processor1
+            && processor
                 .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
-            {
-                return Cow::Borrowed("");
-            }
+        {
+            return Cow::Borrowed("");
         }
 
-        if let Some(ref mut processor) = self.processor2 {
-            if processor
+        if let Some(ref mut processor) = self.processor2
+            && processor
                 .process_string(&mut value, &mut Meta::default(), &self.state)
                 .is_err()
-            {
-                return Cow::Borrowed("");
-            }
+        {
+            return Cow::Borrowed("");
         }
 
         Cow::Owned(value)
@@ -425,7 +423,7 @@ mod tests {
         scrubbing_config.pii_config_uncached().unwrap().unwrap()
     }
 
-    fn scrubber(config: &PiiConfig) -> RecordingScrubber {
+    fn scrubber(config: &PiiConfig) -> RecordingScrubber<'_> {
         RecordingScrubber::new(usize::MAX, Some(config), None)
     }
 

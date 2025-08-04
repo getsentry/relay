@@ -341,10 +341,10 @@ impl VisitorMut for NormalizeVisitor {
                         op: left_op,
                         right: left_right,
                     } = left.as_mut()
+                        && left_op == op
+                        && left_right == right
                     {
-                        if left_op == op && left_right == right {
-                            *left = Box::new(take_expr(left_left));
-                        }
+                        *left = Box::new(take_expr(left_left));
                     }
                 }
             }
@@ -369,10 +369,10 @@ impl VisitorMut for NormalizeVisitor {
                 columns, source, ..
             } => {
                 *columns = vec![Self::ellipsis()];
-                if let Some(source) = source.as_mut() {
-                    if let SetExpr::Values(v) = &mut *source.body {
-                        v.rows = vec![vec![Expr::Value(Self::placeholder())]]
-                    }
+                if let Some(source) = source.as_mut()
+                    && let SetExpr::Values(v) = &mut *source.body
+                {
+                    v.rows = vec![vec![Expr::Value(Self::placeholder())]]
                 }
             }
             // Simple lists of col = value assignments are collapsed to `..`.
@@ -726,12 +726,11 @@ fn take_expr(expr: &mut Expr) -> Expr {
 /// Only use this function on operations which have the
 /// [associative property](https://en.wikipedia.org/wiki/Associative_property).
 fn remove_redundant_parentheses(outer_op: &BinaryOperator, expr: &mut Expr) {
-    if let Expr::Nested(inner) = expr {
-        if let Expr::BinaryOp { op, .. } = inner.as_ref() {
-            if op == outer_op {
-                *expr = take_expr(inner.as_mut());
-            }
-        }
+    if let Expr::Nested(inner) = expr
+        && let Expr::BinaryOp { op, .. } = inner.as_ref()
+        && op == outer_op
+    {
+        *expr = take_expr(inner.as_mut());
     }
 }
 

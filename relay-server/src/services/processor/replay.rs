@@ -137,18 +137,18 @@ fn handle_replay_event_item(
 
                 // Log segments that exceed the hour limit so we can diagnose errant SDKs
                 // or exotic customer implementations.
-                if let Some(segment_id) = replay_type.segment_id.value() {
-                    if *segment_id > 720 {
-                        metric!(counter(RelayCounters::ReplayExceededSegmentLimit) += 1);
+                if let Some(segment_id) = replay_type.segment_id.value()
+                    && *segment_id > 720
+                {
+                    metric!(counter(RelayCounters::ReplayExceededSegmentLimit) += 1);
 
-                        relay_log::debug!(
-                            event_id = ?config.event_id,
-                            project_id = config.project_id.map(|v| v.value()),
-                            organization_id = config.organization_id.map(|o| o.value()),
-                            segment_id = segment_id,
-                            "replay segment-exceeded-limit"
-                        );
-                    }
+                    relay_log::debug!(
+                        event_id = ?config.event_id,
+                        project_id = config.project_id.map(|v| v.value()),
+                        organization_id = config.organization_id.map(|o| o.value()),
+                        segment_id = segment_id,
+                        "replay segment-exceeded-limit"
+                    );
                 }
             }
 

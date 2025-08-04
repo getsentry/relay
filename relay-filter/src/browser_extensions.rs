@@ -87,15 +87,15 @@ const ANONYMOUS_FRAMES: [&str; 2] = ["<anonymous>", "[native code]"];
 
 /// Check if the event originates from known problematic browser extensions.
 fn matches<F: Filterable>(item: &F) -> bool {
-    if let Some(ex_val) = get_exception_value(item) {
-        if EXTENSION_EXC_VALUES.is_match(ex_val) {
-            return true;
-        }
+    if let Some(ex_val) = get_exception_value(item)
+        && EXTENSION_EXC_VALUES.is_match(ex_val)
+    {
+        return true;
     }
-    if let Some(ex_source) = get_exception_source(item) {
-        if EXTENSION_EXC_SOURCES.is_match(ex_source) {
-            return true;
-        }
+    if let Some(ex_source) = get_exception_source(item)
+        && EXTENSION_EXC_SOURCES.is_match(ex_source)
+    {
+        return true;
     }
     false
 }

@@ -6,10 +6,10 @@ pub use tower_http::decompression::RequestDecompressionLayer;
 ///
 /// This is to be used along with the [`RequestDecompressionLayer`].
 pub fn remove_empty_encoding(mut request: Request) -> Request {
-    if let header::Entry::Occupied(entry) = request.headers_mut().entry(header::CONTENT_ENCODING) {
-        if should_ignore_encoding(entry.get().as_bytes()) {
-            entry.remove();
-        }
+    if let header::Entry::Occupied(entry) = request.headers_mut().entry(header::CONTENT_ENCODING)
+        && should_ignore_encoding(entry.get().as_bytes())
+    {
+        entry.remove();
     }
 
     request

@@ -15,10 +15,10 @@ pub mod types;
 /// Convert contained nil UUIDs to None
 fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
     let distinct_id = distinct_id?;
-    if let Ok(uuid) = distinct_id.parse::<Uuid>() {
-        if uuid.is_nil() {
-            return None;
-        }
+    if let Ok(uuid) = distinct_id.parse::<Uuid>()
+        && uuid.is_nil()
+    {
+        return None;
     }
 
     Some(distinct_id)

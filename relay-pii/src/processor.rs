@@ -318,23 +318,21 @@ pub fn scrub_graphql(event: &mut Event) {
     let mut is_graphql = false;
 
     // Collect the variables keys and scrub them out.
-    if let Some(request) = event.request.value_mut() {
-        if let Some(Value::Object(data)) = request.data.value_mut() {
-            if let Some(api_target) = request.api_target.value() {
-                if api_target.eq_ignore_ascii_case("graphql") {
-                    is_graphql = true;
-                }
-            }
+    if let Some(request) = event.request.value_mut()
+        && let Some(Value::Object(data)) = request.data.value_mut()
+    {
+        if let Some(api_target) = request.api_target.value()
+            && api_target.eq_ignore_ascii_case("graphql")
+        {
+            is_graphql = true;
+        }
 
-            if is_graphql {
-                if let Some(Annotated(Some(Value::Object(variables)), _)) =
-                    data.get_mut("variables")
-                {
-                    for (key, value) in variables.iter_mut() {
-                        keys.insert(key);
-                        value.set_value(Some(Value::String("[Filtered]".to_owned())));
-                    }
-                }
+        if is_graphql
+            && let Some(Annotated(Some(Value::Object(variables)), _)) = data.get_mut("variables")
+        {
+            for (key, value) in variables.iter_mut() {
+                keys.insert(key);
+                value.set_value(Some(Value::String("[Filtered]".to_owned())));
             }
         }
     }
@@ -344,20 +342,17 @@ pub fn scrub_graphql(event: &mut Event) {
     }
 
     // Scrub PII from the data object if they match the variables keys.
-    if let Some(contexts) = event.contexts.value_mut() {
-        if let Some(response) = contexts.get_mut::<ResponseContext>() {
-            if let Some(Value::Object(data)) = response.data.value_mut() {
-                if let Some(Annotated(Some(Value::Object(graphql_data)), _)) = data.get_mut("data")
-                {
-                    if !keys.is_empty() {
-                        scrub_graphql_data(&keys, graphql_data);
-                    } else {
-                        // If we don't have the variable keys, we scrub the whole data object
-                        // because the query or mutation weren't parameterized.
-                        data.remove("data");
-                    }
-                }
-            }
+    if let Some(contexts) = event.contexts.value_mut()
+        && let Some(response) = contexts.get_mut::<ResponseContext>()
+        && let Some(Value::Object(data)) = response.data.value_mut()
+        && let Some(Annotated(Some(Value::Object(graphql_data)), _)) = data.get_mut("data")
+    {
+        if !keys.is_empty() {
+            scrub_graphql_data(&keys, graphql_data);
+        } else {
+            // If we don't have the variable keys, we scrub the whole data object
+            // because the query or mutation weren't parameterized.
+            data.remove("data");
         }
     }
 }
@@ -510,16 +505,16 @@ fn apply_regex_to_chunks<'a>(
         ReplaceBehavior::Groups(ref groups) => {
             for m in captures_iter {
                 for (idx, g) in m.iter().enumerate() {
-                    if let Some(g) = g {
-                        if groups.contains(&(idx as u8)) {
-                            process_text(
-                                &search_string[pos..g.start()],
-                                &mut rv,
-                                &mut replacement_chunks,
-                            );
-                            insert_replacement_chunks(rule, g.as_str(), &mut rv);
-                            pos = g.end();
-                        }
+                    if let Some(g) = g
+                        && groups.contains(&(idx as u8))
+                    {
+                        process_text(
+                            &search_string[pos..g.start()],
+                            &mut rv,
+                            &mut replacement_chunks,
+                        );
+                        insert_replacement_chunks(rule, g.as_str(), &mut rv);
+                        pos = g.end();
                     }
                 }
             }

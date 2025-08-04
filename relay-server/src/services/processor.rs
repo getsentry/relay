@@ -2670,16 +2670,16 @@ impl EnvelopeProcessorService {
         let _submit = cogs.start_category("submit");
 
         #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled() {
-            if let Some(store_forwarder) = &self.inner.addrs.store_forwarder {
-                match submit {
-                    Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
-                    Submit::Logs(output) => output
-                        .forward_store(store_forwarder)
-                        .unwrap_or_else(|err| err.into_inner()),
-                }
-                return;
+        if self.inner.config.processing_enabled()
+            && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
+        {
+            match submit {
+                Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
+                Submit::Logs(output) => output
+                    .forward_store(store_forwarder)
+                    .unwrap_or_else(|err| err.into_inner()),
             }
+            return;
         }
 
         let mut envelope = match submit {
@@ -3247,12 +3247,12 @@ impl EnvelopeProcessorService {
         }
 
         #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled() {
-            if let Some(ref store_forwarder) = self.inner.addrs.store_forwarder {
-                return self
-                    .encode_metrics_processing(message, store_forwarder)
-                    .await;
-            }
+        if self.inner.config.processing_enabled()
+            && let Some(ref store_forwarder) = self.inner.addrs.store_forwarder
+        {
+            return self
+                .encode_metrics_processing(message, store_forwarder)
+                .await;
         }
 
         if self.inner.config.http_global_metrics() {
@@ -3321,7 +3321,7 @@ impl EnvelopeProcessorService {
         &self,
         _organization_id: OrganizationId,
         reservoir_counters: ReservoirCounters,
-    ) -> ReservoirEvaluator {
+    ) -> ReservoirEvaluator<'_> {
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
 

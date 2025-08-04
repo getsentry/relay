@@ -143,10 +143,10 @@ impl RelayStats {
     }
 
     async fn upstream_status(&self) {
-        if self.config.relay_mode() == RelayMode::Managed {
-            if let Ok(is_outage) = self.upstream_relay.send(IsNetworkOutage).await {
-                metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
-            }
+        if self.config.relay_mode() == RelayMode::Managed
+            && let Ok(is_outage) = self.upstream_relay.send(IsNetworkOutage).await
+        {
+            metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
         }
     }
 

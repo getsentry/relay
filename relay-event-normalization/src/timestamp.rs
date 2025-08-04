@@ -24,19 +24,19 @@ impl Processor for TimestampProcessor {
         _: &mut Meta,
         state: &ProcessingState,
     ) -> ProcessingResult {
-        if let Some(end_timestamp) = event.timestamp.value() {
-            if end_timestamp.into_inner().timestamp_millis() < 0 {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "timestamp is too stale",
-                ));
-            }
+        if let Some(end_timestamp) = event.timestamp.value()
+            && end_timestamp.into_inner().timestamp_millis() < 0
+        {
+            return Err(ProcessingAction::InvalidTransaction(
+                "timestamp is too stale",
+            ));
         }
-        if let Some(start_timestamp) = event.start_timestamp.value() {
-            if start_timestamp.into_inner().timestamp_millis() < 0 {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "timestamp is too stale",
-                ));
-            }
+        if let Some(start_timestamp) = event.start_timestamp.value()
+            && start_timestamp.into_inner().timestamp_millis() < 0
+        {
+            return Err(ProcessingAction::InvalidTransaction(
+                "timestamp is too stale",
+            ));
         }
 
         event.process_child_values(self, state)?;
@@ -50,21 +50,21 @@ impl Processor for TimestampProcessor {
         meta: &mut Meta,
         _: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(start_timestamp) = span.start_timestamp.value() {
-            if start_timestamp.into_inner().timestamp_millis() < 0 {
-                meta.add_error(Error::invalid(format!(
-                    "start_timestamp is too stale: {start_timestamp}"
-                )));
-                return Err(ProcessingAction::DeleteValueHard);
-            }
+        if let Some(start_timestamp) = span.start_timestamp.value()
+            && start_timestamp.into_inner().timestamp_millis() < 0
+        {
+            meta.add_error(Error::invalid(format!(
+                "start_timestamp is too stale: {start_timestamp}"
+            )));
+            return Err(ProcessingAction::DeleteValueHard);
         }
-        if let Some(end_timestamp) = span.timestamp.value() {
-            if end_timestamp.into_inner().timestamp_millis() < 0 {
-                meta.add_error(Error::invalid(format!(
-                    "timestamp is too stale: {end_timestamp}"
-                )));
-                return Err(ProcessingAction::DeleteValueHard);
-            }
+        if let Some(end_timestamp) = span.timestamp.value()
+            && end_timestamp.into_inner().timestamp_millis() < 0
+        {
+            meta.add_error(Error::invalid(format!(
+                "timestamp is too stale: {end_timestamp}"
+            )));
+            return Err(ProcessingAction::DeleteValueHard);
         }
 
         Ok(())
@@ -76,13 +76,13 @@ impl Processor for TimestampProcessor {
         meta: &mut Meta,
         _: &ProcessingState<'_>,
     ) -> ProcessingResult where {
-        if let Some(timestamp) = breadcrumb.timestamp.value() {
-            if timestamp.into_inner().timestamp_millis() < 0 {
-                meta.add_error(Error::invalid(format!(
-                    "timestamp is too stale: {timestamp}"
-                )));
-                return Err(ProcessingAction::DeleteValueHard);
-            }
+        if let Some(timestamp) = breadcrumb.timestamp.value()
+            && timestamp.into_inner().timestamp_millis() < 0
+        {
+            meta.add_error(Error::invalid(format!(
+                "timestamp is too stale: {timestamp}"
+            )));
+            return Err(ProcessingAction::DeleteValueHard);
         }
 
         Ok(())
