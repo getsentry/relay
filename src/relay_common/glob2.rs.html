@@ -101,7 +101,7 @@
 <a href=#101 id=101 data-nosnippet>101</a>
 <a href=#102 id=102 data-nosnippet>102</a><span class="kw">impl </span>Glob {
 <a href=#103 id=103 data-nosnippet>103</a>    <span class="doccomment">/// Creates the [`GlobBuilder`], which can be fine-tunned using helper methods.
-<a href=#104 id=104 data-nosnippet>104</a>    </span><span class="kw">pub fn </span>builder(glob: <span class="kw-2">&amp;</span><span class="lifetime">'_ </span>str) -&gt; GlobBuilder {
+<a href=#104 id=104 data-nosnippet>104</a>    </span><span class="kw">pub fn </span>builder(glob: <span class="kw-2">&amp;</span>str) -&gt; GlobBuilder&lt;<span class="lifetime">'_</span>&gt; {
 <a href=#105 id=105 data-nosnippet>105</a>        GlobBuilder::new(glob)
 <a href=#106 id=106 data-nosnippet>106</a>    }
 <a href=#107 id=107 data-nosnippet>107</a>
