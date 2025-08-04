@@ -1,0 +1,17 @@
+name: Bring up Redis Sentinel Cluster
+description: >-
+  Installs docker-compose and runs Redis Sentinel cluster
+  with ports 16379-16380 for redis and
+  26379-26380 for sentinel
+runs:
+  using: composite
+  steps:
+    - name: Set up Docker Compose
+      uses: docker/setup-compose-action@364cc21a5de5b1ee4a7f5f9d3fa374ce0ccde746
+
+    - name: Run Sentinel cluster
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      shell: bash
+      run: |
+        docker compose --file "${ACTION_PATH}/docker-compose.yml" up --detach
