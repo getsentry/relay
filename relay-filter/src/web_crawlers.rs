@@ -20,8 +20,8 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
         facebook|                   # facebook
         meta-|                      # meta/facebook
         ia_archiver|                # Alexa
-        bots?[/\s\);]|              # Generic bot
-        spider[/\s\);]|             # Generic spider
+        bots?([/\s\);]|$)|          # Generic bot
+        spider([/\s\);]|$)|         # Generic spider
         Slack|                      # Slack - see https://api.slack.com/robots
         Calypso\sAppCrawler|        # Google indexing bot
         pingdom|                    # Pingdom
@@ -53,7 +53,8 @@ static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r"(?ix)
         Slackbot\s1\.\d+|            # Slack - see https://api.slack.com/robots
-        SentryUptimeBot              # Uptime Checker https://docs.sentry.io/product/alerts/uptime-monitoring/
+        SentryUptimeBot|             # Uptime Checker https://docs.sentry.io/product/alerts/uptime-monitoring/
+        ChatGPT-User                 # ChatGPT user prompted requests
     ",
     )
     .expect("Invalid allowed web crawlers filter Regex")
@@ -70,7 +71,14 @@ pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(
         return Ok(());
     }
 
-    if item.user_agent().raw.is_some_and(matches) {
+    let user_agent = item.user_agent();
+    let family = user_agent.parsed.as_ref().map(|ua| ua.family.as_ref());
+
+    // Use the raw user agent if it is available, as it is higher quality. For example some user
+    // agents may be parsed as `Other` while the raw user agent would be filtered.
+    //
+    // Fallback to the parsed user agent as under circumstances only that may be available.
+    if user_agent.raw.or(family).is_some_and(matches) {
         return Err(FilterStatKey::WebCrawlers);
     }
 
@@ -80,7 +88,16 @@ pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutils;
+    use crate::{UserAgent, testutils};
+
+    #[derive(Debug)]
+    struct TestFilterable<'a>(UserAgent<'a>);
+
+    impl<'a> Filterable for TestFilterable<'a> {
+        fn user_agent(&self) -> UserAgent<'_> {
+            self.0.clone()
+        }
+    }
 
     #[test]
     fn test_filter_when_disabled() {
@@ -179,5 +196,32 @@ mod tests {
                 "Failed benign user agent '{user_agent}'"
             );
         }
+    }
+
+    #[test]
+    fn test_filter_parsed_ua_only() {
+        let ua = UserAgent {
+            raw: None,
+            parsed: Some(relay_ua::UserAgent {
+                family: "Twitterbot".into(),
+                ..Default::default()
+            }),
+        };
+
+        let filter_result = should_filter(&TestFilterable(ua), &FilterConfig { is_enabled: true });
+        assert_ne!(filter_result, Ok(()));
+    }
+
+    #[test]
+    fn test_filter_parsed_ua_does_not_filter_default() {
+        let ua = UserAgent {
+            raw: None,
+            // This may happen if the raw user agent cannot be parsed or is not available,
+            // in this case the filter should not accidentally remove the event.
+            parsed: Some(Default::default()),
+        };
+
+        let filter_result = should_filter(&TestFilterable(ua), &FilterConfig { is_enabled: true });
+        assert_eq!(filter_result, Ok(()));
     }
 }

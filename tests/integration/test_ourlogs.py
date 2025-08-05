@@ -557,54 +557,48 @@ def test_browser_name_version_extraction(
 
 
 @pytest.mark.parametrize(
-    "filter_name,filter_config",
+    "filter_name,filter_config,args",
     [
         pytest.param(
-            "release-version", {"releases": {"releases": ["foobar@1.0"]}}, id="release"
+            "release-version",
+            {"releases": {"releases": ["foobar@1.0"]}},
+            {},
+            id="release",
         ),
         pytest.param(
             "legacy-browsers",
             {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
+            {
+                "user-agent": "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0)"
+            },
             id="legacy-browsers",
+        ),
+        pytest.param(
+            "web-crawlers",
+            {"webCrawlers": {"isEnabled": True}},
+            {
+                "user-agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"
+            },
+            id="web-crawlers",
         ),
         pytest.param(
             "gen_body",
             {
-                "generic": {
-                    "version": 1,
-                    "filters": [
-                        {
-                            "id": "gen_body",
-                            "isEnabled": True,
-                            "condition": {
-                                "op": "glob",
-                                "name": "log.body",
-                                "value": ["fo*"],
-                            },
-                        }
-                    ],
-                }
+                "op": "glob",
+                "name": "log.body",
+                "value": ["fo*"],
             },
+            {},
             id="gen_body",
         ),
         pytest.param(
             "gen_attr",
             {
-                "generic": {
-                    "version": 1,
-                    "filters": [
-                        {
-                            "id": "gen_attr",
-                            "isEnabled": True,
-                            "condition": {
-                                "op": "gte",
-                                "name": "log.attributes.some_integer.value",
-                                "value": 123,
-                            },
-                        }
-                    ],
-                }
+                "op": "gte",
+                "name": "log.attributes.some_integer.value",
+                "value": 123,
             },
+            {},
             id="gen_attr",
         ),
     ],
@@ -614,12 +608,28 @@ def test_filters_are_applied_to_logs(
     relay,
     filter_name,
     filter_config,
+    args,
 ):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+
+    if filter_name.startswith("gen_"):
+        filter_config = {
+            "generic": {
+                "version": 1,
+                "filters": [
+                    {
+                        "id": filter_name,
+                        "isEnabled": True,
+                        "condition": filter_config,
+                    }
+                ],
+            }
+        }
+
     project_config["config"]["filterSettings"] = filter_config
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
@@ -640,9 +650,10 @@ def test_filters_are_applied_to_logs(
         },
     )
 
-    headers = {
-        "User-Agent": "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0)"
-    }
+    headers = None
+    if user_agent := args.get("user-agent"):
+        headers = {"User-Agent": user_agent}
+
     relay.send_envelope(project_id, envelope, headers=headers)
 
     outcomes = []
