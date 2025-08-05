@@ -28,6 +28,7 @@
 - Stop extracting the `sentry.trace_flags` attribute for logs. ([#4988](https://github.com/getsentry/relay/pull/4988))
 - Add Jwm to the supported image types. ([#4975](https://github.com/getsentry/relay/pull/4975))
 - Process logs in all non-proxy Relays. ([#4973](https://github.com/getsentry/relay/pull/4973))
+- Add support for pre-hashed signatures. ([#5012](https://github.com/getsentry/relay/pull/5012))
 
 ## 25.7.0
 
