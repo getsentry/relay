@@ -32,28 +32,44 @@ impl<'a> UserAgent<'a> {
 /// A data item to which filters can be applied.
 pub trait Filterable {
     /// The CSP report contained in the item. Only for CSP reports.
-    fn csp(&self) -> Option<&Csp>;
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
 
     /// The exception values of the item. Only for error events.
-    fn exceptions(&self) -> Option<&Values<Exception>>;
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
 
     /// The IP address of the client that sent the data.
-    fn ip_addr(&self) -> Option<&str>;
+    fn ip_addr(&self) -> Option<&str> {
+        None
+    }
 
     /// The logentry message. Only for error events.
-    fn logentry(&self) -> Option<&LogEntry>;
+    fn logentry(&self) -> Option<&LogEntry> {
+        None
+    }
 
     /// The release string of the data item.
-    fn release(&self) -> Option<&str>;
+    fn release(&self) -> Option<&str> {
+        None
+    }
 
     /// The transaction name. Only for transaction events.
-    fn transaction(&self) -> Option<&str>;
+    fn transaction(&self) -> Option<&str> {
+        None
+    }
 
     /// The URL from which the request originates. Used for localhost filtering.
-    fn url(&self) -> Option<Url>;
+    fn url(&self) -> Option<Url> {
+        None
+    }
 
     /// The user agent of the client that sent the data.
-    fn user_agent(&self) -> UserAgent<'_>;
+    fn user_agent(&self) -> UserAgent<'_> {
+        Default::default()
+    }
 
     /// Retrieves a request headers from the item.
     ///
@@ -61,7 +77,9 @@ pub trait Filterable {
     /// be included in the `request.headers` of an error.
     ///
     /// This **does not** return header information from the request that reached relay.
-    fn header(&self, header_name: &str) -> Option<&str>;
+    fn header(&self, _header_name: &str) -> Option<&str> {
+        None
+    }
 }
 
 impl Filterable for Event {
@@ -118,29 +136,13 @@ impl Filterable for Event {
 }
 
 impl Filterable for Replay {
-    fn csp(&self) -> Option<&Csp> {
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        None
-    }
-
     fn ip_addr(&self) -> Option<&str> {
         let user = self.user.value()?;
         Some(user.ip_address.value()?.as_ref())
     }
 
-    fn logentry(&self) -> Option<&LogEntry> {
-        None
-    }
-
     fn release(&self) -> Option<&str> {
         self.release.as_str()
-    }
-
-    fn transaction(&self) -> Option<&str> {
-        None
     }
 
     fn url(&self) -> Option<Url> {
@@ -165,23 +167,8 @@ impl Filterable for Replay {
 }
 
 impl Filterable for Span {
-    fn csp(&self) -> Option<&Csp> {
-        // Only for events.
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        // Only for events.
-        None
-    }
-
     fn ip_addr(&self) -> Option<&str> {
         self.data.value()?.client_address.as_str()
-    }
-
-    fn logentry(&self) -> Option<&LogEntry> {
-        // Only for events.
-        None
     }
 
     fn release(&self) -> Option<&str> {
@@ -204,21 +191,9 @@ impl Filterable for Span {
             .and_then(|data| data.user_agent_original.as_str());
         UserAgent { raw, parsed: None }
     }
-
-    fn header(&self, _: &str) -> Option<&str> {
-        None
-    }
 }
 
 impl Filterable for SessionUpdate {
-    fn csp(&self) -> Option<&Csp> {
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        None
-    }
-
     fn ip_addr(&self) -> Option<&str> {
         self.attributes
             .ip_address
@@ -226,20 +201,8 @@ impl Filterable for SessionUpdate {
             .map(|addr| addr.as_str())
     }
 
-    fn logentry(&self) -> Option<&LogEntry> {
-        None
-    }
-
     fn release(&self) -> Option<&str> {
         Some(&self.attributes.release)
-    }
-
-    fn transaction(&self) -> Option<&str> {
-        None
-    }
-
-    fn url(&self) -> Option<Url> {
-        None
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
@@ -247,22 +210,10 @@ impl Filterable for SessionUpdate {
             raw: self.attributes.user_agent.as_deref(),
             parsed: None,
         }
-    }
-
-    fn header(&self, _header_name: &str) -> Option<&str> {
-        None
     }
 }
 
 impl Filterable for SessionAggregates {
-    fn csp(&self) -> Option<&Csp> {
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        None
-    }
-
     fn ip_addr(&self) -> Option<&str> {
         self.attributes
             .ip_address
@@ -270,20 +221,8 @@ impl Filterable for SessionAggregates {
             .map(|addr| addr.as_str())
     }
 
-    fn logentry(&self) -> Option<&LogEntry> {
-        None
-    }
-
     fn release(&self) -> Option<&str> {
         Some(&self.attributes.release)
-    }
-
-    fn transaction(&self) -> Option<&str> {
-        None
-    }
-
-    fn url(&self) -> Option<Url> {
-        None
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
@@ -292,42 +231,14 @@ impl Filterable for SessionAggregates {
             parsed: None,
         }
     }
-
-    fn header(&self, _header_name: &str) -> Option<&str> {
-        None
-    }
 }
 
 impl Filterable for OurLog {
-    fn csp(&self) -> Option<&Csp> {
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        None
-    }
-
-    fn ip_addr(&self) -> Option<&str> {
-        None
-    }
-
-    fn logentry(&self) -> Option<&LogEntry> {
-        None
-    }
-
     fn release(&self) -> Option<&str> {
         self.attributes
             .value()?
             .get_value("sentry.release")?
             .as_str()
-    }
-
-    fn transaction(&self) -> Option<&str> {
-        None
-    }
-
-    fn url(&self) -> Option<Url> {
-        None
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
@@ -347,9 +258,5 @@ impl Filterable for OurLog {
         })();
 
         UserAgent { raw: None, parsed }
-    }
-
-    fn header(&self, _header_name: &str) -> Option<&str> {
-        None
     }
 }
