@@ -49,7 +49,7 @@
 <a href=#49 id=49 data-nosnippet>49</a><span class="kw">use </span>relay_base_schema::project::ProjectId;
 <a href=#50 id=50 data-nosnippet>50</a><span class="kw">use </span>relay_dynamic_config::GlobalConfig;
 <a href=#51 id=51 data-nosnippet>51</a><span class="kw">use </span>relay_event_schema::protocol::{Csp, Event, EventId, Exception, LogEntry, Values};
-<a href=#52 id=52 data-nosnippet>52</a><span class="kw">use </span>relay_filter::{Filterable, ProjectFiltersConfig};
+<a href=#52 id=52 data-nosnippet>52</a><span class="kw">use </span>relay_filter::{Filterable, ProjectFiltersConfig, UserAgent};
 <a href=#53 id=53 data-nosnippet>53</a><span class="kw">use </span>relay_protocol::{Getter, Val};
 <a href=#54 id=54 data-nosnippet>54</a><span class="kw">use </span>serde::Deserialize;
 <a href=#55 id=55 data-nosnippet>55</a><span class="kw">use </span>serde_json::Deserializer;
@@ -146,9 +146,9 @@
 <a href=#146 id=146 data-nosnippet>146</a>        <span class="prelude-val">None
 <a href=#147 id=147 data-nosnippet>147</a>    </span>}
 <a href=#148 id=148 data-nosnippet>148</a>
-<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">fn </span>user_agent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-<a href=#150 id=150 data-nosnippet>150</a>        <span class="prelude-val">None
-<a href=#151 id=151 data-nosnippet>151</a>    </span>}
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">fn </span>user_agent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UserAgent&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#150 id=150 data-nosnippet>150</a>        Default::default()
+<a href=#151 id=151 data-nosnippet>151</a>    }
 <a href=#152 id=152 data-nosnippet>152</a>
 <a href=#153 id=153 data-nosnippet>153</a>    <span class="kw">fn </span>header(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
 <a href=#154 id=154 data-nosnippet>154</a>        <span class="prelude-val">None
