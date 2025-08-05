@@ -7,6 +7,28 @@ use relay_event_schema::protocol::{
     Span, Values,
 };
 
+/// A user agent returned from [`Filterable::user_agent`].
+#[derive(Clone, Debug, Default)]
+pub struct UserAgent<'a> {
+    /// The raw, unparsed user agent string, if available.
+    pub raw: Option<&'a str>,
+    /// A already fully parsed user agent, if available.
+    pub parsed: Option<relay_ua::UserAgent<'a>>,
+}
+
+impl<'a> UserAgent<'a> {
+    /// Parses the raw user agent, if it is not already parsed and returns it.
+    pub fn parsed(&mut self) -> Option<&'_ relay_ua::UserAgent<'a>> {
+        match &mut self.parsed {
+            Some(parsed) => Some(parsed),
+            parsed @ None => {
+                *parsed = Some(relay_ua::parse_user_agent(self.raw?));
+                parsed.as_ref()
+            }
+        }
+    }
+}
+
 /// A data item to which filters can be applied.
 pub trait Filterable {
     /// The CSP report contained in the item. Only for CSP reports.
@@ -31,7 +53,7 @@ pub trait Filterable {
     fn url(&self) -> Option<Url>;
 
     /// The user agent of the client that sent the data.
-    fn user_agent(&self) -> Option<&str>;
+    fn user_agent(&self) -> UserAgent<'_>;
 
     /// Retrieves a request headers from the item.
     ///
@@ -79,8 +101,11 @@ impl Filterable for Event {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent()
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.user_agent(),
+            parsed: None,
+        }
     }
 
     fn header(&self, header_name: &str) -> Option<&str> {
@@ -123,8 +148,11 @@ impl Filterable for Replay {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent()
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.user_agent(),
+            parsed: None,
+        }
     }
 
     fn header(&self, header_name: &str) -> Option<&str> {
@@ -169,8 +197,12 @@ impl Filterable for Span {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.data.value()?.user_agent_original.as_str()
+    fn user_agent(&self) -> UserAgent<'_> {
+        let raw = self
+            .data
+            .value()
+            .and_then(|data| data.user_agent_original.as_str());
+        UserAgent { raw, parsed: None }
     }
 
     fn header(&self, _: &str) -> Option<&str> {
@@ -210,8 +242,11 @@ impl Filterable for SessionUpdate {
         None
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.attributes.user_agent.as_deref()
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.attributes.user_agent.as_deref(),
+            parsed: None,
+        }
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {
@@ -251,8 +286,11 @@ impl Filterable for SessionAggregates {
         None
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.attributes.user_agent.as_deref()
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.attributes.user_agent.as_deref(),
+            parsed: None,
+        }
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {
@@ -274,9 +312,6 @@ impl Filterable for OurLog {
     }
 
     fn logentry(&self) -> Option<&LogEntry> {
-        // This is very scoped for errors, but may make sense to also support for logs.
-        //
-        // See <https://github.com/getsentry/relay/issues/5009>.
         None
     }
 
@@ -295,13 +330,23 @@ impl Filterable for OurLog {
         None
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        // Logs currently only store `browser.name` and `browser.version`,
-        // we need to add support to `relay-filter` to either parse from a user agent
-        // or already parsed user agent.
-        //
-        // See <https://github.com/getsentry/relay/issues/5010>.
-        None
+    fn user_agent(&self) -> UserAgent<'_> {
+        let parsed = (|| {
+            let attributes = self.attributes.value()?;
+
+            let family = attributes.get_value("sentry.browser.name")?.as_str()?;
+            let version = attributes.get_value("sentry.browser.version")?.as_str()?;
+            let mut parts = version.splitn(3, '.');
+
+            Some(relay_ua::UserAgent {
+                family: family.into(),
+                major: parts.next().map(Into::into),
+                minor: parts.next().map(Into::into),
+                patch: parts.next().map(Into::into),
+            })
+        })();
+
+        UserAgent { raw: None, parsed }
     }
 
     fn header(&self, _header_name: &str) -> Option<&str> {

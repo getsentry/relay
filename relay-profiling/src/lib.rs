@@ -49,7 +49,7 @@ use url::Url;
 use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::GlobalConfig;
 use relay_event_schema::protocol::{Csp, Event, EventId, Exception, LogEntry, Values};
-use relay_filter::{Filterable, ProjectFiltersConfig};
+use relay_filter::{Filterable, ProjectFiltersConfig, UserAgent};
 use relay_protocol::{Getter, Val};
 use serde::Deserialize;
 use serde_json::Deserializer;
@@ -146,8 +146,8 @@ impl Filterable for MinimalProfile {
         None
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        None
+    fn user_agent(&self) -> UserAgent<'_> {
+        Default::default()
     }
 
     fn header(&self, _: &str) -> Option<&str> {
