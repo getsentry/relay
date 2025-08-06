@@ -78,6 +78,7 @@ impl OutcomeError for Error {
 /// A processor for Logs.
 ///
 /// It processes items of type: [`ItemType::OtelLog`] and [`ItemType::Log`].
+#[derive(Debug)]
 pub struct LogsProcessor {
     limiter: Arc<QuotaRateLimiter>,
 }

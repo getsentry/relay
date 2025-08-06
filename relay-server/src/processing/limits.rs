@@ -1,3 +1,5 @@
+use std::fmt;
+
 use relay_quotas::{ItemScoping, Quota, RateLimits};
 
 use crate::processing::{Context, Counted, Managed, Rejected};
@@ -69,6 +71,12 @@ impl QuotaRateLimiter {
         };
 
         data.enforce(limiter, ctx).await
+    }
+}
+
+impl fmt::Debug for QuotaRateLimiter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("QuotaRateLimiter").finish()
     }
 }
 
