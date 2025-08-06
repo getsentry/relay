@@ -214,7 +214,7 @@ impl Producer {
             return Err(ClientError::MissingTopic);
         };
 
-        let producer_name = &producer.context().producer_name;
+        let producer_name = producer.context().producer_name();
 
         metric!(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
@@ -444,7 +444,7 @@ impl KafkaClientBuilder {
                     .iter()
                     .find(|p| p.name == "client.id")
                     .map(|p| p.value.clone())
-                    .or_else(|| config_name.map(|name| name.to_string()))
+                    .or_else(|| config_name.clone().map(|name| name.to_string()))
                     .unwrap_or_else(|| "unknown".to_string());
 
                 let producer = Arc::new(

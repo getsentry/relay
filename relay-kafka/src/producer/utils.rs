@@ -83,6 +83,10 @@ impl Context {
     pub fn new(producer_name: String) -> Self {
         Self { producer_name }
     }
+
+    pub fn producer_name(&self) -> &str {
+        &self.producer_name
+    }
 }
 
 impl ClientContext for Context {
@@ -106,6 +110,10 @@ impl ClientContext for Context {
         );
         relay_statsd::metric!(
             gauge(KafkaGauges::MessageSizeMax) = statistics.msg_size_max,
+            producer_name = producer_name
+        );
+        relay_statsd::metric!(
+            gauge(KafkaGauges::TxMsgs) = statistics.txmsgs as u64,
             producer_name = producer_name
         );
 
@@ -157,11 +165,6 @@ impl ClientContext for Context {
             }
             relay_statsd::metric!(
                 gauge(KafkaGauges::BrokerTx) = broker.tx as u64,
-                broker_name = &broker.name,
-                producer_name = producer_name
-            );
-            relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerTxMsgs) = broker.txmsgs as u64,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );

@@ -136,6 +136,12 @@ pub enum KafkaGauges {
     /// - `producer_name`: The configured producer name/deployment identifier.
     MessageSizeMax,
 
+    /// The total number of messages transmitted (produced) to all brokers.
+    ///
+    /// This metric is tagged with:
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    TxMsgs,
+
     /// The number of requests awaiting transmission to the broker.
     ///
     /// This metric is tagged with:
@@ -192,13 +198,6 @@ pub enum KafkaGauges {
     /// - `producer_name`: The configured producer name/deployment identifier.
     BrokerTx,
 
-    /// Total number of messages sent to the broker.
-    ///
-    /// This metric is tagged with:
-    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
-    /// - `producer_name`: The configured producer name/deployment identifier.
-    BrokerTxMsgs,
-
     /// Total number of bytes sent to the broker.
     ///
     /// This metric is tagged with:
@@ -215,6 +214,7 @@ impl GaugeMetric for KafkaGauges {
             KafkaGauges::MessageCountMax => "kafka.stats.message_count_max",
             KafkaGauges::MessageSize => "kafka.stats.message_size",
             KafkaGauges::MessageSizeMax => "kafka.stats.message_size_max",
+            KafkaGauges::TxMsgs => "kafka.stats.txmsgs",
             KafkaGauges::OutboundBufferRequests => "kafka.stats.broker.outbuf.requests",
             KafkaGauges::OutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
             KafkaGauges::Connects => "kafka.stats.broker.connects",
@@ -223,7 +223,6 @@ impl GaugeMetric for KafkaGauges {
             KafkaGauges::RequestQueueLatency => "kafka.stats.broker.outbuf_latency",
             KafkaGauges::BrokerRtt => "kafka.stats.broker.rtt",
             KafkaGauges::BrokerTx => "kafka.stats.broker.tx",
-            KafkaGauges::BrokerTxMsgs => "kafka.stats.broker.txmsgs",
             KafkaGauges::BrokerTxBytes => "kafka.stats.broker.txbytes",
         }
     }
