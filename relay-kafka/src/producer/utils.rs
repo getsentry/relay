@@ -164,12 +164,12 @@ impl ClientContext for Context {
                 );
             }
             relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerTx) = broker.tx as u64,
+                gauge(KafkaGauges::BrokerTx) = broker.tx,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
             relay_statsd::metric!(
-                gauge(KafkaGauges::BrokerTxBytes) = broker.txbytes as u64,
+                gauge(KafkaGauges::BrokerTxBytes) = broker.txbytes,
                 broker_name = &broker.name,
                 producer_name = producer_name
             );
