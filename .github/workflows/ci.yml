@@ -451,14 +451,9 @@ jobs:
 
     env:
       PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
-      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
-      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
 
       - uses: actions/download-artifact@v4
         with:
@@ -467,26 +462,14 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        run: |
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
-            --file Dockerfile.release \
-            --push \
-            .
-
-      - name: Build and publish docker artifact
-        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            --file Dockerfile.release \
-            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
-            .
+        uses: getsentry/action-build-and-push-images@7a95ee2424cf3ab7ea99f5d753911546ad6460cc
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "./Dockerfile.release"
+          ghcr: true
+          google_ar: false
+          publish_on_pr: true
 
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
@@ -521,21 +504,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-
-      # Logic taken from: publish-to-gcr
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
-          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
-
-      - name: Configure docker
-        run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev
-
       # Logic taken from: build-docker
       - uses: actions/download-artifact@v4
         with:
@@ -553,14 +521,17 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
-            --file Dockerfile.release \
-            --push \
-            .
+        uses: getsentry/action-build-and-push-images@a97547ab68a7e6c555d57297806727f61a97b177
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "Dockerfile.release"
+          ghcr: false
+          publish_on_pr: true
+          google_ar: true
+          google_ar_image_name: ${{ env.AR_DOCKER_IMAGE }}
+          google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
