@@ -444,7 +444,7 @@ impl KafkaClientBuilder {
                     .iter()
                     .find(|p| p.name == "client.id")
                     .map(|p| p.value.clone())
-                    .or_else(|| config_name.clone().map(|name| name.to_string()))
+                    .or_else(|| config_name.clone())
                     .unwrap_or_else(|| "unknown".to_owned());
 
                 let producer = Arc::new(
