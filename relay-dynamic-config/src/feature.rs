@@ -108,6 +108,9 @@ pub enum Feature {
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
+    /// Enables the experimental Span V2 processing pipeline in Relay.
+    #[serde(rename = "projects:span-v2-experimental-processing")]
+    SpanV2ExperimentalProcessing,
     /// This feature has deprecated and is kept for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction")]
