@@ -218,10 +218,13 @@ impl Producer {
             return Err(ClientError::MissingTopic);
         };
 
+        let producer_name = &producer.context().producer_name;
+
         metric!(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
             variant = variant,
             topic = topic_name,
+            producer_name = producer_name
         );
 
         let mut headers = headers
@@ -242,6 +245,7 @@ impl Producer {
                         counter(KafkaCounters::ProducerPartitionKeyRateLimit) += 1,
                         variant = variant,
                         topic = topic_name,
+                        producer_name = producer_name
                     );
 
                     headers.insert(Header {
@@ -269,7 +273,8 @@ impl Producer {
             metric!(
                 gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
                 variant = variant,
-                topic = topic_name
+                topic = topic_name,
+                producer_name = producer_name
             );
         });
 
@@ -283,7 +288,8 @@ impl Producer {
             metric!(
                 counter(KafkaCounters::ProducerEnqueueError) += 1,
                 variant = variant,
-                topic = topic_name
+                topic = topic_name,
+                producer_name = producer_name
             );
             ClientError::SendFailed(error)
         })?;
@@ -426,9 +432,17 @@ impl KafkaClientBuilder {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
                 }
 
+                // Extract producer name from client.id, fallback to config name, then "unknown"
+                let producer_name = config_params
+                    .iter()
+                    .find(|p| p.name == "client.id")
+                    .map(|p| p.value.clone())
+                    .or_else(|| config_name.map(|name| name.to_string()))
+                    .unwrap_or_else(|| "unknown".to_string());
+
                 let producer = Arc::new(
                     client_config
-                        .create_with_context(Context)
+                        .create_with_context(Context::new(producer_name))
                         .map_err(ClientError::InvalidConfig)?,
                 );
 
