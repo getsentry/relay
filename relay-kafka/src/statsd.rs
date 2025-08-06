@@ -70,7 +70,6 @@ pub enum KafkaCounters {
     /// This metric is tagged with:
     /// - `topic`: The Kafka topic being produced to.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    /// - `error_code`: The specific Kafka error code (when available).
     ProduceStatusError,
 }
 
