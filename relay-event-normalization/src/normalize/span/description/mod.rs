@@ -364,7 +364,7 @@ pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
 /// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), None), "my.domain.com");
 /// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), Some(1919)), "my.domain.com:1919");
 /// ```
-pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<str> {
+pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<'_, str> {
     match (host, port) {
         (None, _) => Cow::Borrowed(""),
         (Some(host), None) => Cow::Borrowed(host),
@@ -502,7 +502,7 @@ fn scrub_resource_filename<'a>(ty: &str, path: &'a str) -> Cow<'a, str> {
     }
 }
 
-fn scrub_resource_segment(segment: &str) -> Cow<str> {
+fn scrub_resource_segment(segment: &str) -> Cow<'_, str> {
     let segment = RESOURCE_NORMALIZER_REGEX.replace_all(segment, "$pre*$post");
 
     // Crude heuristic: treat long segments as idendifiers.

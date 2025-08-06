@@ -136,10 +136,10 @@ impl Processor for TrimmingProcessor {
             return Ok(());
         }
 
-        if let Some(size_state) = self.size_state.last() {
-            if let Some(size_remaining) = size_state.size_remaining {
-                trim_string(value, meta, size_remaining, 0);
-            }
+        if let Some(size_state) = self.size_state.last()
+            && let Some(size_remaining) = size_state.size_remaining
+        {
+            trim_string(value, meta, size_remaining, 0);
         }
 
         Ok(())
@@ -249,11 +249,11 @@ impl Processor for TrimmingProcessor {
 
         match value {
             Value::Array(_) | Value::Object(_) => {
-                if self.remaining_depth(state) == Some(1) {
-                    if let Ok(x) = serde_json::to_string(&value) {
-                        // Error case should not be possible
-                        *value = Value::String(x);
-                    }
+                if self.remaining_depth(state) == Some(1)
+                    && let Ok(x) = serde_json::to_string(&value)
+                {
+                    // Error case should not be possible
+                    *value = Value::String(x);
                 }
             }
             _ => (),
@@ -422,12 +422,12 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
     // TODO: Which annotation to set?
 
     for i in system_frames_to_remove.iter().chain(app_frames_to_remove) {
-        if let Some(frame) = frames.get_mut(*i) {
-            if let Some(ref mut frame) = frame.value_mut().as_mut() {
-                frame.vars = Annotated::empty();
-                frame.pre_context = Annotated::empty();
-                frame.post_context = Annotated::empty();
-            }
+        if let Some(frame) = frames.get_mut(*i)
+            && let Some(ref mut frame) = frame.value_mut().as_mut()
+        {
+            frame.vars = Annotated::empty();
+            frame.pre_context = Annotated::empty();
+            frame.post_context = Annotated::empty();
         }
     }
 }

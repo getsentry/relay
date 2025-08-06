@@ -71,6 +71,23 @@ pub fn to_pii_config(
             SENSITIVE_COOKIES.clone(),
             vec!["@anything:filter".to_owned()],
         );
+
+        let logentry_selector: SelectorSpec = SelectorSpec::Path(vec![
+            SelectorPathItem::Type(ValueType::LogEntry),
+            SelectorPathItem::Key("formatted".to_owned()),
+        ]);
+
+        // Apply smart scrubbing rules only to logentry.formatted
+        applications.insert(
+            logentry_selector,
+            vec![
+                "@email:replace".to_owned(),
+                "@creditcard:replace".to_owned(),
+                "@iban:replace".to_owned(),
+                "@usssn:replace".to_owned(),
+                "@bearer:replace".to_owned(),
+            ],
+        );
     }
 
     if datascrubbing_config.scrub_ip_addresses {
@@ -282,7 +299,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_default_pii_config() {
-        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
+        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r#"
         {
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
@@ -294,10 +311,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer:replace"
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -307,7 +331,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
@@ -319,10 +343,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer:replace"
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -332,7 +363,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
             "strip-fields": {
@@ -355,10 +386,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer:replace"
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -368,7 +406,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) && !foobar": [
@@ -380,10 +418,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer:replace"
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -395,7 +440,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..Default::default()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "applications": {
             "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
@@ -406,7 +451,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1271,7 +1316,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r###"
+        insta::assert_json_snapshot!(pii_config, @r#"
         {
           "rules": {
             "strip-fields": {
@@ -1294,10 +1339,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
               "@anything:filter"
+            ],
+            "$logentry.formatted": [
+              "@email:replace",
+              "@creditcard:replace",
+              "@iban:replace",
+              "@usssn:replace",
+              "@bearer:replace"
             ]
           }
         }
-        "###);
+        "#);
 
         let pii_config = pii_config.unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());

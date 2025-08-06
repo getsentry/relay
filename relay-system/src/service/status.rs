@@ -56,10 +56,10 @@ impl Future for ServiceJoinHandle {
     type Output = Result<(), ServiceError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(fut) = &mut self.fut {
-            if let Ok(()) = futures::ready!(fut.poll_unpin(cx)) {
-                return Poll::Ready(Ok(()));
-            }
+        if let Some(fut) = &mut self.fut
+            && let Ok(()) = futures::ready!(fut.poll_unpin(cx))
+        {
+            return Poll::Ready(Ok(()));
         }
         self.fut = None;
 

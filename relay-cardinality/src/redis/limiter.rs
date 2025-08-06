@@ -517,7 +517,7 @@ mod tests {
         };
 
         let rejected = limiter
-            .test_limits(scoping, &[limit.clone()], entries)
+            .test_limits(scoping, std::slice::from_ref(&limit), entries)
             .await;
         assert_eq!(rejected.len(), 2);
         assert!(rejected.contains_any([0, 1, 2]));
@@ -580,7 +580,7 @@ mod tests {
         };
 
         let rejected = limiter
-            .test_limits(scoping, &[limit.clone()], entries)
+            .test_limits(scoping, std::slice::from_ref(&limit), entries)
             .await;
         assert_eq!(rejected.len(), 2);
         assert!(rejected.contains_any([0, 1, 2]));

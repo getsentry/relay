@@ -44,7 +44,7 @@ use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
-use crate::extractors::{PartialDsn, RequestMeta};
+use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -552,8 +552,6 @@ pub enum ProcessingError {
     ProcessingGroupMismatch,
     #[error("new processing pipeline failed")]
     ProcessingFailure,
-    #[error("failed to serialize processing result to an envelope")]
-    ProcessingEnvelopeSerialization,
 }
 
 impl ProcessingError {
@@ -599,9 +597,6 @@ impl ProcessingError {
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
             // Outcomes are emitted in the new processing pipeline already.
             Self::ProcessingFailure => None,
-            Self::ProcessingEnvelopeSerialization => {
-                Some(Outcome::Invalid(DiscardReason::Internal))
-            }
         }
     }
 
@@ -829,7 +824,7 @@ struct EventFullyNormalized(bool);
 impl EventFullyNormalized {
     /// Returns `true` if the event is fully normalized, `false` otherwise.
     pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
             && envelope
                 .items()
                 .any(|item| item.creates_event() && item.fully_normalized());
@@ -1040,11 +1035,11 @@ pub enum BucketSource {
 }
 
 impl BucketSource {
-    /// Infers the bucket source from [`RequestMeta::is_from_internal_relay`].
+    /// Infers the bucket source from [`RequestMeta::request_trust`].
     pub fn from_meta(meta: &RequestMeta) -> Self {
-        match meta.is_from_internal_relay() {
-            true => Self::Internal,
-            false => Self::External,
+        match meta.request_trust() {
+            RequestTrust::Trusted => Self::Internal,
+            RequestTrust::Untrusted => Self::External,
         }
     }
 }
@@ -1432,7 +1427,6 @@ impl EnvelopeProcessorService {
 
         // If spans were already extracted for an event, we rely on span processing to extract metrics.
         let extract_spans = !spans_extracted.0
-            && project_info.config.features.produces_spans()
             && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0)).is_keep();
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
@@ -1754,15 +1748,13 @@ impl EnvelopeProcessorService {
 
         transaction::drop_invalid_items(managed_envelope, &global_config);
 
-        relay_cogs::with!(cogs, "event_extract", {
-            // We extract the main event from the envelope.
-            let extraction_result = event::extract(
-                managed_envelope,
-                &mut metrics,
-                event_fully_normalized,
-                &self.inner.config,
-            )?;
-        });
+        // We extract the main event from the envelope.
+        let extraction_result = event::extract(
+            managed_envelope,
+            &mut metrics,
+            event_fully_normalized,
+            &self.inner.config,
+        )?;
 
         // If metrics were extracted we mark that.
         if let Some(inner_event_metrics_extracted) = extraction_result.event_metrics_extracted {
@@ -1775,53 +1767,43 @@ impl EnvelopeProcessorService {
         // We take the main event out of the result.
         let mut event = extraction_result.event;
 
-        relay_cogs::with!(cogs, "profile_filter", {
-            let profile_id = profile::filter(
-                managed_envelope,
-                &event,
-                config.clone(),
-                project_id,
-                &project_info,
-            );
-            profile::transfer_id(&mut event, profile_id);
-        });
+        let profile_id = profile::filter(
+            managed_envelope,
+            &event,
+            config.clone(),
+            project_id,
+            &project_info,
+        );
+        profile::transfer_id(&mut event, profile_id);
 
-        relay_cogs::with!(cogs, "dynamic_sampling_dsc", {
-            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-                managed_envelope,
-                &mut event,
-                project_info.clone(),
-                sampling_project_info,
-            );
-        });
+        sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+            managed_envelope,
+            &mut event,
+            project_info.clone(),
+            sampling_project_info,
+        );
 
-        relay_cogs::with!(cogs, "event_finalize", {
-            event::finalize(
-                managed_envelope,
-                &mut event,
-                &mut metrics,
-                &self.inner.config,
-            )?;
-        });
+        event::finalize(
+            managed_envelope,
+            &mut event,
+            &mut metrics,
+            &self.inner.config,
+        )?;
 
-        relay_cogs::with!(cogs, "event_normalize", {
-            event_fully_normalized = self.normalize_event(
-                managed_envelope,
-                &mut event,
-                project_id,
-                project_info.clone(),
-                event_fully_normalized,
-            )?;
-        });
+        event_fully_normalized = self.normalize_event(
+            managed_envelope,
+            &mut event,
+            project_id,
+            project_info.clone(),
+            event_fully_normalized,
+        )?;
 
-        relay_cogs::with!(cogs, "filter", {
-            let filter_run = event::filter(
-                managed_envelope,
-                &mut event,
-                project_info.clone(),
-                &self.inner.global_config.current(),
-            )?;
-        });
+        let filter_run = event::filter(
+            managed_envelope,
+            &mut event,
+            project_info.clone(),
+            &self.inner.global_config.current(),
+        )?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
@@ -1833,22 +1815,20 @@ impl EnvelopeProcessorService {
             reservoir_counters,
         );
 
-        relay_cogs::with!(cogs, "dynamic_sampling_run", {
-            let sampling_result = match run_dynamic_sampling {
-                true => {
-                    dynamic_sampling::run(
-                        managed_envelope,
-                        &mut event,
-                        config.clone(),
-                        project_info.clone(),
-                        sampling_project_info,
-                        &reservoir,
-                    )
-                    .await
-                }
-                false => SamplingResult::Pending,
-            };
-        });
+        let sampling_result = match run_dynamic_sampling {
+            true => {
+                dynamic_sampling::run(
+                    managed_envelope,
+                    &mut event,
+                    config.clone(),
+                    project_info.clone(),
+                    sampling_project_info,
+                    &reservoir,
+                )
+                .await
+            }
+            false => SamplingResult::Pending,
+        };
 
         #[cfg(feature = "processing")]
         let server_sample_rate = match sampling_result {
@@ -2462,9 +2442,6 @@ impl EnvelopeProcessorService {
         let project_key = envelope.envelope().meta().public_key();
         let sampling_key = envelope.envelope().sampling_key();
 
-        let has_ourlogs_new_byte_count =
-            project_info.has_feature(Feature::OurLogsCalculatedByteCount);
-
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
         relay_log::configure_scope(|scope| {
@@ -2517,16 +2494,7 @@ impl EnvelopeProcessorService {
                     &self.inner.addrs.aggregator,
                 );
 
-                if has_ourlogs_new_byte_count {
-                    Ok(Some(Submit::Logs(main)))
-                } else {
-                    let envelope = main
-                        .serialize_envelope()
-                        .map_err(|_| ProcessingError::ProcessingEnvelopeSerialization)?;
-                    let managed_envelope = ManagedEnvelope::from(envelope);
-
-                    Ok(Some(Submit::Envelope(managed_envelope.into_processed())))
-                }
+                Ok(Some(Submit::Logs(main)))
             }
             Err(err) => Err(err),
         };
@@ -2702,16 +2670,16 @@ impl EnvelopeProcessorService {
         let _submit = cogs.start_category("submit");
 
         #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled() {
-            if let Some(store_forwarder) = &self.inner.addrs.store_forwarder {
-                match submit {
-                    Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
-                    Submit::Logs(output) => output
-                        .forward_store(store_forwarder)
-                        .unwrap_or_else(|err| err.into_inner()),
-                }
-                return;
+        if self.inner.config.processing_enabled()
+            && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
+        {
+            match submit {
+                Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
+                Submit::Logs(output) => output
+                    .forward_store(store_forwarder)
+                    .unwrap_or_else(|err| err.into_inner()),
             }
+            return;
         }
 
         let mut envelope = match submit {
@@ -2724,6 +2692,11 @@ impl EnvelopeProcessorService {
                 }
             },
         };
+
+        if envelope.envelope_mut().is_empty() {
+            envelope.accept();
+            return;
+        }
 
         // If we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.inner.config) {
@@ -3274,12 +3247,12 @@ impl EnvelopeProcessorService {
         }
 
         #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled() {
-            if let Some(ref store_forwarder) = self.inner.addrs.store_forwarder {
-                return self
-                    .encode_metrics_processing(message, store_forwarder)
-                    .await;
-            }
+        if self.inner.config.processing_enabled()
+            && let Some(ref store_forwarder) = self.inner.addrs.store_forwarder
+        {
+            return self
+                .encode_metrics_processing(message, store_forwarder)
+                .await;
         }
 
         if self.inner.config.http_global_metrics() {
@@ -3348,7 +3321,7 @@ impl EnvelopeProcessorService {
         &self,
         _organization_id: OrganizationId,
         reservoir_counters: ReservoirCounters,
-    ) -> ReservoirEvaluator {
+    ) -> ReservoirEvaluator<'_> {
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
 

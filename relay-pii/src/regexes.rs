@@ -60,8 +60,16 @@ pub fn get_regex_for_rule_type(
                 smallvec![]
             }
         }
+        RuleType::Bearer => {
+            smallvec![(v, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match())]
+        }
         RuleType::Password => {
-            smallvec![(kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value())]
+            smallvec![
+                // Bearer token was moved to its own regest and type out of the passwords, but we
+                // still keep it here for backwards compatibility.
+                (v, &*BEARER_TOKEN_REGEX, ReplaceBehavior::replace_match()),
+                (kv, &*PASSWORD_KEY_REGEX, ReplaceBehavior::replace_value()),
+            ]
         }
         RuleType::Anything => smallvec![(v, &*ANYTHING_REGEX, ReplaceBehavior::replace_match())],
         RuleType::Pattern(r) => {
@@ -324,9 +332,11 @@ regex!(
     "
 );
 
+regex!(BEARER_TOKEN_REGEX, r"(?i)\b(Bearer\s+)([^\s]+)");
+
 regex!(
     PASSWORD_KEY_REGEX,
-    r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token|bearer)"
+    r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token)"
 );
 
 #[cfg(test)]

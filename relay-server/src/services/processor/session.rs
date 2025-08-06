@@ -99,23 +99,23 @@ fn validate_attributes(
         return Err(());
     }
 
-    if let Some(ref env) = attributes.environment {
-        if let Err(e) = relay_event_normalization::validate_environment(env) {
-            relay_log::trace!(
-                error = &e as &dyn Error,
-                env,
-                "removing invalid environment"
-            );
-            attributes.environment = None;
-            changed = true;
-        }
+    if let Some(ref env) = attributes.environment
+        && let Err(e) = relay_event_normalization::validate_environment(env)
+    {
+        relay_log::trace!(
+            error = &e as &dyn Error,
+            env,
+            "removing invalid environment"
+        );
+        attributes.environment = None;
+        changed = true;
     }
 
-    if let Some(ref ip_address) = attributes.ip_address {
-        if ip_address.is_auto() {
-            attributes.ip_address = client_addr.map(IpAddr::from);
-            changed = true;
-        }
+    if let Some(ref ip_address) = attributes.ip_address
+        && ip_address.is_auto()
+    {
+        attributes.ip_address = client_addr.map(IpAddr::from);
+        changed = true;
     }
 
     Ok(changed)

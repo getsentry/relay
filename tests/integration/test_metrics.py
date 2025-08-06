@@ -791,17 +791,11 @@ def test_transaction_metrics(
 
     def assert_transaction():
         event, _ = transactions_consumer.get_event()
-        if with_external_relay:
-            # there is some rounding error while serializing/deserializing
-            # timestamps... haven't investigated too closely
-            span_time = 9.910107
-        else:
-            span_time = 9.910106
 
         assert event["breakdowns"] == {
             "span_ops": {
-                "ops.react.mount": {"value": span_time, "unit": "millisecond"},
-                "total.time": {"value": span_time, "unit": "millisecond"},
+                "ops.react.mount": {"value": 9.91, "unit": "millisecond"},
+                "total.time": {"value": 9.91, "unit": "millisecond"},
             }
         }
 
@@ -866,7 +860,7 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
         "type": "d",
-        "value": [9.910106, 9.910106],
+        "value": [9.91, 9.91],
     }
     assert metrics["c:transactions/count_per_root_project@none"] == {
         "timestamp": time_after(timestamp),
@@ -1024,7 +1018,7 @@ def test_transaction_metrics_extraction_external_relays(
         assert len(metrics_envelope.items) == 1
 
         payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(payload) == 4
+        assert len(payload) == 6
 
         by_name = {m["name"]: m for m in payload}
         light_metric = by_name["d:transactions/duration_light@millisecond"]
@@ -1087,7 +1081,7 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 4, timeout=3)
+        metrics = metrics_by_name(metrics_consumer, 6, timeout=3)
         metric_usage = metrics["c:transactions/usage@none"]
         assert metric_usage["tags"] == {}
         assert metric_usage["value"] == 1.0
@@ -1332,19 +1326,21 @@ def test_limit_custom_measurements(
     event, _ = transactions_consumer.get_event()
     assert len(event["measurements"]) == 2
 
-    # Expect exactly 5 metrics:
-    # (transaction.duration, transaction.duration_light, transactions.count_per_root_project, 1 builtin, 1 custom)
-    metrics = metrics_by_name(metrics_consumer, 6)
-    metrics.pop("headers")
-
-    assert metrics.keys() == {
+    expected_metrics = {
         "c:transactions/usage@none",
         "d:transactions/duration@millisecond",
         "d:transactions/duration_light@millisecond",
         "c:transactions/count_per_root_project@none",
         "d:transactions/measurements.foo@none",
         "d:transactions/measurements.bar@none",
+        "c:spans/usage@none",
+        "c:spans/count_per_root_project@none",
     }
+
+    metrics = metrics_by_name(metrics_consumer, len(expected_metrics))
+    metrics.pop("headers")
+
+    assert metrics.keys() == expected_metrics
 
 
 @pytest.mark.parametrize("has_measurements_config", [True, False])
@@ -1856,7 +1852,7 @@ def test_metrics_extraction_with_computed_context_filters(
     ]
 
     # Verify that all three metrics were extracted
-    metrics = metrics_by_name(metrics_consumer, 7)
+    metrics = metrics_by_name(metrics_consumer, 9)
 
     # Check each extracted metric
     for metric_name in metric_names:

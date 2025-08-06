@@ -154,10 +154,10 @@ fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>
     if let Cow::Owned(s) = NORMALIZER_REGEX.replace_all(&string, "$pre%s") {
         string = Cow::Owned(s);
     }
-    if db_system == Some("mysql") {
-        if let Cow::Owned(s) = DOUBLE_QUOTED_STRING_REGEX.replace_all(&string, "%s") {
-            string = Cow::Owned(s);
-        }
+    if db_system == Some("mysql")
+        && let Cow::Owned(s) = DOUBLE_QUOTED_STRING_REGEX.replace_all(&string, "%s")
+    {
+        string = Cow::Owned(s);
     }
     if let Cow::Owned(s) = WHITESPACE.replace_all(&string, " ") {
         string = Cow::Owned(s);

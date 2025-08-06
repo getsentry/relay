@@ -13,6 +13,7 @@ enum ImageType {
     Symbolic,
     Sourcemap,
     Proguard,
+    Jvm,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]

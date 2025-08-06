@@ -101,7 +101,7 @@ pub struct Glob {
 
 impl Glob {
     /// Creates the [`GlobBuilder`], which can be fine-tunned using helper methods.
-    pub fn builder(glob: &'_ str) -> GlobBuilder {
+    pub fn builder(glob: &str) -> GlobBuilder<'_> {
         GlobBuilder::new(glob)
     }
 

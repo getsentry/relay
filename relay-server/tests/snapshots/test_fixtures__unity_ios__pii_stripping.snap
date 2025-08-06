@@ -170,6 +170,7 @@ expression: SerializableAnnotated(& event)
       "type": "gpu"
     },
     "os": {
+      "os": "Mac OS X 10.16.0",
       "name": "Mac OS X 10.16.0",
       "type": "os"
     },

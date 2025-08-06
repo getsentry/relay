@@ -1179,6 +1179,7 @@ dependencies = [
  "ed25519",
  "serde",
  "sha2",
+ "signature",
  "subtle",
  "zeroize",
 ]
@@ -4146,6 +4147,7 @@ dependencies = [
  "relay-log",
  "relay-protocol",
  "relay-redis",
+ "relay-statsd",
  "serde",
  "serde_json",
  "similar-asserts",

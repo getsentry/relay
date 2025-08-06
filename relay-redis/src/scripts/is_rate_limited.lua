@@ -32,6 +32,7 @@ assert(#KEYS % 2 == 0, "there must be 2 keys per quota")
 assert(#ARGV % 4 == 0, "there must be 4 args per quota")
 assert(#KEYS / 2 == #ARGV / 4, "incorrect number of keys and arguments provided")
 
+local all_values = redis.call('MGET', unpack(KEYS))
 
 local results = {}
 local failed = false
@@ -46,9 +47,11 @@ for i=0, num_quotas - 1 do
     local rejected = false
     -- limit=-1 means "no limit"
     if limit >= 0 then
-        local consumed = (redis.call('GET', KEYS[k]) or 0) - (redis.call('GET', KEYS[k + 1]) or 0)
+        local main_value = all_values[k] or 0
+        local refund_value = all_values[k + 1] or 0
+        local consumed = main_value - refund_value
         -- Without over_accept_once, we never increment past the limit. if quantity is 0, check instead if we reached limit.
-        -- With over_accept_once, we only reject if the previous update already reached the limit. 
+        -- With over_accept_once, we only reject if the previous update already reached the limit.
         -- This way, we ensure that we increment to or past the limit at some point,
         -- such that subsequent checks with quantity=0 are actually rejected.
         --
@@ -71,9 +74,14 @@ if not failed then
         local k = i * 2 + 1
         local v = i * 4 + 1
 
-        if tonumber(ARGV[v + 2]) > 0 then
-            redis.call('INCRBY', KEYS[k], ARGV[v + 2])
-            redis.call('EXPIREAT', KEYS[k], ARGV[v + 1])
+        local quantity = tonumber(ARGV[v + 2])
+        local expiry = ARGV[v + 1]
+
+        if quantity > 0 then
+            if redis.call('INCRBY', KEYS[k], quantity) == quantity then
+                -- Only expire on the first invocation of `INCRBY`.
+                redis.call('EXPIREAT', KEYS[k], expiry)
+            end
         end
     end
 end

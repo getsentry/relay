@@ -46,16 +46,16 @@ pub fn normalize_user_agent_info_generic(
     platform: &Annotated<String>,
     user_agent_info: &RawUserAgentInfo<&str>,
 ) {
-    if !contexts.contains::<BrowserContext>() {
-        if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
-            contexts.add(browser_context);
-        }
+    if !contexts.contains::<BrowserContext>()
+        && let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info)
+    {
+        contexts.add(browser_context);
     }
 
-    if !contexts.contains::<DeviceContext>() {
-        if let Some(device_context) = DeviceContext::from_hints_or_ua(user_agent_info) {
-            contexts.add(device_context);
-        }
+    if !contexts.contains::<DeviceContext>()
+        && let Some(device_context) = DeviceContext::from_hints_or_ua(user_agent_info)
+    {
+        contexts.add(device_context);
     }
 
     // avoid conflicts with OS-context sent by a serverside SDK by using `contexts.client_os`
@@ -69,10 +69,10 @@ pub fn normalize_user_agent_info_generic(
         _ => "client_os",
     };
 
-    if !contexts.contains_key(os_context_key) {
-        if let Some(os_context) = OsContext::from_hints_or_ua(user_agent_info) {
-            contexts.insert(os_context_key.to_owned(), Context::Os(Box::new(os_context)));
-        }
+    if !contexts.contains_key(os_context_key)
+        && let Some(os_context) = OsContext::from_hints_or_ua(user_agent_info)
+    {
+        contexts.insert(os_context_key.to_owned(), Context::Os(Box::new(os_context)));
     }
 }
 
@@ -131,10 +131,10 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
     /// This function does not overwrite any pre-existing headers.
     pub fn populate_event_headers(&self, headers: &mut Headers) {
         let mut insert_header = |key: &str, val: Option<&S>| {
-            if let Some(val) = val {
-                if !headers.contains(key) {
-                    headers.insert(HeaderName::new(key), Annotated::new(HeaderValue::new(val)));
-                }
+            if let Some(val) = val
+                && !headers.contains(key)
+            {
+                headers.insert(HeaderName::new(key), Annotated::new(HeaderValue::new(val)));
             }
         };
 
@@ -182,10 +182,10 @@ impl<'a> RawUserAgentInfo<&'a str> {
         let mut contexts: RawUserAgentInfo<&str> = Self::default();
 
         for item in headers.iter() {
-            if let Some((o_k, v)) = item.value() {
-                if let Some(k) = o_k.as_str() {
-                    contexts.set_ua_field_from_header(k, v.as_str());
-                }
+            if let Some((o_k, v)) = item.value()
+                && let Some(k) = o_k.as_str()
+            {
+                contexts.set_ua_field_from_header(k, v.as_str());
             }
         }
         contexts
@@ -437,17 +437,16 @@ impl FromUserAgentInfo for OsContext {
         // Since user-agent strings freeze the OS-version at windows 10 and mac os 10.15.7,
         // we will indicate that the version may in reality be higher.
         if name == "Windows" {
-            if let Some(v) = version.as_mut() {
-                if v == "10" {
-                    v.insert_str(0, ">=");
-                }
+            if let Some(v) = version.as_mut()
+                && v == "10"
+            {
+                v.insert_str(0, ">=");
             }
-        } else if name == "Mac OS X" {
-            if let Some(v) = version.as_mut() {
-                if v == "10.15.7" {
-                    v.insert_str(0, ">=");
-                }
-            }
+        } else if name == "Mac OS X"
+            && let Some(v) = version.as_mut()
+            && v == "10.15.7"
+        {
+            v.insert_str(0, ">=");
         }
 
         Some(Self {

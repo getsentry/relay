@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
+use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -482,8 +483,31 @@ impl CachedRateLimits {
 
         let mut inner = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         let current = Arc::make_mut(&mut inner);
-        for limit in limits {
-            current.add(limit)
+        for mut limit in limits {
+            // To spice it up, we do have some special casing here for 'inherited categories',
+            // e.g. spans and transactions.
+            //
+            // The tldr; is, as transactions are just containers for spans,
+            // we can enforce span limits on transactions but also vice versa.
+            //
+            // So this is largely an enforcement problem, but since Relay propagates
+            // rate limits to clients, we clone the limits with the inherited category.
+            // This ensures old SDKs rate limit correctly, but also it simplifies client
+            // implementations. Only Relay needs to make this decision.
+            for i in 0..limit.categories.len() {
+                let Some(category) = limit.categories.get(i) else {
+                    debug_assert!(false, "logical error");
+                    break;
+                };
+
+                for inherited in inherited_categories(category) {
+                    if !limit.categories.contains(inherited) {
+                        limit.categories.push(*inherited);
+                    }
+                }
+            }
+
+            current.add(limit);
         }
     }
 
@@ -496,6 +520,23 @@ impl CachedRateLimits {
         let mut inner = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         Arc::make_mut(&mut inner).clean_expired(now);
         Arc::clone(&inner)
+    }
+}
+
+/// Returns inherited rate limit categories for the passed category.
+///
+/// When a rate limit for a category can also be enforced in a different category,
+/// then it's an inherited category.
+///
+/// For example, a transaction rate limit can also be applied to spans and vice versa.
+///
+/// For a detailed explanation on span/transaction enforcement see:
+/// <https://develop.sentry.dev/ingestion/relay/transaction-span-ratelimits/>.
+fn inherited_categories(category: &DataCategory) -> &'static [DataCategory] {
+    match category {
+        DataCategory::Transaction => &[DataCategory::Span],
+        DataCategory::Span => &[DataCategory::Transaction],
+        _ => &[],
     }
 }
 

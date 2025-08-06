@@ -361,13 +361,13 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
-    if let Some(contexts) = event.contexts.value_mut() {
-        if let Some(replay_id) = replay_id {
-            contexts.add(ReplayContext {
-                replay_id: Annotated::new(EventId(replay_id)),
-                other: Object::default(),
-            });
-        }
+    if let Some(contexts) = event.contexts.value_mut()
+        && let Some(replay_id) = replay_id
+    {
+        contexts.add(ReplayContext {
+            replay_id: Annotated::new(EventId(replay_id)),
+            other: Object::default(),
+        });
     }
 }
 
@@ -472,11 +472,9 @@ pub fn normalize_ip_addresses(
         None => matches!(infer_ip, AutoInferSetting::Auto),
     };
 
-    if should_be_inferred {
-        if let Some(ip) = inferred_ip {
-            let user = user.get_or_insert_with(User::default);
-            user.ip_address.set_value(Some(ip.to_owned()));
-        }
+    if should_be_inferred && let Some(ip) = inferred_ip {
+        let user = user.get_or_insert_with(User::default);
+        user.ip_address.set_value(Some(ip.to_owned()));
     }
 
     // Legacy behaviour:
@@ -523,10 +521,9 @@ pub fn normalize_user_geoinfo(
         .value()
         .filter(|ip| !ip.is_auto())
         .or(ip_addr)
+        && let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str())
     {
-        if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
-            user.geo.set_value(Some(geo));
-        }
+        user.geo.set_value(Some(geo));
     }
 }
 
@@ -705,10 +702,10 @@ fn normalize_device_class(event: &mut Event) {
     let tag_name = "device.class".to_owned();
     // Remove any existing device.class tag set by the client, since this should only be set by relay.
     tags.remove("device.class");
-    if let Some(contexts) = event.contexts.value() {
-        if let Some(device_class) = DeviceClass::from_contexts(contexts) {
-            tags.insert(tag_name, Annotated::new(device_class.to_string()));
-        }
+    if let Some(contexts) = event.contexts.value()
+        && let Some(device_class) = DeviceClass::from_contexts(contexts)
+    {
+        tags.insert(tag_name, Annotated::new(device_class.to_string()));
     }
 }
 
@@ -773,31 +770,31 @@ fn normalize_thread_stacktraces(event: &mut Event) {
 fn normalize_exceptions(event: &mut Event) {
     let os_hint = mechanism::OsHint::from_event(event);
 
-    if let Some(exception_values) = event.exceptions.value_mut() {
-        if let Some(exceptions) = exception_values.values.value_mut() {
-            if exceptions.len() == 1 && event.stacktrace.value().is_some() {
-                if let Some(exception) = exceptions.get_mut(0) {
-                    if let Some(exception) = exception.value_mut() {
-                        mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
-                        event.stacktrace = Annotated::empty();
-                    }
-                }
-            }
+    if let Some(exception_values) = event.exceptions.value_mut()
+        && let Some(exceptions) = exception_values.values.value_mut()
+    {
+        if exceptions.len() == 1
+            && event.stacktrace.value().is_some()
+            && let Some(exception) = exceptions.get_mut(0)
+            && let Some(exception) = exception.value_mut()
+        {
+            mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
+            event.stacktrace = Annotated::empty();
+        }
 
-            // Exception mechanism needs SDK information to resolve proper names in
-            // exception meta (such as signal names). "SDK Information" really means
-            // the operating system version the event was generated on. Some
-            // normalization still works without sdk_info, such as mach_exception
-            // names (they can only occur on macOS).
-            //
-            // We also want to validate some other aspects of it.
-            for exception in exceptions {
-                normalize_exception(exception);
-                if let Some(exception) = exception.value_mut() {
-                    if let Some(mechanism) = exception.mechanism.value_mut() {
-                        mechanism::normalize_mechanism(mechanism, os_hint);
-                    }
-                }
+        // Exception mechanism needs SDK information to resolve proper names in
+        // exception meta (such as signal names). "SDK Information" really means
+        // the operating system version the event was generated on. Some
+        // normalization still works without sdk_info, such as mach_exception
+        // names (they can only occur on macOS).
+        //
+        // We also want to validate some other aspects of it.
+        for exception in exceptions {
+            normalize_exception(exception);
+            if let Some(exception) = exception.value_mut()
+                && let Some(mechanism) = exception.mechanism.value_mut()
+            {
+                mechanism::normalize_mechanism(mechanism, os_hint);
             }
         }
     }
@@ -808,16 +805,16 @@ fn normalize_exception(exception: &mut Annotated<Exception>) {
     let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
 
     let _ = processor::apply(exception, |exception, meta| {
-        if exception.ty.value().is_empty() {
-            if let Some(value_str) = exception.value.value_mut() {
-                let new_values = regex
-                    .captures(value_str)
-                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_owned().into()));
+        if exception.ty.value().is_empty()
+            && let Some(value_str) = exception.value.value_mut()
+        {
+            let new_values = regex
+                .captures(value_str)
+                .map(|cap| (cap[1].to_string(), cap[2].trim().to_owned().into()));
 
-                if let Some((new_type, new_value)) = new_values {
-                    exception.ty.set_value(Some(new_type));
-                    *value_str = new_value;
-                }
+            if let Some((new_type, new_value)) = new_values {
+                exception.ty.set_value(Some(new_type));
+                *value_str = new_value;
             }
         }
 
@@ -1004,33 +1001,32 @@ pub fn normalize_performance_score(
 // Extracts lcp related tags from the trace context.
 fn normalize_trace_context_tags(event: &mut Event) {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
-    if let Some(contexts) = event.contexts.value() {
-        if let Some(trace_context) = contexts.get::<TraceContext>() {
-            if let Some(data) = trace_context.data.value() {
-                if let Some(lcp_element) = data.lcp_element.value() {
-                    if !tags.contains("lcp.element") {
-                        let tag_name = "lcp.element".to_owned();
-                        tags.insert(tag_name, Annotated::new(lcp_element.clone()));
-                    }
-                }
-                if let Some(lcp_size) = data.lcp_size.value() {
-                    if !tags.contains("lcp.size") {
-                        let tag_name = "lcp.size".to_owned();
-                        tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
-                    }
-                }
-                if let Some(lcp_id) = data.lcp_id.value() {
-                    let tag_name = "lcp.id".to_owned();
-                    if !tags.contains("lcp.id") {
-                        tags.insert(tag_name, Annotated::new(lcp_id.clone()));
-                    }
-                }
-                if let Some(lcp_url) = data.lcp_url.value() {
-                    let tag_name = "lcp.url".to_owned();
-                    if !tags.contains("lcp.url") {
-                        tags.insert(tag_name, Annotated::new(lcp_url.clone()));
-                    }
-                }
+    if let Some(contexts) = event.contexts.value()
+        && let Some(trace_context) = contexts.get::<TraceContext>()
+        && let Some(data) = trace_context.data.value()
+    {
+        if let Some(lcp_element) = data.lcp_element.value()
+            && !tags.contains("lcp.element")
+        {
+            let tag_name = "lcp.element".to_owned();
+            tags.insert(tag_name, Annotated::new(lcp_element.clone()));
+        }
+        if let Some(lcp_size) = data.lcp_size.value()
+            && !tags.contains("lcp.size")
+        {
+            let tag_name = "lcp.size".to_owned();
+            tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
+        }
+        if let Some(lcp_id) = data.lcp_id.value() {
+            let tag_name = "lcp.id".to_owned();
+            if !tags.contains("lcp.id") {
+                tags.insert(tag_name, Annotated::new(lcp_id.clone()));
+            }
+        }
+        if let Some(lcp_url) = data.lcp_url.value() {
+            let tag_name = "lcp.url".to_owned();
+            if !tags.contains("lcp.url") {
+                tags.insert(tag_name, Annotated::new(lcp_url.clone()));
             }
         }
     }
@@ -1061,48 +1057,43 @@ fn compute_measurements(
     transaction_duration_ms: Option<FiniteF64>,
     measurements: &mut Measurements,
 ) {
-    if let Some(frames_total) = measurements.get_value("frames_total") {
-        if frames_total > 0.0 {
-            if let Some(frames_frozen) = measurements.get_value("frames_frozen") {
-                let frames_frozen_rate = Measurement {
-                    value: (frames_frozen / frames_total).into(),
-                    unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                };
-                measurements.insert("frames_frozen_rate".to_owned(), frames_frozen_rate.into());
-            }
-            if let Some(frames_slow) = measurements.get_value("frames_slow") {
-                let frames_slow_rate = Measurement {
-                    value: (frames_slow / frames_total).into(),
-                    unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
-                };
-                measurements.insert("frames_slow_rate".to_owned(), frames_slow_rate.into());
-            }
+    if let Some(frames_total) = measurements.get_value("frames_total")
+        && frames_total > 0.0
+    {
+        if let Some(frames_frozen) = measurements.get_value("frames_frozen") {
+            let frames_frozen_rate = Measurement {
+                value: (frames_frozen / frames_total).into(),
+                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+            };
+            measurements.insert("frames_frozen_rate".to_owned(), frames_frozen_rate.into());
+        }
+        if let Some(frames_slow) = measurements.get_value("frames_slow") {
+            let frames_slow_rate = Measurement {
+                value: (frames_slow / frames_total).into(),
+                unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
+            };
+            measurements.insert("frames_slow_rate".to_owned(), frames_slow_rate.into());
         }
     }
 
     // Get stall_percentage
-    if let Some(transaction_duration_ms) = transaction_duration_ms {
-        if transaction_duration_ms > 0.0 {
-            if let Some(stall_total_time) = measurements
-                .get("stall_total_time")
-                .and_then(Annotated::value)
-            {
-                if matches!(
-                    stall_total_time.unit.value(),
-                    // Accept milliseconds or None, but not other units
-                    Some(&MetricUnit::Duration(DurationUnit::MilliSecond) | &MetricUnit::None)
-                        | None
-                ) {
-                    if let Some(stall_total_time) = stall_total_time.value.0 {
-                        let stall_percentage = Measurement {
-                            value: (stall_total_time / transaction_duration_ms).into(),
-                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        };
-                        measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
-                    }
-                }
-            }
-        }
+    if let Some(transaction_duration_ms) = transaction_duration_ms
+        && transaction_duration_ms > 0.0
+        && let Some(stall_total_time) = measurements
+            .get("stall_total_time")
+            .and_then(Annotated::value)
+        && matches!(
+            stall_total_time.unit.value(),
+            // Accept milliseconds or None, but not other units
+            Some(&MetricUnit::Duration(DurationUnit::MilliSecond) | &MetricUnit::None) | None
+        )
+        && let Some(stall_total_time) = stall_total_time.value.0
+    {
+        let stall_percentage = Measurement {
+            value: (stall_total_time / transaction_duration_ms).into(),
+            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+        };
+        measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
     }
 }
 
@@ -1149,11 +1140,11 @@ fn normalize_default_attributes(event: &mut Event, meta: &mut Meta, config: &Nor
         event.client_sdk.set_value(get_sdk_info(config));
     }
 
-    if event.platform.as_str() == Some("java") {
-        if let Some(event_logger) = event.logger.value_mut().take() {
-            let shortened = shorten_logger(event_logger, meta);
-            event.logger.set_value(Some(shortened));
-        }
+    if event.platform.as_str() == Some("java")
+        && let Some(event_logger) = event.logger.value_mut().take()
+    {
+        let shortened = shorten_logger(event_logger, meta);
+        event.logger.set_value(Some(shortened));
     }
 }
 
@@ -1349,10 +1340,10 @@ fn filter_mobile_outliers(measurements: &mut Measurements) {
         "time_to_initial_display",
         "time_to_full_display",
     ] {
-        if let Some(value) = measurements.get_value(key) {
-            if value > MAX_DURATION_MOBILE_MS {
-                measurements.remove(key);
-            }
+        if let Some(value) = measurements.get_value(key)
+            && value > MAX_DURATION_MOBILE_MS
+        {
+            measurements.remove(key);
         }
     }
 }
@@ -2257,7 +2248,6 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
                             "ai.model_id": "claude-2.1"
                         }
                     },
@@ -2278,7 +2268,6 @@ mod tests {
                             }
                         },
                         "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
                             "ai.model_id": "gpt4-21-04"
                         }
                     }

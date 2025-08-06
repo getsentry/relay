@@ -72,7 +72,7 @@ pub struct OwnedRedisQuota {
 
 impl OwnedRedisQuota {
     /// Returns an instance of [`RedisQuota`] which borrows from this [`OwnedRedisQuota`].
-    pub fn build_ref(&self) -> RedisQuota {
+    pub fn build_ref(&self) -> RedisQuota<'_> {
         RedisQuota {
             quota: &self.quota,
             scoping: self.scoping,

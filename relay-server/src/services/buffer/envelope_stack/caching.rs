@@ -58,12 +58,12 @@ where
     }
 
     async fn flush(mut self) {
-        if let Some(envelope) = self.cached {
-            if self.inner.push(envelope).await.is_err() {
-                relay_log::error!(
-                    "error while pushing the cached envelope in the inner stack during flushing",
-                );
-            }
+        if let Some(envelope) = self.cached
+            && self.inner.push(envelope).await.is_err()
+        {
+            relay_log::error!(
+                "error while pushing the cached envelope in the inner stack during flushing",
+            );
         }
         self.inner.flush().await;
     }

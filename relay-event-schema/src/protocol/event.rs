@@ -529,10 +529,10 @@ impl Event {
     ///
     /// Sentry's own SDKs use a naming schema prefixed with `sentry.`. Defaults to `"unknown"`.
     pub fn sdk_name(&self) -> &str {
-        if let Some(client_sdk) = self.client_sdk.value() {
-            if let Some(name) = client_sdk.name.as_str() {
-                return name;
-            }
+        if let Some(client_sdk) = self.client_sdk.value()
+            && let Some(name) = client_sdk.name.as_str()
+        {
+            return name;
         }
 
         "unknown"
@@ -542,10 +542,10 @@ impl Event {
     ///
     /// Defaults to `"unknown"`.
     pub fn sdk_version(&self) -> &str {
-        if let Some(client_sdk) = self.client_sdk.value() {
-            if let Some(version) = client_sdk.version.as_str() {
-                return version;
-            }
+        if let Some(client_sdk) = self.client_sdk.value()
+            && let Some(version) = client_sdk.version.as_str()
+        {
+            return version;
         }
 
         "unknown"
@@ -559,12 +559,11 @@ impl Event {
         let headers = self.request.value()?.headers.value()?;
 
         for item in headers.iter() {
-            if let Some((o_k, v)) = item.value() {
-                if let Some(k) = o_k.as_str() {
-                    if k.eq_ignore_ascii_case("user-agent") {
-                        return v.as_str();
-                    }
-                }
+            if let Some((o_k, v)) = item.value()
+                && let Some(k) = o_k.as_str()
+                && k.eq_ignore_ascii_case("user-agent")
+            {
+                return v.as_str();
             }
         }
 

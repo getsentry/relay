@@ -134,7 +134,7 @@ mod tests {
         .unwrap();
 
         let span_from_event = Span::from(&event);
-        insta::assert_debug_snapshot!(span_from_event, @r###"
+        insta::assert_debug_snapshot!(span_from_event, @r#"
         Span {
             timestamp: ~,
             start_timestamp: ~,
@@ -156,6 +156,7 @@ mod tests {
             data: SpanData {
                 app_start_type: ~,
                 gen_ai_request_max_tokens: ~,
+                gen_ai_pipeline_name: ~,
                 gen_ai_usage_total_tokens: ~,
                 gen_ai_usage_input_tokens: ~,
                 gen_ai_usage_input_tokens_cached: ~,
@@ -171,7 +172,19 @@ mod tests {
                 gen_ai_response_tool_calls: ~,
                 gen_ai_response_text: ~,
                 gen_ai_response_object: ~,
+                gen_ai_response_streaming: ~,
                 gen_ai_response_tokens_per_second: ~,
+                gen_ai_request_available_tools: ~,
+                gen_ai_request_frequency_penalty: ~,
+                gen_ai_request_presence_penalty: ~,
+                gen_ai_request_seed: ~,
+                gen_ai_request_temperature: ~,
+                gen_ai_request_top_k: ~,
+                gen_ai_request_top_p: ~,
+                gen_ai_response_finish_reason: ~,
+                gen_ai_response_id: ~,
+                gen_ai_system: ~,
+                gen_ai_tool_name: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
@@ -194,10 +207,6 @@ mod tests {
                 cache_key: ~,
                 cache_item_size: ~,
                 http_response_status_code: ~,
-                ai_pipeline_name: ~,
-                ai_model_id: ~,
-                ai_input_messages: ~,
-                ai_responses: ~,
                 thread_name: ~,
                 thread_id: ~,
                 segment_name: "my 1st transaction",
@@ -276,6 +285,6 @@ mod tests {
             _performance_issues_spans: ~,
             other: {},
         }
-        "###);
+        "#);
     }
 }

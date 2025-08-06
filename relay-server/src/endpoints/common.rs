@@ -225,19 +225,18 @@ pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRe
 /// Extracting the event id from chunked formdata fields on the Minidump endpoint (`sentry__1`,
 /// `sentry__2`, ...) is not supported. In this case, `None` is returned.
 pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
-    if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::Event) {
-        if let Some(event_id) = event_id_from_json(&item.payload())? {
-            return Ok(Some(event_id));
-        }
+    if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::Event)
+        && let Some(event_id) = event_id_from_json(&item.payload())?
+    {
+        return Ok(Some(event_id));
     }
 
     if let Some(item) = items
         .iter()
         .find(|item| item.attachment_type() == Some(&AttachmentType::EventPayload))
+        && let Some(event_id) = event_id_from_msgpack(&item.payload())?
     {
-        if let Some(event_id) = event_id_from_msgpack(&item.payload())? {
-            return Ok(Some(event_id));
-        }
+        return Ok(Some(event_id));
     }
 
     if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::FormData) {
@@ -337,10 +336,10 @@ pub async fn handle_envelope(
     // Prefetch sampling project key, current spooling implementations rely on this behavior.
     //
     // To be changed once spool v1 has been removed.
-    if let Some(sampling_project_key) = managed_envelope.envelope().sampling_key() {
-        if sampling_project_key != project_key {
-            state.project_cache_handle().fetch(sampling_project_key);
-        }
+    if let Some(sampling_project_key) = managed_envelope.envelope().sampling_key()
+        && sampling_project_key != project_key
+    {
+        state.project_cache_handle().fetch(sampling_project_key);
     }
 
     let checked = state

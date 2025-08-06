@@ -90,13 +90,7 @@ pub enum Feature {
     /// Serialized as `organizations:ourlogs-ingestion`.
     #[serde(rename = "organizations:ourlogs-ingestion")]
     OurLogsIngestion,
-    /// Use a new/alternative way of counting bytes per log.
-    #[serde(rename = "organizations:ourlogs-calculated-byte-count")]
-    OurLogsCalculatedByteCount,
-    /// Enables extraction of meta attributes, which will be added to EAP.
-    #[serde(rename = "organizations:ourlogs-meta-attributes")]
-    OurLogsMetaAttributes,
-    /// This feature has graduated and is hard-coded for external Relays.
+    /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
     IngestUnsampledProfiles,
@@ -114,6 +108,9 @@ pub enum Feature {
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
+    /// Enables the experimental Span V2 processing pipeline in Relay.
+    #[serde(rename = "projects:span-v2-experimental-processing")]
+    SpanV2ExperimentalProcessing,
     /// This feature has deprecated and is kept for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction")]

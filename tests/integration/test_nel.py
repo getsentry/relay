@@ -10,14 +10,19 @@ def test_nel_converted_to_logs(mini_sentry, relay):
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
     relay = relay(mini_sentry)
+
     relay.send_nel_event(project_id)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.captured_events.get(timeout=3)
+
+    # Time is corrected by the `age` specified in the NEL report
+    expected_ts = datetime.now(tz=timezone.utc) - timedelta(milliseconds=1200000)
 
     assert [item.type for item in envelope.items] == ["log"]
     assert json.loads(envelope.items[0].payload.bytes) == {
         "items": [
             {
+                "__header": mock.ANY,
                 "attributes": {
                     "sentry.origin": {
                         "type": "string",
@@ -55,13 +60,19 @@ def test_nel_converted_to_logs(mini_sentry, relay):
                         "type": "string",
                         "value": "http.error",
                     },
+                    "sentry.browser.name": {
+                        "type": "string",
+                        "value": "Python Requests",
+                    },
+                    "sentry.browser.version": {"type": "string", "value": "2.32"},
+                    "sentry.observed_timestamp_nanos": {
+                        "type": "string",
+                        "value": time_within_delta(expect_resolution="ns"),
+                    },
                 },
                 "body": "The user agent successfully received a response, but it had a 500 status code",
                 "level": "warn",
-                # Time is corrected by the `age` specified in the NEL report
-                "timestamp": time_within_delta(
-                    datetime.now(tz=timezone.utc) - timedelta(milliseconds=1200000)
-                ),
+                "timestamp": time_within_delta(expected_ts),
                 "trace_id": mock.ANY,
             }
         ],

@@ -1,16 +1,16 @@
-use chrono::{DateTime, Utc};
 use relay_event_normalization::{
     ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, SchemaProcessor,
 };
 use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog, OurLogHeader};
+use relay_metrics::UnixTimestamp;
 use relay_ourlogs::OtelLog;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, ErrorKind, Value};
 use relay_quotas::DataCategory;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer, WithHeader};
-use crate::extractors::RequestMeta;
+use crate::extractors::{RequestMeta, RequestTrust};
 use crate::processing::logs::{Error, ExpandedLogs, Result, SerializedLogs};
 use crate::processing::{Context, Managed};
 use crate::services::outcome::DiscardReason;
@@ -19,20 +19,20 @@ use crate::services::outcome::DiscardReason;
 ///
 /// Individual, invalid logs will be discarded.
 pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<ExpandedLogs> {
-    let received_at = logs.received_at();
+    let trust = logs.headers.meta().request_trust();
+
     logs.map(|logs, records| {
         records.lenient(DataCategory::LogByte);
 
         let mut all_logs = Vec::with_capacity(logs.count());
-
         for logs in logs.logs {
-            let expanded = expand_log_container(&logs, received_at);
+            let expanded = expand_log_container(&logs, trust);
             let expanded = records.or_default(expanded, logs);
             all_logs.extend(expanded);
         }
 
         for otel_log in logs.otel_logs {
-            match expand_otel_log(&otel_log, received_at) {
+            match expand_otel_log(&otel_log) {
                 Ok(log) => all_logs.push(log),
                 Err(err) => {
                     records.reject_err(err, otel_log);
@@ -45,43 +45,52 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
             headers: logs.headers,
             #[cfg(feature = "processing")]
             retention: _ctx.project_info.config.event_retention,
-            #[cfg(feature = "processing")]
-            serialize_meta_attrs: _ctx
-                .project_info
-                .has_feature(relay_dynamic_config::Feature::OurLogsMetaAttributes),
             logs: all_logs,
         }
     })
 }
 
-/// Processes expanded logs.
+/// Normalizes individual log entries.
 ///
-/// Validates, scrubs, normalizes and enriches individual log entries.
-pub fn process(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+/// Normalization must happen before any filters are applied or other procedures which rely on the
+/// presence and well-formedness of attributes and fields.
+pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
     logs.modify(|logs, records| {
         let meta = logs.headers.meta();
-        logs.logs
-            .retain_mut(|log| records.or_default(process_log(log, meta, ctx).map(|_| true), &*log));
+        logs.logs.retain_mut(|log| {
+            let r = normalize_log(log, meta).inspect_err(|err| {
+                relay_log::debug!("failed to normalize log: {err}");
+            });
+
+            records.or_default(r.map(|_| true), &*log)
+        })
     });
 }
 
-fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<WithHeader<OurLog>> {
+/// Applies PII scrubbing to individual log entries.
+pub fn scrub(logs: &mut Managed<ExpandedLogs>, ctx: Context<'_>) {
+    logs.modify(|logs, records| {
+        logs.logs.retain_mut(|log| {
+            let r = scrub_log(log, ctx).inspect_err(|err| {
+                relay_log::debug!("failed to scrub pii from log: {err}");
+            });
+
+            records.or_default(r.map(|_| true), &*log)
+        })
+    });
+}
+
+fn expand_otel_log(item: &Item) -> Result<WithHeader<OurLog>> {
     let log = serde_json::from_slice::<OtelLog>(&item.payload()).map_err(|err| {
         relay_log::debug!("failed to parse OTel Log: {err}");
         Error::Invalid(DiscardReason::InvalidJson)
     })?;
 
-    let log = relay_ourlogs::otel_to_sentry_log(log, received_at).map_err(|err| {
+    let log = relay_ourlogs::otel_to_sentry_log(log).map_err(|err| {
         relay_log::debug!("failed to convert OTel Log to Sentry Log: {:?}", err);
         Error::Invalid(DiscardReason::InvalidLog)
     })?;
 
-    // The OTel log conversion already adds certain Sentry attributes which are included in the
-    // cost here.
-    //
-    // As OTel logs are deprecated and to be removed, this is okay for now.
-    //
-    // See: <https://github.com/getsentry/relay/issues/4884>.
     let byte_size = Some(relay_ourlogs::calculate_size(&log));
     Ok(WithHeader {
         value: Annotated::new(log),
@@ -92,7 +101,7 @@ fn expand_otel_log(item: &Item, received_at: DateTime<Utc>) -> Result<WithHeader
     })
 }
 
-fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<ContainerItems<OurLog>> {
+fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerItems<OurLog>> {
     let mut logs = ItemContainer::parse(item)
         .map_err(|err| {
             relay_log::debug!("failed to parse logs container: {err}");
@@ -101,36 +110,26 @@ fn expand_log_container(item: &Item, received_at: DateTime<Utc>) -> Result<Conta
         .into_items();
 
     for log in &mut logs {
-        let byte_size = log.value().map(relay_ourlogs::calculate_size).unwrap_or(1);
-        let header = log.header.get_or_insert_default();
-        // Unconditionally override the size of the log, before making any modifications.
+        // Calculate the received byte size and remember it as metadata, in the header.
+        // This is to keep track of the originally received size even as Relay adds, removes or
+        // modifies attributes.
         //
-        // Relay later may deem certain attributes to be invalid and therefore drop or modify them,
-        // we still keep the original size.
+        // Since Relay can be deployed in multiple layers, we need to remember the size of the
+        // first Relay which received the log, but at the same time we must be able to trust that
+        // size.
         //
-        // Once there is processing of logs in other internal Relays, we will have to respect
-        // the value set by the header, if it is coming from an internal Relay.
-        header.byte_size = Some(byte_size);
-
-        relay_ourlogs::ourlog_merge_otel(log, received_at);
+        // If there is no size calculated or we cannot trust the source, we re-calculate the size.
+        let byte_size = log.header.as_ref().and_then(|h: &OurLogHeader| h.byte_size);
+        if trust.is_untrusted() || matches!(byte_size, None | Some(0)) {
+            let byte_size = log.value().map(relay_ourlogs::calculate_size).unwrap_or(1);
+            log.header.get_or_insert_default().byte_size = Some(byte_size);
+        }
     }
 
     Ok(logs)
 }
 
-fn process_log(log: &mut Annotated<OurLog>, meta: &RequestMeta, ctx: Context<'_>) -> Result<()> {
-    scrub(log, ctx).inspect_err(|err| {
-        relay_log::debug!("failed to scrub pii from log: {err}");
-    })?;
-
-    normalize(log, meta).inspect_err(|err| {
-        relay_log::debug!("failed to normalize log: {err}");
-    })?;
-
-    Ok(())
-}
-
-fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
+fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     let pii_config = ctx
         .project_info
         .config
@@ -151,36 +150,50 @@ fn scrub(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     Ok(())
 }
 
-fn normalize(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
+fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
     process_value(log, &mut SchemaProcessor, ProcessingState::root())?;
 
     let Some(log) = log.value_mut() else {
         return Err(Error::Invalid(DiscardReason::NoData));
     };
 
-    process_attribute_types(log);
+    log.attributes
+        .get_or_insert_with(Default::default)
+        .insert_if_missing("sentry.observed_timestamp_nanos", || {
+            meta.received_at()
+                .timestamp_nanos_opt()
+                .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
+                .to_string()
+        });
+
     populate_ua_fields(log, meta.user_agent(), meta.client_hints().as_deref());
+    process_attribute_types(log);
 
     Ok(())
 }
 
 fn populate_ua_fields(log: &mut OurLog, user_agent: Option<&str>, client_hints: ClientHints<&str>) {
     let attributes = log.attributes.get_or_insert_with(Default::default);
-    if let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+
+    const BROWSER_NAME: &str = "sentry.browser.name";
+    const BROWSER_VERSION: &str = "sentry.browser.version";
+
+    if attributes.contains_key(BROWSER_NAME) && attributes.contains_key(BROWSER_VERSION) {
+        return;
+    }
+
+    let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
         user_agent,
         client_hints,
-    }) {
-        if !attributes.contains_key("sentry.browser.name") {
-            if let Some(name) = context.name.value() {
-                attributes.insert("sentry.browser.name".to_owned(), name.to_owned());
-            }
-        }
+    }) else {
+        return;
+    };
 
-        if !attributes.contains_key("sentry.browser.version") {
-            if let Some(version) = context.version.value() {
-                attributes.insert("sentry.browser.version".to_owned(), version.to_owned());
-            }
-        }
+    if let Some(name) = context.name.into_value() {
+        attributes.insert_if_missing(BROWSER_NAME, || name);
+    }
+    if let Some(version) = context.version.into_value() {
+        attributes.insert_if_missing(BROWSER_VERSION, || version);
     }
 }
 

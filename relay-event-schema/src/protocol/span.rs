@@ -297,8 +297,6 @@ pub struct SentryTags {
     #[metastructure(field = "os.name")]
     pub os_name: Annotated<String>,
     pub action: Annotated<String>,
-    /// The group of the ancestral span with op ai.pipeline.(String)*
-    pub ai_pipeline_group: Annotated<String>,
     pub category: Annotated<String>,
     pub description: Annotated<String>,
     pub domain: Annotated<String>,
@@ -358,7 +356,6 @@ impl Getter for SentryTags {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         let value = match path {
             "action" => &self.action,
-            "ai_pipeline_group" => &self.ai_pipeline_group,
             "app_start_type" => &self.app_start_type,
             "browser.name" => &self.browser_name,
             "cache.hit" => &self.cache_hit,
@@ -459,6 +456,10 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.request.max_tokens")]
     pub gen_ai_request_max_tokens: Annotated<Value>,
 
+    /// Name of the AI pipeline or chain being executed.
+    #[metastructure(field = "gen_ai.pipeline.name", legacy_alias = "ai.pipeline.name")]
+    pub gen_ai_pipeline_name: Annotated<Value>,
+
     /// The total tokens that were used by an LLM call
     #[metastructure(
         field = "gen_ai.usage.total_tokens",
@@ -497,7 +498,7 @@ pub struct SpanData {
     pub gen_ai_response_model: Annotated<Value>,
 
     /// The name of the GenAI model a request is being made to (e.g. gpt-4)
-    #[metastructure(field = "gen_ai.request.model")]
+    #[metastructure(field = "gen_ai.request.model", legacy_alias = "ai.model_id")]
     pub gen_ai_request_model: Annotated<Value>,
 
     /// The total cost for the tokens used
@@ -509,32 +510,119 @@ pub struct SpanData {
     pub gen_ai_prompt: Annotated<Value>,
 
     /// Prompt passed to LLM
-    #[metastructure(field = "gen_ai.request.messages", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.request.messages",
+        pii = "maybe",
+        legacy_alias = "ai.prompt.messages"
+    )]
     pub gen_ai_request_messages: Annotated<Value>,
 
     /// Tool call arguments
-    #[metastructure(field = "gen_ai.tool.input", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.tool.input",
+        pii = "maybe",
+        legacy_alias = "ai.toolCall.args"
+    )]
     pub gen_ai_tool_input: Annotated<Value>,
 
     /// Tool call result
-    #[metastructure(field = "gen_ai.tool.output", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.tool.output",
+        pii = "maybe",
+        legacy_alias = "ai.toolCall.result"
+    )]
     pub gen_ai_tool_output: Annotated<Value>,
 
-    /// LLM decisions to use calls
-    #[metastructure(field = "gen_ai.response.tool_calls", pii = "maybe")]
+    /// LLM decisions to use tools
+    #[metastructure(
+        field = "gen_ai.response.tool_calls",
+        legacy_alias = "ai.response.toolCalls",
+        legacy_alias = "ai.tool_calls",
+        pii = "maybe"
+    )]
     pub gen_ai_response_tool_calls: Annotated<Value>,
 
     /// LLM response text (Vercel AI, generateText)
-    #[metastructure(field = "gen_ai.response.text", pii = "maybe")]
+    #[metastructure(
+        field = "gen_ai.response.text",
+        legacy_alias = "ai.response.text",
+        legacy_alias = "ai.responses",
+        pii = "maybe"
+    )]
     pub gen_ai_response_text: Annotated<Value>,
 
     /// LLM response object (Vercel AI, generateObject)
     #[metastructure(field = "gen_ai.response.object", pii = "maybe")]
     pub gen_ai_response_object: Annotated<Value>,
 
+    /// Whether or not the AI model call's response was streamed back asynchronously
+    #[metastructure(field = "gen_ai.response.streaming", legacy_alias = "ai.streaming")]
+    pub gen_ai_response_streaming: Annotated<Value>,
+
     ///  Total output tokens per seconds throughput
     #[metastructure(field = "gen_ai.response.tokens_per_second")]
     pub gen_ai_response_tokens_per_second: Annotated<Value>,
+
+    /// The available tools for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.available_tools",
+        legacy_alias = "ai.tools",
+        pii = "maybe"
+    )]
+    pub gen_ai_request_available_tools: Annotated<Value>,
+
+    /// The frequency penalty for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.frequency_penalty",
+        legacy_alias = "ai.frequency_penalty"
+    )]
+    pub gen_ai_request_frequency_penalty: Annotated<Value>,
+
+    /// The presence penalty for a request to an LLM
+    #[metastructure(
+        field = "gen_ai.request.presence_penalty",
+        legacy_alias = "ai.presence_penalty"
+    )]
+    pub gen_ai_request_presence_penalty: Annotated<Value>,
+
+    /// The seed for a request to an LLM
+    #[metastructure(field = "gen_ai.request.seed", legacy_alias = "ai.seed")]
+    pub gen_ai_request_seed: Annotated<Value>,
+
+    /// The temperature for a request to an LLM
+    #[metastructure(field = "gen_ai.request.temperature", legacy_alias = "ai.temperature")]
+    pub gen_ai_request_temperature: Annotated<Value>,
+
+    /// The top_k parameter for a request to an LLM
+    #[metastructure(field = "gen_ai.request.top_k", legacy_alias = "ai.top_k")]
+    pub gen_ai_request_top_k: Annotated<Value>,
+
+    /// The top_p parameter for a request to an LLM
+    #[metastructure(field = "gen_ai.request.top_p", legacy_alias = "ai.top_p")]
+    pub gen_ai_request_top_p: Annotated<Value>,
+
+    /// The finish reason for a response from an LLM
+    #[metastructure(
+        field = "gen_ai.response.finish_reason",
+        legacy_alias = "ai.finish_reason"
+    )]
+    pub gen_ai_response_finish_reason: Annotated<Value>,
+
+    /// The unique identifier for a response from an LLM
+    #[metastructure(field = "gen_ai.response.id", legacy_alias = "ai.generation_id")]
+    pub gen_ai_response_id: Annotated<Value>,
+
+    /// The GenAI system identifier
+    #[metastructure(field = "gen_ai.system", legacy_alias = "ai.model.provider")]
+    pub gen_ai_system: Annotated<Value>,
+
+    /// The name of the tool being called
+    #[metastructure(
+        field = "gen_ai.tool.name",
+        legacy_alias = "ai.function_call",
+        pii = "maybe"
+    )]
+    pub gen_ai_tool_name: Annotated<Value>,
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
@@ -635,22 +723,6 @@ pub struct SpanData {
     /// The status HTTP response.
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
-
-    /// The 'name' field of the ancestor span with op ai.pipeline.*
-    #[metastructure(field = "ai.pipeline.name")]
-    pub ai_pipeline_name: Annotated<Value>,
-
-    /// The Model ID of an AI pipeline, e.g., gpt-4
-    #[metastructure(field = "ai.model_id")]
-    pub ai_model_id: Annotated<Value>,
-
-    /// The input messages to an AI model call
-    #[metastructure(field = "ai.input_messages")]
-    pub ai_input_messages: Annotated<Value>,
-
-    /// The responses to an AI model call
-    #[metastructure(field = "ai.responses")]
-    pub ai_responses: Annotated<Value>,
 
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
@@ -1275,14 +1347,14 @@ mod tests {
         let span = Annotated::<Span>::from_json(
             r#"{
                 "start_timestamp": 1694732407.8367,
-                "timestamp": 1694732408.3145
+                "timestamp": 1694732408.31451233
             }"#,
         )
         .unwrap()
         .into_value()
         .unwrap();
 
-        assert_eq!(span.get_value("span.duration"), Some(Val::F64(477.800131)));
+        assert_eq!(span.get_value("span.duration"), Some(Val::F64(477.812)));
     }
 
     #[test]
@@ -1314,10 +1386,11 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        insta::assert_debug_snapshot!(data, @r###"
+        insta::assert_debug_snapshot!(data, @r#"
         SpanData {
             app_start_type: ~,
             gen_ai_request_max_tokens: ~,
+            gen_ai_pipeline_name: ~,
             gen_ai_usage_total_tokens: ~,
             gen_ai_usage_input_tokens: ~,
             gen_ai_usage_input_tokens_cached: ~,
@@ -1333,7 +1406,19 @@ mod tests {
             gen_ai_response_tool_calls: ~,
             gen_ai_response_text: ~,
             gen_ai_response_object: ~,
+            gen_ai_response_streaming: ~,
             gen_ai_response_tokens_per_second: ~,
+            gen_ai_request_available_tools: ~,
+            gen_ai_request_frequency_penalty: ~,
+            gen_ai_request_presence_penalty: ~,
+            gen_ai_request_seed: ~,
+            gen_ai_request_temperature: ~,
+            gen_ai_request_top_k: ~,
+            gen_ai_request_top_p: ~,
+            gen_ai_response_finish_reason: ~,
+            gen_ai_response_id: ~,
+            gen_ai_system: ~,
+            gen_ai_tool_name: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
@@ -1364,10 +1449,6 @@ mod tests {
             cache_key: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
-            ai_pipeline_name: ~,
-            ai_model_id: ~,
-            ai_input_messages: ~,
-            ai_responses: ~,
             thread_name: ~,
             thread_id: ~,
             segment_name: ~,
@@ -1434,7 +1515,7 @@ mod tests {
                 ),
             },
         }
-        "###);
+        "#);
 
         assert_eq!(data.get_value("foo"), Some(Val::U64(2)));
         assert_eq!(data.get_value("bar"), Some(Val::String("3")));

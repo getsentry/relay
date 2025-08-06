@@ -26,10 +26,10 @@ where
     };
 
     for blacklisted_ip in blacklisted_ips {
-        if let Ok(blacklisted_network) = blacklisted_ip.as_ref().parse::<IpNetwork>() {
-            if blacklisted_network.contains(client_ip) {
-                return true;
-            }
+        if let Ok(blacklisted_network) = blacklisted_ip.as_ref().parse::<IpNetwork>()
+            && blacklisted_network.contains(client_ip)
+        {
+            return true;
         }
     }
     false

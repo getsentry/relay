@@ -468,7 +468,11 @@ def test_processing_quotas(
         assert int(retry_after) <= max_rate_limit
         retry_after2, rest = headers["x-sentry-rate-limits"].split(":", 1)
         assert int(retry_after2) == int(retry_after)
-        assert rest == "%s:key:get_lost" % category
+        if event_type == "transaction":
+            # Transaction limits also apply to spans.
+            assert rest == "transaction;span:key:get_lost"
+        else:
+            assert rest == "%s:key:get_lost" % category
         if outcomes_consumer is not None:
             outcomes_consumer.assert_rate_limited(
                 "get_lost", key_id=key_id, categories=[category]
@@ -911,6 +915,14 @@ def test_processing_quota_transaction_indexing(
         ignore_other=True,
         timeout=3,
     )
+
+    # Ignore span metrics, they may be emitted because rate limits from transactions are not
+    # currently enforced for spans, which they should be. See: https://github.com/getsentry/relay/issues/4961.
+    metrics = {metric["name"] for (metric, _) in metrics_consumer.get_metrics()}
+    assert metrics == {
+        "c:spans/count_per_root_project@none",
+        "c:spans/usage@none",
+    }
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):

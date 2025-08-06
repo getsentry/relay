@@ -76,11 +76,12 @@ pub fn expand_unreal_envelope(
             },
         };
 
-        if !has_event && attachment_type == AttachmentType::UnrealContext {
-            if let Some(event_item) = get_event_item(file.data())? {
-                envelope.add_item(event_item);
-                has_event = true;
-            }
+        if !has_event
+            && attachment_type == AttachmentType::UnrealContext
+            && let Some(event_item) = get_event_item(file.data())?
+        {
+            envelope.add_item(event_item);
+            has_event = true;
         }
 
         let mut item = Item::new(ItemType::Attachment);
