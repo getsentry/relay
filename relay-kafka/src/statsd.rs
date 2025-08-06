@@ -35,18 +35,6 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric};
 
 pub enum KafkaCounters {
-    /// Number of producer errors occurred after an envelope was already enqueued for sending to
-    /// Kafka.
-    ///
-    /// These errors include, for example, _"MessageTooLarge"_ errors when the broker does not
-    /// accept the requests over a certain size, which is usually due to invalid or inconsistent
-    /// broker/producer configurations.
-    ///
-    /// This metric is tagged with:
-    /// - `topic`: The Kafka topic being produced to.
-    /// - `producer_name`: The configured producer name/deployment identifier.
-    ProcessingProduceError,
-
     /// Number of messages that failed to be enqueued in the Kafka producer's memory buffer.
     ///
     /// These errors include, for example, _"UnknownTopic"_ errors when attempting to send a
@@ -69,14 +57,30 @@ pub enum KafkaCounters {
     /// - `variant`: The Kafka message variant.
     /// - `producer_name`: The configured producer name/deployment identifier.
     ProducerPartitionKeyRateLimit,
+
+    /// Number of successful message produce operations.
+    ///
+    /// This metric is tagged with:
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    ProduceStatusSuccess,
+
+    /// Number of failed message produce operations.
+    ///
+    /// This metric is tagged with:
+    /// - `topic`: The Kafka topic being produced to.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    /// - `error_code`: The specific Kafka error code (when available).
+    ProduceStatusError,
 }
 
 impl CounterMetric for KafkaCounters {
     fn name(&self) -> &'static str {
         match self {
-            Self::ProcessingProduceError => "processing.produce.error",
             Self::ProducerEnqueueError => "producer.enqueue.error",
             Self::ProducerPartitionKeyRateLimit => "producer.partition_key.rate_limit",
+            Self::ProduceStatusSuccess => "producer.produce_status.success",
+            Self::ProduceStatusError => "producer.produce_status.error",
         }
     }
 }
@@ -170,26 +174,47 @@ pub enum KafkaGauges {
     /// - `producer_name`: The configured producer name/deployment identifier.
     Disconnects,
 
-    /// Maximum internal producer queue latency, in microseconds.
+    /// Average internal producer queue latency, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    ProducerQueueLatency,
+    BrokerIntLatencyAvg,
 
-    /// Maximum internal request queue latency, in microseconds.
+    /// 99th percentile internal producer queue latency, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    RequestQueueLatency,
+    BrokerIntLatencyP99,
 
-    /// Average round-trip time to the broker, in microseconds.
+    /// Average output buffer latency, in milliseconds.
     ///
     /// This metric is tagged with:
     /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
     /// - `producer_name`: The configured producer name/deployment identifier.
-    BrokerRtt,
+    BrokerOutbufLatencyAvg,
+
+    /// 99th percentile output buffer latency, in milliseconds.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    BrokerOutbufLatencyP99,
+
+    /// Average round-trip time to the broker, in milliseconds.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    BrokerRttAvg,
+
+    /// 99th percentile round-trip time to the broker, in milliseconds.
+    ///
+    /// This metric is tagged with:
+    /// - `broker_name`: The broker hostname, port, and ID, in the form HOSTNAME:PORT/ID.
+    /// - `producer_name`: The configured producer name/deployment identifier.
+    BrokerRttP99,
 
     /// Total number of requests sent to the broker.
     ///
@@ -219,9 +244,12 @@ impl GaugeMetric for KafkaGauges {
             KafkaGauges::OutboundBufferMessages => "kafka.stats.broker.outbuf.messages",
             KafkaGauges::Connects => "kafka.stats.broker.connects",
             KafkaGauges::Disconnects => "kafka.stats.broker.disconnects",
-            KafkaGauges::ProducerQueueLatency => "kafka.stats.broker.int_latency",
-            KafkaGauges::RequestQueueLatency => "kafka.stats.broker.outbuf_latency",
-            KafkaGauges::BrokerRtt => "kafka.stats.broker.rtt",
+            KafkaGauges::BrokerIntLatencyAvg => "kafka.stats.broker.int_latency.avg",
+            KafkaGauges::BrokerIntLatencyP99 => "kafka.stats.broker.int_latency.p99",
+            KafkaGauges::BrokerOutbufLatencyAvg => "kafka.stats.broker.outbuf_latency.avg",
+            KafkaGauges::BrokerOutbufLatencyP99 => "kafka.stats.broker.outbuf_latency.p99",
+            KafkaGauges::BrokerRttAvg => "kafka.stats.broker.rtt.avg",
+            KafkaGauges::BrokerRttP99 => "kafka.stats.broker.rtt.p99",
             KafkaGauges::BrokerTx => "kafka.stats.broker.tx",
             KafkaGauges::BrokerTxBytes => "kafka.stats.broker.txbytes",
         }
