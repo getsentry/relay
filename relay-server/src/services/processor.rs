@@ -2203,10 +2203,10 @@ impl EnvelopeProcessorService {
         ctx: processing::Context<'_>,
     ) -> Result<ProcessingResult, ProcessingError> {
         let processor = &self.inner.processing.spans;
-        let Some(logs) = processor.prepare_envelope(&mut managed_envelope) else {
+        let Some(spans) = processor.prepare_envelope(&mut managed_envelope) else {
             debug_assert!(
                 false,
-                "there must be work for the logs processor in the logs processing group"
+                "there must be work for the span processor in the spans processing group"
             );
             return Err(ProcessingError::ProcessingGroupMismatch);
         };
@@ -2218,7 +2218,7 @@ impl EnvelopeProcessorService {
         }
 
         processor
-            .process(logs, ctx)
+            .process(spans, ctx)
             .await
             .map_err(|_| ProcessingError::ProcessingFailure)
             .map(ProcessingResult::Spans)
