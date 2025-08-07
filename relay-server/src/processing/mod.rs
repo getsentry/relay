@@ -17,6 +17,7 @@ use crate::services::projects::project::ProjectInfo;
 
 mod limits;
 pub mod logs;
+pub mod spans;
 
 pub use self::limits::*;
 
