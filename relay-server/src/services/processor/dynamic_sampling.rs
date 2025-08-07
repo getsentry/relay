@@ -331,7 +331,7 @@ mod tests {
         let processor = create_test_processor(Default::default()).await;
         let (outcome_aggregator, test_store) = testutils::processor_services();
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
 
