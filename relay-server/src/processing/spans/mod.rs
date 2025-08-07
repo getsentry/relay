@@ -4,7 +4,9 @@ use relay_event_schema::protocol::SpanV2;
 use relay_quotas::{DataCategory, RateLimits};
 
 use crate::Envelope;
-use crate::envelope::{ContainerItems, EnvelopeHeaders, Item, ItemType};
+use crate::envelope::{
+    ContainerItems, ContainerWriteError, EnvelopeHeaders, Item, ItemContainer, ItemType, Items,
+};
 use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult, OutcomeError, Quantities, Rejected,
 };
@@ -79,7 +81,10 @@ impl processing::Processor for SpansProcessor {
             .take_items_by(|item| matches!(*item.ty(), ItemType::Span))
             .into_vec();
 
-        let work = SerializedSpans { _headers, spans };
+        let work = SerializedSpans {
+            headers: _headers,
+            spans,
+        };
         Some(Managed::from_envelope(envelope, work))
     }
 
@@ -127,31 +132,66 @@ pub enum SpanOutput {
 
 impl Forward for SpanOutput {
     fn serialize_envelope(self) -> Result<Managed<Box<Envelope>>, Rejected<()>> {
-        debug_assert!(false, "Not Implemented Yet");
-        Err(match self {
-            Self::NotProcessed(spans) => {
-                spans.reject_err((Outcome::Invalid(DiscardReason::Internal), ()))
-            }
-            Self::Processed(spans) => {
-                spans.reject_err((Outcome::Invalid(DiscardReason::Internal), ()))
-            }
-        })
+        let spans = match self {
+            Self::NotProcessed(spans) => spans,
+            Self::Processed(spans) => spans.try_map(|spans, _| {
+                spans
+                    .serialize()
+                    .map_err(drop)
+                    .with_outcome(Outcome::Invalid(DiscardReason::Internal))
+            })?,
+        };
+
+        Ok(spans.map(|spans, _| spans.serialize_envelope()))
     }
 
     #[cfg(feature = "processing")]
     fn forward_store(
         self,
-        _s: &relay_system::Addr<crate::services::store::Store>,
+        s: &relay_system::Addr<crate::services::store::Store>,
     ) -> Result<(), Rejected<()>> {
-        debug_assert!(false, "Not Implemented Yet");
-        Err(match self {
-            Self::NotProcessed(spans) => {
-                spans.reject_err((Outcome::Invalid(DiscardReason::Internal), ()))
+        use crate::envelope::ContentType;
+        use crate::services::store::StoreEnvelope;
+
+        let spans = match self {
+            SpanOutput::NotProcessed(spans) => {
+                return Err(spans.internal_error(
+                    "spans must be processed before they can be forwarded to the store",
+                ));
             }
-            Self::Processed(spans) => {
-                spans.reject_err((Outcome::Invalid(DiscardReason::Internal), ()))
+            SpanOutput::Processed(spans) => spans,
+        };
+
+        // Converts all SpanV2 spans into their SpanV1 counterparts and packages them into an
+        // envelope to forward them.
+        //
+        // This is temporary until we have proper mapping code from SpanV2 -> SpanKafka,
+        // similar to what we do for logs.
+        let envelope = spans.map(|spans, records| {
+            let mut items = Items::with_capacity(spans.spans.len());
+            for span in spans.spans {
+                let span = span.value.map_value(relay_spans::span_v2_to_span_v1);
+
+                let mut item = Item::new(ItemType::Span);
+                let payload = match span.to_json() {
+                    Ok(payload) => payload,
+                    Err(error) => {
+                        records.internal_error(error, span);
+                        continue;
+                    }
+                };
+                item.set_payload(ContentType::Json, payload);
+                items.push(item);
             }
-        })
+
+            Envelope::from_parts(spans.headers, items)
+        });
+
+        s.send(StoreEnvelope {
+            envelope: ManagedEnvelope::from(envelope).into_processed(),
+        });
+
+        Ok(())
     }
 }
 
@@ -159,7 +199,7 @@ impl Forward for SpanOutput {
 #[derive(Debug)]
 pub struct SerializedSpans {
     /// Original envelope headers.
-    _headers: EnvelopeHeaders,
+    headers: EnvelopeHeaders,
 
     /// A list of spans waiting to be processed.
     ///
@@ -175,6 +215,10 @@ impl SerializedSpans {
         // or using `Item::quantities`.
         let c: u32 = self.spans.iter().filter_map(|item| item.item_count()).sum();
         c as usize
+    }
+
+    fn serialize_envelope(self) -> Box<Envelope> {
+        Envelope::from_parts(self.headers, Items::from_vec(self.spans))
     }
 }
 
@@ -196,10 +240,29 @@ impl CountRateLimited for Managed<SerializedSpans> {
 #[derive(Debug)]
 pub struct ExpandedSpans {
     /// Original envelope headers.
-    _headers: EnvelopeHeaders,
+    headers: EnvelopeHeaders,
 
     /// Expanded and parsed spans.
     spans: ContainerItems<SpanV2>,
+}
+
+impl ExpandedSpans {
+    fn serialize(self) -> Result<SerializedSpans, ContainerWriteError> {
+        let mut spans = Vec::new();
+
+        if !self.spans.is_empty() {
+            let mut item = Item::new(ItemType::Span);
+            ItemContainer::from(self.spans)
+                .write_to(&mut item)
+                .inspect_err(|err| relay_log::error!("failed to serialize spans: {err}"))?;
+            spans.push(item);
+        }
+
+        Ok(SerializedSpans {
+            headers: self.headers,
+            spans,
+        })
+    }
 }
 
 impl Counted for ExpandedSpans {

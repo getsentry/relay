@@ -2,10 +2,8 @@ use relay_event_schema::protocol::SpanV2;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::managed::Managed;
-use crate::processing::spans::{Error, ExpandedSpans, Result};
+use crate::processing::spans::{Error, ExpandedSpans, Result, SerializedSpans};
 use crate::services::outcome::DiscardReason;
-
-use super::SerializedSpans;
 
 /// Parses all serialized spans.
 ///
@@ -21,7 +19,7 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Managed<ExpandedSpans> {
         }
 
         ExpandedSpans {
-            _headers: spans._headers,
+            headers: spans.headers,
             spans: all_spans,
         }
     })
