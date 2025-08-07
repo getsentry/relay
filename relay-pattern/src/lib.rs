@@ -25,6 +25,8 @@
 //! * `[!a-z]` matches one character that is not in the given range.
 //! * `{a,b}` matches any pattern within the alternation group.
 //! * `\` escapes any of the above special characters and treats it as a literal.
+//! * `(a)` matches any pattern within the group.
+//! * `(!a)` matches the inverted pattern within the group.
 //!
 //! # Complexity
 //!
@@ -59,6 +61,8 @@ enum ErrorKind {
     InvalidRange(char, char),
     /// Unbalanced character class. The pattern contains unbalanced `[`, `]` characters.
     UnbalancedCharacterClass,
+    /// Unbalanced group. The pattern contains unbalanced `(`, `)` characters.
+    UnbalancedGroup,
     /// Character class is invalid and cannot be parsed.
     InvalidCharacterClass,
     /// Nested alternates are not valid.
@@ -84,6 +88,7 @@ impl fmt::Display for Error {
                 write!(f, "Invalid character range `{start}-{end}`")
             }
             ErrorKind::UnbalancedCharacterClass => write!(f, "Unbalanced character class"),
+            ErrorKind::UnbalancedGroup => write!(f, "Unbalanced group"),
             ErrorKind::InvalidCharacterClass => write!(f, "Invalid character class"),
             ErrorKind::NestedAlternates => write!(f, "Nested alternates"),
             ErrorKind::UnbalancedAlternates => write!(f, "Unbalanced alternates"),
@@ -504,6 +509,8 @@ impl<'a> Parser<'a> {
             match c {
                 '?' => self.push_token(Token::Any(NonZeroUsize::MIN)),
                 '*' => self.push_token(Token::Wildcard),
+                '(' => self.parse_group()?,
+                ')' => return Err(ErrorKind::UnbalancedGroup),
                 '[' => self.parse_class()?,
                 ']' => return Err(ErrorKind::UnbalancedCharacterClass),
                 '{' => self.start_alternates()?,
@@ -551,6 +558,33 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    fn parse_group(&mut self) -> Result<(), ErrorKind> {
+        let negated = self.advance_if(|c| c == '!');
+        let mut literal = String::new();
+
+        loop {
+            let Some(c) = self.advance() else {
+                return Err(ErrorKind::UnbalancedCharacterClass);
+            };
+
+            match c {
+                '(' => return Err(ErrorKind::InvalidCharacterClass),
+                ')' => break,
+                c => literal.push(match c {
+                    '\\' => self.advance().ok_or(ErrorKind::DanglingEscape)?,
+                    c => c,
+                }),
+            }
+        }
+
+        self.push_token(Token::Group {
+            negated,
+            literal: Literal::new(literal, self.options),
+        });
 
         Ok(())
     }
@@ -763,6 +797,8 @@ enum Token {
     Wildcard,
     /// A class token `[abc]` or its negated variant `[!abc]`.
     Class { negated: bool, ranges: Ranges },
+    /// A group token `(abc)` or its negated variant `(!abc)`.
+    Group { negated: bool, literal: Literal },
     /// A list of nested alternate tokens `{a,b}`.
     Alternates(Vec<Tokens>),
     /// A list of optional tokens.
@@ -1935,5 +1971,16 @@ mod tests {
         let patterns = builder.build();
         assert!(!patterns.is_match("foo"));
         assert!(patterns.is_match("bar"));
+    }
+
+    #[test]
+    fn test_patterns_inverted() {
+        let mut builder = Patterns::builder().add("!abc").unwrap();
+
+        let patterns = builder.take();
+        assert!(patterns.is_match("a"));
+        assert!(patterns.is_match("b"));
+        assert!(patterns.is_match("c"));
+        assert!(!patterns.is_match("abc"));
     }
 }

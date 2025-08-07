@@ -61,6 +61,7 @@ where
                     // no match here.
                     None => false,
                 },
+                Token::Group { negated, literal } => {}
                 Token::Any(n) => {
                     advance!(match n_chars_to_bytes(*n, h_current) {
                         Some(n) => n,
