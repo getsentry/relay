@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add negated prefix to glob matching. ([#5040](https://github.com/getsentry/relay/pull/5040))
+
 **Bug Fixes**:
 
 - Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
