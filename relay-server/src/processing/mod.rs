@@ -15,10 +15,12 @@ use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
 use crate::services::processor::ProcessingExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
+mod common;
 mod limits;
 pub mod logs;
 pub mod spans;
 
+pub use self::common::*;
 pub use self::limits::*;
 
 /// A processor, for an arbitrary unit of work extracted from an envelope.
@@ -102,6 +104,17 @@ impl<T> Output<T> {
         Self {
             main,
             metrics: ProcessingExtractedMetrics::new(),
+        }
+    }
+
+    /// Maps an `Output<T>` to `Output<S>` by applying a function to [`Self::main`].
+    pub fn map<F, S>(self, f: F) -> Output<S>
+    where
+        F: FnOnce(T) -> S,
+    {
+        Output {
+            main: f(self.main),
+            metrics: self.metrics,
         }
     }
 }

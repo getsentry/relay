@@ -49,9 +49,9 @@ use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope}
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
-use crate::processing::logs::{LogOutput, LogsProcessor};
-use crate::processing::spans::{SpanOutput, SpansProcessor};
-use crate::processing::{Forward as _, Output, Processor as _, QuotaRateLimiter};
+use crate::processing::logs::LogsProcessor;
+use crate::processing::spans::SpansProcessor;
+use crate::processing::{Forward as _, Output, Outputs, Processor as _, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -863,13 +863,16 @@ struct SpansExtracted(bool);
 /// The result of the envelope processing containing the processed envelope along with the partial
 /// result.
 #[derive(Debug)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
+)]
 enum ProcessingResult {
     Envelope {
         managed_envelope: TypedEnvelope<Processed>,
         extracted_metrics: ProcessingExtractedMetrics,
     },
-    Logs(Output<LogOutput>),
-    Spans(Output<SpanOutput>),
+    Output(Output<Outputs>),
 }
 
 impl ProcessingResult {
@@ -883,13 +886,16 @@ impl ProcessingResult {
 }
 
 /// All items which can be submitted upstream.
+#[derive(Debug)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
+)]
 enum Submit {
     /// A processed envelope.
     Envelope(TypedEnvelope<Processed>),
-    /// The output of the [logs processor](LogsProcessor).
-    Logs(LogOutput),
-    /// The output of the [spans processor](SpansProcessor).
-    Spans(SpanOutput),
+    /// The output of a [`processing::Processor`].
+    Output(Outputs),
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -2194,7 +2200,8 @@ impl EnvelopeProcessorService {
             .process(logs, ctx)
             .await
             .map_err(|_| ProcessingError::ProcessingFailure)
-            .map(ProcessingResult::Logs)
+            .map(|o| o.map(Into::into))
+            .map(ProcessingResult::Output)
     }
 
     async fn process_spansv2(
@@ -2221,7 +2228,8 @@ impl EnvelopeProcessorService {
             .process(spans, ctx)
             .await
             .map_err(|_| ProcessingError::ProcessingFailure)
-            .map(ProcessingResult::Spans)
+            .map(|o| o.map(Into::into))
+            .map(ProcessingResult::Output)
     }
 
     /// Processes standalone spans.
@@ -2538,7 +2546,7 @@ impl EnvelopeProcessorService {
 
                 Ok(envelope_response.map(Submit::Envelope))
             }
-            Ok(ProcessingResult::Logs(Output { main, metrics })) => {
+            Ok(ProcessingResult::Output(Output { main, metrics })) => {
                 send_metrics(
                     metrics.metrics,
                     project_key,
@@ -2546,17 +2554,7 @@ impl EnvelopeProcessorService {
                     &self.inner.addrs.aggregator,
                 );
 
-                Ok(Some(Submit::Logs(main)))
-            }
-            Ok(ProcessingResult::Spans(Output { main, metrics })) => {
-                send_metrics(
-                    metrics.metrics,
-                    project_key,
-                    sampling_key,
-                    &self.inner.addrs.aggregator,
-                );
-
-                Ok(Some(Submit::Spans(main)))
+                Ok(Some(Submit::Output(main)))
             }
             Err(err) => Err(err),
         };
@@ -2739,10 +2737,7 @@ impl EnvelopeProcessorService {
         {
             match submit {
                 Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
-                Submit::Logs(output) => output
-                    .forward_store(store_forwarder)
-                    .unwrap_or_else(|err| err.into_inner()),
-                Submit::Spans(output) => output
+                Submit::Output(output) => output
                     .forward_store(store_forwarder)
                     .unwrap_or_else(|err| err.into_inner()),
             }
@@ -2751,14 +2746,7 @@ impl EnvelopeProcessorService {
 
         let mut envelope = match submit {
             Submit::Envelope(envelope) => envelope,
-            Submit::Logs(output) => match output.serialize_envelope() {
-                Ok(envelope) => ManagedEnvelope::from(envelope).into_processed(),
-                Err(_) => {
-                    relay_log::error!("failed to serialize output to an envelope");
-                    return;
-                }
-            },
-            Submit::Spans(output) => match output.serialize_envelope() {
+            Submit::Output(output) => match output.serialize_envelope() {
                 Ok(envelope) => ManagedEnvelope::from(envelope).into_processed(),
                 Err(_) => {
                     relay_log::error!("failed to serialize output to an envelope");
