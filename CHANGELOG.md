@@ -9,7 +9,7 @@
 - Implements basic inbound filters for logs. ([#5011](https://github.com/getsentry/relay/pull/5011))
 - Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
 - Improve PII scrubbing for `logentry.formatted` by ensuring only sensitive data is redacted, rather than replacing the entire field value. ([#4985](https://github.com/getsentry/relay/pull/4985))
-- Add `downsampled_event_retention` to the project configuration. ([#5013](https://github.com/getsentry/relay/pull/5013))
+- Pass `downsampled_event_retention` to `Traceitem` where appropriate. ([#5013](https://github.com/getsentry/relay/pull/5013), [#5041](https://github.com/getsentry/relay/pull/5041))
 
 **Bug Fixes**:
 
