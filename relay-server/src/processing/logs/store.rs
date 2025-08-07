@@ -40,6 +40,8 @@ pub struct Context {
     pub scoping: Scoping,
     /// Storage retention in days.
     pub retention: Option<u16>,
+    /// Storage retention for downsampled data in days
+    pub downsampled_retention: Option<u16>,
 }
 
 pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem> {
@@ -63,6 +65,10 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         project_id: ctx.scoping.project_id.value(),
         received: Some(ts(ctx.received_at)),
         retention_days: ctx.retention.unwrap_or(DEFAULT_EVENT_RETENTION).into(),
+        downsampled_retention_days: ctx
+            .downsampled_retention
+            .unwrap_or(DEFAULT_EVENT_RETENTION)
+            .into(),
         timestamp: Some(ts(timestamp.0)),
         trace_id: required!(log.trace_id).to_string(),
         item_id: Uuid::new_v7(timestamp.into()).as_bytes().to_vec(),
@@ -352,6 +358,7 @@ mod tests {
                 key_id: Some(3),
             },
             retention: Some(42),
+            downsampled_retention: Some(42),
         }
     }
 

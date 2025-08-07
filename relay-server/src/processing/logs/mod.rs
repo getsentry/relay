@@ -190,11 +190,13 @@ impl Forward for LogOutput {
         let scoping = logs.scoping();
         let received_at = logs.received_at();
 
-        let (logs, retention) = logs.split_with_context(|logs| (logs.logs, logs.retention));
+        let (logs, retentions) = logs
+            .split_with_context(|logs| (logs.logs, (logs.retention, logs.downsampled_retention)));
         let ctx = store::Context {
             scoping,
             received_at,
-            retention,
+            retention: retentions.0,
+            downsampled_retention: retentions.1,
         };
 
         for log in logs {
@@ -301,6 +303,9 @@ pub struct ExpandedLogs {
     /// Retention in days.
     #[cfg(feature = "processing")]
     retention: Option<u16>,
+    /// Downsampled retention in days.
+    #[cfg(feature = "processing")]
+    downsampled_retention: Option<u16>,
 }
 
 impl Counted for ExpandedLogs {
