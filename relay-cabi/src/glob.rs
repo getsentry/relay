@@ -139,9 +139,6 @@ mod tests {
             }}
         }
 
-        test_glob!("foo@1", "!{foo@*,bar@*}", false, {});
-        test_glob!("bar@1", "!{foo@*,bar@*}", false, {});
-        test_glob!("baz@1", "!{foo@*,bar@*}", true, {});
         test_glob!("hello.py", "*.py", true, {});
         test_glob!("hello.py", "*.js", false, {});
         test_glob!("foo/hello.py", "*.py", true, {});

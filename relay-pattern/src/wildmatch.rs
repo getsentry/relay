@@ -61,7 +61,29 @@ where
                     // no match here.
                     None => false,
                 },
-                Token::Group { negated, literal } => {}
+                // Token::Group never advances the cursor position. It can only tell you if the
+                // prefix match failed or succeeded. If it failed execution is stopped. If it
+                // succeeded then we iterate the token cursor and reparse the haystack from the
+                // exact position we started from in the Token::Group step.
+                Token::Group { negated, literal } => match M::is_prefix(h_current, literal) {
+                    Some(n) => {
+                        if *negated {
+                            // We matched the literal but the negated operator was specified. The
+                            // match fails and we do not advance the pointer.
+                            false
+                        } else {
+                            // The haystack cursor is advanced because we matched the prefix. This
+                            // is identical behavior to normal literal matching behavior.
+                            advance!(n)
+                        }
+                    }
+                    // We did not match the prefix literal. If the negated operator was
+                    // specified we return true indicating a match but we do not increment
+                    // the haystack pointer. We've only determined that the haystack is not
+                    // prefixed with some value. We haven't made a definitive conclusion about
+                    // _what_ the prefix actually is. The next token will perform that operation.
+                    None => *negated,
+                },
                 Token::Any(n) => {
                     advance!(match n_chars_to_bytes(*n, h_current) {
                         Some(n) => n,

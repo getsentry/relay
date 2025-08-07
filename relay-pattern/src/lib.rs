@@ -568,7 +568,7 @@ impl<'a> Parser<'a> {
 
         loop {
             let Some(c) = self.advance() else {
-                return Err(ErrorKind::UnbalancedCharacterClass);
+                return Err(ErrorKind::UnbalancedGroup);
             };
 
             match c {
@@ -1975,12 +1975,15 @@ mod tests {
 
     #[test]
     fn test_patterns_inverted() {
-        let mut builder = Patterns::builder().add("!abc").unwrap();
+        // We want to match anything that is not prefixed with foo@ or bar@
+        let mut builder = Patterns::builder().add("(!foo@)(!bar@)*").unwrap();
 
         let patterns = builder.take();
-        assert!(patterns.is_match("a"));
-        assert!(patterns.is_match("b"));
-        assert!(patterns.is_match("c"));
-        assert!(!patterns.is_match("abc"));
+        assert!(!patterns.is_match("foo@1.1"));
+        assert!(!patterns.is_match("bar@1.1"));
+        assert!(patterns.is_match("baz@1.1"));
+        assert!(patterns.is_match("foobar@1.1"));
+        assert!(patterns.is_match("barbaz@1.1"));
+        assert!(patterns.is_match("barbaz@1.1"));
     }
 }
