@@ -63,6 +63,8 @@ enum ErrorKind {
     UnbalancedCharacterClass,
     /// Unbalanced group. The pattern contains unbalanced `(`, `)` characters.
     UnbalancedGroup,
+    /// Groups may not be nested.
+    InvalidNestedGroup,
     /// Character class is invalid and cannot be parsed.
     InvalidCharacterClass,
     /// Nested alternates are not valid.
@@ -89,6 +91,7 @@ impl fmt::Display for Error {
             }
             ErrorKind::UnbalancedCharacterClass => write!(f, "Unbalanced character class"),
             ErrorKind::UnbalancedGroup => write!(f, "Unbalanced group"),
+            ErrorKind::InvalidNestedGroup => write!(f, "Nested grouping is not permitted"),
             ErrorKind::InvalidCharacterClass => write!(f, "Invalid character class"),
             ErrorKind::NestedAlternates => write!(f, "Nested alternates"),
             ErrorKind::UnbalancedAlternates => write!(f, "Unbalanced alternates"),
@@ -572,7 +575,7 @@ impl<'a> Parser<'a> {
             };
 
             match c {
-                '(' => return Err(ErrorKind::InvalidCharacterClass),
+                '(' => return Err(ErrorKind::InvalidNestedGroup),
                 ')' => break,
                 c => literal.push(match c {
                     '\\' => self.advance().ok_or(ErrorKind::DanglingEscape)?,
