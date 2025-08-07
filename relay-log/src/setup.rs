@@ -399,15 +399,15 @@ pub unsafe fn init(config: &LogConfig, sentry: &SentryConfig) {
     // access to an initialized Hub to capture crashes from the previous run.
     #[cfg(feature = "crash-handler")]
     {
-        if let Some(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
-            if let Some(db) = sentry._crash_db.as_deref() {
-                crate::info!("initializing crash handler in {}", db.display());
-                relay_crash::CrashHandler::new(dsn.as_str(), db)
-                    .transport(capture_native_envelope)
-                    .release(Some(RELEASE))
-                    .environment(sentry.environment.as_deref())
-                    .install();
-            }
+        if let Some(dsn) = sentry.enabled_dsn().map(|d| d.to_string())
+            && let Some(db) = sentry._crash_db.as_deref()
+        {
+            crate::info!("initializing crash handler in {}", db.display());
+            relay_crash::CrashHandler::new(dsn.as_str(), db)
+                .transport(capture_native_envelope)
+                .release(Some(RELEASE))
+                .environment(sentry.environment.as_deref())
+                .install();
         }
     }
 }

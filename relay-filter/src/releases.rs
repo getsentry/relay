@@ -11,10 +11,10 @@ pub fn should_filter<F>(item: &F, config: &ReleasesFilterConfig) -> Result<(), F
 where
     F: Filterable,
 {
-    if let Some(release) = item.release() {
-        if config.releases.is_match(release) {
-            return Err(FilterStatKey::ReleaseVersion);
-        }
+    if let Some(release) = item.release()
+        && config.releases.is_match(release)
+    {
+        return Err(FilterStatKey::ReleaseVersion);
     }
 
     Ok(())

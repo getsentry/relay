@@ -114,12 +114,11 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
         );
     }
 
-    if exclusive_time_ms == 0f64 {
-        if let (Some(start), Some(end)) = (start_timestamp.value(), end_timestamp.value()) {
-            if let Some(nanos) = (end.0 - start.0).num_nanoseconds() {
-                exclusive_time_ms = nanos as f64 / 1e6f64;
-            }
-        }
+    if exclusive_time_ms == 0f64
+        && let (Some(start), Some(end)) = (start_timestamp.value(), end_timestamp.value())
+        && let Some(nanos) = (end.0 - start.0).num_nanoseconds()
+    {
+        exclusive_time_ms = nanos as f64 / 1e6f64;
     }
 
     let links = links.map_value(|links| {
@@ -961,7 +960,7 @@ mod tests {
         {
           "timestamp": 123.1,
           "start_timestamp": 123.0,
-          "exclusive_time": 99.999999,
+          "exclusive_time": 100.0,
           "op": "cache.hit",
           "span_id": "e342abb1214ca181",
           "parent_span_id": "0c7a7dea069bf5a6",
@@ -1055,8 +1054,8 @@ mod tests {
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
           "status": "unknown",
           "data": {
-            "gen_ai.agent.name": "Seer",
-            "gen_ai.system": "openai"
+            "gen_ai.system": "openai",
+            "gen_ai.agent.name": "Seer"
           },
           "kind": "client"
         }

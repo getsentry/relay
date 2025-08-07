@@ -570,18 +570,17 @@ impl OsHint {
     }
 
     pub fn from_event(event: &Event) -> Option<OsHint> {
-        if let Some(debug_meta) = event.debug_meta.value() {
-            if let Some(sdk_info) = debug_meta.system_sdk.value() {
-                if let Some(name) = sdk_info.sdk_name.as_str() {
-                    return Self::from_name(name);
-                }
-            }
+        if let Some(debug_meta) = event.debug_meta.value()
+            && let Some(sdk_info) = debug_meta.system_sdk.value()
+            && let Some(name) = sdk_info.sdk_name.as_str()
+        {
+            return Self::from_name(name);
         }
 
-        if let Some(os_context) = event.context::<OsContext>() {
-            if let Some(name) = os_context.name.as_str() {
-                return Self::from_name(name);
-            }
+        if let Some(os_context) = event.context::<OsContext>()
+            && let Some(name) = os_context.name.as_str()
+        {
+            return Self::from_name(name);
         }
 
         None
@@ -605,43 +604,39 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
     };
 
     if let Some(os_hint) = os_hint {
-        if let Some(cerror) = meta.errno.value_mut() {
-            if cerror.name.value().is_none() {
-                if let Some(errno) = cerror.number.value() {
-                    if let Some(name) = get_errno_name(*errno, os_hint) {
-                        cerror.name = Annotated::new(name.to_owned());
-                    }
-                }
-            }
+        if let Some(cerror) = meta.errno.value_mut()
+            && cerror.name.value().is_none()
+            && let Some(errno) = cerror.number.value()
+            && let Some(name) = get_errno_name(*errno, os_hint)
+        {
+            cerror.name = Annotated::new(name.to_owned());
         }
 
-        if let Some(signal) = meta.signal.value_mut() {
-            if let Some(signo) = signal.number.value() {
-                if signal.name.value().is_none() {
-                    if let Some(name) = get_signal_name(*signo, os_hint) {
-                        signal.name = Annotated::new(name.to_owned());
-                    }
-                }
+        if let Some(signal) = meta.signal.value_mut()
+            && let Some(signo) = signal.number.value()
+        {
+            if signal.name.value().is_none()
+                && let Some(name) = get_signal_name(*signo, os_hint)
+            {
+                signal.name = Annotated::new(name.to_owned());
+            }
 
-                if os_hint == OsHint::Darwin && signal.code_name.value().is_none() {
-                    if let Some(code) = signal.code.value() {
-                        if let Some(code_name) = get_signal_code_name(*signo, *code) {
-                            signal.code_name = Annotated::new(code_name.to_owned());
-                        }
-                    }
-                }
+            if os_hint == OsHint::Darwin
+                && signal.code_name.value().is_none()
+                && let Some(code) = signal.code.value()
+                && let Some(code_name) = get_signal_code_name(*signo, *code)
+            {
+                signal.code_name = Annotated::new(code_name.to_owned());
             }
         }
     }
 
-    if let Some(mach_exception) = meta.mach_exception.value_mut() {
-        if let Some(number) = mach_exception.ty.value() {
-            if mach_exception.name.value().is_none() {
-                if let Some(name) = get_mach_exception_name(*number) {
-                    mach_exception.name = Annotated::new(name.to_owned());
-                }
-            }
-        }
+    if let Some(mach_exception) = meta.mach_exception.value_mut()
+        && let Some(number) = mach_exception.ty.value()
+        && mach_exception.name.value().is_none()
+        && let Some(name) = get_mach_exception_name(*number)
+    {
+        mach_exception.name = Annotated::new(name.to_owned());
     }
 }
 

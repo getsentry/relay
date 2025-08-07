@@ -96,15 +96,15 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
-            if let Some(span) = span.value_mut() {
-                if let Some(op) = span.op.value() {
-                    if op == "app_start_cold" {
-                        span.op.set_value(Some("app.start.cold".to_owned()));
-                        break;
-                    } else if op == "app_start_warm" {
-                        span.op.set_value(Some("app.start.warm".to_owned()));
-                        break;
-                    }
+            if let Some(span) = span.value_mut()
+                && let Some(op) = span.op.value()
+            {
+                if op == "app_start_cold" {
+                    span.op.set_value(Some("app.start.cold".to_owned()));
+                    break;
+                } else if op == "app_start_warm" {
+                    span.op.set_value(Some("app.start.warm".to_owned()));
+                    break;
                 }
             }
         }

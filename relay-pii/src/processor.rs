@@ -318,23 +318,21 @@ pub fn scrub_graphql(event: &mut Event) {
     let mut is_graphql = false;
 
     // Collect the variables keys and scrub them out.
-    if let Some(request) = event.request.value_mut() {
-        if let Some(Value::Object(data)) = request.data.value_mut() {
-            if let Some(api_target) = request.api_target.value() {
-                if api_target.eq_ignore_ascii_case("graphql") {
-                    is_graphql = true;
-                }
-            }
+    if let Some(request) = event.request.value_mut()
+        && let Some(Value::Object(data)) = request.data.value_mut()
+    {
+        if let Some(api_target) = request.api_target.value()
+            && api_target.eq_ignore_ascii_case("graphql")
+        {
+            is_graphql = true;
+        }
 
-            if is_graphql {
-                if let Some(Annotated(Some(Value::Object(variables)), _)) =
-                    data.get_mut("variables")
-                {
-                    for (key, value) in variables.iter_mut() {
-                        keys.insert(key);
-                        value.set_value(Some(Value::String("[Filtered]".to_owned())));
-                    }
-                }
+        if is_graphql
+            && let Some(Annotated(Some(Value::Object(variables)), _)) = data.get_mut("variables")
+        {
+            for (key, value) in variables.iter_mut() {
+                keys.insert(key);
+                value.set_value(Some(Value::String("[Filtered]".to_owned())));
             }
         }
     }
@@ -344,20 +342,17 @@ pub fn scrub_graphql(event: &mut Event) {
     }
 
     // Scrub PII from the data object if they match the variables keys.
-    if let Some(contexts) = event.contexts.value_mut() {
-        if let Some(response) = contexts.get_mut::<ResponseContext>() {
-            if let Some(Value::Object(data)) = response.data.value_mut() {
-                if let Some(Annotated(Some(Value::Object(graphql_data)), _)) = data.get_mut("data")
-                {
-                    if !keys.is_empty() {
-                        scrub_graphql_data(&keys, graphql_data);
-                    } else {
-                        // If we don't have the variable keys, we scrub the whole data object
-                        // because the query or mutation weren't parameterized.
-                        data.remove("data");
-                    }
-                }
-            }
+    if let Some(contexts) = event.contexts.value_mut()
+        && let Some(response) = contexts.get_mut::<ResponseContext>()
+        && let Some(Value::Object(data)) = response.data.value_mut()
+        && let Some(Annotated(Some(Value::Object(graphql_data)), _)) = data.get_mut("data")
+    {
+        if !keys.is_empty() {
+            scrub_graphql_data(&keys, graphql_data);
+        } else {
+            // If we don't have the variable keys, we scrub the whole data object
+            // because the query or mutation weren't parameterized.
+            data.remove("data");
         }
     }
 }
@@ -510,16 +505,16 @@ fn apply_regex_to_chunks<'a>(
         ReplaceBehavior::Groups(ref groups) => {
             for m in captures_iter {
                 for (idx, g) in m.iter().enumerate() {
-                    if let Some(g) = g {
-                        if groups.contains(&(idx as u8)) {
-                            process_text(
-                                &search_string[pos..g.start()],
-                                &mut rv,
-                                &mut replacement_chunks,
-                            );
-                            insert_replacement_chunks(rule, g.as_str(), &mut rv);
-                            pos = g.end();
-                        }
+                    if let Some(g) = g
+                        && groups.contains(&(idx as u8))
+                    {
+                        process_text(
+                            &search_string[pos..g.start()],
+                            &mut rv,
+                            &mut replacement_chunks,
+                        );
+                        insert_replacement_chunks(rule, g.as_str(), &mut rv);
+                        pos = g.end();
                     }
                 }
             }
@@ -1139,7 +1134,7 @@ mod tests {
 
     #[test]
     fn test_logentry_value_types() {
-        // Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted
+        // Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted.
         for formatted_selector in &[
             "$logentry.formatted",
             "$message",
@@ -1167,7 +1162,6 @@ mod tests {
 
             let mut processor = PiiProcessor::new(config.compiled());
             process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
             assert!(
                 event
                     .value()
@@ -1180,6 +1174,142 @@ mod tests {
                     .is_none()
             );
         }
+    }
+
+    #[test]
+    fn test_logentry_formatted_never_fully_filtered() {
+        // Test that logentry.formatted gets smart PII scrubbing via to_pii_config
+        // and is never completely filtered even with aggressive PII rules
+        let config = crate::convert::to_pii_config(&crate::DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            scrub_ip_addresses: true,
+            ..Default::default()
+        })
+        .unwrap()
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new(
+                    "User john.doe@company.com failed login with card 4111-1111-1111-1111"
+                        .to_owned()
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event, @r#"
+        {
+          "logentry": {
+            "formatted": "User [email] failed login with card [creditcard]"
+          },
+          "_meta": {
+            "logentry": {
+              "formatted": {
+                "": {
+                  "rem": [
+                    [
+                      "@email:replace",
+                      "s",
+                      5,
+                      12
+                    ],
+                    [
+                      "@creditcard:replace",
+                      "s",
+                      36,
+                      48
+                    ]
+                  ],
+                  "len": 68
+                }
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_logentry_formatted_bearer_token_scrubbing() {
+        // Test that bearer tokens are properly scrubbed in logentry.formatted
+        let config = crate::convert::to_pii_config(&crate::DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        })
+        .unwrap()
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new(
+                    "API request failed with Bearer ABC123XYZ789TOKEN and other data"
+                        .to_owned()
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event, @r#"
+        {
+          "logentry": {
+            "formatted": "API request failed with Bearer [token] and other data"
+          },
+          "_meta": {
+            "logentry": {
+              "formatted": {
+                "": {
+                  "rem": [
+                    [
+                      "@bearer:replace",
+                      "s",
+                      24,
+                      38
+                    ]
+                  ],
+                  "len": 63
+                }
+              }
+            }
+          }
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_logentry_formatted_password_word_not_scrubbed() {
+        let config = PiiConfig::default();
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new(
+                    "User password is secret123 for authentication"
+                        .to_owned()
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event, @r#"
+        {
+          "logentry": {
+            "formatted": "User password is secret123 for authentication"
+          }
+        }
+        "#);
     }
 
     #[test]

@@ -28,7 +28,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Duration, Utc};
 use data_encoding::BASE64URL_NOPAD;
-use ed25519_dalek::{Signer, Verifier};
+use ed25519_dalek::{Digest, DigestSigner, DigestVerifier, Signer, Verifier};
 use hmac::{Hmac, Mac};
 use rand::rngs::OsRng;
 use rand::{RngCore as _, TryRngCore as _};
@@ -148,6 +148,17 @@ pub enum UnpackError {
     SignatureExpired,
 }
 
+/// Used to tell which algorithm was used for signature creation.
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SignatureAlgorithm {
+    /// Regular signature creation which clones the data internally.
+    #[serde(rename = "v0")]
+    Regular,
+    /// Pre-hashed signature which allows incremental hashing.
+    #[serde(rename = "v1")]
+    Prehashed,
+}
+
 /// A wrapper around packed data that adds a timestamp.
 ///
 /// This is internally automatically used when data is signed.
@@ -156,6 +167,13 @@ pub struct SignatureHeader {
     /// The timestamp of when the data was packed and signed.
     #[serde(rename = "t", skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<DateTime<Utc>>,
+
+    /// Represents how this signature was created and how it needs to be verified.
+    ///
+    /// Defaults to [`SignatureAlgorithm::Regular`] because that was used before the introduction
+    /// of this field.
+    #[serde(rename = "a", skip_serializing_if = "Option::is_none")]
+    pub signature_algorithm: Option<SignatureAlgorithm>,
 }
 
 impl SignatureHeader {
@@ -173,6 +191,7 @@ impl Default for SignatureHeader {
     fn default() -> SignatureHeader {
         SignatureHeader {
             timestamp: Some(Utc::now()),
+            signature_algorithm: None,
         }
     }
 }
@@ -193,6 +212,15 @@ pub struct Registration {
     relay_id: RelayId,
 }
 
+/// Creates a digest for signature verification/signing.
+fn create_digest(header: &[u8], data: &[u8]) -> Sha512 {
+    let mut digest = Sha512::default();
+    digest.update(header);
+    digest.update(b"\x00");
+    digest.update(data);
+    digest
+}
+
 impl SecretKey {
     /// Signs some data with the secret key and returns the signature.
     ///
@@ -206,13 +234,25 @@ impl SecretKey {
     ///
     /// The default behavior is to attach the timestamp in the header to the
     /// signature so that old signatures on verification can be rejected.
-    pub fn sign_with_header(&self, data: &[u8], header: &SignatureHeader) -> Signature {
+    pub fn sign_with_header(&self, data: &[u8], sig_header: &SignatureHeader) -> Signature {
         let mut header =
-            serde_json::to_vec(&header).expect("attempted to pack non json safe header");
+            serde_json::to_vec(&sig_header).expect("attempted to pack non json safe header");
         let header_encoded = BASE64URL_NOPAD.encode(&header);
-        header.push(b'\x00');
-        header.extend_from_slice(data);
-        let sig = self.inner.sign(&header);
+        let sig = match sig_header
+            .signature_algorithm
+            .unwrap_or(SignatureAlgorithm::Regular)
+        {
+            SignatureAlgorithm::Regular => {
+                header.push(b'\x00');
+                header.extend_from_slice(data);
+                self.inner.sign(&header)
+            }
+            SignatureAlgorithm::Prehashed => {
+                let digest = create_digest(&header, data);
+                self.inner.sign_digest(digest)
+            }
+        };
+
         let mut sig_encoded = BASE64URL_NOPAD.encode(&sig.to_bytes());
         sig_encoded.push('.');
         sig_encoded.push_str(&header_encoded);
@@ -315,11 +355,25 @@ impl PublicKey {
             Some(header_encoded) => BASE64URL_NOPAD.decode(header_encoded.as_bytes()).ok()?,
             None => return None,
         };
-        let mut to_verify = header.clone();
-        to_verify.push(b'\x00');
-        to_verify.extend_from_slice(data);
-        if self.inner.verify(&to_verify, &sig).is_ok() {
-            serde_json::from_slice(&header).ok()
+        let parsed: SignatureHeader = serde_json::from_slice(&header).ok()?;
+
+        let verification_result = match parsed
+            .signature_algorithm
+            .unwrap_or(SignatureAlgorithm::Regular)
+        {
+            SignatureAlgorithm::Regular => {
+                let mut to_verify = header.clone();
+                to_verify.push(b'\x00');
+                to_verify.extend_from_slice(data);
+                self.inner.verify(&to_verify, &sig)
+            }
+            SignatureAlgorithm::Prehashed => {
+                let digest = create_digest(&header, data);
+                self.inner.verify_digest(digest, &sig)
+            }
+        };
+        if verification_result.is_ok() {
+            Some(parsed)
         } else {
             None
         }
@@ -1037,6 +1091,7 @@ mod tests {
 
         let header = SignatureHeader {
             timestamp: Some(start_time),
+            signature_algorithm: Some(SignatureAlgorithm::Regular),
         };
         let signature = pair3.0.sign_with_header(&[], &header);
 
@@ -1054,5 +1109,50 @@ mod tests {
             start_time + Duration::seconds(3),
             Duration::seconds(2)
         ))
+    }
+
+    #[test]
+    fn test_regular_algorithm() {
+        let (secret, public) = generate_key_pair();
+        let signature = secret.sign(&[]);
+        assert!(signature.verify(&public, Utc::now(), Duration::seconds(10)));
+    }
+
+    #[test]
+    fn test_prehashed_algorithm() {
+        let (secret, public) = generate_key_pair();
+        let header = SignatureHeader {
+            timestamp: Some(Utc::now()),
+            signature_algorithm: Some(SignatureAlgorithm::Prehashed),
+        };
+        let signature = secret.sign_with_header(&[], &header);
+        assert!(signature.verify(&public, Utc::now(), Duration::seconds(10)));
+    }
+
+    #[test]
+    fn test_legacy_signature_can_be_verified() {
+        // TestHeader struct is used to mimic old version that do not have
+        // the `signature_variant` fields.
+        #[derive(Serialize)]
+        struct TestHeader {
+            #[serde(rename = "t")]
+            timestamp: Option<DateTime<Utc>>,
+        }
+        let header = serde_json::to_string(&TestHeader {
+            timestamp: Some(Utc::now()),
+        })
+        .unwrap();
+
+        let data: &[u8] = &[];
+        let (secret, public) = generate_key_pair();
+        let mut to_sign = header.clone().into_bytes();
+        to_sign.push(b'\x00');
+        to_sign.extend_from_slice(data);
+        let sig = secret.inner.sign(to_sign.as_slice());
+        let mut sig_encoded = BASE64URL_NOPAD.encode(sig.to_bytes().as_slice());
+        sig_encoded.push('.');
+        sig_encoded.push_str(BASE64URL_NOPAD.encode(header.as_bytes()).as_str());
+
+        assert!(public.verify(data, SignatureRef(sig_encoded.as_str())));
     }
 }

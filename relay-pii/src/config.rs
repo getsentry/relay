@@ -182,6 +182,8 @@ pub enum RuleType {
     UrlAuth,
     /// US SSN.
     UsSsn,
+    /// A Bearer token
+    Bearer,
     /// Keys that look like passwords
     Password,
     /// When a regex matches a key, a value is removed

@@ -44,11 +44,10 @@ use std::net::IpAddr;
 use std::time::Duration;
 
 use bytes::Bytes;
-use url::Url;
 
 use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::GlobalConfig;
-use relay_event_schema::protocol::{Csp, Event, EventId, Exception, LogEntry, Values};
+use relay_event_schema::protocol::{Event, EventId};
 use relay_filter::{Filterable, ProjectFiltersConfig};
 use relay_protocol::{Getter, Val};
 use serde::Deserialize;
@@ -118,40 +117,8 @@ struct MinimalProfile {
 }
 
 impl Filterable for MinimalProfile {
-    fn csp(&self) -> Option<&Csp> {
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        None
-    }
-
-    fn ip_addr(&self) -> Option<&str> {
-        None
-    }
-
-    fn logentry(&self) -> Option<&LogEntry> {
-        None
-    }
-
     fn release(&self) -> Option<&str> {
         self.release.as_deref()
-    }
-
-    fn transaction(&self) -> Option<&str> {
-        None
-    }
-
-    fn url(&self) -> Option<Url> {
-        None
-    }
-
-    fn user_agent(&self) -> Option<&str> {
-        None
-    }
-
-    fn header(&self, _: &str) -> Option<&str> {
-        None
     }
 }
 

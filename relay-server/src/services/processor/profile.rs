@@ -87,10 +87,10 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
             });
         }
         None => {
-            if let Some(contexts) = event.contexts.value_mut() {
-                if let Some(profile_context) = contexts.get_mut::<ProfileContext>() {
-                    profile_context.profile_id = Annotated::empty();
-                }
+            if let Some(contexts) = event.contexts.value_mut()
+                && let Some(profile_context) = contexts.get_mut::<ProfileContext>()
+            {
+                profile_context.profile_id = Annotated::empty();
             }
         }
     }
@@ -112,16 +112,15 @@ pub fn scrub_profiler_id(event: &mut Annotated<Event>) {
     if !transaction_duration.is_some_and(|duration| duration < 19.8) {
         return;
     }
-    if let Some(contexts) = event.contexts.value_mut().as_mut() {
-        if let Some(profiler_id) = contexts
+    if let Some(contexts) = event.contexts.value_mut().as_mut()
+        && let Some(profiler_id) = contexts
             .get_mut::<ProfileContext>()
             .map(|ctx| &mut ctx.profiler_id)
-        {
-            let id = std::mem::take(profiler_id.value_mut());
-            let remark = Remark::new(RemarkType::Removed, "transaction_duration");
-            profiler_id.meta_mut().add_remark(remark);
-            profiler_id.meta_mut().set_original_value(id);
-        }
+    {
+        let id = std::mem::take(profiler_id.value_mut());
+        let remark = Remark::new(RemarkType::Removed, "transaction_duration");
+        profiler_id.meta_mut().add_remark(remark);
+        profiler_id.meta_mut().set_original_value(id);
     }
 }
 

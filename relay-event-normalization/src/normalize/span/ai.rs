@@ -65,12 +65,11 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
 
     let set_field_from_measurement = |target_field: &mut Annotated<Value>,
                                       measurement_key: &str| {
-        if let Some(measurements) = measurements {
-            if target_field.value().is_none() {
-                if let Some(value) = measurements.get_value(measurement_key) {
-                    target_field.set_value(Value::F64(value.to_f64()).into());
-                }
-            }
+        if let Some(measurements) = measurements
+            && target_field.value().is_none()
+            && let Some(value) = measurements.get_value(measurement_key)
+        {
+            target_field.set_value(Value::F64(value.to_f64()).into());
         }
     };
 
@@ -119,15 +118,15 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
     };
 
     // Extracts the response tokens per second
-    if data.gen_ai_response_tokens_per_second.value().is_none() && duration > 0.0 {
-        if let Some(output_tokens) = data
+    if data.gen_ai_response_tokens_per_second.value().is_none()
+        && duration > 0.0
+        && let Some(output_tokens) = data
             .gen_ai_usage_output_tokens
             .value()
             .and_then(Value::as_f64)
-        {
-            data.gen_ai_response_tokens_per_second
-                .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
-        }
+    {
+        data.gen_ai_response_tokens_per_second
+            .set_value(Value::F64(output_tokens / (duration / 1000.0)).into());
     }
 
     // Extracts the total cost of the AI model used
@@ -140,13 +139,11 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
                 .value()
                 .and_then(|val| val.as_str())
         })
-    {
-        if let Some(total_cost) =
+        && let Some(total_cost) =
             calculate_ai_model_cost(ai_model_costs.cost_per_token(model_id), data)
-        {
-            data.gen_ai_usage_total_cost
-                .set_value(Value::F64(total_cost).into());
-        }
+    {
+        data.gen_ai_usage_total_cost
+            .set_value(Value::F64(total_cost).into());
     }
 }
 

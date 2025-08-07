@@ -3,35 +3,73 @@
 use url::Url;
 
 use relay_event_schema::protocol::{
-    Csp, Event, EventType, Exception, LogEntry, Replay, SessionAggregates, SessionUpdate, Span,
-    Values,
+    Csp, Event, EventType, Exception, LogEntry, OurLog, Replay, SessionAggregates, SessionUpdate,
+    Span, Values,
 };
+
+/// A user agent returned from [`Filterable::user_agent`].
+#[derive(Clone, Debug, Default)]
+pub struct UserAgent<'a> {
+    /// The raw, unparsed user agent string, if available.
+    pub raw: Option<&'a str>,
+    /// A already fully parsed user agent, if available.
+    pub parsed: Option<relay_ua::UserAgent<'a>>,
+}
+
+impl<'a> UserAgent<'a> {
+    /// Parses the raw user agent, if it is not already parsed and returns it.
+    pub fn parsed(&mut self) -> Option<&'_ relay_ua::UserAgent<'a>> {
+        match &mut self.parsed {
+            Some(parsed) => Some(parsed),
+            parsed @ None => {
+                *parsed = Some(relay_ua::parse_user_agent(self.raw?));
+                parsed.as_ref()
+            }
+        }
+    }
+}
 
 /// A data item to which filters can be applied.
 pub trait Filterable {
     /// The CSP report contained in the item. Only for CSP reports.
-    fn csp(&self) -> Option<&Csp>;
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
 
     /// The exception values of the item. Only for error events.
-    fn exceptions(&self) -> Option<&Values<Exception>>;
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
 
     /// The IP address of the client that sent the data.
-    fn ip_addr(&self) -> Option<&str>;
+    fn ip_addr(&self) -> Option<&str> {
+        None
+    }
 
     /// The logentry message. Only for error events.
-    fn logentry(&self) -> Option<&LogEntry>;
+    fn logentry(&self) -> Option<&LogEntry> {
+        None
+    }
 
     /// The release string of the data item.
-    fn release(&self) -> Option<&str>;
+    fn release(&self) -> Option<&str> {
+        None
+    }
 
     /// The transaction name. Only for transaction events.
-    fn transaction(&self) -> Option<&str>;
+    fn transaction(&self) -> Option<&str> {
+        None
+    }
 
     /// The URL from which the request originates. Used for localhost filtering.
-    fn url(&self) -> Option<Url>;
+    fn url(&self) -> Option<Url> {
+        None
+    }
 
     /// The user agent of the client that sent the data.
-    fn user_agent(&self) -> Option<&str>;
+    fn user_agent(&self) -> UserAgent<'_> {
+        Default::default()
+    }
 
     /// Retrieves a request headers from the item.
     ///
@@ -39,7 +77,9 @@ pub trait Filterable {
     /// be included in the `request.headers` of an error.
     ///
     /// This **does not** return header information from the request that reached relay.
-    fn header(&self, header_name: &str) -> Option<&str>;
+    fn header(&self, _header_name: &str) -> Option<&str> {
+        None
+    }
 }
 
 impl Filterable for Event {
@@ -79,8 +119,11 @@ impl Filterable for Event {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent()
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.user_agent(),
+            parsed: None,
+        }
     }
 
     fn header(&self, header_name: &str) -> Option<&str> {
@@ -93,29 +136,13 @@ impl Filterable for Event {
 }
 
 impl Filterable for Replay {
-    fn csp(&self) -> Option<&Csp> {
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        None
-    }
-
     fn ip_addr(&self) -> Option<&str> {
         let user = self.user.value()?;
         Some(user.ip_address.value()?.as_ref())
     }
 
-    fn logentry(&self) -> Option<&LogEntry> {
-        None
-    }
-
     fn release(&self) -> Option<&str> {
         self.release.as_str()
-    }
-
-    fn transaction(&self) -> Option<&str> {
-        None
     }
 
     fn url(&self) -> Option<Url> {
@@ -123,8 +150,11 @@ impl Filterable for Replay {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent()
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.user_agent(),
+            parsed: None,
+        }
     }
 
     fn header(&self, header_name: &str) -> Option<&str> {
@@ -137,23 +167,8 @@ impl Filterable for Replay {
 }
 
 impl Filterable for Span {
-    fn csp(&self) -> Option<&Csp> {
-        // Only for events.
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        // Only for events.
-        None
-    }
-
     fn ip_addr(&self) -> Option<&str> {
         self.data.value()?.client_address.as_str()
-    }
-
-    fn logentry(&self) -> Option<&LogEntry> {
-        // Only for events.
-        None
     }
 
     fn release(&self) -> Option<&str> {
@@ -169,24 +184,16 @@ impl Filterable for Span {
         Url::parse(url_str).ok()
     }
 
-    fn user_agent(&self) -> Option<&str> {
-        self.data.value()?.user_agent_original.as_str()
-    }
-
-    fn header(&self, _: &str) -> Option<&str> {
-        None
+    fn user_agent(&self) -> UserAgent<'_> {
+        let raw = self
+            .data
+            .value()
+            .and_then(|data| data.user_agent_original.as_str());
+        UserAgent { raw, parsed: None }
     }
 }
 
 impl Filterable for SessionUpdate {
-    fn csp(&self) -> Option<&Csp> {
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        None
-    }
-
     fn ip_addr(&self) -> Option<&str> {
         self.attributes
             .ip_address
@@ -194,40 +201,19 @@ impl Filterable for SessionUpdate {
             .map(|addr| addr.as_str())
     }
 
-    fn logentry(&self) -> Option<&LogEntry> {
-        None
-    }
-
     fn release(&self) -> Option<&str> {
         Some(&self.attributes.release)
     }
 
-    fn transaction(&self) -> Option<&str> {
-        None
-    }
-
-    fn url(&self) -> Option<Url> {
-        None
-    }
-
-    fn user_agent(&self) -> Option<&str> {
-        self.attributes.user_agent.as_deref()
-    }
-
-    fn header(&self, _header_name: &str) -> Option<&str> {
-        None
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.attributes.user_agent.as_deref(),
+            parsed: None,
+        }
     }
 }
 
 impl Filterable for SessionAggregates {
-    fn csp(&self) -> Option<&Csp> {
-        None
-    }
-
-    fn exceptions(&self) -> Option<&Values<Exception>> {
-        None
-    }
-
     fn ip_addr(&self) -> Option<&str> {
         self.attributes
             .ip_address
@@ -235,27 +221,42 @@ impl Filterable for SessionAggregates {
             .map(|addr| addr.as_str())
     }
 
-    fn logentry(&self) -> Option<&LogEntry> {
-        None
-    }
-
     fn release(&self) -> Option<&str> {
         Some(&self.attributes.release)
     }
 
-    fn transaction(&self) -> Option<&str> {
-        None
+    fn user_agent(&self) -> UserAgent<'_> {
+        UserAgent {
+            raw: self.attributes.user_agent.as_deref(),
+            parsed: None,
+        }
+    }
+}
+
+impl Filterable for OurLog {
+    fn release(&self) -> Option<&str> {
+        self.attributes
+            .value()?
+            .get_value("sentry.release")?
+            .as_str()
     }
 
-    fn url(&self) -> Option<Url> {
-        None
-    }
+    fn user_agent(&self) -> UserAgent<'_> {
+        let parsed = (|| {
+            let attributes = self.attributes.value()?;
 
-    fn user_agent(&self) -> Option<&str> {
-        self.attributes.user_agent.as_deref()
-    }
+            let family = attributes.get_value("sentry.browser.name")?.as_str()?;
+            let version = attributes.get_value("sentry.browser.version")?.as_str()?;
+            let mut parts = version.splitn(3, '.');
 
-    fn header(&self, _header_name: &str) -> Option<&str> {
-        None
+            Some(relay_ua::UserAgent {
+                family: family.into(),
+                major: parts.next().map(Into::into),
+                minor: parts.next().map(Into::into),
+                patch: parts.next().map(Into::into),
+            })
+        })();
+
+        UserAgent { raw: None, parsed }
     }
 }

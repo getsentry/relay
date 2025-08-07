@@ -37,7 +37,7 @@ impl<F> AsyncPool<F> {
     }
 
     /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
-    pub fn metrics(&self) -> AsyncPoolMetrics {
+    pub fn metrics(&self) -> AsyncPoolMetrics<'_> {
         AsyncPoolMetrics {
             max_tasks: self.max_tasks,
             queue_size: self.tx.len() as u64,

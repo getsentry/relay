@@ -14,9 +14,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     let features = &project_config.features;
 
-    if !config.is_supported() || config._span_metrics_extended || !features.produces_spans() {
+    if !config.is_supported() || config._span_metrics_extended {
         return;
     }
+    config._span_metrics_extended = true;
 
     // If there are any spans in the system, extract the usage metric for them:
     config.metrics.push(MetricSpec {
@@ -26,6 +27,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         condition: None,
         tags: vec![],
     });
+
+    if !features.produces_spans() {
+        return;
+    }
 
     config
         .global_groups
@@ -38,7 +43,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         .or_default()
         .is_enabled = true;
 
-    config._span_metrics_extended = true;
     if config.version == 0 {
         config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
     }

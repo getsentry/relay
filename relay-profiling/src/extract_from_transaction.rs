@@ -56,10 +56,10 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
         );
     }
 
-    if let Some(app_context) = event.context::<AppContext>() {
-        if let Some(app_identifier) = app_context.app_identifier.value() {
-            tags.insert("app.identifier".to_owned(), app_identifier.to_owned());
-        }
+    if let Some(app_context) = event.context::<AppContext>()
+        && let Some(app_identifier) = app_context.app_identifier.value()
+    {
+        tags.insert("app.identifier".to_owned(), app_identifier.to_owned());
     }
 
     if let Some(client_sdk) = event.client_sdk.value() {

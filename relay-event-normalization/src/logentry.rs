@@ -60,14 +60,12 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> Processin
         return Err(ProcessingAction::DeleteValueSoft);
     }
 
-    if let Some(params) = logentry.params.value() {
-        if logentry.formatted.value().is_none() {
-            if let Some(message) = logentry.message.value() {
-                if let Some(formatted) = format_message(message.as_ref(), params) {
-                    logentry.formatted = Annotated::new(formatted.into());
-                }
-            }
-        }
+    if let Some(params) = logentry.params.value()
+        && logentry.formatted.value().is_none()
+        && let Some(message) = logentry.message.value()
+        && let Some(formatted) = format_message(message.as_ref(), params)
+    {
+        logentry.formatted = Annotated::new(formatted.into());
     }
 
     // Move `message` to `formatted` if they are equal or only message is given. This also
