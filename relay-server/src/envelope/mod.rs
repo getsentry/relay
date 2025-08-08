@@ -100,6 +100,13 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     retention: Option<u16>,
 
+    /// Data retention in days for the items of this envelope.
+    ///
+    /// This value is always overwritten in processing mode by the value specified in the project
+    /// configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    downsampled_retention: Option<u16>,
+
     /// Timestamp when the event has been sent, according to the SDK.
     ///
     /// This can be used to perform drift correction.
@@ -155,6 +162,7 @@ impl EnvelopeHeaders<PartialMeta> {
             event_id: self.event_id,
             meta: meta.copy_to(request_meta),
             retention: self.retention,
+            downsampled_retention: self.downsampled_retention,
             sent_at: self.sent_at,
             trace: self.trace,
             required_features: self.required_features,
@@ -205,6 +213,7 @@ impl Envelope {
                 event_id,
                 meta,
                 retention: None,
+                downsampled_retention: None,
                 sent_at: None,
                 other: BTreeMap::new(),
                 trace: None,
@@ -303,6 +312,14 @@ impl Envelope {
         self.headers.retention.unwrap_or(DEFAULT_EVENT_RETENTION)
     }
 
+    /// Returns the data retention in days for items in this envelope.
+    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
+    pub fn downsampled_retention(&self) -> u16 {
+        self.headers
+            .downsampled_retention
+            .unwrap_or(self.retention())
+    }
+
     /// When the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
@@ -358,6 +375,11 @@ impl Envelope {
     /// Sets the data retention in days for items in this envelope.
     pub fn set_retention(&mut self, retention: u16) {
         self.headers.retention = Some(retention);
+    }
+
+    /// Sets the data retention in days for items in this envelope.
+    pub fn set_downsampled_retention(&mut self, retention: u16) {
+        self.headers.downsampled_retention = Some(retention);
     }
 
     /// Runs transaction parametrization on the DSC trace transaction.
