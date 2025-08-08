@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
-use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId};
+use relay_event_schema::protocol::{Attributes, OurLog, OurLogHeader, OurLogLevel, SpanId};
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
@@ -44,6 +44,14 @@ pub struct Context {
 
 pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem> {
     let quantities = log.quantities();
+    let payload_size_bytes = log
+        .header
+        .as_ref()
+        .unwrap_or(&OurLogHeader {
+            ..Default::default()
+        })
+        .byte_size
+        .unwrap_or_default();
 
     let log = required!(log.value);
     let timestamp = required!(log.timestamp);
@@ -55,6 +63,7 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         timestamp,
         body: required!(log.body),
         span_id: log.span_id.into_value(),
+        payload_size_bytes,
     };
 
     let trace_item = TraceItem {
@@ -213,6 +222,8 @@ struct FieldAttributes {
     ///
     /// See: [`OurLog::span_id`].
     span_id: Option<SpanId>,
+    /// Payload size as it is ingested.
+    payload_size_bytes: u64,
 }
 
 /// Extracts all attributes of a log, combines it with extracted meta attributes.
@@ -267,7 +278,9 @@ fn attributes(
         timestamp,
         body,
         span_id,
+        payload_size_bytes,
     } = fields;
+
     // Unconditionally override any prior set attributes with the same key, as they should always
     // come from the log itself.
     //
@@ -279,12 +292,14 @@ fn attributes(
             value: Some(any_value::Value::StringValue(level.to_string())),
         },
     );
+
     let timestamp_nanos = timestamp
         .into_inner()
         .timestamp_nanos_opt()
         // We can expect valid timestamps at this point, clock drift correction / normalization
         // should've taken care of this already.
         .unwrap_or_default();
+
     result.insert(
         "sentry.timestamp_nanos".to_owned(),
         AnyValue {
@@ -303,6 +318,7 @@ fn attributes(
             value: Some(any_value::Value::StringValue(body)),
         },
     );
+
     if let Some(span_id) = span_id {
         result.insert(
             "sentry.span_id".to_owned(),
@@ -311,6 +327,13 @@ fn attributes(
             },
         );
     }
+
+    result.insert(
+        "sentry.payload_size_bytes".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::IntValue(payload_size_bytes as i64)),
+        },
+    );
 
     result
 }
