@@ -3,6 +3,7 @@
 # Unreleased
 
 - Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Add `downsampled_event_retention` to the project configuration. ([#5013](https://github.com/getsentry/relay/pull/5013))
 
 ## 0.9.10
 
