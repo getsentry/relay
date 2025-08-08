@@ -74,51 +74,120 @@ where
 
 /// Kafka client and producer context that logs statistics and producer errors.
 #[derive(Debug)]
-pub struct Context;
+pub struct Context {
+    /// Producer name for deployment identification
+    producer_name: String,
+}
+
+impl Context {
+    pub fn new(producer_name: String) -> Self {
+        Self { producer_name }
+    }
+
+    pub fn producer_name(&self) -> &str {
+        &self.producer_name
+    }
+}
 
 impl ClientContext for Context {
     /// Report client statistics as statsd metrics.
     ///
     /// This method is only called if `statistics.interval.ms` is configured.
     fn stats(&self, statistics: rdkafka::Statistics) {
-        relay_statsd::metric!(gauge(KafkaGauges::MessageCount) = statistics.msg_cnt);
-        relay_statsd::metric!(gauge(KafkaGauges::MessageCountMax) = statistics.msg_max);
-        relay_statsd::metric!(gauge(KafkaGauges::MessageSize) = statistics.msg_size);
-        relay_statsd::metric!(gauge(KafkaGauges::MessageSizeMax) = statistics.msg_size_max);
+        let producer_name = &self.producer_name;
+
+        relay_statsd::metric!(
+            gauge(KafkaGauges::MessageCount) = statistics.msg_cnt,
+            producer_name = producer_name
+        );
+        relay_statsd::metric!(
+            gauge(KafkaGauges::MessageCountMax) = statistics.msg_max,
+            producer_name = producer_name
+        );
+        relay_statsd::metric!(
+            gauge(KafkaGauges::MessageSize) = statistics.msg_size,
+            producer_name = producer_name
+        );
+        relay_statsd::metric!(
+            gauge(KafkaGauges::MessageSizeMax) = statistics.msg_size_max,
+            producer_name = producer_name
+        );
+        relay_statsd::metric!(
+            gauge(KafkaGauges::TxMsgs) = statistics.txmsgs as u64,
+            producer_name = producer_name
+        );
 
         for (_, broker) in statistics.brokers {
             relay_statsd::metric!(
                 gauge(KafkaGauges::OutboundBufferRequests) = broker.outbuf_cnt as u64,
-                broker_name = &broker.name
+                broker_name = &broker.name,
+                producer_name = producer_name
             );
             relay_statsd::metric!(
                 gauge(KafkaGauges::OutboundBufferMessages) = broker.outbuf_msg_cnt as u64,
-                broker_name = &broker.name
+                broker_name = &broker.name,
+                producer_name = producer_name
             );
             if let Some(connects) = broker.connects {
                 relay_statsd::metric!(
                     gauge(KafkaGauges::Connects) = connects as u64,
-                    broker_name = &broker.name
+                    broker_name = &broker.name,
+                    producer_name = producer_name
                 );
             }
             if let Some(disconnects) = broker.disconnects {
                 relay_statsd::metric!(
                     gauge(KafkaGauges::Disconnects) = disconnects as u64,
-                    broker_name = &broker.name
+                    broker_name = &broker.name,
+                    producer_name = producer_name
                 );
             }
             if let Some(int_latency) = broker.int_latency {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::ProducerQueueLatency) = int_latency.max as u64,
-                    broker_name = &broker.name
+                    gauge(KafkaGauges::BrokerIntLatencyAvg) = (int_latency.avg / 1000) as u64,
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerIntLatencyP99) = (int_latency.p99 / 1000) as u64,
+                    broker_name = &broker.name,
+                    producer_name = producer_name
                 );
             }
             if let Some(outbuf_latency) = broker.outbuf_latency {
                 relay_statsd::metric!(
-                    gauge(KafkaGauges::RequestQueueLatency) = outbuf_latency.max as u64,
-                    broker_name = &broker.name
+                    gauge(KafkaGauges::BrokerOutbufLatencyAvg) = (outbuf_latency.avg / 1000) as u64,
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerOutbufLatencyP99) = (outbuf_latency.p99 / 1000) as u64,
+                    broker_name = &broker.name,
+                    producer_name = producer_name
                 );
             }
+            if let Some(rtt) = broker.rtt {
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerRttAvg) = (rtt.avg / 1000) as u64,
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+                relay_statsd::metric!(
+                    gauge(KafkaGauges::BrokerRttP99) = (rtt.p99 / 1000) as u64,
+                    broker_name = &broker.name,
+                    producer_name = producer_name
+                );
+            }
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerTx) = broker.tx,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
+            relay_statsd::metric!(
+                gauge(KafkaGauges::BrokerTxBytes) = broker.txbytes,
+                broker_name = &broker.name,
+                producer_name = producer_name
+            );
         }
     }
 }
@@ -132,18 +201,28 @@ impl ProducerContext for Context {
         // TODO: any `Accepted` outcomes (e.g. spans) should be logged here instead of on the caller side,
         // such that we do not over-report in the error case.
 
-        if let Err((error, message)) = result {
-            relay_log::error!(
-                error = error as &dyn Error,
-                payload_len = message.payload_len(),
-                tags.topic = message.topic(),
-                "failed to produce message to Kafka (delivery callback)",
-            );
+        match result {
+            Ok(message) => {
+                metric!(
+                    counter(KafkaCounters::ProduceStatusSuccess) += 1,
+                    topic = message.topic(),
+                    producer_name = &self.producer_name
+                );
+            }
+            Err((error, message)) => {
+                relay_log::error!(
+                    error = error as &dyn Error,
+                    payload_len = message.payload_len(),
+                    tags.topic = message.topic(),
+                    "failed to produce message to Kafka (delivery callback)",
+                );
 
-            metric!(
-                counter(KafkaCounters::ProcessingProduceError) += 1,
-                topic = message.topic()
-            );
+                metric!(
+                    counter(KafkaCounters::ProduceStatusError) += 1,
+                    topic = message.topic(),
+                    producer_name = &self.producer_name
+                );
+            }
         }
     }
 }
