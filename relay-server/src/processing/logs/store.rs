@@ -432,7 +432,7 @@ mod tests {
             .into_iter()
             .collect::<BTreeMap<_, _>>();
 
-        insta::assert_debug_snapshot!(attributes, @r###"
+        insta::assert_debug_snapshot!(attributes, @r#"
         {
             "foo": AnyValue {
                 value: Some(
@@ -469,6 +469,13 @@ mod tests {
                     ),
                 ),
             },
+            "sentry.payload_size_bytes": AnyValue {
+                value: Some(
+                    IntValue(
+                        420,
+                    ),
+                ),
+            },
             "sentry.severity_text": AnyValue {
                 value: Some(
                     StringValue(
@@ -498,6 +505,6 @@ mod tests {
                 ),
             },
         }
-        "###);
+        "#);
     }
 }
