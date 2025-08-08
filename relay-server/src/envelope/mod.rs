@@ -317,7 +317,7 @@ impl Envelope {
     pub fn downsampled_retention(&self) -> u16 {
         self.headers
             .downsampled_retention
-            .unwrap_or(DEFAULT_EVENT_RETENTION)
+            .unwrap_or(self.retention())
     }
 
     /// When the event has been sent, according to the SDK.
