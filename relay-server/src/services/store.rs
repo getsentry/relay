@@ -1023,6 +1023,7 @@ impl StoreService {
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
         span.key_id = scoping.key_id;
+        span.payload_size_bytes = payload.len();
 
         if self.config.produce_protobuf_spans() {
             self.inner_produce_protobuf_span(
@@ -1270,6 +1271,13 @@ impl StoreService {
                 },
             );
         }
+
+        trace_item.attributes.insert(
+            "sentry.payload_size_bytes".into(),
+            AnyValue {
+                value: Some(Value::IntValue(span.payload_size_bytes as i64)),
+            },
+        );
 
         self.produce(
             KafkaTopic::Items,
@@ -1689,6 +1697,9 @@ struct SpanKafkaMessage<'a> {
     // Required for the buffer to emit outcomes scoped to the DSN.
     #[serde(skip_serializing_if = "Option::is_none")]
     key_id: Option<u64>,
+
+    #[serde(default)]
+    payload_size_bytes: usize,
 }
 
 impl SpanKafkaMessage<'_> {

@@ -58,7 +58,15 @@ pub fn normalize(logs: &mut Managed<ExpandedLogs>) {
     logs.modify(|logs, records| {
         let meta = logs.headers.meta();
         logs.logs.retain_mut(|log| {
-            let r = normalize_log(log, meta).inspect_err(|err| {
+            let log_size_bytes = log
+                .header
+                .as_ref()
+                .unwrap_or(&OurLogHeader {
+                    ..Default::default()
+                })
+                .byte_size
+                .unwrap_or_default();
+            let r = normalize_log(log, meta, log_size_bytes as i64).inspect_err(|err| {
                 relay_log::debug!("failed to normalize log: {err}");
             });
 
@@ -150,7 +158,11 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
     Ok(())
 }
 
-fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> {
+fn normalize_log(
+    log: &mut Annotated<OurLog>,
+    meta: &RequestMeta,
+    size_in_bytes: i64,
+) -> Result<()> {
     process_value(log, &mut SchemaProcessor, ProcessingState::root())?;
 
     let Some(log) = log.value_mut() else {
@@ -165,6 +177,10 @@ fn normalize_log(log: &mut Annotated<OurLog>, meta: &RequestMeta) -> Result<()> 
                 .unwrap_or_else(|| UnixTimestamp::now().as_nanos() as i64)
                 .to_string()
         });
+
+    log.attributes
+        .get_or_insert_with(Default::default)
+        .insert_if_missing("sentry.payload_size_bytes", || size_in_bytes);
 
     populate_ua_fields(log, meta.user_agent(), meta.client_hints().as_deref());
     process_attribute_types(log);
