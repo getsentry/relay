@@ -1,6 +1,9 @@
-use relay_statsd::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
+use relay_statsd::TimerMetric;
+#[cfg(feature = "redis")]
+use relay_statsd::{CounterMetric, HistogramMetric, SetMetric};
 
 /// Counter metrics for the Relay Cardinality Limiter.
+#[cfg(feature = "redis")]
 pub enum CardinalityLimiterCounters {
     /// Incremented for every accepted item by the cardinality limiter.
     ///
@@ -35,6 +38,7 @@ pub enum CardinalityLimiterCounters {
     RedisCacheVacuum,
 }
 
+#[cfg(feature = "redis")]
 impl CounterMetric for CardinalityLimiterCounters {
     fn name(&self) -> &'static str {
         match *self {
@@ -82,6 +86,7 @@ impl TimerMetric for CardinalityLimiterTimers {
     }
 }
 
+#[cfg(feature = "redis")]
 pub enum CardinalityLimiterHistograms {
     /// Amount of hashes sent to Redis to check the cardinality.
     ///
@@ -97,6 +102,7 @@ pub enum CardinalityLimiterHistograms {
     RedisSetCardinality,
 }
 
+#[cfg(feature = "redis")]
 impl HistogramMetric for CardinalityLimiterHistograms {
     fn name(&self) -> &'static str {
         match *self {
@@ -108,6 +114,7 @@ impl HistogramMetric for CardinalityLimiterHistograms {
     }
 }
 
+#[cfg(feature = "redis")]
 pub enum CardinalityLimiterSets {
     /// Set containing all organizations which have had any metric sent through the cardinality
     /// limiter.
@@ -119,6 +126,7 @@ pub enum CardinalityLimiterSets {
     Organizations,
 }
 
+#[cfg(feature = "redis")]
 impl SetMetric for CardinalityLimiterSets {
     fn name(&self) -> &'static str {
         match *self {
