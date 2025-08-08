@@ -2331,7 +2331,9 @@ def test_scrubs_ip_addresses(
     relay.send_event(project_id, event)
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
+    del child_span["payload_size_bytes"]
 
     expected = {
         "_meta": {
@@ -2424,7 +2426,9 @@ def test_scrubs_ip_addresses(
     duration_ms = int(duration * 1e3)
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
+    del child_span["payload_size_bytes"]
 
     expected = {
         "data": {
