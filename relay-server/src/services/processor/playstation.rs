@@ -51,13 +51,12 @@ pub fn expand(
         if envelope
             .get_item_by(|item| item.ty() == &ItemType::Event)
             .is_none()
+            && let Some(json) = prospero_dump.userdata.get(SENTRY_PAYLOAD_KEY)
         {
-            if let Some(json) = prospero_dump.userdata.get(SENTRY_PAYLOAD_KEY) {
-                let json = json.clone().into_owned();
-                let mut item = Item::new(ItemType::Event);
-                item.set_payload(ContentType::Json, json);
-                envelope.add_item(item);
-            }
+            let json = json.clone().into_owned();
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(ContentType::Json, json);
+            envelope.add_item(item);
         }
 
         add_attachments(envelope, prospero_dump, minidump_buffer);
@@ -175,15 +174,14 @@ fn legacy_userdata_extraction(event: &mut Event, prospero: &ProsperoDump) {
     for (k, v) in &prospero.userdata {
         if let Some(context_field_pair) = k.strip_prefix("sentry.context.") {
             // Handle custom context data of the form: sentry.context.<name>.<field>
-            if let Some((context_name, field_name)) = context_field_pair.split_once('.') {
-                if let Context::Other(map) =
+            if let Some((context_name, field_name)) = context_field_pair.split_once('.')
+                && let Context::Other(map) =
                     contexts.get_or_insert_with(context_name, || Context::Other(Object::new()))
-                {
-                    map.insert(
-                        field_name.to_owned(),
-                        Annotated::new(v.clone().into_owned().into()),
-                    );
-                }
+            {
+                map.insert(
+                    field_name.to_owned(),
+                    Annotated::new(v.clone().into_owned().into()),
+                );
             }
         } else {
             let tag = k.strip_prefix("sentry.").unwrap_or(k);
@@ -221,19 +219,19 @@ fn merge_playstation_context(event: &mut Event, prospero: &ProsperoDump) {
         runtime_context_version = Annotated::new(system_version.to_owned());
     }
 
-    if let Some(hardware_id) = prospero.hardware_id.clone() {
-        if event.server_name.is_empty() {
-            event.server_name = Annotated::new(hardware_id);
-        }
+    if let Some(hardware_id) = prospero.hardware_id.clone()
+        && event.server_name.is_empty()
+    {
+        event.server_name = Annotated::new(hardware_id);
     }
 
-    if let Some(app_info) = &prospero.app_info {
-        if !contexts.contains::<AppContext>() {
-            contexts.add(AppContext {
-                app_version: Annotated::new(app_info.version.to_owned()),
-                ..Default::default()
-            });
-        }
+    if let Some(app_info) = &prospero.app_info
+        && !contexts.contains::<AppContext>()
+    {
+        contexts.add(AppContext {
+            app_version: Annotated::new(app_info.version.to_owned()),
+            ..Default::default()
+        });
     }
 
     if !contexts.contains::<DeviceContext>() {
