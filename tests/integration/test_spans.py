@@ -118,7 +118,10 @@ def test_span_extraction(
         }
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
+    del child_span["payload_size_bytes"]
+
     assert child_span == {
         "data": {  # Backfilled from `sentry_tags`
             "sentry.category": "http",
@@ -184,9 +187,13 @@ def test_span_extraction(
     duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
+
     del transaction_span["received"]
+    del transaction_span["payload_size_bytes"]
+
     if performance_issues_spans:
         assert transaction_span.pop("_performance_issues_spans") is True
+
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
@@ -755,6 +762,7 @@ def test_span_ingestion(
 
     for span in spans:
         span.pop("received", None)
+        span.pop("payload_size_bytes", None)
 
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
@@ -1574,6 +1582,7 @@ def test_span_ingestion_with_performance_scores(
 
     for span in spans:
         span.pop("received", None)
+        span.pop("payload_size_bytes", None)
 
     # endpoint might overtake envelope
     spans.sort(key=lambda msg: msg["span_id"])
