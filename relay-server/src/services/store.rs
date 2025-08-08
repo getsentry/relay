@@ -250,6 +250,7 @@ impl StoreService {
         scoping: Scoping,
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
+        let downsampled_retention = envelope.downsampled_retention();
 
         let event_id = envelope.event_id();
         let event_item = envelope.as_mut().take_item_by(|item| {
@@ -340,9 +341,14 @@ impl StoreService {
                     let client = envelope.meta().client();
                     self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
-                ItemType::Span => {
-                    self.produce_span(scoping, received_at, event_id, retention, item)?
-                }
+                ItemType::Span => self.produce_span(
+                    scoping,
+                    received_at,
+                    event_id,
+                    retention,
+                    downsampled_retention,
+                    item,
+                )?,
                 ty @ ItemType::Log => {
                     debug_assert!(
                         false,
@@ -983,6 +989,7 @@ impl StoreService {
         received_at: DateTime<Utc>,
         event_id: Option<EventId>,
         retention_days: u16,
+        downsampled_retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         relay_log::trace!("Producing span");
@@ -1021,6 +1028,7 @@ impl StoreService {
         span.organization_id = scoping.organization_id.value();
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
+        span.downsampled_retention_days = downsampled_retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
         span.key_id = scoping.key_id;
 
@@ -1075,7 +1083,7 @@ impl StoreService {
         scoping: Scoping,
         received_at: DateTime<Utc>,
         event_id: Option<EventId>,
-        retention_days: u16,
+        _retention_days: u16,
         span: SpanKafkaMessage,
     ) -> Result<(), StoreError> {
         let mut trace_item = TraceItem {
@@ -1086,7 +1094,8 @@ impl StoreService {
                 seconds: safe_timestamp(received_at) as i64,
                 nanos: 0,
             }),
-            retention_days: retention_days.into(),
+            retention_days: span.retention_days.into(),
+            downsampled_retention_days: span.downsampled_retention_days.into(),
             timestamp: Some(Timestamp {
                 seconds: span.start_timestamp_precise as i64,
                 nanos: 0,
@@ -1647,6 +1656,9 @@ struct SpanKafkaMessage<'a> {
     /// Number of days until these data should be deleted.
     #[serde(default)]
     retention_days: u16,
+    /// Number of days until the downsampled version of this data should be deleted.
+    #[serde(default)]
+    downsampled_retention_days: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     segment_id: Option<Cow<'a, str>>,
     #[serde(
