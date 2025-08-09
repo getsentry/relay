@@ -9,6 +9,14 @@ x-sentry-service-config:
         repo_name: sentry-shared-redis
         branch: main
         repo_link: https://github.com/getsentry/sentry-shared-redis.git
+    redis-master:
+      description: Master instance of redis to be used with sentinel
+    redis-replica:
+      description: Replica instance of redis to be used with sentinel
+    redis-sentinel-1:
+      description: Instance of redis-sentinel
+    redis-sentinel-2:
+      description: Another instance of redis-sentinel
     kafka:
       description: Shared instance of kafka used by sentry services
       remote:
@@ -18,8 +26,8 @@ x-sentry-service-config:
     relay:
       description: Service that pushes some functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
   modes:
-    default: [redis, kafka]
-    containerized: [redis, kafka, relay]
+    default: [redis, kafka, redis-sentinel-1, redis-sentinel-2, redis-master, redis-replica]
+    containerized: [redis, kafka, relay, redis-sentinel-1, redis-sentinel-2, redis-master, redis-replica]
 
 x-programs:
   devserver:
@@ -46,6 +54,103 @@ services:
       - devservices
     labels:
       - orchestrator=devservices
+    restart: unless-stopped
+  redis-master:
+    image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
+    healthcheck:
+      test: redis-cli -p 16379 ping | grep PONG
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    command:
+      - redis-server
+      - --appendonly
+      - yes
+      - --port
+      - "16379"
+    ports:
+      - "16379:16379"
+    labels:
+      - orchestrator=devservices
+    networks:
+      - devservices
+    restart: unless-stopped
+  redis-replica:
+    image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
+    healthcheck:
+      test: redis-cli -p 16380 ping | grep PONG
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    command:
+      - redis-server
+      - --appendonly
+      - yes
+      - --port
+      - "16380"
+      - --replicaof
+      - redis-master
+      - "16379"
+    depends_on:
+      - redis-master
+    ports:
+      - "16380:16380"
+    labels:
+      - orchestrator=devservices
+    networks:
+      - devservices
+    restart: unless-stopped
+  redis-sentinel-1:
+    image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
+    healthcheck:
+      test: redis-cli -p 26379 ping | grep PONG
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    command:
+      - sh
+      - -ec
+      - |
+        mkdir -p /etc/redis
+        cp -n /sentinel.bootstrap.conf /etc/redis/sentinel.conf
+        redis-server /etc/redis/sentinel.conf --sentinel --port 26379
+    depends_on:
+      - redis-master
+      - redis-replica
+    ports:
+      - "26379:26379"
+    labels:
+      - orchestrator=devservices
+    networks:
+      - devservices
+    volumes:
+      - ./config/sentinel.bootstrap.conf:/sentinel.bootstrap.conf:ro
+    restart: unless-stopped
+  redis-sentinel-2:
+    image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
+    healthcheck:
+      test: redis-cli -p 26380 ping | grep PONG
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    command:
+      - sh
+      - -ec
+      - |
+        mkdir -p /etc/redis
+        cp -n /sentinel.bootstrap.conf /etc/redis/sentinel.conf
+        redis-server /etc/redis/sentinel.conf --sentinel --port 26380
+    depends_on:
+      - redis-master
+      - redis-replica
+    ports:
+      - "26380:26380"
+    labels:
+      - orchestrator=devservices
+    networks:
+      - devservices
+    volumes:
+      - ./config/sentinel.bootstrap.conf:/sentinel.bootstrap.conf:ro
     restart: unless-stopped
 
 networks:

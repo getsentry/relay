@@ -1,6 +1,7 @@
 use deadpool::managed::{Manager, Metrics, Object, Pool, RecycleError, RecycleResult};
 use deadpool_redis::Manager as SingleManager;
 use deadpool_redis::cluster::Manager as ClusterManager;
+use deadpool_redis::sentinel::{Manager as SentinelManager, SentinelServerType};
 use futures::FutureExt;
 use std::ops::{Deref, DerefMut};
 
@@ -16,6 +17,9 @@ pub type CustomClusterPool = Pool<CustomClusterManager, CustomClusterConnection>
 
 /// A connection pool for single Redis instance deployments.
 pub type CustomSinglePool = Pool<CustomSingleManager, CustomSingleConnection>;
+
+/// A connection pool for single Redis sentinel deployments.
+pub type CustomSentinelPool = Pool<CustomSentinelManager, CustomSentinelConnection>;
 
 /// A wrapper for a connection that can be tracked with metadata.
 ///
@@ -277,6 +281,96 @@ impl Manager for CustomSingleManager {
 
 impl From<Object<CustomSingleManager>> for CustomSingleConnection {
     fn from(conn: Object<CustomSingleManager>) -> Self {
+        Self(conn)
+    }
+}
+
+/// Managed connection to a Redis-master instance
+///
+/// This manager handles the creation and recycling of Redis connections,
+/// ensuring proper connection health through periodic PING checks. It supports
+/// multiplexed connections for efficient handling of multiple operations.
+pub struct CustomSentinelConnection(Object<CustomSentinelManager>);
+
+impl redis::aio::ConnectionLike for CustomSentinelConnection {
+    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
+        self.0.req_packed_command(cmd)
+    }
+
+    fn req_packed_commands<'a>(
+        &'a mut self,
+        cmd: &'a Pipeline,
+        offset: usize,
+        count: usize,
+    ) -> RedisFuture<'a, Vec<Value>> {
+        self.0.req_packed_commands(cmd, offset, count)
+    }
+
+    fn get_db(&self) -> i64 {
+        self.0.get_db()
+    }
+}
+
+/// Manages Redis-master connections and their lifecycle.
+///
+/// This manager handles the creation and recycling of Redis connections,
+/// ensuring proper connection health through periodic PING checks. It supports
+/// multiplexed connections for efficient handling of multiple operations.
+pub struct CustomSentinelManager {
+    manager: SentinelManager,
+    recycle_check_frequency: usize,
+}
+
+impl CustomSentinelManager {
+    /// Creates a new Sentinel manager for the specified Sentinel nodes.
+    ///
+    /// The manager will attempt to connect to each node in the provided list and
+    /// maintain connections to the Redis cluster.
+    pub fn new<T: IntoConnectionInfo>(
+        params: Vec<T>,
+        master_name: String,
+        recycle_check_frequency: usize,
+    ) -> RedisResult<Self> {
+        Ok(Self {
+            manager: SentinelManager::new(params, master_name, None, SentinelServerType::Master)?,
+            recycle_check_frequency,
+        })
+    }
+}
+
+impl Manager for CustomSentinelManager {
+    type Type = TrackedConnection<MultiplexedConnection>;
+    type Error = RedisError;
+
+    async fn create(&self) -> Result<TrackedConnection<MultiplexedConnection>, RedisError> {
+        self.manager.create().await.map(TrackedConnection::from)
+    }
+
+    async fn recycle(
+        &self,
+        conn: &mut TrackedConnection<MultiplexedConnection>,
+        metrics: &Metrics,
+    ) -> RecycleResult<RedisError> {
+        // If the connection is marked to be detached, we return and error, signaling that this
+        // connection must be detached from the pool.
+        if conn.detach {
+            return Err(RecycleError::Message(
+                "the tracked connection was marked as detached".into(),
+            ));
+        }
+
+        // If the interval has been reached, we optimistically assume the connection is active
+        // without doing an actual `PING`.
+        if metrics.recycle_count % self.recycle_check_frequency != 0 {
+            return Ok(());
+        }
+
+        self.manager.recycle(conn, metrics).await
+    }
+}
+
+impl From<Object<CustomSentinelManager>> for CustomSentinelConnection {
+    fn from(conn: Object<CustomSentinelManager>) -> Self {
         Self(conn)
     }
 }
