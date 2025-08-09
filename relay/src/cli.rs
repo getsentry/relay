@@ -11,6 +11,7 @@ use relay_config::{
 use uuid::Uuid;
 
 use crate::cliapp::make_app;
+use crate::healthcheck::healthcheck;
 use crate::utils::get_theme;
 use crate::{setup, utils};
 
@@ -45,6 +46,8 @@ pub fn execute() -> Result<()> {
         }
     } else if let Some(matches) = matches.subcommand_matches("generate-completions") {
         return generate_completions(matches);
+    } else if let Some(matches) = matches.subcommand_matches("healthcheck") {
+        return healthcheck(matches);
     }
 
     // Commands that need a loaded config:

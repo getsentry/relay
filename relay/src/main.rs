@@ -125,6 +125,7 @@
 
 mod cli;
 mod cliapp;
+mod healthcheck;
 mod setup;
 mod utils;
 

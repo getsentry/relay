@@ -3609,6 +3609,7 @@ dependencies = [
  "relay-log",
  "relay-server",
  "relay-statsd",
+ "reqwest",
  "tikv-jemallocator",
  "uuid",
 ]

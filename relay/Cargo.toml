@@ -31,6 +31,7 @@ relay-server = { workspace = true }
 relay-statsd = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 uuid = { workspace = true }
+reqwest = { workspace = true, features = ["gzip", "native-tls-vendored"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tikv-jemallocator = { workspace = true, features = ["background_threads"] }
