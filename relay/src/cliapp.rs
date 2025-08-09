@@ -312,4 +312,52 @@ pub fn make_app() -> Command {
                         ),
                 ),
         )
+        .subcommand(
+            Command::new("healthcheck")
+                .about("Check the health of the relay")
+                .after_help(
+                    "This command checks the health of the relay. It will create \
+                     HTTP request to relay's healthcheck endpoints.",
+                )
+                .arg(
+                    Arg::new("mode")
+                        .long("mode")
+                        .help("The relay health check status to check. Possible values are `live` and `ready`.")
+                        .default_value("live")
+                        .value_parser(clap::value_parser!(String))
+                        .required(false),
+                )
+                .arg(
+                    Arg::new("timeout")
+                        .long("timeout")
+                        .help("The timeout in seconds to wait for the healthcheck")
+                        .default_value("30")
+                        .value_parser(clap::value_parser!(u64))
+                        .required(false),
+                )
+                .arg(
+                    Arg::new("host")
+                        .long("host")
+                        .short('h')
+                        .help(
+                            "If relay is not running on localhost and there are no config file, \
+                            you can specify the hostname here.",
+                        )
+                        .default_value("localhost")
+                        .value_parser(clap::value_parser!(String))
+                        .required(false),
+                )
+                .arg(
+                    Arg::new("port")
+                        .long("port")
+                        .short('p')
+                        .help(
+                            "If relay is not running on port 3000 and there are no config file, \
+                            you can specify the port here.",
+                        )
+                        .default_value("3000")
+                        .value_parser(clap::value_parser!(u16))
+                        .required(false),
+                ),
+        )
 }
