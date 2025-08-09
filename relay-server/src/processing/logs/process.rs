@@ -45,6 +45,8 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
             headers: logs.headers,
             #[cfg(feature = "processing")]
             retention: _ctx.project_info.config.event_retention,
+            #[cfg(feature = "processing")]
+            downsampled_retention: _ctx.project_info.config.downsampled_event_retention,
             logs: all_logs,
         }
     })
