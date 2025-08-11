@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add data categories for Prevent.([#5052]https://github.com/getsentry/relay/pull/5052)
+- Add data categories for Prevent. ([#5052]https://github.com/getsentry/relay/pull/5052)
 
 **Features**:
 
