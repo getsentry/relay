@@ -2,6 +2,7 @@ use std::fmt;
 
 use relay_quotas::{ItemScoping, Quota, RateLimits};
 
+use crate::managed::OutcomeError;
 use crate::processing::{Context, Counted, Managed, Rejected};
 
 #[cfg(feature = "processing")]
@@ -121,6 +122,46 @@ where
             Some(limiter) => limiter.try_consume(scope, quantity).await,
             None => RateLimits::default(),
         }
+    }
+}
+
+/// A convenience trait for types which need to be rate limited by their [`Counted::quantities`].
+///
+/// For rate limiting, each category and quantity is rate limited individually,
+/// if any category has rate limits enforced the implementation will reject the entire item.
+pub trait CountRateLimited {
+    type Error: From<RateLimits> + OutcomeError;
+}
+
+impl<T> RateLimited for Managed<T>
+where
+    Managed<T>: CountRateLimited,
+    T: Counted,
+{
+    type Error = <<Managed<T> as CountRateLimited>::Error as OutcomeError>::Error;
+
+    async fn enforce<R>(
+        &mut self,
+        mut rate_limiter: R,
+        _ctx: Context<'_>,
+    ) -> Result<(), Rejected<Self::Error>>
+    where
+        R: RateLimiter,
+    {
+        let scoping = self.scoping();
+
+        for (category, quantity) in self.quantities() {
+            let limits = rate_limiter
+                .try_consume(scoping.item(category), quantity)
+                .await;
+
+            if !limits.is_empty() {
+                let error = <Managed<T> as CountRateLimited>::Error::from(limits);
+                return Err(self.reject_err(error));
+            }
+        }
+
+        Ok(())
     }
 }
 

@@ -49,8 +49,9 @@ use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope}
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
-use crate::processing::logs::{LogOutput, LogsProcessor};
-use crate::processing::{Forward as _, Output, Processor as _, QuotaRateLimiter};
+use crate::processing::logs::LogsProcessor;
+use crate::processing::spans::SpansProcessor;
+use crate::processing::{Forward as _, Output, Outputs, Processor as _, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -263,6 +264,8 @@ pub enum ProcessingGroup {
     Log,
     /// Spans.
     Span,
+    /// Span V2 spans.
+    SpanV2,
     /// Metrics.
     Metrics,
     /// ProfileChunk.
@@ -276,7 +279,10 @@ pub enum ProcessingGroup {
 
 impl ProcessingGroup {
     /// Splits provided envelope into list of tuples of groups with associated envelopes.
-    pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
+    fn split_envelope(
+        mut envelope: Envelope,
+        project_info: &ProjectInfo,
+    ) -> SmallVec<[(Self, Box<Envelope>); 3]> {
         let headers = envelope.headers().clone();
         let mut grouped_envelopes = smallvec![];
 
@@ -302,6 +308,17 @@ impl ProcessingGroup {
                 ProcessingGroup::Session,
                 Envelope::from_parts(headers.clone(), session_items),
             ))
+        }
+
+        if project_info.has_feature(Feature::SpanV2ExperimentalProcessing) {
+            let span_v2_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Span));
+
+            if !span_v2_items.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::SpanV2,
+                    Envelope::from_parts(headers.clone(), span_v2_items),
+                ))
+            }
         }
 
         // Extract spans.
@@ -443,6 +460,7 @@ impl ProcessingGroup {
             ProcessingGroup::Log => "log",
             ProcessingGroup::Nel => "nel",
             ProcessingGroup::Span => "span",
+            ProcessingGroup::SpanV2 => "span_v2",
             ProcessingGroup::Metrics => "metrics",
             ProcessingGroup::ProfileChunk => "profile_chunk",
             ProcessingGroup::ForwardUnknown => "forward_unknown",
@@ -464,6 +482,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Log => AppFeature::Logs,
             ProcessingGroup::Nel => AppFeature::Logs,
             ProcessingGroup::Span => AppFeature::Spans,
+            ProcessingGroup::SpanV2 => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
             ProcessingGroup::ProfileChunk => AppFeature::Profiles,
             ProcessingGroup::ForwardUnknown => AppFeature::UnattributedEnvelope,
@@ -843,17 +862,17 @@ struct SpansExtracted(bool);
 
 /// The result of the envelope processing containing the processed envelope along with the partial
 /// result.
+#[derive(Debug)]
 #[expect(
     clippy::large_enum_variant,
     reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
 )]
-#[derive(Debug)]
 enum ProcessingResult {
     Envelope {
         managed_envelope: TypedEnvelope<Processed>,
         extracted_metrics: ProcessingExtractedMetrics,
     },
-    Logs(Output<LogOutput>),
+    Output(Output<Outputs>),
 }
 
 impl ProcessingResult {
@@ -867,6 +886,7 @@ impl ProcessingResult {
 }
 
 /// All items which can be submitted upstream.
+#[derive(Debug)]
 #[expect(
     clippy::large_enum_variant,
     reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
@@ -874,8 +894,8 @@ impl ProcessingResult {
 enum Submit {
     /// A processed envelope.
     Envelope(TypedEnvelope<Processed>),
-    /// The output of the [log processor](LogsProcessor).
-    Logs(LogOutput),
+    /// The output of a [`processing::Processor`].
+    Output(Outputs),
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -1176,6 +1196,7 @@ struct InnerProcessor {
 
 struct Processing {
     logs: LogsProcessor,
+    spans: SpansProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1256,7 +1277,8 @@ impl EnvelopeProcessorService {
                 .map(CardinalityLimiter::new),
             metric_outcomes,
             processing: Processing {
-                logs: LogsProcessor::new(quota_limiter),
+                logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
+                spans: SpansProcessor::new(quota_limiter),
             },
             config,
         };
@@ -2178,7 +2200,36 @@ impl EnvelopeProcessorService {
             .process(logs, ctx)
             .await
             .map_err(|_| ProcessingError::ProcessingFailure)
-            .map(ProcessingResult::Logs)
+            .map(|o| o.map(Into::into))
+            .map(ProcessingResult::Output)
+    }
+
+    async fn process_spansv2(
+        &self,
+        mut managed_envelope: ManagedEnvelope,
+        ctx: processing::Context<'_>,
+    ) -> Result<ProcessingResult, ProcessingError> {
+        let processor = &self.inner.processing.spans;
+        let Some(spans) = processor.prepare_envelope(&mut managed_envelope) else {
+            debug_assert!(
+                false,
+                "there must be work for the span processor in the spans processing group"
+            );
+            return Err(ProcessingError::ProcessingGroupMismatch);
+        };
+
+        managed_envelope.update();
+        match managed_envelope.envelope().is_empty() {
+            true => managed_envelope.accept(),
+            false => managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal)),
+        }
+
+        processor
+            .process(spans, ctx)
+            .await
+            .map_err(|_| ProcessingError::ProcessingFailure)
+            .map(|o| o.map(Into::into))
+            .map(ProcessingResult::Output)
     }
 
     /// Processes standalone spans.
@@ -2366,6 +2417,7 @@ impl EnvelopeProcessorService {
             }
             ProcessingGroup::Log => self.process_logs(managed_envelope, ctx).await,
             ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
+            ProcessingGroup::SpanV2 => self.process_spansv2(managed_envelope, ctx).await,
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
@@ -2494,7 +2546,7 @@ impl EnvelopeProcessorService {
 
                 Ok(envelope_response.map(Submit::Envelope))
             }
-            Ok(ProcessingResult::Logs(Output { main, metrics })) => {
+            Ok(ProcessingResult::Output(Output { main, metrics })) => {
                 send_metrics(
                     metrics.metrics,
                     project_key,
@@ -2502,7 +2554,7 @@ impl EnvelopeProcessorService {
                     &self.inner.addrs.aggregator,
                 );
 
-                Ok(Some(Submit::Logs(main)))
+                Ok(Some(Submit::Output(main)))
             }
             Err(err) => Err(err),
         };
@@ -2526,8 +2578,10 @@ impl EnvelopeProcessorService {
         cogs.cancel();
 
         let scoping = message.envelope.scoping();
-        for (group, envelope) in ProcessingGroup::split_envelope(*message.envelope.into_envelope())
-        {
+        for (group, envelope) in ProcessingGroup::split_envelope(
+            *message.envelope.into_envelope(),
+            &message.project_info,
+        ) {
             let mut cogs = self
                 .inner
                 .cogs
@@ -2683,7 +2737,7 @@ impl EnvelopeProcessorService {
         {
             match submit {
                 Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
-                Submit::Logs(output) => output
+                Submit::Output(output) => output
                     .forward_store(store_forwarder)
                     .unwrap_or_else(|err| err.into_inner()),
             }
@@ -2692,7 +2746,7 @@ impl EnvelopeProcessorService {
 
         let mut envelope = match submit {
             Submit::Envelope(envelope) => envelope,
-            Submit::Logs(output) => match output.serialize_envelope() {
+            Submit::Output(output) => match output.serialize_envelope() {
                 Ok(envelope) => ManagedEnvelope::from(envelope).into_processed(),
                 Err(_) => {
                     relay_log::error!("failed to serialize output to an envelope");
@@ -4036,7 +4090,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
