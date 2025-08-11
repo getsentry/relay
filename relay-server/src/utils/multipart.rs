@@ -545,7 +545,7 @@ mod tests {
         let items = multipart_items(
             multipart,
             |_, _| AttachmentType::Attachment,
-            |_, x| (mock_outcomes.push(x)),
+            |_, x| mock_outcomes.push(x),
             &config,
             true,
         )
