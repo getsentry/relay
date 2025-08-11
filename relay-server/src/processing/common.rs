@@ -6,7 +6,7 @@ use crate::processing::{Forward, Processor};
 
 macro_rules! outputs {
     ($($variant:ident => $ty:ty,)*) => {
-        /// All known [`Processor`](Processor) outputs.
+        /// All known [`Processor`] outputs.
         #[derive(Debug)]
         pub enum Outputs {
             $(
