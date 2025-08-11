@@ -118,7 +118,9 @@ def test_span_extraction(
         }
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
+
     assert child_span == {
         "data": {  # Backfilled from `sentry_tags`
             "sentry.category": "http",
@@ -185,9 +187,12 @@ def test_span_extraction(
     duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
+
     del transaction_span["received"]
+
     if performance_issues_spans:
         assert transaction_span.pop("_performance_issues_spans") is True
+
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
@@ -2322,6 +2327,7 @@ def test_scrubs_ip_addresses(
     relay.send_event(project_id, event)
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
 
     expected = {
@@ -2415,6 +2421,7 @@ def test_scrubs_ip_addresses(
     duration_ms = int(duration * 1e3)
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
 
     expected = {

@@ -46,6 +46,11 @@ pub struct Context {
 
 pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem> {
     let quantities = log.quantities();
+    let payload_size_bytes = log
+        .header
+        .as_ref()
+        .and_then(|h| h.byte_size)
+        .unwrap_or_default();
 
     let log = required!(log.value);
     let timestamp = required!(log.timestamp);
@@ -57,6 +62,7 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
         timestamp,
         body: required!(log.body),
         span_id: log.span_id.into_value(),
+        payload_size_bytes,
     };
     let retention_days = ctx.retention.unwrap_or(DEFAULT_EVENT_RETENTION);
 
@@ -217,6 +223,8 @@ struct FieldAttributes {
     ///
     /// See: [`OurLog::span_id`].
     span_id: Option<SpanId>,
+    /// Payload size as it is ingested.
+    payload_size_bytes: u64,
 }
 
 /// Extracts all attributes of a log, combines it with extracted meta attributes.
@@ -271,7 +279,9 @@ fn attributes(
         timestamp,
         body,
         span_id,
+        payload_size_bytes,
     } = fields;
+
     // Unconditionally override any prior set attributes with the same key, as they should always
     // come from the log itself.
     //
@@ -283,12 +293,14 @@ fn attributes(
             value: Some(any_value::Value::StringValue(level.to_string())),
         },
     );
+
     let timestamp_nanos = timestamp
         .into_inner()
         .timestamp_nanos_opt()
         // We can expect valid timestamps at this point, clock drift correction / normalization
         // should've taken care of this already.
         .unwrap_or_default();
+
     result.insert(
         "sentry.timestamp_nanos".to_owned(),
         AnyValue {
@@ -307,6 +319,7 @@ fn attributes(
             value: Some(any_value::Value::StringValue(body)),
         },
     );
+
     if let Some(span_id) = span_id {
         result.insert(
             "sentry.span_id".to_owned(),
@@ -315,6 +328,13 @@ fn attributes(
             },
         );
     }
+
+    result.insert(
+        "sentry.payload_size_bytes".to_owned(),
+        AnyValue {
+            value: Some(any_value::Value::IntValue(payload_size_bytes as i64)),
+        },
+    );
 
     result
 }
@@ -409,7 +429,7 @@ mod tests {
             .into_iter()
             .collect::<BTreeMap<_, _>>();
 
-        insta::assert_debug_snapshot!(attributes, @r###"
+        insta::assert_debug_snapshot!(attributes, @r#"
         {
             "foo": AnyValue {
                 value: Some(
@@ -446,6 +466,13 @@ mod tests {
                     ),
                 ),
             },
+            "sentry.payload_size_bytes": AnyValue {
+                value: Some(
+                    IntValue(
+                        420,
+                    ),
+                ),
+            },
             "sentry.severity_text": AnyValue {
                 value: Some(
                     StringValue(
@@ -475,6 +502,6 @@ mod tests {
                 ),
             },
         }
-        "###);
+        "#);
     }
 }
