@@ -324,7 +324,7 @@ pub fn make_app() -> Command {
                         .long("mode")
                         .help("The relay health check status to check. Possible values are `live` and `ready`.")
                         .default_value("live")
-                        .value_parser(clap::value_parser!(String))
+                        .value_parser(clap::builder::PossibleValuesParser::new(["live", "ready"]))
                         .required(false),
                 )
                 .arg(

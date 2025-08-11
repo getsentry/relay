@@ -5,18 +5,16 @@ use clap::ArgMatches;
 use reqwest::blocking::Client;
 
 pub fn healthcheck(matches: &ArgMatches) -> Result<()> {
-    let mode = matches.get_one::<String>("mode").expect("`mode` is required");
-    let timeout = matches.get_one::<u64>("timeout").expect("`timeout` is required");
-    let host = matches.get_one::<String>("host").expect("`host` is required");
+    let mode = matches
+        .get_one::<String>("mode")
+        .expect("`mode` is required");
+    let timeout = matches
+        .get_one::<u64>("timeout")
+        .expect("`timeout` is required");
+    let host = matches
+        .get_one::<String>("host")
+        .expect("`host` is required");
     let port = matches.get_one::<u16>("port").expect("`port` is required");
-
-    // Make sure `mode` is either `live` or `ready`. Otherwise, return an error.
-    if mode != "live" && mode != "ready" {
-        return Err(format_err!(
-            "Invalid mode. Expected `live` or `ready`, got `{}`.",
-            mode
-        ));
-    }
 
     let client = Client::builder()
         .timeout(Some(Duration::from_secs(*timeout)))
@@ -32,10 +30,9 @@ pub fn healthcheck(matches: &ArgMatches) -> Result<()> {
     match response {
         Ok(response) => {
             if response.status().is_success() {
-                println!("Relay is healthy.");
                 Ok(())
             } else {
-                println!("Relay is unhealthy.");
+                relay_log::error!("Relay is unhealthy. Status code: {}", response.status());
                 Err(format_err!(
                     "Relay is unhealthy. Status code: {}",
                     response.status()
@@ -43,8 +40,7 @@ pub fn healthcheck(matches: &ArgMatches) -> Result<()> {
             }
         }
         Err(err) => {
-            println!("Relay is unhealthy.");
-            println!("Error: {}", err);
+            relay_log::error!("Relay is unhealthy. Error: {}", err);
             Err(err.into())
         }
     }
