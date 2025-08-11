@@ -74,17 +74,14 @@ impl processing::Processor for SpansProcessor {
         &self,
         envelope: &mut ManagedEnvelope,
     ) -> Option<Managed<Self::UnitOfWork>> {
-        let _headers = envelope.envelope().headers().clone();
+        let headers = envelope.envelope().headers().clone();
 
         let spans = envelope
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::Span))
             .into_vec();
 
-        let work = SerializedSpans {
-            headers: _headers,
-            spans,
-        };
+        let work = SerializedSpans { headers, spans };
         Some(Managed::from_envelope(envelope, work))
     }
 
