@@ -321,7 +321,7 @@
 <a href=#321 id=321 data-nosnippet>321</a>            item
 <a href=#322 id=322 data-nosnippet>322</a>        });
 <a href=#323 id=323 data-nosnippet>323</a>
-<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
 <a href=#325 id=325 data-nosnippet>325</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#326 id=326 data-nosnippet>326</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
 <a href=#327 id=327 data-nosnippet>327</a>
@@ -380,7 +380,7 @@
 <a href=#380 id=380 data-nosnippet>380</a>            item
 <a href=#381 id=381 data-nosnippet>381</a>        });
 <a href=#382 id=382 data-nosnippet>382</a>
-<a href=#383 id=383 data-nosnippet>383</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+<a href=#383 id=383 data-nosnippet>383</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
 <a href=#384 id=384 data-nosnippet>384</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#385 id=385 data-nosnippet>385</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
 <a href=#386 id=386 data-nosnippet>386</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
@@ -447,7 +447,7 @@
 <a href=#447 id=447 data-nosnippet>447</a>            item
 <a href=#448 id=448 data-nosnippet>448</a>        });
 <a href=#449 id=449 data-nosnippet>449</a>
-<a href=#450 id=450 data-nosnippet>450</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+<a href=#450 id=450 data-nosnippet>450</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
 <a href=#451 id=451 data-nosnippet>451</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#452 id=452 data-nosnippet>452</a>
 <a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
@@ -491,7 +491,7 @@
 <a href=#491 id=491 data-nosnippet>491</a>            item
 <a href=#492 id=492 data-nosnippet>492</a>        });
 <a href=#493 id=493 data-nosnippet>493</a>
-<a href=#494 id=494 data-nosnippet>494</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+<a href=#494 id=494 data-nosnippet>494</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
 <a href=#495 id=495 data-nosnippet>495</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#496 id=496 data-nosnippet>496</a>
 <a href=#497 id=497 data-nosnippet>497</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
@@ -545,7 +545,7 @@
 <a href=#545 id=545 data-nosnippet>545</a>            item
 <a href=#546 id=546 data-nosnippet>546</a>        });
 <a href=#547 id=547 data-nosnippet>547</a>
-<a href=#548 id=548 data-nosnippet>548</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+<a href=#548 id=548 data-nosnippet>548</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
 <a href=#549 id=549 data-nosnippet>549</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#550 id=550 data-nosnippet>550</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
 <a href=#551 id=551 data-nosnippet>551</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
