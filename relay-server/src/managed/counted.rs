@@ -1,4 +1,5 @@
-use relay_event_schema::protocol::OurLog;
+use relay_event_schema::protocol::{OurLog, Span, SpanV2};
+use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use smallvec::SmallVec;
 
@@ -84,6 +85,18 @@ impl Counted for WithHeader<OurLog> {
                 processing::logs::get_calculated_byte_size(self)
             )
         ]
+    }
+}
+
+impl Counted for WithHeader<SpanV2> {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
+    }
+}
+
+impl Counted for Annotated<Span> {
+    fn quantities(&self) -> Quantities {
+        smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
     }
 }
 
