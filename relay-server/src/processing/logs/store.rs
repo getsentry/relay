@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use prost_types::Timestamp;
-use relay_event_schema::protocol::{Attributes, OurLog, OurLogHeader, OurLogLevel, SpanId};
+use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId};
 use relay_protocol::{Annotated, IntoValue, MetaTree, Value};
 use relay_quotas::Scoping;
 use sentry_protos::snuba::v1::{AnyValue, TraceItem, TraceItemType, any_value};
@@ -49,10 +49,7 @@ pub fn convert(log: WithHeader<OurLog>, ctx: &Context) -> Result<StoreTraceItem>
     let payload_size_bytes = log
         .header
         .as_ref()
-        .unwrap_or(&OurLogHeader {
-            ..Default::default()
-        })
-        .byte_size
+        .and_then(|h| h.byte_size)
         .unwrap_or_default();
 
     let log = required!(log.value);
