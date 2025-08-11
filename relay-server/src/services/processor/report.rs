@@ -321,7 +321,7 @@ mod tests {
             item
         });
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
 
@@ -380,7 +380,7 @@ mod tests {
             item
         });
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
@@ -447,7 +447,7 @@ mod tests {
             item
         });
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
@@ -491,7 +491,7 @@ mod tests {
             item
         });
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
@@ -545,7 +545,7 @@ mod tests {
             item
         });
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
         let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);

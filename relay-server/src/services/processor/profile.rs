@@ -329,7 +329,7 @@ mod tests {
         let mut project_state = ProjectInfo::default();
         project_state.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
@@ -464,7 +464,7 @@ mod tests {
         let mut project_info = ProjectInfo::default();
         project_info.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
@@ -538,7 +538,7 @@ mod tests {
         let mut project_state = ProjectInfo::default();
         project_state.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
@@ -614,7 +614,7 @@ mod tests {
         let mut project_state = ProjectInfo::default();
         project_state.config.features.0.insert(Feature::Profiling);
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
