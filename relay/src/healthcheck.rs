@@ -5,10 +5,10 @@ use clap::ArgMatches;
 use reqwest::blocking::Client;
 
 pub fn healthcheck(matches: &ArgMatches) -> Result<()> {
-    let mode = matches.get_one::<String>("mode").unwrap();
-    let timeout = matches.get_one::<u64>("timeout").unwrap();
-    let host = matches.get_one::<String>("host").unwrap();
-    let port = matches.get_one::<u16>("port").unwrap();
+    let mode = matches.get_one::<String>("mode").expect("`mode` is required");
+    let timeout = matches.get_one::<u64>("timeout").expect("`timeout` is required");
+    let host = matches.get_one::<String>("host").expect("`host` is required");
+    let port = matches.get_one::<u16>("port").expect("`port` is required");
 
     // Make sure `mode` is either `live` or `ready`. Otherwise, return an error.
     if mode != "live" && mode != "ready" {
