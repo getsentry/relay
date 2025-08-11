@@ -51,7 +51,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::processing::logs::LogsProcessor;
 use crate::processing::spans::SpansProcessor;
-use crate::processing::{Forward as _, Output, Outputs, Processor as _, QuotaRateLimiter};
+use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -2165,27 +2165,20 @@ impl EnvelopeProcessorService {
         Ok(None)
     }
 
-    async fn process_nel(
+    async fn process_with_processor<P: processing::Processor>(
         &self,
+        processor: &P,
         mut managed_envelope: ManagedEnvelope,
         ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        nel::convert_to_logs(&mut managed_envelope);
-        self.process_logs(managed_envelope, ctx).await
-    }
-
-    /// Process logs
-    ///
-    async fn process_logs(
-        &self,
-        mut managed_envelope: ManagedEnvelope,
-        ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        let processor = &self.inner.processing.logs;
-        let Some(logs) = processor.prepare_envelope(&mut managed_envelope) else {
+    ) -> Result<ProcessingResult, ProcessingError>
+    where
+        Outputs: From<P::Output>,
+    {
+        let Some(work) = processor.prepare_envelope(&mut managed_envelope) else {
             debug_assert!(
                 false,
-                "there must be work for the logs processor in the logs processing group"
+                "there must be work for the {} processor",
+                std::any::type_name::<P>(),
             );
             return Err(ProcessingError::ProcessingGroupMismatch);
         };
@@ -2197,35 +2190,7 @@ impl EnvelopeProcessorService {
         }
 
         processor
-            .process(logs, ctx)
-            .await
-            .map_err(|_| ProcessingError::ProcessingFailure)
-            .map(|o| o.map(Into::into))
-            .map(ProcessingResult::Output)
-    }
-
-    async fn process_spansv2(
-        &self,
-        mut managed_envelope: ManagedEnvelope,
-        ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        let processor = &self.inner.processing.spans;
-        let Some(spans) = processor.prepare_envelope(&mut managed_envelope) else {
-            debug_assert!(
-                false,
-                "there must be work for the span processor in the spans processing group"
-            );
-            return Err(ProcessingError::ProcessingGroupMismatch);
-        };
-
-        managed_envelope.update();
-        match managed_envelope.envelope().is_empty() {
-            true => managed_envelope.accept(),
-            false => managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal)),
-        }
-
-        processor
-            .process(spans, ctx)
+            .process(work, ctx)
             .await
             .map_err(|_| ProcessingError::ProcessingFailure)
             .map(|o| o.map(Into::into))
@@ -2415,9 +2380,17 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log => self.process_logs(managed_envelope, ctx).await,
-            ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
-            ProcessingGroup::SpanV2 => self.process_spansv2(managed_envelope, ctx).await,
+            ProcessingGroup::Log | ProcessingGroup::Nel => {
+                if matches!(group, ProcessingGroup::Nel) {
+                    nel::convert_to_logs(&mut managed_envelope);
+                }
+                self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
+                    .await
+            }
+            ProcessingGroup::SpanV2 => {
+                self.process_with_processor(&self.inner.processing.spans, managed_envelope, ctx)
+                    .await
+            }
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
