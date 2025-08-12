@@ -80,8 +80,8 @@ def processing_config(get_topic_name):
 
         if processing.get("span_producers") is None:
             processing["span_producers"] = {
-                "use_json": True,
-                "use_protobuf": False,
+                "produce_json": True,
+                "produce_protobuf": False,
             }
 
         return options
