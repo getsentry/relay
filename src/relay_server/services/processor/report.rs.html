@@ -280,14 +280,14 @@
 <a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">use </span><span class="kw">crate</span>::services::outcome::RuleCategory;
 <a href=#281 id=281 data-nosnippet>281</a>    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
 <a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils::{<span class="self">self</span>, create_test_processor};
+<a href=#283 id=283 data-nosnippet>283</a>    <span class="kw">use </span><span class="kw">crate</span>::testutils::create_test_processor;
 <a href=#284 id=284 data-nosnippet>284</a>
 <a href=#285 id=285 data-nosnippet>285</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#286 id=286 data-nosnippet>286</a>
 <a href=#287 id=287 data-nosnippet>287</a>    <span class="attr">#[tokio::test]
 <a href=#288 id=288 data-nosnippet>288</a>    </span><span class="kw">async fn </span>test_client_report_removal() {
 <a href=#289 id=289 data-nosnippet>289</a>        relay_test::setup();
-<a href=#290 id=290 data-nosnippet>290</a>        <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
+<a href=#290 id=290 data-nosnippet>290</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
 <a href=#291 id=291 data-nosnippet>291</a>
 <a href=#292 id=292 data-nosnippet>292</a>        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
 <a href=#293 id=293 data-nosnippet>293</a>            <span class="string">"outcomes"</span>: {
@@ -325,7 +325,7 @@
 <a href=#325 id=325 data-nosnippet>325</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#326 id=326 data-nosnippet>326</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
 <a href=#327 id=327 data-nosnippet>327</a>
-<a href=#328 id=328 data-nosnippet>328</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+<a href=#328 id=328 data-nosnippet>328</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 <a href=#329 id=329 data-nosnippet>329</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#330 id=330 data-nosnippet>330</a>            group,
 <a href=#331 id=331 data-nosnippet>331</a>            envelope,
@@ -345,7 +345,7 @@
 <a href=#345 id=345 data-nosnippet>345</a>    <span class="attr">#[tokio::test]
 <a href=#346 id=346 data-nosnippet>346</a>    </span><span class="kw">async fn </span>test_client_report_forwarding() {
 <a href=#347 id=347 data-nosnippet>347</a>        relay_test::setup();
-<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
 <a href=#349 id=349 data-nosnippet>349</a>
 <a href=#350 id=350 data-nosnippet>350</a>        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
 <a href=#351 id=351 data-nosnippet>351</a>            <span class="string">"outcomes"</span>: {
@@ -383,7 +383,7 @@
 <a href=#383 id=383 data-nosnippet>383</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
 <a href=#384 id=384 data-nosnippet>384</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#385 id=385 data-nosnippet>385</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-<a href=#386 id=386 data-nosnippet>386</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+<a href=#386 id=386 data-nosnippet>386</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 <a href=#387 id=387 data-nosnippet>387</a>
 <a href=#388 id=388 data-nosnippet>388</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#389 id=389 data-nosnippet>389</a>            group,
@@ -409,7 +409,7 @@
 <a href=#409 id=409 data-nosnippet>409</a>    #[cfg(feature = <span class="string">"processing"</span>)]
 <a href=#410 id=410 data-nosnippet>410</a>    </span><span class="kw">async fn </span>test_client_report_removal_in_processing() {
 <a href=#411 id=411 data-nosnippet>411</a>        relay_test::setup();
-<a href=#412 id=412 data-nosnippet>412</a>        <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
+<a href=#412 id=412 data-nosnippet>412</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
 <a href=#413 id=413 data-nosnippet>413</a>
 <a href=#414 id=414 data-nosnippet>414</a>        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
 <a href=#415 id=415 data-nosnippet>415</a>            <span class="string">"outcomes"</span>: {
@@ -451,7 +451,7 @@
 <a href=#451 id=451 data-nosnippet>451</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#452 id=452 data-nosnippet>452</a>
 <a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-<a href=#454 id=454 data-nosnippet>454</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+<a href=#454 id=454 data-nosnippet>454</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 <a href=#455 id=455 data-nosnippet>455</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#456 id=456 data-nosnippet>456</a>            group,
 <a href=#457 id=457 data-nosnippet>457</a>            envelope,
@@ -472,7 +472,7 @@
 <a href=#472 id=472 data-nosnippet>472</a>    </span><span class="kw">async fn </span>test_user_report_only() {
 <a href=#473 id=473 data-nosnippet>473</a>        <span class="macro">relay_log::init_test!</span>();
 <a href=#474 id=474 data-nosnippet>474</a>        <span class="kw">let </span>processor = create_test_processor(Default::default()).<span class="kw">await</span>;
-<a href=#475 id=475 data-nosnippet>475</a>        <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
+<a href=#475 id=475 data-nosnippet>475</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
 <a href=#476 id=476 data-nosnippet>476</a>        <span class="kw">let </span>event_id = EventId::new();
 <a href=#477 id=477 data-nosnippet>477</a>
 <a href=#478 id=478 data-nosnippet>478</a>        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -496,7 +496,7 @@
 <a href=#496 id=496 data-nosnippet>496</a>
 <a href=#497 id=497 data-nosnippet>497</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
 <a href=#498 id=498 data-nosnippet>498</a>
-<a href=#499 id=499 data-nosnippet>499</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+<a href=#499 id=499 data-nosnippet>499</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 <a href=#500 id=500 data-nosnippet>500</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#501 id=501 data-nosnippet>501</a>            group,
 <a href=#502 id=502 data-nosnippet>502</a>            envelope,
@@ -523,7 +523,7 @@
 <a href=#523 id=523 data-nosnippet>523</a>    <span class="attr">#[tokio::test]
 <a href=#524 id=524 data-nosnippet>524</a>    </span><span class="kw">async fn </span>test_user_report_invalid() {
 <a href=#525 id=525 data-nosnippet>525</a>        <span class="kw">let </span>processor = create_test_processor(Default::default()).<span class="kw">await</span>;
-<a href=#526 id=526 data-nosnippet>526</a>        <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
+<a href=#526 id=526 data-nosnippet>526</a>        <span class="kw">let </span>outcome_aggregator = Addr::dummy();
 <a href=#527 id=527 data-nosnippet>527</a>        <span class="kw">let </span>event_id = EventId::new();
 <a href=#528 id=528 data-nosnippet>528</a>
 <a href=#529 id=529 data-nosnippet>529</a>        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -548,7 +548,7 @@
 <a href=#548 id=548 data-nosnippet>548</a>        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope, <span class="kw-2">&amp;</span>Default::default());
 <a href=#549 id=549 data-nosnippet>549</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#550 id=550 data-nosnippet>550</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-<a href=#551 id=551 data-nosnippet>551</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+<a href=#551 id=551 data-nosnippet>551</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 <a href=#552 id=552 data-nosnippet>552</a>
 <a href=#553 id=553 data-nosnippet>553</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#554 id=554 data-nosnippet>554</a>            group,

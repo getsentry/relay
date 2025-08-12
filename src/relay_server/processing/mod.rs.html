@@ -83,7 +83,7 @@
 <a href=#83 id=83 data-nosnippet>83</a>        <span class="kw">use </span>relay_config::RelayMode::<span class="kw-2">*</span>;
 <a href=#84 id=84 data-nosnippet>84</a>
 <a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
-<a href=#86 id=86 data-nosnippet>86</a>            Proxy | Static | Capture =&gt; <span class="bool-val">false</span>,
+<a href=#86 id=86 data-nosnippet>86</a>            Proxy | Static =&gt; <span class="bool-val">false</span>,
 <a href=#87 id=87 data-nosnippet>87</a>            Managed =&gt; !<span class="self">self</span>.project_info.has_feature(feature),
 <a href=#88 id=88 data-nosnippet>88</a>        }
 <a href=#89 id=89 data-nosnippet>89</a>    }

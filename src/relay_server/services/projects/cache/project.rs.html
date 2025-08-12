@@ -276,25 +276,23 @@
 <a href=#276 id=276 data-nosnippet>276</a>        envelope.add_item(transaction);
 <a href=#277 id=277 data-nosnippet>277</a>
 <a href=#278 id=278 data-nosnippet>278</a>        <span class="kw">let </span>(outcome_aggregator, <span class="kw-2">mut </span>outcome_aggregator_rx) = relay_system::Addr::custom();
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = relay_system::Addr::custom();
-<a href=#280 id=280 data-nosnippet>280</a>
-<a href=#281 id=281 data-nosnippet>281</a>        <span class="kw">let </span>managed_envelope =
-<a href=#282 id=282 data-nosnippet>282</a>            ManagedEnvelope::new(envelope, outcome_aggregator.clone(), test_store);
-<a href=#283 id=283 data-nosnippet>283</a>
-<a href=#284 id=284 data-nosnippet>284</a>        project.check_envelope(managed_envelope).<span class="kw">await</span>.unwrap();
-<a href=#285 id=285 data-nosnippet>285</a>        drop(outcome_aggregator);
-<a href=#286 id=286 data-nosnippet>286</a>
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span>expected = [
-<a href=#288 id=288 data-nosnippet>288</a>            (DataCategory::Transaction, <span class="number">1</span>),
-<a href=#289 id=289 data-nosnippet>289</a>            (DataCategory::TransactionIndexed, <span class="number">1</span>),
-<a href=#290 id=290 data-nosnippet>290</a>            (DataCategory::Span, <span class="number">3</span>),
-<a href=#291 id=291 data-nosnippet>291</a>            (DataCategory::SpanIndexed, <span class="number">3</span>),
-<a href=#292 id=292 data-nosnippet>292</a>        ];
-<a href=#293 id=293 data-nosnippet>293</a>
-<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">for </span>(expected_category, expected_quantity) <span class="kw">in </span>expected {
-<a href=#295 id=295 data-nosnippet>295</a>            <span class="kw">let </span>outcome = outcome_aggregator_rx.recv().<span class="kw">await</span>.unwrap();
-<a href=#296 id=296 data-nosnippet>296</a>            <span class="macro">assert_eq!</span>(outcome.category, expected_category);
-<a href=#297 id=297 data-nosnippet>297</a>            <span class="macro">assert_eq!</span>(outcome.quantity, expected_quantity);
-<a href=#298 id=298 data-nosnippet>298</a>        }
-<a href=#299 id=299 data-nosnippet>299</a>    }
-<a href=#300 id=300 data-nosnippet>300</a>}</code></pre></div></section></main></body></html>
+<a href=#279 id=279 data-nosnippet>279</a>
+<a href=#280 id=280 data-nosnippet>280</a>        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator.clone());
+<a href=#281 id=281 data-nosnippet>281</a>
+<a href=#282 id=282 data-nosnippet>282</a>        project.check_envelope(managed_envelope).<span class="kw">await</span>.unwrap();
+<a href=#283 id=283 data-nosnippet>283</a>        drop(outcome_aggregator);
+<a href=#284 id=284 data-nosnippet>284</a>
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="kw">let </span>expected = [
+<a href=#286 id=286 data-nosnippet>286</a>            (DataCategory::Transaction, <span class="number">1</span>),
+<a href=#287 id=287 data-nosnippet>287</a>            (DataCategory::TransactionIndexed, <span class="number">1</span>),
+<a href=#288 id=288 data-nosnippet>288</a>            (DataCategory::Span, <span class="number">3</span>),
+<a href=#289 id=289 data-nosnippet>289</a>            (DataCategory::SpanIndexed, <span class="number">3</span>),
+<a href=#290 id=290 data-nosnippet>290</a>        ];
+<a href=#291 id=291 data-nosnippet>291</a>
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="kw">for </span>(expected_category, expected_quantity) <span class="kw">in </span>expected {
+<a href=#293 id=293 data-nosnippet>293</a>            <span class="kw">let </span>outcome = outcome_aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+<a href=#294 id=294 data-nosnippet>294</a>            <span class="macro">assert_eq!</span>(outcome.category, expected_category);
+<a href=#295 id=295 data-nosnippet>295</a>            <span class="macro">assert_eq!</span>(outcome.quantity, expected_quantity);
+<a href=#296 id=296 data-nosnippet>296</a>        }
+<a href=#297 id=297 data-nosnippet>297</a>    }
+<a href=#298 id=298 data-nosnippet>298</a>}</code></pre></div></section></main></body></html>

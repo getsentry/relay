@@ -333,7 +333,7 @@
 <a href=#333 id=333 data-nosnippet>333</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#334 id=334 data-nosnippet>334</a>
 <a href=#335 id=335 data-nosnippet>335</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-<a href=#336 id=336 data-nosnippet>336</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
+<a href=#336 id=336 data-nosnippet>336</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 <a href=#337 id=337 data-nosnippet>337</a>
 <a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#339 id=339 data-nosnippet>339</a>            group,
@@ -468,7 +468,7 @@
 <a href=#468 id=468 data-nosnippet>468</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#469 id=469 data-nosnippet>469</a>
 <a href=#470 id=470 data-nosnippet>470</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-<a href=#471 id=471 data-nosnippet>471</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
+<a href=#471 id=471 data-nosnippet>471</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 <a href=#472 id=472 data-nosnippet>472</a>
 <a href=#473 id=473 data-nosnippet>473</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#474 id=474 data-nosnippet>474</a>            group,
@@ -542,7 +542,7 @@
 <a href=#542 id=542 data-nosnippet>542</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#543 id=543 data-nosnippet>543</a>
 <a href=#544 id=544 data-nosnippet>544</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-<a href=#545 id=545 data-nosnippet>545</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy(), Addr::dummy());
+<a href=#545 id=545 data-nosnippet>545</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy());
 <a href=#546 id=546 data-nosnippet>546</a>
 <a href=#547 id=547 data-nosnippet>547</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#548 id=548 data-nosnippet>548</a>            group,
@@ -618,7 +618,7 @@
 <a href=#618 id=618 data-nosnippet>618</a>        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 <a href=#619 id=619 data-nosnippet>619</a>
 <a href=#620 id=620 data-nosnippet>620</a>        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-<a href=#621 id=621 data-nosnippet>621</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
+<a href=#621 id=621 data-nosnippet>621</a>        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 <a href=#622 id=622 data-nosnippet>622</a>
 <a href=#623 id=623 data-nosnippet>623</a>        <span class="kw">let </span>message = ProcessEnvelopeGrouped {
 <a href=#624 id=624 data-nosnippet>624</a>            group,
