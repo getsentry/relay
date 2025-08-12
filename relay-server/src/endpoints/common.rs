@@ -314,11 +314,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::QueueFailed);
     };
 
-    let mut managed_envelope = ManagedEnvelope::new(
-        envelope,
-        state.outcome_aggregator().clone(),
-        state.test_store().clone(),
-    );
+    let mut managed_envelope = ManagedEnvelope::new(envelope, state.outcome_aggregator().clone());
 
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and

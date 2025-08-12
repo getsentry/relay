@@ -59,7 +59,6 @@ use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOut
 use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
-use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
     SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
@@ -831,7 +830,7 @@ fn event_type(event: &Annotated<Event>) -> Option<EventType> {
 /// If the project config did not come from the upstream, we keep the items.
 fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
     match config.relay_mode() {
-        RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
+        RelayMode::Proxy | RelayMode::Static => false,
         RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
@@ -1153,7 +1152,6 @@ pub struct EnvelopeProcessorService {
 pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
@@ -1166,7 +1164,6 @@ impl Default for Addrs {
         Addrs {
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
-            test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
@@ -2560,11 +2557,8 @@ impl EnvelopeProcessorService {
                 .cogs
                 .timed(ResourceId::Relay, AppFeature::from(group));
 
-            let mut envelope = ManagedEnvelope::new(
-                envelope,
-                self.inner.addrs.outcome_aggregator.clone(),
-                self.inner.addrs.test_store.clone(),
-            );
+            let mut envelope =
+                ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
             envelope.scope(scoping);
 
             let message = ProcessEnvelopeGrouped {
@@ -2733,16 +2727,6 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        // If we are in capture mode, we stash away the event instead of forwarding it.
-        if Capture::should_capture(&self.inner.config) {
-            relay_log::trace!("capturing envelope in memory");
-            self.inner
-                .addrs
-                .test_store
-                .send(Capture::accepted(envelope));
-            return;
-        }
-
         // Override the `sent_at` timestamp. Since the envelope went through basic
         // normalization, all timestamps have been corrected. We propagate the new
         // `sent_at` to allow the next Relay to double-check this timestamp and
@@ -2798,11 +2782,7 @@ impl EnvelopeProcessorService {
             envelope.add_item(item);
         }
 
-        let envelope = ManagedEnvelope::new(
-            envelope,
-            self.inner.addrs.outcome_aggregator.clone(),
-            self.inner.addrs.test_store.clone(),
-        );
+        let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
         self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
     }
 
@@ -3173,11 +3153,8 @@ impl EnvelopeProcessorService {
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
-                let mut envelope = ManagedEnvelope::new(
-                    envelope,
-                    self.inner.addrs.outcome_aggregator.clone(),
-                    self.inner.addrs.test_store.clone(),
-                );
+                let mut envelope =
+                    ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
                 envelope
                     .set_partition_key(Some(partition_key))
                     .scope(*scoping);
@@ -4016,7 +3993,7 @@ mod tests {
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
         let processor = create_test_processor(Default::default()).await;
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = testutils::processor_services();
         let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -4067,7 +4044,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 
         let message = ProcessEnvelopeGrouped {
             group,
@@ -4135,8 +4112,8 @@ mod tests {
         item.set_payload(ContentType::Json, r#"{}"#);
         envelope.add_item(item);
 
-        let (outcome_aggregator, test_store) = testutils::processor_services();
-        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let outcome_aggregator = testutils::processor_services();
+        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 
         let mut project_info = ProjectInfo::default();
         project_info.public_keys.push(PublicKeyConfig {

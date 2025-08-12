@@ -24,7 +24,6 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::{StoreService, StoreServicePool};
-use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 #[cfg(feature = "processing")]
@@ -68,7 +67,6 @@ pub struct Registry {
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: Addr<EnvelopeProcessor>,
-    pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
     pub global_config: Addr<GlobalConfigManager>,
     pub upstream_relay: Addr<UpstreamRelay>,
@@ -157,7 +155,6 @@ impl ServiceState {
         config: Arc<Config>,
     ) -> Result<Self> {
         let upstream_relay = services.start(UpstreamRelayService::new(config.clone()));
-        let test_store = services.start(TestStoreService::new(config.clone()));
 
         #[cfg(feature = "processing")]
         let redis_clients = config
@@ -268,7 +265,6 @@ impl ServiceState {
                 processor::Addrs {
                     outcome_aggregator: outcome_aggregator.clone(),
                     upstream_relay: upstream_relay.clone(),
-                    test_store: test_store.clone(),
                     #[cfg(feature = "processing")]
                     store_forwarder: store.clone(),
                     aggregator: aggregator.clone(),
@@ -288,7 +284,6 @@ impl ServiceState {
             project_cache_handle.clone(),
             processor.clone(),
             outcome_aggregator.clone(),
-            test_store.clone(),
             services,
         );
 
@@ -328,7 +323,6 @@ impl ServiceState {
             health_check,
             outcome_producer,
             outcome_aggregator,
-            test_store,
             relay_cache,
             global_config,
             project_cache_handle,
@@ -387,11 +381,6 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_producer(&self) -> &Addr<OutcomeProducer> {
         &self.inner.registry.outcome_producer
-    }
-
-    /// Returns the address of the [`OutcomeProducer`] service.
-    pub fn test_store(&self) -> &Addr<TestStore> {
-        &self.inner.registry.test_store
     }
 
     /// Returns the address of the [`OutcomeProducer`] service.

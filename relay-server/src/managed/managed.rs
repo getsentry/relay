@@ -16,7 +16,6 @@ use crate::Envelope;
 use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
-use crate::services::test_store::TestStore;
 
 #[cfg(test)]
 mod test;
@@ -110,7 +109,6 @@ impl<T: Counted> Managed<T> {
             value,
             Arc::new(Meta {
                 outcome_aggregator: envelope.outcome_aggregator().clone(),
-                test_store: envelope.test_store().clone(),
                 received_at: envelope.received_at(),
                 scoping: envelope.scoping(),
                 event_id: envelope.envelope().event_id(),
@@ -388,11 +386,7 @@ impl<T: Counted + fmt::Debug> fmt::Debug for Managed<T> {
 impl From<Managed<Box<Envelope>>> for ManagedEnvelope {
     fn from(value: Managed<Box<Envelope>>) -> Self {
         let (value, meta) = value.destructure();
-        let mut envelope = ManagedEnvelope::new(
-            value,
-            meta.outcome_aggregator.clone(),
-            meta.test_store.clone(),
-        );
+        let mut envelope = ManagedEnvelope::new(value, meta.outcome_aggregator.clone());
         envelope.scope(meta.scoping);
         envelope
     }
@@ -416,11 +410,6 @@ impl<T: Counted> std::ops::Deref for Managed<T> {
 struct Meta {
     /// Outcome aggregator service.
     outcome_aggregator: Addr<TrackOutcome>,
-    /// Test store service address.
-    ///
-    /// Only used for `ManagedEnvelope` <-> `Managed<T>` conversions.
-    test_store: Addr<TestStore>,
-
     /// Received timestamp, when the contained payload/information was received.
     ///
     /// See also: [`crate::extractors::RequestMeta::received_at`].

@@ -329,7 +329,7 @@ mod tests {
         sampling_project_info: Option<Arc<ProjectInfo>>,
     ) -> Envelope {
         let processor = create_test_processor(Default::default()).await;
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = testutils::processor_services();
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
@@ -337,7 +337,7 @@ mod tests {
 
         let message = ProcessEnvelopeGrouped {
             group,
-            envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store),
+            envelope: ManagedEnvelope::new(envelope, outcome_aggregator),
             project_info: Arc::new(ProjectInfo::default()),
             rate_limits: Default::default(),
             sampling_project_info,
@@ -440,7 +440,7 @@ mod tests {
     #[tokio::test]
     async fn test_dsc_respects_metrics_extracted() {
         relay_test::setup();
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = testutils::processor_services();
 
         let config = Arc::new(
             Config::from_json_value(serde_json::json!({
@@ -477,7 +477,7 @@ mod tests {
 
             let envelope = new_envelope(false, "foo");
             let managed_envelope: TypedEnvelope<TransactionGroup> = (
-                ManagedEnvelope::new(envelope, outcome_aggregator.clone(), test_store.clone()),
+                ManagedEnvelope::new(envelope, outcome_aggregator.clone()),
                 ProcessingGroup::Transaction,
             )
                 .try_into()
@@ -772,7 +772,7 @@ mod tests {
         let config = Arc::new(Config::default());
 
         let mut managed_envelope: TypedEnvelope<Group> = (
-            ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy()),
+            ManagedEnvelope::new(envelope, Addr::dummy()),
             processing_group,
         )
             .try_into()

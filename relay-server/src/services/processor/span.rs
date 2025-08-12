@@ -298,9 +298,8 @@ mod tests {
         let bytes =
             Bytes::from(r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}"#);
         let envelope = Envelope::parse_bytes(bytes).unwrap();
-        let (test_store, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
-        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
         let mut typed_envelope: TypedEnvelope<_> = (managed_envelope, ProcessingGroup::Span)
             .try_into()
             .unwrap();

@@ -276,10 +276,8 @@ mod tests {
         envelope.add_item(transaction);
 
         let (outcome_aggregator, mut outcome_aggregator_rx) = relay_system::Addr::custom();
-        let (test_store, _) = relay_system::Addr::custom();
 
-        let managed_envelope =
-            ManagedEnvelope::new(envelope, outcome_aggregator.clone(), test_store);
+        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator.clone());
 
         project.check_envelope(managed_envelope).await.unwrap();
         drop(outcome_aggregator);

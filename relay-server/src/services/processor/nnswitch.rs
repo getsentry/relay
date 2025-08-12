@@ -247,7 +247,6 @@ mod tests {
         let envelope = ManagedEnvelope::new(
             Envelope::parse_bytes([Bytes::from(envelope), dying_message].concat().into()).unwrap(),
             Addr::dummy(),
-            Addr::dummy(),
         );
         (envelope, ProcessingGroup::Error).try_into().unwrap()
     }
