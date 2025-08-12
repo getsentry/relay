@@ -32,6 +32,7 @@
 - Add Jwm to the supported image types. ([#4975](https://github.com/getsentry/relay/pull/4975))
 - Process logs in all non-proxy Relays. ([#4973](https://github.com/getsentry/relay/pull/4973))
 - Add support for pre-hashed signatures. ([#5012](https://github.com/getsentry/relay/pull/5012))
+- Add producer_name tag, and more rdkafka stats. ([#5031](https://github.com/getsentry/relay/pull/5031))
 
 ## 25.7.0
 
