@@ -332,7 +332,7 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(28), Ok(DataCategory::SeerScanner));
-        assert_eq!(DataCategory::try_from(29), Err(UnknownDataCategory(29)));
+        assert_eq!(DataCategory::try_from(30), Ok(DataCategory::PreventReview));
+        assert_eq!(DataCategory::try_from(31), Err(UnknownDataCategory(31)));
     }
 }
