@@ -184,17 +184,17 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_SEER_SCANNER = 28,
   /**
-   * CodecovSeat
+   * PreventUser
    *
-   * This is the data category to count assigned Codecov seats.
+   * This is the data category to count the number of assigned Prevent Users.
    */
-  RELAY_DATA_CATEGORY_CODECOV_SEAT = 29,
+  RELAY_DATA_CATEGORY_PREVENT_USER = 29,
   /**
-   * PreventAi
+   * PreventReview
    *
-   * This is the data category to count the number of Prevent AI runs.
+   * This is the data category to count the number of Prevent review events.
    */
-  RELAY_DATA_CATEGORY_PREVENT_AI = 30,
+  RELAY_DATA_CATEGORY_PREVENT_REVIEW = 30,
   /**
    * Any other data category not known by this Relay.
    */

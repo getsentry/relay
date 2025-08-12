@@ -38,8 +38,8 @@ class DataCategory(IntEnum):
     PROFILE_CHUNK_UI = 26
     SEER_AUTOFIX = 27
     SEER_SCANNER = 28
-    CODECOV_SEAT = 29
-    PREVENT_AI = 30
+    PREVENT_USER = 29
+    PREVENT_REVIEW = 30
     UNKNOWN = -1
     # end generated
 

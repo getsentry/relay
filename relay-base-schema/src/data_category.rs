@@ -124,14 +124,14 @@ pub enum DataCategory {
     SeerAutofix = 27,
     /// This is the data category to count Seer Scanner run events.
     SeerScanner = 28,
-    /// CodecovSeat
+    /// PreventUser
     ///
-    /// This is the data category to count assigned Codecov seats.
-    CodecovSeat = 29,
-    /// PreventAi
+    /// This is the data category to count the number of assigned Prevent Users.
+    PreventUser = 29,
+    /// PreventReview
     ///
-    /// This is the data category to count the number of Prevent AI runs.
-    PreventAi = 30,
+    /// This is the data category to count the number of Prevent review events.
+    PreventReview = 30,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -177,8 +177,8 @@ impl DataCategory {
             "attachment_item" => Self::AttachmentItem,
             "seer_autofix" => Self::SeerAutofix,
             "seer_scanner" => Self::SeerScanner,
-            "codecov_seat" => Self::CodecovSeat,
-            "prevent_ai" => Self::PreventAi,
+            "prevent_user" => Self::PreventUser,
+            "prevent_review" => Self::PreventReview,
             _ => Self::Unknown,
         }
     }
@@ -216,8 +216,8 @@ impl DataCategory {
             Self::AttachmentItem => "attachment_item",
             Self::SeerAutofix => "seer_autofix",
             Self::SeerScanner => "seer_scanner",
-            Self::CodecovSeat => "codecov_seat",
-            Self::PreventAi => "prevent_ai",
+            Self::PreventUser => "prevent_user",
+            Self::PreventReview => "prevent_review",
             Self::Unknown => "unknown",
         }
     }
@@ -316,6 +316,8 @@ impl TryFrom<u8> for DataCategory {
             26 => Ok(Self::ProfileChunkUi),
             27 => Ok(Self::SeerAutofix),
             28 => Ok(Self::SeerScanner),
+            29 => Ok(Self::PreventUser),
+            30 => Ok(Self::PreventReview),
             other => Err(UnknownDataCategory(other)),
         }
     }

@@ -212,8 +212,8 @@ impl CategoryUnit {
             | DataCategory::AttachmentItem
             | DataCategory::SeerAutofix
             | DataCategory::SeerScanner
-            | DataCategory::CodecovSeat
-            | DataCategory::PreventAi
+            | DataCategory::PreventUser
+            | DataCategory::PreventReview
             | DataCategory::Session => Some(Self::Count),
             DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
