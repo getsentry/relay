@@ -22,7 +22,6 @@ use crate::service::create_redis_clients;
 use crate::services::global_config::GlobalConfigHandle;
 #[cfg(feature = "processing")]
 use crate::services::global_rate_limits::GlobalRateLimitsService;
-use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::ProjectInfo;
@@ -180,12 +179,6 @@ pub async fn create_test_processor_with_addrs(
         addrs,
         metric_outcomes,
     )
-}
-
-// TODO: Rename this
-pub fn processor_services() -> Addr<TrackOutcome> {
-    let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-    outcome_aggregator
 }
 
 fn create_processor_pool() -> EnvelopeProcessorServicePool {

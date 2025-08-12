@@ -3829,7 +3829,7 @@ mod tests {
     use crate::metrics_extraction::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
-    use crate::testutils::{self, create_test_processor, create_test_processor_with_addrs};
+    use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
     use {
@@ -3993,7 +3993,7 @@ mod tests {
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
         let processor = create_test_processor(Default::default()).await;
-        let outcome_aggregator = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
         let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -4112,7 +4112,7 @@ mod tests {
         item.set_payload(ContentType::Json, r#"{}"#);
         envelope.add_item(item);
 
-        let outcome_aggregator = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
         let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 
         let mut project_info = ProjectInfo::default();

@@ -294,9 +294,7 @@ mod tests {
     use crate::managed::ManagedEnvelope;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, SpanGroup, Submit};
     use crate::services::projects::project::ProjectInfo;
-    use crate::testutils::{
-        self, create_test_processor, new_envelope, state_with_rule_and_condition,
-    };
+    use crate::testutils::{create_test_processor, new_envelope, state_with_rule_and_condition};
 
     use super::*;
 
@@ -329,7 +327,7 @@ mod tests {
         sampling_project_info: Option<Arc<ProjectInfo>>,
     ) -> Envelope {
         let processor = create_test_processor(Default::default()).await;
-        let outcome_aggregator = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
@@ -440,7 +438,7 @@ mod tests {
     #[tokio::test]
     async fn test_dsc_respects_metrics_extracted() {
         relay_test::setup();
-        let outcome_aggregator = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
 
         let config = Arc::new(
             Config::from_json_value(serde_json::json!({
