@@ -118,7 +118,9 @@ def test_span_extraction(
         }
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
+
     assert child_span == {
         "data": {  # Backfilled from `sentry_tags`
             "sentry.category": "http",
@@ -134,6 +136,7 @@ def test_span_extraction(
             "sentry.transaction.op": "hi",
         },
         "description": "GET /api/0/organizations/?member=1",
+        "downsampled_retention_days": 90,
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "exclusive_time_ms": 500.0,
@@ -184,9 +187,12 @@ def test_span_extraction(
     duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
+
     del transaction_span["received"]
+
     if performance_issues_spans:
         assert transaction_span.pop("_performance_issues_spans") is True
+
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
@@ -201,6 +207,7 @@ def test_span_extraction(
             "sentry.transaction.op": "hi",
         },
         "description": "hi",
+        "downsampled_retention_days": 90,
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "exclusive_time_ms": 1500.0,
@@ -775,6 +782,7 @@ def test_span_ingestion(
                 "sentry.status": "unknown",
             },
             "description": "my 1st OTel span",
+            "downsampled_retention_days": 90,
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": True,
@@ -819,6 +827,7 @@ def test_span_ingestion(
                 "sentry.status": "unknown",
             },
             "description": "my 1st V2 span",
+            "downsampled_retention_days": 90,
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": True,
@@ -867,6 +876,7 @@ def test_span_ingestion(
                 "score.total": 0.12121616,
             },
             "description": "https://example.com/p/blah.js",
+            "downsampled_retention_days": 90,
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
@@ -921,6 +931,7 @@ def test_span_ingestion(
                 "sentry.status": "ok",
             },
             "description": "https://example.com/p/blah.js",
+            "downsampled_retention_days": 90,
             "duration_ms": 1500,
             "exclusive_time_ms": 161.0,
             "is_segment": True,
@@ -968,6 +979,7 @@ def test_span_ingestion(
                 "sentry.op": "default",
             },
             "description": r"test \" with \" escaped \" chars",
+            "downsampled_retention_days": 90,
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": False,
@@ -996,6 +1008,7 @@ def test_span_ingestion(
                 "sentry.status": "unknown",
             },
             "description": "my 2nd OTel span",
+            "downsampled_retention_days": 90,
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": True,
@@ -1038,6 +1051,7 @@ def test_span_ingestion(
                 "sentry.browser.name": "Chrome",
                 "sentry.op": "default",
             },
+            "downsampled_retention_days": 90,
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": False,
@@ -1071,6 +1085,7 @@ def test_span_ingestion(
                 "sentry.status": "unknown",
             },
             "description": "my 3rd protobuf OTel span",
+            "downsampled_retention_days": 90,
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": False,
@@ -1610,6 +1625,7 @@ def test_span_ingestion_with_performance_scores(
                 "ttfb": 500.0,
                 "score.cls": 0.0,
             },
+            "downsampled_retention_days": 90,
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": False,
@@ -1690,6 +1706,7 @@ def test_span_ingestion_with_performance_scores(
                 "score.total": 0.9948129113413748,
                 "score.weight.inp": 1.0,
             },
+            "downsampled_retention_days": 90,
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": False,
@@ -2310,6 +2327,7 @@ def test_scrubs_ip_addresses(
     relay.send_event(project_id, event)
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
 
     expected = {
@@ -2346,6 +2364,7 @@ def test_scrubs_ip_addresses(
             "extra_info": "added by user",
         },
         "description": "GET /api/0/organizations/?member=1",
+        "downsampled_retention_days": 90,
         "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "exclusive_time_ms": 500.0,
@@ -2402,6 +2421,7 @@ def test_scrubs_ip_addresses(
     duration_ms = int(duration * 1e3)
 
     child_span = spans_consumer.get_span()
+
     del child_span["received"]
 
     expected = {
@@ -2423,6 +2443,7 @@ def test_scrubs_ip_addresses(
             "sentry.user.username": "my_user",
         },
         "description": "hi",
+        "downsampled_retention_days": 90,
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "exclusive_time_ms": 1500.0,

@@ -647,6 +647,20 @@ impl RecordKeeper<'_> {
         }
         err
     }
+
+    /// Rejects an item with an internal error.
+    ///
+    /// See also: [`Managed::internal_error`].
+    #[track_caller]
+    pub fn internal_error<E, Q>(&mut self, error: E, q: Q)
+    where
+        E: std::error::Error + 'static,
+        Q: Counted,
+    {
+        relay_log::error!(error = &error as &dyn std::error::Error, "internal error");
+        debug_assert!(false, "internal error: {error}");
+        self.reject_err((Outcome::Invalid(DiscardReason::Internal), ()), q);
+    }
 }
 
 /// Iterator returned by [`Managed::split`].

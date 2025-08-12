@@ -14,7 +14,7 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
 };
 use crate::processing::{
-    self, Context, Forward, Output, QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
+    self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter, Rejected,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -72,6 +72,12 @@ impl OutcomeError for Error {
         };
 
         (outcome, self)
+    }
+}
+
+impl From<RateLimits> for Error {
+    fn from(value: RateLimits) -> Self {
+        Self::RateLimited(value)
     }
 }
 
@@ -190,11 +196,13 @@ impl Forward for LogOutput {
         let scoping = logs.scoping();
         let received_at = logs.received_at();
 
-        let (logs, retention) = logs.split_with_context(|logs| (logs.logs, logs.retention));
+        let (logs, retentions) = logs
+            .split_with_context(|logs| (logs.logs, (logs.retention, logs.downsampled_retention)));
         let ctx = store::Context {
             scoping,
             received_at,
-            retention,
+            retention: retentions.0,
+            downsampled_retention: retentions.1,
         };
 
         for log in logs {
@@ -258,33 +266,8 @@ impl Counted for SerializedLogs {
     }
 }
 
-impl RateLimited for Managed<SerializedLogs> {
+impl CountRateLimited for Managed<SerializedLogs> {
     type Error = Error;
-
-    async fn enforce<T>(
-        &mut self,
-        mut rate_limiter: T,
-        _ctx: Context<'_>,
-    ) -> Result<(), Rejected<Self::Error>>
-    where
-        T: RateLimiter,
-    {
-        let scoping = self.scoping();
-
-        let items = rate_limiter
-            .try_consume(scoping.item(DataCategory::LogItem), self.count())
-            .await;
-        let bytes = rate_limiter
-            .try_consume(scoping.item(DataCategory::LogByte), self.bytes())
-            .await;
-
-        let limits = items.merge_with(bytes);
-        if !limits.is_empty() {
-            return Err(self.reject_err(Error::RateLimited(limits)));
-        }
-
-        Ok(())
-    }
 }
 
 /// Logs which have been parsed and expanded from their serialized state.
@@ -301,28 +284,24 @@ pub struct ExpandedLogs {
     /// Retention in days.
     #[cfg(feature = "processing")]
     retention: Option<u16>,
+    /// Downsampled retention in days.
+    #[cfg(feature = "processing")]
+    downsampled_retention: Option<u16>,
 }
 
 impl Counted for ExpandedLogs {
     fn quantities(&self) -> Quantities {
+        let count = self.logs.len();
+        let bytes = self.logs.iter().map(get_calculated_byte_size).sum();
+
         smallvec::smallvec![
-            (DataCategory::LogItem, self.logs.len()),
-            (DataCategory::LogByte, self.bytes())
+            (DataCategory::LogItem, count),
+            (DataCategory::LogByte, bytes)
         ]
     }
 }
 
 impl ExpandedLogs {
-    /// Returns the total count of all logs contained.
-    fn count(&self) -> usize {
-        self.logs.len()
-    }
-
-    /// Returns the sum of bytes of all logs contained.
-    fn bytes(&self) -> usize {
-        self.logs.iter().map(get_calculated_byte_size).sum()
-    }
-
     fn serialize(self) -> Result<SerializedLogs, ContainerWriteError> {
         let mut logs = Vec::new();
 
@@ -342,31 +321,6 @@ impl ExpandedLogs {
     }
 }
 
-impl RateLimited for Managed<ExpandedLogs> {
+impl CountRateLimited for Managed<ExpandedLogs> {
     type Error = Error;
-
-    async fn enforce<T>(
-        &mut self,
-        mut rate_limiter: T,
-        _ctx: Context<'_>,
-    ) -> Result<(), Rejected<Self::Error>>
-    where
-        T: RateLimiter,
-    {
-        let scoping = self.scoping();
-
-        let items = rate_limiter
-            .try_consume(scoping.item(DataCategory::LogItem), self.count())
-            .await;
-        let bytes = rate_limiter
-            .try_consume(scoping.item(DataCategory::LogByte), self.bytes())
-            .await;
-
-        let limits = items.merge_with(bytes);
-        if !limits.is_empty() {
-            return Err(self.reject_err(Error::RateLimited(limits)));
-        }
-
-        Ok(())
-    }
 }

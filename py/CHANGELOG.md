@@ -3,6 +3,14 @@
 # Unreleased
 
 - Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Add `downsampled_event_retention` to the project configuration. ([#5013](https://github.com/getsentry/relay/pull/5013))
+
+## 0.9.11
+
+### Various fixes & improvements
+
+- feat(billing): Add downsampled_event_retention to project configs (#5013) by @brendanhsentry
+- fix(contexts): Normalize browser and os names with missing versions (#4957) by @Dav1dde
 
 ## 0.9.10
 
