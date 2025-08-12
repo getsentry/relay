@@ -121,6 +121,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         external=None,
         wait_health_check=True,
         static_relays=None,
+        static_credentials=None,
         credentials=None,
         version="latest",
     ):
@@ -154,6 +155,13 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
 
         if static_relays is not None:
             default_opts["auth"] = {"static_relays": static_relays}
+        if static_credentials is not None:
+            auth = default_opts.setdefault("auth", {})
+            static_relays = auth.setdefault("static_relays", {})
+            static_relays[static_credentials["id"]] = {
+                "public_key": static_credentials["public_key"],
+                "internal": True,
+            }
 
         if options is not None:
             for key, value in options.items():

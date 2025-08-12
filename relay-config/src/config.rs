@@ -1847,10 +1847,10 @@ impl Config {
         }
 
         let limits = &mut self.values.limits;
-        if let Some(shutdown_timeout) = overrides.shutdown_timeout {
-            if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
-                limits.shutdown_timeout = shutdown_timeout;
-            }
+        if let Some(shutdown_timeout) = overrides.shutdown_timeout
+            && let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>()
+        {
+            limits.shutdown_timeout = shutdown_timeout;
         }
 
         if let Some(server_name) = overrides.server_name {
@@ -2536,7 +2536,7 @@ impl Config {
 
     /// Redis servers to connect to for project configs, cardinality limits,
     /// rate limiting, and metrics metadata.
-    pub fn redis(&self) -> Option<RedisConfigsRef> {
+    pub fn redis(&self) -> Option<RedisConfigsRef<'_>> {
         let redis_configs = self.values.processing.redis.as_ref()?;
 
         Some(build_redis_configs(

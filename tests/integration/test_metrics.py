@@ -1,4 +1,3 @@
-import hashlib
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -11,6 +10,7 @@ from .consts import (
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
 )
 
+import os
 import pytest
 import requests
 from requests.exceptions import HTTPError
@@ -738,6 +738,8 @@ def test_transaction_metrics(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
 
+    config.setdefault("features", []).append("organizations:indexed-spans-extraction")
+
     timestamp = datetime.now(tz=timezone.utc)
 
     if extract_metrics:
@@ -766,7 +768,6 @@ def test_transaction_metrics(
         config["transactionMetrics"] = {
             "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
         }
-        config.setdefault("features", []).append("projects:span-metrics-extraction")
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
@@ -790,17 +791,11 @@ def test_transaction_metrics(
 
     def assert_transaction():
         event, _ = transactions_consumer.get_event()
-        if with_external_relay:
-            # there is some rounding error while serializing/deserializing
-            # timestamps... haven't investigated too closely
-            span_time = 9.910107
-        else:
-            span_time = 9.910106
 
         assert event["breakdowns"] == {
             "span_ops": {
-                "ops.react.mount": {"value": span_time, "unit": "millisecond"},
-                "total.time": {"value": span_time, "unit": "millisecond"},
+                "ops.react.mount": {"value": 9.91, "unit": "millisecond"},
+                "total.time": {"value": 9.91, "unit": "millisecond"},
             }
         }
 
@@ -819,8 +814,7 @@ def test_transaction_metrics(
         assert_transaction()
         assert_transaction()
 
-    metrics = metrics_by_name(metrics_consumer, count=11, timeout=6)
-
+    metrics = metrics_by_name(metrics_consumer, count=9, timeout=6)
     timestamp = int(timestamp.timestamp())
     common = {
         "timestamp": time_after(timestamp),
@@ -866,7 +860,7 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
         "type": "d",
-        "value": [9.910106, 9.910106],
+        "value": [9.91, 9.91],
     }
     assert metrics["c:transactions/count_per_root_project@none"] == {
         "timestamp": time_after(timestamp),
@@ -1024,7 +1018,7 @@ def test_transaction_metrics_extraction_external_relays(
         assert len(metrics_envelope.items) == 1
 
         payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(payload) == 4
+        assert len(payload) == 6
 
         by_name = {m["name"]: m for m in payload}
         light_metric = by_name["d:transactions/duration_light@millisecond"]
@@ -1087,7 +1081,7 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 4, timeout=3)
+        metrics = metrics_by_name(metrics_consumer, 6, timeout=3)
         metric_usage = metrics["c:transactions/usage@none"]
         assert metric_usage["tags"] == {}
         assert metric_usage["value"] == 1.0
@@ -1332,212 +1326,75 @@ def test_limit_custom_measurements(
     event, _ = transactions_consumer.get_event()
     assert len(event["measurements"]) == 2
 
-    # Expect exactly 5 metrics:
-    # (transaction.duration, transaction.duration_light, transactions.count_per_root_project, 1 builtin, 1 custom)
-    metrics = metrics_by_name(metrics_consumer, 6)
-    metrics.pop("headers")
-
-    assert metrics.keys() == {
+    expected_metrics = {
         "c:transactions/usage@none",
         "d:transactions/duration@millisecond",
         "d:transactions/duration_light@millisecond",
         "c:transactions/count_per_root_project@none",
         "d:transactions/measurements.foo@none",
         "d:transactions/measurements.bar@none",
+        "c:spans/usage@none",
+        "c:spans/count_per_root_project@none",
     }
 
+    metrics = metrics_by_name(metrics_consumer, len(expected_metrics))
+    metrics.pop("headers")
 
-@pytest.mark.parametrize(
-    "sent_description, expected_description",
-    [
-        (
-            "SELECT column FROM table1 WHERE another_col = %s",
-            "SELECT column FROM table1 WHERE another_col = %s",
-        ),
-        (
-            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
-            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*",
-        ),
-    ],
-    ids=["Must not truncate short descriptions", "Must truncate long descriptions"],
-)
-def test_span_metrics(
-    transactions_consumer,
-    metrics_consumer,
+    assert metrics.keys() == expected_metrics
+
+
+@pytest.mark.parametrize("has_measurements_config", [True, False])
+def test_do_not_drop_custom_measurements_in_static(
     mini_sentry,
-    relay_with_processing,
-    sent_description,
-    expected_description,
+    relay,
+    metrics_consumer,
+    transactions_consumer,
+    has_measurements_config,
 ):
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    config = mini_sentry.project_configs[project_id]["config"]
-    config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
-    config.setdefault("features", []).append("projects:span-metrics-extraction")
+    config = mini_sentry.add_full_project_config(project_id)
 
-    transaction = {
-        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
-        "type": "transaction",
-        "transaction": "/organizations/:orgId/performance/:eventSlug/",
-        "transaction_info": {"source": "route"},
-        "start_timestamp": 1597976392.6542819,
-        "timestamp": 1597976400.6189718,
-        "user": {"id": "user123", "geo": {"country_code": "ES"}},
-        "contexts": {
-            "trace": {
-                "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                "span_id": "FA90FDEAD5F74052",
-                "type": "trace",
-                "op": "my-transaction-op",
-            }
-        },
-        "spans": [
-            {
-                "description": sent_description,
-                "op": "db",
-                "parent_span_id": "8f5a2b8768cafb4e",
-                "span_id": "bd429c44b67a3eb4",
-                "start_timestamp": 1597976393.4619668,
-                "timestamp": 1597976393.4718769,
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            }
-        ],
-    }
-    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
-    timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
-        timestamp.isoformat()
-    )
+    if has_measurements_config:
+        config["config"]["measurements"] = {
+            "maxCustomMeasurements": 1,
+        }
 
     metrics_consumer = metrics_consumer()
-    tx_consumer = transactions_consumer()
-    processing = relay_with_processing(options=TEST_CONFIG)
-    processing.send_transaction(project_id, transaction)
+    transactions_consumer = transactions_consumer()
 
-    transaction, _ = tx_consumer.get_event()
-    assert transaction["spans"][0]["description"] == sent_description
+    def configure_static_project(dir):
+        os.remove(dir.join("credentials.json"))
+        os.makedirs(dir.join("projects"))
+        dir.join("projects").join(f"{project_id}.json").write(json.dumps(config))
 
-    expected_group = hashlib.md5(sent_description.encode("utf-8")).hexdigest()[:16]
-
-    metrics = metrics_consumer.get_metrics()
-    span_metrics = [
-        (metric, headers)
-        for metric, headers in metrics
-        if metric["name"].startswith("spans", 2)
-    ]
-    assert len(span_metrics) == 8
-    for metric, headers in span_metrics:
-        assert headers == [("namespace", b"spans")]
-        if metric["name"] in (
-            "c:spans/usage@none",
-            "c:spans/count_per_root_project@none",
-            "d:spans/duration@millisecond",
-            "d:spans/duration_light@millisecond",
-        ):
-            continue
-
-        # Ignore transaction spans
-        if metric["tags"]["span.op"] != "my-transaction-op":
-            assert metric["tags"]["span.description"] == expected_description, metric
-            assert metric["tags"]["span.group"] == expected_group, metric
-
-
-def test_mongodb_span_metrics_extracted(
-    transactions_consumer,
-    metrics_consumer,
-    mini_sentry,
-    relay_with_processing,
-):
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    config = mini_sentry.project_configs[project_id]["config"]
-    config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
-    config.setdefault("features", []).extend(
-        [
-            "projects:span-metrics-extraction",
-        ]
+    relay = relay(
+        mini_sentry,
+        options=TEST_CONFIG | {"relay": {"mode": "static"}},
+        prepare=configure_static_project,
     )
 
-    sent_description = '{"find": "documents", "foo": "bar"}'
-    expected_description = '{"find":"documents","foo":"?"}'
-
-    transaction = {
-        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
-        "type": "transaction",
-        "transaction": "/organizations/:orgId/performance/:eventSlug/",
-        "transaction_info": {"source": "route"},
-        "start_timestamp": 1597976392.6542819,
-        "timestamp": 1597976400.6189718,
-        "user": {"id": "user123", "geo": {"country_code": "ES"}},
-        "contexts": {
-            "trace": {
-                "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                "span_id": "FA90FDEAD5F74052",
-                "type": "trace",
-                "op": "my-transaction-op",
-            }
-        },
-        "spans": [
-            {
-                "description": sent_description,
-                "op": "db",
-                "parent_span_id": "8f5a2b8768cafb4e",
-                "span_id": "bd429c44b67a3eb4",
-                "start_timestamp": 1597976393.4619668,
-                "timestamp": 1597976393.4718769,
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                "data": {
-                    "db.system": "mongodb",
-                    "db.collection.name": "documents",
-                    "db.operation": "find",
-                },
-            }
-        ],
-    }
-    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
-        timestamp.isoformat()
-    )
+    transaction = generate_transaction_item()
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["measurements"] = {
+        "foo": {"value": 1.2},
+        "baz": {"value": 1.3},
+        "bar": {"value": 1.4},
+    }
 
-    metrics_consumer = metrics_consumer()
-    tx_consumer = transactions_consumer()
-    processing = relay_with_processing(options=TEST_CONFIG)
-    processing.send_transaction(project_id, transaction)
+    relay.send_transaction(42, transaction)
+    event = mini_sentry.captured_events.get(timeout=2).items[0].payload.json
 
-    transaction, _ = tx_consumer.get_event()
-    assert transaction["spans"][0]["description"] == sent_description
-
-    expected_group = hashlib.md5(expected_description.encode("utf-8")).hexdigest()[:16]
-
-    metrics = metrics_consumer.get_metrics()
-    span_metrics = [
-        (metric, headers)
-        for metric, headers in metrics
-        if metric["name"].startswith("spans", 2)
-    ]
-    assert len(span_metrics) == 8
-
-    for metric, headers in span_metrics:
-        assert headers == [("namespace", b"spans")]
-        if metric["name"] in (
-            "c:spans/usage@none",
-            "c:spans/count_per_root_project@none",
-            "d:spans/duration@millisecond",
-            "d:spans/duration_light@millisecond",
-        ):
-            continue
-
-        # Ignore transaction spans
-        if metric["tags"]["span.op"] != "my-transaction-op":
-            assert metric["tags"]["span.action"] == "FIND", metric
-            assert metric["tags"]["span.description"] == expected_description, metric
-            assert metric["tags"]["span.domain"] == "documents", metric
-            assert metric["tags"]["span.group"] == expected_group, metric
+    if has_measurements_config:
+        # With maxCustomMeasurements: 1, only 1 measurement should pass through
+        assert event["measurements"] == {"bar": {"value": 1.4, "unit": "none"}}
+    else:
+        # Without measurements config, all measurements should pass through
+        assert event["measurements"] == {
+            "bar": {"value": 1.4, "unit": "none"},
+            "baz": {"value": 1.3, "unit": "none"},
+            "foo": {"value": 1.2, "unit": "none"},
+        }
 
 
 def test_generic_metric_extraction(mini_sentry, relay):
@@ -1604,131 +1461,6 @@ def test_generic_metric_extraction(mini_sentry, relay):
         "value": 1.0,
         "tags": {"query_hash": "c91c2e4d"},
     } in metrics
-
-
-def test_span_metrics_secondary_aggregator(
-    metrics_consumer,
-    mini_sentry,
-    relay_with_processing,
-):
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    config = mini_sentry.project_configs[project_id]["config"]
-    config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
-    config.setdefault("features", []).append("projects:span-metrics-extraction")
-
-    transaction = {
-        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
-        "type": "transaction",
-        "transaction": "/organizations/:orgId/performance/:eventSlug/",
-        "transaction_info": {"source": "route"},
-        "start_timestamp": 1597976392.6542819,
-        "timestamp": 1597976400.6189718,
-        "user": {"id": "user123", "geo": {"country_code": "ES"}},
-        "contexts": {
-            "trace": {
-                "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                "span_id": "FA90FDEAD5F74052",
-                "type": "trace",
-            }
-        },
-        "spans": [
-            {
-                "description": "SELECT %s FROM foo",
-                "op": "db",
-                "parent_span_id": "FA90FDEAD5F74052",
-                "span_id": "bd429c44b67a3eb4",
-                "start_timestamp": 1597976393.4619668,
-                "timestamp": 1597976393.4718769,
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            }
-        ],
-    }
-    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
-    timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
-        timestamp.isoformat()
-    )
-    transaction["start_timestamp"] = (
-        timestamp - timedelta(milliseconds=126)
-    ).isoformat()
-    transaction["spans"][0]["start_timestamp"] = (
-        timestamp - timedelta(milliseconds=123)
-    ).isoformat()
-
-    metrics_consumer = metrics_consumer()
-    processing = relay_with_processing(
-        options={
-            "aggregator": {
-                # No metrics will arrive through the default aggregator:
-                "bucket_interval": 100,
-                "initial_delay": 100,
-            },
-            "secondary_aggregators": [
-                {
-                    "name": "spans",
-                    "condition": {"op": "eq", "field": "namespace", "value": "spans"},
-                    "config": {
-                        # The spans-specific aggregator has config that will deliver metrics:
-                        "bucket_interval": 1,
-                        "initial_delay": 0,
-                        "max_tag_value_length": 10,
-                    },
-                }
-            ],
-        }
-    )
-    processing.send_transaction(project_id, transaction)
-
-    metrics = metrics_consumer.get_metrics()
-    # Transaction metrics are still aggregated:
-    assert all([m[0]["name"].startswith("spans", 2) for m in metrics])
-
-    span_metrics = [
-        (metric, headers)
-        for metric, headers in metrics
-        if metric["name"] == "d:spans/exclusive_time@millisecond"
-    ]
-    span_metrics.sort(key=lambda m: m[0]["tags"]["span.op"])
-    timestamp = int(timestamp.timestamp())
-    assert span_metrics == [
-        (
-            {
-                "name": "d:spans/exclusive_time@millisecond",
-                "org_id": 1,
-                "project_id": 42,
-                "retention_days": 90,
-                "tags": {
-                    "span.action": "SELECT",
-                    "span.description": "SELECT %s*",
-                    "span.category": "db",
-                    "span.domain": ",foo,",
-                    "span.op": "db",
-                },
-                "timestamp": time_after(timestamp),
-                "type": "d",
-                "value": [123.0],
-                "received_at": time_after(timestamp),
-            },
-            [("namespace", b"spans")],
-        ),
-        (
-            {
-                "name": "d:spans/exclusive_time@millisecond",
-                "org_id": 1,
-                "project_id": 42,
-                "retention_days": 90,
-                "tags": {"span.op": "default"},
-                "timestamp": time_after(timestamp),
-                "type": "d",
-                "value": [3.0],
-                "received_at": time_after(timestamp),
-            },
-            [("namespace", b"spans")],
-        ),
-    ]
 
 
 def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_consumer):
@@ -2120,7 +1852,7 @@ def test_metrics_extraction_with_computed_context_filters(
     ]
 
     # Verify that all three metrics were extracted
-    metrics = metrics_by_name(metrics_consumer, 7)
+    metrics = metrics_by_name(metrics_consumer, 9)
 
     # Check each extracted metric
     for metric_name in metric_names:

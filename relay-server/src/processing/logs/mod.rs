@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::OurLog;
+use relay_filter::FilterStatKey;
 use relay_pii::PiiConfigError;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -13,7 +14,7 @@ use crate::managed::{
     Counted, Managed, ManagedEnvelope, ManagedResult as _, OutcomeError, Quantities,
 };
 use crate::processing::{
-    self, Context, Forward, Output, QuotaRateLimiter, RateLimited, RateLimiter, Rejected,
+    self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter, Rejected,
 };
 use crate::services::outcome::{DiscardReason, Outcome};
 
@@ -33,12 +34,12 @@ pub enum Error {
     /// A duplicated item container for logs.
     #[error("duplicate log container")]
     DuplicateContainer,
-    /// Events filtered because of a missing feature flag.
+    /// Logs filtered because of a missing feature flag.
     #[error("logs feature flag missing")]
     FilterFeatureFlag,
-    /// Events filtered either due to a global sampling rule.
-    #[error("logs dropped due to sampling")]
-    FilterSampling,
+    /// Logs filtered due to a filtering rule.
+    #[error("log filtered")]
+    Filtered(FilterStatKey),
     /// The logs are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
@@ -60,7 +61,7 @@ impl OutcomeError for Error {
         let outcome = match &self {
             Self::DuplicateContainer => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::FilterFeatureFlag => None,
-            Self::FilterSampling => None,
+            Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
@@ -74,9 +75,16 @@ impl OutcomeError for Error {
     }
 }
 
+impl From<RateLimits> for Error {
+    fn from(value: RateLimits) -> Self {
+        Self::RateLimited(value)
+    }
+}
+
 /// A processor for Logs.
 ///
 /// It processes items of type: [`ItemType::OtelLog`] and [`ItemType::Log`].
+#[derive(Debug)]
 pub struct LogsProcessor {
     limiter: Arc<QuotaRateLimiter>,
 }
@@ -121,21 +129,28 @@ impl processing::Processor for LogsProcessor {
         mut logs: Managed<Self::UnitOfWork>,
         ctx: Context<'_>,
     ) -> Result<Output<Self::Output>, Rejected<Error>> {
-        validate::container(&logs, ctx)?;
+        validate::container(&logs)?;
+
+        if ctx.is_proxy() {
+            // If running in proxy mode, just apply cached rate limits and forward without
+            // processing.
+            //
+            // Static mode needs processing, as users can override project settings manually.
+            self.limiter.enforce_quotas(&mut logs, ctx).await?;
+            return Ok(Output::just(LogOutput::NotProcessed(logs)));
+        }
+
+        // Fast filters, which do not need expanded logs.
         filter::feature_flag(ctx).reject(&logs)?;
 
-        filter::sampled(ctx).reject(&logs)?;
+        let mut logs = process::expand(logs, ctx);
+        process::normalize(&mut logs);
+        filter::filter(&mut logs, ctx);
+        process::scrub(&mut logs, ctx);
 
         self.limiter.enforce_quotas(&mut logs, ctx).await?;
 
-        if ctx.is_processing() {
-            let mut logs = process::expand(logs, ctx);
-            process::process(&mut logs, ctx);
-
-            Ok(Output::just(LogOutput::Processed(logs)))
-        } else {
-            Ok(Output::just(LogOutput::NotProcessed(logs)))
-        }
+        Ok(Output::just(LogOutput::Processed(logs)))
     }
 }
 
@@ -181,11 +196,13 @@ impl Forward for LogOutput {
         let scoping = logs.scoping();
         let received_at = logs.received_at();
 
-        let (logs, retention) = logs.split_with_context(|logs| (logs.logs, logs.retention));
+        let (logs, retentions) = logs
+            .split_with_context(|logs| (logs.logs, (logs.retention, logs.downsampled_retention)));
         let ctx = store::Context {
             scoping,
             received_at,
-            retention,
+            retention: retentions.0,
+            downsampled_retention: retentions.1,
         };
 
         for log in logs {
@@ -249,33 +266,8 @@ impl Counted for SerializedLogs {
     }
 }
 
-impl RateLimited for Managed<SerializedLogs> {
+impl CountRateLimited for Managed<SerializedLogs> {
     type Error = Error;
-
-    async fn enforce<T>(
-        &mut self,
-        mut rate_limiter: T,
-        _ctx: Context<'_>,
-    ) -> Result<(), Rejected<Self::Error>>
-    where
-        T: RateLimiter,
-    {
-        let scoping = self.scoping();
-
-        let items = rate_limiter
-            .try_consume(scoping.item(DataCategory::LogItem), self.count())
-            .await;
-        let bytes = rate_limiter
-            .try_consume(scoping.item(DataCategory::LogByte), self.bytes())
-            .await;
-
-        let limits = items.merge_with(bytes);
-        if !limits.is_empty() {
-            return Err(self.reject_err(Error::RateLimited(limits)));
-        }
-
-        Ok(())
-    }
 }
 
 /// Logs which have been parsed and expanded from their serialized state.
@@ -283,39 +275,52 @@ impl RateLimited for Managed<SerializedLogs> {
 pub struct ExpandedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
+    /// Expanded and parsed logs.
+    logs: ContainerItems<OurLog>,
+
+    // These fields are currently necessary as we don't pass any project config context to the
+    // store serialization. The plan is to get rid of them by giving the serialization context,
+    // including the project info, where these are pulled from: #4878.
     /// Retention in days.
     #[cfg(feature = "processing")]
     retention: Option<u16>,
-    /// Expanded and parsed logs.
-    logs: ContainerItems<OurLog>,
+    /// Downsampled retention in days.
+    #[cfg(feature = "processing")]
+    downsampled_retention: Option<u16>,
 }
 
 impl Counted for ExpandedLogs {
     fn quantities(&self) -> Quantities {
+        let count = self.logs.len();
+        let bytes = self.logs.iter().map(get_calculated_byte_size).sum();
+
         smallvec::smallvec![
-            (DataCategory::LogItem, self.logs.len()),
-            (DataCategory::LogByte, self.bytes())
+            (DataCategory::LogItem, count),
+            (DataCategory::LogByte, bytes)
         ]
     }
 }
 
 impl ExpandedLogs {
-    /// Returns the sum of bytes of all logs contained.
-    fn bytes(&self) -> usize {
-        self.logs.iter().map(get_calculated_byte_size).sum()
-    }
-
     fn serialize(self) -> Result<SerializedLogs, ContainerWriteError> {
-        let mut item = Item::new(ItemType::Log);
+        let mut logs = Vec::new();
 
-        ItemContainer::from(self.logs)
-            .write_to(&mut item)
-            .inspect_err(|err| relay_log::error!("failed to serialize logs: {err}"))?;
+        if !self.logs.is_empty() {
+            let mut item = Item::new(ItemType::Log);
+            ItemContainer::from(self.logs)
+                .write_to(&mut item)
+                .inspect_err(|err| relay_log::error!("failed to serialize logs: {err}"))?;
+            logs.push(item);
+        }
 
         Ok(SerializedLogs {
             headers: self.headers,
             otel_logs: Default::default(),
-            logs: vec![item],
+            logs,
         })
     }
+}
+
+impl CountRateLimited for Managed<ExpandedLogs> {
+    type Error = Error;
 }

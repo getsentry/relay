@@ -161,8 +161,7 @@ pub struct Options {
     /// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which
-    /// spans are extracted. It applies on top of [`crate::Feature::ExtractCommonSpanMetricsFromEvent`],
-    /// so both feature flag and sample rate need to be enabled to get any spans extracted.
+    /// spans are extracted.
     ///
     /// `None` is the default and interpreted as a value of 1.0 (extract everything).
     ///
@@ -173,21 +172,6 @@ pub struct Options {
         skip_serializing_if = "is_default"
     )]
     pub span_extraction_sample_rate: Option<f32>,
-
-    /// Sample rate at which to ingest logs.
-    ///
-    /// This number represents the fraction of received logs that are processed. It only applies if
-    /// [`crate::Feature::OurLogsIngestion`] is enabled.
-    ///
-    /// `None` is the default and interpreted as a value of 1.0 (ingest everything).
-    ///
-    /// Note: Any value below 1.0 will cause the product to not show all the users data, so use with caution.
-    #[serde(
-        rename = "relay.ourlogs-ingestion.sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub ourlogs_ingestion_sample_rate: Option<f32>,
 
     /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
     ///

@@ -148,13 +148,12 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
             }
             if origin.domain.is_some() && url.domain != origin.domain {
                 // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
-                if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain) {
-                    if origin_domain.starts_with('*')
-                        && ((*domain).ends_with(origin_domain.get(1..).unwrap_or(""))
-                            || domain.as_str() == origin_domain.get(2..).unwrap_or(""))
-                    {
-                        return true; // partial domain pattern match
-                    }
+                if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain)
+                    && origin_domain.starts_with('*')
+                    && ((*domain).ends_with(origin_domain.get(1..).unwrap_or(""))
+                        || domain.as_str() == origin_domain.get(2..).unwrap_or(""))
+                {
+                    return true; // partial domain pattern match
                 }
                 continue; // domain not matched
             }

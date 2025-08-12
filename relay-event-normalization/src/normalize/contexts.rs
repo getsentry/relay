@@ -91,62 +91,61 @@ static ANDROID_MODEL_NAMES: Lazy<HashMap<&'static str, &'static str>> = Lazy::ne
 });
 
 fn normalize_runtime_context(runtime: &mut RuntimeContext) {
-    if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
-        if let Some(raw_description) = runtime.raw_description.as_str() {
-            if let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
-                runtime.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
-                runtime.version = captures
-                    .name("version")
-                    .map(|m| m.as_str().to_owned())
-                    .into();
-            }
-        }
+    if runtime.name.value().is_empty()
+        && runtime.version.value().is_empty()
+        && let Some(raw_description) = runtime.raw_description.as_str()
+        && let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description)
+    {
+        runtime.name = captures.name("name").map(|m| m.as_str().to_owned()).into();
+        runtime.version = captures
+            .name("version")
+            .map(|m| m.as_str().to_owned())
+            .into();
     }
 
     // RuntimeInformation.FrameworkDescription doesn't return a very useful value.
     // Example: ".NET Framework 4.7.3056.0"
     // Use release keys from registry sent as #build
-    if let Some(name) = runtime.name.as_str() {
-        if let Some(build) = runtime.build.as_str() {
-            if name.starts_with(".NET Framework") {
-                let version = match build {
-                    "378389" => Some("4.5".to_owned()),
-                    "378675" => Some("4.5.1".to_owned()),
-                    "378758" => Some("4.5.1".to_owned()),
-                    "379893" => Some("4.5.2".to_owned()),
-                    "393295" => Some("4.6".to_owned()),
-                    "393297" => Some("4.6".to_owned()),
-                    "394254" => Some("4.6.1".to_owned()),
-                    "394271" => Some("4.6.1".to_owned()),
-                    "394802" => Some("4.6.2".to_owned()),
-                    "394806" => Some("4.6.2".to_owned()),
-                    "460798" => Some("4.7".to_owned()),
-                    "460805" => Some("4.7".to_owned()),
-                    "461308" => Some("4.7.1".to_owned()),
-                    "461310" => Some("4.7.1".to_owned()),
-                    "461808" => Some("4.7.2".to_owned()),
-                    "461814" => Some("4.7.2".to_owned()),
-                    "528040" => Some("4.8".to_owned()),
-                    "528049" => Some("4.8".to_owned()),
-                    "528209" => Some("4.8".to_owned()),
-                    "528372" => Some("4.8".to_owned()),
-                    "528449" => Some("4.8".to_owned()),
-                    _ => None,
-                };
+    if let Some(name) = runtime.name.as_str()
+        && let Some(build) = runtime.build.as_str()
+        && name.starts_with(".NET Framework")
+    {
+        let version = match build {
+            "378389" => Some("4.5".to_owned()),
+            "378675" => Some("4.5.1".to_owned()),
+            "378758" => Some("4.5.1".to_owned()),
+            "379893" => Some("4.5.2".to_owned()),
+            "393295" => Some("4.6".to_owned()),
+            "393297" => Some("4.6".to_owned()),
+            "394254" => Some("4.6.1".to_owned()),
+            "394271" => Some("4.6.1".to_owned()),
+            "394802" => Some("4.6.2".to_owned()),
+            "394806" => Some("4.6.2".to_owned()),
+            "460798" => Some("4.7".to_owned()),
+            "460805" => Some("4.7".to_owned()),
+            "461308" => Some("4.7.1".to_owned()),
+            "461310" => Some("4.7.1".to_owned()),
+            "461808" => Some("4.7.2".to_owned()),
+            "461814" => Some("4.7.2".to_owned()),
+            "528040" => Some("4.8".to_owned()),
+            "528049" => Some("4.8".to_owned()),
+            "528209" => Some("4.8".to_owned()),
+            "528372" => Some("4.8".to_owned()),
+            "528449" => Some("4.8".to_owned()),
+            _ => None,
+        };
 
-                if let Some(version) = version {
-                    runtime.version = version.into();
-                }
-            }
+        if let Some(version) = version {
+            runtime.version = version.into();
         }
     }
 
     // Calculation of the computed context for the runtime.
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
-    if runtime.runtime.value().is_none() {
-        if let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value()) {
-            runtime.runtime = Annotated::from(format!("{name} {version}"));
-        }
+    if runtime.runtime.value().is_none()
+        && let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value())
+    {
+        runtime.runtime = Annotated::from(format!("{name} {version}"));
     }
 }
 
@@ -286,8 +285,14 @@ fn compute_os_context(os: &mut OsContext) {
     // Calculation of the computed context for the os.
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if os.os.value().is_none() {
-        if let (Some(name), Some(version)) = (os.name.value(), os.version.value()) {
-            os.os = Annotated::from(format!("{name} {version}"));
+        let name = match (os.name.value(), os.version.value()) {
+            (Some(name), Some(version)) => Some(format!("{name} {version}")),
+            (Some(name), _) => Some(name.to_owned()),
+            _ => None,
+        };
+
+        if let Some(name) = name {
+            os.os = Annotated::new(name);
         }
     }
 }
@@ -296,8 +301,14 @@ fn normalize_browser_context(browser: &mut BrowserContext) {
     // Calculation of the computed context for the browser.
     // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
     if browser.browser.value().is_none() {
-        if let (Some(name), Some(version)) = (browser.name.value(), browser.version.value()) {
-            browser.browser = Annotated::from(format!("{name} {version}"));
+        let name = match (browser.name.value(), browser.version.value()) {
+            (Some(name), Some(version)) => Some(format!("{name} {version}")),
+            (Some(name), _) => Some(name.to_owned()),
+            _ => None,
+        };
+
+        if let Some(name) = name {
+            browser.browser = Annotated::new(name);
         }
     }
 }
@@ -378,10 +389,17 @@ pub fn normalize_context(context: &mut Context) {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::{Headers, LenientString, PairList};
-    use relay_protocol::Object;
+    use relay_protocol::SerializableAnnotated;
     use similar_asserts::assert_eq;
 
     use super::*;
+
+    macro_rules! assert_json_context {
+        ($ctx:expr, $($tt:tt)*) => {
+            insta::assert_json_snapshot!(SerializableAnnotated(&Annotated::new($ctx)), $($tt)*)
+
+        };
+    }
 
     #[test]
     fn test_get_product_name() {
@@ -408,8 +426,14 @@ mod tests {
         };
 
         normalize_runtime_context(&mut runtime);
-        assert_eq!(Some(".NET Framework"), runtime.name.as_str());
-        assert_eq!(Some("4.8.4250.0"), runtime.version.as_str());
+        assert_json_context!(runtime, @r###"
+        {
+          "runtime": ".NET Framework 4.8.4250.0",
+          "name": ".NET Framework",
+          "version": "4.8.4250.0",
+          "raw_description": ".NET Framework 4.8.4250.0"
+        }
+        "###);
     }
 
     #[test]
@@ -421,8 +445,15 @@ mod tests {
         };
 
         normalize_runtime_context(&mut runtime);
-        assert_eq!(Some(".NET Framework"), runtime.name.as_str());
-        assert_eq!(Some("4.7.2"), runtime.version.as_str());
+        assert_json_context!(runtime, @r###"
+        {
+          "runtime": ".NET Framework 4.7.2",
+          "name": ".NET Framework",
+          "version": "4.7.2",
+          "build": "461814",
+          "raw_description": ".NET Framework 4.7.3056.0"
+        }
+        "###);
     }
 
     #[test]
@@ -435,8 +466,15 @@ mod tests {
 
         // Unmapped build number doesn't override version
         normalize_runtime_context(&mut runtime);
-        assert_eq!(Some(".NET Framework"), runtime.name.as_str());
-        assert_eq!(Some("200.0"), runtime.version.as_str());
+        assert_json_context!(runtime, @r###"
+        {
+          "runtime": ".NET Framework 200.0",
+          "name": ".NET Framework",
+          "version": "200.0",
+          "build": "999999",
+          "raw_description": ".NET Framework 200.0"
+        }
+        "###);
     }
 
     #[test]
@@ -447,8 +485,14 @@ mod tests {
         };
 
         normalize_runtime_context(&mut runtime);
-        assert_eq!(Some(".NET Native"), runtime.name.as_str());
-        assert_eq!(Some("2.0"), runtime.version.as_str());
+        assert_json_context!(runtime, @r###"
+        {
+          "runtime": ".NET Native 2.0",
+          "name": ".NET Native",
+          "version": "2.0",
+          "raw_description": ".NET Native 2.0"
+        }
+        "###);
     }
 
     #[test]
@@ -459,8 +503,14 @@ mod tests {
         };
 
         normalize_runtime_context(&mut runtime);
-        assert_eq!(Some(".NET Core"), runtime.name.as_str());
-        assert_eq!(Some("2.0"), runtime.version.as_str());
+        assert_json_context!(runtime, @r###"
+        {
+          "runtime": ".NET Core 2.0",
+          "name": ".NET Core",
+          "version": "2.0",
+          "raw_description": ".NET Core 2.0"
+        }
+        "###);
     }
 
     #[test]
@@ -474,8 +524,15 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows"), os.name.as_str());
-        assert_eq!(Some("7"), os.version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 7",
+          "name": "Windows",
+          "version": "7",
+          "build": "7601",
+          "raw_description": "Microsoft Windows NT 6.1.7601 Service Pack 1"
+        }
+        "###);
     }
 
     #[test]
@@ -490,8 +547,15 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows"), os.name.as_str());
-        assert_eq!(Some("8"), os.version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 8",
+          "name": "Windows",
+          "version": "8",
+          "build": "9200",
+          "raw_description": "Microsoft Windows NT 6.2.9200.0"
+        }
+        "###);
     }
 
     #[test]
@@ -504,8 +568,15 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows"), os.name.as_str());
-        assert_eq!(Some("10"), os.version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 10",
+          "name": "Windows",
+          "version": "10",
+          "build": "16299",
+          "raw_description": "Microsoft Windows 10.0.16299"
+        }
+        "###);
     }
 
     #[test]
@@ -517,8 +588,15 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows"), os.name.as_str());
-        assert_eq!(Some("11"), os.version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 11",
+          "name": "Windows",
+          "version": "11",
+          "build": "22000",
+          "raw_description": "Microsoft Windows 10.0.22000"
+        }
+        "###);
     }
 
     #[test]
@@ -530,8 +608,15 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows"), os.name.as_str());
-        assert_eq!(Some("11"), os.version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 11",
+          "name": "Windows",
+          "version": "11",
+          "build": "22001",
+          "raw_description": "Microsoft Windows 10.0.22001"
+        }
+        "###);
     }
 
     #[test]
@@ -543,8 +628,15 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows"), os.name.as_str());
-        assert_eq!(Some("10.1.23456"), os.version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 10.1.23456",
+          "name": "Windows",
+          "version": "10.1.23456",
+          "build": "23456",
+          "raw_description": "Microsoft Windows 10.1.23456"
+        }
+        "###);
     }
 
     #[test]
@@ -556,8 +648,14 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Unix"), os.name.as_str());
-        assert_eq!(Some("17.5.0"), os.kernel_version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Unix",
+          "name": "Unix",
+          "kernel_version": "17.5.0",
+          "raw_description": "Unix 17.5.0.0"
+        }
+        "###);
     }
 
     #[test]
@@ -569,8 +667,14 @@ mod tests {
     };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Darwin"), os.name.as_str());
-        assert_eq!(Some("17.5.0"), os.kernel_version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Darwin",
+          "name": "Darwin",
+          "kernel_version": "17.5.0",
+          "raw_description": "Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64"
+        }
+        "###);
     }
 
     #[test]
@@ -582,8 +686,14 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Unix"), os.name.as_str());
-        assert_eq!(Some("3.10.0.693"), os.kernel_version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Unix",
+          "name": "Unix",
+          "kernel_version": "3.10.0.693",
+          "raw_description": "Unix 3.10.0.693"
+        }
+        "###);
     }
 
     #[test]
@@ -597,8 +707,14 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Linux"), os.name.as_str());
-        assert_eq!(Some("3.10.0"), os.kernel_version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Linux",
+          "name": "Linux",
+          "kernel_version": "3.10.0",
+          "raw_description": "Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018"
+        }
+        "###);
     }
 
     #[test]
@@ -613,8 +729,14 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Linux"), os.name.as_str());
-        assert_eq!(Some("4.4.0"), os.kernel_version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Linux",
+          "name": "Linux",
+          "kernel_version": "4.4.0",
+          "raw_description": "Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014"
+        }
+        "###);
     }
 
     #[test]
@@ -625,9 +747,15 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("macOS"), os.name.as_str());
-        assert_eq!(Some("10.14.2"), os.version.as_str());
-        assert_eq!(Some("18C54"), os.build.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "macOS 10.14.2",
+          "name": "macOS",
+          "version": "10.14.2",
+          "build": "18C54",
+          "raw_description": "Mac OS X 10.14.2 (18C54)"
+        }
+        "###);
     }
 
     #[test]
@@ -638,9 +766,14 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("macOS"), os.name.as_str());
-        assert_eq!(Some("10.14.2"), os.version.as_str());
-        assert_eq!(None, os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "macOS 10.14.2",
+          "name": "macOS",
+          "version": "10.14.2",
+          "raw_description": "Mac OS X 10.14.2"
+        }
+        "###);
     }
 
     #[test]
@@ -652,7 +785,13 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Properly defined name"), os.name.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Properly defined name",
+          "name": "Properly defined name",
+          "raw_description": "Linux 4.4.0"
+        }
+        "###);
     }
 
     #[test]
@@ -664,7 +803,12 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Properly defined version"), os.version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "version": "Properly defined version",
+          "raw_description": "Linux 4.4.0"
+        }
+        "###);
     }
 
     #[test]
@@ -672,10 +816,7 @@ mod tests {
         let mut os = OsContext::default();
 
         normalize_os_context(&mut os);
-        assert_eq!(None, os.name.value());
-        assert_eq!(None, os.version.value());
-        assert_eq!(None, os.kernel_version.value());
-        assert_eq!(None, os.raw_description.value());
+        assert_json_context!(os, @"{}");
     }
 
     #[test]
@@ -685,9 +826,14 @@ mod tests {
             ..OsContext::default()
         };
         normalize_os_context(&mut os);
-        assert_eq!(Some("macOS"), os.name.as_str());
-        assert_eq!(Some("10.16.0"), os.version.as_str());
-        assert_eq!(None, os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "macOS 10.16.0",
+          "name": "macOS",
+          "version": "10.16.0",
+          "raw_description": "Mac OS X 10.16.0"
+        }
+        "###);
     }
 
     #[test]
@@ -698,9 +844,14 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("iOS"), os.name.as_str());
-        assert_eq!(Some("17.5.1"), os.version.as_str());
-        assert_eq!(None, os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "iOS 17.5.1",
+          "name": "iOS",
+          "version": "17.5.1",
+          "raw_description": "iOS 17.5.1"
+        }
+        "###);
     }
 
     #[test]
@@ -711,9 +862,14 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("iPadOS"), os.name.as_str());
-        assert_eq!(Some("17.5.1"), os.version.as_str());
-        assert_eq!(None, os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "iPadOS 17.5.1",
+          "name": "iPadOS",
+          "version": "17.5.1",
+          "raw_description": "iPadOS 17.5.1"
+        }
+        "###);
     }
 
     //OS_WINDOWS_REGEX = r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#;
@@ -723,10 +879,17 @@ mod tests {
             raw_description: "Windows 10  (10.0.19042) 64bit".to_owned().into(),
             ..OsContext::default()
         };
+
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows"), os.name.as_str());
-        assert_eq!(Some("10"), os.version.as_str());
-        assert_eq!(Some(&LenientString("19042".to_owned())), os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 10",
+          "name": "Windows",
+          "version": "10",
+          "build": "19042",
+          "raw_description": "Windows 10  (10.0.19042) 64bit"
+        }
+        "###);
     }
 
     #[test]
@@ -737,10 +900,16 @@ mod tests {
                 .into(),
             ..OsContext::default()
         };
+
         normalize_os_context(&mut os);
-        assert_eq!(Some("Android"), os.name.as_str());
-        assert_eq!(Some("11"), os.version.as_str());
-        assert_eq!(None, os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Android 11",
+          "name": "Android",
+          "version": "11",
+          "raw_description": "Android OS 11 / API-30 (RP1A.201005.001/2107031736)"
+        }
+        "###);
     }
 
     #[test]
@@ -755,9 +924,16 @@ mod tests {
             raw_description: "Windows 10".to_owned().into(),
             ..OsContext::default()
         };
+
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows"), os.name.as_str());
-        assert_eq!(Some("10"), os.version.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 10",
+          "name": "Windows",
+          "version": "10",
+          "raw_description": "Windows 10"
+        }
+        "###);
     }
 
     #[test]
@@ -766,11 +942,17 @@ mod tests {
             raw_description: "Linux 5.11 Ubuntu 20.04 64bit".to_owned().into(),
             ..OsContext::default()
         };
+
         normalize_os_context(&mut os);
-        assert_eq!(Some("Ubuntu"), os.name.as_str());
-        assert_eq!(Some("20.04"), os.version.as_str());
-        assert_eq!(Some("5.11"), os.kernel_version.as_str());
-        assert_eq!(None, os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Ubuntu 20.04",
+          "name": "Ubuntu",
+          "version": "20.04",
+          "kernel_version": "5.11",
+          "raw_description": "Linux 5.11 Ubuntu 20.04 64bit"
+        }
+        "###);
     }
 
     #[test]
@@ -782,9 +964,13 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Nintendo OS"), os.name.as_str());
-        assert_eq!(None, os.version.value());
-        assert_eq!(None, os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Nintendo OS",
+          "name": "Nintendo OS",
+          "raw_description": "Nintendo Switch"
+        }
+        "###);
     }
 
     #[test]
@@ -795,10 +981,16 @@ mod tests {
                 .into(),
             ..OsContext::default()
         };
+
         normalize_os_context(&mut os);
-        assert_eq!(Some("Android"), os.name.as_str());
-        assert_eq!(Some("4.4.2"), os.version.as_str());
-        assert_eq!(None, os.build.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Android 4.4.2",
+          "name": "Android",
+          "version": "4.4.2",
+          "raw_description": "Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)"
+        }
+        "###);
     }
 
     #[test]
@@ -808,18 +1000,15 @@ mod tests {
             ..ResponseContext::default()
         };
 
-        let mut expected_value = Object::new();
-        expected_value.insert(
-            "foo".to_owned(),
-            Annotated::from(Value::String("bar".into())),
-        );
-
         normalize_response(&mut response);
-        assert_eq!(
-            response.inferred_content_type.as_str(),
-            Some("application/json")
-        );
-        assert_eq!(response.data.value(), Some(&Value::Object(expected_value)));
+        assert_json_context!(response, @r###"
+        {
+          "data": {
+            "foo": "bar"
+          },
+          "inferred_content_type": "application/json"
+        }
+        "###);
     }
 
     #[test]
@@ -834,8 +1023,18 @@ mod tests {
         };
 
         normalize_response(&mut response);
-        assert_eq!(response.inferred_content_type.as_str(), Some("text/plain"));
-        assert_eq!(response.data.as_str(), Some(r#"{"foo":"b"#));
+        assert_json_context!(response, @r###"
+        {
+          "headers": [
+            [
+              "Content-Type",
+              "text/plain; encoding=utf-8"
+            ]
+          ],
+          "data": "{\"foo\":\"b",
+          "inferred_content_type": "text/plain"
+        }
+        "###);
     }
 
     #[test]
@@ -846,8 +1045,11 @@ mod tests {
         };
 
         normalize_response(&mut response);
-        assert_eq!(response.inferred_content_type.value(), None);
-        assert_eq!(response.data.as_str(), Some(r#"{"foo":"b"#));
+        assert_json_context!(response, @r###"
+        {
+          "data": "{\"foo\":\"b"
+        }
+        "###);
     }
 
     #[test]
@@ -859,7 +1061,13 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(Some("Windows 10"), os.os.as_str());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows 10",
+          "name": "Windows",
+          "version": "10"
+        }
+        "###);
     }
 
     #[test]
@@ -870,7 +1078,12 @@ mod tests {
         };
 
         normalize_os_context(&mut os);
-        assert_eq!(None, os.os.value());
+        assert_json_context!(os, @r###"
+        {
+          "os": "Windows",
+          "name": "Windows"
+        }
+        "###);
     }
 
     #[test]
@@ -882,7 +1095,13 @@ mod tests {
         };
 
         normalize_runtime_context(&mut runtime);
-        assert_eq!(Some("Python 3.9.0"), runtime.runtime.as_str());
+        assert_json_context!(runtime, @r###"
+        {
+          "runtime": "Python 3.9.0",
+          "name": "Python",
+          "version": "3.9.0"
+        }
+        "###);
     }
 
     #[test]
@@ -893,7 +1112,11 @@ mod tests {
         };
 
         normalize_runtime_context(&mut runtime);
-        assert_eq!(None, runtime.runtime.value());
+        assert_json_context!(runtime, @r###"
+        {
+          "name": "Python"
+        }
+        "###);
     }
 
     #[test]
@@ -905,7 +1128,13 @@ mod tests {
         };
 
         normalize_browser_context(&mut browser);
-        assert_eq!(Some("Firefox 89.0"), browser.browser.as_str());
+        assert_json_context!(browser, @r###"
+        {
+          "browser": "Firefox 89.0",
+          "name": "Firefox",
+          "version": "89.0"
+        }
+        "###);
     }
 
     #[test]
@@ -916,6 +1145,11 @@ mod tests {
         };
 
         normalize_browser_context(&mut browser);
-        assert_eq!(None, browser.browser.value());
+        assert_json_context!(browser, @r###"
+        {
+          "browser": "Firefox",
+          "name": "Firefox"
+        }
+        "###);
     }
 }

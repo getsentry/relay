@@ -54,19 +54,19 @@ pub fn apply_transaction_rename_rules(
                 .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
         });
 
-        if let Some((rule, result)) = result {
-            if *transaction != result {
-                // If another rule was applied before, we don't want to
-                // rename the transaction name to keep the original one.
-                // We do want to continue adding remarks though, in
-                // order to keep track of all rules applied.
-                if meta.original_value().is_none() {
-                    meta.set_original_value(Some(transaction.clone()));
-                }
-                // add also the rule which was applied to the transaction name
-                meta.add_remark(Remark::new(RemarkType::Substituted, rule));
-                *transaction = result;
+        if let Some((rule, result)) = result
+            && *transaction != result
+        {
+            // If another rule was applied before, we don't want to
+            // rename the transaction name to keep the original one.
+            // We do want to continue adding remarks though, in
+            // order to keep track of all rules applied.
+            if meta.original_value().is_none() {
+                meta.set_original_value(Some(transaction.clone()));
             }
+            // add also the rule which was applied to the transaction name
+            meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+            *transaction = result;
         }
 
         Ok(())
@@ -197,7 +197,7 @@ pub struct SpanOpDefaults {
 
 impl SpanOpDefaults {
     /// Gets a borrowed version of this config.
-    pub fn borrow(&self) -> BorrowedSpanOpDefaults {
+    pub fn borrow(&self) -> BorrowedSpanOpDefaults<'_> {
         BorrowedSpanOpDefaults {
             rules: self.rules.as_slice(),
         }
@@ -300,12 +300,12 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
         return true;
     }
 
-    if sdk_name == "sentry.ruby" && event.has_module("rack") {
-        if let Some(trace) = event.context::<TraceContext>() {
-            if RUBY_URL_STATUSES.contains(trace.status.value().unwrap_or(&SpanStatus::Unknown)) {
-                return true;
-            }
-        }
+    if sdk_name == "sentry.ruby"
+        && event.has_module("rack")
+        && let Some(trace) = event.context::<TraceContext>()
+        && RUBY_URL_STATUSES.contains(trace.status.value().unwrap_or(&SpanStatus::Unknown))
+    {
+        return true;
     }
 
     false

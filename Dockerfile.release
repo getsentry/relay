@@ -1,33 +1,21 @@
-FROM debian:bookworm-slim
+FROM gcr.io/distroless/cc-debian12:debug AS builder
+
+RUN ["/busybox/busybox", "mkdir", "/work", "/etc/relay"]
+
+
+FROM gcr.io/distroless/cc-debian12:nonroot
 
 ARG TARGETPLATFORM
 
-RUN apt-get update \
-  && apt-get install -y ca-certificates gosu curl --no-install-recommends \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/*
-
-ENV \
-  RELAY_UID=10001 \
-  RELAY_GID=10001
-
-# Create a new user and group with fixed uid/gid
-RUN groupadd --system relay --gid $RELAY_GID \
-  && useradd --system --gid relay --uid $RELAY_UID relay
-
-RUN mkdir /work /etc/relay \
-  && chown relay:relay /work /etc/relay
-VOLUME ["/work", "/etc/relay"]
-WORKDIR /work
-
 EXPOSE 3000
 
-COPY $TARGETPLATFORM/relay /bin/relay
-RUN chmod +x /bin/relay
-COPY $TARGETPLATFORM/relay-debug.zip /opt/relay-debug.zip
-COPY $TARGETPLATFORM/relay.src.zip /opt/relay.src.zip
+COPY --from=builder --chown=nonroot:nonroot /etc/relay /etc/relay
+COPY --from=builder --chown=nonroot:nonroot /work /work
 
-COPY ./docker-entrypoint.sh /
-ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]
+VOLUME ["/etc/relay", "/work"]
+WORKDIR /work
+
+COPY --chmod=755 $TARGETPLATFORM/relay /bin/relay
+
+ENTRYPOINT ["/bin/relay"]
 CMD ["run"]
-

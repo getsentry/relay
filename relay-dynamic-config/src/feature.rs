@@ -80,16 +80,6 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
     ContinuousProfilingBetaIngest,
-    /// Enables metric extraction from spans for common modules.
-    ///
-    /// Serialized as `projects:span-metrics-extraction`.
-    #[serde(rename = "projects:span-metrics-extraction")]
-    ExtractCommonSpanMetricsFromEvent,
-    /// Enables metric extraction from spans for addon modules.
-    ///
-    /// Serialized as `projects:span-metrics-extraction-addons`.
-    #[serde(rename = "projects:span-metrics-extraction-addons")]
-    ExtractAddonsSpanMetricsFromEvent,
     /// When enabled, spans will be extracted from a transaction.
     ///
     /// Serialized as `organizations:indexed-spans-extraction`.
@@ -100,13 +90,7 @@ pub enum Feature {
     /// Serialized as `organizations:ourlogs-ingestion`.
     #[serde(rename = "organizations:ourlogs-ingestion")]
     OurLogsIngestion,
-    /// Use a new/alternative way of counting bytes per log.
-    #[serde(rename = "organizations:ourlogs-calculated-byte-count")]
-    OurLogsCalculatedByteCount,
-    /// Enables extraction of meta attributes, which will be added to EAP.
-    #[serde(rename = "organizations:ourlogs-meta-attributes")]
-    OurLogsMetaAttributes,
-    /// This feature has graduated and is hard-coded for external Relays.
+    /// This feature has graduated ant is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
     IngestUnsampledProfiles,
@@ -124,6 +108,17 @@ pub enum Feature {
     /// Detect performance issues in the new standalone spans pipeline instead of on transactions.
     #[serde(rename = "organizations:performance-issues-spans")]
     PerformanceIssuesSpans,
+    /// Enables the experimental Span V2 processing pipeline in Relay.
+    #[serde(rename = "projects:span-v2-experimental-processing")]
+    SpanV2ExperimentalProcessing,
+    /// This feature has deprecated and is kept for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-metrics-extraction")]
+    DeprecatedExtractCommonSpanMetricsFromEvent,
+    /// This feature has been deprecated and is kept for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:span-metrics-extraction-addons")]
+    DeprecatedExtractAddonsSpanMetricsFromEvent,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
@@ -147,9 +142,7 @@ impl FeatureSet {
 
     /// Returns `true` if any spans are produced for this project.
     pub fn produces_spans(&self) -> bool {
-        self.has(Feature::ExtractSpansFromEvent)
-            || self.has(Feature::StandaloneSpanIngestion)
-            || self.has(Feature::ExtractCommonSpanMetricsFromEvent)
+        self.has(Feature::ExtractSpansFromEvent) || self.has(Feature::StandaloneSpanIngestion)
     }
 }
 

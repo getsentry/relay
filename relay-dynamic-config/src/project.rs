@@ -44,6 +44,9 @@ pub struct ProjectConfig {
     /// Maximum event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_retention: Option<u16>,
+    /// Maximum sampled event retention for the organization.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downsampled_event_retention: Option<u16>,
     /// Usage quotas for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
@@ -113,13 +116,13 @@ impl ProjectConfig {
         for quota in &self.quotas {
             if let Some(id) = &quota.id {
                 for category in &quota.categories {
-                    if let Some(indexed) = category.index_category() {
-                        if quota.categories.contains(&indexed) {
-                            relay_log::error!(
-                                tags.id = id,
-                                "Categories {category} and {indexed} share the same quota ID. This will double-count items.",
-                            );
-                        }
+                    if let Some(indexed) = category.index_category()
+                        && quota.categories.contains(&indexed)
+                    {
+                        relay_log::error!(
+                            tags.id = id,
+                            "Categories {category} and {indexed} share the same quota ID. This will double-count items.",
+                        );
                     }
                 }
             }
@@ -138,6 +141,7 @@ impl Default for ProjectConfig {
             filter_settings: ProjectFiltersConfig::default(),
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
+            downsampled_event_retention: None,
             quotas: Vec::new(),
             sampling: None,
             measurements: None,

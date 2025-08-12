@@ -58,18 +58,17 @@ pub fn validate_and_set_dsc<T>(
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
-    if let Some(event) = event.value() {
-        if let Some(key_config) = project_info.get_public_key_config() {
-            if let Some(mut dsc) = utils::dsc_from_event(key_config.public_key, event) {
-                // All other information in the DSC must be discarded, but the sample rate was
-                // actually applied by the client and is therefore correct.
-                let original_sample_rate = original_dsc.and_then(|dsc| dsc.sample_rate);
-                dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
+    if let Some(event) = event.value()
+        && let Some(key_config) = project_info.get_public_key_config()
+        && let Some(mut dsc) = utils::dsc_from_event(key_config.public_key, event)
+    {
+        // All other information in the DSC must be discarded, but the sample rate was
+        // actually applied by the client and is therefore correct.
+        let original_sample_rate = original_dsc.and_then(|dsc| dsc.sample_rate);
+        dsc.sample_rate = dsc.sample_rate.or(original_sample_rate);
 
-                managed_envelope.envelope_mut().set_dsc(dsc);
-                return Some(project_info.clone());
-            }
-        }
+        managed_envelope.envelope_mut().set_dsc(dsc);
+        return Some(project_info.clone());
     }
 
     // If we cannot compute a new DSC but the old one is incorrect, we need to remove it.
@@ -201,17 +200,17 @@ async fn compute_sampling_decision(
         None => SamplingEvaluator::new(Utc::now()),
     };
 
-    if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
-        if let Some(seed) = event.id.value().map(|id| id.0) {
-            let rules = sampling_state.filter_rules(RuleType::Transaction);
-            evaluator = match evaluator.match_rules(seed, event, rules).await {
-                ControlFlow::Continue(evaluator) => evaluator,
-                ControlFlow::Break(sampling_match) => {
-                    return SamplingResult::Match(sampling_match);
-                }
+    if let (Some(event), Some(sampling_state)) = (event, sampling_config)
+        && let Some(seed) = event.id.value().map(|id| id.0)
+    {
+        let rules = sampling_state.filter_rules(RuleType::Transaction);
+        evaluator = match evaluator.match_rules(seed, event, rules).await {
+            ControlFlow::Continue(evaluator) => evaluator,
+            ControlFlow::Break(sampling_match) => {
+                return SamplingResult::Match(sampling_match);
             }
-        };
-    }
+        }
+    };
 
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
@@ -332,7 +331,7 @@ mod tests {
         let processor = create_test_processor(Default::default()).await;
         let (outcome_aggregator, test_store) = testutils::processor_services();
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
 

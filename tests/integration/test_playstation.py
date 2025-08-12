@@ -37,7 +37,7 @@ def event_json(response):
                 "manufacturer": "Sony",
                 "type": "device",
             },
-            "os": {"name": "Prospero", "type": "os"},
+            "os": {"name": "Prospero", "os": "Prospero", "type": "os"},
             "runtime": {
                 "runtime": "PS5 11.20.00.05-00.00.00.0.1",
                 "name": "PS5",
@@ -268,7 +268,8 @@ def test_playstation_ignore_large_fields(
         {
             "limits": {
                 "max_attachment_size": len(video_content) - 1,
-            }
+            },
+            "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1},
         },
     )
 
@@ -276,6 +277,16 @@ def test_playstation_ignore_large_fields(
         PROJECT_ID, playstation_dump, video_content
     )
     assert response.ok
+    assert (mini_sentry.captured_outcomes.get()["outcomes"]) == [
+        {
+            "timestamp": mock.ANY,
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "too_large:attachment:attachment",
+            "category": 4,
+            "quantity": len(video_content),
+        }
+    ]
     assert [
         item.headers["filename"] for item in mini_sentry.captured_events.get().items
     ] == ["playstation.prosperodmp"]

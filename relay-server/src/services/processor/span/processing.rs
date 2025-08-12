@@ -293,10 +293,10 @@ pub fn extract_from_event(
         return spans_extracted;
     }
 
-    if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
-        if sample(sample_rate).is_discard() {
-            return spans_extracted;
-        }
+    if let Some(sample_rate) = global_config.options.span_extraction_sample_rate
+        && sample(sample_rate).is_discard()
+    {
+        return spans_extracted;
     }
 
     let client_sample_rate = managed_envelope
@@ -505,13 +505,13 @@ fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
 
     // Identify INP spans or other WebVital spans and make sure they are not wrapped in a segment.
-    if let Some(span_op) = span.op.value() {
-        if span_op.starts_with("ui.interaction.") || span_op.starts_with("ui.webvital.") {
-            span.is_segment = None.into();
-            span.parent_span_id = None.into();
-            span.segment_id = None.into();
-            return;
-        }
+    if let Some(span_op) = span.op.value()
+        && (span_op.starts_with("ui.interaction.") || span_op.starts_with("ui.webvital."))
+    {
+        span.is_segment = None.into();
+        span.parent_span_id = None.into();
+        span.segment_id = None.into();
+        return;
     }
 
     let Some(span_id) = span.span_id.value() else {
@@ -598,13 +598,13 @@ fn normalize(
     // Derive geo ip:
     if let Some(geoip_lookup) = geo_lookup {
         let data = span.data.get_or_insert_with(Default::default);
-        if let Some(ip) = data.client_address.value() {
-            if let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str()) {
-                data.user_geo_city = geo.city;
-                data.user_geo_country_code = geo.country_code;
-                data.user_geo_region = geo.region;
-                data.user_geo_subdivision = geo.subdivision;
-            }
+        if let Some(ip) = data.client_address.value()
+            && let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str())
+        {
+            data.user_geo_city = geo.city;
+            data.user_geo_country_code = geo.country_code;
+            data.user_geo_region = geo.region;
+            data.user_geo_subdivision = geo.subdivision;
         }
     }
 
@@ -682,13 +682,13 @@ fn populate_ua_fields(
         client_hints = ClientHints::default();
     }
 
-    if data.browser_name.value().is_none() {
-        if let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+    if data.browser_name.value().is_none()
+        && let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
             user_agent: user_agent.as_deref(),
             client_hints,
-        }) {
-            data.browser_name = context.name;
-        }
+        })
+    {
+        data.browser_name = context.name;
     }
 }
 
@@ -841,19 +841,12 @@ mod tests {
         );
 
         let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-        let mut project_info = ProjectInfo::default();
-        project_info
-            .config
-            .features
-            .0
-            .insert(Feature::ExtractCommonSpanMetricsFromEvent);
-        let project_info = Arc::new(project_info);
+        let project_info = Arc::new(ProjectInfo::default());
 
         let event = Event {
             ty: EventType::Transaction.into(),
             start_timestamp: Timestamp(DateTime::from_timestamp(0, 0).unwrap()).into(),
             timestamp: Timestamp(DateTime::from_timestamp(1, 0).unwrap()).into(),
-
             contexts: Contexts(BTreeMap::from([(
                 "trace".into(),
                 ContextInner(Context::Trace(Box::new(TraceContext {

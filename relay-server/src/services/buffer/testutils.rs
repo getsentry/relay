@@ -18,15 +18,16 @@ pub mod utils {
     pub async fn setup_db(run_migrations: bool) -> Pool<Sqlite> {
         let path = std::env::temp_dir().join(Uuid::new_v4().to_string());
 
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() && !parent.exists() {
-                relay_log::debug!("creating directory for spooling file: {}", parent.display());
-                DirBuilder::new()
-                    .recursive(true)
-                    .create(&parent)
-                    .await
-                    .unwrap();
-            }
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+            && !parent.exists()
+        {
+            relay_log::debug!("creating directory for spooling file: {}", parent.display());
+            DirBuilder::new()
+                .recursive(true)
+                .create(&parent)
+                .await
+                .unwrap();
         }
 
         let options = SqliteConnectOptions::new()

@@ -89,10 +89,10 @@ pub fn extract<Group: EventProcessing>(
             let (mut annotated_event, len) = event_from_json_payload(item, None)?;
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
-            if let Some(event) = annotated_event.value_mut() {
-                if !skip_normalization {
-                    event.ty.set_value(None);
-                }
+            if let Some(event) = annotated_event.value_mut()
+                && !skip_normalization
+            {
+                event.ty.set_value(None);
             }
             (annotated_event, len)
         })
@@ -242,10 +242,10 @@ pub fn finalize<Group: EventProcessing>(
             }
         }
 
-        if let Some(dsc) = envelope.dsc() {
-            if let Ok(Some(value)) = relay_protocol::to_value(dsc) {
-                inner_event._dsc = Annotated::new(value);
-            }
+        if let Some(dsc) = envelope.dsc()
+            && let Ok(Some(value)) = relay_protocol::to_value(dsc)
+        {
+            inner_event._dsc = Annotated::new(value);
         }
     }
 
@@ -342,10 +342,10 @@ pub fn scrub(
 ) -> Result<(), ProcessingError> {
     let config = &project_info.config;
 
-    if config.datascrubbing_settings.scrub_data {
-        if let Some(event) = event.value_mut() {
-            relay_pii::scrub_graphql(event);
-        }
+    if config.datascrubbing_settings.scrub_data
+        && let Some(event) = event.value_mut()
+    {
+        relay_pii::scrub_graphql(event);
     }
 
     metric!(timer(RelayTimers::EventProcessingPii), {
@@ -482,10 +482,10 @@ fn event_from_json_payload(
     let mut event = Annotated::<Event>::from_json_bytes(&item.payload())
         .map_err(ProcessingError::InvalidJson)?;
 
-    if let Some(event_value) = event.value_mut() {
-        if event_type.is_some() {
-            event_value.ty.set_value(event_type);
-        }
+    if let Some(event_value) = event.value_mut()
+        && event_type.is_some()
+    {
+        event_value.ty.set_value(event_type);
     }
 
     Ok((event, item.len()))

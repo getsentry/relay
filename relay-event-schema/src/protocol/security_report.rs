@@ -395,10 +395,10 @@ impl CspRaw {
 
         let mut uri = self.blocked_uri.clone();
 
-        if uri.starts_with("https://api.stripe.com/") {
-            if let Some(index) = uri.find(&['#', '?'][..]) {
-                uri.truncate(index);
-            }
+        if uri.starts_with("https://api.stripe.com/")
+            && let Some(index) = uri.find(&['#', '?'][..])
+        {
+            uri.truncate(index);
         }
 
         uri
@@ -476,13 +476,13 @@ impl CspRaw {
             )),
         ];
 
-        if let Ok(url) = Url::parse(&self.blocked_uri) {
-            if let ("http" | "https", Some(host)) = (url.scheme(), url.host_str()) {
-                tags.push(Annotated::new(TagEntry(
-                    Annotated::new("blocked-host".to_owned()),
-                    Annotated::new(host.to_owned()),
-                )));
-            }
+        if let Ok(url) = Url::parse(&self.blocked_uri)
+            && let ("http" | "https", Some(host)) = (url.scheme(), url.host_str())
+        {
+            tags.push(Annotated::new(TagEntry(
+                Annotated::new("blocked-host".to_owned()),
+                Annotated::new(host.to_owned()),
+            )));
         }
 
         Tags(PairList::from(tags))
@@ -505,15 +505,6 @@ impl CspRaw {
             ..Request::default()
         }
     }
-}
-
-/// Defines external, RFC-defined schema we accept, while `Csp` defines our own schema.
-///
-/// See `Csp` for meaning of fields.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-struct CspReportRaw {
-    csp_report: CspRaw,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -2094,63 +2085,5 @@ mod tests {
             csp_raw.effective_directive(),
             Ok(CspDirective::DefaultSrc)
         ));
-    }
-
-    #[test]
-    fn test_extract_effective_directive_from_long_form() {
-        // First try from 'effective-directive' field
-        let json = r#"{
-            "csp-report": {
-                "document-uri": "http://example.com/foo",
-                "effective-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
-                "blocked-uri": "data"
-            }
-        }"#;
-
-        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
-        let raw_csp = raw_report.csp_report;
-
-        let effective_directive = raw_csp.effective_directive().unwrap();
-
-        assert_eq!(effective_directive, CspDirective::ScriptSrc);
-
-        // Then from 'violated-directive' field
-        let json = r#"{
-            "csp-report": {
-                "document-uri": "http://example.com/foo",
-                "violated-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
-                "blocked-uri": "data"
-            }
-        }"#;
-
-        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
-        let raw_csp = raw_report.csp_report;
-
-        let effective_directive = raw_csp.effective_directive().unwrap();
-
-        assert_eq!(effective_directive, CspDirective::ScriptSrc);
-    }
-
-    #[test]
-    fn test_csp_report_fenced_frame_src() {
-        let json = r#"
-            {
-              "csp-report": {
-                "document-uri": "https://example.com",
-                "referrer": "https://www.google.com/",
-                "violated-directive": "fenced-frame-src",
-                "effective-directive": "fenced-frame-src",
-                "original-policy": "default-src 'self' 'unsafe-eval'",
-                "disposition": "enforce",
-                "blocked-uri": "",
-                "status-code": 200,
-                "script-sample": ""
-              }
-            }
-        "#;
-        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
-        let raw_csp = raw_report.csp_report;
-
-        assert!(raw_csp.effective_directive().is_ok());
     }
 }

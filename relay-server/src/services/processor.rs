@@ -44,13 +44,14 @@ use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
-use crate::extractors::{PartialDsn, RequestMeta};
+use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
-use crate::processing::logs::{LogOutput, LogsProcessor};
-use crate::processing::{Forward as _, Output, Processor as _, QuotaRateLimiter};
+use crate::processing::logs::LogsProcessor;
+use crate::processing::spans::SpansProcessor;
+use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -263,6 +264,8 @@ pub enum ProcessingGroup {
     Log,
     /// Spans.
     Span,
+    /// Span V2 spans.
+    SpanV2,
     /// Metrics.
     Metrics,
     /// ProfileChunk.
@@ -276,7 +279,10 @@ pub enum ProcessingGroup {
 
 impl ProcessingGroup {
     /// Splits provided envelope into list of tuples of groups with associated envelopes.
-    pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
+    fn split_envelope(
+        mut envelope: Envelope,
+        project_info: &ProjectInfo,
+    ) -> SmallVec<[(Self, Box<Envelope>); 3]> {
         let headers = envelope.headers().clone();
         let mut grouped_envelopes = smallvec![];
 
@@ -302,6 +308,17 @@ impl ProcessingGroup {
                 ProcessingGroup::Session,
                 Envelope::from_parts(headers.clone(), session_items),
             ))
+        }
+
+        if project_info.has_feature(Feature::SpanV2ExperimentalProcessing) {
+            let span_v2_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Span));
+
+            if !span_v2_items.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::SpanV2,
+                    Envelope::from_parts(headers.clone(), span_v2_items),
+                ))
+            }
         }
 
         // Extract spans.
@@ -443,6 +460,7 @@ impl ProcessingGroup {
             ProcessingGroup::Log => "log",
             ProcessingGroup::Nel => "nel",
             ProcessingGroup::Span => "span",
+            ProcessingGroup::SpanV2 => "span_v2",
             ProcessingGroup::Metrics => "metrics",
             ProcessingGroup::ProfileChunk => "profile_chunk",
             ProcessingGroup::ForwardUnknown => "forward_unknown",
@@ -464,6 +482,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Log => AppFeature::Logs,
             ProcessingGroup::Nel => AppFeature::Logs,
             ProcessingGroup::Span => AppFeature::Spans,
+            ProcessingGroup::SpanV2 => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
             ProcessingGroup::ProfileChunk => AppFeature::Profiles,
             ProcessingGroup::ForwardUnknown => AppFeature::UnattributedEnvelope,
@@ -552,8 +571,6 @@ pub enum ProcessingError {
     ProcessingGroupMismatch,
     #[error("new processing pipeline failed")]
     ProcessingFailure,
-    #[error("failed to serialize processing result to an envelope")]
-    ProcessingEnvelopeSerialization,
 }
 
 impl ProcessingError {
@@ -599,9 +616,6 @@ impl ProcessingError {
             Self::ProcessingGroupMismatch => Some(Outcome::Invalid(DiscardReason::Internal)),
             // Outcomes are emitted in the new processing pipeline already.
             Self::ProcessingFailure => None,
-            Self::ProcessingEnvelopeSerialization => {
-                Some(Outcome::Invalid(DiscardReason::Internal))
-            }
         }
     }
 
@@ -829,7 +843,7 @@ struct EventFullyNormalized(bool);
 impl EventFullyNormalized {
     /// Returns `true` if the event is fully normalized, `false` otherwise.
     pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+        let event_fully_normalized = envelope.meta().request_trust().is_trusted()
             && envelope
                 .items()
                 .any(|item| item.creates_event() && item.fully_normalized());
@@ -848,17 +862,17 @@ struct SpansExtracted(bool);
 
 /// The result of the envelope processing containing the processed envelope along with the partial
 /// result.
+#[derive(Debug)]
 #[expect(
     clippy::large_enum_variant,
     reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
 )]
-#[derive(Debug)]
 enum ProcessingResult {
     Envelope {
         managed_envelope: TypedEnvelope<Processed>,
         extracted_metrics: ProcessingExtractedMetrics,
     },
-    Logs(Output<LogOutput>),
+    Output(Output<Outputs>),
 }
 
 impl ProcessingResult {
@@ -872,6 +886,7 @@ impl ProcessingResult {
 }
 
 /// All items which can be submitted upstream.
+#[derive(Debug)]
 #[expect(
     clippy::large_enum_variant,
     reason = "until we have a better solution to combat the excessive growth of Item, see #4819"
@@ -879,8 +894,8 @@ impl ProcessingResult {
 enum Submit {
     /// A processed envelope.
     Envelope(TypedEnvelope<Processed>),
-    /// The output of the [log processor](LogsProcessor).
-    Logs(LogOutput),
+    /// The output of a [`processing::Processor`].
+    Output(Outputs),
 }
 
 /// Applies processing to all contents of the given envelope.
@@ -1040,11 +1055,11 @@ pub enum BucketSource {
 }
 
 impl BucketSource {
-    /// Infers the bucket source from [`RequestMeta::is_from_internal_relay`].
+    /// Infers the bucket source from [`RequestMeta::request_trust`].
     pub fn from_meta(meta: &RequestMeta) -> Self {
-        match meta.is_from_internal_relay() {
-            true => Self::Internal,
-            false => Self::External,
+        match meta.request_trust() {
+            RequestTrust::Trusted => Self::Internal,
+            RequestTrust::Untrusted => Self::External,
         }
     }
 }
@@ -1181,6 +1196,7 @@ struct InnerProcessor {
 
 struct Processing {
     logs: LogsProcessor,
+    spans: SpansProcessor,
 }
 
 impl EnvelopeProcessorService {
@@ -1261,7 +1277,8 @@ impl EnvelopeProcessorService {
                 .map(CardinalityLimiter::new),
             metric_outcomes,
             processing: Processing {
-                logs: LogsProcessor::new(quota_limiter),
+                logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
+                spans: SpansProcessor::new(quota_limiter),
             },
             config,
         };
@@ -1432,7 +1449,6 @@ impl EnvelopeProcessorService {
 
         // If spans were already extracted for an event, we rely on span processing to extract metrics.
         let extract_spans = !spans_extracted.0
-            && project_info.config.features.produces_spans()
             && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0)).is_keep();
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
@@ -1566,8 +1582,7 @@ impl EnvelopeProcessorService {
                 },
                 device_class_synthesis_config: project_info
                     .has_feature(Feature::DeviceClassSynthesis),
-                enrich_spans: project_info.has_feature(Feature::ExtractSpansFromEvent)
-                    || project_info.has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
+                enrich_spans: project_info.has_feature(Feature::ExtractSpansFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config
@@ -1755,15 +1770,13 @@ impl EnvelopeProcessorService {
 
         transaction::drop_invalid_items(managed_envelope, &global_config);
 
-        relay_cogs::with!(cogs, "event_extract", {
-            // We extract the main event from the envelope.
-            let extraction_result = event::extract(
-                managed_envelope,
-                &mut metrics,
-                event_fully_normalized,
-                &self.inner.config,
-            )?;
-        });
+        // We extract the main event from the envelope.
+        let extraction_result = event::extract(
+            managed_envelope,
+            &mut metrics,
+            event_fully_normalized,
+            &self.inner.config,
+        )?;
 
         // If metrics were extracted we mark that.
         if let Some(inner_event_metrics_extracted) = extraction_result.event_metrics_extracted {
@@ -1776,53 +1789,43 @@ impl EnvelopeProcessorService {
         // We take the main event out of the result.
         let mut event = extraction_result.event;
 
-        relay_cogs::with!(cogs, "profile_filter", {
-            let profile_id = profile::filter(
-                managed_envelope,
-                &event,
-                config.clone(),
-                project_id,
-                &project_info,
-            );
-            profile::transfer_id(&mut event, profile_id);
-        });
+        let profile_id = profile::filter(
+            managed_envelope,
+            &event,
+            config.clone(),
+            project_id,
+            &project_info,
+        );
+        profile::transfer_id(&mut event, profile_id);
 
-        relay_cogs::with!(cogs, "dynamic_sampling_dsc", {
-            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-                managed_envelope,
-                &mut event,
-                project_info.clone(),
-                sampling_project_info,
-            );
-        });
+        sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+            managed_envelope,
+            &mut event,
+            project_info.clone(),
+            sampling_project_info,
+        );
 
-        relay_cogs::with!(cogs, "event_finalize", {
-            event::finalize(
-                managed_envelope,
-                &mut event,
-                &mut metrics,
-                &self.inner.config,
-            )?;
-        });
+        event::finalize(
+            managed_envelope,
+            &mut event,
+            &mut metrics,
+            &self.inner.config,
+        )?;
 
-        relay_cogs::with!(cogs, "event_normalize", {
-            event_fully_normalized = self.normalize_event(
-                managed_envelope,
-                &mut event,
-                project_id,
-                project_info.clone(),
-                event_fully_normalized,
-            )?;
-        });
+        event_fully_normalized = self.normalize_event(
+            managed_envelope,
+            &mut event,
+            project_id,
+            project_info.clone(),
+            event_fully_normalized,
+        )?;
 
-        relay_cogs::with!(cogs, "filter", {
-            let filter_run = event::filter(
-                managed_envelope,
-                &mut event,
-                project_info.clone(),
-                &self.inner.global_config.current(),
-            )?;
-        });
+        let filter_run = event::filter(
+            managed_envelope,
+            &mut event,
+            project_info.clone(),
+            &self.inner.global_config.current(),
+        )?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
@@ -1834,22 +1837,20 @@ impl EnvelopeProcessorService {
             reservoir_counters,
         );
 
-        relay_cogs::with!(cogs, "dynamic_sampling_run", {
-            let sampling_result = match run_dynamic_sampling {
-                true => {
-                    dynamic_sampling::run(
-                        managed_envelope,
-                        &mut event,
-                        config.clone(),
-                        project_info.clone(),
-                        sampling_project_info,
-                        &reservoir,
-                    )
-                    .await
-                }
-                false => SamplingResult::Pending,
-            };
-        });
+        let sampling_result = match run_dynamic_sampling {
+            true => {
+                dynamic_sampling::run(
+                    managed_envelope,
+                    &mut event,
+                    config.clone(),
+                    project_info.clone(),
+                    sampling_project_info,
+                    &reservoir,
+                )
+                .await
+            }
+            false => SamplingResult::Pending,
+        };
 
         #[cfg(feature = "processing")]
         let server_sample_rate = match sampling_result {
@@ -2164,27 +2165,20 @@ impl EnvelopeProcessorService {
         Ok(None)
     }
 
-    async fn process_nel(
+    async fn process_with_processor<P: processing::Processor>(
         &self,
+        processor: &P,
         mut managed_envelope: ManagedEnvelope,
         ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        nel::convert_to_logs(&mut managed_envelope);
-        self.process_logs(managed_envelope, ctx).await
-    }
-
-    /// Process logs
-    ///
-    async fn process_logs(
-        &self,
-        mut managed_envelope: ManagedEnvelope,
-        ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        let processor = &self.inner.processing.logs;
-        let Some(logs) = processor.prepare_envelope(&mut managed_envelope) else {
+    ) -> Result<ProcessingResult, ProcessingError>
+    where
+        Outputs: From<P::Output>,
+    {
+        let Some(work) = processor.prepare_envelope(&mut managed_envelope) else {
             debug_assert!(
                 false,
-                "there must be work for the logs processor in the logs processing group"
+                "there must be work for the {} processor",
+                std::any::type_name::<P>(),
             );
             return Err(ProcessingError::ProcessingGroupMismatch);
         };
@@ -2196,10 +2190,11 @@ impl EnvelopeProcessorService {
         }
 
         processor
-            .process(logs, ctx)
+            .process(work, ctx)
             .await
             .map_err(|_| ProcessingError::ProcessingFailure)
-            .map(ProcessingResult::Logs)
+            .map(|o| o.map(Into::into))
+            .map(ProcessingResult::Output)
     }
 
     /// Processes standalone spans.
@@ -2284,6 +2279,14 @@ impl EnvelopeProcessorService {
         // mode when the full project config is queried from the upstream.
         if let Some(retention) = project_info.config.event_retention {
             managed_envelope.envelope_mut().set_retention(retention);
+        }
+
+        // Set the event retention. Effectively, this value will only be available in processing
+        // mode when the full project config is queried from the upstream.
+        if let Some(retention) = project_info.config.downsampled_event_retention {
+            managed_envelope
+                .envelope_mut()
+                .set_downsampled_retention(retention);
         }
 
         // Ensure the project ID is updated to the stored instance for this project cache. This can
@@ -2377,8 +2380,17 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log => self.process_logs(managed_envelope, ctx).await,
-            ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
+            ProcessingGroup::Log | ProcessingGroup::Nel => {
+                if matches!(group, ProcessingGroup::Nel) {
+                    nel::convert_to_logs(&mut managed_envelope);
+                }
+                self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
+                    .await
+            }
+            ProcessingGroup::SpanV2 => {
+                self.process_with_processor(&self.inner.processing.spans, managed_envelope, ctx)
+                    .await
+            }
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
@@ -2463,9 +2475,6 @@ impl EnvelopeProcessorService {
         let project_key = envelope.envelope().meta().public_key();
         let sampling_key = envelope.envelope().sampling_key();
 
-        let has_ourlogs_new_byte_count =
-            project_info.has_feature(Feature::OurLogsCalculatedByteCount);
-
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
         relay_log::configure_scope(|scope| {
@@ -2510,7 +2519,7 @@ impl EnvelopeProcessorService {
 
                 Ok(envelope_response.map(Submit::Envelope))
             }
-            Ok(ProcessingResult::Logs(Output { main, metrics })) => {
+            Ok(ProcessingResult::Output(Output { main, metrics })) => {
                 send_metrics(
                     metrics.metrics,
                     project_key,
@@ -2518,16 +2527,7 @@ impl EnvelopeProcessorService {
                     &self.inner.addrs.aggregator,
                 );
 
-                if has_ourlogs_new_byte_count {
-                    Ok(Some(Submit::Logs(main)))
-                } else {
-                    let envelope = main
-                        .serialize_envelope()
-                        .map_err(|_| ProcessingError::ProcessingEnvelopeSerialization)?;
-                    let managed_envelope = ManagedEnvelope::from(envelope);
-
-                    Ok(Some(Submit::Envelope(managed_envelope.into_processed())))
-                }
+                Ok(Some(Submit::Output(main)))
             }
             Err(err) => Err(err),
         };
@@ -2551,8 +2551,10 @@ impl EnvelopeProcessorService {
         cogs.cancel();
 
         let scoping = message.envelope.scoping();
-        for (group, envelope) in ProcessingGroup::split_envelope(*message.envelope.into_envelope())
-        {
+        for (group, envelope) in ProcessingGroup::split_envelope(
+            *message.envelope.into_envelope(),
+            &message.project_info,
+        ) {
             let mut cogs = self
                 .inner
                 .cogs
@@ -2703,21 +2705,21 @@ impl EnvelopeProcessorService {
         let _submit = cogs.start_category("submit");
 
         #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled() {
-            if let Some(store_forwarder) = &self.inner.addrs.store_forwarder {
-                match submit {
-                    Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
-                    Submit::Logs(output) => output
-                        .forward_store(store_forwarder)
-                        .unwrap_or_else(|err| err.into_inner()),
-                }
-                return;
+        if self.inner.config.processing_enabled()
+            && let Some(store_forwarder) = &self.inner.addrs.store_forwarder
+        {
+            match submit {
+                Submit::Envelope(envelope) => store_forwarder.send(StoreEnvelope { envelope }),
+                Submit::Output(output) => output
+                    .forward_store(store_forwarder)
+                    .unwrap_or_else(|err| err.into_inner()),
             }
+            return;
         }
 
         let mut envelope = match submit {
             Submit::Envelope(envelope) => envelope,
-            Submit::Logs(output) => match output.serialize_envelope() {
+            Submit::Output(output) => match output.serialize_envelope() {
                 Ok(envelope) => ManagedEnvelope::from(envelope).into_processed(),
                 Err(_) => {
                     relay_log::error!("failed to serialize output to an envelope");
@@ -2725,6 +2727,11 @@ impl EnvelopeProcessorService {
                 }
             },
         };
+
+        if envelope.envelope_mut().is_empty() {
+            envelope.accept();
+            return;
+        }
 
         // If we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.inner.config) {
@@ -3275,12 +3282,12 @@ impl EnvelopeProcessorService {
         }
 
         #[cfg(feature = "processing")]
-        if self.inner.config.processing_enabled() {
-            if let Some(ref store_forwarder) = self.inner.addrs.store_forwarder {
-                return self
-                    .encode_metrics_processing(message, store_forwarder)
-                    .await;
-            }
+        if self.inner.config.processing_enabled()
+            && let Some(ref store_forwarder) = self.inner.addrs.store_forwarder
+        {
+            return self
+                .encode_metrics_processing(message, store_forwarder)
+                .await;
         }
 
         if self.inner.config.http_global_metrics() {
@@ -3349,7 +3356,7 @@ impl EnvelopeProcessorService {
         &self,
         _organization_id: OrganizationId,
         reservoir_counters: ReservoirCounters,
-    ) -> ReservoirEvaluator {
+    ) -> ReservoirEvaluator<'_> {
         #[cfg_attr(not(feature = "processing"), expect(unused_mut))]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
 
@@ -4056,7 +4063,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();

@@ -4,23 +4,62 @@
 
 **Features**:
 
+- Build and publish Relay containers with a distroless base image. ([#4940](https://github.com/getsentry/relay/pull/4940))
+- Add `unhandled` status type for Release Health `session` and `sessions` envelopes. ([#4939](https://github.com/getsentry/relay/pull/4939))
+- Implements basic inbound filters for logs. ([#5011](https://github.com/getsentry/relay/pull/5011))
+- Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
+- Improve PII scrubbing for `logentry.formatted` by ensuring only sensitive data is redacted, rather than replacing the entire field value. ([#4985](https://github.com/getsentry/relay/pull/4985))
+- Add payload size as an attribute to logs. ([#5042](https://github.com/getsentry/relay/pull/5042))
+- Pass `downsampled_event_retention` to `Traceitem` where appropriate. ([#5013](https://github.com/getsentry/relay/pull/5013), [#5041](https://github.com/getsentry/relay/pull/5041))
+
+**Bug Fixes**:
+
+- Normalize OS and Browser names in contexts when missing a version. ([#4957](https://github.com/getsentry/relay/pull/4957))
+- Normalize AI pipeline name and streaming flag to `gen_ai.*` names. ([#4982](https://github.com/getsentry/relay/pull/4982))
+- Deal with sub-microsecond floating point inaccuracies for logs and spans correctly. ([#5002](https://github.com/getsentry/relay/pull/5002))
+
+**Internal**:
+
+- Enforce span limits for transactions and vice versa. ([#4963](https://github.com/getsentry/relay/pull/4963))
+- Emit outcomes for skipped large attachments on playstation crashes. ([#4862](https://github.com/getsentry/relay/pull/4862))
+- Disable span metrics. ([#4931](https://github.com/getsentry/relay/pull/4931),[#4955](https://github.com/getsentry/relay/pull/4955))
+- Deprecate old AI monitoring attributes. ([#4960](https://github.com/getsentry/relay/pull/4960))
+- Normalize legacy `ai.*` attributes to `gen_ai.*` names. ([#4924](https://github.com/getsentry/relay/pull/4924))
+- Force the routing key to be random instead of letting Kafka handle the randomization. ([#4974](https://github.com/getsentry/relay/pull/4974))
+- Stop extracting the `sentry.severity_number` attribute for logs. ([#4989](https://github.com/getsentry/relay/pull/4989))
+- Stop extracting the `sentry.trace_flags` attribute for logs. ([#4988](https://github.com/getsentry/relay/pull/4988))
+- Add Jwm to the supported image types. ([#4975](https://github.com/getsentry/relay/pull/4975))
+- Process logs in all non-proxy Relays. ([#4973](https://github.com/getsentry/relay/pull/4973))
+- Add support for pre-hashed signatures. ([#5012](https://github.com/getsentry/relay/pull/5012))
+
+## 25.7.0
+
+**Features**:
+
 - Add mechanism to allow ingestion only from trusted relays. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Serialize OTEL span array attributes to JSON. ([#4930](https://github.com/getsentry/relay/pull/4930))
 
 **Bug Fixes**:
 
 - Preserve user specified event values in Unreal crash reports. ([#4882](https://github.com/getsentry/relay/pull/4882))
 - OS name parsing of Unreal crash reports. ([#4854](https://github.com/getsentry/relay/pull/4854))
 - Do not overwrite geo information if already set. ([#4888](https://github.com/getsentry/relay/pull/4888))
+- The `type` fields of contexts are now enforced to be strings. Non-string values are replaced with the
+  context's key. ([#4932](https://github.com/getsentry/relay/pull/4932))
+- Do not drop custom measurements if no config is present. ([#4941](https://github.com/getsentry/relay/pull/4941))
 
 **Internal**:
 
+- No longer store debug symbols and the source in the docker image. ([#4942](https://github.com/getsentry/relay/pull/4942))
 - Forward logs to Kafka directly instead of serialized as envelope. ([#4875](https://github.com/getsentry/relay/pull/4875))
 - Remember accepted/ingested bytes for log outcomes. ([#4886](https://github.com/getsentry/relay/pull/4886))
 - Add `gen_ai.response.tokens_per_second` span attribute on AI spans. ([#4883](https://github.com/getsentry/relay/pull/4883))
 - Add support for playstation data requests. ([#4870](https://github.com/getsentry/relay/pull/4870))
 - Expand the NEL attributes & others. ([#4874](https://github.com/getsentry/relay/pull/4874))
+- Only emit indexed span outcomes when producing directly to Snuba. ([#4936](https://github.com/getsentry/relay/pull/4936))
 - Normalize legacy AI agents attributes to OTel compatible names. ([#4916](https://github.com/getsentry/relay/pull/4916))
 - Fix cost calculation for cached and reasoning tokens. ([#4922](https://github.com/getsentry/relay/pull/4922))
+- Implement serialization of metadata for logs. ([#4929](https://github.com/getsentry/relay/pull/4929))
 
 ## 25.6.2
 

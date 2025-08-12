@@ -455,7 +455,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -505,7 +505,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Logic taken from: build-docker
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           pattern: "internal-${{ matrix.image_name }}@*"
           merge-multiple: true
@@ -619,8 +619,8 @@ jobs:
         run: docker buildx imagetools create --tag "${AR_DOCKER_IMAGE}:nightly" "${GHCR_DOCKER_IMAGE}:nightly"
 
   gocd-artifacts:
-    timeout-minutes: 5
-    needs: [build-setup, publish-to-ar-internal]
+    timeout-minutes: 10
+    needs: [build-setup, build-internal, publish-to-ar-internal]
 
     name: Upload build artifacts to gocd
     runs-on: ubuntu-latest
@@ -628,7 +628,6 @@ jobs:
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
-        platform: ${{ fromJson(needs.build-setup.outputs.platforms) }}
 
     # required for google auth
     permissions:
@@ -636,14 +635,11 @@ jobs:
       id-token: "write"
 
     env:
-      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
-      - uses: docker/setup-qemu-action@v3
-
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
@@ -662,31 +658,31 @@ jobs:
           # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
           version: ">= 390.0.0"
 
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: "internal-${{ matrix.image_name }}@*"
+          merge-multiple: true
+
+      - name: Decrypt Artifacts
+        run: |
+          find . -name "*.gpg" | while read file; do
+            output_file="${file%.gpg}"
+            gpg --quiet --batch --yes --decrypt \
+                --passphrase "${{ secrets.ENCRYPTION_KEY }}" \
+                --output "$output_file" "$file"
+            rm "$file"
+          done
+
       - name: Upload gocd deployment assets
-        env:
-          LIB_PATH: ${{ fromJson('{"linux/amd64":"/lib/x86_64-linux-gnu","linux/arm64":"/lib/aarch64-linux-gnu"}')[matrix.platform] }}
         run: |
           set -euxo pipefail
-          VERSION="$(docker run --rm "${AR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
+          VERSION="$(docker run --rm "us-central1-docker.pkg.dev/internal-sentry/relay/${{ matrix.image_name }}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --platform ${{ matrix.platform }} --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --platform ${{ matrix.platform }} --entrypoint cat "${AR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --platform ${{ matrix.platform }} --entrypoint tar "${AR_DOCKER_IMAGE}:${REVISION}" -cf - "${LIB_PATH}" > libs.tar
-
-          # debugging for mysterious "Couldn't write tracker file" issue:
-          (env | grep runner) || true
-          ls -ld  \
-            /home \
-            /home/runner \
-            /home/runner/.gsutil \
-            /home/runner/.gsutil/tracker-files \
-            /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
-          || true
-          gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
-            "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${{ matrix.platform }}/" || status=$? && status=$?
-          cat gsutil.log
-          exit "$status"
+          for PLATFORM in "linux/amd64" "linux/arm64"; do
+            gsutil -m cp $PLATFORM/relay-debug.zip $PLATFORM/relay.src.zip ./release-name \
+              "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/${PLATFORM}/"
+          done
 
   test_integration:
     needs: build-setup
@@ -795,7 +791,7 @@ jobs:
 
       - name: Download Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: relay-docker-image
 
@@ -828,6 +824,13 @@ jobs:
           project_name: relay
           image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Inspect failure
+        if: failure()
+        run: |
+          cd /home/runner/work/_actions/getsentry/self-hosted/master
+          docker compose ps
+          docker compose logs
 
   validate-devservices-config:
       runs-on: ubuntu-24.04

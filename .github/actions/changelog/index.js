@@ -23,7 +23,7 @@ module.exports = async ({github, context, core}) => {
   \`\`\`md
   - ${title}. (${PR_LINK})
   \`\`\`
-  If none of the above apply, you can opt out by adding _#skip-changelog_ to the PR description.
+  If none of the above apply, you can opt out by adding the _skip-changelog_ label to the PR.
   `;
   }
 
@@ -51,8 +51,8 @@ module.exports = async ({github, context, core}) => {
   }
 
   async function checkChangelog(pr) {
-    if ((pr.body || '').includes('#skip-changelog')) {
-      core.info('#skip-changelog is set. Skipping the checks.');
+    const hasSkipLabel = (pr.labels || []).some(label => label.name === 'skip-changelog');
+    if (hasSkipLabel) {
       return;
     }
 
@@ -80,6 +80,29 @@ module.exports = async ({github, context, core}) => {
     core.info("CHANGELOG entry is added, we're good to go.");
   }
 
+  async function checkPrTitle(pr) {
+    // Provide an opt out just in case, but this should never be used.
+    const hasIgnoreLabel = (pr.labels || []).some(label => label.name === 'ignore-title');
+    if (hasIgnoreLabel) {
+      return;
+    }
+
+    // From: <https://develop.sentry.dev/engineering-practices/commit-messages/>.
+    const TITLE_RE = /^(ci|build|docs|feat|fix|perf|ref|style|test|meta|license)(\([^)]+\))?: [A-Z].*\w$/;
+    const REVERT_RE = /^Revert ".*"$/;
+
+    if (pr.title.match(TITLE_RE) === null && pr.title.match(REVERT_RE) === null) {
+      core.setFailed('PR title does not match Sentry conventions.');
+      core.info('Please follow the Sentry commit message conventions: https://develop.sentry.dev/engineering-practices/commit-messages/');
+      core.info('')
+      core.info('Format: <type>(<scope>): <subject>');
+      core.info('Subject line must be capitalized and must not end with a period.')
+      return;
+    }
+
+    core.info("PR title matches Sentry conventions!");
+  }
+
   async function checkAll() {
     const {data: pr} = await github.rest.pulls.get({
       owner: context.repo.owner,
@@ -92,6 +115,7 @@ module.exports = async ({github, context, core}) => {
       return;
     }
 
+    await checkPrTitle(pr);
     await checkChangelog(pr);
   }
 

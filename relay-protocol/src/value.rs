@@ -446,7 +446,7 @@ impl<'a> Val<'a> {
     }
 
     /// Returns the ID if this value is a hex ID, otherwise `None`.
-    pub fn as_hex_id(&self) -> Option<HexId> {
+    pub fn as_hex_id(&self) -> Option<HexId<'_>> {
         match self {
             Self::HexId(value) => Some(*value),
 

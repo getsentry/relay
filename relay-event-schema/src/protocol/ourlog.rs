@@ -1,4 +1,6 @@
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
+use relay_protocol::{
+    Annotated, Empty, FromValue, Getter, IntoValue, Object, SkipSerialization, Value,
+};
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
@@ -37,6 +39,22 @@ pub struct OurLog {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
+}
+
+impl Getter for OurLog {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        Some(match path.strip_prefix("log.")? {
+            "body" => self.body.as_str()?.into(),
+            path => {
+                if let Some(key) = path.strip_prefix("attributes.") {
+                    let key = key.strip_suffix(".value")?;
+                    self.attributes.value()?.get_value(key)?.into()
+                } else {
+                    return None;
+                }
+            }
+        })
+    }
 }
 
 /// Relay specific metadata embedded into the log item.
@@ -171,10 +189,6 @@ mod tests {
                 "sentry.observed_timestamp_nanos": {
                     "value": "1544712660300000000",
                     "type": "integer"
-                },
-                "sentry.trace_flags": {
-                    "value": "10",
-                    "type": "integer"
                 }
             }
         }"#;
@@ -208,10 +222,6 @@ mod tests {
             "sentry.severity_text": {
               "type": "string",
               "value": "info"
-            },
-            "sentry.trace_flags": {
-              "type": "integer",
-              "value": "10"
             },
             "string.attribute": {
               "type": "string",

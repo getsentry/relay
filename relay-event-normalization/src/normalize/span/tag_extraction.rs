@@ -303,13 +303,13 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
             && event.platform.as_str() == Some("javascript"))
             || MOBILE_SDKS.contains(&event.sdk_name());
 
-        if should_extract_geo {
-            if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
-                tags.user_country_code = country_code.to_owned().into();
-                if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
-                    let numerical_subregion = subregion as u8;
-                    tags.user_subregion = numerical_subregion.to_string().into();
-                }
+        if should_extract_geo
+            && let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value())
+        {
+            tags.user_country_code = country_code.to_owned().into();
+            if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                let numerical_subregion = subregion as u8;
+                tags.user_subregion = numerical_subregion.to_string().into();
             }
         }
     }
@@ -348,20 +348,20 @@ fn extract_shared_tags(event: &Event) -> SharedTags {
         tags.mobile = "true".to_owned().into();
     }
 
-    if let Some(os_context) = event.context::<OsContext>() {
-        if let Some(os_name) = os_context.name.value() {
-            if tags.mobile.value().is_some_and(|v| v.as_str() == "true") {
-                // For mabile spans, only extract os_name if app context exists.
-                // This tells us if the span originated from
-                // an app (as opposed to mobile browser) since we are currently focused on
-                // app use cases for mobile.
-                if event.context::<AppContext>().is_some() {
-                    tags.os_name = os_name.to_string().into();
-                }
-            } else {
-                // For non-mobile spans, always extract os_name.
+    if let Some(os_context) = event.context::<OsContext>()
+        && let Some(os_name) = os_context.name.value()
+    {
+        if tags.mobile.value().is_some_and(|v| v.as_str() == "true") {
+            // For mabile spans, only extract os_name if app context exists.
+            // This tells us if the span originated from
+            // an app (as opposed to mobile browser) since we are currently focused on
+            // app use cases for mobile.
+            if event.context::<AppContext>().is_some() {
                 tags.os_name = os_name.to_string().into();
             }
+        } else {
+            // For non-mobile spans, always extract os_name.
+            tags.os_name = os_name.to_string().into();
         }
     }
 
@@ -436,38 +436,36 @@ fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> 
         }
     }
 
-    if let Some(trace_context) = event.context::<TraceContext>() {
-        if let Some(op) = extract_transaction_op(trace_context) {
-            if op == "queue.publish" || op == "queue.process" {
-                if let Some(data) = trace_context.data.value() {
-                    for (field, key, unit) in [
-                        (
-                            &data.messaging_message_retry_count,
-                            "messaging.message.retry.count",
-                            MetricUnit::None,
-                        ),
-                        (
-                            &data.messaging_message_receive_latency,
-                            "messaging.message.receive.latency",
-                            MetricUnit::Duration(DurationUnit::MilliSecond),
-                        ),
-                        (
-                            &data.messaging_message_body_size,
-                            "messaging.message.body.size",
-                            MetricUnit::Information(InformationUnit::Byte),
-                        ),
-                    ] {
-                        if let Some(value) = value_to_finite_f64(field.value()) {
-                            measurements.insert(
-                                key.into(),
-                                Measurement {
-                                    value: value.into(),
-                                    unit: unit.into(),
-                                },
-                            );
-                        }
-                    }
-                }
+    if let Some(trace_context) = event.context::<TraceContext>()
+        && let Some(op) = extract_transaction_op(trace_context)
+        && (op == "queue.publish" || op == "queue.process")
+        && let Some(data) = trace_context.data.value()
+    {
+        for (field, key, unit) in [
+            (
+                &data.messaging_message_retry_count,
+                "messaging.message.retry.count",
+                MetricUnit::None,
+            ),
+            (
+                &data.messaging_message_receive_latency,
+                "messaging.message.receive.latency",
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+            ),
+            (
+                &data.messaging_message_body_size,
+                "messaging.message.body.size",
+                MetricUnit::Information(InformationUnit::Byte),
+            ),
+        ] {
+            if let Some(value) = value_to_finite_f64(field.value()) {
+                measurements.insert(
+                    key.into(),
+                    Measurement {
+                        value: value.into(),
+                        unit: unit.into(),
+                    },
+                );
             }
         }
     }
@@ -589,23 +587,21 @@ impl SegmentTags {
 fn extract_segment_tags(event: &Event) -> SegmentTags {
     let mut tags = SegmentTags::default();
 
-    if let Some(trace_context) = event.context::<TraceContext>() {
-        if let Some(op) = extract_transaction_op(trace_context) {
-            if op == "queue.publish" || op == "queue.process" {
-                if let Some(data) = trace_context.data.value() {
-                    tags.messaging_destination_name = data.messaging_destination_name.clone();
-                    tags.messaging_message_id = data.messaging_message_id.clone();
-                    tags.messaging_operation_name = data.messaging_operation_name.clone();
-                    tags.messaging_operation_type = data.messaging_operation_type.clone();
-                }
-            }
-        }
+    if let Some(trace_context) = event.context::<TraceContext>()
+        && let Some(op) = extract_transaction_op(trace_context)
+        && (op == "queue.publish" || op == "queue.process")
+        && let Some(data) = trace_context.data.value()
+    {
+        tags.messaging_destination_name = data.messaging_destination_name.clone();
+        tags.messaging_message_id = data.messaging_message_id.clone();
+        tags.messaging_operation_name = data.messaging_operation_name.clone();
+        tags.messaging_operation_type = data.messaging_operation_type.clone();
     }
 
-    if let Some(browser_context) = event.context::<BrowserContext>() {
-        if let Some(browser) = browser_context.browser.value() {
-            tags.browser = browser.to_string().into();
-        }
+    if let Some(browser_context) = event.context::<BrowserContext>()
+        && let Some(browser) = browser_context.browser.value()
+    {
+        tags.browser = browser.to_string().into();
     }
 
     if let Some(os_context) = event.context::<OsContext>() {
@@ -646,10 +642,10 @@ fn extract_segment_tags(event: &Event) -> SegmentTags {
         }
     }
 
-    if let Some(app_context) = event.context::<AppContext>() {
-        if let Some(device_app_hash) = app_context.device_app_hash.value() {
-            tags.app_device = device_app_hash.to_string().into();
-        }
+    if let Some(app_context) = event.context::<AppContext>()
+        && let Some(device_app_hash) = app_context.device_app_hash.value()
+    {
+        tags.app_device = device_app_hash.to_string().into();
     }
 
     if let Some(runtime_context) = event.context::<RuntimeContext>() {
@@ -800,19 +796,6 @@ pub fn extract_tags(
             _ => None,
         };
 
-        if category.as_deref() == Some("ai") {
-            if let Some(ai_pipeline_name) = span
-                .data
-                .value()
-                .and_then(|data| data.ai_pipeline_name.value())
-                .and_then(|val| val.as_str())
-            {
-                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
-                ai_pipeline_group.truncate(16);
-                span_tags.ai_pipeline_group = ai_pipeline_group.into();
-            }
-        }
-
         if let Some(category) = category {
             span_tags.category = category.into_owned().into();
         }
@@ -909,10 +892,10 @@ pub fn extract_tags(
             None
         };
 
-        if !span_op.starts_with("db.redis") {
-            if let Some(dom) = domain {
-                span_tags.domain = dom.into();
-            }
+        if !span_op.starts_with("db.redis")
+            && let Some(dom) = domain
+        {
+            span_tags.domain = dom.into();
         }
 
         if span_op.starts_with("cache.") {
@@ -922,10 +905,10 @@ pub fn extract_tags(
                 let tag_value = if *cache_hit { "true" } else { "false" };
                 span_tags.cache_hit = tag_value.to_owned().into();
             }
-            if let Some(cache_keys) = span.data.value().and_then(|data| data.cache_key.value()) {
-                if let Ok(cache_keys) = serde_json::to_string(cache_keys) {
-                    span_tags.cache_key = cache_keys.into();
-                }
+            if let Some(cache_keys) = span.data.value().and_then(|data| data.cache_key.value())
+                && let Ok(cache_keys) = serde_json::to_string(cache_keys)
+            {
+                span_tags.cache_key = cache_keys.into();
             }
         }
 
@@ -971,15 +954,14 @@ pub fn extract_tags(
             span_tags.group = span_group.into();
 
             let truncated = truncate_string(scrubbed_desc, max_tag_value_size);
-            if span_op.starts_with("resource.") {
-                if let Some(ext) = truncated
+            if span_op.starts_with("resource.")
+                && let Some(ext) = truncated
                     .rsplit('/')
                     .next()
                     .and_then(|last_segment| last_segment.rsplit_once('.'))
                     .map(|(_, extension)| extension)
-                {
-                    span_tags.file_extension = ext.to_lowercase().into();
-                }
+            {
+                span_tags.file_extension = ext.to_lowercase().into();
             }
 
             span_tags.description = truncated.into();
@@ -1026,47 +1008,44 @@ pub fn extract_tags(
                 }
             }
         }
-        if let Some(measurements) = span.measurements.value() {
-            if (span_op.starts_with("ui.interaction.") && measurements.contains_key("inp"))
-                || span_op.starts_with("ui.webvital.")
+        if let Some(measurements) = span.measurements.value()
+            && ((span_op.starts_with("ui.interaction.") && measurements.contains_key("inp"))
+                || span_op.starts_with("ui.webvital."))
+        {
+            if let Some(transaction) = span
+                .data
+                .value()
+                .and_then(|data| data.segment_name.as_str())
             {
-                if let Some(transaction) = span
-                    .data
-                    .value()
-                    .and_then(|data| data.segment_name.as_str())
-                {
-                    span_tags.transaction = transaction.to_owned().into();
-                }
-                if let Some(user) = span.data.value().and_then(|data| data.user.as_str()) {
-                    span_tags.user = user.to_owned().into();
-                }
-                if let Some(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str())
-                {
-                    span_tags.replay_id = replay_id.to_owned().into();
-                }
-                if let Some(environment) =
-                    span.data.value().and_then(|data| data.environment.as_str())
-                {
-                    span_tags.environment = environment.to_owned().into();
-                }
-                if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
-                    span_tags.release = release.to_owned().into();
-                }
-                // Standalone vital spans don't come from an event with geo data.
-                // Derive geo data from the client address inferred on the span.
-                if let Some(client_address) = span
-                    .data
-                    .value()
-                    .and_then(|data| data.client_address.value())
-                    && let Some(geoip_lookup) = geoip_lookup
-                    && let Ok(Some(geo)) = geoip_lookup.lookup(client_address.as_str())
-                    && let Some(country_code) = geo.country_code.value()
-                {
-                    span_tags.user_country_code = country_code.to_owned().into();
-                    if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
-                        let numerical_subregion = subregion as u8;
-                        span_tags.user_subregion = numerical_subregion.to_string().into();
-                    }
+                span_tags.transaction = transaction.to_owned().into();
+            }
+            if let Some(user) = span.data.value().and_then(|data| data.user.as_str()) {
+                span_tags.user = user.to_owned().into();
+            }
+            if let Some(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str()) {
+                span_tags.replay_id = replay_id.to_owned().into();
+            }
+            if let Some(environment) = span.data.value().and_then(|data| data.environment.as_str())
+            {
+                span_tags.environment = environment.to_owned().into();
+            }
+            if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
+                span_tags.release = release.to_owned().into();
+            }
+            // Standalone vital spans don't come from an event with geo data.
+            // Derive geo data from the client address inferred on the span.
+            if let Some(client_address) = span
+                .data
+                .value()
+                .and_then(|data| data.client_address.value())
+                && let Some(geoip_lookup) = geoip_lookup
+                && let Ok(Some(geo)) = geoip_lookup.lookup(client_address.as_str())
+                && let Some(country_code) = geo.country_code.value()
+            {
+                span_tags.user_country_code = country_code.to_owned().into();
+                if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                    let numerical_subregion = subregion as u8;
+                    span_tags.user_subregion = numerical_subregion.to_string().into();
                 }
             }
         }
@@ -1077,10 +1056,10 @@ pub fn extract_tags(
     }
 
     if is_mobile {
-        if let Some(thread_name) = span.data.value().and_then(|data| data.thread_name.as_str()) {
-            if thread_name == MAIN_THREAD_NAME {
-                span_tags.main_thread = "true".to_owned().into();
-            }
+        if let Some(thread_name) = span.data.value().and_then(|data| data.thread_name.as_str())
+            && thread_name == MAIN_THREAD_NAME
+        {
+            span_tags.main_thread = "true".to_owned().into();
         }
 
         // Attempt to read the start type from span.data if it exists, else
@@ -1098,15 +1077,15 @@ pub fn extract_tags(
     }
 
     if let Some(end_time) = span.timestamp.value() {
-        if let Some(initial_display) = initial_display {
-            if end_time <= &initial_display {
-                span_tags.ttid = "ttid".to_owned().into();
-            }
+        if let Some(initial_display) = initial_display
+            && end_time <= &initial_display
+        {
+            span_tags.ttid = "ttid".to_owned().into();
         }
-        if let Some(full_display) = full_display {
-            if end_time <= &full_display {
-                span_tags.ttfd = "ttfd".to_owned().into();
-            }
+        if let Some(full_display) = full_display
+            && end_time <= &full_display
+        {
+            span_tags.ttfd = "ttfd".to_owned().into();
         }
     }
 
@@ -1143,12 +1122,42 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
         return;
     };
 
-    if span_op.starts_with("cache.") {
-        if let Some(data) = span.data.value() {
-            if let Some(value) = value_to_finite_f64(data.cache_item_size.value()) {
+    if span_op.starts_with("cache.")
+        && let Some(data) = span.data.value()
+        && let Some(value) = value_to_finite_f64(data.cache_item_size.value())
+    {
+        let measurements = span.measurements.get_or_insert_with(Default::default);
+        measurements.insert(
+            "cache.item_size".to_owned(),
+            Measurement {
+                value: value.into(),
+                unit: MetricUnit::Information(InformationUnit::Byte).into(),
+            }
+            .into(),
+        );
+    }
+
+    if span_op.starts_with("resource.")
+        && let Some(data) = span.data.value()
+    {
+        for (field, key) in [
+            (
+                &data.http_decoded_response_content_length,
+                "http.decoded_response_content_length",
+            ),
+            (
+                &data.http_response_content_length,
+                "http.response_content_length",
+            ),
+            (
+                &data.http_response_transfer_size,
+                "http.response_transfer_size",
+            ),
+        ] {
+            if let Some(value) = value_to_finite_f64(field.value()) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
-                    "cache.item_size".to_owned(),
+                    key.into(),
                     Measurement {
                         value: value.into(),
                         unit: MetricUnit::Information(InformationUnit::Byte).into(),
@@ -1159,94 +1168,61 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
         }
     }
 
-    if span_op.starts_with("resource.") {
-        if let Some(data) = span.data.value() {
-            for (field, key) in [
-                (
-                    &data.http_decoded_response_content_length,
-                    "http.decoded_response_content_length",
-                ),
-                (
-                    &data.http_response_content_length,
-                    "http.response_content_length",
-                ),
-                (
-                    &data.http_response_transfer_size,
-                    "http.response_transfer_size",
-                ),
-            ] {
-                if let Some(value) = value_to_finite_f64(field.value()) {
-                    let measurements = span.measurements.get_or_insert_with(Default::default);
-                    measurements.insert(
-                        key.into(),
-                        Measurement {
-                            value: value.into(),
-                            unit: MetricUnit::Information(InformationUnit::Byte).into(),
-                        }
-                        .into(),
-                    );
-                }
+    if span_op.starts_with("queue.")
+        && let Some(data) = span.data.value()
+    {
+        for (field, key, unit) in [
+            (
+                &data.messaging_message_retry_count,
+                "messaging.message.retry.count",
+                MetricUnit::None,
+            ),
+            (
+                &data.messaging_message_receive_latency,
+                "messaging.message.receive.latency",
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+            ),
+            (
+                &data.messaging_message_body_size,
+                "messaging.message.body.size",
+                MetricUnit::Information(InformationUnit::Byte),
+            ),
+        ] {
+            if let Some(value) = value_to_finite_f64(field.value()) {
+                let measurements = span.measurements.get_or_insert_with(Default::default);
+                measurements.insert(
+                    key.into(),
+                    Measurement {
+                        value: value.into(),
+                        unit: unit.into(),
+                    }
+                    .into(),
+                );
             }
         }
     }
 
-    if span_op.starts_with("queue.") {
-        if let Some(data) = span.data.value() {
-            for (field, key, unit) in [
-                (
-                    &data.messaging_message_retry_count,
-                    "messaging.message.retry.count",
-                    MetricUnit::None,
-                ),
-                (
-                    &data.messaging_message_receive_latency,
-                    "messaging.message.receive.latency",
-                    MetricUnit::Duration(DurationUnit::MilliSecond),
-                ),
-                (
-                    &data.messaging_message_body_size,
-                    "messaging.message.body.size",
-                    MetricUnit::Information(InformationUnit::Byte),
-                ),
-            ] {
-                if let Some(value) = value_to_finite_f64(field.value()) {
-                    let measurements = span.measurements.get_or_insert_with(Default::default);
-                    measurements.insert(
-                        key.into(),
-                        Measurement {
-                            value: value.into(),
-                            unit: unit.into(),
-                        }
-                        .into(),
-                    );
-                }
-            }
-        }
-    }
-
-    if is_mobile {
-        if let Some(data) = span.data.value() {
-            for (field, key, unit) in [
-                (&data.frames_frozen, "frames.frozen", MetricUnit::None),
-                (&data.frames_slow, "frames.slow", MetricUnit::None),
-                (&data.frames_total, "frames.total", MetricUnit::None),
-                (
-                    &data.frames_delay,
-                    "frames.delay",
-                    MetricUnit::Duration(DurationUnit::Second),
-                ),
-            ] {
-                if let Some(value) = value_to_finite_f64(field.value()) {
-                    let measurements = span.measurements.get_or_insert_with(Default::default);
-                    measurements.insert(
-                        key.into(),
-                        Measurement {
-                            value: value.into(),
-                            unit: unit.into(),
-                        }
-                        .into(),
-                    );
-                }
+    if is_mobile && let Some(data) = span.data.value() {
+        for (field, key, unit) in [
+            (&data.frames_frozen, "frames.frozen", MetricUnit::None),
+            (&data.frames_slow, "frames.slow", MetricUnit::None),
+            (&data.frames_total, "frames.total", MetricUnit::None),
+            (
+                &data.frames_delay,
+                "frames.delay",
+                MetricUnit::Duration(DurationUnit::Second),
+            ),
+        ] {
+            if let Some(value) = value_to_finite_f64(field.value()) {
+                let measurements = span.measurements.get_or_insert_with(Default::default);
+                measurements.insert(
+                    key.into(),
+                    Measurement {
+                        value: value.into(),
+                        unit: unit.into(),
+                    }
+                    .into(),
+                );
             }
         }
     }
@@ -2004,9 +1980,7 @@ LIMIT 1
                         "data": {
                             "ai.total_tokens.used": 300,
                             "ai.completion_tokens.used": 200,
-                            "ai.prompt_tokens.used": 100,
-                            "ai.streaming": true,
-                            "ai.pipeline.name": "My AI pipeline"
+                            "ai.prompt_tokens.used": 100
                         },
                         "hash": "e2fae740cccd3781"
                     }
@@ -2029,21 +2003,14 @@ LIMIT 1
             .unwrap()
             .value()
             .unwrap();
-        let tags = span.sentry_tags.value().unwrap();
 
-        assert_eq!(
-            tags.get_value("ai_pipeline_group").unwrap().as_str(),
-            Some("68e6cafc5b68d276")
-        );
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
         {
           "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200,
-          "ai.pipeline.name": "My AI pipeline",
-          "ai.streaming": true
+          "gen_ai.usage.output_tokens": 200
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2063,9 +2030,7 @@ LIMIT 1
                         "data": {
                             "gen_ai.usage.total_tokens": 300,
                             "gen_ai.usage.output_tokens": 200,
-                            "gen_ai.usage.input_tokens": 100,
-                            "ai.streaming": true,
-                            "ai.pipeline.name": "My AI pipeline"
+                            "gen_ai.usage.input_tokens": 100
                         },
                         "hash": "e2fae740cccd3781"
                     }
@@ -2088,21 +2053,14 @@ LIMIT 1
             .unwrap()
             .value()
             .unwrap();
-        let tags = span.sentry_tags.value().unwrap();
 
-        assert_eq!(
-            tags.get_value("ai_pipeline_group").unwrap().as_str(),
-            Some("68e6cafc5b68d276")
-        );
-        assert_json_snapshot!(SerializableAnnotated(&span.data), @r###"
+        assert_json_snapshot!(SerializableAnnotated(&span.data), @r#"
         {
           "gen_ai.usage.total_tokens": 300,
           "gen_ai.usage.input_tokens": 100,
-          "gen_ai.usage.output_tokens": 200,
-          "ai.pipeline.name": "My AI pipeline",
-          "ai.streaming": true
+          "gen_ai.usage.output_tokens": 200
         }
-        "###);
+        "#);
     }
 
     #[test]

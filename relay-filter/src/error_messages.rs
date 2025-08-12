@@ -16,27 +16,27 @@ fn matches<F: Filterable>(item: &F, patterns: &Patterns) -> bool {
             if patterns.is_match(message.as_ref()) {
                 return true;
             }
-        } else if let Some(message) = logentry.message.value() {
-            if patterns.is_match(message.as_ref()) {
-                return true;
-            }
+        } else if let Some(message) = logentry.message.value()
+            && patterns.is_match(message.as_ref())
+        {
+            return true;
         }
     }
 
-    if let Some(exception_values) = item.exceptions() {
-        if let Some(exceptions) = exception_values.values.value() {
-            for exception in exceptions {
-                if let Some(exception) = exception.value() {
-                    let ty = exception.ty.as_str().unwrap_or_default();
-                    let value = exception.value.as_str().unwrap_or_default();
-                    let message = match (ty, value) {
-                        ("", value) => Cow::Borrowed(value),
-                        (ty, "") => Cow::Borrowed(ty),
-                        (ty, value) => Cow::Owned(format!("{ty}: {value}")),
-                    };
-                    if patterns.is_match(message.as_ref()) {
-                        return true;
-                    }
+    if let Some(exception_values) = item.exceptions()
+        && let Some(exceptions) = exception_values.values.value()
+    {
+        for exception in exceptions {
+            if let Some(exception) = exception.value() {
+                let ty = exception.ty.as_str().unwrap_or_default();
+                let value = exception.value.as_str().unwrap_or_default();
+                let message = match (ty, value) {
+                    ("", value) => Cow::Borrowed(value),
+                    (ty, "") => Cow::Borrowed(ty),
+                    (ty, value) => Cow::Owned(format!("{ty}: {value}")),
+                };
+                if patterns.is_match(message.as_ref()) {
+                    return true;
                 }
             }
         }
