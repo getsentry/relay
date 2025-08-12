@@ -1223,8 +1223,8 @@ pub struct SpanProducers {
 impl Default for SpanProducers {
     fn default() -> Self {
         Self {
-            produce_json: true,
-            produce_protobuf: false,
+            produce_json: false,
+            produce_protobuf: true,
         }
     }
 }

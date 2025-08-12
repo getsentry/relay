@@ -78,6 +78,12 @@ def processing_config(get_topic_name):
                 f"relay-test-relayconfig-{uuid.uuid4()}"
             )
 
+        if processing.get("span_producers") is None:
+            processing["span_producers"] = {
+                "produce_json": True,
+                "produce_protobuf": False,
+            }
+
         return options
 
     return inner
