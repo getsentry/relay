@@ -22,11 +22,9 @@ use crate::service::create_redis_clients;
 use crate::services::global_config::GlobalConfigHandle;
 #[cfg(feature = "processing")]
 use crate::services::global_rate_limits::GlobalRateLimitsService;
-use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::ProjectInfo;
-use crate::services::test_store::TestStore;
 use crate::utils::ThreadPoolBuilder;
 
 pub fn state_with_rule_and_condition(
@@ -112,18 +110,13 @@ pub fn new_managed_envelope<T: Into<String>>(
     with_dsc: bool,
     transaction_name: T,
 ) -> ManagedEnvelope {
-    ManagedEnvelope::new(
-        new_envelope(with_dsc, transaction_name),
-        Addr::dummy(),
-        Addr::dummy(),
-    )
+    ManagedEnvelope::new(new_envelope(with_dsc, transaction_name), Addr::dummy())
 }
 
 pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
     let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-    let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
     let redis_clients = config
@@ -151,7 +144,6 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         processor::Addrs {
             outcome_aggregator,
             upstream_relay,
-            test_store,
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator,
@@ -187,12 +179,6 @@ pub async fn create_test_processor_with_addrs(
         addrs,
         metric_outcomes,
     )
-}
-
-pub fn processor_services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
-    let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-    let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-    (outcome_aggregator, test_store)
 }
 
 fn create_processor_pool() -> EnvelopeProcessorServicePool {

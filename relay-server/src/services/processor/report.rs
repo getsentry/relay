@@ -280,14 +280,14 @@ mod tests {
     use crate::services::outcome::RuleCategory;
     use crate::services::processor::{ProcessEnvelopeGrouped, ProcessingGroup, Submit};
     use crate::services::projects::project::ProjectInfo;
-    use crate::testutils::{self, create_test_processor};
+    use crate::testutils::create_test_processor;
 
     use super::*;
 
     #[tokio::test]
     async fn test_client_report_removal() {
         relay_test::setup();
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
 
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
@@ -325,7 +325,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
 
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
@@ -345,7 +345,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_report_forwarding() {
         relay_test::setup();
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
 
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
@@ -383,7 +383,7 @@ mod tests {
         let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 
         let message = ProcessEnvelopeGrouped {
             group,
@@ -409,7 +409,7 @@ mod tests {
     #[cfg(feature = "processing")]
     async fn test_client_report_removal_in_processing() {
         relay_test::setup();
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
 
         let config = Config::from_json_value(serde_json::json!({
             "outcomes": {
@@ -451,7 +451,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
@@ -472,7 +472,7 @@ mod tests {
     async fn test_user_report_only() {
         relay_log::init_test!();
         let processor = create_test_processor(Default::default()).await;
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
         let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -496,7 +496,7 @@ mod tests {
 
         let (group, envelope) = envelopes.pop().unwrap();
 
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
         let message = ProcessEnvelopeGrouped {
             group,
             envelope,
@@ -523,7 +523,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_report_invalid() {
         let processor = create_test_processor(Default::default()).await;
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
         let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -548,7 +548,7 @@ mod tests {
         let mut envelopes = ProcessingGroup::split_envelope(*envelope, &Default::default());
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 
         let message = ProcessEnvelopeGrouped {
             group,

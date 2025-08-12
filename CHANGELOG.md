@@ -11,6 +11,7 @@
 - Improve PII scrubbing for `logentry.formatted` by ensuring only sensitive data is redacted, rather than replacing the entire field value. ([#4985](https://github.com/getsentry/relay/pull/4985))
 - Add payload size as an attribute to logs. ([#5042](https://github.com/getsentry/relay/pull/5042))
 - Pass `downsampled_event_retention` to `Traceitem` where appropriate. ([#5013](https://github.com/getsentry/relay/pull/5013), [#5041](https://github.com/getsentry/relay/pull/5041))
+- Remove `RelayMode::Capture` and the associated logic. ([#5053](https://github.com/getsentry/relay/pull/5053))
 
 **Bug Fixes**:
 

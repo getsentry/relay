@@ -77,7 +77,6 @@ impl ProjectSource {
         match self.config.relay_mode() {
             RelayMode::Proxy => return Ok(ProjectState::new_allowed().into()),
             RelayMode::Static => return Ok(ProjectState::Disabled.into()),
-            RelayMode::Capture => return Ok(ProjectState::new_allowed().into()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
         }
 
