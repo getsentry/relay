@@ -28,7 +28,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
-    ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
+    ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError, SpanV2,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
@@ -43,7 +43,7 @@ use smallvec::{SmallVec, smallvec};
 use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
-use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
+use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemContainer, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta, RequestTrust};
 use crate::managed::{InvalidProcessingGroupType, ManagedEnvelope, TypedEnvelope};
 use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
@@ -311,7 +311,7 @@ impl ProcessingGroup {
         }
 
         if project_info.has_feature(Feature::SpanV2ExperimentalProcessing) {
-            let span_v2_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Span));
+            let span_v2_items = envelope.take_items_by(ItemContainer::<SpanV2>::is_container);
 
             if !span_v2_items.is_empty() {
                 grouped_envelopes.push((
@@ -1853,10 +1853,7 @@ impl EnvelopeProcessorService {
         };
 
         #[cfg(feature = "processing")]
-        let server_sample_rate = match sampling_result {
-            SamplingResult::Match(ref sampling_match) => Some(sampling_match.sample_rate()),
-            SamplingResult::NoMatch | SamplingResult::Pending => None,
-        };
+        let server_sample_rate = sampling_result.sample_rate();
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             // Process profiles before dropping the transaction, if necessary.
@@ -2325,6 +2322,7 @@ impl EnvelopeProcessorService {
             config: &self.inner.config,
             global_config: &global_config,
             project_info: &project_info,
+            sampling_project_info: sampling_project_info.as_deref(),
             rate_limits: &rate_limits,
         };
 

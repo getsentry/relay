@@ -11,14 +11,14 @@ use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMa
 
 use crate::services::outcome::Outcome;
 
-/// Represents the specification for sampling an incoming event.
+/// Represents the specification for sampling an incoming item.
 #[derive(Default, Clone, Debug, PartialEq)]
 pub enum SamplingResult {
-    /// The event matched a sampling condition.
+    /// The item matched a sampling condition, whether the item is kept depends on the [`SamplingMatch`].
     Match(SamplingMatch),
-    /// The event did not match a sampling condition.
+    /// The item did not match a sampling condition and must be kept.
     NoMatch,
-    /// The event has yet to be run a dynamic sampling decision.
+    /// The item has yet to be run a dynamic sampling decision, the item must be kept for now.
     #[default]
     Pending,
 }
@@ -41,6 +41,14 @@ impl SamplingResult {
         match self {
             Self::Match(sampling_match) => sampling_match.decision(),
             _ => SamplingDecision::Keep,
+        }
+    }
+
+    /// Returns the contained sample rate.
+    pub fn sample_rate(&self) -> Option<f64> {
+        match self {
+            SamplingResult::Match(sampling_match) => Some(sampling_match.sample_rate()),
+            SamplingResult::NoMatch | SamplingResult::Pending => None,
         }
     }
 

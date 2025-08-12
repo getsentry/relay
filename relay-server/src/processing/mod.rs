@@ -62,6 +62,8 @@ pub struct Context<'a> {
     pub global_config: &'a GlobalConfig,
     /// Project configuration associated with the unit of work.
     pub project_info: &'a ProjectInfo,
+    /// Project configuration associated with the root of the trace of the unit of work.
+    pub sampling_project_info: Option<&'a ProjectInfo>,
     /// Cached rate limits associated with the unit of work.
     ///
     /// The caller needs to ensure the rate limits are not yet expired.
@@ -72,6 +74,13 @@ impl Context<'_> {
     /// Returns `true` if Relay is running in proxy mode.
     pub fn is_proxy(&self) -> bool {
         matches!(self.config.relay_mode(), relay_config::RelayMode::Proxy)
+    }
+
+    /// Returns `true` if Relay has processing enabled.
+    ///
+    /// Processing indicates, this Relay is the final Relay processing this item.
+    pub fn is_processing(&self) -> bool {
+        self.config.processing_enabled()
     }
 
     /// Checks on-off feature flags for envelope items, like profiles and spans.

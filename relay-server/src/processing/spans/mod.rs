@@ -13,6 +13,7 @@ use crate::managed::{
 use crate::processing::{self, Context, CountRateLimited, Forward, Output, QuotaRateLimiter};
 use crate::services::outcome::{DiscardReason, Outcome};
 
+mod dynamic_sampling;
 mod filter;
 mod process;
 
@@ -26,6 +27,9 @@ pub enum Error {
     /// The spans are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
+    /// The spans are filtered due to dynamic sampling.
+    #[error("filtered due to dynamic sampling: {0}")]
+    DynamicSampling(Outcome),
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -41,6 +45,7 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
+            Self::DynamicSampling(reason) => Some(reason.clone()),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
         (outcome, self)
@@ -101,12 +106,19 @@ impl processing::Processor for SpansProcessor {
             return Ok(Output::just(SpanOutput::NotProcessed(spans)));
         }
 
-        // TODO: dynamic sampling
-        // Dynamic sampling can now run without expanding the contents,
-        // because we only support trace based rules -> it operates solely on the DSC.
-        // For sampled spans, the sampling rate needs to be applied.
+        dynamic_sampling::validate_configs(ctx);
+        let sampling = dynamic_sampling::run(&spans, ctx).await;
+        let server_sample_rate = sampling.sample_rate();
+        if let Some(sampling_outcome) = sampling.into_dropped_outcome() {
+            // TODO: metric extraction.
+            let spans = spans.map(|spans, records| {
+                records.lenient(DataCategory::Span);
+                UnsampledSpans { spans: spans.spans }
+            });
+            return Err(spans.reject_err(Error::DynamicSampling(sampling_outcome)));
+        }
 
-        let mut spans = process::expand(spans);
+        let mut spans = process::expand(spans, server_sample_rate);
 
         // TODO: normalization (conventions?)
 
@@ -167,7 +179,15 @@ impl Forward for SpanOutput {
         let envelope = spans.map(|spans, records| {
             let mut items = Items::with_capacity(spans.spans.len());
             for span in spans.spans {
-                let span = span.value.map_value(relay_spans::span_v2_to_span_v1);
+                let mut span = span.value.map_value(relay_spans::span_v2_to_span_v1);
+                if let Some(span) = span.value_mut() {
+                    inject_server_sample_rate(span, spans.server_sample_rate);
+
+                    // TODO: this needs to be done in a normalization step, which is yet to be
+                    // implemented.
+                    span.received =
+                        relay_event_schema::protocol::Timestamp(chrono::Utc::now()).into();
+                }
 
                 let mut item = Item::new(ItemType::Span);
                 let payload = match span.to_json() {
@@ -192,6 +212,37 @@ impl Forward for SpanOutput {
     }
 }
 
+/// Injects a server sample rate into a 'v1' span.
+///
+/// This is a temporary measure to correctly add the server sample rate to a span,
+/// so the store can later read it again.
+///
+/// Ideally we forward a proper data structure to the store instead, then we don't
+/// have to inject the sample rate into a measurement.
+#[cfg(feature = "processing")]
+fn inject_server_sample_rate(
+    span: &mut relay_event_schema::protocol::Span,
+    server_sample_rate: Option<f64>,
+) {
+    let Some(server_sample_rate) = server_sample_rate.and_then(relay_protocol::FiniteF64::new)
+    else {
+        return;
+    };
+
+    let Some(measurements) = span.measurements.value_mut() else {
+        return;
+    };
+
+    measurements.0.insert(
+        "server_sample_rate".to_owned(),
+        relay_event_schema::protocol::Measurement {
+            value: server_sample_rate.into(),
+            unit: None.into(),
+        }
+        .into(),
+    );
+}
+
 /// Spans in their serialized state, as transported in an envelope.
 #[derive(Debug)]
 pub struct SerializedSpans {
@@ -205,15 +256,6 @@ pub struct SerializedSpans {
 }
 
 impl SerializedSpans {
-    /// Returns the amount of contained spans, this count is best effort and can be used for outcomes.
-    fn count(&self) -> usize {
-        // We rely here on the invariant that all items in `self.spans` are actually spans,
-        // that's why sum up `item_count`'s blindly instead of checking again for the item type
-        // or using `Item::quantities`.
-        let c: u32 = self.spans.iter().filter_map(|item| item.item_count()).sum();
-        c as usize
-    }
-
     fn serialize_envelope(self) -> Box<Envelope> {
         Envelope::from_parts(self.headers, Items::from_vec(self.spans))
     }
@@ -221,7 +263,7 @@ impl SerializedSpans {
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = self.count();
+        let quantity = outcome_count(&self.spans);
         smallvec::smallvec![
             (DataCategory::Span, quantity),
             (DataCategory::SpanIndexed, quantity),
@@ -238,6 +280,9 @@ impl CountRateLimited for Managed<SerializedSpans> {
 pub struct ExpandedSpans {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
+
+    /// Server side applied (dynamic) sample rate.
+    server_sample_rate: Option<f64>,
 
     /// Expanded and parsed spans.
     spans: ContainerItems<SpanV2>,
@@ -274,4 +319,30 @@ impl Counted for ExpandedSpans {
 
 impl CountRateLimited for Managed<ExpandedSpans> {
     type Error = Error;
+}
+
+/// Spans which have been rejected/dropped by dynamic sampling.
+///
+/// Contained spans will only count towards the [`DataCategory::SpanIndexed`] category,
+/// as the total category is counted from now in in metrics.
+struct UnsampledSpans {
+    spans: Vec<Item>,
+}
+
+impl Counted for UnsampledSpans {
+    fn quantities(&self) -> Quantities {
+        let quantity = outcome_count(&self.spans);
+        smallvec::smallvec![(DataCategory::SpanIndexed, quantity),]
+    }
+}
+
+/// Returns the amount of contained spans, this count is best effort and can be used for outcomes.
+///
+/// The function expects all passed items to only contain spans.
+fn outcome_count(spans: &[Item]) -> usize {
+    // We rely here on the invariant that all items in `self.spans` are actually spans,
+    // that's why sum up `item_count`'s blindly instead of checking again for the item type
+    // or using `Item::quantities`.
+    let c: u32 = spans.iter().filter_map(|item| item.item_count()).sum();
+    c as usize
 }
