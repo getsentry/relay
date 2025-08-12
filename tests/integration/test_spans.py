@@ -20,8 +20,15 @@ from .asserts import time_after, time_within_delta
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
 )
-from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
+
+TEST_CONFIG = {
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+        "shift_key": "none",
+    }
+}
 
 
 @pytest.mark.parametrize("performance_issues_spans", [False, True])
