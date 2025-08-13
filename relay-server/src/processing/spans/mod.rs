@@ -279,6 +279,7 @@ pub struct ExpandedSpans {
     headers: EnvelopeHeaders,
 
     /// Server side applied (dynamic) sample rate.
+    #[cfg_attr(not(feature = "processing"), expect(dead_code))]
     server_sample_rate: Option<f64>,
 
     /// Expanded and parsed spans.
