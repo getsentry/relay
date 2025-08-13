@@ -381,6 +381,224 @@ def test_ourlog_extraction_with_sentry_logs(
     ]
 
 
+@pytest.mark.parametrize(
+    "rule_type,test_value,expected_scrubbed",
+    [
+        # IP rules
+        ("@ip", "127.0.0.1", "[ip]"),
+        ("@ip:replace", "127.0.0.1", "[ip]"),
+        ("@ip:remove", "127.0.0.1", ""),
+        ("@ip:mask", "127.0.0.1", "*********"),
+        # Email rules
+        ("@email", "test@example.com", "[email]"),
+        ("@email:replace", "test@example.com", "[email]"),
+        ("@email:remove", "test@example.com", ""),
+        ("@email:mask", "test@example.com", "****************"),
+        # Credit card rules
+        ("@creditcard", "4242424242424242", "[creditcard]"),
+        ("@creditcard:replace", "4242424242424242", "[creditcard]"),
+        ("@creditcard:remove", "4242424242424242", ""),
+        ("@creditcard:mask", "4242424242424242", "****************"),
+        # IBAN rules
+        ("@iban", "DE89370400440532013000", "[iban]"),
+        ("@iban:replace", "DE89370400440532013000", "[iban]"),
+        ("@iban:remove", "DE89370400440532013000", ""),
+        ("@iban:mask", "DE89370400440532013000", "**********************"),
+        # MAC address rules
+        ("@mac", "4a:00:04:10:9b:50", "*****************"),
+        ("@mac:replace", "4a:00:04:10:9b:50", "[mac]"),
+        ("@mac:remove", "4a:00:04:10:9b:50", ""),
+        ("@mac:mask", "4a:00:04:10:9b:50", "*****************"),
+        # UUID rules
+        (
+            "@uuid",
+            "ceee0822-ed8f-4622-b2a3-789e73e75cd1",
+            "************************************",
+        ),
+        ("@uuid:replace", "ceee0822-ed8f-4622-b2a3-789e73e75cd1", "[uuid]"),
+        ("@uuid:remove", "ceee0822-ed8f-4622-b2a3-789e73e75cd1", ""),
+        (
+            "@uuid:mask",
+            "ceee0822-ed8f-4622-b2a3-789e73e75cd1",
+            "************************************",
+        ),
+        # IMEI rules
+        ("@imei", "356938035643809", "[imei]"),
+        ("@imei:replace", "356938035643809", "[imei]"),
+        ("@imei:remove", "356938035643809", ""),
+        # PEM key rules
+        (
+            "@pemkey",
+            "-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----",
+            "-----BEGIN EC PRIVATE KEY-----\n[pemkey]\n-----END EC PRIVATE KEY-----",
+        ),
+        (
+            "@pemkey:replace",
+            "-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----",
+            "-----BEGIN EC PRIVATE KEY-----\n[pemkey]\n-----END EC PRIVATE KEY-----",
+        ),
+        (
+            "@pemkey:remove",
+            "-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----",
+            "-----BEGIN EC PRIVATE KEY-----\n\n-----END EC PRIVATE KEY-----",
+        ),
+        # URL auth rules
+        (
+            "@urlauth",
+            "https://username:password@example.com/",
+            "https://[auth]@example.com/",
+        ),
+        (
+            "@urlauth:replace",
+            "https://username:password@example.com/",
+            "https://[auth]@example.com/",
+        ),
+        (
+            "@urlauth:remove",
+            "https://username:password@example.com/",
+            "https://@example.com/",
+        ),
+        (
+            "@urlauth:mask",
+            "https://username:password@example.com/",
+            "https://*****************@example.com/",
+        ),
+        # US SSN rules
+        ("@usssn", "078-05-1120", "***********"),
+        ("@usssn:replace", "078-05-1120", "[us-ssn]"),
+        ("@usssn:remove", "078-05-1120", ""),
+        ("@usssn:mask", "078-05-1120", "***********"),
+        # User path rules
+        ("@userpath", "/Users/john/Documents", "/Users/[user]/Documents"),
+        ("@userpath:replace", "/Users/john/Documents", "/Users/[user]/Documents"),
+        ("@userpath:remove", "/Users/john/Documents", "/Users//Documents"),
+        ("@userpath:mask", "/Users/john/Documents", "/Users/****/Documents"),
+        # Password rules
+        ("@password", "my_password_123", ""),  # @password defaults to remove
+        ("@password:remove", "my_password_123", ""),
+        ("@password:replace", "my_password_123", "[password]"),
+        ("@password:mask", "my_password_123", "***************"),
+        # Bearer token rules
+        ("@bearer", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Bearer [token]"),
+        (
+            "@bearer:replace",
+            "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+            "Bearer [token]",
+        ),
+        ("@bearer:remove", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", ""),
+        (
+            "@bearer:mask",
+            "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+            "*******************************************",
+        ),
+    ],
+)
+def test_ourlog_extraction_with_string_pii_scrubbing(
+    mini_sentry,
+    relay,
+    items_consumer,
+    rule_type,
+    test_value,
+    expected_scrubbed,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+
+    project_config["config"]["piiConfig"]["applications"]["$string"] = [rule_type]
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log",
+            "attributes": {
+                "test_pii": {"value": test_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+    attributes = item["attributes"]
+
+    assert "test_pii" in attributes
+    assert attributes["test_pii"]["value"] == expected_scrubbed
+    assert "_meta" in item
+    meta = item["_meta"]["attributes"]["test_pii"]["value"][""]
+    assert "rem" in meta
+
+    # Check that the rule type is mentioned in the metadata
+    rem_info = meta["rem"][0]
+    assert rule_type in rem_info[0]
+
+
+@pytest.mark.parametrize(
+    "attribute_key,attribute_value,expected_value,rule_type",
+    [
+        ("password", "my_password_123", None, "@password"),
+        ("secret_key", "my_secret_key_123", None, "@password"),
+        ("api_key", "my_api_key_123", None, "@password"),
+    ],
+)
+def test_ourlog_extraction_default_pii_scrubbing_attributes(
+    mini_sentry,
+    relay,
+    items_consumer,
+    attribute_key,
+    attribute_value,
+    expected_value,
+    rule_type,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+
+    relay_instance = relay(mini_sentry, options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log",
+            "attributes": {
+                attribute_key: {"value": attribute_value, "type": "string"},
+            },
+        }
+    )
+
+    relay_instance.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    item_payload = json.loads(envelope.items[0].payload.bytes.decode())
+    item = item_payload["items"][0]
+    attributes = item["attributes"]
+
+    assert attribute_key in attributes
+    assert attributes[attribute_key]["value"] == expected_value
+    assert "_meta" in item
+    meta = item["_meta"]["attributes"][attribute_key]["value"][""]
+    assert "rem" in meta
+    rem_info = meta["rem"]
+    assert len(rem_info) == 1
+    assert rem_info[0][0] == rule_type
+
+
 def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     mini_sentry,
     relay_with_processing,
