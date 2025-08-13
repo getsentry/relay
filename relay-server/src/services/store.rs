@@ -1732,11 +1732,17 @@ impl SpanKafkaMessage<'_> {
 
                 match key.as_ref() {
                     "client_sample_rate" => {
+                        data.entry(Cow::Borrowed("sentry.client_sample_rate"))
+                            .or_insert(Some(value));
+
                         if let Ok(client_sample_rate) = Deserialize::deserialize(value) {
                             self.client_sample_rate = Some(client_sample_rate);
                         }
                     }
                     "server_sample_rate" => {
+                        data.entry(Cow::Borrowed("sentry.server_sample_rate"))
+                            .or_insert(Some(value));
+
                         if let Ok(server_sample_rate) = Deserialize::deserialize(value) {
                             self.server_sample_rate = Some(server_sample_rate);
                         }
