@@ -8,9 +8,12 @@ use crate::services::outcome::DiscardReason;
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(spans: Managed<SerializedSpans>) -> Managed<ExpandedSpans> {
+pub fn expand(
+    spans: Managed<SerializedSpans>,
+    server_sample_rate: Option<f64>,
+) -> Managed<ExpandedSpans> {
     spans.map(|spans, records| {
-        let mut all_spans = Vec::with_capacity(spans.count());
+        let mut all_spans = Vec::new();
 
         for item in &spans.spans {
             let expanded = expand_span(item);
@@ -20,6 +23,7 @@ pub fn expand(spans: Managed<SerializedSpans>) -> Managed<ExpandedSpans> {
 
         ExpandedSpans {
             headers: spans.headers,
+            server_sample_rate,
             spans: all_spans,
         }
     })
