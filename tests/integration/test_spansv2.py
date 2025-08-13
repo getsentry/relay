@@ -68,7 +68,7 @@ def test_spansv2_basic(
     envelope = envelope_with_spans(
         {
             "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.500,
+            "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
             "name": "some op",
@@ -86,7 +86,7 @@ def test_spansv2_basic(
         "received": time_within(ts),
         "start_timestamp_ms": time_within(ts, precision="ms", expect_resolution="ms"),
         "start_timestamp_precise": time_within(ts),
-        "end_timestamp_precise": time_within(ts),
+        "end_timestamp_precise": time_within(ts.timestamp() + 0.5),
         "duration_ms": 500,
         "exclusive_time_ms": 500.0,
         "is_remote": False,
@@ -147,7 +147,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
     envelope = envelope_with_spans(
         {
             "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.500,
+            "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
             "name": "some op",
@@ -233,7 +233,7 @@ def test_spansv2_ds_sampled(
     envelope = envelope_with_spans(
         {
             "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.500,
+            "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
             "name": "some op",
@@ -254,10 +254,10 @@ def test_spansv2_ds_sampled(
         "data": {"foo": "bar", "sentry.name": "some op"},
         "measurements": {"server_sample_rate": {"value": 0.9}},
         "server_sample_rate": 0.9,
-        "received": time_within(ts),
+        "received": time_within_delta(ts),
         "start_timestamp_ms": time_within(ts, precision="ms", expect_resolution="ms"),
         "start_timestamp_precise": time_within(ts),
-        "end_timestamp_precise": time_within(ts),
+        "end_timestamp_precise": time_within(ts.timestamp() + 0.5),
         "duration_ms": 500,
         "exclusive_time_ms": 500.0,
         "is_remote": False,
@@ -333,7 +333,7 @@ def test_spansv2_ds_root_in_different_org(
     envelope = envelope_with_spans(
         {
             "start_timestamp": ts.timestamp(),
-            "end_timestamp": ts.timestamp() + 0.500,
+            "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
             "name": "some op",
