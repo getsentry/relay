@@ -76,7 +76,7 @@ impl ProjectSource {
                     .send(FetchOptionalProjectState { project_key })
                     .await?;
 
-                return Ok(state_opt.map_or_else(|| ProjectState::Disabled.into(), Into::into));
+                return Ok(state_opt.map_or(ProjectState::Disabled.into(), Into::into));
             }
         }
 
