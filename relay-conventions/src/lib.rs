@@ -21,12 +21,16 @@ mod tests {
 
         insta::assert_debug_snapshot!(info, @r###"
         AttributeInfo {
-            description: "The encoded body size of the response (in bytes).",
             write_behavior: BothNames(
                 "http.response.body.size",
             ),
             pii: False,
             ty: Integer,
+            aliases: [
+                "http.response.body.size",
+                "http.response.header.content-length",
+                "http.response.header['content-length']",
+            ],
         }
         "###);
     }

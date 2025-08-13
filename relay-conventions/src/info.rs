@@ -43,12 +43,12 @@ pub enum WriteBehavior {
 
 #[derive(Debug, Clone)]
 pub(crate) struct AttributeInfo {
-    /// A text descrption of the attribute.
-    pub(crate) description: &'static str,
     /// How this attribute should be saved.
     pub(crate) write_behavior: WriteBehavior,
     /// Whether this attribute can contain PII.
     pub(crate) pii: Pii,
     /// This attribute's type.
     pub(crate) ty: AttributeType,
+    /// Other attributes that alias to this attribute.
+    pub(crate) aliases: &'static [&'static str],
 }

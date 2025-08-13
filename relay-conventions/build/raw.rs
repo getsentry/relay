@@ -55,13 +55,11 @@ struct Deprecation {
 
 /// An attribute, according to the `sentry-conventions` schema.
 ///
-/// Omitted fields: `has_dynamic_suffix`, `is_in_otel`, `example`, `alias`, `sdks`.
+/// Omitted fields: `brief`, `has_dynamic_suffix`, `is_in_otel`, `example`, `sdks`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Attribute {
     /// The attribute's name.
     key: String,
-    /// A description of the attribute.
-    brief: String,
     /// The type of the attribute's value.
     #[serde(rename = "type")]
     ty: AttributeType,
@@ -71,6 +69,9 @@ pub struct Attribute {
     /// information on its replacement name and what should
     /// be done when the original name is encountered.
     deprecation: Option<Deprecation>,
+    /// Other attributes that alias to this attribute.
+    #[serde(default)]
+    alias: Vec<String>,
 }
 
 /// Formats an attribute's deprecation information as a `WriteBehavior`.
@@ -93,19 +94,19 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
 /// Format an attribute as an `AttributeInfo`.
 pub fn format_attribute_info(attr: Attribute) -> (String, String) {
     let Attribute {
-        brief,
+        key,
         ty,
         pii,
         deprecation,
-        key,
+        alias,
     } = attr;
     let write_behavior = format_write_behavior(deprecation.as_ref());
     let value = format!(
         "AttributeInfo {{
-            description: {brief:?},
             write_behavior: {write_behavior},
             pii: Pii::{pii:?},
             ty: AttributeType::{ty:?},
+            aliases: &{alias:?},
         }}"
     );
     (key, value)
