@@ -145,6 +145,11 @@ impl<T: Counted> Managed<T> {
         self.meta.scoping
     }
 
+    /// Splits [`Self`] into two other [`Managed`] items.
+    ///
+    /// The two resulting managed instances are expected to have the same outcomes.
+    /// Since splitting may introduce a new type of item, which get some of the original
+    /// quantities are transferred to, there may be new additional data categories created.
     pub fn split_once<F, S, U>(self, f: F) -> (Managed<S>, Managed<U>)
     where
         F: FnOnce(T) -> (S, U),
@@ -161,6 +166,10 @@ impl<T: Counted> Managed<T> {
 
         #[cfg(debug_assertions)]
         debug::Quantities::from(&quantities)
+            // Instead of `assert_only_extra`, used for extracted metrics also counting
+            // in the `metric bucket` category, it may make sense to give the mapping function
+            // control over which categories to ignore, similar to the record keeper's lenient
+            // method.
             .assert_only_extra(debug::Quantities::from(&a) + debug::Quantities::from(&b));
 
         (
@@ -169,6 +178,10 @@ impl<T: Counted> Managed<T> {
         )
     }
 
+    /// Splits [`Self`] into a variable amount if individual items.
+    ///
+    /// Useful when the current instance contains multiple items of the same type
+    /// and must be split into individually managed items.
     pub fn split<F, I, S>(self, f: F) -> Split<I::IntoIter, I::Item>
     where
         F: FnOnce(T) -> I,
@@ -178,6 +191,10 @@ impl<T: Counted> Managed<T> {
         self.split_with_context(|value| (f(value), ())).0
     }
 
+    /// Splits [`Self`] into a variable amount if individual items.
+    ///
+    /// Like [`Self::split`] but also allows returning an untracked context,
+    /// a way of returning additional data when deconstructing the original item.
     pub fn split_with_context<F, I, S, C>(self, f: F) -> (Split<I::IntoIter, I::Item>, C)
     where
         F: FnOnce(T) -> (I, C),
