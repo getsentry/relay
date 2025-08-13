@@ -37,6 +37,8 @@ impl ProjectSource {
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] _redis: Option<RedisClients>,
     ) -> Self {
+        // TODO: Think about if it makes sense to also only conditionally start the service in the
+        // mode that it is used in
         let local_source = services.start(LocalProjectSourceService::new(config.clone()));
         let upstream_source = services.start(UpstreamProjectSourceService::new(
             config.clone(),
@@ -65,19 +67,17 @@ impl ProjectSource {
         no_cache: bool,
         current_revision: Revision,
     ) -> Result<SourceProjectState, ProjectSourceError> {
-        let state_opt = self
-            .local_source
-            .send(FetchOptionalProjectState { project_key })
-            .await?;
-
-        if let Some(state) = state_opt {
-            return Ok(state.into());
-        }
-
         match self.config.relay_mode() {
             RelayMode::Proxy => return Ok(ProjectState::new_allowed().into()),
-            RelayMode::Static => return Ok(ProjectState::Disabled.into()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
+            RelayMode::Static => {
+                let state_opt = self
+                    .local_source
+                    .send(FetchOptionalProjectState { project_key })
+                    .await?;
+
+                return Ok(state_opt.map_or_else(|| ProjectState::Disabled.into(), Into::into));
+            }
         }
 
         #[cfg(feature = "processing")]
