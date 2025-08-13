@@ -199,6 +199,15 @@ impl Processor for PiiProcessor<'_> {
         utils::process_pairlist(self, value, state)
     }
 
+    fn process_attributes(
+        &mut self,
+        value: &mut relay_event_schema::protocol::Attributes,
+        _meta: &mut Meta,
+        state: &ProcessingState,
+    ) -> ProcessingResult {
+        utils::process_attributes(value, self, state)
+    }
+
     fn process_user(
         &mut self,
         user: &mut User,

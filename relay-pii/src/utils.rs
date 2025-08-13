@@ -1,8 +1,8 @@
 use hmac::{Hmac, Mac};
 use relay_event_schema::processor::{
-    self, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
+    self, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType, enum_set,
 };
-use relay_event_schema::protocol::{AsPair, PairList};
+use relay_event_schema::protocol::{AsPair, Attributes, PairList};
 use sha1::Sha1;
 
 pub fn process_pairlist<P: Processor, T: ProcessValue + AsPair>(
@@ -31,6 +31,30 @@ pub fn process_pairlist<P: Processor, T: ProcessValue + AsPair>(
                 let entered = state.enter_index(idx, state.inner_attrs(), value_type);
                 processor::process_value(value, slf, &entered)?;
             }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn process_attributes<P: Processor>(
+    value: &mut Attributes,
+    slf: &mut P,
+    state: &ProcessingState,
+) -> ProcessingResult {
+    // Process attributes by flattening the AttributeValue wrapper so PII processors see
+    // attributes.password = "secret" instead of attributes.password.value = "secret"
+    for (key, annotated_attribute) in value.iter_mut() {
+        if let Some(attribute) = annotated_attribute.value_mut() {
+            let inner_value = &mut attribute.value.value;
+            let value_type = enum_set!(ValueType::Object);
+            let entered: ProcessingState<'_> =
+                state.enter_borrowed(key, state.inner_attrs(), value_type);
+            processor::process_value(inner_value, slf, &entered)?;
+
+            let field_value_type = ValueType::for_field(inner_value);
+            let field_entered = state.enter_borrowed(key, state.inner_attrs(), field_value_type);
+            processor::process_value(inner_value, slf, &field_entered)?;
         }
     }
 

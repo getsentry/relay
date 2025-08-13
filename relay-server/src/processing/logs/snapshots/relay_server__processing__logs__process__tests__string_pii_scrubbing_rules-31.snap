@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@urlauth|https://username:password@example.com/": {
+    "type": "string",
+    "value": "https://[auth]@example.com/"
+  },
+  "_meta": {
+    "@urlauth|https://username:password@example.com/": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@urlauth",
+              "s",
+              8,
+              14
+            ]
+          ],
+          "len": 38
+        }
+      }
+    }
+  }
+}

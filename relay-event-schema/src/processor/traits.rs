@@ -82,6 +82,7 @@ pub trait Processor: Sized {
     process_method!(process_value, relay_protocol::Value);
     process_method!(process_array, relay_protocol::Array<T>);
     process_method!(process_object, relay_protocol::Object<T>);
+    process_method!(process_attributes, crate::protocol::Attributes);
 
     process_method!(
         process_pairlist,
