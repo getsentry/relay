@@ -64,7 +64,7 @@ pub async fn run(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> Sampling
     // TODO: reservoir sampling
     let mut evaluator = SamplingEvaluator::new(Utc::now());
 
-    // Apply, transaction local rules.
+    // Apply transaction local rules.
     //
     // For spans we generally cannot apply transaction local rules, but some of the rules,
     // specifically the minimum sample rate rule can still be applied to individual spans.
