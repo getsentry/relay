@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["main"],"mod":["cli","cliapp","setup","utils"],"static":["GLOBAL"]};
+window.SIDEBAR_ITEMS = {"fn":["main"],"mod":["cli","cliapp","healthcheck","setup","utils"],"static":["GLOBAL"]};

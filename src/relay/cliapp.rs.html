@@ -312,4 +312,52 @@
 <a href=#312 id=312 data-nosnippet>312</a>                        ),
 <a href=#313 id=313 data-nosnippet>313</a>                ),
 <a href=#314 id=314 data-nosnippet>314</a>        )
-<a href=#315 id=315 data-nosnippet>315</a>}</code></pre></div></section></main></body></html>
+<a href=#315 id=315 data-nosnippet>315</a>        .subcommand(
+<a href=#316 id=316 data-nosnippet>316</a>            Command::new(<span class="string">"healthcheck"</span>)
+<a href=#317 id=317 data-nosnippet>317</a>                .about(<span class="string">"Check the health of the relay"</span>)
+<a href=#318 id=318 data-nosnippet>318</a>                .after_help(
+<a href=#319 id=319 data-nosnippet>319</a>                    <span class="string">"This command checks the health of the relay. It will create \
+<a href=#320 id=320 data-nosnippet>320</a>                     HTTP request to relay's healthcheck endpoints."</span>,
+<a href=#321 id=321 data-nosnippet>321</a>                )
+<a href=#322 id=322 data-nosnippet>322</a>                .arg(
+<a href=#323 id=323 data-nosnippet>323</a>                    Arg::new(<span class="string">"mode"</span>)
+<a href=#324 id=324 data-nosnippet>324</a>                        .long(<span class="string">"mode"</span>)
+<a href=#325 id=325 data-nosnippet>325</a>                        .help(<span class="string">"The relay health check status to check. Possible values are `live` and `ready`."</span>)
+<a href=#326 id=326 data-nosnippet>326</a>                        .default_value(<span class="string">"live"</span>)
+<a href=#327 id=327 data-nosnippet>327</a>                        .value_parser(clap::builder::PossibleValuesParser::new([<span class="string">"live"</span>, <span class="string">"ready"</span>]))
+<a href=#328 id=328 data-nosnippet>328</a>                        .required(<span class="bool-val">false</span>),
+<a href=#329 id=329 data-nosnippet>329</a>                )
+<a href=#330 id=330 data-nosnippet>330</a>                .arg(
+<a href=#331 id=331 data-nosnippet>331</a>                    Arg::new(<span class="string">"timeout"</span>)
+<a href=#332 id=332 data-nosnippet>332</a>                        .long(<span class="string">"timeout"</span>)
+<a href=#333 id=333 data-nosnippet>333</a>                        .help(<span class="string">"The timeout in seconds to wait for the healthcheck"</span>)
+<a href=#334 id=334 data-nosnippet>334</a>                        .default_value(<span class="string">"30"</span>)
+<a href=#335 id=335 data-nosnippet>335</a>                        .value_parser(<span class="macro">clap::value_parser!</span>(u64))
+<a href=#336 id=336 data-nosnippet>336</a>                        .required(<span class="bool-val">false</span>),
+<a href=#337 id=337 data-nosnippet>337</a>                )
+<a href=#338 id=338 data-nosnippet>338</a>                .arg(
+<a href=#339 id=339 data-nosnippet>339</a>                    Arg::new(<span class="string">"host"</span>)
+<a href=#340 id=340 data-nosnippet>340</a>                        .long(<span class="string">"host"</span>)
+<a href=#341 id=341 data-nosnippet>341</a>                        .short(<span class="string">'h'</span>)
+<a href=#342 id=342 data-nosnippet>342</a>                        .help(
+<a href=#343 id=343 data-nosnippet>343</a>                            <span class="string">"If relay is not running on localhost and there are no config file, \
+<a href=#344 id=344 data-nosnippet>344</a>                            you can specify the hostname here."</span>,
+<a href=#345 id=345 data-nosnippet>345</a>                        )
+<a href=#346 id=346 data-nosnippet>346</a>                        .default_value(<span class="string">"localhost"</span>)
+<a href=#347 id=347 data-nosnippet>347</a>                        .value_parser(<span class="macro">clap::value_parser!</span>(String))
+<a href=#348 id=348 data-nosnippet>348</a>                        .required(<span class="bool-val">false</span>),
+<a href=#349 id=349 data-nosnippet>349</a>                )
+<a href=#350 id=350 data-nosnippet>350</a>                .arg(
+<a href=#351 id=351 data-nosnippet>351</a>                    Arg::new(<span class="string">"port"</span>)
+<a href=#352 id=352 data-nosnippet>352</a>                        .long(<span class="string">"port"</span>)
+<a href=#353 id=353 data-nosnippet>353</a>                        .short(<span class="string">'p'</span>)
+<a href=#354 id=354 data-nosnippet>354</a>                        .help(
+<a href=#355 id=355 data-nosnippet>355</a>                            <span class="string">"If relay is not running on port 3000 and there are no config file, \
+<a href=#356 id=356 data-nosnippet>356</a>                            you can specify the port here."</span>,
+<a href=#357 id=357 data-nosnippet>357</a>                        )
+<a href=#358 id=358 data-nosnippet>358</a>                        .default_value(<span class="string">"3000"</span>)
+<a href=#359 id=359 data-nosnippet>359</a>                        .value_parser(<span class="macro">clap::value_parser!</span>(u16))
+<a href=#360 id=360 data-nosnippet>360</a>                        .required(<span class="bool-val">false</span>),
+<a href=#361 id=361 data-nosnippet>361</a>                ),
+<a href=#362 id=362 data-nosnippet>362</a>        )
+<a href=#363 id=363 data-nosnippet>363</a>}</code></pre></div></section></main></body></html>
