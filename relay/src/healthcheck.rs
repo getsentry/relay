@@ -1,0 +1,47 @@
+use std::time::Duration;
+
+use anyhow::{Result, format_err};
+use clap::ArgMatches;
+use reqwest::blocking::Client;
+
+pub fn healthcheck(matches: &ArgMatches) -> Result<()> {
+    let mode = matches
+        .get_one::<String>("mode")
+        .expect("`mode` is required");
+    let timeout = matches
+        .get_one::<u64>("timeout")
+        .expect("`timeout` is required");
+    let host = matches
+        .get_one::<String>("host")
+        .expect("`host` is required");
+    let port = matches.get_one::<u16>("port").expect("`port` is required");
+
+    let client = Client::builder()
+        .timeout(Some(Duration::from_secs(*timeout)))
+        .build()
+        .unwrap_or_default();
+    let response = client
+        .get(format!(
+            "http://{}:{}/api/relay/healthcheck/{}/",
+            host, port, mode
+        ))
+        .send();
+
+    match response {
+        Ok(response) => {
+            if response.status().is_success() {
+                Ok(())
+            } else {
+                relay_log::error!("Relay is unhealthy. Status code: {}", response.status());
+                Err(format_err!(
+                    "Relay is unhealthy. Status code: {}",
+                    response.status()
+                ))
+            }
+        }
+        Err(err) => {
+            relay_log::error!("Relay is unhealthy. Error: {}", err);
+            Err(err.into())
+        }
+    }
+}
