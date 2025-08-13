@@ -41,7 +41,6 @@ pub mod projects;
 pub mod relays;
 pub mod server;
 pub mod stats;
-pub mod test_store;
 pub mod upstream;
 
 pub mod autoscaling;

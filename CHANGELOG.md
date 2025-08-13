@@ -9,8 +9,9 @@
 - Implements basic inbound filters for logs. ([#5011](https://github.com/getsentry/relay/pull/5011))
 - Always emit a span usage metric, independent of span feature flags. ([#4976](https://github.com/getsentry/relay/pull/4976))
 - Improve PII scrubbing for `logentry.formatted` by ensuring only sensitive data is redacted, rather than replacing the entire field value. ([#4985](https://github.com/getsentry/relay/pull/4985))
+- Add payload size as an attribute to logs. ([#5042](https://github.com/getsentry/relay/pull/5042))
 - Pass `downsampled_event_retention` to `Traceitem` where appropriate. ([#5013](https://github.com/getsentry/relay/pull/5013), [#5041](https://github.com/getsentry/relay/pull/5041))
-- Add `healthcheck` command to relay CLI. ([#5044](https://github.com/getsentry/relay/pull/5044))
+- Remove `RelayMode::Capture` and the associated logic. ([#5053](https://github.com/getsentry/relay/pull/5053))
 
 **Bug Fixes**:
 
@@ -31,6 +32,9 @@
 - Add Jwm to the supported image types. ([#4975](https://github.com/getsentry/relay/pull/4975))
 - Process logs in all non-proxy Relays. ([#4973](https://github.com/getsentry/relay/pull/4973))
 - Add support for pre-hashed signatures. ([#5012](https://github.com/getsentry/relay/pull/5012))
+- Add producer_name tag, and more rdkafka stats. ([#5031](https://github.com/getsentry/relay/pull/5031))
+- Add `healthcheck` command to relay CLI, for self hosted. ([#5044](https://github.com/getsentry/relay/pull/5044))
+- Change the default configuration to produce to `snuba-items`. ([#5055](https://github.com/getsentry/relay/pull/5055))
 
 ## 25.7.0
 

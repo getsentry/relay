@@ -333,7 +333,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
+        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 
         let message = ProcessEnvelopeGrouped {
             group,
@@ -468,7 +468,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
+        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 
         let message = ProcessEnvelopeGrouped {
             group,
@@ -542,7 +542,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy(), Addr::dummy());
+        let envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy());
 
         let message = ProcessEnvelopeGrouped {
             group,
@@ -618,7 +618,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy());
+        let envelope = ManagedEnvelope::new(envelope, Addr::dummy());
 
         let message = ProcessEnvelopeGrouped {
             group,

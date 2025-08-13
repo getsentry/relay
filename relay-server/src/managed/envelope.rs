@@ -14,7 +14,6 @@ use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
-use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::EnvelopeSummary;
 
@@ -161,18 +160,13 @@ pub struct ManagedEnvelope {
     envelope: Box<Envelope>,
     context: EnvelopeContext,
     outcome_aggregator: Addr<TrackOutcome>,
-    test_store: Addr<TestStore>,
 }
 
 impl ManagedEnvelope {
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
     ///
     /// To provide additional scoping, use [`ManagedEnvelope::scope`].
-    pub fn new(
-        envelope: Box<Envelope>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        test_store: Addr<TestStore>,
-    ) -> Self {
+    pub fn new(envelope: Box<Envelope>, outcome_aggregator: Addr<TrackOutcome>) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
         let scoping = meta.get_partial_scoping();
@@ -186,17 +180,12 @@ impl ManagedEnvelope {
                 done: false,
             },
             outcome_aggregator,
-            test_store,
         }
     }
 
     #[cfg(test)]
-    pub fn untracked(
-        envelope: Box<Envelope>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        test_store: Addr<TestStore>,
-    ) -> Self {
-        let mut envelope = Self::new(envelope, outcome_aggregator, test_store);
+    pub fn untracked(envelope: Box<Envelope>, outcome_aggregator: Addr<TrackOutcome>) -> Self {
+        let mut envelope = Self::new(envelope, outcome_aggregator);
         envelope.context.done = true;
         envelope
     }
@@ -359,10 +348,6 @@ impl ManagedEnvelope {
                 );
             }
         }
-
-        // TODO: This could be optimized with Capture::should_capture
-        self.test_store
-            .send(Capture::rejected(self.envelope.event_id(), &outcome));
 
         if let Some(category) = self.event_category() {
             if let Some(category) = category.index_category() {
@@ -537,12 +522,6 @@ impl ManagedEnvelope {
         &self.outcome_aggregator
     }
 
-    /// Escape hatch for the [`super::Managed`] type, to make it possible to construct
-    /// from a managed envelope.
-    pub(super) fn test_store(&self) -> &Addr<TestStore> {
-        &self.test_store
-    }
-
     /// Resets inner state to ensure there's no more logging.
     fn finish(&mut self, counter: RelayCounters, handling: Handling) {
         relay_statsd::metric!(counter(counter) += 1, handling = handling.as_str());
@@ -575,9 +554,8 @@ mod tests {
             Bytes::from(r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}"#);
         let envelope = Envelope::parse_bytes(bytes).unwrap();
 
-        let (test_store, _) = Addr::custom();
         let (outcome_aggregator, mut rx) = Addr::custom();
-        let mut env = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let mut env = ManagedEnvelope::new(envelope, outcome_aggregator);
         env.context.summary.span_quantity = 123;
         env.context.summary.secondary_span_quantity = 456;
 

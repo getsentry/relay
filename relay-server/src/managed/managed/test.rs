@@ -12,7 +12,6 @@ use tokio::sync::mpsc::{UnboundedReceiver, error::TryRecvError};
 use crate::managed::managed::Meta;
 use crate::managed::{Counted, Managed};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::test_store::TestStore;
 
 impl<T: Counted> Managed<T> {
     /// Creates a [`Managed`] instance for unit testing.
@@ -26,7 +25,6 @@ pub struct ManagedTestBuilder<T> {
     value: T,
     outcome_aggregator: Addr<TrackOutcome>,
     outcome_aggregator_rx: UnboundedReceiver<TrackOutcome>,
-    test_store: Addr<TestStore>,
     received_at: DateTime<Utc>,
     scoping: Scoping,
     event_id: Option<EventId>,
@@ -41,7 +39,6 @@ impl<T> ManagedTestBuilder<T> {
             value,
             outcome_aggregator,
             outcome_aggregator_rx,
-            test_store: Addr::dummy(),
             received_at: Utc::now(),
             scoping: Scoping {
                 organization_id: OrganizationId::new(1),
@@ -62,7 +59,6 @@ impl<T> ManagedTestBuilder<T> {
             self.value,
             Arc::new(Meta {
                 outcome_aggregator: self.outcome_aggregator,
-                test_store: self.test_store,
                 received_at: self.received_at,
                 scoping: self.scoping,
                 event_id: self.event_id,

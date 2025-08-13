@@ -27,7 +27,6 @@ use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
-use crate::services::test_store::TestStore;
 use crate::statsd::RelayCounters;
 
 use crate::MemoryChecker;
@@ -92,7 +91,6 @@ impl PartitionedEnvelopeBuffer {
         project_cache_handle: ProjectCacheHandle,
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
-        test_store: Addr<TestStore>,
         services: &dyn ServiceSpawn,
     ) -> Self {
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
@@ -106,7 +104,6 @@ impl PartitionedEnvelopeBuffer {
                     project_cache_handle: project_cache_handle.clone(),
                     envelope_processor: envelope_processor.clone(),
                     outcome_aggregator: outcome_aggregator.clone(),
-                    test_store: test_store.clone(),
                 },
             )
             .start_in(services);
@@ -227,7 +224,6 @@ pub struct Services {
     pub project_cache_handle: ProjectCacheHandle,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
-    pub test_store: Addr<TestStore>,
 }
 
 /// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
@@ -418,11 +414,8 @@ impl EnvelopeBufferService {
     }
 
     fn drop_expired(envelope: Box<Envelope>, services: &Services) {
-        let mut managed_envelope = ManagedEnvelope::new(
-            envelope,
-            services.outcome_aggregator.clone(),
-            services.test_store.clone(),
-        );
+        let mut managed_envelope =
+            ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
@@ -526,11 +519,8 @@ impl EnvelopeBufferService {
         // If the own project state is disabled, we want to drop the envelope and early return since
         // we can't do much about it.
         let Some(own_project_info) = own_project_info else {
-            let mut managed_envelope = ManagedEnvelope::new(
-                envelope,
-                services.outcome_aggregator.clone(),
-                services.test_store.clone(),
-            );
+            let mut managed_envelope =
+                ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
             managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
 
             return Ok(());
@@ -540,11 +530,7 @@ impl EnvelopeBufferService {
         let sampling_project_info = sampling_project_info
             .filter(|info| info.organization_id == own_project_info.organization_id);
 
-        let managed_envelope = ManagedEnvelope::new(
-            envelope,
-            services.outcome_aggregator.clone(),
-            services.test_store.clone(),
-        );
+        let managed_envelope = ManagedEnvelope::new(envelope, services.outcome_aggregator.clone());
 
         let Ok(CheckedEnvelope {
             envelope: Some(managed_envelope),
@@ -747,7 +733,6 @@ mod tests {
                 project_cache_handle: project_cache_handle.clone(),
                 envelope_processor,
                 outcome_aggregator,
-                test_store: Addr::dummy(),
             },
         );
 
@@ -987,7 +972,6 @@ mod tests {
             envelope_processor,
             project_cache_handle: project_cache_handle.clone(),
             outcome_aggregator,
-            test_store: Addr::dummy(),
         };
 
         // Create two buffer services

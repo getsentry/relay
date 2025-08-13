@@ -51,7 +51,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::processing::logs::LogsProcessor;
 use crate::processing::spans::SpansProcessor;
-use crate::processing::{Forward as _, Output, Outputs, Processor as _, QuotaRateLimiter};
+use crate::processing::{Forward as _, Output, Outputs, QuotaRateLimiter};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
@@ -59,7 +59,6 @@ use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOut
 use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
-use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
     SendRequest, Sign, SignatureType, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
@@ -831,7 +830,7 @@ fn event_type(event: &Annotated<Event>) -> Option<EventType> {
 /// If the project config did not come from the upstream, we keep the items.
 fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
     match config.relay_mode() {
-        RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
+        RelayMode::Proxy | RelayMode::Static => false,
         RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
@@ -1153,7 +1152,6 @@ pub struct EnvelopeProcessorService {
 pub struct Addrs {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
@@ -1166,7 +1164,6 @@ impl Default for Addrs {
         Addrs {
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
-            test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator: Addr::dummy(),
@@ -2165,27 +2162,20 @@ impl EnvelopeProcessorService {
         Ok(None)
     }
 
-    async fn process_nel(
+    async fn process_with_processor<P: processing::Processor>(
         &self,
+        processor: &P,
         mut managed_envelope: ManagedEnvelope,
         ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        nel::convert_to_logs(&mut managed_envelope);
-        self.process_logs(managed_envelope, ctx).await
-    }
-
-    /// Process logs
-    ///
-    async fn process_logs(
-        &self,
-        mut managed_envelope: ManagedEnvelope,
-        ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        let processor = &self.inner.processing.logs;
-        let Some(logs) = processor.prepare_envelope(&mut managed_envelope) else {
+    ) -> Result<ProcessingResult, ProcessingError>
+    where
+        Outputs: From<P::Output>,
+    {
+        let Some(work) = processor.prepare_envelope(&mut managed_envelope) else {
             debug_assert!(
                 false,
-                "there must be work for the logs processor in the logs processing group"
+                "there must be work for the {} processor",
+                std::any::type_name::<P>(),
             );
             return Err(ProcessingError::ProcessingGroupMismatch);
         };
@@ -2197,35 +2187,7 @@ impl EnvelopeProcessorService {
         }
 
         processor
-            .process(logs, ctx)
-            .await
-            .map_err(|_| ProcessingError::ProcessingFailure)
-            .map(|o| o.map(Into::into))
-            .map(ProcessingResult::Output)
-    }
-
-    async fn process_spansv2(
-        &self,
-        mut managed_envelope: ManagedEnvelope,
-        ctx: processing::Context<'_>,
-    ) -> Result<ProcessingResult, ProcessingError> {
-        let processor = &self.inner.processing.spans;
-        let Some(spans) = processor.prepare_envelope(&mut managed_envelope) else {
-            debug_assert!(
-                false,
-                "there must be work for the span processor in the spans processing group"
-            );
-            return Err(ProcessingError::ProcessingGroupMismatch);
-        };
-
-        managed_envelope.update();
-        match managed_envelope.envelope().is_empty() {
-            true => managed_envelope.accept(),
-            false => managed_envelope.reject(Outcome::Invalid(DiscardReason::Internal)),
-        }
-
-        processor
-            .process(spans, ctx)
+            .process(work, ctx)
             .await
             .map_err(|_| ProcessingError::ProcessingFailure)
             .map(|o| o.map(Into::into))
@@ -2415,9 +2377,17 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log => self.process_logs(managed_envelope, ctx).await,
-            ProcessingGroup::Nel => self.process_nel(managed_envelope, ctx).await,
-            ProcessingGroup::SpanV2 => self.process_spansv2(managed_envelope, ctx).await,
+            ProcessingGroup::Log | ProcessingGroup::Nel => {
+                if matches!(group, ProcessingGroup::Nel) {
+                    nel::convert_to_logs(&mut managed_envelope);
+                }
+                self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
+                    .await
+            }
+            ProcessingGroup::SpanV2 => {
+                self.process_with_processor(&self.inner.processing.spans, managed_envelope, ctx)
+                    .await
+            }
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
@@ -2587,11 +2557,8 @@ impl EnvelopeProcessorService {
                 .cogs
                 .timed(ResourceId::Relay, AppFeature::from(group));
 
-            let mut envelope = ManagedEnvelope::new(
-                envelope,
-                self.inner.addrs.outcome_aggregator.clone(),
-                self.inner.addrs.test_store.clone(),
-            );
+            let mut envelope =
+                ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
             envelope.scope(scoping);
 
             let message = ProcessEnvelopeGrouped {
@@ -2760,16 +2727,6 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        // If we are in capture mode, we stash away the event instead of forwarding it.
-        if Capture::should_capture(&self.inner.config) {
-            relay_log::trace!("capturing envelope in memory");
-            self.inner
-                .addrs
-                .test_store
-                .send(Capture::accepted(envelope));
-            return;
-        }
-
         // Override the `sent_at` timestamp. Since the envelope went through basic
         // normalization, all timestamps have been corrected. We propagate the new
         // `sent_at` to allow the next Relay to double-check this timestamp and
@@ -2825,11 +2782,7 @@ impl EnvelopeProcessorService {
             envelope.add_item(item);
         }
 
-        let envelope = ManagedEnvelope::new(
-            envelope,
-            self.inner.addrs.outcome_aggregator.clone(),
-            self.inner.addrs.test_store.clone(),
-        );
+        let envelope = ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
         self.submit_upstream(cogs, Submit::Envelope(envelope.into_processed()));
     }
 
@@ -3200,11 +3153,8 @@ impl EnvelopeProcessorService {
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
-                let mut envelope = ManagedEnvelope::new(
-                    envelope,
-                    self.inner.addrs.outcome_aggregator.clone(),
-                    self.inner.addrs.test_store.clone(),
-                );
+                let mut envelope =
+                    ManagedEnvelope::new(envelope, self.inner.addrs.outcome_aggregator.clone());
                 envelope
                     .set_partition_key(Some(partition_key))
                     .scope(*scoping);
@@ -3879,7 +3829,7 @@ mod tests {
     use crate::metrics_extraction::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
-    use crate::testutils::{self, create_test_processor, create_test_processor_with_addrs};
+    use crate::testutils::{create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
     use {
@@ -4043,7 +3993,7 @@ mod tests {
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
         let processor = create_test_processor(Default::default()).await;
-        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let outcome_aggregator = Addr::dummy();
         let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -4094,7 +4044,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 
         let message = ProcessEnvelopeGrouped {
             group,
@@ -4162,8 +4112,8 @@ mod tests {
         item.set_payload(ContentType::Json, r#"{}"#);
         envelope.add_item(item);
 
-        let (outcome_aggregator, test_store) = testutils::processor_services();
-        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store);
+        let outcome_aggregator = Addr::dummy();
+        let managed_envelope = ManagedEnvelope::new(envelope, outcome_aggregator);
 
         let mut project_info = ProjectInfo::default();
         project_info.public_keys.push(PublicKeyConfig {
