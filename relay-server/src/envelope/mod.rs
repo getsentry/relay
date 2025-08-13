@@ -176,6 +176,18 @@ impl<M> EnvelopeHeaders<M> {
     pub fn meta(&self) -> &M {
         &self.meta
     }
+
+    /// Returns the dynamic sampling context from envelope headers, if present.
+    pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
+        match &self.trace {
+            None => None,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
+                None
+            }
+            Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -407,14 +419,7 @@ impl Envelope {
 
     /// Returns the dynamic sampling context from envelope headers, if present.
     pub fn dsc(&self) -> Option<&DynamicSamplingContext> {
-        match &self.headers.trace {
-            None => None,
-            Some(ErrorBoundary::Err(e)) => {
-                relay_log::debug!(error = e.as_ref(), "failed to parse sampling context");
-                None
-            }
-            Some(ErrorBoundary::Ok(t)) => Some(t),
-        }
+        self.headers.dsc()
     }
 
     /// Overrides the dynamic sampling context in envelope headers.
