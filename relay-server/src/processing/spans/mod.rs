@@ -229,10 +229,7 @@ fn inject_server_sample_rate(
         return;
     };
 
-    let Some(measurements) = span.measurements.value_mut() else {
-        return;
-    };
-
+    let measurements = span.measurements.get_or_insert_with(Default::default);
     measurements.0.insert(
         "server_sample_rate".to_owned(),
         relay_event_schema::protocol::Measurement {

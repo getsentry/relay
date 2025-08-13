@@ -31,7 +31,7 @@ pub fn validate_configs(ctx: Context<'_>) {
     if !is_sampling_config_supported(ctx.project_info)
         || !ctx
             .sampling_project_info
-            .is_some_and(is_sampling_config_supported)
+            .is_none_or(is_sampling_config_supported)
     {
         relay_log::error!(
             project_id = ?ctx.project_info.project_id,
