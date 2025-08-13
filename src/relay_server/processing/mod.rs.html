@@ -62,76 +62,85 @@
 <a href=#62 id=62 data-nosnippet>62</a>    </span><span class="kw">pub </span>global_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>GlobalConfig,
 <a href=#63 id=63 data-nosnippet>63</a>    <span class="doccomment">/// Project configuration associated with the unit of work.
 <a href=#64 id=64 data-nosnippet>64</a>    </span><span class="kw">pub </span>project_info: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProjectInfo,
-<a href=#65 id=65 data-nosnippet>65</a>    <span class="doccomment">/// Cached rate limits associated with the unit of work.
-<a href=#66 id=66 data-nosnippet>66</a>    ///
-<a href=#67 id=67 data-nosnippet>67</a>    /// The caller needs to ensure the rate limits are not yet expired.
-<a href=#68 id=68 data-nosnippet>68</a>    </span><span class="kw">pub </span>rate_limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RateLimits,
-<a href=#69 id=69 data-nosnippet>69</a>}
-<a href=#70 id=70 data-nosnippet>70</a>
-<a href=#71 id=71 data-nosnippet>71</a><span class="kw">impl </span>Context&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#72 id=72 data-nosnippet>72</a>    <span class="doccomment">/// Returns `true` if Relay is running in proxy mode.
-<a href=#73 id=73 data-nosnippet>73</a>    </span><span class="kw">pub fn </span>is_proxy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#74 id=74 data-nosnippet>74</a>        <span class="macro">matches!</span>(<span class="self">self</span>.config.relay_mode(), relay_config::RelayMode::Proxy)
-<a href=#75 id=75 data-nosnippet>75</a>    }
-<a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="doccomment">/// Checks on-off feature flags for envelope items, like profiles and spans.
-<a href=#78 id=78 data-nosnippet>78</a>    ///
-<a href=#79 id=79 data-nosnippet>79</a>    /// It checks for the presence of the passed feature flag, but does not filter items
-<a href=#80 id=80 data-nosnippet>80</a>    /// when there is no full project config available. This is the case in stat and proxy
-<a href=#81 id=81 data-nosnippet>81</a>    /// Relays.
-<a href=#82 id=82 data-nosnippet>82</a>    </span><span class="kw">pub fn </span>should_filter(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: relay_dynamic_config::Feature) -&gt; bool {
-<a href=#83 id=83 data-nosnippet>83</a>        <span class="kw">use </span>relay_config::RelayMode::<span class="kw-2">*</span>;
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
-<a href=#86 id=86 data-nosnippet>86</a>            Proxy | Static =&gt; <span class="bool-val">false</span>,
-<a href=#87 id=87 data-nosnippet>87</a>            Managed =&gt; !<span class="self">self</span>.project_info.has_feature(feature),
-<a href=#88 id=88 data-nosnippet>88</a>        }
-<a href=#89 id=89 data-nosnippet>89</a>    }
-<a href=#90 id=90 data-nosnippet>90</a>}
-<a href=#91 id=91 data-nosnippet>91</a>
-<a href=#92 id=92 data-nosnippet>92</a><span class="doccomment">/// The main processing output and all of its by products.
-<a href=#93 id=93 data-nosnippet>93</a></span><span class="attr">#[derive(Debug)]
-<a href=#94 id=94 data-nosnippet>94</a></span><span class="kw">pub struct </span>Output&lt;T&gt; {
-<a href=#95 id=95 data-nosnippet>95</a>    <span class="doccomment">/// The main output of a [`Processor`].
-<a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">pub </span>main: T,
-<a href=#97 id=97 data-nosnippet>97</a>    <span class="doccomment">/// Metric by products.
-<a href=#98 id=98 data-nosnippet>98</a>    </span><span class="kw">pub </span>metrics: ProcessingExtractedMetrics,
+<a href=#65 id=65 data-nosnippet>65</a>    <span class="doccomment">/// Project configuration associated with the root of the trace of the unit of work.
+<a href=#66 id=66 data-nosnippet>66</a>    </span><span class="kw">pub </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ProjectInfo&gt;,
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="doccomment">/// Cached rate limits associated with the unit of work.
+<a href=#68 id=68 data-nosnippet>68</a>    ///
+<a href=#69 id=69 data-nosnippet>69</a>    /// The caller needs to ensure the rate limits are not yet expired.
+<a href=#70 id=70 data-nosnippet>70</a>    </span><span class="kw">pub </span>rate_limits: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RateLimits,
+<a href=#71 id=71 data-nosnippet>71</a>}
+<a href=#72 id=72 data-nosnippet>72</a>
+<a href=#73 id=73 data-nosnippet>73</a><span class="kw">impl </span>Context&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#74 id=74 data-nosnippet>74</a>    <span class="doccomment">/// Returns `true` if Relay is running in proxy mode.
+<a href=#75 id=75 data-nosnippet>75</a>    </span><span class="kw">pub fn </span>is_proxy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="macro">matches!</span>(<span class="self">self</span>.config.relay_mode(), relay_config::RelayMode::Proxy)
+<a href=#77 id=77 data-nosnippet>77</a>    }
+<a href=#78 id=78 data-nosnippet>78</a>
+<a href=#79 id=79 data-nosnippet>79</a>    <span class="doccomment">/// Returns `true` if Relay has processing enabled.
+<a href=#80 id=80 data-nosnippet>80</a>    ///
+<a href=#81 id=81 data-nosnippet>81</a>    /// Processing indicates, this Relay is the final Relay processing this item.
+<a href=#82 id=82 data-nosnippet>82</a>    </span><span class="kw">pub fn </span>is_processing(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#83 id=83 data-nosnippet>83</a>        <span class="self">self</span>.config.processing_enabled()
+<a href=#84 id=84 data-nosnippet>84</a>    }
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="doccomment">/// Checks on-off feature flags for envelope items, like profiles and spans.
+<a href=#87 id=87 data-nosnippet>87</a>    ///
+<a href=#88 id=88 data-nosnippet>88</a>    /// It checks for the presence of the passed feature flag, but does not filter items
+<a href=#89 id=89 data-nosnippet>89</a>    /// when there is no full project config available. This is the case in stat and proxy
+<a href=#90 id=90 data-nosnippet>90</a>    /// Relays.
+<a href=#91 id=91 data-nosnippet>91</a>    </span><span class="kw">pub fn </span>should_filter(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: relay_dynamic_config::Feature) -&gt; bool {
+<a href=#92 id=92 data-nosnippet>92</a>        <span class="kw">use </span>relay_config::RelayMode::<span class="kw-2">*</span>;
+<a href=#93 id=93 data-nosnippet>93</a>
+<a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
+<a href=#95 id=95 data-nosnippet>95</a>            Proxy | Static =&gt; <span class="bool-val">false</span>,
+<a href=#96 id=96 data-nosnippet>96</a>            Managed =&gt; !<span class="self">self</span>.project_info.has_feature(feature),
+<a href=#97 id=97 data-nosnippet>97</a>        }
+<a href=#98 id=98 data-nosnippet>98</a>    }
 <a href=#99 id=99 data-nosnippet>99</a>}
 <a href=#100 id=100 data-nosnippet>100</a>
-<a href=#101 id=101 data-nosnippet>101</a><span class="kw">impl</span>&lt;T&gt; Output&lt;T&gt; {
-<a href=#102 id=102 data-nosnippet>102</a>    <span class="doccomment">/// Creates a new output with just a main output.
-<a href=#103 id=103 data-nosnippet>103</a>    </span><span class="kw">pub fn </span>just(main: T) -&gt; <span class="self">Self </span>{
-<a href=#104 id=104 data-nosnippet>104</a>        <span class="self">Self </span>{
-<a href=#105 id=105 data-nosnippet>105</a>            main,
-<a href=#106 id=106 data-nosnippet>106</a>            metrics: ProcessingExtractedMetrics::new(),
-<a href=#107 id=107 data-nosnippet>107</a>        }
-<a href=#108 id=108 data-nosnippet>108</a>    }
+<a href=#101 id=101 data-nosnippet>101</a><span class="doccomment">/// The main processing output and all of its by products.
+<a href=#102 id=102 data-nosnippet>102</a></span><span class="attr">#[derive(Debug)]
+<a href=#103 id=103 data-nosnippet>103</a></span><span class="kw">pub struct </span>Output&lt;T&gt; {
+<a href=#104 id=104 data-nosnippet>104</a>    <span class="doccomment">/// The main output of a [`Processor`].
+<a href=#105 id=105 data-nosnippet>105</a>    </span><span class="kw">pub </span>main: T,
+<a href=#106 id=106 data-nosnippet>106</a>    <span class="doccomment">/// Metric by products.
+<a href=#107 id=107 data-nosnippet>107</a>    </span><span class="kw">pub </span>metrics: ProcessingExtractedMetrics,
+<a href=#108 id=108 data-nosnippet>108</a>}
 <a href=#109 id=109 data-nosnippet>109</a>
-<a href=#110 id=110 data-nosnippet>110</a>    <span class="doccomment">/// Maps an `Output&lt;T&gt;` to `Output&lt;S&gt;` by applying a function to [`Self::main`].
-<a href=#111 id=111 data-nosnippet>111</a>    </span><span class="kw">pub fn </span>map&lt;F, S&gt;(<span class="self">self</span>, f: F) -&gt; Output&lt;S&gt;
-<a href=#112 id=112 data-nosnippet>112</a>    <span class="kw">where
-<a href=#113 id=113 data-nosnippet>113</a>        </span>F: FnOnce(T) -&gt; S,
-<a href=#114 id=114 data-nosnippet>114</a>    {
-<a href=#115 id=115 data-nosnippet>115</a>        Output {
-<a href=#116 id=116 data-nosnippet>116</a>            main: f(<span class="self">self</span>.main),
-<a href=#117 id=117 data-nosnippet>117</a>            metrics: <span class="self">self</span>.metrics,
-<a href=#118 id=118 data-nosnippet>118</a>        }
-<a href=#119 id=119 data-nosnippet>119</a>    }
-<a href=#120 id=120 data-nosnippet>120</a>}
-<a href=#121 id=121 data-nosnippet>121</a>
-<a href=#122 id=122 data-nosnippet>122</a><span class="doccomment">/// A processor output which can be forwarded to a different destination.
-<a href=#123 id=123 data-nosnippet>123</a></span><span class="kw">pub trait </span>Forward {
-<a href=#124 id=124 data-nosnippet>124</a>    <span class="doccomment">/// Serializes the output into an [`Envelope`].
-<a href=#125 id=125 data-nosnippet>125</a>    ///
-<a href=#126 id=126 data-nosnippet>126</a>    /// All output must be serializable as an envelope.
-<a href=#127 id=127 data-nosnippet>127</a>    </span><span class="kw">fn </span>serialize_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Managed&lt;Box&lt;Envelope&gt;&gt;, Rejected&lt;()&gt;&gt;;
-<a href=#128 id=128 data-nosnippet>128</a>
-<a href=#129 id=129 data-nosnippet>129</a>    <span class="doccomment">/// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
-<a href=#130 id=130 data-nosnippet>130</a>    ///
-<a href=#131 id=131 data-nosnippet>131</a>    /// This function must only be called when Relay is configured to be in processing mode.
-<a href=#132 id=132 data-nosnippet>132</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-<a href=#133 id=133 data-nosnippet>133</a>    </span><span class="kw">fn </span>forward_store(
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="self">self</span>,
-<a href=#135 id=135 data-nosnippet>135</a>        s: <span class="kw-2">&amp;</span>relay_system::Addr&lt;<span class="kw">crate</span>::services::store::Store&gt;,
-<a href=#136 id=136 data-nosnippet>136</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt;;
-<a href=#137 id=137 data-nosnippet>137</a>}</code></pre></div></section></main></body></html>
+<a href=#110 id=110 data-nosnippet>110</a><span class="kw">impl</span>&lt;T&gt; Output&lt;T&gt; {
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="doccomment">/// Creates a new output with just a main output.
+<a href=#112 id=112 data-nosnippet>112</a>    </span><span class="kw">pub fn </span>just(main: T) -&gt; <span class="self">Self </span>{
+<a href=#113 id=113 data-nosnippet>113</a>        <span class="self">Self </span>{
+<a href=#114 id=114 data-nosnippet>114</a>            main,
+<a href=#115 id=115 data-nosnippet>115</a>            metrics: ProcessingExtractedMetrics::new(),
+<a href=#116 id=116 data-nosnippet>116</a>        }
+<a href=#117 id=117 data-nosnippet>117</a>    }
+<a href=#118 id=118 data-nosnippet>118</a>
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="doccomment">/// Maps an `Output&lt;T&gt;` to `Output&lt;S&gt;` by applying a function to [`Self::main`].
+<a href=#120 id=120 data-nosnippet>120</a>    </span><span class="kw">pub fn </span>map&lt;F, S&gt;(<span class="self">self</span>, f: F) -&gt; Output&lt;S&gt;
+<a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">where
+<a href=#122 id=122 data-nosnippet>122</a>        </span>F: FnOnce(T) -&gt; S,
+<a href=#123 id=123 data-nosnippet>123</a>    {
+<a href=#124 id=124 data-nosnippet>124</a>        Output {
+<a href=#125 id=125 data-nosnippet>125</a>            main: f(<span class="self">self</span>.main),
+<a href=#126 id=126 data-nosnippet>126</a>            metrics: <span class="self">self</span>.metrics,
+<a href=#127 id=127 data-nosnippet>127</a>        }
+<a href=#128 id=128 data-nosnippet>128</a>    }
+<a href=#129 id=129 data-nosnippet>129</a>}
+<a href=#130 id=130 data-nosnippet>130</a>
+<a href=#131 id=131 data-nosnippet>131</a><span class="doccomment">/// A processor output which can be forwarded to a different destination.
+<a href=#132 id=132 data-nosnippet>132</a></span><span class="kw">pub trait </span>Forward {
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="doccomment">/// Serializes the output into an [`Envelope`].
+<a href=#134 id=134 data-nosnippet>134</a>    ///
+<a href=#135 id=135 data-nosnippet>135</a>    /// All output must be serializable as an envelope.
+<a href=#136 id=136 data-nosnippet>136</a>    </span><span class="kw">fn </span>serialize_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Managed&lt;Box&lt;Envelope&gt;&gt;, Rejected&lt;()&gt;&gt;;
+<a href=#137 id=137 data-nosnippet>137</a>
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="doccomment">/// Serializes the output into a [`crate::services::store::StoreService`] compatible format.
+<a href=#139 id=139 data-nosnippet>139</a>    ///
+<a href=#140 id=140 data-nosnippet>140</a>    /// This function must only be called when Relay is configured to be in processing mode.
+<a href=#141 id=141 data-nosnippet>141</a>    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+<a href=#142 id=142 data-nosnippet>142</a>    </span><span class="kw">fn </span>forward_store(
+<a href=#143 id=143 data-nosnippet>143</a>        <span class="self">self</span>,
+<a href=#144 id=144 data-nosnippet>144</a>        s: <span class="kw-2">&amp;</span>relay_system::Addr&lt;<span class="kw">crate</span>::services::store::Store&gt;,
+<a href=#145 id=145 data-nosnippet>145</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Rejected&lt;()&gt;&gt;;
+<a href=#146 id=146 data-nosnippet>146</a>}</code></pre></div></section></main></body></html>
