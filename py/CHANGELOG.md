@@ -4,6 +4,16 @@
 
 - Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
 - Add `downsampled_event_retention` to the project configuration. ([#5013](https://github.com/getsentry/relay/pull/5013))
+- Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
+
+## 0.9.12
+
+### Various fixes & improvements
+
+- feat(billing): Add data categories for Prevent (#5052) by @brendanhsentry
+- release: 0.9.11 (9732dcf4) by @getsentry-bot
+- feat(billing): Add downsampled_event_retention to project configs (#5013) by @brendanhsentry
+- fix(contexts): Normalize browser and os names with missing versions (#4957) by @Dav1dde
 
 ## 0.9.11
 

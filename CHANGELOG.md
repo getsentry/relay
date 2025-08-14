@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
+
 **Features**:
 
 - Build and publish Relay containers with a distroless base image. ([#4940](https://github.com/getsentry/relay/pull/4940))
@@ -35,6 +37,7 @@
 - Add producer_name tag, and more rdkafka stats. ([#5031](https://github.com/getsentry/relay/pull/5031))
 - Add `healthcheck` command to relay CLI, for self hosted. ([#5044](https://github.com/getsentry/relay/pull/5044))
 - Change the default configuration to produce to `snuba-items`. ([#5055](https://github.com/getsentry/relay/pull/5055))
+- Backfill client and server sample rates on spans. ([#5059](https://github.com/getsentry/relay/pull/5059))
 
 ## 25.7.0
 
