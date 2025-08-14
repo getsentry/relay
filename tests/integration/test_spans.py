@@ -1129,9 +1129,8 @@ def test_span_ingestion(
 
     spans_consumer.assert_empty()
 
-    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+    metrics = metrics_consumer.get_metrics(with_headers=False)
     metrics_consumer.assert_empty()
-    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
         try:
             metric["value"].sort()

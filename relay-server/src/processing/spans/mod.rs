@@ -27,9 +27,6 @@ pub enum Error {
     /// The spans are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
-    /// The spans are filtered due to dynamic sampling.
-    #[error("filtered due to dynamic sampling: {0}")]
-    DynamicSampling(Outcome),
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -45,7 +42,6 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
-            Self::DynamicSampling(reason) => Some(reason.clone()),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
         (outcome, self)
@@ -107,28 +103,24 @@ impl processing::Processor for SpansProcessor {
         }
 
         dynamic_sampling::validate_configs(ctx);
-        let sampling = dynamic_sampling::run(&spans, ctx).await;
-        let server_sample_rate = sampling.sample_rate();
-        if let Some(sampling_outcome) = sampling.into_dropped_outcome() {
-            // TODO: metric extraction.
-            let spans = spans.map(|spans, records| {
-                records.lenient(DataCategory::Span);
-                UnsampledSpans { spans: spans.spans }
-            });
-            return Err(spans.reject_err(Error::DynamicSampling(sampling_outcome)));
-        }
+        let spans = match dynamic_sampling::run(spans, ctx).await {
+            Ok(spans) => spans,
+            Err(metrics) => return Ok(Output::metrics(metrics)),
+        };
 
-        let mut spans = process::expand(spans, server_sample_rate);
+        let mut spans = process::expand(spans);
 
         // TODO: normalization (conventions?)
-
-        // TODO: metrics (usage and count per root)
-        // TODO: possibly generic span metric extraction
         // TODO: pii scrubbing
 
         self.limiter.enforce_quotas(&mut spans, ctx).await?;
 
-        Ok(Output::just(SpanOutput::Processed(spans)))
+        let metrics = dynamic_sampling::create_indexed_metrics(&spans, ctx);
+
+        Ok(Output {
+            main: Some(SpanOutput::Processed(spans)),
+            metrics,
+        })
     }
 }
 
@@ -253,6 +245,14 @@ pub struct SerializedSpans {
 }
 
 impl SerializedSpans {
+    fn sampled(self, server_sample_rate: Option<f64>) -> SampledSpans {
+        SampledSpans {
+            headers: self.headers,
+            spans: self.spans,
+            server_sample_rate,
+        }
+    }
+
     fn serialize_envelope(self) -> Box<Envelope> {
         Envelope::from_parts(self.headers, Items::from_vec(self.spans))
     }
@@ -260,7 +260,7 @@ impl SerializedSpans {
 
 impl Counted for SerializedSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = outcome_count(&self.spans);
+        let quantity = outcome_count(&self.spans) as usize;
         smallvec::smallvec![
             (DataCategory::Span, quantity),
             (DataCategory::SpanIndexed, quantity),
@@ -319,28 +319,37 @@ impl CountRateLimited for Managed<ExpandedSpans> {
     type Error = Error;
 }
 
-/// Spans which have been rejected/dropped by dynamic sampling.
+/// Spans which have been sampled by dynamic sampling.
 ///
-/// Contained spans will only count towards the [`DataCategory::SpanIndexed`] category,
-/// as the total category is counted from now in in metrics.
-struct UnsampledSpans {
+/// Note: Spans where dynamic sampling could not yet make a sampling decision,
+/// are considered sampled.
+struct SampledSpans {
+    /// Original envelope headers.
+    headers: EnvelopeHeaders,
+
+    /// Expanded and parsed spans.
     spans: Vec<Item>,
+
+    /// Server side applied (dynamic) sample rate.
+    server_sample_rate: Option<f64>,
 }
 
-impl Counted for UnsampledSpans {
+impl Counted for SampledSpans {
     fn quantities(&self) -> Quantities {
-        let quantity = outcome_count(&self.spans);
-        smallvec::smallvec![(DataCategory::SpanIndexed, quantity),]
+        let quantity = outcome_count(&self.spans) as usize;
+        smallvec::smallvec![
+            (DataCategory::Span, quantity),
+            (DataCategory::SpanIndexed, quantity),
+        ]
     }
 }
 
 /// Returns the amount of contained spans, this count is best effort and can be used for outcomes.
 ///
 /// The function expects all passed items to only contain spans.
-fn outcome_count(spans: &[Item]) -> usize {
+fn outcome_count(spans: &[Item]) -> u32 {
     // We rely here on the invariant that all items in `self.spans` are actually spans,
     // that's why sum up `item_count`'s blindly instead of checking again for the item type
     // or using `Item::quantities`.
-    let c: u32 = spans.iter().filter_map(|item| item.item_count()).sum();
-    c as usize
+    spans.iter().filter_map(|item| item.item_count()).sum()
 }

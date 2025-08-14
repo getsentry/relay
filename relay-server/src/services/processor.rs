@@ -2448,6 +2448,7 @@ impl EnvelopeProcessorService {
         let ProcessEnvelopeGrouped {
             ref mut envelope,
             ref project_info,
+            ref sampling_project_info,
             ..
         } = message;
 
@@ -2468,7 +2469,13 @@ impl EnvelopeProcessorService {
         let client = envelope.envelope().meta().client().map(str::to_owned);
         let user_agent = envelope.envelope().meta().user_agent().map(str::to_owned);
         let project_key = envelope.envelope().meta().public_key();
-        let sampling_key = envelope.envelope().sampling_key();
+        // Only allow sending to the sampling key, if we successfully loaded a sampling project
+        // info relating to it. This filters out unknown/invalid project keys as well as project
+        // keys from different organizations.
+        let sampling_key = envelope
+            .envelope()
+            .sampling_key()
+            .filter(|_| sampling_project_info.is_some());
 
         // We set additional information on the scope, which will be removed after processing the
         // envelope.
@@ -2515,14 +2522,18 @@ impl EnvelopeProcessorService {
                 Ok(envelope_response.map(Submit::Envelope))
             }
             Ok(ProcessingResult::Output(Output { main, metrics })) => {
-                send_metrics(
-                    metrics.metrics,
-                    project_key,
-                    sampling_key,
-                    &self.inner.addrs.aggregator,
-                );
+                if let Some(metrics) = metrics {
+                    metrics.accept(|metrics| {
+                        send_metrics(
+                            metrics,
+                            project_key,
+                            sampling_key,
+                            &self.inner.addrs.aggregator,
+                        );
+                    });
+                }
 
-                Ok(Some(Submit::Output(main)))
+                Ok(main.map(Submit::Output))
             }
             Err(err) => Err(err),
         };

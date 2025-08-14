@@ -2,16 +2,13 @@ use relay_event_schema::protocol::SpanV2;
 
 use crate::envelope::{ContainerItems, Item, ItemContainer};
 use crate::managed::Managed;
-use crate::processing::spans::{Error, ExpandedSpans, Result, SerializedSpans};
+use crate::processing::spans::{Error, ExpandedSpans, Result, SampledSpans};
 use crate::services::outcome::DiscardReason;
 
 /// Parses all serialized spans.
 ///
 /// Individual, invalid spans are discarded.
-pub fn expand(
-    spans: Managed<SerializedSpans>,
-    server_sample_rate: Option<f64>,
-) -> Managed<ExpandedSpans> {
+pub fn expand(spans: Managed<SampledSpans>) -> Managed<ExpandedSpans> {
     spans.map(|spans, records| {
         let mut all_spans = Vec::new();
 
@@ -23,7 +20,7 @@ pub fn expand(
 
         ExpandedSpans {
             headers: spans.headers,
-            server_sample_rate,
+            server_sample_rate: spans.server_sample_rate,
             spans: all_spans,
         }
     })

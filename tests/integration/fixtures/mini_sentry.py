@@ -216,7 +216,14 @@ class Sentry(SentryLike):
         item = items[0]
         assert item.headers["type"] == "metric_buckets"
 
-        return item.payload.json
+        return sorted(
+            item.payload.json,
+            key=lambda m: (
+                m["name"],
+                sorted(m.get("tags", {}).items()),
+                m["timestamp"],
+            ),
+        )
 
 
 def _get_project_id(public_key, project_configs):

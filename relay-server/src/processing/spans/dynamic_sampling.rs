@@ -1,14 +1,20 @@
+use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 
 use chrono::Utc;
 use relay_dynamic_config::ErrorBoundary;
+use relay_metrics::{Bucket, BucketMetadata, BucketValue, UnixTimestamp};
+use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::SamplingConfig;
 use relay_sampling::config::RuleType;
-use relay_sampling::evaluation::SamplingEvaluator;
+use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator};
 
-use crate::managed::Managed;
+use crate::envelope::Item;
+use crate::managed::{Counted, Managed, Quantities};
+use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::processing::Context;
-use crate::processing::spans::SerializedSpans;
+use crate::processing::spans::{ExpandedSpans, SampledSpans, SerializedSpans, outcome_count};
+use crate::services::outcome::Outcome;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::SamplingResult;
 
@@ -45,7 +51,61 @@ pub fn validate_configs(ctx: Context<'_>) {
 ///
 /// All spans are evaluated in one go as they are required by the protocol to share the same
 /// DSC, which contains all the sampling relevant information.
-pub async fn run(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> SamplingResult {
+pub async fn run(
+    spans: Managed<SerializedSpans>,
+    ctx: Context<'_>,
+) -> Result<Managed<SampledSpans>, Managed<ExtractedMetrics>> {
+    let sampling_result = compute(&spans, ctx).await;
+
+    let sampling_match = match sampling_result {
+        SamplingResult::Match(m) if m.decision().is_drop() => m,
+        sampling_result => {
+            let sample_rate = sampling_result.sample_rate();
+            return Ok(spans.map(|spans, _| spans.sampled(sample_rate)));
+        }
+    };
+
+    // At this point the decision is to drop the spans.
+    let span_count = outcome_count(&spans.spans);
+    let metrics = create_metrics(spans.scoping(), span_count, SamplingDecision::Drop);
+    let (spans, metrics) = spans.split_once(|spans| (UnsampledSpans::from(spans), metrics));
+
+    let outcome = Outcome::FilteredSampling(sampling_match.into_matched_rules().into());
+    let _ = spans.reject_err(outcome);
+
+    Err(metrics)
+}
+
+/// Creates/extracts metrics for spans which have been determined to be kept by dynamic sampling.
+///
+/// Indexed metrics can only be extracted from the Relay making the final sampling decision,
+/// if the current Relay is not the final Relay, the function returns `None`.
+pub fn create_indexed_metrics(
+    spans: &Managed<ExpandedSpans>,
+    ctx: Context<'_>,
+) -> Option<Managed<ExtractedMetrics>> {
+    if !ctx.is_processing() {
+        return None;
+    }
+
+    let metrics = create_metrics(
+        spans.scoping(),
+        spans.spans.len() as u32,
+        SamplingDecision::Keep,
+    );
+
+    // Metrics are extracted from indexed spans, they should not emit any span outcomes.
+    debug_assert!(
+        metrics
+            .quantities()
+            .into_iter()
+            .all(|(c, _)| c == DataCategory::MetricBucket)
+    );
+
+    Some(spans.wrap(metrics))
+}
+
+async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> SamplingResult {
     // The DSC is always required, we need it to evaluate all rules, if it is missing,
     // no rules can be applied -> we sample the item.
     let Some(dsc) = spans.headers.dsc() else {
@@ -53,7 +113,12 @@ pub async fn run(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> Sampling
     };
 
     let project_sampling_config = get_sampling_config(ctx.project_info);
-    let root_sampling_config = ctx.sampling_project_info.and_then(get_sampling_config);
+    let root_sampling_config = ctx
+        .sampling_project_info
+        // Fallback to current project if there is no trace root project, this may happen,
+        // if the trace root is from a different organization.
+        .or(Some(ctx.project_info))
+        .and_then(get_sampling_config);
 
     // The root sampling config is always required for dynamic sampling. It determines the sample
     // rate which is applied to the item.
@@ -101,4 +166,70 @@ fn is_sampling_config_supported(project_info: &ProjectInfo) -> bool {
         return true;
     };
     matches!(config, ErrorBoundary::Ok(config) if !config.unsupported())
+}
+
+fn create_metrics(
+    scoping: Scoping,
+    span_count: u32,
+    sampling_decision: SamplingDecision,
+) -> ExtractedMetrics {
+    let mut metrics = ExtractedMetrics::default();
+
+    if span_count == 0 {
+        return metrics;
+    }
+
+    // For extracted metrics, Relay has always used the moment when the metrics were extracted
+    // as the received time, instead of the source item's received time.
+    let timestamp = UnixTimestamp::now();
+    let mut metadata = BucketMetadata::new(timestamp);
+    if sampling_decision.is_keep() {
+        metadata.extracted_from_indexed = true;
+    }
+
+    metrics.sampling_metrics.push(Bucket {
+        timestamp,
+        width: 0,
+        name: "c:spans/count_per_root_project@none".into(),
+        value: BucketValue::counter(span_count.into()),
+        tags: BTreeMap::from([
+            ("decision".to_owned(), sampling_decision.to_string()),
+            (
+                "target_project_id".to_owned(),
+                scoping.project_id.to_string(),
+            ),
+        ]),
+        metadata,
+    });
+    metrics.project_metrics.push(Bucket {
+        timestamp,
+        width: 0,
+        name: "c:spans/usage@none".into(),
+        value: BucketValue::counter(span_count.into()),
+        tags: Default::default(),
+        metadata,
+    });
+
+    metrics
+}
+
+/// Spans which have been rejected/dropped by dynamic sampling.
+///
+/// Contained spans will only count towards the [`DataCategory::SpanIndexed`] category,
+/// as the total category is counted from now in in metrics.
+struct UnsampledSpans {
+    spans: Vec<Item>,
+}
+
+impl From<SerializedSpans> for UnsampledSpans {
+    fn from(value: SerializedSpans) -> Self {
+        Self { spans: value.spans }
+    }
+}
+
+impl Counted for UnsampledSpans {
+    fn quantities(&self) -> Quantities {
+        let quantity = outcome_count(&self.spans) as usize;
+        smallvec::smallvec![(DataCategory::SpanIndexed, quantity),]
+    }
 }
