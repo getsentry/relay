@@ -179,7 +179,7 @@ fn create_metrics(
         return metrics;
     }
 
-    // For extracted metrics, Relay has always used the moment when the metrics was extracted
+    // For extracted metrics, Relay has always used the moment when the metrics were extracted
     // as the received time, instead of the source item's received time.
     let timestamp = UnixTimestamp::now();
     let mut metadata = BucketMetadata::new(timestamp);
