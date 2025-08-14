@@ -2,40 +2,37 @@
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span><span class="kw">crate</span>::envelope::{ContainerItems, Item, ItemContainer};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::managed::Managed;
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::processing::spans::{Error, ExpandedSpans, <span class="prelude-ty">Result</span>, SerializedSpans};
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::processing::spans::{Error, ExpandedSpans, <span class="prelude-ty">Result</span>, SampledSpans};
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="doccomment">/// Parses all serialized spans.
 <a href=#9 id=9 data-nosnippet>9</a>///
 <a href=#10 id=10 data-nosnippet>10</a>/// Individual, invalid spans are discarded.
-<a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">pub fn </span>expand(
-<a href=#12 id=12 data-nosnippet>12</a>    spans: Managed&lt;SerializedSpans&gt;,
-<a href=#13 id=13 data-nosnippet>13</a>    server_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-<a href=#14 id=14 data-nosnippet>14</a>) -&gt; Managed&lt;ExpandedSpans&gt; {
-<a href=#15 id=15 data-nosnippet>15</a>    spans.map(|spans, records| {
-<a href=#16 id=16 data-nosnippet>16</a>        <span class="kw">let </span><span class="kw-2">mut </span>all_spans = Vec::new();
-<a href=#17 id=17 data-nosnippet>17</a>
-<a href=#18 id=18 data-nosnippet>18</a>        <span class="kw">for </span>item <span class="kw">in </span><span class="kw-2">&amp;</span>spans.spans {
-<a href=#19 id=19 data-nosnippet>19</a>            <span class="kw">let </span>expanded = expand_span(item);
-<a href=#20 id=20 data-nosnippet>20</a>            <span class="kw">let </span>expanded = records.or_default(expanded, item);
-<a href=#21 id=21 data-nosnippet>21</a>            all_spans.extend(expanded);
-<a href=#22 id=22 data-nosnippet>22</a>        }
-<a href=#23 id=23 data-nosnippet>23</a>
-<a href=#24 id=24 data-nosnippet>24</a>        ExpandedSpans {
-<a href=#25 id=25 data-nosnippet>25</a>            headers: spans.headers,
-<a href=#26 id=26 data-nosnippet>26</a>            server_sample_rate,
-<a href=#27 id=27 data-nosnippet>27</a>            spans: all_spans,
-<a href=#28 id=28 data-nosnippet>28</a>        }
-<a href=#29 id=29 data-nosnippet>29</a>    })
-<a href=#30 id=30 data-nosnippet>30</a>}
-<a href=#31 id=31 data-nosnippet>31</a>
-<a href=#32 id=32 data-nosnippet>32</a><span class="kw">fn </span>expand_span(item: <span class="kw-2">&amp;</span>Item) -&gt; <span class="prelude-ty">Result</span>&lt;ContainerItems&lt;SpanV2&gt;&gt; {
-<a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span>spans = ItemContainer::parse(item)
-<a href=#34 id=34 data-nosnippet>34</a>        .map_err(|err| {
-<a href=#35 id=35 data-nosnippet>35</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"failed to parse span container: {err}"</span>);
-<a href=#36 id=36 data-nosnippet>36</a>            Error::Invalid(DiscardReason::InvalidJson)
-<a href=#37 id=37 data-nosnippet>37</a>        })<span class="question-mark">?
-<a href=#38 id=38 data-nosnippet>38</a>        </span>.into_items();
-<a href=#39 id=39 data-nosnippet>39</a>
-<a href=#40 id=40 data-nosnippet>40</a>    <span class="prelude-val">Ok</span>(spans)
-<a href=#41 id=41 data-nosnippet>41</a>}</code></pre></div></section></main></body></html>
+<a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">pub fn </span>expand(spans: Managed&lt;SampledSpans&gt;) -&gt; Managed&lt;ExpandedSpans&gt; {
+<a href=#12 id=12 data-nosnippet>12</a>    spans.map(|spans, records| {
+<a href=#13 id=13 data-nosnippet>13</a>        <span class="kw">let </span><span class="kw-2">mut </span>all_spans = Vec::new();
+<a href=#14 id=14 data-nosnippet>14</a>
+<a href=#15 id=15 data-nosnippet>15</a>        <span class="kw">for </span>item <span class="kw">in </span><span class="kw-2">&amp;</span>spans.spans {
+<a href=#16 id=16 data-nosnippet>16</a>            <span class="kw">let </span>expanded = expand_span(item);
+<a href=#17 id=17 data-nosnippet>17</a>            <span class="kw">let </span>expanded = records.or_default(expanded, item);
+<a href=#18 id=18 data-nosnippet>18</a>            all_spans.extend(expanded);
+<a href=#19 id=19 data-nosnippet>19</a>        }
+<a href=#20 id=20 data-nosnippet>20</a>
+<a href=#21 id=21 data-nosnippet>21</a>        ExpandedSpans {
+<a href=#22 id=22 data-nosnippet>22</a>            headers: spans.headers,
+<a href=#23 id=23 data-nosnippet>23</a>            server_sample_rate: spans.server_sample_rate,
+<a href=#24 id=24 data-nosnippet>24</a>            spans: all_spans,
+<a href=#25 id=25 data-nosnippet>25</a>        }
+<a href=#26 id=26 data-nosnippet>26</a>    })
+<a href=#27 id=27 data-nosnippet>27</a>}
+<a href=#28 id=28 data-nosnippet>28</a>
+<a href=#29 id=29 data-nosnippet>29</a><span class="kw">fn </span>expand_span(item: <span class="kw-2">&amp;</span>Item) -&gt; <span class="prelude-ty">Result</span>&lt;ContainerItems&lt;SpanV2&gt;&gt; {
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">let </span>spans = ItemContainer::parse(item)
+<a href=#31 id=31 data-nosnippet>31</a>        .map_err(|err| {
+<a href=#32 id=32 data-nosnippet>32</a>            <span class="macro">relay_log::debug!</span>(<span class="string">"failed to parse span container: {err}"</span>);
+<a href=#33 id=33 data-nosnippet>33</a>            Error::Invalid(DiscardReason::InvalidJson)
+<a href=#34 id=34 data-nosnippet>34</a>        })<span class="question-mark">?
+<a href=#35 id=35 data-nosnippet>35</a>        </span>.into_items();
+<a href=#36 id=36 data-nosnippet>36</a>
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="prelude-val">Ok</span>(spans)
+<a href=#38 id=38 data-nosnippet>38</a>}</code></pre></div></section></main></body></html>
