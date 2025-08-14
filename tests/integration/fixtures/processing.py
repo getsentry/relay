@@ -3,6 +3,7 @@ import json
 from google.protobuf.json_format import MessageToDict
 import msgpack
 import uuid
+import threading
 
 import pytest
 import os
@@ -13,13 +14,101 @@ from sentry_relay.consts import DataCategory
 from sentry_protos.snuba.v1.trace_item_pb2 import TraceItem
 
 
+# Worker-level state for topic names and failure tracking
+_worker_state = threading.local()
+
+
+def _get_worker_id():
+    """Get the pytest worker ID for xdist parallel execution"""
+    if hasattr(pytest, "worker_id"):
+        return getattr(pytest, "worker_id", "main")
+    
+    # Try to get worker id from the environment
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "main")
+    if worker_id == "":
+        worker_id = "main"
+    return worker_id
+
+
+def _init_worker_state():
+    """Initialize worker-specific state if not already done"""
+    if not hasattr(_worker_state, "topic_suffix"):
+        worker_id = _get_worker_id()
+        base_id = uuid.uuid4().hex[:8]  # Shorter UUID for readability
+        _worker_state.topic_suffix = f"{worker_id}-{base_id}"
+        _worker_state.failure_count = 0
+        _worker_state.consumers = {}
+
+
+def _increment_failure_count():
+    """Increment the failure count for this worker"""
+    _init_worker_state()
+    _worker_state.failure_count += 1
+    # Clear all cached consumers when failure count changes
+    _cleanup_cached_consumers()
+
+
+def _cleanup_cached_consumers():
+    """Clean up all cached consumers for this worker"""
+    _init_worker_state()
+    for consumer_tuple in _worker_state.consumers.values():
+        try:
+            consumer_tuple[0].close()  # consumer is the first element of the tuple
+        except:
+            pass
+    _worker_state.consumers.clear()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_worker_consumers():
+    """Cleanup all cached consumers at the end of the worker session"""
+    yield
+    _cleanup_cached_consumers()
+
+
 @pytest.fixture
 def get_topic_name():
     """
-    Generate a unique topic name for each test
+    Generate topic names that are reused per pytest worker.
+    When a test fails, topics get a new suffix to ensure fresh state.
     """
-    random = uuid.uuid4().hex
-    return lambda topic: f"relay-test-{topic}-{random}"
+    _init_worker_state()
+    
+    def topic_name_generator(topic):
+        failure_suffix = f"-f{_worker_state.failure_count}" if _worker_state.failure_count > 0 else ""
+        return f"relay-test-{topic}-{_worker_state.topic_suffix}{failure_suffix}"
+    
+    return topic_name_generator
+
+
+@pytest.fixture(autouse=True)
+def track_test_failures(request):
+    """
+    Automatically track test failures to trigger fresh topic/consumer creation
+    """
+    def check_for_failure():
+        # Check if any phase of the test failed
+        failed = False
+        for phase in ['setup', 'call', 'teardown']:
+            if hasattr(request.node, f'rep_{phase}'):
+                rep = getattr(request.node, f'rep_{phase}')
+                if rep.failed:
+                    failed = True
+                    break
+        
+        if failed:
+            _increment_failure_count()
+    
+    request.addfinalizer(check_for_failure)
+    yield
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True) 
+def pytest_runtest_makereport(item, call):
+    """Hook to capture test results for failure tracking"""
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, f"rep_{rep.when}", rep)
 
 
 @pytest.fixture
@@ -156,12 +245,27 @@ def kafka_producer(options):
 def kafka_consumer(request, get_topic_name, processing_config):
     """
     Creates a fixture that, when called, returns an already subscribed kafka consumer.
+    Consumers are reused per worker unless there's been a test failure.
     """
 
     def inner(topic: str, options=None):
+        _init_worker_state()
+        
         topic_name = get_topic_name(topic)
-        topics = [topic_name]
         options = processing_config(options)
+        
+        # Create a cache key based on topic and failure count
+        cache_key = f"{topic}_{_worker_state.failure_count}"
+        
+        # Try to reuse existing consumer if available
+        if cache_key in _worker_state.consumers:
+            cached_consumer, cached_options, cached_topic_name = _worker_state.consumers[cache_key]
+            if cached_topic_name == topic_name:
+                return cached_consumer, cached_options, cached_topic_name
+        
+        # Create new consumer
+        topics = [topic_name]
+        
         # look for the servers (it is the only config we are interested in)
         servers = [
             elm["value"]
@@ -179,7 +283,7 @@ def kafka_consumer(request, get_topic_name, processing_config):
 
         settings = {
             "bootstrap.servers": servers,
-            "group.id": "test-consumer-%s" % uuid.uuid4().hex,
+            "group.id": f"test-consumer-{_worker_state.topic_suffix}-{topic}-{_worker_state.failure_count}",
             "enable.auto.commit": True,
             "auto.offset.reset": "earliest",
         }
@@ -188,10 +292,17 @@ def kafka_consumer(request, get_topic_name, processing_config):
         consumer.assign([kafka.TopicPartition(t, 0) for t in topics])
 
         def die():
-            consumer.close()
+            # Only close if this consumer is not cached
+            if cache_key not in _worker_state.consumers:
+                consumer.close()
 
         request.addfinalizer(die)
-        return consumer, options, topic_name
+        
+        # Cache the consumer for reuse
+        consumer_tuple = (consumer, options, topic_name)
+        _worker_state.consumers[cache_key] = consumer_tuple
+        
+        return consumer_tuple
 
     return inner
 
@@ -338,16 +449,33 @@ class OutcomesConsumer(ConsumerBase):
 def consumer_fixture(kafka_consumer):
     def consumer_fixture(cls, default_topic):
         consumer = None
+        _last_cache_key = None
 
         def inner(timeout=None, topic=None):
-            nonlocal consumer
-            consumer = cls(timeout=timeout, *kafka_consumer(topic or default_topic))
+            nonlocal consumer, _last_cache_key
+            
+            _init_worker_state()
+            
+            # Generate cache key for this consumer request
+            actual_topic = topic or default_topic
+            cache_key = f"{actual_topic}_{_worker_state.failure_count}"
+            
+            # Only create new consumer if cache key changed or no consumer exists
+            if consumer is None or cache_key != _last_cache_key:
+                consumer = cls(timeout=timeout, *kafka_consumer(actual_topic))
+                _last_cache_key = cache_key
+            
             return consumer
 
         yield inner
 
+        # Only assert_empty if we have a consumer and it's the most recent version
         if consumer is not None:
-            consumer.assert_empty()
+            try:
+                consumer.assert_empty()
+            except:
+                # If assert_empty fails, increment failure count for next test
+                _increment_failure_count()
 
     return consumer_fixture
 

@@ -8,6 +8,9 @@ import redis
 
 import pytest
 
+# Import the failure tracking functions to ensure hooks are registered
+from .fixtures.processing import _increment_failure_count
+
 # all tests fixtures must be imported so that pytest finds them
 from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
