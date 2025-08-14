@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
-
 **Features**:
 
 - Build and publish Relay containers with a distroless base image. ([#4940](https://github.com/getsentry/relay/pull/4940))
@@ -14,6 +12,7 @@
 - Add payload size as an attribute to logs. ([#5042](https://github.com/getsentry/relay/pull/5042))
 - Pass `downsampled_event_retention` to `Traceitem` where appropriate. ([#5013](https://github.com/getsentry/relay/pull/5013), [#5041](https://github.com/getsentry/relay/pull/5041))
 - Remove `RelayMode::Capture` and the associated logic. ([#5053](https://github.com/getsentry/relay/pull/5053))
+- Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
 
 **Bug Fixes**:
 
@@ -38,6 +37,7 @@
 - Add `healthcheck` command to relay CLI, for self hosted. ([#5044](https://github.com/getsentry/relay/pull/5044))
 - Change the default configuration to produce to `snuba-items`. ([#5055](https://github.com/getsentry/relay/pull/5055))
 - Backfill client and server sample rates on spans. ([#5059](https://github.com/getsentry/relay/pull/5059))
+- Disable PII scrubbing for gen ai operation name. ([#5064](https://github.com/getsentry/relay/pull/5064))
 
 ## 25.7.0
 
