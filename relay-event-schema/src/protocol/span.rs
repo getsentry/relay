@@ -30,7 +30,7 @@ pub struct Span {
     pub exclusive_time: Annotated<f64>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = 128)]
+    #[metastructure(max_chars = 128, pii = "false")]
     pub op: Annotated<OperationType>,
 
     /// The Span id.
