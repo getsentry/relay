@@ -147,7 +147,7 @@ impl<T: Counted> Managed<T> {
 
     /// Splits [`Self`] into two other [`Managed`] items.
     ///
-    /// The two resulting managed instances are expected to have the same outcomes.
+    /// The two resulting managed instances together are expected to have the same outcomes as the original instance..
     /// Since splitting may introduce a new type of item, which some of the original
     /// quantities are transferred to, there may be new additional data categories created.
     pub fn split_once<F, S, U>(self, f: F) -> (Managed<S>, Managed<U>)
