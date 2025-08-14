@@ -3780,6 +3780,7 @@ dependencies = [
  "insta",
  "phf",
  "phf_codegen",
+ "relay-event-schema",
  "serde",
  "serde_json",
  "walkdir",

@@ -15,6 +15,7 @@ workspace = true
 
 [dependencies]
 phf = { workspace = true }
+relay-event-schema = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

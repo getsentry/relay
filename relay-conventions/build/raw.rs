@@ -15,24 +15,6 @@ enum Pii {
     False,
 }
 
-/// The type of an attribute value.
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum AttributeType {
-    String,
-    Boolean,
-    Integer,
-    Double,
-    #[serde(rename = "string[]")]
-    StringArray,
-    #[serde(rename = "boolean[]")]
-    BooleanArray,
-    #[serde(rename = "integer[]")]
-    IntegerArray,
-    #[serde(rename = "double[]")]
-    DoubleArray,
-}
-
 /// How to handle an attribute's deprecation.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -55,14 +37,11 @@ struct Deprecation {
 
 /// An attribute, according to the `sentry-conventions` schema.
 ///
-/// Omitted fields: `brief`, `has_dynamic_suffix`, `is_in_otel`, `example`, `sdks`.
+/// Omitted fields: `brief`, `has_dynamic_suffix`, `is_in_otel`, `example`, `sdks`, `ty`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Attribute {
     /// The attribute's name.
     key: String,
-    /// The type of the attribute's value.
-    #[serde(rename = "type")]
-    ty: AttributeType,
     /// Whether the attribute can contain PII.
     pii: Pii,
     /// If the attribute is deprecated, this contains
@@ -95,7 +74,6 @@ fn format_write_behavior(deprecation: Option<&Deprecation>) -> String {
 pub fn format_attribute_info(attr: Attribute) -> (String, String) {
     let Attribute {
         key,
-        ty,
         pii,
         deprecation,
         alias,
@@ -105,7 +83,6 @@ pub fn format_attribute_info(attr: Attribute) -> (String, String) {
         "AttributeInfo {{
             write_behavior: {write_behavior},
             pii: Pii::{pii:?},
-            ty: AttributeType::{ty:?},
             aliases: &{alias:?},
         }}"
     );
