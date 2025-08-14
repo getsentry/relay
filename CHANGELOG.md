@@ -38,6 +38,7 @@
 - Add `healthcheck` command to relay CLI, for self hosted. ([#5044](https://github.com/getsentry/relay/pull/5044))
 - Change the default configuration to produce to `snuba-items`. ([#5055](https://github.com/getsentry/relay/pull/5055))
 - Backfill client and server sample rates on spans. ([#5059](https://github.com/getsentry/relay/pull/5059))
+- Change the downsampled retention for logs to default to full fidelity retention. ([#5065](https://github.com/getsentry/relay/pull/5065))
 
 ## 25.7.0
 
