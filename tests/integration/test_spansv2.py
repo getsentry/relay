@@ -251,7 +251,11 @@ def test_spansv2_ds_sampled(
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
         "description": "some op",
-        "data": {"foo": "bar", "sentry.name": "some op"},
+        "data": {
+            "foo": "bar",
+            "sentry.name": "some op",
+            "sentry.server_sample_rate": 0.9,
+        },
         "measurements": {"server_sample_rate": {"value": 0.9}},
         "server_sample_rate": 0.9,
         "received": time_within_delta(ts),
