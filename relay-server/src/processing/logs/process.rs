@@ -568,6 +568,7 @@ mod tests {
                 },
                 ..Default::default()
             },
+            sampling_project_info: None,
             rate_limits: &relay_quotas::RateLimits::default(),
         };
         scrub_log(&mut data, context).unwrap();
@@ -994,6 +995,7 @@ mod tests {
                 ..Default::default()
             },
             rate_limits: &relay_quotas::RateLimits::default(),
+            sampling_project_info: None,
         };
         scrub_log(&mut data, context).unwrap();
 
@@ -1223,6 +1225,7 @@ mod tests {
                     ..Default::default()
                 },
                 rate_limits: &relay_quotas::RateLimits::default(),
+                sampling_project_info: None,
             };
 
             scrub_log(&mut data, context).unwrap();
