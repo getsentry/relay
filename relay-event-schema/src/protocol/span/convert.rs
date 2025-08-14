@@ -185,6 +185,7 @@ mod tests {
                 gen_ai_response_id: ~,
                 gen_ai_system: ~,
                 gen_ai_tool_name: ~,
+                gen_ai_operation_name: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
