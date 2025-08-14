@@ -8,7 +8,7 @@ use crate::managed;
 pub struct Quantities(pub BTreeMap<DataCategory, usize>);
 
 impl Quantities {
-    /// Asserts that all categories contained in this instance are also contained in `other`.
+    /// Asserts that all categories contained in this instance are also contained in `other` with the same quantities.
     ///
     /// Additional entries in `other` are ignored.
     #[track_caller]
