@@ -1,4 +1,5 @@
 use hmac::{Hmac, Mac};
+
 use relay_event_schema::processor::{
     self, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType, enum_set,
 };
@@ -42,22 +43,36 @@ pub fn process_attributes<P: Processor>(
     slf: &mut P,
     state: &ProcessingState,
 ) -> ProcessingResult {
-    // Process attributes by flattening the AttributeValue wrapper so PII processors see
-    // attributes.password = "secret" instead of attributes.password.value = "secret"
+    // Check if we're in default rules (no root ValueType)
+    // This is a workaround to support explicit selectors eg. $log.attributes.KEY.value to work but keep implicit selectors for default rules.
+    let is_advanced_rules = state
+        .iter()
+        .any(|s| s.value_type().contains(ValueType::OurLog));
+
     for (key, annotated_attribute) in value.iter_mut() {
         if let Some(attribute) = annotated_attribute.value_mut() {
-            let inner_value = &mut attribute.value.value;
-            let value_type = enum_set!(ValueType::Object);
-            let entered: ProcessingState<'_> =
-                state.enter_borrowed(key, state.inner_attrs(), value_type);
-            processor::process_value(inner_value, slf, &entered)?;
+            if is_advanced_rules {
+                // Advanced rules: process normally to allow explicit selectors like $log.attributes.KEY.value to work
+                let field_value_type = ValueType::for_field(annotated_attribute);
+                let key_state = state.enter_borrowed(key, state.inner_attrs(), field_value_type);
+                processor::process_value(annotated_attribute, slf, &key_state)?;
+            } else {
+                // Handle .value
+                let inner_value = &mut attribute.value.value;
+                let inner_value_type = ValueType::for_field(inner_value);
+                let entered = state.enter_borrowed(key, state.inner_attrs(), inner_value_type);
+                processor::process_value(inner_value, slf, &entered)?;
 
-            let field_value_type = ValueType::for_field(inner_value);
-            let field_entered = state.enter_borrowed(key, state.inner_attrs(), field_value_type);
-            processor::process_value(inner_value, slf, &field_entered)?;
+                // Handle .other
+                let object_value_type = enum_set!(ValueType::Object);
+                for (key, value) in attribute.other.iter_mut() {
+                    let other_state =
+                        state.enter_borrowed(key, state.inner_attrs(), object_value_type);
+                    processor::process_value(value, slf, &other_state)?;
+                }
+            }
         }
     }
-
     Ok(())
 }
 

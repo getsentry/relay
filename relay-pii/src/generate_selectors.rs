@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use relay_event_schema::processor::{
     self, Pii, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
 };
-use relay_event_schema::protocol::{AsPair, Attributes, PairList};
+use relay_event_schema::protocol::{AsPair, PairList};
 use relay_protocol::{Annotated, Meta, Value};
 use serde::Serialize;
 
@@ -117,15 +117,6 @@ impl Processor for GenerateSelectorsProcessor {
         state: &ProcessingState,
     ) -> ProcessingResult {
         utils::process_pairlist(self, value, state)
-    }
-
-    fn process_attributes(
-        &mut self,
-        value: &mut Attributes,
-        _meta: &mut Meta,
-        state: &ProcessingState,
-    ) -> ProcessingResult {
-        utils::process_attributes(value, self, state)
     }
 }
 

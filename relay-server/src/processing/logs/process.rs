@@ -1,7 +1,7 @@
 use relay_event_normalization::{
     ClientHints, FromUserAgentInfo as _, RawUserAgentInfo, SchemaProcessor,
 };
-use relay_event_schema::processor::{ProcessingState, process_value};
+use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
 use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog, OurLogHeader};
 use relay_metrics::UnixTimestamp;
 use relay_ourlogs::OtelLog;
@@ -132,7 +132,7 @@ fn expand_log_container(item: &Item, trust: RequestTrust) -> Result<ContainerIte
 }
 
 fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
-    let pii_config = ctx
+    let pii_config_from_scrubbing = ctx
         .project_info
         .config
         .datascrubbing_settings
@@ -141,12 +141,16 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
 
     if let Some(ref config) = ctx.project_info.config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
-        process_value(log, &mut processor, ProcessingState::root())?;
+        let root_state = ProcessingState::root().enter_static("", None, Some(ValueType::OurLog));
+        process_value(log, &mut processor, &root_state)?;
     }
 
-    if let Some(config) = pii_config {
+    if let Some(config) = pii_config_from_scrubbing {
         let mut processor = PiiProcessor::new(config.compiled());
-        process_value(log, &mut processor, ProcessingState::root())?;
+        // Use empty root (assumed to be Event) for legacy/default scrubbing rules.
+        // process_attributes will collapse Attribute into it's value for the default rules.
+        let root_state = ProcessingState::root();
+        process_value(log, &mut processor, &root_state)?;
     }
 
     Ok(())
@@ -247,8 +251,7 @@ fn process_attribute_types(ourlog: &mut OurLog) {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::processor::ValueType;
-    use relay_pii::{DataScrubbingConfig, PiiConfig, SelectorPathItem, SelectorSpec};
+    use relay_pii::{DataScrubbingConfig, PiiConfig};
     use relay_protocol::SerializableAnnotated;
 
     use crate::services::projects::project::ProjectInfo;
@@ -591,15 +594,15 @@ mod tests {
         {
           "api_key": {
             "type": "string",
-            "value": null
+            "value": "[Filtered]"
           },
           "auth_token": {
             "type": "string",
-            "value": null
+            "value": "[Filtered]"
           },
           "authorization": {
             "type": "string",
-            "value": null
+            "value": "[Filtered]"
           },
           "bank_account": {
             "type": "string",
@@ -639,11 +642,11 @@ mod tests {
           },
           "password": {
             "type": "string",
-            "value": null
+            "value": "[Filtered]"
           },
           "private_key": {
             "type": "string",
-            "value": null
+            "value": "[Filtered]"
           },
           "public_data": {
             "type": "string",
@@ -651,7 +654,7 @@ mod tests {
           },
           "secret": {
             "type": "string",
-            "value": null
+            "value": "[Filtered]"
           },
           "session_id": {
             "type": "string",
@@ -671,7 +674,7 @@ mod tests {
           },
           "very_sensitive_data": {
             "type": "string",
-            "value": null
+            "value": "[Filtered]"
           },
           "visa_card": {
             "type": "string",
@@ -684,9 +687,12 @@ mod tests {
                   "rem": [
                     [
                       "@password:filter",
-                      "x"
+                      "s",
+                      0,
+                      10
                     ]
-                  ]
+                  ],
+                  "len": 19
                 }
               }
             },
@@ -696,9 +702,12 @@ mod tests {
                   "rem": [
                     [
                       "@password:filter",
-                      "x"
+                      "s",
+                      0,
+                      10
                     ]
-                  ]
+                  ],
+                  "len": 16
                 }
               }
             },
@@ -707,10 +716,13 @@ mod tests {
                 "": {
                   "rem": [
                     [
-                      "@password:filter",
-                      "x"
+                      "@bearer:filter",
+                      "s",
+                      0,
+                      10
                     ]
-                  ]
+                  ],
+                  "len": 43
                 }
               }
             },
@@ -825,9 +837,12 @@ mod tests {
                   "rem": [
                     [
                       "@password:filter",
-                      "x"
+                      "s",
+                      0,
+                      10
                     ]
-                  ]
+                  ],
+                  "len": 9
                 }
               }
             },
@@ -837,9 +852,12 @@ mod tests {
                   "rem": [
                     [
                       "@password:filter",
-                      "x"
+                      "s",
+                      0,
+                      10
                     ]
-                  ]
+                  ],
+                  "len": 118
                 }
               }
             },
@@ -849,9 +867,12 @@ mod tests {
                   "rem": [
                     [
                       "@password:filter",
-                      "x"
+                      "s",
+                      0,
+                      10
                     ]
-                  ]
+                  ],
+                  "len": 9
                 }
               }
             },
@@ -876,9 +897,12 @@ mod tests {
                   "rem": [
                     [
                       "strip-fields",
-                      "x"
+                      "s",
+                      0,
+                      10
                     ]
-                  ]
+                  ],
+                  "len": 19
                 }
               }
             },
@@ -980,16 +1004,16 @@ mod tests {
                 }
             },
             "applications": {
-                "test_field_mac": [
+                "test_field_mac.value": [
                     "project:0"
                 ],
-                "test_field_imei": [
+                "test_field_imei.value": [
                     "project:1"
                 ],
-                "test_field_uuid": [
+                "test_field_uuid.value": [
                     "project:2"
                 ],
-                "test_field_regex_passes || test_field_regex_fails": [
+                "test_field_regex_passes.value || test_field_regex_fails.value": [
                     "project:3"
                 ]
             }
@@ -1253,34 +1277,18 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_log_specific_selectors() {
+    fn test_scrub_log_implicit_attribute_value_does_not_match() {
         let json = r#"
         {
             "timestamp": 1544719860.0,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b174",
             "level": "info",
-            "body": "Test log [127.0.0.1]",
+            "body": "Test",
             "attributes": {
-                "password_object": {
+                "remove_this_string_abc123": {
                     "type": "string",
-                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-                },
-                "password_by_value": {
-                    "type": "string",
-                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-                },
-                "password.object.with.periods": {
-                    "type": "string",
-                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-                },
-                "password.by_value.with.periods": {
-                    "type": "string",
-                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-                },
-                "secret": {
-                    "type": "string",
-                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+                    "value": "abc123"
                 }
             }
         }
@@ -1288,31 +1296,540 @@ mod tests {
 
         let mut data = Annotated::<OurLog>::from_json(json).unwrap();
 
-        let logentry_selector: SelectorSpec = SelectorSpec::Path(vec![
-            SelectorPathItem::Type(ValueType::OurLog),
-            SelectorPathItem::Key("body".to_owned()),
-        ]);
-
         let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_abc123": {
+                    "type": "pattern",
+                    "pattern": "abc123",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "abc---"
+                    }
+                },
+            },
             "applications": {
-                logentry_selector.to_string(): ["@ip:filter"],
-                "$ourlog.attributes.password_object": ["@password:filter"],
-                "$ourlog.attributes.password_by_value.value": ["@password:filter"],
-                "$ourlog.attributes.'password.object.with.periods'": ["@password:filter"],
-                "$ourlog.attributes.'password.by_value.with.periods'.value": ["@password:filter"]
+                "$log.attributes.remove_this_string_abc123": ["remove_abc123"], // This selector should NOT match
             }
         }))
         .unwrap();
 
         let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
         scrubbing_config.scrub_data = true;
-        scrubbing_config.scrub_defaults = false;
-        scrubbing_config.scrub_ip_addresses = true;
+        scrubbing_config.scrub_defaults = true;
 
         let ctx = make_context(scrubbing_config, Some(config));
 
         scrub_log(&mut data, ctx).unwrap();
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&data));
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "span_id": "eee19b7ec3c1b174",
+          "level": "info",
+          "body": "Test",
+          "attributes": {
+            "remove_this_string_abc123": {
+              "type": "string",
+              "value": "abc123"
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_log_explicit_attribute_value_does_match() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test",
+            "attributes": {
+                "remove_this_string_abc123": {
+                    "type": "string",
+                    "value": "abc123"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_abc123": {
+                    "type": "pattern",
+                    "pattern": "abc123",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "abc---"
+                    }
+                },
+            },
+            "applications": {
+                "$log.attributes.remove_this_string_abc123.value": ["remove_abc123"],
+            }
+        }))
+        .unwrap();
+
+        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = true;
+        scrubbing_config.scrub_defaults = true;
+
+        let ctx = make_context(scrubbing_config, Some(config));
+
+        scrub_log(&mut data, ctx).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "span_id": "eee19b7ec3c1b174",
+          "level": "info",
+          "body": "Test",
+          "attributes": {
+            "remove_this_string_abc123": {
+              "type": "string",
+              "value": "abc---"
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "remove_this_string_abc123": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "remove_abc123",
+                        "s",
+                        0,
+                        6
+                      ]
+                    ],
+                    "len": 6
+                  }
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_log_sensitive_fields() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log",
+            "attributes": {
+                "normal_field": {
+                    "type": "string",
+                    "value": "normal_data"
+                },
+                "sensitive_custom": {
+                    "type": "string",
+                    "value": "should_be_removed"
+                },
+                "another_sensitive": {
+                    "type": "integer",
+                    "value": 42
+                },
+                "my_value": {
+                    "type": "string",
+                    "value": "this_should_be_removed_as_sensitive"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let mut scrubbing_config = DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = true;
+        scrubbing_config.scrub_defaults = false;
+        scrubbing_config.scrub_ip_addresses = false;
+        scrubbing_config.sensitive_fields = vec![
+            "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
+            "sensitive_custom".to_owned(),
+            "another_sensitive".to_owned(),
+        ];
+
+        let ctx = make_context(scrubbing_config, None);
+        scrub_log(&mut data, ctx).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes), @r###"
+        {
+          "another_sensitive": {
+            "type": "integer",
+            "value": null
+          },
+          "my_value": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "normal_field": {
+            "type": "string",
+            "value": "normal_data"
+          },
+          "sensitive_custom": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "_meta": {
+            "another_sensitive": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "strip-fields",
+                      "x"
+                    ]
+                  ]
+                }
+              }
+            },
+            "my_value": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "strip-fields",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 35
+                }
+              }
+            },
+            "sensitive_custom": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "strip-fields",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 17
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_log_safe_fields() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log with email@example.com",
+            "attributes": {
+                "password": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "credit_card": {
+                    "type": "string",
+                    "value": "4242424242424242"
+                },
+                "secret": {
+                    "type": "string",
+                    "value": "this_should_stay"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let mut scrubbing_config = DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = true;
+        scrubbing_config.scrub_defaults = true;
+        scrubbing_config.scrub_ip_addresses = false;
+        scrubbing_config.exclude_fields = vec!["secret".to_owned()]; // Only 'secret' is safe
+        let ctx = make_context(scrubbing_config, None);
+        scrub_log(&mut data, ctx).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes), @r###"
+        {
+          "credit_card": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "password": {
+            "type": "string",
+            "value": "[Filtered]"
+          },
+          "secret": {
+            "type": "string",
+            "value": "this_should_stay"
+          },
+          "_meta": {
+            "credit_card": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@creditcard:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 16
+                }
+              }
+            },
+            "password": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_log_attributes_other_field() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log",
+            "attributes": {
+                "normal_field": {
+                    "type": "string",
+                    "value": "normal_value",
+                    "other": {
+                        "password": "secret123",
+                        "nested_data": "some_data",
+                        "hidden_cc": "4242 4242 4242 4242"
+                    }
+                },
+                "password": {
+                    "type": "string",
+                    "value": "should_be_removed",
+                    "other": {
+                        "extra_info": "this_stays"
+                    }
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let mut scrubbing_config = DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = true;
+        scrubbing_config.scrub_defaults = true; // Test with default scrubbing (legacy path)
+
+        let ctx = make_context(scrubbing_config, None);
+        scrub_log(&mut data, ctx).unwrap();
+
+        // Default scrubbing should remove password field value but not affect other
+        let password_attr = data
+            .value()
+            .unwrap()
+            .attributes
+            .value()
+            .unwrap()
+            .get_attribute("password")
+            .unwrap();
+        assert_eq!(
+            password_attr.value.value.value(),
+            Some(&Value::String("[Filtered]".to_owned()))
+        );
+        assert!(!password_attr.other.is_empty());
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes), @r###"
+        {
+          "normal_field": {
+            "type": "string",
+            "value": "normal_value",
+            "other": {
+              "hidden_cc": "[Filtered]",
+              "nested_data": "some_data",
+              "password": "[Filtered]"
+            }
+          },
+          "password": {
+            "type": "string",
+            "value": "[Filtered]",
+            "other": {
+              "extra_info": "this_stays"
+            }
+          },
+          "_meta": {
+            "normal_field": {
+              "other": {
+                "hidden_cc": {
+                  "": {
+                    "rem": [
+                      [
+                        "@creditcard:filter",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 19
+                  }
+                },
+                "password": {
+                  "": {
+                    "rem": [
+                      [
+                        "@password:filter",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 9
+                  }
+                }
+              }
+            },
+            "password": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 17
+                }
+              }
+            }
+          }
+        }
+        "###);
+
+        // Now test with advanced rules that can target the other field
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_nested_password": {
+                    "type": "pattern",
+                    "pattern": "secret123",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[REDACTED]"
+                    }
+                }
+            },
+            "applications": {
+                "$log.attributes.normal_field.other.nested_password": ["remove_nested_password"]
+            }
+        }))
+        .unwrap();
+
+        let mut scrubbing_config = DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = true;
+        scrubbing_config.scrub_defaults = true; // We still want to scrub the default rules, but we're adding pii config rules on top.
+        let ctx = make_context(scrubbing_config, Some(config));
+        scrub_log(&mut data, ctx).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes), @r###"
+        {
+          "normal_field": {
+            "type": "string",
+            "value": "normal_value",
+            "other": {
+              "hidden_cc": "[Filtered]",
+              "nested_data": "some_data",
+              "password": "[Filtered]"
+            }
+          },
+          "password": {
+            "type": "string",
+            "value": "[Filtered]",
+            "other": {
+              "extra_info": "this_stays"
+            }
+          },
+          "_meta": {
+            "normal_field": {
+              "other": {
+                "hidden_cc": {
+                  "": {
+                    "rem": [
+                      [
+                        "@creditcard:filter",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 19
+                  }
+                },
+                "password": {
+                  "": {
+                    "rem": [
+                      [
+                        "@password:filter",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 9
+                  }
+                }
+              }
+            },
+            "password": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 17
+                }
+              }
+            }
+          }
+        }
+        "###);
     }
 }

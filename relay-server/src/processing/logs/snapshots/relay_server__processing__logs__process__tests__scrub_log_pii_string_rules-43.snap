@@ -5,7 +5,7 @@ expression: SerializableAnnotated(&data.value().unwrap().attributes)
 {
   "@password|my_password_123": {
     "type": "string",
-    "value": null
+    "value": ""
   },
   "_meta": {
     "@password|my_password_123": {
@@ -14,9 +14,12 @@ expression: SerializableAnnotated(&data.value().unwrap().attributes)
           "rem": [
             [
               "@password",
-              "x"
+              "x",
+              0,
+              0
             ]
-          ]
+          ],
+          "len": 15
         }
       }
     }
