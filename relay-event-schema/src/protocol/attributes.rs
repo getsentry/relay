@@ -4,9 +4,7 @@ use relay_protocol::{
 };
 use std::{borrow::Borrow, fmt};
 
-use crate::processor::{
-    ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType, process_value,
-};
+use crate::processor::{ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType};
 
 #[derive(Clone, PartialEq, Empty, FromValue, IntoValue)]
 #[metastructure(value_type = "Attribute")]
@@ -277,21 +275,13 @@ impl ProcessValue for Attributes {
 
     fn process_child_values<P>(
         &mut self,
-        processor: &mut P,
-        state: &ProcessingState<'_>,
+        _processor: &mut P,
+        _state: &ProcessingState<'_>,
     ) -> ProcessingResult
     where
         P: Processor,
     {
-        for (key, annotated_attribute) in self.0.iter_mut() {
-            if let Some(attribute) = annotated_attribute.value_mut() {
-                let inner_value = &mut attribute.value.value;
-                let value_type = ValueType::for_field(inner_value);
-                let state = state.enter_borrowed(key, state.inner_attrs(), value_type);
-                process_value(inner_value, processor, &state)?;
-            }
-        }
-
+        // Attributes are only one layer deep, so we don't need to recurse (unless KVLists are allowed as an attribute type in the future).
         Ok(())
     }
 }

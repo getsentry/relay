@@ -247,12 +247,38 @@ fn process_attribute_types(ourlog: &mut OurLog) {
 
 #[cfg(test)]
 mod tests {
-    use relay_pii::PiiConfig;
+    use relay_event_schema::processor::ValueType;
+    use relay_pii::{DataScrubbingConfig, PiiConfig, SelectorPathItem, SelectorSpec};
     use relay_protocol::SerializableAnnotated;
 
     use crate::services::projects::project::ProjectInfo;
 
     use super::*;
+
+    fn make_context(
+        scrubbing_config: DataScrubbingConfig,
+        pii_config: Option<PiiConfig>,
+    ) -> Context<'static> {
+        let config = Box::leak(Box::new(relay_config::Config::default()));
+        let global_config = Box::leak(Box::new(relay_dynamic_config::GlobalConfig::default()));
+        let project_info = Box::leak(Box::new(ProjectInfo {
+            config: relay_dynamic_config::ProjectConfig {
+                pii_config,
+                datascrubbing_settings: scrubbing_config,
+                ..Default::default()
+            },
+            ..Default::default()
+        }));
+        let rate_limits = Box::leak(Box::new(relay_quotas::RateLimits::default()));
+
+        Context {
+            config,
+            global_config,
+            project_info,
+            rate_limits,
+            sampling_project_info: None,
+        }
+    }
 
     #[test]
     fn test_process_attribute_types() {
@@ -558,20 +584,8 @@ mod tests {
         ];
         scrubbing_config.exclude_fields = vec!["public_data".to_owned()];
 
-        let context = Context {
-            config: &relay_config::Config::default(),
-            global_config: &relay_dynamic_config::GlobalConfig::default(),
-            project_info: &ProjectInfo {
-                config: relay_dynamic_config::ProjectConfig {
-                    datascrubbing_settings: scrubbing_config,
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-            sampling_project_info: None,
-            rate_limits: &relay_quotas::RateLimits::default(),
-        };
-        scrub_log(&mut data, context).unwrap();
+        let ctx = make_context(scrubbing_config, None);
+        scrub_log(&mut data, ctx).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes), @r###"
         {
@@ -889,7 +903,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_log_pii_custom_rules() {
+    fn test_scrub_log_pii_custom_object_rules() {
         let json = r#"
         {
             "timestamp": 1544719860.0,
@@ -983,21 +997,8 @@ mod tests {
         ))
         .unwrap();
 
-        let context = Context {
-            config: &relay_config::Config::default(),
-            global_config: &relay_dynamic_config::GlobalConfig::default(),
-            project_info: &ProjectInfo {
-                config: relay_dynamic_config::ProjectConfig {
-                    pii_config: Some(config),
-                    datascrubbing_settings: scrubbing_config,
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-            rate_limits: &relay_quotas::RateLimits::default(),
-            sampling_project_info: None,
-        };
-        scrub_log(&mut data, context).unwrap();
+        let ctx = make_context(scrubbing_config, Some(config));
+        scrub_log(&mut data, ctx).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes), @r###"
         {
@@ -1092,7 +1093,7 @@ mod tests {
     }
 
     #[test]
-    fn test_string_pii_scrubbing_rules() {
+    fn test_scrub_log_pii_string_rules() {
         let test_cases = vec![
             // IP rules
             ("@ip", "127.0.0.1"),
@@ -1213,24 +1214,105 @@ mod tests {
             scrubbing_config.scrub_defaults = false;
             scrubbing_config.scrub_ip_addresses = false;
 
-            let context = Context {
-                config: &relay_config::Config::default(),
-                global_config: &relay_dynamic_config::GlobalConfig::default(),
-                project_info: &ProjectInfo {
-                    config: relay_dynamic_config::ProjectConfig {
-                        pii_config: Some(config),
-                        datascrubbing_settings: scrubbing_config,
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                rate_limits: &relay_quotas::RateLimits::default(),
-                sampling_project_info: None,
-            };
+            let ctx = make_context(scrubbing_config, Some(config));
 
-            scrub_log(&mut data, context).unwrap();
+            scrub_log(&mut data, ctx).unwrap();
 
             insta::assert_json_snapshot!(SerializableAnnotated(&data.value().unwrap().attributes));
         }
+    }
+
+    #[test]
+    fn test_scrub_log_base_fields() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+            "attributes": {}
+        }
+        "#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "applications": {
+                "$string": ["@password:filter"],
+            }
+        }))
+        .unwrap();
+
+        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = true;
+
+        let ctx = make_context(scrubbing_config, Some(config));
+        scrub_log(&mut data, ctx).unwrap();
+        insta::assert_json_snapshot!(SerializableAnnotated(&data));
+    }
+
+    #[test]
+    fn test_scrub_log_specific_selectors() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log [127.0.0.1]",
+            "attributes": {
+                "password_object": {
+                    "type": "string",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+                },
+                "password_by_value": {
+                    "type": "string",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+                },
+                "password.object.with.periods": {
+                    "type": "string",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+                },
+                "password.by_value.with.periods": {
+                    "type": "string",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+                },
+                "secret": {
+                    "type": "string",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let logentry_selector: SelectorSpec = SelectorSpec::Path(vec![
+            SelectorPathItem::Type(ValueType::OurLog),
+            SelectorPathItem::Key("body".to_owned()),
+        ]);
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "applications": {
+                logentry_selector.to_string(): ["@ip:filter"],
+                "$ourlog.attributes.password_object": ["@password:filter"],
+                "$ourlog.attributes.password_by_value.value": ["@password:filter"],
+                "$ourlog.attributes.'password.object.with.periods'": ["@password:filter"],
+                "$ourlog.attributes.'password.by_value.with.periods'.value": ["@password:filter"]
+            }
+        }))
+        .unwrap();
+
+        let mut scrubbing_config = relay_pii::DataScrubbingConfig::default();
+        scrubbing_config.scrub_data = true;
+        scrubbing_config.scrub_defaults = false;
+        scrubbing_config.scrub_ip_addresses = true;
+
+        let ctx = make_context(scrubbing_config, Some(config));
+
+        scrub_log(&mut data, ctx).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data));
     }
 }
