@@ -1,0 +1,78 @@
+services:
+  redis-master:
+    image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
+    container_name: redis-master
+    command:
+      - redis-server
+      - --port
+      - "16379"
+    ports:
+      - "16379:16379"
+    networks:
+      - sentinel-cluster
+
+  redis-replica:
+    image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
+    container_name: redis-replica
+    command:
+      - redis-server
+      - --port
+      - "16380"
+      - --replicaof
+      - redis-master
+      - "16379"
+    depends_on:
+      - redis-master
+    ports:
+      - "16380:16380"
+    networks:
+      - sentinel-cluster
+
+  redis-sentinel-1:
+    image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
+    container_name: redis-sentinel-1
+    command:
+      - sh
+      - -ec
+      - |
+        cat <<EOF > /sentinel.conf
+        port 26379
+        sentinel monitor redis-sentry redis-master 16379 2
+        sentinel down-after-milliseconds redis-sentry 5000
+        sentinel parallel-syncs redis-sentry 1
+        sentinel failover-timeout redis-sentry 10000
+        EOF
+        exec redis-server /sentinel.conf --sentinel
+    depends_on:
+      - redis-master
+      - redis-replica
+    ports:
+      - "26379:26379"
+    networks:
+      - sentinel-cluster
+
+  redis-sentinel-2:
+    image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
+    container_name: redis-sentinel-2
+    command:
+      - sh
+      - -ec
+      - |
+        cat <<EOF > /sentinel.conf
+        port 26380
+        sentinel monitor redis-sentry redis-master 16379 2
+        sentinel down-after-milliseconds redis-sentry 5000
+        sentinel parallel-syncs redis-sentry 1
+        sentinel failover-timeout redis-sentry 10000
+        EOF
+        exec redis-server /sentinel.conf --sentinel
+    depends_on:
+      - redis-master
+      - redis-replica
+    ports:
+      - "26380:26380"
+    networks:
+      - sentinel-cluster
+
+networks:
+  sentinel-cluster:

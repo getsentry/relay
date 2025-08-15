@@ -92,6 +92,19 @@ enum RedisConfigFromFile {
         #[serde(flatten)]
         options: PartialRedisConfigOptions,
     },
+
+    /// Connect to a Sentinel cluster.
+    Sentinel {
+        // List of redis:// urls of sentinel nodes.
+        sentinel_nodes: Vec<String>,
+
+        /// Name of a monitored master from sentinel cluster.
+        master_name: String,
+
+        /// Additional configuration options for the redis client and a connections pool.
+        #[serde(flatten)]
+        options: PartialRedisConfigOptions,
+    },
 }
 
 /// Redis configuration.
@@ -108,6 +121,17 @@ pub enum RedisConfig {
     },
     /// Connect to a single Redis instance.
     Single(SingleRedisConfig),
+
+    /// Connect to a Sentinel cluster.
+    Sentinel {
+        /// List of redis:// urls of sentinel nodes.
+        sentinel_nodes: Vec<String>,
+        /// Name of a monitored master from sentinel cluster.
+        master_name: String,
+        /// Options of the Redis config.
+        #[serde(flatten)]
+        options: PartialRedisConfigOptions,
+    },
 }
 
 /// Struct that can serialize a string to a single Redis connection.
@@ -155,6 +179,15 @@ impl From<RedisConfigFromFile> for RedisConfig {
             RedisConfigFromFile::SingleWithOpts { server, options } => {
                 Self::Single(SingleRedisConfig::Detailed { server, options })
             }
+            RedisConfigFromFile::Sentinel {
+                sentinel_nodes,
+                master_name,
+                options,
+            } => Self::Sentinel {
+                sentinel_nodes,
+                master_name,
+                options,
+            },
         }
     }
 }
@@ -190,6 +223,15 @@ pub enum RedisConfigRef<'a> {
     Single {
         /// Reference to the Redis node url.
         server: &'a String,
+        /// Options of the Redis config.
+        options: RedisConfigOptions,
+    },
+    /// Connect to a Sentinel cluster.
+    Sentinel {
+        /// Reference to the Sentinel nodes urls of the cluster.
+        sentinel_nodes: &'a [String],
+        /// Name of a monitored master from sentinel cluster.
+        master_name: &'a str,
         /// Options of the Redis config.
         options: RedisConfigOptions,
     },
@@ -252,6 +294,15 @@ pub(super) fn build_redis_config(
         RedisConfig::Single(SingleRedisConfig::Simple(server)) => RedisConfigRef::Single {
             server,
             options: Default::default(),
+        },
+        RedisConfig::Sentinel {
+            sentinel_nodes,
+            master_name,
+            options,
+        } => RedisConfigRef::Sentinel {
+            sentinel_nodes,
+            master_name,
+            options: build_redis_config_options(options, default_connections),
         },
     }
 }
@@ -522,6 +573,35 @@ max_connections: 20
     }
 
     #[test]
+    fn test_redis_sentinel_nodes_opts() {
+        let yaml = r#"
+sentinel_nodes:
+    - "redis://127.0.0.1:26379"
+    - "redis://127.0.0.2:26379"
+master_name: sentry-redis
+max_connections: 10
+"#;
+
+        let config: RedisConfig = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: sentinel with options");
+
+        assert_eq!(
+            config,
+            RedisConfig::Sentinel {
+                sentinel_nodes: vec![
+                    "redis://127.0.0.1:26379".to_owned(),
+                    "redis://127.0.0.2:26379".to_owned()
+                ],
+                master_name: "sentry-redis".to_owned(),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(10),
+                    ..Default::default()
+                },
+            }
+        );
+    }
+
+    #[test]
     fn test_redis_cluster_serialize() {
         let config = RedisConfig::Cluster {
             cluster_nodes: vec![
@@ -631,6 +711,36 @@ max_connections: 20
             "recycle_timeout": 2,
             "recycle_check_frequency": 100
           }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_redis_sentinel_serialize() {
+        let config = RedisConfig::Sentinel {
+            sentinel_nodes: vec![
+                "redis://127.0.0.1:26379".to_owned(),
+                "redis://127.0.0.2:26379".to_owned(),
+            ],
+            master_name: "sentry-redis".to_owned(),
+            options: PartialRedisConfigOptions {
+                max_connections: Some(42),
+                ..Default::default()
+            },
+        };
+
+        assert_json_snapshot!(config, @r###"
+        {
+          "sentinel_nodes": [
+            "redis://127.0.0.1:26379",
+            "redis://127.0.0.2:26379"
+          ],
+          "master_name": "sentry-redis",
+          "max_connections": 42,
+          "idle_timeout": 60,
+          "create_timeout": 3,
+          "recycle_timeout": 2,
+          "recycle_check_frequency": 100
         }
         "###);
     }
