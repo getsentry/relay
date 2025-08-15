@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@uuid:replace|ceee0822-ed8f-4622-b2a3-789e73e75cd1": {
+    "type": "string",
+    "value": "[uuid]"
+  },
+  "_meta": {
+    "@uuid:replace|ceee0822-ed8f-4622-b2a3-789e73e75cd1": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@uuid:replace",
+              "s",
+              0,
+              6
+            ]
+          ],
+          "len": 36
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@password|my_password_123": {
+    "type": "string",
+    "value": null
+  },
+  "_meta": {
+    "@password|my_password_123": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@password",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@email:replace|test@example.com": {
+    "type": "string",
+    "value": "[email]"
+  },
+  "_meta": {
+    "@email:replace|test@example.com": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@email:replace",
+              "s",
+              0,
+              7
+            ]
+          ],
+          "len": 16
+        }
+      }
+    }
+  }
+}

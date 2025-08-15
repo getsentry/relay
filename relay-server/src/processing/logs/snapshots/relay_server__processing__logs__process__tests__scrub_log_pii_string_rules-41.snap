@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@userpath:remove|/Users/john/Documents": {
+    "type": "string",
+    "value": "/Users//Documents"
+  },
+  "_meta": {
+    "@userpath:remove|/Users/john/Documents": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@userpath:remove",
+              "x",
+              7,
+              7
+            ]
+          ],
+          "len": 21
+        }
+      }
+    }
+  }
+}

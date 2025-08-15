@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@bearer|Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9": {
+    "type": "string",
+    "value": "Bearer [token]"
+  },
+  "_meta": {
+    "@bearer|Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@bearer",
+              "s",
+              0,
+              14
+            ]
+          ],
+          "len": 43
+        }
+      }
+    }
+  }
+}

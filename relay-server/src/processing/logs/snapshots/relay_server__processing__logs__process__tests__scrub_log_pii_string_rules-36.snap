@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@usssn:replace|078-05-1120": {
+    "type": "string",
+    "value": "[us-ssn]"
+  },
+  "_meta": {
+    "@usssn:replace|078-05-1120": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@usssn:replace",
+              "s",
+              0,
+              8
+            ]
+          ],
+          "len": 11
+        }
+      }
+    }
+  }
+}

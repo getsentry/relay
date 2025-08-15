@@ -3,6 +3,7 @@
 ## 25.8.0
 
 - Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
+- Improved PII Scrubbing for attributes ([#5061](https://github.com/getsentry/relay/pull/5061)))
 
 **Features**:
 

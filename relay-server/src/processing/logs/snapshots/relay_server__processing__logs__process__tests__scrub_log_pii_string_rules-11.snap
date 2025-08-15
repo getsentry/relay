@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@creditcard:remove|4242424242424242": {
+    "type": "string",
+    "value": ""
+  },
+  "_meta": {
+    "@creditcard:remove|4242424242424242": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@creditcard:remove",
+              "x",
+              0,
+              0
+            ]
+          ],
+          "len": 16
+        }
+      }
+    }
+  }
+}
