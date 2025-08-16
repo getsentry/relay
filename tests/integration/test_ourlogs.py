@@ -137,7 +137,7 @@ def test_ourlog_extraction_with_otel_logs(
         "organizationId": "1",
         "projectId": "42",
         "received": time_within_delta(),
-        "retentionDays": 90,
+        "retentionDays": 30,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -312,7 +312,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "organizationId": "1",
             "projectId": "42",
             "received": time_within_delta(),
-            "retentionDays": 90,
+            "retentionDays": 30,
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -354,7 +354,7 @@ def test_ourlog_extraction_with_sentry_logs(
             "organizationId": "1",
             "projectId": "42",
             "received": time_within_delta(),
-            "retentionDays": 90,
+            "retentionDays": 30,
             "serverSampleRate": 1.0,
             "timestamp": time_within_delta(
                 ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -424,7 +424,7 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
         "organizationId": "1",
         "projectId": "42",
         "received": time_within_delta(),
-        "retentionDays": 90,
+        "retentionDays": 30,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
@@ -552,7 +552,7 @@ def test_browser_name_version_extraction(
         "organizationId": "1",
         "projectId": "42",
         "received": time_within_delta(),
-        "retentionDays": 90,
+        "retentionDays": 30,
         "serverSampleRate": 1.0,
         "timestamp": time_within_delta(
             ts, delta=timedelta(seconds=1), expect_resolution="ns"
