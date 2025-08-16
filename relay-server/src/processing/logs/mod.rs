@@ -196,13 +196,14 @@ impl Forward for LogOutput {
         let scoping = logs.scoping();
         let received_at = logs.received_at();
 
-        let (logs, _) = logs.split_with_context(|logs| (logs.logs, logs.retention));
+        let (logs, retentions) = logs
+            .split_with_context(|logs| (logs.logs, (logs.retention, logs.downsampled_retention)));
         let ctx = store::Context {
             scoping,
             received_at,
             // Hard-code retentions until we have a per data category retention
-            retention: Some(30),
-            downsampled_retention: Some(30),
+            retention: retentions.0,
+            downsampled_retention: retentions.1,
         };
 
         for log in logs {
