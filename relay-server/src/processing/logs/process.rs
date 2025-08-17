@@ -150,7 +150,7 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
         // Use empty root (assumed to be Event) for legacy/default scrubbing rules.
         // process_attributes will collapse Attribute into it's value for the default rules.
         let root_state = ProcessingState::root();
-        process_value(log, &mut processor, &root_state)?;
+        process_value(log, &mut processor, root_state)?;
     }
 
     Ok(())
