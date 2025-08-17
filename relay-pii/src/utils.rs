@@ -52,18 +52,16 @@ pub fn process_attributes<P: Processor>(
     for (key, annotated_attribute) in value.iter_mut() {
         if let Some(attribute) = annotated_attribute.value_mut() {
             if is_advanced_rules {
-                // Advanced rules: process normally to allow explicit selectors like $log.attributes.KEY.value to work
+                // Process normally to allow explicit selectors like $log.attributes.KEY.value to work
                 let field_value_type = ValueType::for_field(annotated_attribute);
                 let key_state = state.enter_borrowed(key, state.inner_attrs(), field_value_type);
                 processor::process_value(annotated_attribute, slf, &key_state)?;
             } else {
-                // Handle .value
                 let inner_value = &mut attribute.value.value;
                 let inner_value_type = ValueType::for_field(inner_value);
                 let entered = state.enter_borrowed(key, state.inner_attrs(), inner_value_type);
                 processor::process_value(inner_value, slf, &entered)?;
 
-                // Handle .other
                 let object_value_type = enum_set!(ValueType::Object);
                 for (key, value) in attribute.other.iter_mut() {
                     let other_state =

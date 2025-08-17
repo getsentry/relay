@@ -280,7 +280,6 @@ impl ProcessValue for Attributes {
     where
         P: Processor,
     {
-        // Attributes are only one layer deep, so we don't need to recurse (unless KVLists are allowed as an attribute type in the future).
         Ok(())
     }
 }
