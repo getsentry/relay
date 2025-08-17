@@ -467,9 +467,9 @@ def test_ourlog_extraction_with_string_pii_scrubbing(
 @pytest.mark.parametrize(
     "attribute_key,attribute_value,expected_value,rule_type",
     [
-        ("password", "my_password_123", None, "@password"),
-        ("secret_key", "my_secret_key_123", None, "@password"),
-        ("api_key", "my_api_key_123", None, "@password"),
+        ("password", "my_password_123", "[Filtered]", "@password:filter"),
+        ("secret_key", "my_secret_key_123", "[Filtered]", "@password:filter"),
+        ("api_key", "my_api_key_123", "[Filtered]", "@password:filter"),
     ],
 )
 def test_ourlog_extraction_default_pii_scrubbing_attributes(
@@ -486,6 +486,14 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
 
     relay_instance = relay(mini_sentry, options=TEST_CONFIG)
     ts = datetime.now(timezone.utc)
@@ -531,6 +539,14 @@ def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     project_config["config"]["features"] = [
         "organizations:ourlogs-ingestion",
     ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
     relay = relay_with_processing(options=TEST_CONFIG)
     ts = datetime.now(timezone.utc)
 
