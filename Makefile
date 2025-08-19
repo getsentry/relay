@@ -143,7 +143,7 @@ init-submodules:
 	@git submodule update --init --recursive
 .PHONY: init-submodules
 
-setup-git: .git/hooks/pre-commit init-submodules ## make sure all git configured and all the submodules are fetched
+setup-git: init-submodules ## make sure all git configured and all the submodules are fetched
 .PHONY: setup-git
 
 setup-venv: .venv/bin/python .venv/python-requirements-stamp ## create a Python virtual environment with development requirements installed
@@ -172,9 +172,6 @@ clean-target-dir:
 	# Bump the mtime of an empty file.
 	# Make will re-run 'pip install' if the mtime on requirements-dev.txt is higher again.
 	touch .venv/python-requirements-stamp
-
-.git/hooks/pre-commit:
-	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit
 
 help: ## this help
 	@ awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-10s\033[0m\t%s\n", $$1, $$2 }' $(MAKEFILE_LIST) | column -s$$'\t' -t
