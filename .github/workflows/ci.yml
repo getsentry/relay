@@ -45,10 +45,6 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Install Rust Toolchain
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
@@ -57,6 +53,23 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
+
+      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
+        with:
+          version: '0.8.2'
+          # we just cache the venv-dir directly in action-setup-venv
+          enable-cache: false
+
+      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+        with:
+          python-version: 3.11.9
+          cache-dependency-path: uv.lock
+          install-cmd: uv sync --frozen --only-dev --active
+
+      - name: Setup pre-commit
+        run: pre-commit install-hooks
+
+      - run: pre-commit run --all-files
 
       - run: make style lint
 
@@ -214,16 +227,21 @@ jobs:
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install Dependencies
-        run: pip install -U pytest
-
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
+
+      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
+        with:
+          version: '0.8.2'
+          # we just cache the venv-dir directly in action-setup-venv
+          enable-cache: false
+
+      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+        with:
+          python-version: 3.11.9
+          cache-dependency-path: uv.lock
+          install-cmd: uv sync --frozen --only-dev --active
 
       - name: Build and Install Library
         run: pip install -v --editable py
@@ -773,9 +791,17 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@884ad927a57e558e7a70b92f2bccf9198a4be546 # v6
         with:
-          python-version: "3.11"
+          version: '0.8.2'
+          # we just cache the venv-dir directly in action-setup-venv
+          enable-cache: false
+
+      - uses: getsentry/action-setup-venv@3a832a9604b3e1a4202ae559248f26867b467cc7 # v2.1.1
+        with:
+          python-version: 3.11.9
+          cache-dependency-path: uv.lock
+          install-cmd: uv sync --frozen --only-dev --active
 
       - run: make test-integration
         env:
@@ -862,13 +888,22 @@ jobs:
           docker compose logs
 
   validate-devservices-config:
-      runs-on: ubuntu-24.04
-      needs: devservices-files-changed
-      if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
-      steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-        name: Checkout repository
-      - uses: getsentry/action-validate-devservices-config@02a078d1280293e6598cabfbd318a01609c12c83
-        name: Validate devservices config
-        with:
-          requirements-file-path: requirements-dev.txt
+    runs-on: ubuntu-24.04
+    needs: devservices-files-changed
+    if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      name: Checkout repository
+
+    - name: Get devservices version
+      id: get-devservices-version
+      run: |
+        awk -F'"' '
+          /name/ { pkg = $2 }
+          /version/ { if (pkg == "devservices") print "version="$2 }
+        ' uv.lock >> $GITHUB_OUTPUT
+
+    - uses: getsentry/action-validate-devservices-config@711ae7221998ddf81211f25f5e3873ecffd22387
+      name: Validate devservices config
+      with:
+        devservices-version: ${{ steps.get-devservices-version.outputs.version }}
