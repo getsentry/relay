@@ -5,4 +5,29 @@ repos:
     - id: check-github-actions
     - id: check-github-workflows
 
-# TODO: black, rustfmt
+# TODO: rustfmt
+
+-   repo: local
+    hooks:
+      # Configuration for black exists in pyproject.toml,
+      # but we let pre-commit take care of the file filtering.
+      - id: black
+        name: black
+        entry: black
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      # Configuration for flake8 exists in setup.cfg,
+      # but we let pre-commit take care of the file filtering.
+      - id: flake8
+        name: flake8
+        entry: flake8
+        language: system
+        types: [python]
+        require_serial: true
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        types: [python]
+        require_serial: true

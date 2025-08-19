@@ -205,10 +205,10 @@ two ways to install this:
 
 ```bash
 # Install the release build, recommended:
-pip install --editable ./py
+uv sync --frozen
 
 # Install the debug build, faster installation but much slower runtime:
-RELAY_DEBUG=1 pip install --editable ./py
+RELAY_DEBUG=1 uv sync --frozen
 ```
 
 For testing, we use ubiquitous `pytest`. Again, ensure that your virtualenv is

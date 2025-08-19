@@ -14,7 +14,10 @@ def main(context: dict[str, str]) -> int:
     )
 
     print("syncing .venv ...")
-    proc.run(("uv", "sync", "--frozen", "--quiet", "--active"))
+    proc.run(
+        ("uv", "sync", "--frozen", "--verbose", "--active"),
+        env={"RELAY_DEBUG": "1"}
+    )
 
     print("installing pre-commit hooks ...")
     proc.run(("pre-commit", "install-hooks"))
