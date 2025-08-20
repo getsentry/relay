@@ -15,14 +15,14 @@ def main(context: dict[str, str]) -> int:
 
     print("syncing .venv ...")
     proc.run(
-        ("uv", "sync", "--frozen", "--verbose", "--active"),
-        env={"RELAY_DEBUG": "1"}
+        ("uv", "sync", "--frozen", "--quiet", "--active", "--no-install-workspace"),
     )
 
     # uv sync cannot editable install so long as the build-backend is setuptools
-    print("editable install ...")
+    print("editable install py/ ...")
     proc.run(
-        ("uv", "pip", "install", "-e", f"{reporoot}/py"),
+        ("uv", "pip", "install", "-v", "-e", f"{reporoot}/py"),
+        env={"RELAY_DEBUG": "1"}
     )
 
     print("installing pre-commit hooks ...")
