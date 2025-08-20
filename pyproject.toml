@@ -63,6 +63,6 @@ module = [
     "msgpack.*",
     "pytest_localserver.*",
     "opentelemetry.*",
-    "sentry_relay._lowlevel*",
+    "sentry_relay._lowlevel",
 ]
 ignore_missing_imports = true
