@@ -9,8 +9,6 @@ use axum::routing::{MethodRouter, post};
 use axum::{Json, RequestExt};
 use bytes::Bytes;
 use relay_config::Config;
-use relay_event_schema::protocol::EventId;
-use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
@@ -102,20 +100,15 @@ impl FromRequest<ServiceState> for EnvelopeParams {
     }
 }
 
-#[derive(Serialize)]
-struct StoreResponse {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<EventId>,
-}
-
 /// Handler for the envelope store endpoint.
 async fn handle(
     state: ServiceState,
     params: EnvelopeParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = params.extract_envelope()?;
-    let id = common::handle_envelope(&state, envelope).await?;
-    Ok(Json(StoreResponse { id }))
+    let response = common::handle_envelope_with_log_points(&state, envelope).await?;
+
+    Ok(Json(response))
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {

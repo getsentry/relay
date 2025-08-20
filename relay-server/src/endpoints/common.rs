@@ -6,7 +6,8 @@ use relay_config::RelayMode;
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::managed::ManagedEnvelope;
@@ -296,6 +297,24 @@ fn queue_envelope(
     Ok(())
 }
 
+#[derive(Serialize)]
+pub struct StoreResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<EventId>,
+    pub log_points: Option<Vec<LogPoint>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LogPoint {
+    pub id: usize,
+    pub message_template: String,
+    pub tags: HashMap<String, String>,
+    pub source_file: String,
+    pub line_number: usize,
+    pub sample_rate: f64,
+    pub valid_until: Option<usize>,
+}
+
 /// Handles an envelope store request.
 ///
 /// Sentry envelopes may come either directly from an HTTP request (the envelope endpoint calls this
@@ -304,10 +323,10 @@ fn queue_envelope(
 ///
 /// This returns `Some(EventId)` if the envelope contains an event, either explicitly as payload or
 /// implicitly through an item that will create an event during ingestion.
-pub async fn handle_envelope(
+pub async fn handle_envelope_with_log_points(
     state: &ServiceState,
     envelope: Box<Envelope>,
-) -> Result<Option<EventId>, BadStoreRequest> {
+) -> Result<StoreResponse, BadStoreRequest> {
     emit_envelope_metrics(&envelope);
 
     if state.memory_checker().check_memory().is_exceeded() {
@@ -324,7 +343,10 @@ pub async fn handle_envelope(
     let event_id = managed_envelope.envelope().event_id();
     if managed_envelope.envelope().is_empty() {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
-        return Ok(event_id);
+        return Ok(StoreResponse {
+            id: event_id,
+            log_points: None,
+        });
     }
 
     let project_key = managed_envelope.envelope().meta().public_key();
@@ -338,9 +360,9 @@ pub async fn handle_envelope(
         state.project_cache_handle().fetch(sampling_project_key);
     }
 
-    let checked = state
-        .project_cache_handle()
-        .get(project_key)
+    let project = state.project_cache_handle().get(project_key);
+
+    let checked = project
         .check_envelope(managed_envelope)
         .await
         .map_err(BadStoreRequest::EventRejected)?;
@@ -359,6 +381,25 @@ pub async fn handle_envelope(
 
     queue_envelope(state, managed_envelope)?;
 
+    let log_points =
+        if let crate::services::projects::project::ProjectState::Enabled(project_info) =
+            project.state()
+        {
+            dbg!(project_info.last_change);
+            let log_points = project_info
+                .config
+                .filter_settings
+                .csp
+                .disallowed_sources
+                .iter()
+                .filter_map(|row| serde_json::from_str::<LogPoint>(row).ok())
+                .collect();
+            log_points
+        } else {
+            vec![]
+        };
+    dbg!(&log_points);
+
     if checked.rate_limits.is_limited() {
         // Even if some envelope items have been queued, there might be active rate limits on
         // other items. Communicate these rate limits to the downstream (Relay or SDK).
@@ -366,8 +407,20 @@ pub async fn handle_envelope(
         // See `IntoResponse` implementation of `BadStoreRequest`.
         Err(BadStoreRequest::RateLimited(checked.rate_limits))
     } else {
-        Ok(event_id)
+        return Ok(StoreResponse {
+            id: event_id,
+            log_points: Some(log_points),
+        });
     }
+}
+
+pub async fn handle_envelope(
+    state: &ServiceState,
+    envelope: Box<Envelope>,
+) -> Result<Option<EventId>, BadStoreRequest> {
+    let res = handle_envelope_with_log_points(state, envelope).await?;
+
+    Ok(res.id)
 }
 
 fn emit_envelope_metrics(envelope: &Envelope) {
