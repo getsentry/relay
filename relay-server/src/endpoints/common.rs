@@ -311,7 +311,8 @@ pub struct LogPoint {
     pub tags: HashMap<String, String>,
     pub source_file: String,
     pub line_number: usize,
-    pub sample_rate: f64,
+    pub sample_rate: Option<f64>,
+    pub sample_expression: Option<String>,
     pub valid_until: Option<usize>,
 }
 
