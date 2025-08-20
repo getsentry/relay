@@ -39,6 +39,15 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Get changed files
+        id: changes
+        uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd # v3.0.0
+        with:
+          list-files: json
+          filters: |
+            all:
+              - added|modified: '**/*'
+
       - name: Setup SSH agent
         if: env.SSH_PRIVATE_KEY != ''
         uses: webfactory/ssh-agent@v0.9.0
@@ -69,7 +78,11 @@ jobs:
       - name: Setup pre-commit
         run: pre-commit install-hooks
 
-      - run: pre-commit run --all-files
+      - name: Run pre-commit
+        run: |
+          jq '.[]' --raw-output <<< '${{steps.changes.outputs.all_files}}' |
+            # Run pre-commit to lint and format check files that were changed (but not deleted)
+            xargs pre-commit run --files
 
       - run: make style lint
 
