@@ -5,6 +5,13 @@ name = "relay"
 version = "0.0.0"
 dependencies = ["sentry_relay"]
 
+[tool.uv]
+environments = ["sys_platform == 'darwin' or sys_platform == 'linux'"]
+
+[[tool.uv.index]]
+url = "https://pypi.devinfra.sentry.io/simple"
+default = true
+
 [tool.uv.sources]
 sentry_relay = { workspace = true }
 
