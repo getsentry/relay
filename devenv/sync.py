@@ -21,8 +21,7 @@ def main(context: dict[str, str]) -> int:
     # uv sync cannot editable install so long as the build-backend is setuptools
     print("editable install py/ ...")
     proc.run(
-        ("uv", "pip", "install", "-v", "-e", f"{reporoot}/py"),
-        env={"RELAY_DEBUG": "1"}
+        ("uv", "pip", "install", "-v", "-e", f"{reporoot}/py"), env={"RELAY_DEBUG": "1"}
     )
 
     print("installing pre-commit hooks ...")
