@@ -144,11 +144,9 @@ clean-target-dir:
 
 # Dependencies
 
-.venv/bin/python:
-	@uv sync --frozen
-
-.venv/python-requirements-stamp: .venv/bin/python
-	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
+.venv/python-requirements-stamp:
+	uv sync --frozen --verbose
+	RELAY_DEBUG=1 uv pip install --editable py
 	# Bump the mtime of an empty file.
 	# Make will re-run 'pip install' if the mtime on requirements-dev.txt is higher again.
 	touch .venv/python-requirements-stamp

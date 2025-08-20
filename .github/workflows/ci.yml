@@ -244,7 +244,7 @@ jobs:
           install-cmd: uv sync --frozen --only-dev --active
 
       - name: Build and Install Library
-        run: pip install -v --editable py
+        run: uv sync --frozen --verbose --active
         env:
           RELAY_DEBUG: 1
 

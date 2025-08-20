@@ -204,11 +204,14 @@ is active and install the package, which builds the native library. There are
 two ways to install this:
 
 ```bash
+# Install dependencies:
+uv sync --frozen
+
 # Install the release build, recommended:
-pip install --editable ./py
+uv pip install -v -e py
 
 # Install the debug build, faster installation but much slower runtime:
-RELAY_DEBUG=1 pip install --editable ./py
+RELAY_DEBUG=1 uv pip install -v -e py
 ```
 
 For testing, we use ubiquitous `pytest`. Again, ensure that your virtualenv is

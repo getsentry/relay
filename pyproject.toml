@@ -3,6 +3,13 @@ name = "relay"
 # see py/setup.py for versioning; we only have this here to make uv happy
 # which we intend to use for dependency management, not packaging
 version = "0.0.0"
+dependencies = ["sentry_relay"]
+
+[tool.uv.sources]
+sentry_relay = { workspace = true }
+
+[tool.uv.workspace]
+members = ["py"]
 
 [dependency-groups]
 dev = [
@@ -26,14 +33,12 @@ dev = [
     "requests>=2.32.4",
     "sentry-protos>=0.2.0",
     "sentry-sdk>=2.30.0",
-    "setuptools>=78.1.1",
     "types-protobuf>=5.27.0.20240626",
     "types-pyyaml>=6.0.12.10",
     "types-redis>=4.5.1.3",
     "types-requests>=2.30.0.0",
     "types-setuptools>=69.0.0.0",
     "werkzeug>=3.0.6",
-    "wheel>=0.45.1",
     "zstandard>=0.18.0",
 ]
 
