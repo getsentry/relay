@@ -528,6 +528,115 @@ def test_ourlog_extraction_default_pii_scrubbing_attributes(
     assert rem_info[0][0] == rule_type
 
 
+def test_ourlog_extraction_default_pii_scrubbing_does_not_scrub_default_attributes(
+    mini_sentry,
+    relay_with_processing,
+    items_consumer,
+):
+    items_consumer = items_consumer()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:ourlogs-ingestion",
+    ]
+    project_config["config"].setdefault(
+        "datascrubbingSettings",
+        {
+            "scrubData": True,
+            "scrubDefaults": True,
+            "scrubIpAddresses": True,
+        },
+    )
+
+    # Testing the 'anything' filter as it's the most egregious with deep wildcards
+    project_config["config"]["piiConfig"] = {
+        "rules": {
+            "remove_custom_field": {
+                "type": "anything",
+                "redaction": {"method": "replace", "text": "[REDACTED]"},
+            }
+        },
+        "applications": {"**": ["remove_custom_field"]},
+    }
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_sentry_logs(
+        {
+            "timestamp": ts.timestamp(),
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "Test log",
+            "attributes": {
+                "custom_field": {"value": "custom_value", "type": "string"},
+            },
+        }
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    item = items_consumer.get_item()
+    # Some of the following should not be redacted, but currently they are inside the `Attributes` object which
+    # treats every PII field as 'true' (default field), thus it's targetable by rules like '**'.
+    assert item == {
+        "attributes": {
+            "sentry._meta.fields.attributes.sentry.browser.version": {
+                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":4}}}}'
+            },
+            "sentry._meta.fields.attributes.custom_field": {
+                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":12}}}}'
+            },
+            "sentry.browser.version": {"stringValue": "[REDACTED]"},
+            "sentry._meta.fields.attributes.sentry.observed_timestamp_nanos": {
+                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":19}}}}'
+            },
+            "custom_field": {"stringValue": "[REDACTED]"},
+            "sentry.body": {"stringValue": "[REDACTED]"},
+            "sentry._meta.fields.attributes.sentry.browser.name": {
+                "stringValue": '{"meta":{"value":{"":{"rem":[["remove_custom_field","s",0,10]],"len":15}}}}'
+            },
+            "sentry.severity_text": {"stringValue": "info"},
+            "sentry.observed_timestamp_nanos": {"stringValue": "[REDACTED]"},
+            "sentry.span_id": {"stringValue": "eee19b7ec3c1b174"},
+            "sentry.payload_size_bytes": mock.ANY,
+            "sentry.browser.name": {"stringValue": "[REDACTED]"},
+            "sentry._meta.fields.body": {
+                "stringValue": '{"meta":{"":{"rem":[["remove_custom_field","s",0,10]],"len":8}}}'
+            },
+            "sentry.timestamp_nanos": {
+                "stringValue": time_within_delta(
+                    ts,
+                    delta=timedelta(seconds=0),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
+            "sentry.timestamp_precise": {
+                "intValue": time_within_delta(
+                    ts,
+                    delta=timedelta(seconds=0),
+                    expect_resolution="ns",
+                    precision="us",
+                )
+            },
+        },
+        "clientSampleRate": 1.0,
+        "itemId": mock.ANY,
+        "itemType": "TRACE_ITEM_TYPE_LOG",
+        "organizationId": "1",
+        "projectId": "42",
+        "received": time_within_delta(),
+        "retentionDays": 90,
+        "serverSampleRate": 1.0,
+        "timestamp": time_within_delta(
+            ts, delta=timedelta(seconds=1), expect_resolution="ns"
+        ),
+        "traceId": "5b8efff798038103d269b633813fc60c",
+    }
+
+
 def test_ourlog_extraction_with_sentry_logs_with_missing_fields(
     mini_sentry,
     relay_with_processing,

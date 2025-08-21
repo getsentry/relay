@@ -1961,7 +1961,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_log_anything_deep_wild_cards() {
+    fn test_scrub_log_deep_wild_cards_anything() {
         let json = r#"
         {
             "timestamp": 1544719860.0,
