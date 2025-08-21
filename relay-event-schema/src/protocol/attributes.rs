@@ -12,7 +12,7 @@ pub struct Attribute {
     pub value: AttributeValue,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties)]
+    #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
 }
 

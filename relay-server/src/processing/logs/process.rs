@@ -1743,9 +1743,9 @@ mod tests {
 
         let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
             "rules": {
-                "remove_nested_password": {
+                "remove_nested_other_data": {
                     "type": "pattern",
-                    "pattern": "secret123",
+                    "pattern": "some_data",
                     "redaction": {
                         "method": "replace",
                         "text": "[REDACTED]"
@@ -1753,7 +1753,7 @@ mod tests {
                 }
             },
             "applications": {
-                "$log.attributes.normal_field.other.nested_password": ["remove_nested_password"]
+                "$log.attributes.normal_field.other.nested_data": ["remove_nested_other_data"]
             }
         }))
         .unwrap();
@@ -1771,7 +1771,7 @@ mod tests {
             "value": "normal_value",
             "other": {
               "hidden_cc": "[Filtered]",
-              "nested_data": "some_data",
+              "nested_data": "[REDACTED]",
               "password": "[Filtered]"
             }
           },
@@ -1796,6 +1796,19 @@ mod tests {
                       ]
                     ],
                     "len": 19
+                  }
+                },
+                "nested_data": {
+                  "": {
+                    "rem": [
+                      [
+                        "remove_nested_other_data",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 9
                   }
                 },
                 "password": {
