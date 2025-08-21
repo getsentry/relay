@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Improved PII Scrubbing for attributes ([#5061](https://github.com/getsentry/relay/pull/5061)))
+- Improved PII Scrubbing for attributes / logs ([#5061](https://github.com/getsentry/relay/pull/5061)))
 
 ## 25.8.0
 
