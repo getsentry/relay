@@ -33,6 +33,6 @@ def main(context: dict[str, str]) -> int:
     )
 
     print("installing pre-commit hooks ...")
-    proc.run((f"{reporoot}/.venv/bin/pre-commit", "install-hooks"))
+    proc.run((f"{reporoot}/.venv/bin/pre-commit", "install", "--install-hooks"))
 
     return 0

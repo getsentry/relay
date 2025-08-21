@@ -6,8 +6,6 @@ repos:
     # TODO: reactivate when fixed
     # - id: check-github-workflows
 
-# TODO: rustfmt
-
 -   repo: local
     hooks:
       # Configuration for black exists in pyproject.toml,
