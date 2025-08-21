@@ -205,7 +205,7 @@ two ways to install this:
 
 ```bash
 # Install dependencies:
-uv sync --frozen
+devenv sync
 
 # Install the release build, recommended:
 uv pip install -v -e py
