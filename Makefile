@@ -1,5 +1,4 @@
 SHELL=/bin/bash
-export RELAY_PYTHON_VERSION := python3
 export RELAY_FEATURES :=
 RELAY_ARGO_AGS ?= ${CARGO_ARGS}
 
@@ -133,7 +132,9 @@ init-submodules:
 setup-git: init-submodules ## make sure all git configured and all the submodules are fetched
 .PHONY: setup-git
 
-setup-venv: .venv/python-requirements-stamp ## create a Python virtual environment with development requirements installed
+setup-venv: uv.lock ## create a Python virtual environment with development requirements installed
+	devenv sync
+	RELAY_DEBUG=1 uv pip install -v -e py
 .PHONY: setup-venv
 
 clean-target-dir:
@@ -141,15 +142,6 @@ clean-target-dir:
 		rm -rf target/; \
 	fi
 .PHONY: clean-target-dir
-
-# Dependencies
-
-.venv/python-requirements-stamp:
-	uv sync --frozen --verbose
-	RELAY_DEBUG=1 uv pip install --editable py
-	# Bump the mtime of an empty file.
-	# Make will re-run 'pip install' if the mtime on requirements-dev.txt is higher again.
-	touch .venv/python-requirements-stamp
 
 help: ## this help
 	@ awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-10s\033[0m\t%s\n", $$1, $$2 }' $(MAKEFILE_LIST) | column -s$$'\t' -t
