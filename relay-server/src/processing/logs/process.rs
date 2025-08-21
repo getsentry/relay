@@ -1832,4 +1832,219 @@ mod tests {
         }
         "###);
     }
+
+    #[test]
+    fn test_scrub_log_deep_wild_cards() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "normal_value",
+            "attributes": {
+                "normal_field": {
+                    "type": "string",
+                    "value": "normal_value"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let deep_wildcard_config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_normal_field": {
+                    "type": "pattern",
+                    "pattern": "normal_value",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[REDACTED]"
+                    }
+                }
+            },
+            "applications": {
+                "**": ["remove_normal_field"]
+            }
+        }))
+        .unwrap();
+
+        let ctx = make_context(DataScrubbingConfig::default(), Some(deep_wildcard_config));
+        scrub_log(&mut data, ctx).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "span_id": "eee19b7ec3c1b174",
+          "level": "info",
+          "body": "[REDACTED]",
+          "attributes": {
+            "normal_field": {
+              "type": "string",
+              "value": "[REDACTED]"
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "normal_field": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "remove_normal_field",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 12
+                  }
+                }
+              }
+            },
+            "body": {
+              "": {
+                "rem": [
+                  [
+                    "remove_normal_field",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 12
+              }
+            }
+          }
+        }
+        "###);
+
+        // If a log specific negation is used, then log attributes appear again.
+        data = Annotated::<OurLog>::from_json(json).unwrap();
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "should_not_remove_normal_field": {
+                    "type": "pattern",
+                    "pattern": "normal_value",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[REDACTED]"
+                    }
+                }
+            },
+            "applications": {
+                "** && !$log.**": ["should_not_remove_normal_field"]
+            }
+        }))
+        .unwrap();
+
+        let ctx = make_context(DataScrubbingConfig::default(), Some(config));
+        scrub_log(&mut data, ctx).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "span_id": "eee19b7ec3c1b174",
+          "level": "info",
+          "body": "normal_value",
+          "attributes": {
+            "normal_field": {
+              "type": "string",
+              "value": "normal_value"
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_scrub_log_anything_deep_wild_cards() {
+        let json = r#"
+        {
+            "timestamp": 1544719860.0,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b174",
+            "level": "info",
+            "body": "normal_value",
+            "attributes": {
+                "normal_field": {
+                    "type": "string",
+                    "value": "normal_value"
+                }
+            }
+        }
+        "#;
+
+        let mut data = Annotated::<OurLog>::from_json(json).unwrap();
+
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!({
+            "rules": {
+                "remove_normal_field": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[REDACTED]"
+                    }
+                }
+            },
+            "applications": {
+                "**": ["remove_normal_field"]
+            }
+        }))
+        .unwrap();
+
+        let ctx = make_context(DataScrubbingConfig::default(), Some(config));
+        scrub_log(&mut data, ctx).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&data), @r###"
+        {
+          "timestamp": 1544719860.0,
+          "trace_id": "5b8efff798038103d269b633813fc60c",
+          "span_id": "eee19b7ec3c1b174",
+          "level": "info",
+          "body": "[REDACTED]",
+          "attributes": {
+            "normal_field": {
+              "type": "string",
+              "value": "[REDACTED]"
+            }
+          },
+          "_meta": {
+            "attributes": {
+              "normal_field": {
+                "value": {
+                  "": {
+                    "rem": [
+                      [
+                        "remove_normal_field",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 12
+                  }
+                }
+              }
+            },
+            "body": {
+              "": {
+                "rem": [
+                  [
+                    "remove_normal_field",
+                    "s",
+                    0,
+                    10
+                  ]
+                ],
+                "len": 12
+              }
+            }
+          }
+        }
+        "###);
+    }
 }
