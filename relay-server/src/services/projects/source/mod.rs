@@ -23,7 +23,7 @@ use self::upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 #[derive(Clone, Debug)]
 pub struct ProjectSource {
     config: Arc<Config>,
-    local_source: Addr<LocalProjectSource>,
+    local_source: Option<Addr<LocalProjectSource>>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<RedisProjectSource>,
@@ -37,7 +37,12 @@ impl ProjectSource {
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] _redis: Option<RedisClients>,
     ) -> Self {
-        let local_source = services.start(LocalProjectSourceService::new(config.clone()));
+        let local_source = if config.relay_mode() == RelayMode::Static {
+            Some(services.start(LocalProjectSourceService::new(config.clone())))
+        } else {
+            None
+        };
+
         let upstream_source = services.start(UpstreamProjectSourceService::new(
             config.clone(),
             upstream_relay,
@@ -65,19 +70,18 @@ impl ProjectSource {
         no_cache: bool,
         current_revision: Revision,
     ) -> Result<SourceProjectState, ProjectSourceError> {
-        let state_opt = self
-            .local_source
-            .send(FetchOptionalProjectState { project_key })
-            .await?;
-
-        if let Some(state) = state_opt {
-            return Ok(state.into());
-        }
-
         match self.config.relay_mode() {
             RelayMode::Proxy => return Ok(ProjectState::new_allowed().into()),
-            RelayMode::Static => return Ok(ProjectState::Disabled.into()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
+            RelayMode::Static => {
+                return Ok(match self.local_source {
+                    Some(local) => local
+                        .send(FetchOptionalProjectState { project_key })
+                        .await?
+                        .map_or(ProjectState::Disabled.into(), Into::into),
+                    None => ProjectState::Disabled.into(),
+                });
+            }
         }
 
         #[cfg(feature = "processing")]
