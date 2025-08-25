@@ -7,6 +7,12 @@
 - Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
 - Improved PII Scrubbing for attributes / logs ([#5061](https://github.com/getsentry/relay/pull/5061)))
 
+## 0.9.13
+
+### Various fixes & improvements
+
+- fix(ourlogs): Improve PII Scrubbing for attributes (#5061) by @k-fish
+
 ## 0.9.12
 
 ### Various fixes & improvements
