@@ -462,7 +462,7 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@07a1c835f7a78e0f438fc766cc6024ed0ca1bf03
+        uses: getsentry/action-build-and-push-images@a53f146fc1ea3cb404f2dcf7378f5b60dd98d3ca
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -473,7 +473,7 @@ jobs:
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: getsentry/action-build-and-push-images@07a1c835f7a78e0f438fc766cc6024ed0ca1bf03
+        uses: getsentry/action-build-and-push-images@a53f146fc1ea3cb404f2dcf7378f5b60dd98d3ca
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -481,6 +481,7 @@ jobs:
           ghcr: false
           google_ar: false
           outputs: "type=docker,dest=${{ matrix.image_name }}-docker-image"
+          tags: "ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}"
 
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
@@ -532,7 +533,7 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        uses: getsentry/action-build-and-push-images@07a1c835f7a78e0f438fc766cc6024ed0ca1bf03
+        uses: getsentry/action-build-and-push-images@a53f146fc1ea3cb404f2dcf7378f5b60dd98d3ca
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
@@ -775,9 +776,7 @@ jobs:
 
       - name: Import Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: |
-          docker load -i relay-docker-image
-          docker image ls -a
+        run: docker load -i relay-docker-image
 
       - name: Run Sentry integration tests
         working-directory: sentry
