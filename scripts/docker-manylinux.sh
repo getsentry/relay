@@ -29,7 +29,7 @@ docker run \
   -v "$(pwd):/work" \
   -e SKIP_RELAY_LIB_BUILD=1 \
   -e CARGO_BUILD_TARGET \
-  quay.io/pypa/manylinux_2_28_${TARGET}:2025.08.15-1 \
+  quay.io/pypa/manylinux_2_28_${TARGET}:2025.08.15-1 \ # Pinned to 2025.08.15-1 since manylinux 2025.08.22 onward removes setuptools
   sh manylinux.sh
 
 # Fix permissions for shared directories
