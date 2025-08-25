@@ -43,11 +43,13 @@ pub fn expand(logs: Managed<SerializedLogs>, _ctx: Context<'_>) -> Managed<Expan
 
         ExpandedLogs {
             headers: logs.headers,
-            #[cfg(feature = "processing")]
-            retention: _ctx.project_info.config.event_retention,
-            #[cfg(feature = "processing")]
-            downsampled_retention: _ctx.project_info.config.downsampled_event_retention,
             logs: all_logs,
+            // Hard code both retentions for logs launch until we have separate retentions for
+            // different data categories.
+            #[cfg(feature = "processing")]
+            retention: Some(30),
+            #[cfg(feature = "processing")]
+            downsampled_retention: Some(30),
         }
     })
 }
