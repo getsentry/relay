@@ -6,6 +6,7 @@
 
 - Set the default log retention to 30 days for full fidelity and downsampled data. ([#5065](https://github.com/getsentry/relay/pull/5065))
 - Improved PII Scrubbing for attributes / logs ([#5061](https://github.com/getsentry/relay/pull/5061)))
+- Fix python package release scripts ([#5073](https://github.com/getsentry/relay/pull/5073))
 
 ## 25.8.0
 
