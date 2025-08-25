@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@usssn:mask|078-05-1120": {
+    "type": "string",
+    "value": "***********"
+  },
+  "_meta": {
+    "@usssn:mask|078-05-1120": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@usssn:mask",
+              "m",
+              0,
+              11
+            ]
+          ],
+          "len": 11
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@pemkey|-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----": {
+    "type": "string",
+    "value": "-----BEGIN EC PRIVATE KEY-----\n[pemkey]\n-----END EC PRIVATE KEY-----"
+  },
+  "_meta": {
+    "@pemkey|-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@pemkey",
+              "s",
+              31,
+              39
+            ]
+          ],
+          "len": 124
+        }
+      }
+    }
+  }
+}
