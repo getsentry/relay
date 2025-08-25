@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Improved PII Scrubbing for attributes / logs ([#5061](https://github.com/getsentry/relay/pull/5061)))
+- Fix python package release scripts ([#5073](https://github.com/getsentry/relay/pull/5073))
 
 ## 25.8.0
 
