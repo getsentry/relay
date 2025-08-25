@@ -775,7 +775,9 @@ jobs:
 
       - name: Import Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: docker load -i relay-docker-image
+        run: |
+          docker load -i relay-docker-image
+          docker image ls
 
       - name: Run Sentry integration tests
         working-directory: sentry
