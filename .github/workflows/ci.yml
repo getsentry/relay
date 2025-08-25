@@ -471,6 +471,17 @@ jobs:
           google_ar: false
           publish_on_pr: true
 
+      - name: Build and publish docker artifact
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        uses: getsentry/action-build-and-push-images@07a1c835f7a78e0f438fc766cc6024ed0ca1bf03
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "./Dockerfile.release"
+          ghcr: false
+          google_ar: false
+          outputs: "type=docker,dest=${{ matrix.image_name }}-docker-image"
+
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
         uses: actions/upload-artifact@v4
@@ -525,7 +536,7 @@ jobs:
         with:
           image_name: ${{ matrix.image_name }}
           platforms: ${{ env.PLATFORMS }}
-          dockerfile_path: "Dockerfile.release"
+          dockerfile_path: "./Dockerfile.release"
           ghcr: false
           publish_on_pr: true
           google_ar: true
