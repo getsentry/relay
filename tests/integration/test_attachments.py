@@ -489,25 +489,20 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("drop_transaction_attachments", [False, True])
 def test_event_with_attachment(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
+    transactions_consumer,
     outcomes_consumer,
-    drop_transaction_attachments,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
-    if drop_transaction_attachments:
-        mini_sentry.global_config["options"][
-            "relay.drop-transaction-attachments"
-        ] = True
-
     mini_sentry.add_full_project_config(project_id)
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
+    transactions_consumer = transactions_consumer()
     outcomes_consumer = outcomes_consumer()
 
     # event attachments are always sent as chunks, and added to events
@@ -562,42 +557,17 @@ def test_event_with_attachment(
         "rate_limited": False,
     }
 
-    if drop_transaction_attachments:
-        attachments_consumer.assert_empty()
-        assert outcomes_consumer.get_outcomes() == [
-            {
-                "timestamp": mock.ANY,
-                "org_id": 1,
-                "project_id": 42,
-                "key_id": 123,
-                "outcome": 3,
-                "reason": "transaction_attachment",
-                "category": 4,
-                "quantity": 22,
-            },
-            {
-                "timestamp": mock.ANY,
-                "org_id": 1,
-                "project_id": 42,
-                "key_id": 123,
-                "outcome": 3,
-                "reason": "transaction_attachment",
-                "category": 22,
-                "quantity": 1,
-            },
-        ]
-    else:
-        attachment = attachments_consumer.get_individual_attachment()
-        assert attachment["attachment"].pop("id")
-        assert attachment == {
-            "type": "attachment",
-            "attachment": expected_attachment,
-            "event_id": event_id,
-            "project_id": project_id,
-        }
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment["attachment"].pop("id")
+    assert attachment == {
+        "type": "attachment",
+        "attachment": expected_attachment,
+        "event_id": event_id,
+        "project_id": project_id,
+    }
 
-        _, event = attachments_consumer.get_event()
-        assert event["event_id"] == event_id
+    _, event = transactions_consumer.get_event()
+    assert event["event_id"] == event_id
 
 
 def test_form_data_is_rejected(

@@ -97,7 +97,6 @@ mod replay;
 mod report;
 mod session;
 mod span;
-mod transaction;
 pub use span::extract_transaction_span;
 
 #[cfg(all(sentry, feature = "processing"))]
@@ -1764,8 +1763,6 @@ impl EnvelopeProcessorService {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         let global_config = self.inner.global_config.current();
-
-        transaction::drop_invalid_items(managed_envelope, &global_config);
 
         // We extract the main event from the envelope.
         let extraction_result = event::extract(
