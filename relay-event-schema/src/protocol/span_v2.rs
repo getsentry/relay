@@ -74,7 +74,7 @@ impl Getter for SpanV2 {
         Some(match path.strip_prefix("span.")? {
             "name" => self.name.value()?.as_str().into(),
             "status" => self.status.value()?.as_str().into(),
-            "kind" => self.status.value()?.as_str().into(),
+            "kind" => self.kind.value()?.as_str().into(),
             path => {
                 if let Some(key) = path.strip_prefix("attributes.") {
                     let key = key.strip_suffix(".value")?;
