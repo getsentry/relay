@@ -402,6 +402,12 @@ def test_spansv2_ds_root_in_different_org(
             {},
             id="release",
         ),
+        pytest.param(
+            "filtered-transaction",
+            {"ignoreTransactions": {"isEnabled": True, "patterns": ["*health*"]}},
+            {},
+            id="transaction",
+        ),
         # Requires normalization to be implemented.
         # pytest.param(
         #     "legacy-browsers",
@@ -485,6 +491,7 @@ def test_spanv2_inbound_filters(
             "attributes": {
                 "some_integer": {"value": 123, "type": "integer"},
                 "sentry.release": {"value": "foobar@1.0", "type": "string"},
+                "sentry.segment.name": {"value": "/foo/healthz", "type": "string"},
             },
         }
     )
