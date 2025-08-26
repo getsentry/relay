@@ -201,6 +201,13 @@ impl Filterable for SpanV2 {
             .as_str()
     }
 
+    fn transaction(&self) -> Option<&str> {
+        self.attributes
+            .value()?
+            .get_value("sentry.segment.name")?
+            .as_str()
+    }
+
     fn user_agent(&self) -> UserAgent<'_> {
         user_agent_from_attributes(&self.attributes)
     }
