@@ -187,6 +187,8 @@ pub enum RuleType {
     /// A transaction rule does not apply to spans.
     Transaction,
     /// A project rule applies to all spans/transactions from the project it was defined in.
+    ///
+    /// Like trace rules, it is evaluated on the [`DynamicSamplingContext`](crate::DynamicSamplingContext).
     Project,
     // NOTE: If you add a new `RuleType` that is not supposed to sample transactions, you need to
     // edit the `sample_envelope` function in `EnvelopeProcessorService`.
