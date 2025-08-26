@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["WriteBehavior"],"fn":["attribute_info"],"struct":["AttributeInfo"]};
