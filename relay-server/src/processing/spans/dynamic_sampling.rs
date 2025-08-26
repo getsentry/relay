@@ -129,12 +129,8 @@ async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> Sampling
     // TODO: reservoir sampling
     let mut evaluator = SamplingEvaluator::new(Utc::now());
 
-    // Apply transaction local rules.
-    //
-    // For spans we generally cannot apply transaction local rules, but some of the rules,
-    // specifically the minimum sample rate rule can still be applied to individual spans.
-    //
-    // In the future this rule type will be replaced with an explicit project based rule type.
+    // Apply project rules before trace rules, to give projects a chance to override the trace root
+    // sample rate.
     if let Some(sampling_config) = project_sampling_config {
         let rules = sampling_config.filter_rules(RuleType::Project);
 
