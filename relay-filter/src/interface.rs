@@ -3,8 +3,8 @@
 use url::Url;
 
 use relay_event_schema::protocol::{
-    Csp, Event, EventType, Exception, LogEntry, OurLog, Replay, SessionAggregates, SessionUpdate,
-    Span, Values,
+    Attributes, Csp, Event, EventType, Exception, LogEntry, OurLog, Replay, SessionAggregates,
+    SessionUpdate, Span, SpanV2, Values,
 };
 
 /// A user agent returned from [`Filterable::user_agent`].
@@ -193,6 +193,19 @@ impl Filterable for Span {
     }
 }
 
+impl Filterable for SpanV2 {
+    fn release(&self) -> Option<&str> {
+        self.attributes
+            .value()?
+            .get_value("sentry.release")?
+            .as_str()
+    }
+
+    fn user_agent(&self) -> UserAgent<'_> {
+        user_agent_from_attributes(&self.attributes)
+    }
+}
+
 impl Filterable for SessionUpdate {
     fn ip_addr(&self) -> Option<&str> {
         self.attributes
@@ -242,21 +255,25 @@ impl Filterable for OurLog {
     }
 
     fn user_agent(&self) -> UserAgent<'_> {
-        let parsed = (|| {
-            let attributes = self.attributes.value()?;
-
-            let family = attributes.get_value("sentry.browser.name")?.as_str()?;
-            let version = attributes.get_value("sentry.browser.version")?.as_str()?;
-            let mut parts = version.splitn(3, '.');
-
-            Some(relay_ua::UserAgent {
-                family: family.into(),
-                major: parts.next().map(Into::into),
-                minor: parts.next().map(Into::into),
-                patch: parts.next().map(Into::into),
-            })
-        })();
-
-        UserAgent { raw: None, parsed }
+        user_agent_from_attributes(&self.attributes)
     }
+}
+
+fn user_agent_from_attributes(attributes: &relay_protocol::Annotated<Attributes>) -> UserAgent<'_> {
+    let parsed = (|| {
+        let attributes = attributes.value()?;
+
+        let family = attributes.get_value("sentry.browser.name")?.as_str()?;
+        let version = attributes.get_value("sentry.browser.version")?.as_str()?;
+        let mut parts = version.splitn(3, '.');
+
+        Some(relay_ua::UserAgent {
+            family: family.into(),
+            major: parts.next().map(Into::into),
+            minor: parts.next().map(Into::into),
+            patch: parts.next().map(Into::into),
+        })
+    })();
+
+    UserAgent { raw: None, parsed }
 }
