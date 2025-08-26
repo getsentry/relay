@@ -1,3 +1,8 @@
+//! Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
+//!
+//! This crate contains the `sentry-conventions` repository as a git submodule. Attribute definitions in the submodule
+//! are parsed at compile time and can be accessed via the `attribute_info` function.
+
 use relay_event_schema::processor::Pii;
 
 include!(concat!(env!("OUT_DIR"), "/attribute_map.rs"));
