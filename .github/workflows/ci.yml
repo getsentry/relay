@@ -472,6 +472,8 @@ jobs:
           platforms: ${{ env.PLATFORMS }}
           dockerfile_path: "./Dockerfile.release"
           ghcr: true
+          tag_nightly: true
+          tag_latest: true
           google_ar: false
           publish_on_pr: true
 
