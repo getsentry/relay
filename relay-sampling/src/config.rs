@@ -180,10 +180,14 @@ pub enum SamplingValue {
 #[serde(rename_all = "camelCase")]
 pub enum RuleType {
     /// A trace rule matches on the [`DynamicSamplingContext`](crate::DynamicSamplingContext) and
-    /// applies to all transactions in a trace.
+    /// applies to all transactions/spans in a trace.
     Trace,
     /// A transaction rule matches directly on the transaction event independent of the trace.
+    ///
+    /// A transaction rule does not apply to spans.
     Transaction,
+    /// A project rule applies to all spans/transactions from the project it was defined in.
+    Project,
     // NOTE: If you add a new `RuleType` that is not supposed to sample transactions, you need to
     // edit the `sample_envelope` function in `EnvelopeProcessorService`.
     /// If the sampling config contains new rule types, do not sample at all.

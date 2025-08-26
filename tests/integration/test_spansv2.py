@@ -126,7 +126,7 @@ def test_spansv2_basic(
 
 @pytest.mark.parametrize(
     "rule_type",
-    ["transaction", "trace"],
+    ["project", "trace"],
 )
 def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
     """
@@ -139,6 +139,9 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
+    # A transaction rule should never apply.
+    _add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
+    # Setup the actual rule we want to test against.
     _add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
     relay = relay(mini_sentry, options=TEST_CONFIG)

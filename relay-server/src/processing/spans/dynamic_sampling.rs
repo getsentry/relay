@@ -136,7 +136,7 @@ async fn compute(spans: &Managed<SerializedSpans>, ctx: Context<'_>) -> Sampling
     //
     // In the future this rule type will be replaced with an explicit project based rule type.
     if let Some(sampling_config) = project_sampling_config {
-        let rules = sampling_config.filter_rules(RuleType::Transaction);
+        let rules = sampling_config.filter_rules(RuleType::Project);
 
         // We need a segment consistent seed to make sure all spans of the same segment in this
         // project get a proper minimum sample rate applied.
