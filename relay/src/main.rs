@@ -38,7 +38,7 @@
 //!  - [`relay-cogs`]: Break down the cost of Relay by its features.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
-//!  - [`relay-conventions`]: Attribute definitions extracted from `sentry-conventions`.
+//!  - [`relay-conventions`]: Attribute definitions extracted from [`sentry-conventions`](https://github.com/getsentry/sentry-conventions).
 //!  - [`relay-crash`]: Crash reporting for the Relay server.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
 //!  - [`relay-event-derive`]: Derive for visitor traits on the Event schema.
