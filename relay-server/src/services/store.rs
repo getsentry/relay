@@ -684,7 +684,6 @@ impl StoreService {
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
         let id = Uuid::new_v4().to_string();
 
-        let mut chunk_index = 0;
         let payload = item.payload();
         let size = item.len();
         let max_chunk_size = self.config.attachment_chunk_size();
@@ -692,9 +691,12 @@ impl StoreService {
         // When sending individual attachments, and we have a single chunk, we want to send the
         // `data` inline in the `attachment` message.
         // This avoids a needless roundtrip through the attachments cache on the Sentry side.
-        let data = if send_individual_attachments && size < max_chunk_size {
-            (size > 0).then_some(payload)
+        let payload = if size == 0 {
+            AttachmentPayload::Chunked(0)
+        } else if send_individual_attachments && size < max_chunk_size {
+            AttachmentPayload::Inline(payload)
         } else {
+            let mut chunk_index = 0;
             let mut offset = 0;
             // This skips chunks for empty attachments. The consumer does not require chunks for
             // empty attachments. `chunks` will be `0` in this case.
@@ -715,11 +717,11 @@ impl StoreService {
                 offset += chunk_size;
                 chunk_index += 1;
             }
-            None
-        };
 
-        // The chunk_index is incremented after every loop iteration. After we exit the loop, it
-        // is one larger than the last chunk, so it is equal to the number of chunks.
+            // The chunk_index is incremented after every loop iteration. After we exit the loop, it
+            // is one larger than the last chunk, so it is equal to the number of chunks.
+            AttachmentPayload::Chunked(chunk_index)
+        };
 
         let attachment = ChunkedAttachment {
             id,
@@ -727,14 +729,13 @@ impl StoreService {
                 Some(name) => name.to_owned(),
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
+            rate_limited: item.rate_limited(),
             content_type: item
                 .content_type()
                 .map(|content_type| content_type.as_str().to_owned()),
             attachment_type: item.attachment_type().cloned().unwrap_or_default(),
-            chunks: chunk_index,
-            data,
-            size: Some(size),
-            rate_limited: Some(item.rate_limited()),
+            size,
+            payload,
         };
 
         if send_individual_attachments {
@@ -1339,6 +1340,26 @@ impl Service for StoreService {
     }
 }
 
+/// This signifies how the attachment payload is being transfered.
+#[derive(Debug, Serialize)]
+enum AttachmentPayload {
+    /// The payload has been split into multiple chunks.
+    ///
+    /// The individual chunks are being sent as separate [`AttachmentChunkKafkaMessage`] messages.
+    /// If the payload `size == 0`, the number of chunks will also be `0`.
+    #[serde(rename = "chunks")]
+    Chunked(usize),
+
+    /// The payload is inlined here directly, and thus into the [`ChunkedAttachment`].
+    #[serde(rename = "data")]
+    Inline(Bytes),
+
+    /// The attachment has already been stored into the objectstore, with the given Id.
+    #[serde(rename = "stored_id")]
+    #[allow(unused)] // TODO: actually storing it in objectstore first is still WIP
+    Stored(String),
+}
+
 /// Common attributes for both standalone attachments and processing-relevant attachments.
 #[derive(Debug, Serialize)]
 struct ChunkedAttachment {
@@ -1350,6 +1371,14 @@ struct ChunkedAttachment {
     /// File name of the attachment file.
     name: String,
 
+    /// Whether this attachment was rate limited and should be removed after processing.
+    ///
+    /// By default, rate limited attachments are immediately removed from Envelopes. For processing,
+    /// native crash reports still need to be retained. These attachments are marked with the
+    /// `rate_limited` header, which signals to the processing pipeline that the attachment should
+    /// not be persisted after processing.
+    rate_limited: bool,
+
     /// Content type of the attachment payload.
     #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<String>,
@@ -1358,27 +1387,12 @@ struct ChunkedAttachment {
     #[serde(serialize_with = "serialize_attachment_type")]
     attachment_type: AttachmentType,
 
-    /// Number of outlined chunks.
-    /// Zero if the attachment has `size: 0`, or there was only a single chunk which has been inlined into `data`.
-    chunks: usize,
-
-    /// The content of the attachment,
-    /// if they are smaller than the configured `attachment_chunk_size`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<Bytes>,
-
     /// The size of the attachment in bytes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    size: Option<usize>,
+    size: usize,
 
-    /// Whether this attachment was rate limited and should be removed after processing.
-    ///
-    /// By default, rate limited attachments are immediately removed from Envelopes. For processing,
-    /// native crash reports still need to be retained. These attachments are marked with the
-    /// `rate_limited` header, which signals to the processing pipeline that the attachment should
-    /// not be persisted after processing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rate_limited: Option<bool>,
+    /// The attachment payload, chunked, inlined, or already stored.
+    #[serde(flatten)]
+    payload: AttachmentPayload,
 }
 
 /// A hack to make rmp-serde behave more like serde-json when serializing enums.
@@ -1821,8 +1835,6 @@ struct ProfileChunkKafkaMessage {
 #[allow(clippy::large_enum_variant)]
 enum KafkaMessage<'a> {
     Event(EventKafkaMessage),
-    Attachment(AttachmentKafkaMessage),
-    AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
     Metric {
         #[serde(skip)]
@@ -1830,9 +1842,6 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: MetricKafkaMessage<'a>,
     },
-    Profile(ProfileKafkaMessage),
-    ReplayEvent(ReplayEventKafkaMessage<'a>),
-    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
     Item {
         #[serde(skip)]
@@ -1848,15 +1857,21 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
     },
+
+    Attachment(AttachmentKafkaMessage),
+    AttachmentChunk(AttachmentChunkKafkaMessage),
+
+    Profile(ProfileKafkaMessage),
     ProfileChunk(ProfileChunkKafkaMessage),
+
+    ReplayEvent(ReplayEventKafkaMessage<'a>),
+    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
 }
 
 impl Message for KafkaMessage<'_> {
     fn variant(&self) -> &'static str {
         match self {
             KafkaMessage::Event(_) => "event",
-            KafkaMessage::Attachment(_) => "attachment",
-            KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
             KafkaMessage::Metric { message, .. } => match message.name.namespace() {
                 MetricNamespace::Sessions => "metric_sessions",
@@ -1866,13 +1881,18 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Stats => "metric_metric_stats",
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
-            KafkaMessage::Profile(_) => "profile",
-            KafkaMessage::ReplayEvent(_) => "replay_event",
-            KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
             KafkaMessage::Span { .. } => "span",
-            KafkaMessage::ProfileChunk(_) => "profile_chunk",
             KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
+
+            KafkaMessage::Attachment(_) => "attachment",
+            KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
+
+            KafkaMessage::Profile(_) => "profile",
+            KafkaMessage::ProfileChunk(_) => "profile_chunk",
+
+            KafkaMessage::ReplayEvent(_) => "replay_event",
+            KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
         }
     }
 
@@ -1880,10 +1900,7 @@ impl Message for KafkaMessage<'_> {
     fn key(&self) -> Option<relay_kafka::Key> {
         match self {
             Self::Event(message) => Some(message.event_id.0),
-            Self::Attachment(message) => Some(message.event_id.0),
-            Self::AttachmentChunk(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
-            Self::ReplayEvent(message) => Some(message.replay_id.0),
             Self::Span { message, .. } => Some(message.trace_id.0),
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
@@ -1891,6 +1908,10 @@ impl Message for KafkaMessage<'_> {
             // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
             // recieve the routing_key_hint form their envelopes.
             Self::CheckIn(message) => message.routing_key_hint,
+
+            Self::Attachment(message) => Some(message.event_id.0),
+            Self::AttachmentChunk(message) => Some(message.event_id.0),
+            Self::ReplayEvent(message) => Some(message.replay_id.0),
 
             // Random partitioning
             _ => None,
