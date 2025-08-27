@@ -64,12 +64,12 @@ def test_mixed_attachments_with_processing(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": attachment_num_chunks[id1],
             "id": id1,
             "name": "foo.txt",
-            "size": len(chunked_contents),
             "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(chunked_contents),
+            "chunks": attachment_num_chunks[id1],
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -84,12 +84,11 @@ def test_mixed_attachments_with_processing(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": 0,
-            "data": b"hell yeah",
             "name": "bar.txt",
-            "size": len(b"hell yeah"),
             "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(b"hell yeah"),
+            "data": b"hell yeah",
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -106,11 +105,11 @@ def test_mixed_attachments_with_processing(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": 0,
             "name": "foobar.txt",
-            "size": 0,
             "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": 0,
+            "chunks": 0,
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -473,13 +472,12 @@ def test_view_hierarchy_processing(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.view_hierarchy",
-            "chunks": 0,
-            "data": expected_payload,
-            "content_type": "application/json",
             "name": "Unnamed Attachment",
-            "size": len(expected_payload),
             "rate_limited": False,
+            "content_type": "application/json",
+            "attachment_type": "event.view_hierarchy",
+            "size": len(expected_payload),
+            "data": expected_payload,
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -524,12 +522,12 @@ def test_event_with_attachment(
     assert event_message["attachments"][0].pop("id")
     assert list(event_message["attachments"]) == [
         {
-            "attachment_type": "event.attachment",
-            "chunks": 1,
-            "content_type": "application/octet-stream",
             "name": "Unnamed Attachment",
-            "size": len(b"event attachment"),
             "rate_limited": False,
+            "content_type": "application/octet-stream",
+            "attachment_type": "event.attachment",
+            "size": len(b"event attachment"),
+            "chunks": 1,
         }
     ]
 
@@ -547,13 +545,12 @@ def test_event_with_attachment(
     relay.send_envelope(project_id, envelope)
 
     expected_attachment = {
-        "attachment_type": "event.attachment",
-        "chunks": 0,
-        "content_type": "application/octet-stream",
         "name": "Unnamed Attachment",
+        "rate_limited": False,
+        "content_type": "application/octet-stream",
+        "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
         "data": b"transaction attachment",
-        "rate_limited": False,
     }
 
     attachment = attachments_consumer.get_individual_attachment()
@@ -596,12 +593,11 @@ def test_form_data_is_rejected(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": 0,
-            "data": b"file content",
             "name": "foo.txt",
-            "size": len(b"file content"),
             "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(b"file content"),
+            "data": b"file content",
         },
         "event_id": event_id,
         "project_id": project_id,
