@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
+
 **Internal**:
 
 - Disable PII scrubbing for gen ai operation name. ([#5064](https://github.com/getsentry/relay/pull/5064))
