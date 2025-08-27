@@ -41,6 +41,7 @@ impl Item {
                 fully_normalized: false,
                 profile_type: None,
                 platform: None,
+                replay_relay_snuba_publish_disabled: false,
             },
             payload: Bytes::new(),
         }
@@ -309,6 +310,17 @@ impl Item {
     /// Sets the fully normalized flag.
     pub fn set_fully_normalized(&mut self, fully_normalized: bool) {
         self.headers.fully_normalized = fully_normalized;
+    }
+
+    /// Returns if the replay-event should be propagated to the snuba consumer or not.
+    #[cfg(feature = "processing")]
+    pub fn replay_relay_snuba_publish_disabled(&self) -> bool {
+        self.headers.replay_relay_snuba_publish_disabled
+    }
+
+    /// Sets the replay_relay_snuba_publish_disabled for this item.
+    pub fn set_replay_relay_snuba_publish_disabled(&mut self, value: bool) {
+        self.headers.replay_relay_snuba_publish_disabled = value;
     }
 
     /// Returns the associated platform.
@@ -816,6 +828,11 @@ pub struct ItemHeaders {
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
+
+    /// Indicates that Relay should not publish replay-event data to the Snuba consumer.
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    replay_relay_snuba_publish_disabled: bool,
 }
 
 /// Container for item quantities that the item was derived from.

@@ -324,10 +324,11 @@ impl StoreService {
                         item.payload(),
                         received_at,
                         retention,
+                        item.replay_relay_snuba_publish_disabled(),
                     )?;
                 }
                 ItemType::ReplayRecording => {
-                    replay_recording = Some(item);
+                    replay_recording = Some((item, item.replay_relay_snuba_publish_disabled()));
                 }
                 ItemType::ReplayEvent => {
                     replay_event = Some(item);
@@ -337,6 +338,7 @@ impl StoreService {
                         received_at,
                         retention,
                         &item.payload(),
+                        item.replay_relay_snuba_publish_disabled(),
                     )?;
                 }
                 ItemType::CheckIn => {
@@ -408,7 +410,7 @@ impl StoreService {
             }
         }
 
-        if let Some(recording) = replay_recording {
+        if let Some((recording, replay_relay_snuba_publish_disabled)) = replay_recording {
             // If a recording item type was seen we produce it to Kafka with the replay-event
             // payload (should it have been provided).
             //
@@ -423,6 +425,7 @@ impl StoreService {
                 None,
                 received_at,
                 retention,
+                replay_relay_snuba_publish_disabled,
             )?;
         }
 
@@ -843,7 +846,13 @@ impl StoreService {
         received_at: DateTime<Utc>,
         retention_days: u16,
         payload: &[u8],
+        _replay_relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
+        // TODO (cmanallen): We'll actually gate this once the consumer behavior is in place.
+        // if replay_relay_snuba_publish_disabled {
+        //     return Ok(())
+        // }
+
         let message = ReplayEventKafkaMessage {
             replay_id,
             project_id,
@@ -865,6 +874,7 @@ impl StoreService {
         replay_video: Option<&[u8]>,
         received_at: DateTime<Utc>,
         retention: u16,
+        replay_relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
         // Maximum number of bytes accepted by the consumer.
         let max_payload_size = self.config.max_replay_message_size();
@@ -904,6 +914,7 @@ impl StoreService {
                 payload,
                 replay_event,
                 replay_video,
+                replay_relay_snuba_publish_disabled,
             });
 
         self.produce(KafkaTopic::ReplayRecordings, message)?;
@@ -918,6 +929,7 @@ impl StoreService {
         payload: Bytes,
         received_at: DateTime<Utc>,
         retention: u16,
+        replay_relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
         #[derive(Deserialize)]
         struct VideoEvent<'a> {
@@ -950,6 +962,7 @@ impl StoreService {
             received_at,
             retention,
             replay_event,
+            replay_relay_snuba_publish_disabled,
         )?;
 
         self.produce_replay_recording(
@@ -960,6 +973,7 @@ impl StoreService {
             Some(replay_video),
             received_at,
             retention,
+            replay_relay_snuba_publish_disabled,
         )
     }
 
@@ -1509,6 +1523,7 @@ struct ReplayRecordingNotChunkedKafkaMessage<'a> {
     replay_event: Option<&'a [u8]>,
     #[serde(with = "serde_bytes")]
     replay_video: Option<&'a [u8]>,
+    replay_relay_snuba_publish_disabled: bool,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.

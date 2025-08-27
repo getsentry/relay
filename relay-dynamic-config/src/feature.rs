@@ -28,6 +28,11 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
+    /// Disables Relay from sending replay-events to Snuba.
+    ///
+    /// Serialized as `organizations:session-replay-relay-snuba-publishing-disabled`.
+    #[serde(rename = "organizations:session-replay-relay-snuba-publishing-disabled")]
+    SessionReplayRelaySnubaPublishingDisabled,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.

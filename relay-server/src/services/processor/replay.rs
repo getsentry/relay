@@ -83,7 +83,11 @@ pub fn process(
         None
     };
 
+    let snuba_publish_disabled =
+        project_info.has_feature(Feature::SessionReplayRelaySnubaPublishingDisabled);
+
     for item in managed_envelope.envelope_mut().items_mut() {
+        item.set_replay_relay_snuba_publish_disabled(snuba_publish_disabled);
         match item.ty() {
             ItemType::ReplayEvent => {
                 let replay_event = handle_replay_event_item(item.payload(), &rpc)?;
