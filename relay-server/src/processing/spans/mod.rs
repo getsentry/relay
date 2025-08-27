@@ -27,6 +27,9 @@ pub enum Error {
     /// The spans are rate limited.
     #[error("rate limited")]
     RateLimited(RateLimits),
+    /// Spans filtered due to a filtering rule.
+    #[error("spans filtered")]
+    Filtered(relay_filter::FilterStatKey),
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -38,6 +41,7 @@ impl OutcomeError for Error {
     fn consume(self) -> (Option<Outcome>, Self::Error) {
         let outcome = match &self {
             Self::FilterFeatureFlag => None,
+            Self::Filtered(f) => Some(Outcome::Filtered(f.clone())),
             Self::RateLimited(limits) => {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
@@ -111,9 +115,11 @@ impl processing::Processor for SpansProcessor {
         let mut spans = process::expand(spans);
 
         // TODO: normalization (conventions?)
-        // TODO: pii scrubbing
+        filter::filter(&mut spans, ctx);
 
         self.limiter.enforce_quotas(&mut spans, ctx).await?;
+
+        // TODO: pii scrubbing
 
         let metrics = dynamic_sampling::create_indexed_metrics(&spans, ctx);
 

@@ -1,4 +1,4 @@
-use relay_protocol::{Annotated, Array, Empty, Error, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Value};
 
 use std::fmt;
 use std::str::FromStr;
@@ -67,6 +67,24 @@ pub struct SpanV2 {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
+}
+
+impl Getter for SpanV2 {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        Some(match path.strip_prefix("span.")? {
+            "name" => self.name.value()?.as_str().into(),
+            "status" => self.status.value()?.as_str().into(),
+            "kind" => self.kind.value()?.as_str().into(),
+            path => {
+                if let Some(key) = path.strip_prefix("attributes.") {
+                    let key = key.strip_suffix(".value")?;
+                    self.attributes.value()?.get_value(key)?.into()
+                } else {
+                    return None;
+                }
+            }
+        })
+    }
 }
 
 /// Status of a V2 span.

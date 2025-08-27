@@ -132,6 +132,20 @@ pub enum DataCategory {
     ///
     /// This is the data category to count the number of Prevent review events.
     PreventReview = 30,
+    /// Size analysis
+    ///
+    /// This is the data category to count the number of size analyses performed.
+    /// 'Size analysis' a static binary analysis of a preprod build artifact
+    /// (e.g. the .apk of an Android app or MacOS .app).
+    /// When enabled there will typically be one such analysis per uploaded artifact.
+    SizeAnalysis = 31,
+    /// InstallableBuild
+    ///
+    /// This is the data category to count the number of installable builds.
+    /// It counts the number of artifacts uploaded *not* the number of times the
+    /// artifacts are downloaded for installation.
+    /// When enabled there will typically be one 'InstallableBuild' per uploaded artifact.
+    InstallableBuild = 32,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -179,6 +193,8 @@ impl DataCategory {
             "seer_scanner" => Self::SeerScanner,
             "prevent_user" => Self::PreventUser,
             "prevent_review" => Self::PreventReview,
+            "size_analysis" => Self::SizeAnalysis,
+            "installable_build" => Self::InstallableBuild,
             _ => Self::Unknown,
         }
     }
@@ -218,6 +234,8 @@ impl DataCategory {
             Self::SeerScanner => "seer_scanner",
             Self::PreventUser => "prevent_user",
             Self::PreventReview => "prevent_review",
+            Self::SizeAnalysis => "size_analysis",
+            Self::InstallableBuild => "installable_build",
             Self::Unknown => "unknown",
         }
     }
@@ -318,6 +336,8 @@ impl TryFrom<u8> for DataCategory {
             28 => Ok(Self::SeerScanner),
             29 => Ok(Self::PreventUser),
             30 => Ok(Self::PreventReview),
+            31 => Ok(Self::SizeAnalysis),
+            32 => Ok(Self::InstallableBuild),
             other => Err(UnknownDataCategory(other)),
         }
     }
@@ -332,7 +352,10 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(30), Ok(DataCategory::PreventReview));
-        assert_eq!(DataCategory::try_from(31), Err(UnknownDataCategory(31)));
+        assert_eq!(
+            DataCategory::try_from(32),
+            Ok(DataCategory::InstallableBuild)
+        );
+        assert_eq!(DataCategory::try_from(33), Err(UnknownDataCategory(33)));
     }
 }

@@ -8,6 +8,7 @@ __all__ = ["DataCategory", "SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE
 
 
 class DataCategory(IntEnum):
+    # See _check_generated below.
     # begin generated
     DEFAULT = 0
     ERROR = 1
@@ -40,6 +41,8 @@ class DataCategory(IntEnum):
     SEER_SCANNER = 28
     PREVENT_USER = 29
     PREVENT_REVIEW = 30
+    SIZE_ANALYSIS = 31
+    INSTALLABLE_BUILD = 32
     UNKNOWN = -1
     # end generated
 
