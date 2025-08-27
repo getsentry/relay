@@ -5,6 +5,15 @@
 - Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077)))
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
 
+## 0.9.14
+
+### Various fixes & improvements
+
+- feat(preprod): Add SizeAnalysis, InstallableBuild data categories (#5084) by @chromy
+- feat(ds): Introduce a project dynamic sampling rule type (#5077) by @Dav1dde
+- release: 0.9.13 (b9906104) by @getsentry-bot
+- fix(ourlogs): Improve PII Scrubbing for attributes (#5061) by @k-fish
+
 ## 0.9.13
 
 ### Various fixes & improvements
