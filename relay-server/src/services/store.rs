@@ -261,10 +261,13 @@ impl StoreService {
         });
         let event_type = event_item.as_ref().map(|item| item.ty());
 
-        let topic = if envelope.get_item_by(is_slow_item).is_some() {
-            KafkaTopic::Attachments
-        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
+        // Some error events like minidumps need all attachment chunks to be processed _before_
+        // the event payload on the consumer side. Transaction attachments do not require this ordering
+        // guarantee, so they do not have to go to the same topic as their event payload.
+        let event_topic = if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
+        } else if envelope.get_item_by(is_slow_item).is_some() {
+            KafkaTopic::Attachments
         } else {
             KafkaTopic::Events
         };
@@ -278,7 +281,6 @@ impl StoreService {
         for item in envelope.items() {
             match item.ty() {
                 ItemType::Attachment => {
-                    debug_assert!(topic == KafkaTopic::Attachments);
                     if let Some(attachment) = self.produce_attachment(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
@@ -289,7 +291,7 @@ impl StoreService {
                     }
                 }
                 ItemType::UserReport => {
-                    debug_assert!(topic == KafkaTopic::Attachments);
+                    debug_assert!(event_topic == KafkaTopic::Attachments);
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
@@ -430,7 +432,7 @@ impl StoreService {
             let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
             self.produce(
-                topic,
+                event_topic,
                 KafkaMessage::Event(EventKafkaMessage {
                     payload: event_item.payload(),
                     start_time: safe_timestamp(received_at),
