@@ -16,11 +16,6 @@ workspace = true
 chrono = { workspace = true }
 hex = { workspace = true }
 once_cell = { workspace = true }
-opentelemetry-proto = { workspace = true, features = [
-  "gen-tonic",
-  "with-serde",
-  "logs",
-] }
 relay-event-schema = { workspace = true }
 relay-protocol = { workspace = true }
 relay-common = { workspace = true }

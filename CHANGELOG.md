@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Removes support for the deprecated and early alpha only otel log item type. ([#5082](https://github.com/getsentry/relay/pull/5082))
+
 **Internal**:
 
 - Disable PII scrubbing for gen ai operation name. ([#5064](https://github.com/getsentry/relay/pull/5064))

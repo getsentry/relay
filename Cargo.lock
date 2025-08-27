@@ -2962,7 +2962,6 @@ dependencies = [
  "opentelemetry",
  "percent-encoding",
  "rand 0.9.1",
- "serde_json",
  "thiserror 2.0.12",
 ]
 
@@ -4010,7 +4009,6 @@ dependencies = [
  "hex",
  "insta",
  "once_cell",
- "opentelemetry-proto",
  "relay-common",
  "relay-event-schema",
  "relay-protocol",
