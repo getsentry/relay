@@ -853,12 +853,11 @@ impl StoreService {
         received_at: DateTime<Utc>,
         retention_days: u16,
         payload: &[u8],
-        _replay_relay_snuba_publish_disabled: bool,
+        replay_relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
-        // TODO (cmanallen): We'll actually gate this once the consumer behavior is in place.
-        // if replay_relay_snuba_publish_disabled {
-        //     return Ok(())
-        // }
+        if replay_relay_snuba_publish_disabled {
+            return Ok(());
+        }
 
         let message = ReplayEventKafkaMessage {
             replay_id,
