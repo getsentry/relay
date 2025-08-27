@@ -9,7 +9,7 @@ use crate::processor::ProcessValue;
 use crate::protocol::{Attributes, OperationType, SpanId, Timestamp, TraceId};
 
 /// A version 2 (transactionless) span.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SpanV2 {
     /// The ID of the trace to which this span belongs.
     #[metastructure(required = true, trim = false)]
@@ -119,6 +119,8 @@ impl Empty for SpanV2Status {
         false
     }
 }
+
+impl ProcessValue for SpanV2Status {}
 
 impl AsRef<str> for SpanV2Status {
     fn as_ref(&self) -> &str {
