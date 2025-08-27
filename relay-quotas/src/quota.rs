@@ -214,7 +214,9 @@ impl CategoryUnit {
             | DataCategory::SeerScanner
             | DataCategory::PreventUser
             | DataCategory::PreventReview
-            | DataCategory::Session => Some(Self::Count),
+            | DataCategory::Session
+            | DataCategory::SizeAnalysis
+            | DataCategory::InstallableBuild => Some(Self::Count),
             DataCategory::Attachment | DataCategory::LogByte => Some(Self::Bytes),
             DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
                 Some(Self::Milliseconds)
