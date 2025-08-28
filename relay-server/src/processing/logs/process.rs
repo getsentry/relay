@@ -142,7 +142,7 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
         let mut processor = PiiProcessor::new(config.compiled())
             // For advanced rules we want to treat attributes as objects.
             .attribute_mode(AttributeMode::Object);
-        process_value(log, &mut processor, &ProcessingState::root())?;
+        process_value(log, &mut processor, ProcessingState::root())?;
     }
 
     if let Some(config) = pii_config_from_scrubbing {
