@@ -129,7 +129,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<Token
                 }
             } else {
                 quote! {
-                    __state.enter_static(
+                    __state.enter_borrowed(
                         #field_name,
                         Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
                         crate::processor::ValueType::for_field(#ident),
