@@ -1,4 +1,3 @@
-from unittest import mock
 import pytest
 import uuid
 import json
@@ -65,12 +64,12 @@ def test_mixed_attachments_with_processing(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": attachment_num_chunks[id1],
             "id": id1,
             "name": "foo.txt",
-            "size": len(chunked_contents),
             "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(chunked_contents),
+            "chunks": attachment_num_chunks[id1],
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -85,12 +84,11 @@ def test_mixed_attachments_with_processing(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": 0,
-            "data": b"hell yeah",
             "name": "bar.txt",
-            "size": len(b"hell yeah"),
             "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(b"hell yeah"),
+            "data": b"hell yeah",
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -107,11 +105,11 @@ def test_mixed_attachments_with_processing(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": 0,
             "name": "foobar.txt",
-            "size": 0,
             "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": 0,
+            "chunks": 0,
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -474,13 +472,12 @@ def test_view_hierarchy_processing(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.view_hierarchy",
-            "chunks": 0,
-            "data": expected_payload,
-            "content_type": "application/json",
             "name": "Unnamed Attachment",
-            "size": len(expected_payload),
             "rate_limited": False,
+            "content_type": "application/json",
+            "attachment_type": "event.view_hierarchy",
+            "size": len(expected_payload),
+            "data": expected_payload,
         },
         "event_id": event_id,
         "project_id": project_id,
@@ -489,25 +486,20 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("drop_transaction_attachments", [False, True])
 def test_event_with_attachment(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
+    transactions_consumer,
     outcomes_consumer,
-    drop_transaction_attachments,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
-    if drop_transaction_attachments:
-        mini_sentry.global_config["options"][
-            "relay.drop-transaction-attachments"
-        ] = True
-
     mini_sentry.add_full_project_config(project_id)
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
+    transactions_consumer = transactions_consumer()
     outcomes_consumer = outcomes_consumer()
 
     # event attachments are always sent as chunks, and added to events
@@ -530,12 +522,12 @@ def test_event_with_attachment(
     assert event_message["attachments"][0].pop("id")
     assert list(event_message["attachments"]) == [
         {
-            "attachment_type": "event.attachment",
-            "chunks": 1,
-            "content_type": "application/octet-stream",
             "name": "Unnamed Attachment",
-            "size": len(b"event attachment"),
             "rate_limited": False,
+            "content_type": "application/octet-stream",
+            "attachment_type": "event.attachment",
+            "size": len(b"event attachment"),
+            "chunks": 1,
         }
     ]
 
@@ -553,51 +545,25 @@ def test_event_with_attachment(
     relay.send_envelope(project_id, envelope)
 
     expected_attachment = {
-        "attachment_type": "event.attachment",
-        "chunks": 0,
-        "content_type": "application/octet-stream",
         "name": "Unnamed Attachment",
+        "rate_limited": False,
+        "content_type": "application/octet-stream",
+        "attachment_type": "event.attachment",
         "size": len(b"transaction attachment"),
         "data": b"transaction attachment",
-        "rate_limited": False,
     }
 
-    if drop_transaction_attachments:
-        attachments_consumer.assert_empty()
-        assert outcomes_consumer.get_outcomes() == [
-            {
-                "timestamp": mock.ANY,
-                "org_id": 1,
-                "project_id": 42,
-                "key_id": 123,
-                "outcome": 3,
-                "reason": "transaction_attachment",
-                "category": 4,
-                "quantity": 22,
-            },
-            {
-                "timestamp": mock.ANY,
-                "org_id": 1,
-                "project_id": 42,
-                "key_id": 123,
-                "outcome": 3,
-                "reason": "transaction_attachment",
-                "category": 22,
-                "quantity": 1,
-            },
-        ]
-    else:
-        attachment = attachments_consumer.get_individual_attachment()
-        assert attachment["attachment"].pop("id")
-        assert attachment == {
-            "type": "attachment",
-            "attachment": expected_attachment,
-            "event_id": event_id,
-            "project_id": project_id,
-        }
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment["attachment"].pop("id")
+    assert attachment == {
+        "type": "attachment",
+        "attachment": expected_attachment,
+        "event_id": event_id,
+        "project_id": project_id,
+    }
 
-        _, event = attachments_consumer.get_event()
-        assert event["event_id"] == event_id
+    _, event = transactions_consumer.get_event()
+    assert event["event_id"] == event_id
 
 
 def test_form_data_is_rejected(
@@ -627,12 +593,11 @@ def test_form_data_is_rejected(
     assert attachment == {
         "type": "attachment",
         "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": 0,
-            "data": b"file content",
             "name": "foo.txt",
-            "size": len(b"file content"),
             "rate_limited": False,
+            "attachment_type": "event.attachment",
+            "size": len(b"file content"),
+            "data": b"file content",
         },
         "event_id": event_id,
         "project_id": project_id,

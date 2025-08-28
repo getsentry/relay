@@ -1,4 +1,4 @@
-use relay_protocol::{Annotated, Array, Empty, Error, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Value};
 
 use std::fmt;
 use std::str::FromStr;
@@ -9,7 +9,7 @@ use crate::processor::ProcessValue;
 use crate::protocol::{Attributes, OperationType, SpanId, Timestamp, TraceId};
 
 /// A version 2 (transactionless) span.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SpanV2 {
     /// The ID of the trace to which this span belongs.
     #[metastructure(required = true, trim = false)]
@@ -69,6 +69,24 @@ pub struct SpanV2 {
     pub other: Object<Value>,
 }
 
+impl Getter for SpanV2 {
+    fn get_value(&self, path: &str) -> Option<relay_protocol::Val<'_>> {
+        Some(match path.strip_prefix("span.")? {
+            "name" => self.name.value()?.as_str().into(),
+            "status" => self.status.value()?.as_str().into(),
+            "kind" => self.kind.value()?.as_str().into(),
+            path => {
+                if let Some(key) = path.strip_prefix("attributes.") {
+                    let key = key.strip_suffix(".value")?;
+                    self.attributes.value()?.get_value(key)?.into()
+                } else {
+                    return None;
+                }
+            }
+        })
+    }
+}
+
 /// Status of a V2 span.
 ///
 /// This is a subset of OTEL's statuses (unset, ok, error), plus
@@ -101,6 +119,8 @@ impl Empty for SpanV2Status {
         false
     }
 }
+
+impl ProcessValue for SpanV2Status {}
 
 impl AsRef<str> for SpanV2Status {
     fn as_ref(&self) -> &str {

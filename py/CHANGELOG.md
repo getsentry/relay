@@ -2,16 +2,26 @@
 
 # Unreleased
 
-- Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
-- Add `downsampled_event_retention` to the project configuration. ([#5013](https://github.com/getsentry/relay/pull/5013))
-- Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
-- Improved PII Scrubbing for attributes / logs ([#5061](https://github.com/getsentry/relay/pull/5061)))
+- Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077)))
+- Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
+
+## 0.9.14
+
+### Various fixes & improvements
+
+- feat(preprod): Add SizeAnalysis, InstallableBuild data categories (#5084) by @chromy
+- feat(ds): Introduce a project dynamic sampling rule type (#5077) by @Dav1dde
+- release: 0.9.13 (b9906104) by @getsentry-bot
+- fix(ourlogs): Improve PII Scrubbing for attributes (#5061) by @k-fish
 
 ## 0.9.13
 
 ### Various fixes & improvements
 
 - fix(ourlogs): Improve PII Scrubbing for attributes (#5061) by @k-fish
+- Add `trusted_relay_settings` to the project configuration. ([#4772](https://github.com/getsentry/relay/pull/4772))
+- Add `downsampled_event_retention` to the project configuration. ([#5013](https://github.com/getsentry/relay/pull/5013))
+- Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
 
 ## 0.9.12
 

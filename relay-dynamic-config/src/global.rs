@@ -183,14 +183,6 @@ pub struct Options {
     )]
     pub http_span_allowed_hosts: Vec<String>,
 
-    /// Whether or not relay should drop attachments submitted with transactions.
-    #[serde(
-        rename = "relay.drop-transaction-attachments",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub drop_transaction_attachments: bool,
-
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

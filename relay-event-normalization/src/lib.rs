@@ -7,6 +7,7 @@
 )]
 
 mod clock_drift;
+pub mod eap;
 mod event;
 mod event_error;
 mod geo;

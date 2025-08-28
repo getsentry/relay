@@ -56,7 +56,7 @@ pub async fn process(
     project_id: ProjectId,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
-    geo_lookup: Option<&GeoIpLookup>,
+    geo_lookup: &GeoIpLookup,
     reservoir_counters: &ReservoirEvaluator<'_>,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
@@ -454,7 +454,7 @@ struct NormalizeSpanConfig<'a> {
     /// `request` context, this IP address gets added to `span.data.client_address`.
     client_ip: Option<IpAddr>,
     /// An initialized GeoIP lookup.
-    geo_lookup: Option<&'a GeoIpLookup>,
+    geo_lookup: &'a GeoIpLookup,
     span_op_defaults: BorrowedSpanOpDefaults<'a>,
 }
 
@@ -465,7 +465,7 @@ impl<'a> NormalizeSpanConfig<'a> {
         project_config: &'a ProjectConfig,
         managed_envelope: &ManagedEnvelope,
         client_ip: Option<IpAddr>,
-        geo_lookup: Option<&'a GeoIpLookup>,
+        geo_lookup: &'a GeoIpLookup,
     ) -> Self {
         let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
@@ -491,8 +491,8 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .envelope()
                 .meta()
                 .user_agent()
-                .map(String::from),
-            client_hints: managed_envelope.meta().client_hints().clone(),
+                .map(Into::into),
+            client_hints: managed_envelope.meta().client_hints().to_owned(),
             allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
             client_ip,
             geo_lookup,
@@ -596,16 +596,17 @@ fn normalize(
     }
 
     // Derive geo ip:
-    if let Some(geoip_lookup) = geo_lookup {
-        let data = span.data.get_or_insert_with(Default::default);
-        if let Some(ip) = data.client_address.value()
-            && let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str())
-        {
-            data.user_geo_city = geo.city;
-            data.user_geo_country_code = geo.country_code;
-            data.user_geo_region = geo.region;
-            data.user_geo_subdivision = geo.subdivision;
-        }
+    let data = span.data.get_or_insert_with(Default::default);
+    if let Some(ip) = data
+        .client_address
+        .value()
+        .and_then(|ip| ip.as_str().parse().ok())
+        && let Some(geo) = geo_lookup.lookup(ip)
+    {
+        data.user_geo_city = geo.city;
+        data.user_geo_country_code = geo.country_code;
+        data.user_geo_region = geo.region;
+        data.user_geo_subdivision = geo.subdivision;
     }
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
@@ -1258,7 +1259,7 @@ mod tests {
             client_hints: ClientHints::default(),
             allowed_hosts: &[],
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
-            geo_lookup: Some(&GEO_LOOKUP),
+            geo_lookup: &GEO_LOOKUP,
             span_op_defaults: Default::default(),
         }
     }

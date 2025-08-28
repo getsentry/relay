@@ -195,7 +195,7 @@ impl<'a> RawUserAgentInfo<&'a str> {
 /// The client hint variable names mirror the name of the "SEC-CH" headers.
 ///
 /// See <https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct ClientHints<S>
 where
     S: Default + AsRef<str>,
@@ -276,11 +276,23 @@ impl ClientHints<String> {
 
     /// Returns an instance of `ClientHints` that borrows from the original data.
     pub fn as_deref(&self) -> ClientHints<&str> {
-        ClientHints::<&str> {
+        ClientHints {
             sec_ch_ua_platform: self.sec_ch_ua_platform.as_deref(),
             sec_ch_ua_platform_version: self.sec_ch_ua_platform_version.as_deref(),
             sec_ch_ua: self.sec_ch_ua.as_deref(),
             sec_ch_ua_model: self.sec_ch_ua_model.as_deref(),
+        }
+    }
+}
+
+impl ClientHints<&str> {
+    /// Creates owned [`ClientHints`].
+    pub fn to_owned(&self) -> ClientHints<String> {
+        ClientHints {
+            sec_ch_ua_platform: self.sec_ch_ua_platform.map(Into::into),
+            sec_ch_ua_platform_version: self.sec_ch_ua_platform_version.map(Into::into),
+            sec_ch_ua: self.sec_ch_ua.map(Into::into),
+            sec_ch_ua_model: self.sec_ch_ua_model.map(Into::into),
         }
     }
 }

@@ -71,6 +71,7 @@ def test_spansv2_basic(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         }
@@ -81,7 +82,13 @@ def test_spansv2_basic(
     assert spans_consumer.get_span() == {
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
-        "data": {"foo": "bar", "sentry.name": "some op"},
+        "data": {
+            "foo": "bar",
+            "sentry.name": "some op",
+            "sentry.browser.name": "Python Requests",
+            "sentry.browser.version": "2.32",
+            "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
+        },
         "description": "some op",
         "received": time_within(ts),
         "start_timestamp_ms": time_within(ts, precision="ms", expect_resolution="ms"),
@@ -126,7 +133,7 @@ def test_spansv2_basic(
 
 @pytest.mark.parametrize(
     "rule_type",
-    ["transaction", "trace"],
+    ["project", "trace"],
 )
 def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
     """
@@ -139,6 +146,9 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
         "organizations:standalone-span-ingestion",
         "projects:span-v2-experimental-processing",
     ]
+    # A transaction rule should never apply.
+    _add_sampling_config(project_config, sample_rate=1, rule_type="transaction")
+    # Setup the actual rule we want to test against.
     _add_sampling_config(project_config, sample_rate=0, rule_type=rule_type)
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
@@ -150,6 +160,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
@@ -236,6 +247,7 @@ def test_spansv2_ds_sampled(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
@@ -255,6 +267,9 @@ def test_spansv2_ds_sampled(
             "foo": "bar",
             "sentry.name": "some op",
             "sentry.server_sample_rate": 0.9,
+            "sentry.browser.name": "Python Requests",
+            "sentry.browser.version": "2.32",
+            "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
         },
         "measurements": {"server_sample_rate": {"value": 0.9}},
         "server_sample_rate": 0.9,
@@ -340,6 +355,7 @@ def test_spansv2_ds_root_in_different_org(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
@@ -388,3 +404,143 @@ def test_spansv2_ds_root_in_different_org(
     }
 
     spans_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "filter_name,filter_config,args",
+    [
+        pytest.param(
+            "release-version",
+            {"releases": {"releases": ["foobar@1.0"]}},
+            {},
+            id="release",
+        ),
+        pytest.param(
+            "filtered-transaction",
+            {"ignoreTransactions": {"isEnabled": True, "patterns": ["*health*"]}},
+            {},
+            id="transaction",
+        ),
+        pytest.param(
+            "legacy-browsers",
+            {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
+            {
+                "user-agent": "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0)"
+            },
+            id="legacy-browsers",
+        ),
+        pytest.param(
+            "web-crawlers",
+            {"webCrawlers": {"isEnabled": True}},
+            {
+                "user-agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"
+            },
+            id="web-crawlers",
+        ),
+        pytest.param(
+            "gen_name",
+            {
+                "op": "glob",
+                "name": "span.name",
+                "value": ["so*op"],
+            },
+            {},
+            id="gen_name",
+        ),
+        pytest.param(
+            "gen_attr",
+            {
+                "op": "gte",
+                "name": "span.attributes.some_integer.value",
+                "value": 123,
+            },
+            {},
+            id="gen_attr",
+        ),
+    ],
+)
+def test_spanv2_inbound_filters(
+    mini_sentry,
+    relay,
+    filter_name,
+    filter_config,
+    args,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-v2-experimental-processing",
+    ]
+
+    if filter_name.startswith("gen_"):
+        filter_config = {
+            "generic": {
+                "version": 1,
+                "filters": [
+                    {
+                        "id": filter_name,
+                        "isEnabled": True,
+                        "condition": filter_config,
+                    }
+                ],
+            }
+        }
+
+    project_config["config"]["filterSettings"] = filter_config
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    ts = datetime.now(timezone.utc)
+
+    envelope = envelope_with_spans(
+        {
+            "start_timestamp": ts.timestamp(),
+            "end_timestamp": ts.timestamp() + 0.5,
+            "trace_id": "5b8efff798038103d269b633813fc60c",
+            "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
+            "name": "some op",
+            "attributes": {
+                "some_integer": {"value": 123, "type": "integer"},
+                "sentry.release": {"value": "foobar@1.0", "type": "string"},
+                "sentry.segment.name": {"value": "/foo/healthz", "type": "string"},
+            },
+        }
+    )
+
+    headers = None
+    if user_agent := args.get("user-agent"):
+        headers = {"User-Agent": user_agent}
+
+    relay.send_envelope(project_id, envelope, headers=headers)
+
+    outcomes = []
+    for _ in range(2):
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
+    outcomes.sort(key=lambda x: x["category"])
+
+    assert outcomes == [
+        {
+            "category": DataCategory.SPAN.value,
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,  # Filtered
+            "reason": filter_name,
+            "quantity": 1,
+            "timestamp": time_within_delta(ts),
+        },
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": filter_name,
+            "timestamp": time_within_delta(ts),
+        },
+    ]
+
+    assert mini_sentry.captured_events.empty()
