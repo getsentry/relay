@@ -853,9 +853,9 @@ impl StoreService {
         received_at: DateTime<Utc>,
         retention_days: u16,
         payload: &[u8],
-        replay_relay_snuba_publish_disabled: bool,
+        relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
-        if replay_relay_snuba_publish_disabled {
+        if relay_snuba_publish_disabled {
             return Ok(());
         }
 
@@ -880,7 +880,7 @@ impl StoreService {
         replay_video: Option<&[u8]>,
         received_at: DateTime<Utc>,
         retention: u16,
-        replay_relay_snuba_publish_disabled: bool,
+        relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
         // Maximum number of bytes accepted by the consumer.
         let max_payload_size = self.config.max_replay_message_size();
@@ -920,7 +920,7 @@ impl StoreService {
                 payload,
                 replay_event,
                 replay_video,
-                replay_relay_snuba_publish_disabled,
+                relay_snuba_publish_disabled,
             });
 
         self.produce(KafkaTopic::ReplayRecordings, message)?;
@@ -935,7 +935,7 @@ impl StoreService {
         payload: Bytes,
         received_at: DateTime<Utc>,
         retention: u16,
-        replay_relay_snuba_publish_disabled: bool,
+        relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
         #[derive(Deserialize)]
         struct VideoEvent<'a> {
@@ -968,7 +968,7 @@ impl StoreService {
             received_at,
             retention,
             replay_event,
-            replay_relay_snuba_publish_disabled,
+            relay_snuba_publish_disabled,
         )?;
 
         self.produce_replay_recording(
@@ -979,7 +979,7 @@ impl StoreService {
             Some(replay_video),
             received_at,
             retention,
-            replay_relay_snuba_publish_disabled,
+            relay_snuba_publish_disabled,
         )
     }
 
@@ -1529,7 +1529,7 @@ struct ReplayRecordingNotChunkedKafkaMessage<'a> {
     replay_event: Option<&'a [u8]>,
     #[serde(with = "serde_bytes")]
     replay_video: Option<&'a [u8]>,
-    replay_relay_snuba_publish_disabled: bool,
+    relay_snuba_publish_disabled: bool,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
