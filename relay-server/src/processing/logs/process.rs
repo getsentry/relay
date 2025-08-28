@@ -1,8 +1,8 @@
 use relay_event_normalization::{SchemaProcessor, eap};
-use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
+use relay_event_schema::processor::{ProcessingState, process_value};
 use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_ourlogs::OtelLog;
-use relay_pii::PiiProcessor;
+use relay_pii::{AttributeMode, PiiProcessor};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
@@ -139,17 +139,17 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
         .map_err(|e| Error::PiiConfig(e.clone()))?;
 
     if let Some(ref config) = ctx.project_info.config.pii_config {
-        let mut processor = PiiProcessor::new(config.compiled());
-        let root_state = ProcessingState::root().enter_static("", None, Some(ValueType::OurLog));
-        process_value(log, &mut processor, &root_state)?;
+        let mut processor = PiiProcessor::new(config.compiled())
+            // For advanced rules we want to treat attributes as objects.
+            .attribute_mode(AttributeMode::Object);
+        process_value(log, &mut processor, &ProcessingState::root())?;
     }
 
     if let Some(config) = pii_config_from_scrubbing {
-        let mut processor = PiiProcessor::new(config.compiled());
-        // Use empty root (assumed to be Event) for legacy/default scrubbing rules.
-        // process_attributes will collapse Attribute into it's value for the default rules.
-        let root_state = ProcessingState::root();
-        process_value(log, &mut processor, root_state)?;
+        let mut processor = PiiProcessor::new(config.compiled())
+            // For "legacy" rules we want to identify attributes with their values.
+            .attribute_mode(AttributeMode::ValueOnly);
+        process_value(log, &mut processor, ProcessingState::root())?;
     }
 
     Ok(())
@@ -309,10 +309,7 @@ mod tests {
         scrubbing_config.scrub_data = true;
         scrubbing_config.scrub_defaults = true;
         scrubbing_config.scrub_ip_addresses = true;
-        scrubbing_config.sensitive_fields = vec![
-            "value".to_owned(), // Make sure the inner 'value' of the attribute object isn't scrubbed.
-            "very_sensitive_data".to_owned(),
-        ];
+        scrubbing_config.sensitive_fields = vec!["very_sensitive_data".to_owned()];
         scrubbing_config.exclude_fields = vec!["public_data".to_owned()];
 
         let ctx = make_context(scrubbing_config, None);
@@ -1098,7 +1095,7 @@ mod tests {
                 },
             },
             "applications": {
-                "$log.attributes.remove_this_string_abc123.value": ["remove_abc123"],
+                "attributes.remove_this_string_abc123.value": ["remove_abc123"],
             }
         }))
         .unwrap();

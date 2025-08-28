@@ -6,7 +6,7 @@ use std::{borrow::Borrow, fmt};
 
 use crate::processor::{ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType};
 
-#[derive(Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[derive(Clone, PartialEq, Empty, FromValue, IntoValue)]
 pub struct Attribute {
     #[metastructure(flatten)]
     pub value: AttributeValue,
@@ -35,6 +35,36 @@ impl fmt::Debug for Attribute {
             .field("type", &self.value.ty)
             .field("other", &self.other)
             .finish()
+    }
+}
+
+impl ProcessValue for Attribute {
+    fn value_type(&self) -> EnumSet<ValueType> {
+        ValueType::for_field(&self.value.value)
+    }
+
+    fn process_value<P>(
+        &mut self,
+        meta: &mut Meta,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        processor.process_attribute(self, meta, state)
+    }
+
+    fn process_child_values<P>(
+        &mut self,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        self.value.process_child_values(processor, state)?;
+        self.other.process_child_values(processor, state)
     }
 }
 
@@ -152,7 +182,7 @@ impl IntoValue for AttributeType {
 }
 
 /// Wrapper struct around a collection of attributes with some convenience methods.
-#[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue)]
+#[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Attributes(pub Object<Attribute>);
 
 impl Attributes {
@@ -240,36 +270,5 @@ impl IntoIterator for Attributes {
 impl FromIterator<(String, Annotated<Attribute>)> for Attributes {
     fn from_iter<T: IntoIterator<Item = (String, Annotated<Attribute>)>>(iter: T) -> Self {
         Self(Object::from_iter(iter))
-    }
-}
-
-impl ProcessValue for Attributes {
-    #[inline]
-    fn value_type(&self) -> EnumSet<ValueType> {
-        EnumSet::only(ValueType::Object)
-    }
-
-    #[inline]
-    fn process_value<P>(
-        &mut self,
-        meta: &mut Meta,
-        processor: &mut P,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        P: Processor,
-    {
-        processor.process_attributes(self, meta, state)
-    }
-
-    fn process_child_values<P>(
-        &mut self,
-        _processor: &mut P,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        P: Processor,
-    {
-        Ok(())
     }
 }
