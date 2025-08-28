@@ -445,6 +445,10 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
