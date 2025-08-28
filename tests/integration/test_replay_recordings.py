@@ -1,6 +1,7 @@
 import zlib
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+import pytest
 
 
 def test_replay_recordings(mini_sentry, relay_chain):
@@ -30,16 +31,29 @@ def test_replay_recordings(mini_sentry, relay_chain):
     assert replay_recording.startswith(b"{}\n")  # The body is compressed
 
 
+@pytest.mark.parametrize(
+    "value,expected", [(None, False), (False, False), (True, True)]
+)
 def test_nonchunked_replay_recordings_processing(
-    mini_sentry, relay_with_processing, replay_recordings_consumer, outcomes_consumer
+    mini_sentry,
+    relay_with_processing,
+    replay_recordings_consumer,
+    outcomes_consumer,
+    value,
+    expected,
 ):
     project_id = 42
     org_id = 0
     replay_id = "515539018c9b4260a6f999572f1661ee"
-    relay = relay_with_processing()
+
+    if value is not None:
+        mini_sentry.global_config["options"][
+            "replay.relay-snuba-publishing-disabled"
+        ] = value
     mini_sentry.add_basic_project_config(
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
     )
+    relay = relay_with_processing()
     replay_recordings_consumer = replay_recordings_consumer()
     outcomes_consumer = outcomes_consumer()
 
@@ -67,6 +81,7 @@ def test_nonchunked_replay_recordings_processing(
     assert replay_recording["retention_days"] == 90
     assert replay_recording["payload"] == payload
     assert replay_recording["type"] == "replay_recording_not_chunked"
+    assert replay_recording["relay_snuba_publish_disabled"] is expected
 
     outcomes_consumer.assert_empty()
 
