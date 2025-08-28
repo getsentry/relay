@@ -439,7 +439,7 @@ mod tests {
         let event_span = otel_to_sentry_span(otel_span).unwrap();
 
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r#"
         {
           "timestamp": 123.5,
           "start_timestamp": 123.0,
@@ -453,12 +453,11 @@ mod tests {
           "data": {
             "process.args": "[\"node\",\"--require\",\"preflight.cjs\"]",
             "process.info": "[41]",
-            "sentry.name": "cmd.run",
-            "sentry.status.message": ""
+            "sentry.name": "cmd.run"
           },
           "links": []
         }
-        "###);
+        "#);
     }
 
     /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.

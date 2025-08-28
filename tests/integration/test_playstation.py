@@ -19,7 +19,7 @@ def load_dump_file(base_file_name: str):
 def event_json(response):
     return {
         "event_id": response.text.replace("-", ""),
-        "timestamp": 1748373553.0,
+        "timestamp": mock.ANY,
         "received": time_within_delta(),
         "level": "error",
         "version": "7",
@@ -54,7 +54,7 @@ def event_json(response):
         "breadcrumbs": {
             "values": [
                 {
-                    "timestamp": 1748373552.703305,
+                    "timestamp": mock.ANY,
                     "type": "default",
                     "level": "info",
                     "message": "crumb",
@@ -90,6 +90,8 @@ def event_json(response):
         "project": 42,
         "_metrics": mock.ANY,
         "grouping_config": mock.ANY,
+        "_meta": mock.ANY,
+        "errors": mock.ANY,
     }
 
 

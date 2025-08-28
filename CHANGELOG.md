@@ -1,8 +1,25 @@
 # Changelog
 
-## 25.8.0
+## Unreleased
 
-- Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
+**Breaking Changes**:
+
+- Only check for local project configs in static mode. ([#5057](https://github.com/getsentry/relay/pull/5057))
+
+**Features**:
+
+- Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
+
+**Internal**:
+
+- Disable PII scrubbing for gen ai operation name. ([#5064](https://github.com/getsentry/relay/pull/5064))
+- Set the default log retention to 30 days for full fidelity and downsampled data. ([#5065](https://github.com/getsentry/relay/pull/5065))
+- Improved PII Scrubbing for attributes / logs ([#5061](https://github.com/getsentry/relay/pull/5061)))
+- Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077)))
+- Produce transactions on `transactions` Kafka topic, even if they have attachments. ([#5081](https://github.com/getsentry/relay/pull/5081))
+- Add option gating Snuba publishing to ingest-replay-events for Replays. ([#5088](https://github.com/getsentry/relay/pull/5088))
+
+## 25.8.0
 
 **Features**:
 
@@ -14,6 +31,7 @@
 - Add payload size as an attribute to logs. ([#5042](https://github.com/getsentry/relay/pull/5042))
 - Pass `downsampled_event_retention` to `Traceitem` where appropriate. ([#5013](https://github.com/getsentry/relay/pull/5013), [#5041](https://github.com/getsentry/relay/pull/5041))
 - Remove `RelayMode::Capture` and the associated logic. ([#5053](https://github.com/getsentry/relay/pull/5053))
+- Add data categories for Prevent. ([#5052](https://github.com/getsentry/relay/pull/5052))
 
 **Bug Fixes**:
 

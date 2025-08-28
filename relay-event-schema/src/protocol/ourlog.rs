@@ -33,7 +33,7 @@ pub struct OurLog {
     pub body: Annotated<String>,
 
     /// Arbitrary attributes on a log.
-    #[metastructure(pii = "true", trim = false)]
+    #[metastructure(pii = "maybe", trim = false)]
     pub attributes: Annotated<Attributes>,
 
     /// Additional arbitrary fields for forwards compatibility.

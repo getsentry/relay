@@ -212,6 +212,16 @@ async fn compute_sampling_decision(
         }
     };
 
+    if let (Some(dsc), Some(sampling_state)) = (dsc, sampling_config) {
+        let rules = sampling_state.filter_rules(RuleType::Project);
+        evaluator = match evaluator.match_rules(*dsc.trace_id, dsc, rules).await {
+            ControlFlow::Continue(evaluator) => evaluator,
+            ControlFlow::Break(sampling_match) => {
+                return SamplingResult::Match(sampling_match);
+            }
+        }
+    };
+
     if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
         let rules = sampling_state.filter_rules(RuleType::Trace);
         return evaluator
@@ -310,6 +320,21 @@ mod tests {
 
     fn dummy_reservoir() -> ReservoirEvaluator<'static> {
         ReservoirEvaluator::new(ReservoirCounters::default())
+    }
+
+    fn test_dsc() -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_owned()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: Some(0.5),
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        }
     }
 
     // Helper to extract the sampling match from SamplingResult if thats the variant.
@@ -556,19 +581,7 @@ mod tests {
             .unwrap();
         let request_meta = RequestMeta::new(dsn);
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-        let dsc = DynamicSamplingContext {
-            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_owned()),
-            user: Default::default(),
-            replay_id: None,
-            environment: None,
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: Some(true),
-            other: BTreeMap::new(),
-        };
-        envelope.set_dsc(dsc);
+        envelope.set_dsc(test_dsc());
         envelope.add_item(mocked_error_item());
 
         // We test with sample rate equal to 100%.
@@ -642,31 +655,33 @@ mod tests {
     /// Happy path test for compute_sampling_decision.
     #[tokio::test]
     async fn test_compute_sampling_decision_matching() {
-        let event = mocked_event(EventType::Transaction, "foo", "bar");
-        let rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value: SamplingValue::SampleRate { value: 1.0 },
-            ty: RuleType::Transaction,
-            id: RuleId(0),
-            time_range: TimeRange::default(),
-            decaying_fn: Default::default(),
-        };
+        for rule_type in [RuleType::Transaction, RuleType::Project] {
+            let event = mocked_event(EventType::Transaction, "foo", "bar");
+            let rule = SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: 1.0 },
+                ty: rule_type,
+                id: RuleId(0),
+                time_range: TimeRange::default(),
+                decaying_fn: Default::default(),
+            };
 
-        let sampling_config = SamplingConfig {
-            rules: vec![rule],
-            ..SamplingConfig::new()
-        };
+            let sampling_config = SamplingConfig {
+                rules: vec![rule],
+                ..SamplingConfig::new()
+            };
 
-        let res = compute_sampling_decision(
-            false,
-            None,
-            Some(&sampling_config),
-            Some(&event),
-            None,
-            None,
-        )
-        .await;
-        assert!(res.is_match());
+            let res = compute_sampling_decision(
+                false,
+                None,
+                Some(&sampling_config),
+                Some(&event),
+                None,
+                Some(&test_dsc()),
+            )
+            .await;
+            assert!(res.is_match());
+        }
     }
 
     #[tokio::test]
@@ -716,18 +731,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_client_sample_rate() {
-        let dsc = DynamicSamplingContext {
-            trace_id: "67e5504410b1426f9247bb680e5fe0c8".parse().unwrap(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_owned()),
-            user: Default::default(),
-            replay_id: None,
-            environment: None,
-            transaction: Some("transaction1".into()),
-            sample_rate: Some(0.5),
-            sampled: Some(true),
-            other: BTreeMap::new(),
-        };
+        let dsc = test_dsc();
 
         let rule = SamplingRule {
             condition: RuleCondition::all(),

@@ -201,6 +201,7 @@ impl Forward for LogOutput {
         let ctx = store::Context {
             scoping,
             received_at,
+            // Hard-code retentions until we have a per data category retention
             retention: retentions.0,
             downsampled_retention: retentions.1,
         };

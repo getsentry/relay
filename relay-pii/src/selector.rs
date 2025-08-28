@@ -659,4 +659,16 @@ mod tests {
         // WAT.  We have the full path to a field here.
         assert_matches_pii_true!(minidump_state_inner, "$attachments.$minidump.$binary",);
     }
+
+    #[test]
+    fn test_logs_matching() {
+        let event_state = ProcessingState::new_root(None, None);
+        let log_state = event_state.enter_static("", None, Some(ValueType::OurLog)); // .
+        let body_state = log_state.enter_static("body", None, Some(ValueType::String));
+        let attributes_state = log_state.enter_static("attributes", None, Some(ValueType::Object));
+
+        assert_matches_pii_maybe!(log_state, "$log",);
+        assert_matches_pii_true!(body_state, "$log.body",);
+        assert_matches_pii_true!(attributes_state, "$log.attributes",);
+    }
 }

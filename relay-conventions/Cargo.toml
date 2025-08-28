@@ -1,0 +1,28 @@
+[package]
+name = "relay-conventions"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Relay support for Sentry Semantic Conventions"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "25.7.0"
+edition = "2024"
+license-file = "../LICENSE.md"
+build = "build/build.rs"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+phf = { workspace = true }
+relay-event-schema = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+
+[build-dependencies]
+phf = { workspace = true }
+phf_codegen = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+walkdir = { workspace = true }
