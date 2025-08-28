@@ -184,6 +184,18 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_SEER_SCANNER = 28,
   /**
+   * PreventUser
+   *
+   * This is the data category to count the number of assigned Prevent Users.
+   */
+  RELAY_DATA_CATEGORY_PREVENT_USER = 29,
+  /**
+   * PreventReview
+   *
+   * This is the data category to count the number of Prevent review events.
+   */
+  RELAY_DATA_CATEGORY_PREVENT_REVIEW = 30,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,

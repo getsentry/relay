@@ -1,7 +1,10 @@
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
+use enumset::EnumSet;
+use relay_protocol::{
+    Annotated, Empty, FromValue, IntoValue, Meta, Object, SkipSerialization, Value,
+};
 use std::{borrow::Borrow, fmt};
 
-use crate::processor::ProcessValue;
+use crate::processor::{ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType};
 
 #[derive(Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Attribute {
@@ -161,7 +164,7 @@ impl IntoValue for AttributeType {
 }
 
 /// Wrapper struct around a collection of attributes with some convenience methods.
-#[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue)]
 pub struct Attributes(pub Object<Attribute>);
 
 impl Attributes {
@@ -247,5 +250,36 @@ impl IntoIterator for Attributes {
 impl FromIterator<(String, Annotated<Attribute>)> for Attributes {
     fn from_iter<T: IntoIterator<Item = (String, Annotated<Attribute>)>>(iter: T) -> Self {
         Self(Object::from_iter(iter))
+    }
+}
+
+impl ProcessValue for Attributes {
+    #[inline]
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Object)
+    }
+
+    #[inline]
+    fn process_value<P>(
+        &mut self,
+        meta: &mut Meta,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        processor.process_attributes(self, meta, state)
+    }
+
+    fn process_child_values<P>(
+        &mut self,
+        _processor: &mut P,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        Ok(())
     }
 }

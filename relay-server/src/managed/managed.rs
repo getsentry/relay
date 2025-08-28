@@ -17,6 +17,8 @@ use crate::managed::{Counted, ManagedEnvelope, Quantities};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::ProcessingError;
 
+#[cfg(debug_assertions)]
+mod debug;
 #[cfg(test)]
 mod test;
 
@@ -36,6 +38,14 @@ pub trait OutcomeError {
     ///
     /// Returning a `None` outcome should discard the item(s) silently.
     fn consume(self) -> (Option<Outcome>, Self::Error);
+}
+
+impl OutcomeError for Outcome {
+    type Error = ();
+
+    fn consume(self) -> (Option<Outcome>, Self::Error) {
+        (self, ()).consume()
+    }
 }
 
 impl<E> OutcomeError for (Outcome, E) {
@@ -135,21 +145,64 @@ impl<T: Counted> Managed<T> {
         self.meta.scoping
     }
 
-    pub fn split<F, I, S>(self, mut f: F) -> Split<I::IntoIter, I::Item>
+    /// Splits [`Self`] into two other [`Managed`] items.
+    ///
+    /// The two resulting managed instances together are expected to have the same outcomes as the original instance..
+    /// Since splitting may introduce a new type of item, which some of the original
+    /// quantities are transferred to, there may be new additional data categories created.
+    pub fn split_once<F, S, U>(self, f: F) -> (Managed<S>, Managed<U>)
     where
-        F: FnMut(T) -> I,
+        F: FnOnce(T) -> (S, U),
+        S: Counted,
+        U: Counted,
+    {
+        debug_assert!(!self.is_done());
+
+        let (value, meta) = self.destructure();
+        #[cfg(debug_assertions)]
+        let quantities = value.quantities();
+
+        let (a, b) = f(value);
+
+        #[cfg(debug_assertions)]
+        debug::Quantities::from(&quantities)
+            // Instead of `assert_only_extra`, used for extracted metrics also counting
+            // in the `metric bucket` category, it may make sense to give the mapping function
+            // control over which categories to ignore, similar to the record keeper's lenient
+            // method.
+            .assert_only_extra(debug::Quantities::from(&a) + debug::Quantities::from(&b));
+
+        (
+            Managed::from_parts(a, Arc::clone(&meta)),
+            Managed::from_parts(b, meta),
+        )
+    }
+
+    /// Splits [`Self`] into a variable amount if individual items.
+    ///
+    /// Useful when the current instance contains multiple items of the same type
+    /// and must be split into individually managed items.
+    pub fn split<F, I, S>(self, f: F) -> Split<I::IntoIter, I::Item>
+    where
+        F: FnOnce(T) -> I,
         I: IntoIterator<Item = S>,
         S: Counted,
     {
         self.split_with_context(|value| (f(value), ())).0
     }
 
-    pub fn split_with_context<F, I, S, C>(self, mut f: F) -> (Split<I::IntoIter, I::Item>, C)
+    /// Splits [`Self`] into a variable amount if individual items.
+    ///
+    /// Like [`Self::split`] but also allows returning an untracked context,
+    /// a way of returning additional data when deconstructing the original item.
+    pub fn split_with_context<F, I, S, C>(self, f: F) -> (Split<I::IntoIter, I::Item>, C)
     where
-        F: FnMut(T) -> (I, C),
+        F: FnOnce(T) -> (I, C),
         I: IntoIterator<Item = S>,
         S: Counted,
     {
+        debug_assert!(!self.is_done());
+
         let (value, meta) = self.destructure();
         #[cfg(debug_assertions)]
         let quantities = value.quantities();
@@ -523,13 +576,7 @@ impl<'a> RecordKeeper<'a> {
     /// outcomes.
     #[cfg(debug_assertions)]
     fn assert_quantities(&self, original: Quantities, new: Quantities) {
-        let mut original_sums = original.iter().fold(
-            std::collections::BTreeMap::<DataCategory, usize>::new(),
-            |mut acc, (category, quantity)| {
-                *acc.entry(*category).or_default() += *quantity;
-                acc
-            },
-        );
+        let mut original_sums = debug::Quantities::from(&original).0;
 
         macro_rules! emit {
             ($category:expr, $($tt:tt)*) => {{

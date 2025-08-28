@@ -115,8 +115,6 @@ pub trait TrackableBucket {
     ///
     /// If the metric was extracted from one or more transactions or spans, it returns the amount
     /// of datapoints contained in the bucket.
-    ///
-    /// Additionally tracks whether the transactions also contained profiling information.
     fn summary(&self) -> BucketSummary;
 
     /// Metric bucket metadata.
@@ -199,6 +197,11 @@ impl TrackableBucket for BucketView<'_> {
 }
 
 /// Extracts quota information from a list of metric buckets.
+///
+/// This does not count metrics which are extracted from indexed payloads,
+/// as the indexed payload is the one being rate limited.
+///
+/// See also: [`BucketMetadata::extracted_from_indexed`].
 pub fn extract_quantities<I, T>(buckets: I) -> SourceQuantities
 where
     I: IntoIterator<Item = T>,
@@ -208,6 +211,12 @@ where
 
     for bucket in buckets {
         quantities.buckets += 1;
+
+        if bucket.metadata().extracted_from_indexed {
+            continue;
+        }
+
+        // Only count metrics for outcomes, where the indexed payload no longer exists.
         let summary = bucket.summary();
         match summary {
             BucketSummary::Transactions(count) => {

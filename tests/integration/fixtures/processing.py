@@ -298,9 +298,8 @@ class OutcomesConsumer(ConsumerBase):
         )
 
     def get_outcome(self, timeout=None):
-        outcomes = self.get_outcomes(timeout)
-        assert len(outcomes) > 0, "No outcomes were consumed"
-        assert len(outcomes) == 1, "More than one outcome was consumed"
+        outcomes = self.get_outcomes(timeout=timeout, n=1)
+        self.assert_empty()
         return outcomes[0]
 
     def assert_rate_limited(
@@ -426,12 +425,22 @@ class MetricsConsumer(ConsumerBase):
 
         return json.loads(message.value()), message.headers()
 
-    def get_metrics(self, timeout=None, n=None):
+    def get_metrics(self, timeout=None, n=None, with_headers=True):
         metrics = []
 
         for message in self.poll_many(timeout=timeout, n=n):
             assert message.error() is None
-            metrics.append((json.loads(message.value()), message.headers()))
+            if with_headers:
+                metrics.append((json.loads(message.value()), message.headers()))
+            else:
+                metrics.append(json.loads(message.value()))
+
+        def _sort(m):
+            if with_headers:
+                m = m[0]
+            return (m["name"], sorted(m["tags"].items()), m["timestamp"])
+
+        metrics.sort(key=_sort)
 
         return metrics
 

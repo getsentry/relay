@@ -124,6 +124,14 @@ pub enum DataCategory {
     SeerAutofix = 27,
     /// This is the data category to count Seer Scanner run events.
     SeerScanner = 28,
+    /// PreventUser
+    ///
+    /// This is the data category to count the number of assigned Prevent Users.
+    PreventUser = 29,
+    /// PreventReview
+    ///
+    /// This is the data category to count the number of Prevent review events.
+    PreventReview = 30,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -169,6 +177,8 @@ impl DataCategory {
             "attachment_item" => Self::AttachmentItem,
             "seer_autofix" => Self::SeerAutofix,
             "seer_scanner" => Self::SeerScanner,
+            "prevent_user" => Self::PreventUser,
+            "prevent_review" => Self::PreventReview,
             _ => Self::Unknown,
         }
     }
@@ -206,6 +216,8 @@ impl DataCategory {
             Self::AttachmentItem => "attachment_item",
             Self::SeerAutofix => "seer_autofix",
             Self::SeerScanner => "seer_scanner",
+            Self::PreventUser => "prevent_user",
+            Self::PreventReview => "prevent_review",
             Self::Unknown => "unknown",
         }
     }
@@ -304,6 +316,8 @@ impl TryFrom<u8> for DataCategory {
             26 => Ok(Self::ProfileChunkUi),
             27 => Ok(Self::SeerAutofix),
             28 => Ok(Self::SeerScanner),
+            29 => Ok(Self::PreventUser),
+            30 => Ok(Self::PreventReview),
             other => Err(UnknownDataCategory(other)),
         }
     }
@@ -318,7 +332,7 @@ mod tests {
         // If this test fails, update the numeric bounds so that the first assertion
         // maps to the last variant in the enum and the second assertion produces an error
         // that the DataCategory does not exist.
-        assert_eq!(DataCategory::try_from(28), Ok(DataCategory::SeerScanner));
-        assert_eq!(DataCategory::try_from(29), Err(UnknownDataCategory(29)));
+        assert_eq!(DataCategory::try_from(30), Ok(DataCategory::PreventReview));
+        assert_eq!(DataCategory::try_from(31), Err(UnknownDataCategory(31)));
     }
 }

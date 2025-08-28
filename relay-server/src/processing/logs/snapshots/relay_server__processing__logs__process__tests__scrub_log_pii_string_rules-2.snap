@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@ip:replace|127.0.0.1": {
+    "type": "string",
+    "value": "[ip]"
+  },
+  "_meta": {
+    "@ip:replace|127.0.0.1": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@ip:replace",
+              "s",
+              0,
+              4
+            ]
+          ],
+          "len": 9
+        }
+      }
+    }
+  }
+}

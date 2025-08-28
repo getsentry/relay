@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/logs/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@imei|356938035643809": {
+    "type": "string",
+    "value": "[imei]"
+  },
+  "_meta": {
+    "@imei|356938035643809": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@imei",
+              "s",
+              0,
+              6
+            ]
+          ],
+          "len": 15
+        }
+      }
+    }
+  }
+}

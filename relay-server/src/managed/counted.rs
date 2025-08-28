@@ -3,9 +3,10 @@ use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use smallvec::SmallVec;
 
-use crate::envelope::{Item, WithHeader};
+use crate::envelope::{Item, SourceQuantities, WithHeader};
+use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::utils::EnvelopeSummary;
-use crate::{Envelope, processing};
+use crate::{Envelope, metrics, processing};
 
 /// A list of data categories and amounts.
 pub type Quantities = SmallVec<[(DataCategory, usize); 1]>;
@@ -97,6 +98,29 @@ impl Counted for WithHeader<SpanV2> {
 impl Counted for Annotated<Span> {
     fn quantities(&self) -> Quantities {
         smallvec::smallvec![(DataCategory::Span, 1), (DataCategory::SpanIndexed, 1)]
+    }
+}
+
+impl Counted for ExtractedMetrics {
+    fn quantities(&self) -> Quantities {
+        // We only consider project metrics, sampling project metrics should never carry outcomes,
+        // as they would be for a *different* project.
+        let SourceQuantities {
+            transactions,
+            spans,
+            profiles,
+            buckets,
+        } = metrics::extract_quantities(&self.project_metrics);
+
+        [
+            (DataCategory::Transaction, transactions),
+            (DataCategory::Span, spans),
+            (DataCategory::Profile, profiles),
+            (DataCategory::MetricBucket, buckets),
+        ]
+        .into_iter()
+        .filter(|(_, q)| *q > 0)
+        .collect()
     }
 }
 

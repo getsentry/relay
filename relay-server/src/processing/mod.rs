@@ -12,7 +12,7 @@ use relay_quotas::RateLimits;
 
 use crate::Envelope;
 use crate::managed::{Counted, Managed, ManagedEnvelope, Rejected};
-use crate::services::processor::ProcessingExtractedMetrics;
+use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::services::projects::project::ProjectInfo;
 
 mod common;
@@ -102,17 +102,25 @@ impl Context<'_> {
 #[derive(Debug)]
 pub struct Output<T> {
     /// The main output of a [`Processor`].
-    pub main: T,
+    pub main: Option<T>,
     /// Metric by products.
-    pub metrics: ProcessingExtractedMetrics,
+    pub metrics: Option<Managed<ExtractedMetrics>>,
 }
 
 impl<T> Output<T> {
     /// Creates a new output with just a main output.
     pub fn just(main: T) -> Self {
         Self {
-            main,
-            metrics: ProcessingExtractedMetrics::new(),
+            main: Some(main),
+            metrics: None,
+        }
+    }
+
+    /// Creates a new output just containing metrics.
+    pub fn metrics(metrics: Managed<ExtractedMetrics>) -> Self {
+        Self {
+            main: None,
+            metrics: Some(metrics),
         }
     }
 
@@ -122,7 +130,7 @@ impl<T> Output<T> {
         F: FnOnce(T) -> S,
     {
         Output {
-            main: f(self.main),
+            main: self.main.map(f),
             metrics: self.metrics,
         }
     }

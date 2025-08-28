@@ -139,6 +139,14 @@ pub fn selector_suggestions_from_value<T: ProcessValue>(
         selectors: BTreeSet::new(),
     };
 
+    // OurLog (logs) should not appear in selector suggestions as that is used by the old modal.
+    // This should not be possible unless we are explicitly sending ourlog json to 'relay_pii_selector_suggestions_from_event', but guarding against it just in case.
+    if let Some(value) = value.value_mut()
+        && value.value_type().contains(ValueType::OurLog)
+    {
+        return BTreeSet::new();
+    }
+
     processor::process_value(value, &mut processor, ProcessingState::root())
         .expect("This processor is supposed to be infallible");
 
@@ -147,7 +155,7 @@ pub fn selector_suggestions_from_value<T: ProcessValue>(
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::Event;
+    use relay_event_schema::protocol::{Event, OurLog};
 
     use super::*;
 
@@ -289,5 +297,29 @@ mod tests {
           }
         ]
         "###);
+    }
+
+    #[test]
+    fn test_attributes() {
+        let mut annotated_log = Annotated::<OurLog>::from_json(
+            r#"
+            {
+              "timestamp": 1544719860.0,
+              "trace_id": "5b8efff798038103d269b633813fc60c",
+              "span_id": "eee19b7ec3c1b174",
+              "level": "info",
+              "body": "Test",
+              "attributes": {
+                  "example_attribute": {
+                      "type": "string",
+                      "value": "abc123"
+                  }
+              }
+            }"#,
+        )
+        .unwrap();
+
+        let selectors = selector_suggestions_from_value(&mut annotated_log);
+        insta::assert_json_snapshot!(selectors, @"[]");
     }
 }
