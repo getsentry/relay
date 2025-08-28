@@ -42,8 +42,8 @@ workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
 The `processing` feature additionally requires a C compiler and CMake.
 
-To install the development environment, librdkafka must be installed and on the
-path. On macOS, we require to install it with `brew install librdkafka`, as the installation script uses `brew --prefix` to determine the correct location.
+To install the development environment, run `devenv sync`.
+([Install devenv](https://github.com/getsentry/devenv/?tab=readme-ov-file#install) if you haven't already.)
 
 We use VSCode for development. This repository contains settings files
 configuring code style, linters, and useful features. When opening the project
