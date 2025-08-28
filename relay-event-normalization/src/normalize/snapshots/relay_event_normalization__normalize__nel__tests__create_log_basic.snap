@@ -12,10 +12,6 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
       "type": "string",
       "value": "network-error"
     },
-    "http.request.duration": {
-      "type": "integer",
-      "value": 1000
-    },
     "http.request.header.referer": {
       "type": "string",
       "value": "https://example.com/referer"
@@ -27,6 +23,10 @@ expression: "SerializableAnnotated(&Annotated::new(log))"
     "http.response.status_code": {
       "type": "integer",
       "value": 500
+    },
+    "nel.elapsed_time": {
+      "type": "integer",
+      "value": 1000
     },
     "nel.phase": {
       "type": "string",
