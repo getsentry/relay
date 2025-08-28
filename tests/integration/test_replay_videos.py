@@ -4,23 +4,33 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 import msgpack
 import json
+import pytest
 
 
+@pytest.mark.parametrize(
+    "value,expected", [(None, False), (False, False), (True, True)]
+)
 def test_replay_recording_with_video(
     mini_sentry,
     relay_with_processing,
     replay_recordings_consumer,
     outcomes_consumer,
     replay_events_consumer,
+    value,
+    expected,
 ):
     project_id = 42
     org_id = 0
     replay_id = "515539018c9b4260a6f999572f1661ee"
-    relay = relay_with_processing()
+    if value is not None:
+        mini_sentry.global_config["options"][
+            "replay.relay-snuba-publishing-disabled"
+        ] = value
     mini_sentry.add_basic_project_config(
         project_id,
         extra={"config": {"features": ["organizations:session-replay"]}},
     )
+    relay = relay_with_processing()
     replay = generate_replay_sdk_event(replay_id)
     replay_events_consumer = replay_events_consumer(timeout=10)
     replay_recordings_consumer = replay_recordings_consumer()
@@ -61,6 +71,7 @@ def test_replay_recording_with_video(
     assert replay_recording["payload"] == _recording_payload
     assert replay_recording["type"] == "replay_recording_not_chunked"
     assert replay_recording["replay_event"] is not None
+    assert replay_recording["relay_snuba_publish_disabled"] is expected
 
     # Assert the replay-video bytes were published to the consumer.
     assert replay_recording["replay_video"] == b"hello, world!"
@@ -70,8 +81,12 @@ def test_replay_recording_with_video(
     assert replay_event["type"] == "replay_event"
     assert replay_event["replay_id"] == "515539018c9b4260a6f999572f1661ee"
 
-    replay_event, _ = replay_events_consumer.get_replay_event()
-    assert_replay_payload_matches(replay, replay_event)
+    if value is True:
+        with pytest.raises(AssertionError):
+            replay_events_consumer.get_replay_event()  # Nothing produced.
+    else:
+        replay_event, _ = replay_events_consumer.get_replay_event()
+        assert_replay_payload_matches(replay, replay_event)
 
     # Assert all conumers are empty.
     replay_recordings_consumer.assert_empty()
