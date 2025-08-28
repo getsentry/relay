@@ -346,22 +346,6 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
-    /// Derives a processing state by entering a static key.
-    pub fn enter_static(
-        &'a self,
-        key: &'static str,
-        attrs: Option<Cow<'static, FieldAttrs>>,
-        value_type: impl IntoIterator<Item = ValueType>,
-    ) -> Self {
-        ProcessingState {
-            parent: Some(BoxCow::Borrowed(self)),
-            path_item: Some(PathItem::StaticKey(key)),
-            attrs,
-            value_type: value_type.into_iter().collect(),
-            depth: self.depth + 1,
-        }
-    }
-
     /// Derives a processing state by entering a borrowed key.
     pub fn enter_borrowed(
         &'a self,
