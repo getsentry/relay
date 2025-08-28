@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Only check for local project configs in static mode. ([#5057](https://github.com/getsentry/relay/pull/5057))
+
 **Features**:
 
 - Build and publish Relay containers with a distroless base image. ([#4940](https://github.com/getsentry/relay/pull/4940))
