@@ -4,3 +4,6 @@
 [submodule "sentry-native"]
 	path = relay-crash/sentry-native
 	url = https://github.com/getsentry/sentry-native.git
+[submodule "sentry-conventions"]
+	path = relay-conventions/sentry-conventions
+	url = https://github.com/getsentry/sentry-conventions

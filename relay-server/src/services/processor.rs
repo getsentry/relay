@@ -97,7 +97,6 @@ mod replay;
 mod report;
 mod session;
 mod span;
-mod transaction;
 pub use span::extract_transaction_span;
 
 #[cfg(all(sentry, feature = "processing"))]
@@ -1184,7 +1183,7 @@ struct InnerProcessor {
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<Arc<RedisRateLimiter<GlobalRateLimitsServiceHandle>>>,
-    geoip_lookup: Option<GeoIpLookup>,
+    geoip_lookup: GeoIpLookup,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
@@ -1209,15 +1208,18 @@ impl EnvelopeProcessorService {
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
-        let geoip_lookup = config.geoip_path().and_then(|p| {
-            match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
-                Ok(geoip) => Some(geoip),
-                Err(err) => {
-                    relay_log::error!("failed to open GeoIP db {p:?}: {err:?}");
-                    None
-                }
-            }
-        });
+        let geoip_lookup = config
+            .geoip_path()
+            .and_then(
+                |p| match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
+                    Ok(geoip) => Some(geoip),
+                    Err(err) => {
+                        relay_log::error!("failed to open GeoIP db {p:?}: {err:?}");
+                        None
+                    }
+                },
+            )
+            .unwrap_or_else(GeoIpLookup::empty);
 
         #[cfg(feature = "processing")]
         let (cardinality, quotas) = match redis {
@@ -1259,7 +1261,6 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             rate_limiter,
             addrs,
-            geoip_lookup,
             #[cfg(feature = "processing")]
             cardinality_limiter: cardinality
                 .map(|cardinality| {
@@ -1275,8 +1276,9 @@ impl EnvelopeProcessorService {
             metric_outcomes,
             processing: Processing {
                 logs: LogsProcessor::new(Arc::clone(&quota_limiter)),
-                spans: SpansProcessor::new(quota_limiter),
+                spans: SpansProcessor::new(quota_limiter, geoip_lookup.clone()),
             },
+            geoip_lookup,
             config,
         };
 
@@ -1564,7 +1566,7 @@ impl EnvelopeProcessorService {
                     .and_then(|ctx| ctx.sample_rate),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
-                    client_hints: request_meta.client_hints().as_deref(),
+                    client_hints: request_meta.client_hints(),
                 },
                 max_name_and_unit_len: Some(
                     transaction_aggregator_config
@@ -1589,7 +1591,7 @@ impl EnvelopeProcessorService {
                 remove_other: full_normalization,
                 emit_event_errors: full_normalization,
                 span_description_rules: project_info.config.span_description_rules.as_ref(),
-                geoip_lookup: self.inner.geoip_lookup.as_ref(),
+                geoip_lookup: Some(&self.inner.geoip_lookup),
                 ai_model_costs: ai_model_costs.as_ref(),
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
@@ -1764,8 +1766,6 @@ impl EnvelopeProcessorService {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         let global_config = self.inner.global_config.current();
-
-        transaction::drop_invalid_items(managed_envelope, &global_config);
 
         // We extract the main event from the envelope.
         let extraction_result = event::extract(
@@ -2120,7 +2120,7 @@ impl EnvelopeProcessorService {
             &self.inner.global_config.current(),
             &config,
             &project_info,
-            self.inner.geoip_lookup.as_ref(),
+            &self.inner.geoip_lookup,
         )?;
 
         self.enforce_quotas(
@@ -2227,7 +2227,7 @@ impl EnvelopeProcessorService {
                 _project_id,
                 project_info.clone(),
                 _sampling_project_info,
-                self.inner.geoip_lookup.as_ref(),
+                &self.inner.geoip_lookup,
                 &reservoir,
             )
             .await;

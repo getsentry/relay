@@ -521,7 +521,8 @@ pub fn normalize_user_geoinfo(
         .value()
         .filter(|ip| !ip.is_auto())
         .or(ip_addr)
-        && let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str())
+        .and_then(|ip| ip.as_str().parse().ok())
+        && let Some(geo) = geoip_lookup.lookup(ip_address)
     {
         user.geo.set_value(Some(geo));
     }

@@ -18,6 +18,7 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
+use crate::GeoIpLookup;
 use crate::span::TABLE_NAME_REGEX;
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{
@@ -114,7 +115,7 @@ pub fn extract_span_tags(
             is_mobile,
             start_type,
             span_allowed_hosts,
-            None,
+            &GeoIpLookup::empty(),
         );
 
         shared_tags.copy_into(&mut tags);
@@ -738,7 +739,7 @@ pub fn extract_tags(
     is_mobile: bool,
     start_type: Option<&str>,
     span_allowed_hosts: &[String],
-    geoip_lookup: Option<&crate::GeoIpLookup>,
+    geoip_lookup: &crate::GeoIpLookup,
 ) -> SentryTags {
     let mut span_tags = SentryTags::default();
 
@@ -1038,8 +1039,8 @@ pub fn extract_tags(
                 .data
                 .value()
                 .and_then(|data| data.client_address.value())
-                && let Some(geoip_lookup) = geoip_lookup
-                && let Ok(Some(geo)) = geoip_lookup.lookup(client_address.as_str())
+                .and_then(|ip| ip.as_str().parse().ok())
+                && let Some(geo) = geoip_lookup.lookup(client_address)
                 && let Some(country_code) = geo.country_code.value()
             {
                 span_tags.user_country_code = country_code.to_owned().into();
@@ -2467,7 +2468,16 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        );
 
         assert_eq!(tags.browser_name.value(), Some(&"Chrome".to_owned()));
     }
@@ -2534,7 +2544,16 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        );
 
         assert_eq!(
             tags.messaging_destination_name.value(),
@@ -2840,7 +2859,16 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(&span, 200, None, None, false, None, &[], None)
+        extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        )
     }
 
     #[test]
@@ -2895,7 +2923,16 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        );
 
         assert_eq!(tags.action.value(), Some(&"FIND".to_owned()));
 
@@ -2922,7 +2959,16 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[], None);
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            &GeoIpLookup::empty(),
+        );
 
         assert_eq!(tags.domain.value(), Some(&"documents_{%s}".to_owned()));
     }
@@ -3310,7 +3356,7 @@ LIMIT 1
         .into_value()
         .unwrap();
 
-        let tags = extract_tags(&span, 200, None, None, false, None, &[], Some(&lookup));
+        let tags = extract_tags(&span, 200, None, None, false, None, &[], &lookup);
         assert_eq!(tags.user_country_code.value(), Some(&"GB".to_owned()));
         assert_eq!(tags.user_subregion.value(), Some(&"154".to_owned()));
     }
