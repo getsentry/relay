@@ -307,8 +307,8 @@ impl<D> RequestMeta<D> {
         self.user_agent.as_deref()
     }
 
-    pub fn client_hints(&self) -> &ClientHints<String> {
-        &self.client_hints
+    pub fn client_hints(&self) -> ClientHints<&str> {
+        self.client_hints.as_deref()
     }
 
     /// Indicates that caches should be bypassed.

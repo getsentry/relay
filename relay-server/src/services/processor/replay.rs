@@ -31,7 +31,7 @@ pub fn process(
     global_config: &GlobalConfig,
     config: &Config,
     project_info: &ProjectInfo,
-    geoip_lookup: Option<&GeoIpLookup>,
+    geoip_lookup: &GeoIpLookup,
 ) -> Result<(), ProcessingError> {
     // If the replay feature is not enabled drop the items silently.
     if should_filter(config, project_info, Feature::SessionReplay) {
@@ -48,22 +48,21 @@ pub fn process(
         return Ok(());
     }
 
-    let rpc = {
-        let meta = managed_envelope.envelope().meta();
+    let meta = managed_envelope.envelope().meta();
+    let user_agent = RawUserAgentInfo {
+        user_agent: meta.user_agent().map(String::from),
+        client_hints: meta.client_hints().to_owned(),
+    };
 
-        ReplayProcessingConfig {
-            config: &project_info.config,
-            global_config,
-            geoip_lookup,
-            event_id: managed_envelope.envelope().event_id(),
-            project_id: project_info.project_id,
-            organization_id: project_info.organization_id,
-            client_addr: meta.client_addr(),
-            user_agent: RawUserAgentInfo {
-                user_agent: meta.user_agent().map(|s| s.to_owned()),
-                client_hints: meta.client_hints().clone(),
-            },
-        }
+    let rpc = ReplayProcessingConfig {
+        config: &project_info.config,
+        global_config,
+        geoip_lookup,
+        event_id: managed_envelope.envelope().event_id(),
+        project_id: project_info.project_id,
+        organization_id: project_info.organization_id,
+        client_addr: meta.client_addr(),
+        user_agent: user_agent.as_deref(),
     };
 
     let mut scrubber = if project_info.has_feature(Feature::SessionReplayRecordingScrubbing) {
@@ -110,12 +109,12 @@ pub fn process(
 struct ReplayProcessingConfig<'a> {
     pub config: &'a ProjectConfig,
     pub global_config: &'a GlobalConfig,
-    pub geoip_lookup: Option<&'a GeoIpLookup>,
+    pub geoip_lookup: &'a GeoIpLookup,
     pub event_id: Option<EventId>,
     pub project_id: Option<ProjectId>,
     pub organization_id: Option<OrganizationId>,
     pub client_addr: Option<IpAddr>,
-    pub user_agent: RawUserAgentInfo<String>,
+    pub user_agent: RawUserAgentInfo<&'a str>,
 }
 
 // Replay Event Processing.
@@ -206,7 +205,7 @@ fn process_replay_event(
     replay::normalize(
         &mut replay,
         config.client_addr,
-        config.user_agent.as_deref(),
+        &config.user_agent,
         config.geoip_lookup,
     );
 

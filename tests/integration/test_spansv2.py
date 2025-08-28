@@ -71,6 +71,7 @@ def test_spansv2_basic(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         }
@@ -81,7 +82,13 @@ def test_spansv2_basic(
     assert spans_consumer.get_span() == {
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "span_id": "eee19b7ec3c1b175",
-        "data": {"foo": "bar", "sentry.name": "some op"},
+        "data": {
+            "foo": "bar",
+            "sentry.name": "some op",
+            "sentry.browser.name": "Python Requests",
+            "sentry.browser.version": "2.32",
+            "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
+        },
         "description": "some op",
         "received": time_within(ts),
         "start_timestamp_ms": time_within(ts, precision="ms", expect_resolution="ms"),
@@ -153,6 +160,7 @@ def test_spansv2_ds_drop(mini_sentry, relay, rule_type):
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
@@ -239,6 +247,7 @@ def test_spansv2_ds_sampled(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
@@ -258,6 +267,9 @@ def test_spansv2_ds_sampled(
             "foo": "bar",
             "sentry.name": "some op",
             "sentry.server_sample_rate": 0.9,
+            "sentry.browser.name": "Python Requests",
+            "sentry.browser.version": "2.32",
+            "sentry.observed_timestamp_nanos": time_within(ts, expect_resolution="ns"),
         },
         "measurements": {"server_sample_rate": {"value": 0.9}},
         "server_sample_rate": 0.9,
@@ -343,6 +355,7 @@ def test_spansv2_ds_root_in_different_org(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {"foo": {"value": "bar", "type": "string"}},
         },
@@ -408,23 +421,22 @@ def test_spansv2_ds_root_in_different_org(
             {},
             id="transaction",
         ),
-        # Requires normalization to be implemented.
-        # pytest.param(
-        #     "legacy-browsers",
-        #     {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
-        #     {
-        #         "user-agent": "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0)"
-        #     },
-        #     id="legacy-browsers",
-        # ),
-        # pytest.param(
-        #     "web-crawlers",
-        #     {"webCrawlers": {"isEnabled": True}},
-        #     {
-        #         "user-agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"
-        #     },
-        #     id="web-crawlers",
-        # ),
+        pytest.param(
+            "legacy-browsers",
+            {"legacyBrowsers": {"isEnabled": True, "options": ["ie9"]}},
+            {
+                "user-agent": "Mozilla/4.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0)"
+            },
+            id="legacy-browsers",
+        ),
+        pytest.param(
+            "web-crawlers",
+            {"webCrawlers": {"isEnabled": True}},
+            {
+                "user-agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"
+            },
+            id="web-crawlers",
+        ),
         pytest.param(
             "gen_name",
             {
@@ -487,6 +499,7 @@ def test_spanv2_inbound_filters(
             "end_timestamp": ts.timestamp() + 0.5,
             "trace_id": "5b8efff798038103d269b633813fc60c",
             "span_id": "eee19b7ec3c1b175",
+            "is_remote": False,
             "name": "some op",
             "attributes": {
                 "some_integer": {"value": 123, "type": "integer"},

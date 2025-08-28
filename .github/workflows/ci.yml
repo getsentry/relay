@@ -35,7 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -75,7 +75,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -96,7 +96,7 @@ jobs:
     outputs:
       devservices-files-changed: ${{ steps.changes.outputs.devservices-files-changed }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.1.7
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         name: Check for file changes
         id: changes
@@ -125,7 +125,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -179,7 +179,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -207,7 +207,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -318,7 +318,7 @@ jobs:
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -394,7 +394,7 @@ jobs:
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -445,19 +445,20 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      packages: write
-
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     env:
       PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
+      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - uses: actions/download-artifact@v5
         with:
@@ -520,7 +521,22 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # Logic taken from: publish-to-gcr
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+
+      - name: Configure docker
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
 
       # Logic taken from: build-docker
       - uses: actions/download-artifact@v5
@@ -551,7 +567,6 @@ jobs:
           google_ar_image_name: ${{ env.AR_DOCKER_IMAGE }}
           google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
           google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
-
 
   publish-to-gcr:
     timeout-minutes: 5
@@ -713,7 +728,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -753,7 +768,7 @@ jobs:
     steps:
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: getsentry/sentry
           path: sentry
@@ -823,7 +838,7 @@ jobs:
       needs: devservices-files-changed
       if: needs.devservices-files-changed.outputs.devservices-files-changed == 'true'
       steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.1.7
         name: Checkout repository
       - uses: getsentry/action-validate-devservices-config@02a078d1280293e6598cabfbd318a01609c12c83
         name: Validate devservices config
