@@ -1,10 +1,38 @@
 from devenv import constants
-from devenv.lib import config, proc, uv
+from devenv.lib import brew, config, proc, uv
+
+import shutil
 
 
 def main(context: dict[str, str]) -> int:
     reporoot = context["reporoot"]
     cfg = config.get_repo(reporoot)
+
+    brew.install()
+
+    proc.run(
+        (f"{constants.homebrew_bin}/brew", "bundle"),
+        cwd=reporoot,
+    )
+
+    if not shutil.which("rustup"):
+        raise SystemExit("rustup not on PATH. Did you run `direnv allow`?")
+
+    proc.run(
+        (
+            "rustup",
+            "toolchain",
+            "install",
+            "stable",
+            "--profile",
+            "minimal",
+            "--component",
+            "rustfmt",
+            "--component",
+            "clippy",
+            "--no-self-update",
+        )
+    )
 
     print("updating submodules")
     proc.run(("git", "submodule", "update", "--init", "--recursive"))
