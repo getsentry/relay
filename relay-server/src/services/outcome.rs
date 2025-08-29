@@ -600,8 +600,6 @@ pub enum DiscardItemType {
     ReplayVideo,
     /// Monitor check-in encoded as JSON.
     CheckIn,
-    /// A log from the [OTEL Log format](https://opentelemetry.io/docs/specs/otel/logs/data-model/#log-and-event-record-definition)
-    OtelLog,
     /// A log for the log product, not internal logs.
     Log,
     /// A standalone span.
@@ -660,7 +658,6 @@ impl DiscardItemType {
             Self::ReplayRecording => "replay_recording",
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
-            Self::OtelLog => "otel_log",
             Self::Log => "log",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
@@ -693,7 +690,6 @@ impl From<&ItemType> for DiscardItemType {
             ItemType::ReplayRecording => Self::ReplayRecording,
             ItemType::ReplayVideo => Self::ReplayVideo,
             ItemType::CheckIn => Self::CheckIn,
-            ItemType::OtelLog => Self::OtelLog,
             ItemType::Log => Self::Log,
             ItemType::Span => Self::Span,
             ItemType::OtelSpan => Self::OtelSpan,

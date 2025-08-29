@@ -132,7 +132,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::CheckIn => None,
         ItemType::Nel => None,
         ItemType::Log => None,
-        ItemType::OtelLog => None,
         ItemType::Span => None,
         ItemType::OtelSpan => None,
         ItemType::OtelTracesData => None,
@@ -527,7 +526,7 @@ impl Enforcement {
             ItemType::ReplayRecording => !self.replays.is_active(),
             ItemType::UserReport => !self.user_reports.is_active(),
             ItemType::CheckIn => !self.check_ins.is_active(),
-            ItemType::OtelLog | ItemType::Log => {
+            ItemType::Log => {
                 !(self.log_items.is_active() || self.log_bytes.is_active())
             }
             ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData => {

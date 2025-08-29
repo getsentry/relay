@@ -575,23 +575,6 @@ impl Default for Metrics {
     }
 }
 
-/// Controls processing of Sentry metrics and metric metadata.
-#[derive(Serialize, Deserialize, Debug, Default)]
-#[serde(default)]
-pub struct SentryMetrics {
-    /// Whether metric stats are collected and emitted.
-    ///
-    /// Metric stats are always collected and emitted when processing
-    /// is enabled.
-    ///
-    /// This option is required for running multiple trusted Relays in a chain
-    /// and you want the metric stats to be collected and forwarded from
-    /// the first Relay in the chain.
-    ///
-    /// Defaults to `false`.
-    pub metric_stats_enabled: bool,
-}
-
 /// Controls various limits
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -1214,6 +1197,14 @@ impl Default for Processing {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SpanProducers {
+    /// Random sample of organizations to produce json and no protobuf.
+    ///
+    /// Overrides both `produce_json` and `produce_protobuf` for matching orgs.
+    pub produce_json_sample_rate: Option<f32>,
+    /// List of organization IDs to produce JSON spans for.
+    ///
+    /// Overrides both `produce_json` and `produce_protobuf` for matching orgs.
+    pub produce_json_orgs: Vec<u64>,
     /// Send JSON spans to `ingest-spans`.
     pub produce_json: bool,
     /// Send Protobuf (TraceItem) to `snuba-items`.
@@ -1223,6 +1214,8 @@ pub struct SpanProducers {
 impl Default for SpanProducers {
     fn default() -> Self {
         Self {
+            produce_json_sample_rate: None,
+            produce_json_orgs: vec![],
             produce_json: false,
             produce_protobuf: true,
         }
@@ -1611,8 +1604,6 @@ struct ConfigValues {
     routing: Routing,
     #[serde(default)]
     metrics: Metrics,
-    #[serde(default)]
-    sentry_metrics: SentryMetrics,
     #[serde(default)]
     sentry: relay_log::SentryConfig,
     #[serde(default)]
@@ -2365,14 +2356,6 @@ impl Config {
         self.values.limits.max_metric_buckets_size.as_bytes()
     }
 
-    /// Whether metric stats are collected and emitted.
-    ///
-    /// Metric stats are always collected and emitted when processing
-    /// is enabled.
-    pub fn metric_stats_enabled(&self) -> bool {
-        self.values.sentry_metrics.metric_stats_enabled || self.values.processing.enabled
-    }
-
     /// Returns the maximum payload size for general API requests.
     pub fn max_api_payload_size(&self) -> usize {
         self.values.limits.max_api_payload_size.as_bytes()
@@ -2641,14 +2624,9 @@ impl Config {
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 
-    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
-    pub fn produce_protobuf_spans(&self) -> bool {
-        self.values.processing.span_producers.produce_protobuf
-    }
-
-    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
-    pub fn produce_json_spans(&self) -> bool {
-        self.values.processing.span_producers.produce_json
+    /// Returns the configuration for span producers.
+    pub fn span_producers(&self) -> &SpanProducers {
+        &self.values.processing.span_producers
     }
 }
 

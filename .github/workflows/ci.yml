@@ -35,7 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -106,7 +106,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -127,7 +127,7 @@ jobs:
     outputs:
       devservices-files-changed: ${{ steps.changes.outputs.devservices-files-changed }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.1.7
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         name: Check for file changes
         id: changes
@@ -156,7 +156,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -210,7 +210,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -238,7 +238,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -354,7 +354,7 @@ jobs:
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -430,7 +430,7 @@ jobs:
         run: |
           curl -sL https://sentry.io/get-cli/ | bash
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -481,6 +481,10 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
@@ -491,7 +495,7 @@ jobs:
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -503,26 +507,28 @@ jobs:
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        run: |
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
-            --file Dockerfile.release \
-            --push \
-            .
+        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "./Dockerfile.release"
+          ghcr: true
+          tag_nightly: true
+          tag_latest: true
+          google_ar: false
+          publish_on_pr: true
 
       - name: Build and publish docker artifact
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            --file Dockerfile.release \
-            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
-            .
+        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "./Dockerfile.release"
+          ghcr: false
+          google_ar: false
+          outputs: "type=docker,dest=${{ matrix.image_name }}-docker-image"
+          tags: "ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}"
 
       - name: Upload docker image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
@@ -555,7 +561,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -589,48 +595,18 @@ jobs:
           done
 
       - name: Build and push to Internal AR
-        run: |
-          docker buildx build \
-            --platform "${PLATFORMS}" \
-            --tag "${AR_DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${IS_MASTER}" == "true" ]] && printf %s "--tag ${AR_DOCKER_IMAGE}:latest" ) \
-            --file Dockerfile.release \
-            --push \
-            .
-
-  publish-to-dockerhub:
-    needs: [build-setup, build-docker]
-
-    runs-on: ubuntu-22.04
-    name: Publish Relay to DockerHub
-
-    strategy:
-      matrix:
-        image_name: ["relay"] # Don't publish relay-pop (for now)
-
-    if: github.event_name == 'merge_group'
-
-    env:
-      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
-      DH_DOCKER_IMAGE: "getsentry/${{ matrix.image_name }}"
-      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
-
-    steps:
-      - name: Login to DockerHub
-        run: docker login --username=sentrybuilder --password ${{ secrets.DOCKER_HUB_RW_TOKEN }}
-
-      - name: Copy Image from GHCR to DockerHub
-        run: |
-          # We push 3 tags to Dockerhub:
-          # 1) the full sha of the commit
-          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:${REVISION}" "${GHCR_DOCKER_IMAGE}:${REVISION}"
-
-          # 2) the short sha
-          SHORT_SHA=$(echo ${GITHUB_SHA} | cut -c1-8)
-          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:${SHORT_SHA}" "${GHCR_DOCKER_IMAGE}:${REVISION}"
-
-          # 3) nightly
-          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:nightly" "${GHCR_DOCKER_IMAGE}:${REVISION}"
+        uses: getsentry/action-build-and-push-images@4852d671d747d7c0268b2a3fc429fee9d4a16f78
+        with:
+          image_name: ${{ matrix.image_name }}
+          platforms: ${{ env.PLATFORMS }}
+          dockerfile_path: "./Dockerfile.release"
+          ghcr: false
+          publish_on_pr: true
+          tag_latest: true
+          google_ar: true
+          google_ar_image_name: ${{ env.AR_DOCKER_IMAGE }}
+          google_workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          google_service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
   publish-to-gcr:
     timeout-minutes: 5
@@ -792,7 +768,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -840,7 +816,7 @@ jobs:
     steps:
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: getsentry/sentry
           path: sentry

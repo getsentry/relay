@@ -45,7 +45,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::FormDataIter;
+use crate::utils::{self, FormDataIter, PickResult};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -261,10 +261,13 @@ impl StoreService {
         });
         let event_type = event_item.as_ref().map(|item| item.ty());
 
-        let topic = if envelope.get_item_by(is_slow_item).is_some() {
-            KafkaTopic::Attachments
-        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
+        // Some error events like minidumps need all attachment chunks to be processed _before_
+        // the event payload on the consumer side. Transaction attachments do not require this ordering
+        // guarantee, so they do not have to go to the same topic as their event payload.
+        let event_topic = if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
+        } else if envelope.get_item_by(is_slow_item).is_some() {
+            KafkaTopic::Attachments
         } else {
             KafkaTopic::Events
         };
@@ -275,10 +278,16 @@ impl StoreService {
         let mut replay_event = None;
         let mut replay_recording = None;
 
+        // Whether Relay will submit the replay-event to snuba or not.
+        let replay_relay_snuba_publish_disabled = self
+            .global_config
+            .current()
+            .options
+            .replay_relay_snuba_publish_disabled;
+
         for item in envelope.items() {
             match item.ty() {
                 ItemType::Attachment => {
-                    debug_assert!(topic == KafkaTopic::Attachments);
                     if let Some(attachment) = self.produce_attachment(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
@@ -289,7 +298,7 @@ impl StoreService {
                     }
                 }
                 ItemType::UserReport => {
-                    debug_assert!(topic == KafkaTopic::Attachments);
+                    debug_assert!(event_topic == KafkaTopic::Attachments);
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
@@ -322,6 +331,7 @@ impl StoreService {
                         item.payload(),
                         received_at,
                         retention,
+                        replay_relay_snuba_publish_disabled,
                     )?;
                 }
                 ItemType::ReplayRecording => {
@@ -335,6 +345,7 @@ impl StoreService {
                         received_at,
                         retention,
                         &item.payload(),
+                        replay_relay_snuba_publish_disabled,
                     )?;
                 }
                 ItemType::CheckIn => {
@@ -421,6 +432,7 @@ impl StoreService {
                 None,
                 received_at,
                 retention,
+                replay_relay_snuba_publish_disabled,
             )?;
         }
 
@@ -430,7 +442,7 @@ impl StoreService {
             let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
             self.produce(
-                topic,
+                event_topic,
                 KafkaMessage::Event(EventKafkaMessage {
                     payload: event_item.payload(),
                     start_time: safe_timestamp(received_at),
@@ -684,7 +696,6 @@ impl StoreService {
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
         let id = Uuid::new_v4().to_string();
 
-        let mut chunk_index = 0;
         let payload = item.payload();
         let size = item.len();
         let max_chunk_size = self.config.attachment_chunk_size();
@@ -692,9 +703,12 @@ impl StoreService {
         // When sending individual attachments, and we have a single chunk, we want to send the
         // `data` inline in the `attachment` message.
         // This avoids a needless roundtrip through the attachments cache on the Sentry side.
-        let data = if send_individual_attachments && size < max_chunk_size {
-            (size > 0).then_some(payload)
+        let payload = if size == 0 {
+            AttachmentPayload::Chunked(0)
+        } else if send_individual_attachments && size < max_chunk_size {
+            AttachmentPayload::Inline(payload)
         } else {
+            let mut chunk_index = 0;
             let mut offset = 0;
             // This skips chunks for empty attachments. The consumer does not require chunks for
             // empty attachments. `chunks` will be `0` in this case.
@@ -715,11 +729,11 @@ impl StoreService {
                 offset += chunk_size;
                 chunk_index += 1;
             }
-            None
-        };
 
-        // The chunk_index is incremented after every loop iteration. After we exit the loop, it
-        // is one larger than the last chunk, so it is equal to the number of chunks.
+            // The chunk_index is incremented after every loop iteration. After we exit the loop, it
+            // is one larger than the last chunk, so it is equal to the number of chunks.
+            AttachmentPayload::Chunked(chunk_index)
+        };
 
         let attachment = ChunkedAttachment {
             id,
@@ -727,14 +741,13 @@ impl StoreService {
                 Some(name) => name.to_owned(),
                 None => UNNAMED_ATTACHMENT.to_owned(),
             },
+            rate_limited: item.rate_limited(),
             content_type: item
                 .content_type()
                 .map(|content_type| content_type.as_str().to_owned()),
             attachment_type: item.attachment_type().cloned().unwrap_or_default(),
-            chunks: chunk_index,
-            data,
-            size: Some(size),
-            rate_limited: Some(item.rate_limited()),
+            size,
+            payload,
         };
 
         if send_individual_attachments {
@@ -840,7 +853,12 @@ impl StoreService {
         received_at: DateTime<Utc>,
         retention_days: u16,
         payload: &[u8],
+        relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
+        if relay_snuba_publish_disabled {
+            return Ok(());
+        }
+
         let message = ReplayEventKafkaMessage {
             replay_id,
             project_id,
@@ -862,6 +880,7 @@ impl StoreService {
         replay_video: Option<&[u8]>,
         received_at: DateTime<Utc>,
         retention: u16,
+        relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
         // Maximum number of bytes accepted by the consumer.
         let max_payload_size = self.config.max_replay_message_size();
@@ -901,6 +920,7 @@ impl StoreService {
                 payload,
                 replay_event,
                 replay_video,
+                relay_snuba_publish_disabled,
             });
 
         self.produce(KafkaTopic::ReplayRecordings, message)?;
@@ -915,6 +935,7 @@ impl StoreService {
         payload: Bytes,
         received_at: DateTime<Utc>,
         retention: u16,
+        relay_snuba_publish_disabled: bool,
     ) -> Result<(), StoreError> {
         #[derive(Deserialize)]
         struct VideoEvent<'a> {
@@ -947,6 +968,7 @@ impl StoreService {
             received_at,
             retention,
             replay_event,
+            relay_snuba_publish_disabled,
         )?;
 
         self.produce_replay_recording(
@@ -957,6 +979,7 @@ impl StoreService {
             Some(replay_video),
             received_at,
             retention,
+            relay_snuba_publish_disabled,
         )
     }
 
@@ -1032,7 +1055,8 @@ impl StoreService {
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
         span.key_id = scoping.key_id;
 
-        if self.config.produce_protobuf_spans() {
+        let spans_target = self.spans_target(span.organization_id);
+        if spans_target.is_protobuf() {
             self.inner_produce_protobuf_span(
                 scoping,
                 received_at,
@@ -1052,11 +1076,30 @@ impl StoreService {
             });
         }
 
-        if self.config.produce_json_spans() {
+        if spans_target.is_json() {
             self.inner_produce_json_span(scoping, span)?;
         }
 
         Ok(())
+    }
+
+    fn spans_target(&self, org_id: u64) -> SpansTarget {
+        let config = self.config.span_producers();
+        if config.produce_json_orgs.contains(&org_id) {
+            return SpansTarget::Json;
+        } else if let Some(rate) = config.produce_json_sample_rate {
+            return match utils::is_rolled_out(org_id, rate) {
+                PickResult::Keep => SpansTarget::Json,
+                PickResult::Discard => SpansTarget::Protobuf,
+            };
+        }
+
+        match (config.produce_json, config.produce_protobuf) {
+            (true, true) => SpansTarget::Both,
+            (true, false) => SpansTarget::Json,
+            (false, true) => SpansTarget::Protobuf,
+            (false, false) => SpansTarget::default(),
+        }
     }
 
     fn inner_produce_json_span(
@@ -1339,6 +1382,26 @@ impl Service for StoreService {
     }
 }
 
+/// This signifies how the attachment payload is being transfered.
+#[derive(Debug, Serialize)]
+enum AttachmentPayload {
+    /// The payload has been split into multiple chunks.
+    ///
+    /// The individual chunks are being sent as separate [`AttachmentChunkKafkaMessage`] messages.
+    /// If the payload `size == 0`, the number of chunks will also be `0`.
+    #[serde(rename = "chunks")]
+    Chunked(usize),
+
+    /// The payload is inlined here directly, and thus into the [`ChunkedAttachment`].
+    #[serde(rename = "data")]
+    Inline(Bytes),
+
+    /// The attachment has already been stored into the objectstore, with the given Id.
+    #[serde(rename = "stored_id")]
+    #[allow(unused)] // TODO: actually storing it in objectstore first is still WIP
+    Stored(String),
+}
+
 /// Common attributes for both standalone attachments and processing-relevant attachments.
 #[derive(Debug, Serialize)]
 struct ChunkedAttachment {
@@ -1350,6 +1413,14 @@ struct ChunkedAttachment {
     /// File name of the attachment file.
     name: String,
 
+    /// Whether this attachment was rate limited and should be removed after processing.
+    ///
+    /// By default, rate limited attachments are immediately removed from Envelopes. For processing,
+    /// native crash reports still need to be retained. These attachments are marked with the
+    /// `rate_limited` header, which signals to the processing pipeline that the attachment should
+    /// not be persisted after processing.
+    rate_limited: bool,
+
     /// Content type of the attachment payload.
     #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<String>,
@@ -1358,27 +1429,12 @@ struct ChunkedAttachment {
     #[serde(serialize_with = "serialize_attachment_type")]
     attachment_type: AttachmentType,
 
-    /// Number of outlined chunks.
-    /// Zero if the attachment has `size: 0`, or there was only a single chunk which has been inlined into `data`.
-    chunks: usize,
-
-    /// The content of the attachment,
-    /// if they are smaller than the configured `attachment_chunk_size`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<Bytes>,
-
     /// The size of the attachment in bytes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    size: Option<usize>,
+    size: usize,
 
-    /// Whether this attachment was rate limited and should be removed after processing.
-    ///
-    /// By default, rate limited attachments are immediately removed from Envelopes. For processing,
-    /// native crash reports still need to be retained. These attachments are marked with the
-    /// `rate_limited` header, which signals to the processing pipeline that the attachment should
-    /// not be persisted after processing.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rate_limited: Option<bool>,
+    /// The attachment payload, chunked, inlined, or already stored.
+    #[serde(flatten)]
+    payload: AttachmentPayload,
 }
 
 /// A hack to make rmp-serde behave more like serde-json when serializing enums.
@@ -1493,6 +1549,7 @@ struct ReplayRecordingNotChunkedKafkaMessage<'a> {
     replay_event: Option<&'a [u8]>,
     #[serde(with = "serde_bytes")]
     replay_video: Option<&'a [u8]>,
+    relay_snuba_publish_disabled: bool,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
@@ -1821,8 +1878,6 @@ struct ProfileChunkKafkaMessage {
 #[allow(clippy::large_enum_variant)]
 enum KafkaMessage<'a> {
     Event(EventKafkaMessage),
-    Attachment(AttachmentKafkaMessage),
-    AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
     Metric {
         #[serde(skip)]
@@ -1830,9 +1885,6 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: MetricKafkaMessage<'a>,
     },
-    Profile(ProfileKafkaMessage),
-    ReplayEvent(ReplayEventKafkaMessage<'a>),
-    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
     CheckIn(CheckInKafkaMessage),
     Item {
         #[serde(skip)]
@@ -1848,31 +1900,41 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
     },
+
+    Attachment(AttachmentKafkaMessage),
+    AttachmentChunk(AttachmentChunkKafkaMessage),
+
+    Profile(ProfileKafkaMessage),
     ProfileChunk(ProfileChunkKafkaMessage),
+
+    ReplayEvent(ReplayEventKafkaMessage<'a>),
+    ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage<'a>),
 }
 
 impl Message for KafkaMessage<'_> {
     fn variant(&self) -> &'static str {
         match self {
             KafkaMessage::Event(_) => "event",
-            KafkaMessage::Attachment(_) => "attachment",
-            KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
             KafkaMessage::Metric { message, .. } => match message.name.namespace() {
                 MetricNamespace::Sessions => "metric_sessions",
                 MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Spans => "metric_spans",
                 MetricNamespace::Custom => "metric_custom",
-                MetricNamespace::Stats => "metric_metric_stats",
                 MetricNamespace::Unsupported => "metric_unsupported",
             },
-            KafkaMessage::Profile(_) => "profile",
-            KafkaMessage::ReplayEvent(_) => "replay_event",
-            KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
             KafkaMessage::Span { .. } => "span",
-            KafkaMessage::ProfileChunk(_) => "profile_chunk",
             KafkaMessage::Item { item_type, .. } => item_type.as_str_name(),
+
+            KafkaMessage::Attachment(_) => "attachment",
+            KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
+
+            KafkaMessage::Profile(_) => "profile",
+            KafkaMessage::ProfileChunk(_) => "profile_chunk",
+
+            KafkaMessage::ReplayEvent(_) => "replay_event",
+            KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
         }
     }
 
@@ -1880,10 +1942,7 @@ impl Message for KafkaMessage<'_> {
     fn key(&self) -> Option<relay_kafka::Key> {
         match self {
             Self::Event(message) => Some(message.event_id.0),
-            Self::Attachment(message) => Some(message.event_id.0),
-            Self::AttachmentChunk(message) => Some(message.event_id.0),
             Self::UserReport(message) => Some(message.event_id.0),
-            Self::ReplayEvent(message) => Some(message.replay_id.0),
             Self::Span { message, .. } => Some(message.trace_id.0),
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
@@ -1891,6 +1950,10 @@ impl Message for KafkaMessage<'_> {
             // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
             // recieve the routing_key_hint form their envelopes.
             Self::CheckIn(message) => message.routing_key_hint,
+
+            Self::Attachment(message) => Some(message.event_id.0),
+            Self::AttachmentChunk(message) => Some(message.event_id.0),
+            Self::ReplayEvent(message) => Some(message.replay_id.0),
 
             // Random partitioning
             _ => None,
@@ -1962,8 +2025,27 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
     Utc::now().timestamp() as u64
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum SpansTarget {
+    #[default]
+    Protobuf,
+    Json,
+    Both,
+}
+
+impl SpansTarget {
+    fn is_protobuf(&self) -> bool {
+        matches!(self, SpansTarget::Protobuf | SpansTarget::Both)
+    }
+
+    fn is_json(&self) -> bool {
+        matches!(self, SpansTarget::Json | SpansTarget::Both)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -1978,5 +2060,135 @@ mod tests {
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
+    }
+
+    #[test]
+    fn backfill() {
+        let json = r#"{
+            "description": "/api/0/relays/projectconfigs/",
+            "duration_ms": 152,
+            "exclusive_time": 0.228,
+            "is_segment": true,
+            "data": {
+                "sentry.environment": "development",
+                "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+                "thread.name": "uWSGIWorker1Core0",
+                "thread.id": "8522009600",
+                "sentry.segment.name": "/api/0/relays/projectconfigs/",
+                "sentry.sdk.name": "sentry.python.django",
+                "sentry.sdk.version": "2.7.0",
+                "my.float.field": 101.2,
+                "my.int.field": 2000,
+                "my.neg.field": -100,
+                "my.neg.float.field": -101.2,
+                "my.true.bool.field": true,
+                "my.false.bool.field": false,
+                "my.dict.field": {
+                    "id": 42,
+                    "name": "test"
+                },
+                "my.u64.field": 9447000002305251000,
+                "my.array.field": [1, 2, ["nested", "array"]]
+            },
+            "measurements": {
+                "num_of_spans": {"value": 50.0},
+                "client_sample_rate": {"value": 0.1},
+                "server_sample_rate": {"value": 0.2}
+            },
+            "profile_id": "56c7d1401ea14ad7b4ac86de46baebae",
+            "organization_id": 1,
+            "origin": "auto.http.django",
+            "project_id": 1,
+            "received": 1721319572.877828,
+            "retention_days": 90,
+            "segment_id": "8873a98879faf06d",
+            "sentry_tags": {
+                "description": "normalized_description",
+                "category": "http",
+                "environment": "development",
+                "op": "http.server",
+                "platform": "python",
+                "release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+                "sdk.name": "sentry.python.django",
+                "sdk.version": "2.7.0",
+                "status": "ok",
+                "status_code": "200",
+                "thread.id": "8522009600",
+                "thread.name": "uWSGIWorker1Core0",
+                "trace.status": "ok",
+                "transaction": "/api/0/relays/projectconfigs/",
+                "transaction.method": "POST",
+                "transaction.op": "http.server",
+                "user": "ip:127.0.0.1"
+            },
+            "span_id": "8873a98879faf06d",
+            "tags": {
+                "http.status_code": "200",
+                "relay_endpoint_version": "3",
+                "relay_id": "88888888-4444-4444-8444-cccccccccccc",
+                "relay_no_cache": "False",
+                "relay_protocol_version": "3",
+                "relay_use_post_or_schedule": "True",
+                "relay_use_post_or_schedule_rejected": "version",
+                "server_name": "D23CXQ4GK2.local",
+                "spans_over_limit": "False"
+            },
+            "trace_id": "d099bf9ad5a143cf8f83a98081d0ed3b",
+            "start_timestamp_ms": 1721319572616,
+            "start_timestamp": 1721319572.616648,
+            "timestamp": 1721319572.768806
+        }"#;
+        let mut span: SpanKafkaMessage = serde_json::from_str(json).unwrap();
+        span.backfill_data();
+
+        assert_eq!(
+            serde_json::to_string_pretty(&span.data).unwrap(),
+            r#"{
+  "http.status_code": "200",
+  "my.array.field": [1, 2, ["nested", "array"]],
+  "my.dict.field": {
+                    "id": 42,
+                    "name": "test"
+                },
+  "my.false.bool.field": false,
+  "my.float.field": 101.2,
+  "my.int.field": 2000,
+  "my.neg.field": -100,
+  "my.neg.float.field": -101.2,
+  "my.true.bool.field": true,
+  "my.u64.field": 9447000002305251000,
+  "num_of_spans": 50.0,
+  "relay_endpoint_version": "3",
+  "relay_id": "88888888-4444-4444-8444-cccccccccccc",
+  "relay_no_cache": "False",
+  "relay_protocol_version": "3",
+  "relay_use_post_or_schedule": "True",
+  "relay_use_post_or_schedule_rejected": "version",
+  "sentry.category": "http",
+  "sentry.client_sample_rate": 0.1,
+  "sentry.environment": "development",
+  "sentry.normalized_description": "normalized_description",
+  "sentry.op": "http.server",
+  "sentry.platform": "python",
+  "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+  "sentry.sdk.name": "sentry.python.django",
+  "sentry.sdk.version": "2.7.0",
+  "sentry.segment.name": "/api/0/relays/projectconfigs/",
+  "sentry.server_sample_rate": 0.2,
+  "sentry.status": "ok",
+  "sentry.status_code": "200",
+  "sentry.thread.id": "8522009600",
+  "sentry.thread.name": "uWSGIWorker1Core0",
+  "sentry.trace.status": "ok",
+  "sentry.transaction": "/api/0/relays/projectconfigs/",
+  "sentry.transaction.method": "POST",
+  "sentry.transaction.op": "http.server",
+  "sentry.user": "ip:127.0.0.1",
+  "server_name": "D23CXQ4GK2.local",
+  "spans_over_limit": "False",
+  "thread.id": "8522009600",
+  "thread.name": "uWSGIWorker1Core0"
+}"#
+        );
     }
 }

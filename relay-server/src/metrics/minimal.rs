@@ -1,5 +1,5 @@
 use relay_metrics::{
-    BucketMetadata, CounterType, MetricName, MetricNamespace, MetricResourceIdentifier, MetricType,
+    BucketMetadata, CounterType, MetricName, MetricNamespace, MetricResourceIdentifier,
 };
 use serde::Deserialize;
 use serde::de::IgnoredAny;
@@ -22,10 +22,6 @@ pub struct MinimalTrackableBucket {
 impl TrackableBucket for MinimalTrackableBucket {
     fn name(&self) -> &relay_metrics::MetricName {
         &self.name
-    }
-
-    fn ty(&self) -> relay_metrics::MetricType {
-        self.value.ty()
     }
 
     fn summary(&self) -> BucketSummary {
@@ -66,17 +62,6 @@ enum MinimalValue {
     Set(IgnoredAny),
     #[serde(rename = "g")]
     Gauge(IgnoredAny),
-}
-
-impl MinimalValue {
-    fn ty(self) -> MetricType {
-        match self {
-            MinimalValue::Counter(_) => MetricType::Counter,
-            MinimalValue::Distribution(_) => MetricType::Distribution,
-            MinimalValue::Set(_) => MetricType::Set,
-            MinimalValue::Gauge(_) => MetricType::Gauge,
-        }
-    }
 }
 
 #[cfg(test)]

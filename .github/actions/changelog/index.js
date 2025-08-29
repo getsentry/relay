@@ -88,7 +88,7 @@ module.exports = async ({github, context, core}) => {
     }
 
     // From: <https://develop.sentry.dev/engineering-practices/commit-messages/>.
-    const TITLE_RE = /^(ci|build|docs|feat|fix|perf|ref|style|test|meta|license)(\([^)]+\))?: [A-Z].*\w$/;
+    const TITLE_RE = /^(ci|build|docs|feat|fix|perf|ref|style|test|meta|license)(\([^)]+\))?: [A-Z].*[^,.]$/;
     const REVERT_RE = /^Revert ".*"$/;
 
     if (pr.title.match(TITLE_RE) === null && pr.title.match(REVERT_RE) === null) {

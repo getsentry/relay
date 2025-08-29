@@ -1,7 +1,10 @@
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SkipSerialization, Value};
+use enumset::EnumSet;
+use relay_protocol::{
+    Annotated, Empty, FromValue, IntoValue, Meta, Object, SkipSerialization, Value,
+};
 use std::{borrow::Borrow, fmt};
 
-use crate::processor::ProcessValue;
+use crate::processor::{ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType};
 
 #[derive(Clone, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Attribute {
@@ -43,41 +46,29 @@ pub struct AttributeValue {
     pub value: Annotated<Value>,
 }
 
-impl From<String> for AttributeValue {
-    fn from(value: String) -> Self {
-        AttributeValue {
-            ty: Annotated::new(AttributeType::String),
-            value: Annotated::new(value.into()),
+macro_rules! impl_from {
+    ($ty:ident, $aty: expr) => {
+        impl From<Annotated<$ty>> for AttributeValue {
+            fn from(value: Annotated<$ty>) -> Self {
+                AttributeValue {
+                    ty: Annotated::new($aty),
+                    value: value.map_value(Into::into),
+                }
+            }
         }
-    }
+
+        impl From<$ty> for AttributeValue {
+            fn from(value: $ty) -> Self {
+                AttributeValue::from(Annotated::new(value))
+            }
+        }
+    };
 }
 
-impl From<i64> for AttributeValue {
-    fn from(value: i64) -> Self {
-        AttributeValue {
-            ty: Annotated::new(AttributeType::Integer),
-            value: Annotated::new(value.into()),
-        }
-    }
-}
-
-impl From<f64> for AttributeValue {
-    fn from(value: f64) -> Self {
-        AttributeValue {
-            ty: Annotated::new(AttributeType::Double),
-            value: Annotated::new(value.into()),
-        }
-    }
-}
-
-impl From<bool> for AttributeValue {
-    fn from(value: bool) -> Self {
-        AttributeValue {
-            ty: Annotated::new(AttributeType::Boolean),
-            value: Annotated::new(value.into()),
-        }
-    }
-}
+impl_from!(String, AttributeType::String);
+impl_from!(i64, AttributeType::Integer);
+impl_from!(f64, AttributeType::Double);
+impl_from!(bool, AttributeType::Boolean);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeType {
@@ -161,7 +152,7 @@ impl IntoValue for AttributeType {
 }
 
 /// Wrapper struct around a collection of attributes with some convenience methods.
-#[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue)]
 pub struct Attributes(pub Object<Attribute>);
 
 impl Attributes {
@@ -198,7 +189,9 @@ impl Attributes {
             slf.insert_raw(key, attribute);
         }
         let value = value.into();
-        inner(self, key, value);
+        if !value.value.is_empty() {
+            inner(self, key, value);
+        }
     }
 
     /// Inserts an attribute with the given value if it was not already present.
@@ -247,5 +240,36 @@ impl IntoIterator for Attributes {
 impl FromIterator<(String, Annotated<Attribute>)> for Attributes {
     fn from_iter<T: IntoIterator<Item = (String, Annotated<Attribute>)>>(iter: T) -> Self {
         Self(Object::from_iter(iter))
+    }
+}
+
+impl ProcessValue for Attributes {
+    #[inline]
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Object)
+    }
+
+    #[inline]
+    fn process_value<P>(
+        &mut self,
+        meta: &mut Meta,
+        processor: &mut P,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        processor.process_attributes(self, meta, state)
+    }
+
+    fn process_child_values<P>(
+        &mut self,
+        _processor: &mut P,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        P: Processor,
+    {
+        Ok(())
     }
 }
