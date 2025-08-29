@@ -335,9 +335,7 @@ impl ProcessingGroup {
         }
 
         // Extract logs.
-        let logs_items =
-            envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Log | &ItemType::OtelLog));
-
+        let logs_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Log));
         if !logs_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Log,

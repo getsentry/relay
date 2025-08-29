@@ -83,7 +83,7 @@ impl From<RateLimits> for Error {
 
 /// A processor for Logs.
 ///
-/// It processes items of type: [`ItemType::OtelLog`] and [`ItemType::Log`].
+/// It processes items of type: [`ItemType::Log`].
 #[derive(Debug)]
 pub struct LogsProcessor {
     limiter: Arc<QuotaRateLimiter>,
@@ -107,20 +107,12 @@ impl processing::Processor for LogsProcessor {
     ) -> Option<Managed<Self::UnitOfWork>> {
         let headers = envelope.envelope().headers().clone();
 
-        let otel_logs = envelope
-            .envelope_mut()
-            .take_items_by(|item| matches!(*item.ty(), ItemType::OtelLog))
-            .into_vec();
         let logs = envelope
             .envelope_mut()
             .take_items_by(|item| matches!(*item.ty(), ItemType::Log))
             .into_vec();
 
-        let work = SerializedLogs {
-            headers,
-            otel_logs,
-            logs,
-        };
+        let work = SerializedLogs { headers, logs };
         Some(Managed::from_envelope(envelope, work))
     }
 
@@ -222,8 +214,6 @@ pub struct SerializedLogs {
     /// Original envelope headers.
     headers: EnvelopeHeaders,
 
-    /// OTel Logs are not sent in containers, an envelope is very likely to contain multiple OTel logs.
-    otel_logs: Vec<Item>,
     /// Logs are sent in item containers, there is specified limit of a single container per
     /// envelope.
     ///
@@ -233,13 +223,7 @@ pub struct SerializedLogs {
 
 impl SerializedLogs {
     fn serialize_envelope(self) -> Box<Envelope> {
-        let mut items = self.logs;
-        items.extend(self.otel_logs);
-        Envelope::from_parts(self.headers, Items::from_vec(items))
-    }
-
-    fn items(&self) -> impl Iterator<Item = &Item> {
-        self.otel_logs.iter().chain(self.logs.iter())
+        Envelope::from_parts(self.headers, Items::from_vec(self.logs))
     }
 
     /// Returns the total count of all logs contained.
@@ -247,14 +231,15 @@ impl SerializedLogs {
     /// This contains all logical log items, not just envelope items and is safe
     /// to use for rate limiting.
     fn count(&self) -> usize {
-        self.items()
+        self.logs
+            .iter()
             .map(|item| item.item_count().unwrap_or(1) as usize)
             .sum()
     }
 
     /// Returns the sum of bytes of all logs contained.
     fn bytes(&self) -> usize {
-        self.items().map(|item| item.len()).sum()
+        self.logs.iter().map(|item| item.len()).sum()
     }
 }
 
@@ -316,7 +301,6 @@ impl ExpandedLogs {
 
         Ok(SerializedLogs {
             headers: self.headers,
-            otel_logs: Default::default(),
             logs,
         })
     }

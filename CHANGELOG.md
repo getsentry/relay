@@ -4,6 +4,7 @@
 
 **Breaking Changes**:
 
+- Removes support for the deprecated and early alpha only otel log item type. ([#5082](https://github.com/getsentry/relay/pull/5082))
 - Only check for local project configs in static mode. ([#5057](https://github.com/getsentry/relay/pull/5057))
 
 **Features**:
