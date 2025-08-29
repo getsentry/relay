@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 use relay_event_schema::processor::{
-    self, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
-    ValueType, enum_set, process_value,
+    self, Chunk, FieldAttrs, Pii, ProcessValue, ProcessingAction, ProcessingResult,
+    ProcessingState, Processor, ValueType, enum_set, process_value,
 };
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
@@ -19,8 +19,21 @@ use crate::redactions::Redaction;
 use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
 use crate::utils;
 
+/// Controls how scrubbing rules are applied to attributes.
+#[derive(Debug, Clone, Copy)]
+pub enum AttributeMode {
+    /// Treat the attribute as an object and allow referring
+    /// to individual fields.
+    Object,
+    /// Identify the attribute with its value and apply all
+    /// rules there directly.
+    ValueOnly,
+}
+
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
+    /// Controls how rules are applied to attributes.
+    attribute_mode: AttributeMode,
     compiled_config: &'a CompiledPiiConfig,
 }
 
@@ -29,7 +42,16 @@ impl<'a> PiiProcessor<'a> {
     pub fn new(compiled_config: &'a CompiledPiiConfig) -> PiiProcessor<'a> {
         // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
-        PiiProcessor { compiled_config }
+        PiiProcessor {
+            compiled_config,
+            attribute_mode: AttributeMode::Object,
+        }
+    }
+
+    /// Sets an `AttributeMode` on this processor.
+    pub fn attribute_mode(mut self, attribute_mode: AttributeMode) -> Self {
+        self.attribute_mode = attribute_mode;
+        self
     }
 
     fn apply_all_rules(
@@ -45,10 +67,8 @@ impl<'a> PiiProcessor<'a> {
 
         for (selector, rules) in self.compiled_config.applications.iter() {
             if selector.matches_path(&state.path()) {
-                #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
-                    let reborrowed_value = value.as_deref_mut();
-                    apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;
+                    apply_rule_to_value(meta, rule, state.path().key(), value.as_deref_mut())?;
                 }
             }
         }
@@ -199,13 +219,24 @@ impl Processor for PiiProcessor<'_> {
         utils::process_pairlist(self, value, state)
     }
 
-    fn process_attributes(
+    fn process_attribute(
         &mut self,
-        value: &mut relay_event_schema::protocol::Attributes,
+        value: &mut relay_event_schema::protocol::Attribute,
         _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ProcessingResult {
-        utils::process_attributes(value, self, state)
+        match self.attribute_mode {
+            AttributeMode::Object => {
+                // Treat the attribute as an object and recurse into its children.
+                value.process_child_values(self, state)
+            }
+            AttributeMode::ValueOnly => {
+                // Identify the attribute with its value and apply rules there directly.
+                let value_state =
+                    state.enter_nothing(Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))));
+                processor::process_value(&mut value.value.value, self, &value_state)
+            }
+        }
     }
 
     fn process_user(
