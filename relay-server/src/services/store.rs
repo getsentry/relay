@@ -1055,7 +1055,8 @@ impl StoreService {
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
         span.key_id = scoping.key_id;
 
-        if self.should_produce_protobuf_spans(span.organization_id) {
+        let spans_target = self.spans_target(span.organization_id);
+        if spans_target.is_protobuf() {
             self.inner_produce_protobuf_span(
                 scoping,
                 received_at,
@@ -1075,31 +1076,32 @@ impl StoreService {
             });
         }
 
-        if self.should_produce_json_spans(span.organization_id) {
+        if spans_target.is_json() {
             self.inner_produce_json_span(scoping, span)?;
         }
 
         Ok(())
     }
 
-    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
-    pub fn should_produce_protobuf_spans(&self, org_id: u64) -> bool {
+    fn spans_target(&self, org_id: u64) -> SpansTarget {
         let config = self.config.span_producers();
         if let Some(rate) = config.produce_json_sample_rate {
-            return utils::is_rolled_out(org_id, rate) == PickResult::Discard;
+            return match utils::is_rolled_out(org_id, rate) {
+                PickResult::Keep => SpansTarget::Json,
+                PickResult::Discard => SpansTarget::Protobuf,
+            };
         }
 
-        !config.produce_json_orgs.contains(&org_id) && config.produce_protobuf
-    }
-
-    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
-    pub fn should_produce_json_spans(&self, org_id: u64) -> bool {
-        let config = self.config.span_producers();
-        if let Some(rate) = config.produce_json_sample_rate {
-            return utils::is_rolled_out(org_id, rate) == PickResult::Keep;
+        if config.produce_json_orgs.contains(&org_id) {
+            return SpansTarget::Json;
         }
 
-        config.produce_json_orgs.contains(&org_id) || config.produce_json
+        match (config.produce_json, config.produce_protobuf) {
+            (true, true) => SpansTarget::Both,
+            (true, false) => SpansTarget::Json,
+            (false, true) => SpansTarget::Protobuf,
+            (false, false) => SpansTarget::default(),
+        }
     }
 
     fn inner_produce_json_span(
@@ -2024,6 +2026,24 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
 
     // We assume this call can't return < 0.
     Utc::now().timestamp() as u64
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum SpansTarget {
+    #[default]
+    Protobuf,
+    Json,
+    Both,
+}
+
+impl SpansTarget {
+    fn is_protobuf(&self) -> bool {
+        matches!(self, SpansTarget::Protobuf | SpansTarget::Both)
+    }
+
+    fn is_json(&self) -> bool {
+        matches!(self, SpansTarget::Json | SpansTarget::Both)
+    }
 }
 
 #[cfg(test)]
