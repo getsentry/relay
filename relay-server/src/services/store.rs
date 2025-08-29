@@ -45,7 +45,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::FormDataIter;
+use crate::utils::{self, FormDataIter, PickResult};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -1055,7 +1055,8 @@ impl StoreService {
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
         span.key_id = scoping.key_id;
 
-        if self.config.produce_protobuf_spans() {
+        let spans_target = self.spans_target(span.organization_id);
+        if spans_target.is_protobuf() {
             self.inner_produce_protobuf_span(
                 scoping,
                 received_at,
@@ -1075,11 +1076,30 @@ impl StoreService {
             });
         }
 
-        if self.config.produce_json_spans() {
+        if spans_target.is_json() {
             self.inner_produce_json_span(scoping, span)?;
         }
 
         Ok(())
+    }
+
+    fn spans_target(&self, org_id: u64) -> SpansTarget {
+        let config = self.config.span_producers();
+        if config.produce_json_orgs.contains(&org_id) {
+            return SpansTarget::Json;
+        } else if let Some(rate) = config.produce_json_sample_rate {
+            return match utils::is_rolled_out(org_id, rate) {
+                PickResult::Keep => SpansTarget::Json,
+                PickResult::Discard => SpansTarget::Protobuf,
+            };
+        }
+
+        match (config.produce_json, config.produce_protobuf) {
+            (true, true) => SpansTarget::Both,
+            (true, false) => SpansTarget::Json,
+            (false, true) => SpansTarget::Protobuf,
+            (false, false) => SpansTarget::default(),
+        }
     }
 
     fn inner_produce_json_span(
@@ -2003,6 +2023,24 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
 
     // We assume this call can't return < 0.
     Utc::now().timestamp() as u64
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum SpansTarget {
+    #[default]
+    Protobuf,
+    Json,
+    Both,
+}
+
+impl SpansTarget {
+    fn is_protobuf(&self) -> bool {
+        matches!(self, SpansTarget::Protobuf | SpansTarget::Both)
+    }
+
+    fn is_json(&self) -> bool {
+        matches!(self, SpansTarget::Json | SpansTarget::Both)
+    }
 }
 
 #[cfg(test)]
