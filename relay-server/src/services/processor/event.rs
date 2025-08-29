@@ -464,7 +464,6 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::ReplayVideo => false,
         ItemType::CheckIn => false,
         ItemType::Log => false,
-        ItemType::OtelLog => false,
         ItemType::Span => false,
         ItemType::OtelSpan => false,
         ItemType::OtelTracesData => false,

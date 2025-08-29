@@ -74,7 +74,7 @@ pub fn check_envelope_size_limits(
             ItemType::CheckIn => config.max_check_in_size(),
             ItemType::Statsd => config.max_statsd_size(),
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
-            ItemType::Log | ItemType::OtelLog => {
+            ItemType::Log => {
                 log_count += item.item_count().unwrap_or(1) as usize;
                 config.max_log_size()
             }
