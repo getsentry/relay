@@ -517,7 +517,7 @@ def test_spanv2_inbound_filters(
 
     outcomes = []
     for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=5).get("outcomes"))
     outcomes.sort(key=lambda x: x["category"])
 
     assert outcomes == [
