@@ -2633,7 +2633,7 @@ impl EnvelopeProcessorService {
                 return false;
             }
 
-            if !self::metrics::is_valid_namespace(bucket, source) {
+            if !self::metrics::is_valid_namespace(bucket) {
                 return false;
             }
 

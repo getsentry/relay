@@ -5,21 +5,18 @@ use relay_quotas::Scoping;
 
 use crate::metrics::MetricOutcomes;
 use crate::services::outcome::Outcome;
-use crate::services::processor::BucketSource;
 use crate::services::projects::project::ProjectInfo;
 
 /// Checks if the namespace of the passed bucket is valid.
 ///
 /// This is returns `true` for most namespaces except:
 ///  - [`MetricNamespace::Unsupported`]: Equal to invalid/unknown namespaces.
-///  - [`MetricNamespace::Stats`]: Metric stats are only allowed if the `source` is [`BucketSource::Internal`].
-pub fn is_valid_namespace(bucket: &Bucket, source: BucketSource) -> bool {
+pub fn is_valid_namespace(bucket: &Bucket) -> bool {
     match bucket.name.namespace() {
         MetricNamespace::Sessions => true,
         MetricNamespace::Transactions => true,
         MetricNamespace::Spans => true,
         MetricNamespace::Custom => true,
-        MetricNamespace::Stats => source == BucketSource::Internal,
         MetricNamespace::Unsupported => false,
     }
 }
@@ -62,7 +59,6 @@ fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) ->
         MetricNamespace::Transactions => true,
         MetricNamespace::Spans => true,
         MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
-        MetricNamespace::Stats => true,
         MetricNamespace::Unsupported => false,
     }
 }
@@ -73,9 +69,6 @@ mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::{BucketValue, UnixTimestamp};
     use relay_system::Addr;
-
-    use crate::metrics::MetricStats;
-    use crate::services::metrics::Aggregator;
 
     use super::*;
 
@@ -93,8 +86,7 @@ mod tests {
     #[test]
     fn test_apply_project_info_with_disabled_custom_namespace() {
         let (outcome_aggregator, _) = Addr::custom();
-        let (metric_stats, mut metric_stats_rx) = MetricStats::test();
-        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
+        let metric_outcomes = MetricOutcomes::new(outcome_aggregator);
 
         let b1 = create_custom_bucket_with_name("cpu_time".into());
         let b2 = create_custom_bucket_with_name("memory_usage".into());
@@ -113,16 +105,5 @@ mod tests {
         );
 
         assert!(buckets.is_empty());
-
-        // We assert that two metrics are emitted by metric stats.
-        for _ in 0..2 {
-            let value = metric_stats_rx.blocking_recv().unwrap();
-            let Aggregator::MergeBuckets(merge_buckets) = value;
-            assert_eq!(merge_buckets.buckets.len(), 1);
-            let BucketValue::Counter(value) = merge_buckets.buckets[0].value else {
-                panic!();
-            };
-            assert_eq!(value.to_f64(), 1.0);
-        }
     }
 }

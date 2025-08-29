@@ -220,8 +220,6 @@ mod tests {
     use relay_system::Addr;
     use smallvec::smallvec;
 
-    use crate::metrics::MetricStats;
-
     use super::*;
 
     fn deny(category: DataCategory) -> Vec<Quota> {
@@ -243,7 +241,7 @@ mod tests {
         quotas: Vec<Quota>,
     ) -> (Vec<Bucket>, Vec<(Outcome, DataCategory, u32)>) {
         let (outcome_sink, mut rx) = Addr::custom();
-        let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_sink.clone());
+        let metric_outcomes = MetricOutcomes::new(outcome_sink.clone());
 
         let mut limiter = MetricsLimiter::create(
             metrics,
