@@ -1,7 +1,6 @@
 use relay_event_normalization::{SchemaProcessor, eap};
 use relay_event_schema::processor::{ProcessingState, ValueType, process_value};
-use relay_event_schema::protocol::{AttributeType, BrowserContext, OurLog, OurLogHeader};
-use relay_metrics::UnixTimestamp;
+use relay_event_schema::protocol::{OurLog, OurLogHeader};
 use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
