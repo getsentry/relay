@@ -2008,6 +2008,7 @@ fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -2022,5 +2023,135 @@ mod tests {
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
+    }
+
+    #[test]
+    fn backfill() {
+        let json = r#"{
+            "description": "/api/0/relays/projectconfigs/",
+            "duration_ms": 152,
+            "exclusive_time": 0.228,
+            "is_segment": true,
+            "data": {
+                "sentry.environment": "development",
+                "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+                "thread.name": "uWSGIWorker1Core0",
+                "thread.id": "8522009600",
+                "sentry.segment.name": "/api/0/relays/projectconfigs/",
+                "sentry.sdk.name": "sentry.python.django",
+                "sentry.sdk.version": "2.7.0",
+                "my.float.field": 101.2,
+                "my.int.field": 2000,
+                "my.neg.field": -100,
+                "my.neg.float.field": -101.2,
+                "my.true.bool.field": true,
+                "my.false.bool.field": false,
+                "my.dict.field": {
+                    "id": 42,
+                    "name": "test"
+                },
+                "my.u64.field": 9447000002305251000,
+                "my.array.field": [1, 2, ["nested", "array"]]
+            },
+            "measurements": {
+                "num_of_spans": {"value": 50.0},
+                "client_sample_rate": {"value": 0.1},
+                "server_sample_rate": {"value": 0.2}
+            },
+            "profile_id": "56c7d1401ea14ad7b4ac86de46baebae",
+            "organization_id": 1,
+            "origin": "auto.http.django",
+            "project_id": 1,
+            "received": 1721319572.877828,
+            "retention_days": 90,
+            "segment_id": "8873a98879faf06d",
+            "sentry_tags": {
+                "description": "normalized_description",
+                "category": "http",
+                "environment": "development",
+                "op": "http.server",
+                "platform": "python",
+                "release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+                "sdk.name": "sentry.python.django",
+                "sdk.version": "2.7.0",
+                "status": "ok",
+                "status_code": "200",
+                "thread.id": "8522009600",
+                "thread.name": "uWSGIWorker1Core0",
+                "trace.status": "ok",
+                "transaction": "/api/0/relays/projectconfigs/",
+                "transaction.method": "POST",
+                "transaction.op": "http.server",
+                "user": "ip:127.0.0.1"
+            },
+            "span_id": "8873a98879faf06d",
+            "tags": {
+                "http.status_code": "200",
+                "relay_endpoint_version": "3",
+                "relay_id": "88888888-4444-4444-8444-cccccccccccc",
+                "relay_no_cache": "False",
+                "relay_protocol_version": "3",
+                "relay_use_post_or_schedule": "True",
+                "relay_use_post_or_schedule_rejected": "version",
+                "server_name": "D23CXQ4GK2.local",
+                "spans_over_limit": "False"
+            },
+            "trace_id": "d099bf9ad5a143cf8f83a98081d0ed3b",
+            "start_timestamp_ms": 1721319572616,
+            "start_timestamp": 1721319572.616648,
+            "timestamp": 1721319572.768806
+        }"#;
+        let mut span: SpanKafkaMessage = serde_json::from_str(json).unwrap();
+        span.backfill_data();
+
+        assert_eq!(
+            serde_json::to_string_pretty(&span.data).unwrap(),
+            r#"{
+  "http.status_code": "200",
+  "my.array.field": [1, 2, ["nested", "array"]],
+  "my.dict.field": {
+                    "id": 42,
+                    "name": "test"
+                },
+  "my.false.bool.field": false,
+  "my.float.field": 101.2,
+  "my.int.field": 2000,
+  "my.neg.field": -100,
+  "my.neg.float.field": -101.2,
+  "my.true.bool.field": true,
+  "my.u64.field": 9447000002305251000,
+  "num_of_spans": 50.0,
+  "relay_endpoint_version": "3",
+  "relay_id": "88888888-4444-4444-8444-cccccccccccc",
+  "relay_no_cache": "False",
+  "relay_protocol_version": "3",
+  "relay_use_post_or_schedule": "True",
+  "relay_use_post_or_schedule_rejected": "version",
+  "sentry.category": "http",
+  "sentry.client_sample_rate": 0.1,
+  "sentry.environment": "development",
+  "sentry.normalized_description": "normalized_description",
+  "sentry.op": "http.server",
+  "sentry.platform": "python",
+  "sentry.release": "backend@24.7.0.dev0+c45b49caed1e5fcbf70097ab3f434b487c359b6b",
+  "sentry.sdk.name": "sentry.python.django",
+  "sentry.sdk.version": "2.7.0",
+  "sentry.segment.name": "/api/0/relays/projectconfigs/",
+  "sentry.server_sample_rate": 0.2,
+  "sentry.status": "ok",
+  "sentry.status_code": "200",
+  "sentry.thread.id": "8522009600",
+  "sentry.thread.name": "uWSGIWorker1Core0",
+  "sentry.trace.status": "ok",
+  "sentry.transaction": "/api/0/relays/projectconfigs/",
+  "sentry.transaction.method": "POST",
+  "sentry.transaction.op": "http.server",
+  "sentry.user": "ip:127.0.0.1",
+  "server_name": "D23CXQ4GK2.local",
+  "spans_over_limit": "False",
+  "thread.id": "8522009600",
+  "thread.name": "uWSGIWorker1Core0"
+}"#
+        );
     }
 }
