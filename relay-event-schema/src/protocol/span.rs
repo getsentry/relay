@@ -625,7 +625,7 @@ pub struct SpanData {
     pub gen_ai_tool_name: Annotated<Value>,
 
     /// The name of the operation being performed.
-    #[metastructure(field = "gen_ai.operation.name", pii = "false")]
+    #[metastructure(field = "gen_ai.operation.name", pii = "maybe")]
     pub gen_ai_operation_name: Annotated<String>,
 
     /// The client's browser name.
