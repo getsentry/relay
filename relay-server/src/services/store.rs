@@ -45,7 +45,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardItemType, DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::FormDataIter;
+use crate::utils::{self, FormDataIter, PickResult};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -1055,7 +1055,7 @@ impl StoreService {
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
         span.key_id = scoping.key_id;
 
-        if self.config.produce_protobuf_spans() {
+        if self.should_produce_protobuf_spans(span.organization_id) {
             self.inner_produce_protobuf_span(
                 scoping,
                 received_at,
@@ -1075,11 +1075,31 @@ impl StoreService {
             });
         }
 
-        if self.config.produce_json_spans() {
+        if self.should_produce_json_spans(span.organization_id) {
             self.inner_produce_json_span(scoping, span)?;
         }
 
         Ok(())
+    }
+
+    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
+    pub fn should_produce_protobuf_spans(&self, org_id: u64) -> bool {
+        let config = self.config.span_producers();
+        if let Some(rate) = config.produce_json_sample_rate {
+            return utils::is_rolled_out(org_id, rate) == PickResult::Discard;
+        }
+
+        !config.produce_json_orgs.contains(&org_id) && config.produce_protobuf
+    }
+
+    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
+    pub fn should_produce_json_spans(&self, org_id: u64) -> bool {
+        let config = self.config.span_producers();
+        if let Some(rate) = config.produce_json_sample_rate {
+            return utils::is_rolled_out(org_id, rate) == PickResult::Keep;
+        }
+
+        config.produce_json_orgs.contains(&org_id) || config.produce_json
     }
 
     fn inner_produce_json_span(

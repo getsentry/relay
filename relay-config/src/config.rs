@@ -1214,6 +1214,14 @@ impl Default for Processing {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SpanProducers {
+    /// Random sample of organizations to produce json and no protobuf.
+    ///
+    /// Overrides both `produce_json` and `produce_protobuf` for matching orgs.
+    pub produce_json_sample_rate: Option<f32>,
+    /// List of organization IDs to produce JSON spans for.
+    ///
+    /// Overrides both `produce_json` and `produce_protobuf` for matching orgs.
+    pub produce_json_orgs: Vec<u64>,
     /// Send JSON spans to `ingest-spans`.
     pub produce_json: bool,
     /// Send Protobuf (TraceItem) to `snuba-items`.
@@ -1223,6 +1231,8 @@ pub struct SpanProducers {
 impl Default for SpanProducers {
     fn default() -> Self {
         Self {
+            produce_json_sample_rate: None,
+            produce_json_orgs: vec![],
             produce_json: false,
             produce_protobuf: true,
         }
@@ -2641,14 +2651,9 @@ impl Config {
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 
-    /// Returns `true` if we should produce TraceItem spans on `snuba-items`.
-    pub fn produce_protobuf_spans(&self) -> bool {
-        self.values.processing.span_producers.produce_protobuf
-    }
-
-    /// Returns `true` if we should produce JSON spans on `ingest-spans`.
-    pub fn produce_json_spans(&self) -> bool {
-        self.values.processing.span_producers.produce_json
+    /// Returns the configuration for span producers.
+    pub fn span_producers(&self) -> &SpanProducers {
+        &self.values.processing.span_producers
     }
 }
 
