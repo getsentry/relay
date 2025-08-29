@@ -575,23 +575,6 @@ impl Default for Metrics {
     }
 }
 
-/// Controls processing of Sentry metrics and metric metadata.
-#[derive(Serialize, Deserialize, Debug, Default)]
-#[serde(default)]
-pub struct SentryMetrics {
-    /// Whether metric stats are collected and emitted.
-    ///
-    /// Metric stats are always collected and emitted when processing
-    /// is enabled.
-    ///
-    /// This option is required for running multiple trusted Relays in a chain
-    /// and you want the metric stats to be collected and forwarded from
-    /// the first Relay in the chain.
-    ///
-    /// Defaults to `false`.
-    pub metric_stats_enabled: bool,
-}
-
 /// Controls various limits
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -1612,8 +1595,6 @@ struct ConfigValues {
     #[serde(default)]
     metrics: Metrics,
     #[serde(default)]
-    sentry_metrics: SentryMetrics,
-    #[serde(default)]
     sentry: relay_log::SentryConfig,
     #[serde(default)]
     processing: Processing,
@@ -2363,14 +2344,6 @@ impl Config {
     /// Returns the maximum payload size of metric buckets in bytes.
     pub fn max_metric_buckets_size(&self) -> usize {
         self.values.limits.max_metric_buckets_size.as_bytes()
-    }
-
-    /// Whether metric stats are collected and emitted.
-    ///
-    /// Metric stats are always collected and emitted when processing
-    /// is enabled.
-    pub fn metric_stats_enabled(&self) -> bool {
-        self.values.sentry_metrics.metric_stats_enabled || self.values.processing.enabled
     }
 
     /// Returns the maximum payload size for general API requests.

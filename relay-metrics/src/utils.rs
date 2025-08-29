@@ -23,8 +23,6 @@ pub struct ByNamespace<T> {
     pub spans: T,
     /// Value for the [`MetricNamespace::Custom`] namespace.
     pub custom: T,
-    /// Value for the [`MetricNamespace::Stats`] namespace.
-    pub stats: T,
     /// Value for the [`MetricNamespace::Unsupported`] namespace.
     pub unsupported: T,
 }
@@ -37,7 +35,6 @@ impl<T> ByNamespace<T> {
             MetricNamespace::Transactions => &self.transactions,
             MetricNamespace::Spans => &self.spans,
             MetricNamespace::Custom => &self.custom,
-            MetricNamespace::Stats => &self.stats,
             MetricNamespace::Unsupported => &self.unsupported,
         }
     }
@@ -49,7 +46,6 @@ impl<T> ByNamespace<T> {
             MetricNamespace::Transactions => &mut self.transactions,
             MetricNamespace::Spans => &mut self.spans,
             MetricNamespace::Custom => &mut self.custom,
-            MetricNamespace::Stats => &mut self.stats,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
     }
@@ -57,7 +53,7 @@ impl<T> ByNamespace<T> {
 
 impl<T> IntoIterator for ByNamespace<T> {
     type Item = (MetricNamespace, T);
-    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 6>;
+    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 5>;
 
     fn into_iter(self) -> Self::IntoIter {
         let Self {
@@ -65,7 +61,6 @@ impl<T> IntoIterator for ByNamespace<T> {
             transactions,
             spans,
             custom,
-            stats,
             unsupported,
         } = self;
 
@@ -74,7 +69,6 @@ impl<T> IntoIterator for ByNamespace<T> {
             (MetricNamespace::Transactions, transactions),
             (MetricNamespace::Spans, spans),
             (MetricNamespace::Custom, custom),
-            (MetricNamespace::Stats, stats),
             (MetricNamespace::Unsupported, unsupported),
         ]
         .into_iter()
@@ -118,7 +112,6 @@ macro_rules! impl_op {
                     transactions,
                     spans,
                     custom,
-                    stats,
                     unsupported,
                 } = self;
 
@@ -126,7 +119,6 @@ macro_rules! impl_op {
                 $op::$opfn(transactions, rhs.transactions);
                 $op::$opfn(spans, rhs.spans);
                 $op::$opfn(custom, rhs.custom);
-                $op::$opfn(stats, rhs.stats);
                 $op::$opfn(unsupported, rhs.unsupported);
             }
         }
