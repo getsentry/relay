@@ -1085,15 +1085,13 @@ impl StoreService {
 
     fn spans_target(&self, org_id: u64) -> SpansTarget {
         let config = self.config.span_producers();
-        if let Some(rate) = config.produce_json_sample_rate {
+        if config.produce_json_orgs.contains(&org_id) {
+            return SpansTarget::Json;
+        } else if let Some(rate) = config.produce_json_sample_rate {
             return match utils::is_rolled_out(org_id, rate) {
                 PickResult::Keep => SpansTarget::Json,
                 PickResult::Discard => SpansTarget::Protobuf,
             };
-        }
-
-        if config.produce_json_orgs.contains(&org_id) {
-            return SpansTarget::Json;
         }
 
         match (config.produce_json, config.produce_protobuf) {
