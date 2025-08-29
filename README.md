@@ -208,7 +208,10 @@ two ways to install this:
 devenv sync
 
 # Install the release build, recommended:
-uv pip install -v -e py
+.devenv/bin/uv pip install -v -e py
+
+# note: use `direnv allow` to put .devenv/bin on PATH, or alternatively
+#       you can install uv yourself
 
 # Install the debug build, faster installation but much slower runtime:
 RELAY_DEBUG=1 uv pip install -v -e py
