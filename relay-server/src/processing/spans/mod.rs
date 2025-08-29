@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use relay_event_normalization::GeoIpLookup;
+use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::SpanV2;
 use relay_quotas::{DataCategory, RateLimits};
 
@@ -30,6 +32,9 @@ pub enum Error {
     /// Spans filtered due to a filtering rule.
     #[error("spans filtered")]
     Filtered(relay_filter::FilterStatKey),
+    /// A processor failed to process the spans.
+    #[error("envelope processor failed")]
+    ProcessingFailed(#[from] ProcessingAction),
     /// The span is invalid.
     #[error("invalid: {0}")]
     Invalid(DiscardReason),
@@ -46,6 +51,7 @@ impl OutcomeError for Error {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 Some(Outcome::RateLimited(reason_code))
             }
+            Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             Self::Invalid(reason) => Some(Outcome::Invalid(*reason)),
         };
         (outcome, self)
@@ -61,12 +67,16 @@ impl From<RateLimits> for Error {
 /// A processor for Spans.
 pub struct SpansProcessor {
     limiter: Arc<QuotaRateLimiter>,
+    geo_lookup: GeoIpLookup,
 }
 
 impl SpansProcessor {
     /// Creates a new [`Self`].
-    pub fn new(limiter: Arc<QuotaRateLimiter>) -> Self {
-        Self { limiter }
+    pub fn new(limiter: Arc<QuotaRateLimiter>, geo_lookup: GeoIpLookup) -> Self {
+        Self {
+            limiter,
+            geo_lookup,
+        }
     }
 }
 
@@ -114,7 +124,7 @@ impl processing::Processor for SpansProcessor {
 
         let mut spans = process::expand(spans);
 
-        // TODO: normalization (conventions?)
+        process::normalize(&mut spans, &self.geo_lookup);
         filter::filter(&mut spans, ctx);
 
         self.limiter.enforce_quotas(&mut spans, ctx).await?;

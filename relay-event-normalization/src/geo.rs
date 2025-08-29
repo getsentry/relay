@@ -1,5 +1,7 @@
 use std::fmt;
+use std::net::IpAddr;
 use std::path::Path;
+use std::sync::Arc;
 
 use relay_event_schema::protocol::Geo;
 use relay_protocol::Annotated;
@@ -14,7 +16,10 @@ type ReaderType = Vec<u8>;
 pub type GeoIpError = maxminddb::MaxMindDbError;
 
 /// A geo ip lookup helper based on maxmind db files.
-pub struct GeoIpLookup(maxminddb::Reader<ReaderType>);
+///
+/// The helper is internally reference counted and can be cloned cheaply.
+#[derive(Clone, Default)]
+pub struct GeoIpLookup(Option<Arc<maxminddb::Reader<ReaderType>>>);
 
 impl GeoIpLookup {
     /// Opens a maxminddb file by path.
@@ -26,18 +31,21 @@ impl GeoIpLookup {
         let reader = maxminddb::Reader::open_mmap(path)?;
         #[cfg(not(feature = "mmap"))]
         let reader = maxminddb::Reader::open_readfile(path)?;
-        Ok(GeoIpLookup(reader))
+        Ok(GeoIpLookup(Some(Arc::new(reader))))
+    }
+
+    /// Creates a new [`GeoIpLookup`] instance without any data loaded.
+    pub fn empty() -> Self {
+        Self(None)
     }
 
     /// Looks up an IP address.
-    pub fn lookup(&self, ip_address: &str) -> Result<Option<Geo>, GeoIpError> {
-        // XXX: Why do we parse the IP again after deserializing?
-        let ip_address = match ip_address.parse() {
-            Ok(x) => x,
-            Err(_) => return Ok(None),
+    pub fn try_lookup(&self, ip_address: IpAddr) -> Result<Option<Geo>, GeoIpError> {
+        let Some(reader) = self.0.as_ref() else {
+            return Ok(None);
         };
 
-        let city: maxminddb::geoip2::City = match self.0.lookup(ip_address) {
+        let city: maxminddb::geoip2::City = match reader.lookup(ip_address) {
             Ok(Some(x)) => x,
             Ok(None) => return Ok(None),
             Err(e) => return Err(e),
@@ -70,6 +78,11 @@ impl GeoIpLookup {
             ),
             ..Default::default()
         }))
+    }
+
+    /// Like [`Self::try_lookup`], but swallows errors.
+    pub fn lookup(&self, ip_address: IpAddr) -> Option<Geo> {
+        self.try_lookup(ip_address).ok().flatten()
     }
 }
 

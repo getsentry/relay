@@ -89,19 +89,17 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
 pub fn normalize(
     replay: &mut Annotated<Replay>,
     client_ip: Option<StdIpAddr>,
-    user_agent: RawUserAgentInfo<&str>,
-    geoip_lookup: Option<&GeoIpLookup>,
+    user_agent: &RawUserAgentInfo<&str>,
+    geoip_lookup: &GeoIpLookup,
 ) {
     let _ = processor::apply(replay, |replay_value, meta| {
         normalize_platform(replay_value);
         normalize_ip_address(replay_value, client_ip);
-        if let Some(geoip_lookup) = geoip_lookup {
-            normalize_user_geoinfo(
-                geoip_lookup,
-                &mut replay_value.user,
-                client_ip.map(|ip| IpAddr(ip.to_string())).as_ref(),
-            );
-        }
+        normalize_user_geoinfo(
+            geoip_lookup,
+            &mut replay_value.user,
+            client_ip.map(|ip| IpAddr(ip.to_string())).as_ref(),
+        );
         normalize_user_agent(replay_value, user_agent);
         normalize_type(replay_value);
         normalize_array_fields(replay_value);
@@ -140,7 +138,7 @@ fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
     );
 }
 
-fn normalize_user_agent(replay: &mut Replay, default_user_agent: RawUserAgentInfo<&str>) {
+fn normalize_user_agent(replay: &mut Replay, default_user_agent: &RawUserAgentInfo<&str>) {
     let headers = match replay
         .request
         .value()
@@ -151,15 +149,14 @@ fn normalize_user_agent(replay: &mut Replay, default_user_agent: RawUserAgentInf
     };
 
     let user_agent_info = RawUserAgentInfo::from_headers(headers);
-
     let user_agent_info = if user_agent_info.is_empty() {
         default_user_agent
     } else {
-        user_agent_info
+        &user_agent_info
     };
 
     let contexts = replay.contexts.get_or_insert_with(Contexts::new);
-    user_agent::normalize_user_agent_info_generic(contexts, &replay.platform, &user_agent_info);
+    user_agent::normalize_user_agent_info_generic(contexts, &replay.platform, user_agent_info);
 }
 
 fn normalize_platform(replay: &mut Replay) {
@@ -270,7 +267,12 @@ mod tests {
         let payload = include_str!("../../tests/fixtures/replay.json");
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        normalize(&mut replay, None, RawUserAgentInfo::default(), None);
+        normalize(
+            &mut replay,
+            None,
+            &RawUserAgentInfo::default(),
+            &GeoIpLookup::empty(),
+        );
 
         let contexts = get_value!(replay.contexts!);
         assert_eq!(
@@ -307,16 +309,21 @@ mod tests {
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
 
         // No user object and no ip-address was provided.
-        normalize(&mut replay, None, RawUserAgentInfo::default(), None);
-        assert_eq!(get_value!(replay.user), None);
+        normalize(
+            &mut replay,
+            None,
+            &RawUserAgentInfo::default(),
+            &GeoIpLookup::empty(),
+        );
+        assert_eq!(get_value!(replay.user.geo), None);
 
         // No user object but an ip-address was provided.
         let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
         normalize(
             &mut replay,
             Some(ip_address),
-            RawUserAgentInfo::default(),
-            None,
+            &RawUserAgentInfo::default(),
+            &GeoIpLookup::empty(),
         );
 
         let ipaddr = get_value!(replay.user!).ip_address.as_str();
@@ -335,8 +342,8 @@ mod tests {
         normalize(
             &mut replay,
             Some(ip_address),
-            RawUserAgentInfo::default(),
-            Some(&lookup),
+            &RawUserAgentInfo::default(),
+            &lookup,
         );
 
         let user = &replay.value().unwrap().user;
@@ -361,7 +368,12 @@ mod tests {
         let payload = include_str!("../../tests/fixtures/replay_failure_22_08_31.json");
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        normalize(&mut replay, None, RawUserAgentInfo::default(), None);
+        normalize(
+            &mut replay,
+            None,
+            &RawUserAgentInfo::default(),
+            &GeoIpLookup::empty(),
+        );
 
         let user = get_value!(replay.user!);
         assert_eq!(user.ip_address.as_str(), Some("127.1.1.1"));
@@ -485,7 +497,12 @@ mod tests {
         let json = format!(r#"{{"dist": "{}"}}"#, "0".repeat(100));
         let mut replay = Annotated::<Replay>::from_json(json.as_str()).unwrap();
 
-        normalize(&mut replay, None, RawUserAgentInfo::default(), None);
+        normalize(
+            &mut replay,
+            None,
+            &RawUserAgentInfo::default(),
+            &GeoIpLookup::empty(),
+        );
         assert_annotated_snapshot!(replay, @r###"
         {
           "platform": "other",

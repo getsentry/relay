@@ -46,41 +46,29 @@ pub struct AttributeValue {
     pub value: Annotated<Value>,
 }
 
-impl From<String> for AttributeValue {
-    fn from(value: String) -> Self {
-        AttributeValue {
-            ty: Annotated::new(AttributeType::String),
-            value: Annotated::new(value.into()),
+macro_rules! impl_from {
+    ($ty:ident, $aty: expr) => {
+        impl From<Annotated<$ty>> for AttributeValue {
+            fn from(value: Annotated<$ty>) -> Self {
+                AttributeValue {
+                    ty: Annotated::new($aty),
+                    value: value.map_value(Into::into),
+                }
+            }
         }
-    }
+
+        impl From<$ty> for AttributeValue {
+            fn from(value: $ty) -> Self {
+                AttributeValue::from(Annotated::new(value))
+            }
+        }
+    };
 }
 
-impl From<i64> for AttributeValue {
-    fn from(value: i64) -> Self {
-        AttributeValue {
-            ty: Annotated::new(AttributeType::Integer),
-            value: Annotated::new(value.into()),
-        }
-    }
-}
-
-impl From<f64> for AttributeValue {
-    fn from(value: f64) -> Self {
-        AttributeValue {
-            ty: Annotated::new(AttributeType::Double),
-            value: Annotated::new(value.into()),
-        }
-    }
-}
-
-impl From<bool> for AttributeValue {
-    fn from(value: bool) -> Self {
-        AttributeValue {
-            ty: Annotated::new(AttributeType::Boolean),
-            value: Annotated::new(value.into()),
-        }
-    }
-}
+impl_from!(String, AttributeType::String);
+impl_from!(i64, AttributeType::Integer);
+impl_from!(f64, AttributeType::Double);
+impl_from!(bool, AttributeType::Boolean);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeType {
@@ -201,7 +189,9 @@ impl Attributes {
             slf.insert_raw(key, attribute);
         }
         let value = value.into();
-        inner(self, key, value);
+        if !value.value.is_empty() {
+            inner(self, key, value);
+        }
     }
 
     /// Inserts an attribute with the given value if it was not already present.

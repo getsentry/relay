@@ -455,11 +455,11 @@ def test_minidump_with_processing(
         {
             "id": attachment_id,
             "name": "minidump.dmp",
+            "rate_limited": rate_limit == "attachment",
             "attachment_type": "event.minidump",
             "content_type": "application/x-dmp",
-            "chunks": num_chunks,
             "size": len(content),
-            "rate_limited": rate_limit == "attachment",
+            "chunks": num_chunks,
         }
     ]
 
@@ -501,11 +501,11 @@ def test_minidump_with_processing_invalid(
         {
             "id": attachment_id,
             "name": "minidump.dmp",
+            "rate_limited": False,
             "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
-            "chunks": num_chunks,
             "size": len(content),
-            "rate_limited": False,
+            "chunks": num_chunks,
         }
     ]
 
