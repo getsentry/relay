@@ -2320,11 +2320,43 @@ mod tests {
         );
         assert_eq!(
             spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(10.0))
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(40.0))
+        );
+        assert_eq!(
+            spans
                 .get(1)
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(80.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(20.0)) // 1000 * 0.02
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(60.0)) // 2000 * 0.03
         );
     }
 
@@ -2424,6 +2456,14 @@ mod tests {
             Some(&Value::F64(75.0))
         );
         assert_eq!(
+            first_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(25.0))
+        );
+        assert_eq!(
+            first_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(50.0))
+        );
+        assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_response_tokens_per_second.value()),
             Some(&Value::F64(2000.0))
         );
@@ -2435,6 +2475,14 @@ mod tests {
         assert_eq!(
             second_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(90.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(100.0))
         );
         assert_eq!(
             second_span_data.and_then(|data| data.gen_ai_usage_total_tokens.value()),
@@ -2453,6 +2501,14 @@ mod tests {
         assert_eq!(
             third_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            third_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(90.0))
+        );
+        assert_eq!(
+            third_span_data.and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(100.0))
         );
     }
 
@@ -2604,11 +2660,43 @@ mod tests {
         );
         assert_eq!(
             spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(25.0))
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(40.0))
+        );
+        assert_eq!(
+            spans
                 .get(1)
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
             Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_input_tokens.value()),
+            Some(&Value::F64(90.0)) // 1000 * 0.09
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_output_tokens.value()),
+            Some(&Value::F64(100.0)) // 2000 * 0.05
         );
         assert_eq!(
             spans
