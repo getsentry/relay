@@ -505,6 +505,14 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.usage.total_cost", legacy_alias = "ai.total_cost")]
     pub gen_ai_usage_total_cost: Annotated<Value>,
 
+    /// The cost for input tokens used
+    #[metastructure(field = "gen_ai.cost.input_tokens")]
+    pub gen_ai_cost_input_tokens: Annotated<Value>,
+
+    /// The cost for output tokens used
+    #[metastructure(field = "gen_ai.cost.output_tokens")]
+    pub gen_ai_cost_output_tokens: Annotated<Value>,
+
     /// Prompt passed to LLM (Vercel AI SDK)
     #[metastructure(field = "gen_ai.prompt", pii = "maybe")]
     pub gen_ai_prompt: Annotated<Value>,
@@ -944,6 +952,8 @@ impl Getter for SpanData {
             "gen_ai\\.request\\.max_tokens" => self.gen_ai_request_max_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_tokens" => self.gen_ai_usage_total_tokens.value()?.into(),
             "gen_ai\\.usage\\.total_cost" => self.gen_ai_usage_total_cost.value()?.into(),
+            "gen_ai\\.cost\\.input_tokens" => self.gen_ai_cost_input_tokens.value()?.into(),
+            "gen_ai\\.cost\\.output_tokens" => self.gen_ai_cost_output_tokens.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -1403,6 +1413,8 @@ mod tests {
             gen_ai_response_model: ~,
             gen_ai_request_model: ~,
             gen_ai_usage_total_cost: ~,
+            gen_ai_cost_input_tokens: ~,
+            gen_ai_cost_output_tokens: ~,
             gen_ai_prompt: ~,
             gen_ai_request_messages: ~,
             gen_ai_tool_input: ~,

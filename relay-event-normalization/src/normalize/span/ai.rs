@@ -6,8 +6,12 @@ use relay_protocol::{Annotated, Getter, Value};
 
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
-fn calculate_ai_model_cost(model_cost: Option<ModelCostV2>, data: &SpanData) -> Option<f64> {
-    let cost_per_token = model_cost?;
+fn extract_ai_model_cost_data(model_cost: Option<ModelCostV2>, data: &mut SpanData) {
+    let cost_per_token = match model_cost {
+        Some(v) => v,
+        None => return,
+    };
+
     let input_tokens_used = data
         .gen_ai_usage_input_tokens
         .value()
@@ -27,31 +31,40 @@ fn calculate_ai_model_cost(model_cost: Option<ModelCostV2>, data: &SpanData) -> 
         .and_then(Value::as_f64);
 
     if input_tokens_used.is_none() && output_tokens_used.is_none() {
-        return None;
+        return;
     }
 
-    let mut result = 0.0;
-
+    let mut input_cost = 0.0;
+    let mut output_cost = 0.0;
     // Cached tokens are subset of the input tokens, so we need to subtract them
     // from the input tokens
-    result += cost_per_token.input_per_token
+    input_cost += cost_per_token.input_per_token
         * (input_tokens_used.unwrap_or(0.0) - input_cached_tokens_used.unwrap_or(0.0));
-    result += cost_per_token.input_cached_per_token * input_cached_tokens_used.unwrap_or(0.0);
+    input_cost += cost_per_token.input_cached_per_token * input_cached_tokens_used.unwrap_or(0.0);
     // Reasoning tokens are subset of the output tokens, so we need to subtract
     // them from the output tokens
-    result += cost_per_token.output_per_token
+    output_cost += cost_per_token.output_per_token
         * (output_tokens_used.unwrap_or(0.0) - output_reasoning_tokens_used.unwrap_or(0.0));
 
     if cost_per_token.output_reasoning_per_token > 0.0 {
         // for now most of the models do not differentiate between reasoning and output token cost,
         // it costs the same
-        result +=
+        output_cost +=
             cost_per_token.output_reasoning_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
     } else {
-        result += cost_per_token.output_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
+        output_cost +=
+            cost_per_token.output_per_token * output_reasoning_tokens_used.unwrap_or(0.0);
     }
 
-    Some(result)
+    let result = input_cost + output_cost;
+    data.gen_ai_usage_total_cost
+        .set_value(Value::F64(result).into());
+
+    // Set individual cost components
+    data.gen_ai_cost_input_tokens
+        .set_value(Value::F64(input_cost).into());
+    data.gen_ai_cost_output_tokens
+        .set_value(Value::F64(output_cost).into());
 }
 
 /// Maps AI-related measurements (legacy) to span data.
@@ -139,11 +152,8 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
                 .value()
                 .and_then(|val| val.as_str())
         })
-        && let Some(total_cost) =
-            calculate_ai_model_cost(ai_model_costs.cost_per_token(model_id), data)
     {
-        data.gen_ai_usage_total_cost
-            .set_value(Value::F64(total_cost).into());
+        extract_ai_model_cost_data(ai_model_costs.cost_per_token(model_id), data)
     }
 }
 
