@@ -197,7 +197,7 @@ impl SelectorSpec {
     /// This walks both the selector and the path starting at the end and towards the root
     /// to determine if the selector matches the current path.
     pub fn matches_path(&self, path: &Path) -> bool {
-        let pii = path.attrs().pii;
+        let pii = path.pii();
         if pii == Pii::False {
             return false;
         }
