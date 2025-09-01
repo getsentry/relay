@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use relay_base_schema::metrics::MetricUnit;
+use relay_common::glob2::LazyGlob;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
@@ -261,11 +262,25 @@ impl ModelCosts {
 
     /// Gets the cost per token, if defined for the given model.
     pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
-        if self.is_enabled() {
-            self.models.get(model_id).copied()
-        } else {
-            None
+        if !self.is_enabled() {
+            return None;
         }
+
+        if self.models.contains_key(model_id) {
+            return self.models.get(model_id).copied();
+        }
+
+        // if there is not a direct match, try to find the match using a lazy glob
+        let cost = self.models.iter().find_map(|(key, value)| {
+            let pattern_model_id = LazyGlob::new(key);
+            if pattern_model_id.compiled().is_match(model_id) {
+                Some(value)
+            } else {
+                None
+            }
+        });
+
+        cost.copied()
     }
 }
 
@@ -390,6 +405,61 @@ mod tests {
                 input_cached_per_token: 0.015,
             }
         );
+    }
+
+    #[test]
+    fn test_model_cost_glob_matching() {
+        // Test glob matching functionality in cost_per_token
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            "gpt-4*".to_owned(),
+            ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            },
+        );
+        models_map.insert(
+            "gpt-4-2xxx".to_owned(),
+            ModelCostV2 {
+                input_per_token: 0.0007,
+                output_per_token: 0.0008,
+                output_reasoning_per_token: 0.0016,
+                input_cached_per_token: 0.00035,
+            },
+        );
+
+        let v2_config = ModelCosts {
+            version: 2,
+            models: models_map,
+        };
+        assert!(v2_config.is_enabled());
+
+        // Test glob matching with gpt-4 variants (prefix matching)
+        let cost = v2_config.cost_per_token("gpt-4").unwrap();
+        assert_eq!(
+            cost,
+            ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            }
+        );
+
+        let cost = v2_config.cost_per_token("gpt-4-2xxx").unwrap();
+        assert_eq!(
+            cost,
+            ModelCostV2 {
+                input_per_token: 0.0007,
+                output_per_token: 0.0008,
+                output_reasoning_per_token: 0.0016,
+                input_cached_per_token: 0.00035,
+            }
+        );
+
+        assert_eq!(v2_config.cost_per_token("unknown-model"), None);
     }
 
     #[test]
