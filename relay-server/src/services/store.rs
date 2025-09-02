@@ -1064,21 +1064,23 @@ impl StoreService {
                 retention_days,
                 span.clone(),
             )?;
-
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::SpanIndexed,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
         }
 
         if spans_target.is_json() {
             self.inner_produce_json_span(scoping, span)?;
         }
+
+        // XXX: Temporarily produce span outcomes also for JSON spans. Keep in sync with either EAP
+        // or the segments consumer, depending on which will produce outcomes later.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::SpanIndexed,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: 1,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
 
         Ok(())
     }
