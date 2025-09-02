@@ -108,7 +108,7 @@ fn scrub_log(log: &mut Annotated<OurLog>, ctx: Context<'_>) -> Result<()> {
 
     if let Some(ref config) = ctx.project_info.config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
-        let root_state = ProcessingState::root().enter_static("", None, Some(ValueType::OurLog));
+        let root_state = ProcessingState::root().enter_borrowed("", None, Some(ValueType::OurLog));
         process_value(log, &mut processor, &root_state)?;
     }
 

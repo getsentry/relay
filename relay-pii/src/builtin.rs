@@ -437,7 +437,7 @@ mod tests {
     /// }
     /// ```
     fn processing_state() -> ProcessingState<'static> {
-        ProcessingState::root().enter_static(
+        ProcessingState::root().enter_borrowed(
             "value",
             Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
             EnumSet::only(ValueType::String),

@@ -562,9 +562,9 @@ mod tests {
     #[test]
     fn test_matching() {
         let event_state = ProcessingState::new_root(None, Some(ValueType::Event)); // .
-        let user_state = event_state.enter_static("user", None, Some(ValueType::User)); // .user
-        let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object)); // .user.extra
-        let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array)); // .user.extra.foo
+        let user_state = event_state.enter_borrowed("user", None, Some(ValueType::User)); // .user
+        let extra_state = user_state.enter_borrowed("extra", None, Some(ValueType::Object)); // .user.extra
+        let foo_state = extra_state.enter_borrowed("foo", None, Some(ValueType::Array)); // .user.extra.foo
         let zero_state = foo_state.enter_index(0, None, None); // .user.extra.foo.0
 
         assert_matches_pii_maybe!(
@@ -634,11 +634,11 @@ mod tests {
     #[test]
     fn test_attachments_matching() {
         let event_state = ProcessingState::new_root(None, None);
-        let attachments_state = event_state.enter_static("", None, Some(ValueType::Attachments)); // .
-        let txt_state = attachments_state.enter_static("file.txt", None, Some(ValueType::Binary)); // .'file.txt'
+        let attachments_state = event_state.enter_borrowed("", None, Some(ValueType::Attachments)); // .
+        let txt_state = attachments_state.enter_borrowed("file.txt", None, Some(ValueType::Binary)); // .'file.txt'
         let minidump_state =
-            attachments_state.enter_static("file.dmp", None, Some(ValueType::Minidump)); // .'file.txt'
-        let minidump_state_inner = minidump_state.enter_static("", None, Some(ValueType::Binary)); // .'file.txt'
+            attachments_state.enter_borrowed("file.dmp", None, Some(ValueType::Minidump)); // .'file.txt'
+        let minidump_state_inner = minidump_state.enter_borrowed("", None, Some(ValueType::Binary)); // .'file.txt'
 
         assert_matches_pii_maybe!(attachments_state, "$attachments",);
         assert_matches_pii_maybe!(txt_state, "$attachments.'file.txt'",);
@@ -663,9 +663,10 @@ mod tests {
     #[test]
     fn test_logs_matching() {
         let event_state = ProcessingState::new_root(None, None);
-        let log_state = event_state.enter_static("", None, Some(ValueType::OurLog)); // .
-        let body_state = log_state.enter_static("body", None, Some(ValueType::String));
-        let attributes_state = log_state.enter_static("attributes", None, Some(ValueType::Object));
+        let log_state = event_state.enter_borrowed("", None, Some(ValueType::OurLog)); // .
+        let body_state = log_state.enter_borrowed("body", None, Some(ValueType::String));
+        let attributes_state =
+            log_state.enter_borrowed("attributes", None, Some(ValueType::Object));
 
         assert_matches_pii_maybe!(log_state, "$log",);
         assert_matches_pii_true!(body_state, "$log.body",);
