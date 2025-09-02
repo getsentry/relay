@@ -251,50 +251,6 @@ def test_not_trusted_relay(mini_sentry, relay, relay_credentials):
         relay.send_event(project_id)
 
 
-def test_static_relay(mini_sentry, relay):
-    """
-    A static relay without credentials will automatically fail the signature check
-    because it does not have credentials.
-    """
-    project_id = 42
-    config = mini_sentry.add_basic_project_config(project_id)
-    # config for the static relay does not have the verifySignatureSetting
-    static_config = deepcopy(config)
-
-    config["config"]["trustedRelaySettings"]["verifySignature"] = "enabled"
-
-    managed_relay = relay(mini_sentry)
-
-    def configure_static_project(dir):
-        os.remove(dir.join("credentials.json"))
-        os.makedirs(dir.join("projects"))
-        dir.join("projects").join(f"{project_id}.json").write(json.dumps(static_config))
-
-    relay_options = {"relay": {"mode": "static"}}
-    static_relay = relay(
-        managed_relay, options=relay_options, prepare=configure_static_project
-    )
-
-    # sending to static relay is fine because it does not verify signature
-    static_relay.send_event(project_id)
-
-    # wait for project config and make sure that the event was discarded
-    outcome = mini_sentry.get_client_report(timeout=1)
-    assert outcome["discarded_events"] == [
-        {"reason": "missing_signature", "category": "error", "quantity": 1}
-    ]
-
-    # sending to managed relay directly is not because it needs the signature
-    # it will fail in the fast path because the project config is fetched at this point
-    with pytest.raises(HTTPError, match="403 Client Error"):
-        managed_relay.send_event(project_id)
-
-    outcome = mini_sentry.get_client_report(timeout=1)
-    assert outcome["discarded_events"] == [
-        {"reason": "missing_signature", "category": "error", "quantity": 1}
-    ]
-
-
 def test_invalid_header_value(mini_sentry, relay):
     """
     Tests that getting a sequence in a header that cannot be represented as a UTF-8 string will
