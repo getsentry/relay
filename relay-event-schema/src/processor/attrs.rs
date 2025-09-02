@@ -108,7 +108,7 @@ pub enum Pii {
 
 /// A static or dynamic `Pii` value.
 #[derive(Debug, Clone, Copy)]
-pub enum PiiExtended {
+pub enum PiiMode {
     /// A static value.
     Static(Pii),
     /// A dynamic value, computed based on a `ProcessingState`.
@@ -137,7 +137,7 @@ pub struct FieldAttrs {
     /// The maximum number of bytes of this field.
     pub max_bytes: Option<usize>,
     /// The type of PII on the field.
-    pub pii: PiiExtended,
+    pub pii: PiiMode,
     /// Whether additional properties should be retained during normalization.
     pub retain: bool,
     /// Whether the trimming processor is allowed to shorten or drop this field.
@@ -179,7 +179,7 @@ impl FieldAttrs {
             max_chars_allowance: 0,
             max_depth: None,
             max_bytes: None,
-            pii: PiiExtended::Static(Pii::False),
+            pii: PiiMode::Static(Pii::False),
             retain: false,
             trim: true,
         }
@@ -208,13 +208,13 @@ impl FieldAttrs {
 
     /// Sets whether this field contains PII.
     pub const fn pii(mut self, pii: Pii) -> Self {
-        self.pii = PiiExtended::Static(pii);
+        self.pii = PiiMode::Static(pii);
         self
     }
 
     /// Sets whether this field contains PII dynamically based on the current state.
     pub const fn pii_dynamic(mut self, pii: fn(&ProcessingState) -> Pii) -> Self {
-        self.pii = PiiExtended::Dynamic(pii);
+        self.pii = PiiMode::Dynamic(pii);
         self
     }
 
@@ -471,8 +471,8 @@ impl<'a> ProcessingState<'a> {
     /// it is applied to this state and the output returned.
     pub fn pii(&self) -> Pii {
         match self.attrs().pii {
-            PiiExtended::Static(pii) => pii,
-            PiiExtended::Dynamic(pii_fn) => pii_fn(self),
+            PiiMode::Static(pii) => pii,
+            PiiMode::Dynamic(pii_fn) => pii_fn(self),
         }
     }
 

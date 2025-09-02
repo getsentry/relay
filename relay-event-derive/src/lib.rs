@@ -311,16 +311,16 @@ enum Pii {
 impl Pii {
     fn as_tokens(&self) -> TokenStream {
         match self {
-            Pii::True => quote!(crate::processor::PiiExtended::Static(
+            Pii::True => quote!(crate::processor::PiiMode::Static(
                 crate::processor::Pii::True
             )),
-            Pii::False => quote!(crate::processor::PiiExtended::Static(
+            Pii::False => quote!(crate::processor::PiiMode::Static(
                 crate::processor::Pii::False
             )),
-            Pii::Maybe => quote!(crate::processor::PiiExtended::Static(
+            Pii::Maybe => quote!(crate::processor::PiiMode::Static(
                 crate::processor::Pii::Maybe
             )),
-            Pii::Dynamic(fun) => quote!(crate::processor::PiiExtended::Dynamic(#fun)),
+            Pii::Dynamic(fun) => quote!(crate::processor::PiiMode::Dynamic(#fun)),
         }
     }
 }
@@ -386,7 +386,7 @@ impl FieldAttrs {
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
             quote!(#parent_attrs.pii)
         } else {
-            quote!(crate::processor::PiiExtended::Static(
+            quote!(crate::processor::PiiMode::Static(
                 crate::processor::Pii::False
             ))
         };
