@@ -37,11 +37,7 @@ impl ProjectSource {
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] _redis: Option<RedisClients>,
     ) -> Self {
-        let local_source = if config.relay_mode() == RelayMode::Static {
-            Some(services.start(LocalProjectSourceService::new(config.clone())))
-        } else {
-            None
-        };
+        let local_source = None;
 
         let upstream_source = services.start(UpstreamProjectSourceService::new(
             config.clone(),
@@ -73,15 +69,6 @@ impl ProjectSource {
         match self.config.relay_mode() {
             RelayMode::Proxy => return Ok(ProjectState::new_allowed().into()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
-            RelayMode::Static => {
-                return Ok(match self.local_source {
-                    Some(local) => local
-                        .send(FetchOptionalProjectState { project_key })
-                        .await?
-                        .map_or(ProjectState::Disabled.into(), Into::into),
-                    None => ProjectState::Disabled.into(),
-                });
-            }
         }
 
         #[cfg(feature = "processing")]
