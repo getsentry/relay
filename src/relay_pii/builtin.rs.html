@@ -437,7 +437,7 @@
 <a href=#437 id=437 data-nosnippet>437</a>    /// }
 <a href=#438 id=438 data-nosnippet>438</a>    /// ```
 <a href=#439 id=439 data-nosnippet>439</a>    </span><span class="kw">fn </span>processing_state() -&gt; ProcessingState&lt;<span class="lifetime">'static</span>&gt; {
-<a href=#440 id=440 data-nosnippet>440</a>        ProcessingState::root().enter_static(
+<a href=#440 id=440 data-nosnippet>440</a>        ProcessingState::root().enter_borrowed(
 <a href=#441 id=441 data-nosnippet>441</a>            <span class="string">"value"</span>,
 <a href=#442 id=442 data-nosnippet>442</a>            <span class="prelude-val">Some</span>(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
 <a href=#443 id=443 data-nosnippet>443</a>            EnumSet::only(ValueType::String),

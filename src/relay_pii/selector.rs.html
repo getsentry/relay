@@ -562,9 +562,9 @@
 <a href=#562 id=562 data-nosnippet>562</a>    <span class="attr">#[test]
 <a href=#563 id=563 data-nosnippet>563</a>    </span><span class="kw">fn </span>test_matching() {
 <a href=#564 id=564 data-nosnippet>564</a>        <span class="kw">let </span>event_state = ProcessingState::new_root(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Event)); <span class="comment">// .
-<a href=#565 id=565 data-nosnippet>565</a>        </span><span class="kw">let </span>user_state = event_state.enter_static(<span class="string">"user"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::User)); <span class="comment">// .user
-<a href=#566 id=566 data-nosnippet>566</a>        </span><span class="kw">let </span>extra_state = user_state.enter_static(<span class="string">"extra"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Object)); <span class="comment">// .user.extra
-<a href=#567 id=567 data-nosnippet>567</a>        </span><span class="kw">let </span>foo_state = extra_state.enter_static(<span class="string">"foo"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Array)); <span class="comment">// .user.extra.foo
+<a href=#565 id=565 data-nosnippet>565</a>        </span><span class="kw">let </span>user_state = event_state.enter_borrowed(<span class="string">"user"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::User)); <span class="comment">// .user
+<a href=#566 id=566 data-nosnippet>566</a>        </span><span class="kw">let </span>extra_state = user_state.enter_borrowed(<span class="string">"extra"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Object)); <span class="comment">// .user.extra
+<a href=#567 id=567 data-nosnippet>567</a>        </span><span class="kw">let </span>foo_state = extra_state.enter_borrowed(<span class="string">"foo"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Array)); <span class="comment">// .user.extra.foo
 <a href=#568 id=568 data-nosnippet>568</a>        </span><span class="kw">let </span>zero_state = foo_state.enter_index(<span class="number">0</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>); <span class="comment">// .user.extra.foo.0
 <a href=#569 id=569 data-nosnippet>569</a>
 <a href=#570 id=570 data-nosnippet>570</a>        </span><span class="macro">assert_matches_pii_maybe!</span>(
@@ -634,11 +634,11 @@
 <a href=#634 id=634 data-nosnippet>634</a>    <span class="attr">#[test]
 <a href=#635 id=635 data-nosnippet>635</a>    </span><span class="kw">fn </span>test_attachments_matching() {
 <a href=#636 id=636 data-nosnippet>636</a>        <span class="kw">let </span>event_state = ProcessingState::new_root(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-<a href=#637 id=637 data-nosnippet>637</a>        <span class="kw">let </span>attachments_state = event_state.enter_static(<span class="string">""</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Attachments)); <span class="comment">// .
-<a href=#638 id=638 data-nosnippet>638</a>        </span><span class="kw">let </span>txt_state = attachments_state.enter_static(<span class="string">"file.txt"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Binary)); <span class="comment">// .'file.txt'
+<a href=#637 id=637 data-nosnippet>637</a>        <span class="kw">let </span>attachments_state = event_state.enter_borrowed(<span class="string">""</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Attachments)); <span class="comment">// .
+<a href=#638 id=638 data-nosnippet>638</a>        </span><span class="kw">let </span>txt_state = attachments_state.enter_borrowed(<span class="string">"file.txt"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Binary)); <span class="comment">// .'file.txt'
 <a href=#639 id=639 data-nosnippet>639</a>        </span><span class="kw">let </span>minidump_state =
-<a href=#640 id=640 data-nosnippet>640</a>            attachments_state.enter_static(<span class="string">"file.dmp"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Minidump)); <span class="comment">// .'file.txt'
-<a href=#641 id=641 data-nosnippet>641</a>        </span><span class="kw">let </span>minidump_state_inner = minidump_state.enter_static(<span class="string">""</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Binary)); <span class="comment">// .'file.txt'
+<a href=#640 id=640 data-nosnippet>640</a>            attachments_state.enter_borrowed(<span class="string">"file.dmp"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Minidump)); <span class="comment">// .'file.txt'
+<a href=#641 id=641 data-nosnippet>641</a>        </span><span class="kw">let </span>minidump_state_inner = minidump_state.enter_borrowed(<span class="string">""</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Binary)); <span class="comment">// .'file.txt'
 <a href=#642 id=642 data-nosnippet>642</a>
 <a href=#643 id=643 data-nosnippet>643</a>        </span><span class="macro">assert_matches_pii_maybe!</span>(attachments_state, <span class="string">"$attachments"</span>,);
 <a href=#644 id=644 data-nosnippet>644</a>        <span class="macro">assert_matches_pii_maybe!</span>(txt_state, <span class="string">"$attachments.'file.txt'"</span>,);
@@ -663,12 +663,13 @@
 <a href=#663 id=663 data-nosnippet>663</a>    <span class="attr">#[test]
 <a href=#664 id=664 data-nosnippet>664</a>    </span><span class="kw">fn </span>test_logs_matching() {
 <a href=#665 id=665 data-nosnippet>665</a>        <span class="kw">let </span>event_state = ProcessingState::new_root(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-<a href=#666 id=666 data-nosnippet>666</a>        <span class="kw">let </span>log_state = event_state.enter_static(<span class="string">""</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::OurLog)); <span class="comment">// .
-<a href=#667 id=667 data-nosnippet>667</a>        </span><span class="kw">let </span>body_state = log_state.enter_static(<span class="string">"body"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::String));
-<a href=#668 id=668 data-nosnippet>668</a>        <span class="kw">let </span>attributes_state = log_state.enter_static(<span class="string">"attributes"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Object));
-<a href=#669 id=669 data-nosnippet>669</a>
-<a href=#670 id=670 data-nosnippet>670</a>        <span class="macro">assert_matches_pii_maybe!</span>(log_state, <span class="string">"$log"</span>,);
-<a href=#671 id=671 data-nosnippet>671</a>        <span class="macro">assert_matches_pii_true!</span>(body_state, <span class="string">"$log.body"</span>,);
-<a href=#672 id=672 data-nosnippet>672</a>        <span class="macro">assert_matches_pii_true!</span>(attributes_state, <span class="string">"$log.attributes"</span>,);
-<a href=#673 id=673 data-nosnippet>673</a>    }
-<a href=#674 id=674 data-nosnippet>674</a>}</code></pre></div></section></main></body></html>
+<a href=#666 id=666 data-nosnippet>666</a>        <span class="kw">let </span>log_state = event_state.enter_borrowed(<span class="string">""</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::OurLog)); <span class="comment">// .
+<a href=#667 id=667 data-nosnippet>667</a>        </span><span class="kw">let </span>body_state = log_state.enter_borrowed(<span class="string">"body"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::String));
+<a href=#668 id=668 data-nosnippet>668</a>        <span class="kw">let </span>attributes_state =
+<a href=#669 id=669 data-nosnippet>669</a>            log_state.enter_borrowed(<span class="string">"attributes"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(ValueType::Object));
+<a href=#670 id=670 data-nosnippet>670</a>
+<a href=#671 id=671 data-nosnippet>671</a>        <span class="macro">assert_matches_pii_maybe!</span>(log_state, <span class="string">"$log"</span>,);
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="macro">assert_matches_pii_true!</span>(body_state, <span class="string">"$log.body"</span>,);
+<a href=#673 id=673 data-nosnippet>673</a>        <span class="macro">assert_matches_pii_true!</span>(attributes_state, <span class="string">"$log.attributes"</span>,);
+<a href=#674 id=674 data-nosnippet>674</a>    }
+<a href=#675 id=675 data-nosnippet>675</a>}</code></pre></div></section></main></body></html>
