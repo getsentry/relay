@@ -395,7 +395,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         state: &ProcessingState<'_>,
         encodings: ScrubEncodings,
     ) -> bool {
-        let pii = state.attrs().pii;
+        let pii = state.pii();
         if pii == Pii::False {
             return false;
         }

@@ -38,7 +38,7 @@ impl<'a> PiiProcessor<'a> {
         state: &ProcessingState<'_>,
         mut value: Option<&mut String>,
     ) -> ProcessingResult {
-        let pii = state.attrs().pii;
+        let pii = state.pii();
         if pii == Pii::False {
             return Ok(());
         }
