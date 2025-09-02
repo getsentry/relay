@@ -38,7 +38,7 @@
 <a href=#38 id=38 data-nosnippet>38</a>        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#39 id=39 data-nosnippet>39</a>        <span class="kw-2">mut </span>value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>String&gt;,
 <a href=#40 id=40 data-nosnippet>40</a>    ) -&gt; ProcessingResult {
-<a href=#41 id=41 data-nosnippet>41</a>        <span class="kw">let </span>pii = state.attrs().pii;
+<a href=#41 id=41 data-nosnippet>41</a>        <span class="kw">let </span>pii = state.pii();
 <a href=#42 id=42 data-nosnippet>42</a>        <span class="kw">if </span>pii == Pii::False {
 <a href=#43 id=43 data-nosnippet>43</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#44 id=44 data-nosnippet>44</a>        }

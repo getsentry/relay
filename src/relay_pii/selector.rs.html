@@ -197,7 +197,7 @@
 <a href=#197 id=197 data-nosnippet>197</a>    /// This walks both the selector and the path starting at the end and towards the root
 <a href=#198 id=198 data-nosnippet>198</a>    /// to determine if the selector matches the current path.
 <a href=#199 id=199 data-nosnippet>199</a>    </span><span class="kw">pub fn </span>matches_path(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; bool {
-<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">let </span>pii = path.attrs().pii;
+<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">let </span>pii = path.pii();
 <a href=#201 id=201 data-nosnippet>201</a>        <span class="kw">if </span>pii == Pii::False {
 <a href=#202 id=202 data-nosnippet>202</a>            <span class="kw">return </span><span class="bool-val">false</span>;
 <a href=#203 id=203 data-nosnippet>203</a>        }
