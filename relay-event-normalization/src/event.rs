@@ -1514,6 +1514,7 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 #[cfg(test)]
 mod tests {
 
+    use relay_common::glob2::LazyGlob;
     use std::collections::BTreeMap;
     use std::collections::HashMap;
 
@@ -2285,7 +2286,7 @@ mod tests {
                     version: 2,
                     models: HashMap::from([
                         (
-                            "claude-2.1".to_owned(),
+                            LazyGlob::new("claude-2.1"),
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
@@ -2294,7 +2295,7 @@ mod tests {
                             },
                         ),
                         (
-                            "gpt4-21-04".to_owned(),
+                            LazyGlob::new("gpt4-21-04"),
                             ModelCostV2 {
                                 input_per_token: 0.02,
                                 output_per_token: 0.03,
@@ -2422,7 +2423,7 @@ mod tests {
                     version: 2,
                     models: HashMap::from([
                         (
-                            "claude-2.1".to_owned(),
+                            LazyGlob::new("claude-2.1"),
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
@@ -2431,7 +2432,7 @@ mod tests {
                             },
                         ),
                         (
-                            "gpt4-21-04".to_owned(),
+                            LazyGlob::new("gpt4-21-04"),
                             ModelCostV2 {
                                 input_per_token: 0.09,
                                 output_per_token: 0.05,
@@ -2541,7 +2542,7 @@ mod tests {
                 ai_model_costs: Some(&ModelCosts {
                     version: 2,
                     models: HashMap::from([(
-                        "claude-2.1".to_owned(),
+                        LazyGlob::new("claude-2.1"),
                         ModelCostV2 {
                             input_per_token: 0.01,
                             output_per_token: 0.02,
@@ -2625,7 +2626,7 @@ mod tests {
                     version: 2,
                     models: HashMap::from([
                         (
-                            "claude-2.1".to_owned(),
+                            LazyGlob::new("claude-2.1"),
                             ModelCostV2 {
                                 input_per_token: 0.01,
                                 output_per_token: 0.02,
@@ -2634,7 +2635,7 @@ mod tests {
                             },
                         ),
                         (
-                            "gpt4-21-04".to_owned(),
+                            LazyGlob::new("gpt4-21-04"),
                             ModelCostV2 {
                                 input_per_token: 0.09,
                                 output_per_token: 0.05,

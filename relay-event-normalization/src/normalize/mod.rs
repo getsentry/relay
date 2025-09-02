@@ -1,3 +1,5 @@
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -244,7 +246,7 @@ pub struct ModelCosts {
 
     /// The mappings of model ID => cost as a dictionary
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub models: HashMap<String, ModelCostV2>,
+    pub models: HashMap<LazyGlob, ModelCostV2>,
 }
 
 impl ModelCosts {
@@ -266,14 +268,15 @@ impl ModelCosts {
             return None;
         }
 
-        if self.models.contains_key(model_id) {
-            return self.models.get(model_id).copied();
+        // First try exact match by creating a LazyGlob from the model_id
+        let exact_key = LazyGlob::new(model_id);
+        if self.models.contains_key(&exact_key) {
+            return self.models.get(&exact_key).copied();
         }
 
         // if there is not a direct match, try to find the match using a lazy glob
         let cost = self.models.iter().find_map(|(key, value)| {
-            let pattern_model_id = LazyGlob::new(key);
-            if pattern_model_id.compiled().is_match(model_id) {
+            if key.compiled().is_match(model_id) {
                 Some(value)
             } else {
                 None
@@ -333,19 +336,19 @@ mod tests {
         let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
         assert_debug_snapshot!(
             deserialized_v2,
-            @r###"
-            ModelCosts {
-                version: 2,
-                models: {
-                    "gpt-4": ModelCostV2 {
-                        input_per_token: 0.03,
-                        output_per_token: 0.06,
-                        output_reasoning_per_token: 0.12,
-                        input_cached_per_token: 0.015,
-                    },
+            @r#"
+        ModelCosts {
+            version: 2,
+            models: {
+                LazyGlob("gpt-4"): ModelCostV2 {
+                    input_per_token: 0.03,
+                    output_per_token: 0.06,
+                    output_reasoning_per_token: 0.12,
+                    input_cached_per_token: 0.015,
                 },
-            }
-            "###,
+            },
+        }
+        "#,
         );
 
         // Test unknown integer version
@@ -359,11 +362,11 @@ mod tests {
     fn test_model_cost_config_v2() {
         let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
-        assert_debug_snapshot!(deserialized, @r###"
+        assert_debug_snapshot!(deserialized, @r#"
         ModelCosts {
             version: 2,
             models: {
-                "gpt-4": ModelCostV2 {
+                LazyGlob("gpt-4"): ModelCostV2 {
                     input_per_token: 0.03,
                     output_per_token: 0.06,
                     output_reasoning_per_token: 0.12,
@@ -371,7 +374,7 @@ mod tests {
                 },
             },
         }
-        "###);
+        "#);
 
         let serialized = serde_json::to_string(&deserialized).unwrap();
         assert_eq!(&serialized, original);
@@ -382,7 +385,7 @@ mod tests {
         // Test V2 functionality
         let mut models_map = HashMap::new();
         models_map.insert(
-            "gpt-4".to_owned(),
+            LazyGlob::new("gpt-4"),
             ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
@@ -412,7 +415,7 @@ mod tests {
         // Test glob matching functionality in cost_per_token
         let mut models_map = HashMap::new();
         models_map.insert(
-            "gpt-4*".to_owned(),
+            LazyGlob::new("gpt-4*"),
             ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
@@ -421,7 +424,7 @@ mod tests {
             },
         );
         models_map.insert(
-            "gpt-4-2xxx".to_owned(),
+            LazyGlob::new("gpt-4-2xxx"),
             ModelCostV2 {
                 input_per_token: 0.0007,
                 output_per_token: 0.0008,
