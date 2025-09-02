@@ -466,6 +466,10 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Returns the PII status for this state.
+    ///
+    /// If the state's `FieldAttrs` contain a fixed PII status,
+    /// it is returned. If they contain a dynamic PII status (a function),
+    /// it is applied to this state and the output returned.
     pub fn pii(&self) -> Pii {
         match self.attrs().pii {
             PiiExtended::Static(pii) => pii,
