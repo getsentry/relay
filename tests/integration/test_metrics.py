@@ -10,7 +10,6 @@ from .consts import (
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
 )
 
-import os
 import pytest
 import requests
 from requests.exceptions import HTTPError

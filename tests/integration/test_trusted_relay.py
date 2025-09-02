@@ -1,7 +1,3 @@
-import json
-import os
-from copy import deepcopy
-
 import pytest
 from requests import HTTPError
 
