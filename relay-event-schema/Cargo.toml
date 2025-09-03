@@ -21,6 +21,7 @@ enumset = { workspace = true }
 minidump = { workspace = true }
 opentelemetry-proto = { workspace = true, features = ["gen-tonic", "trace"] }
 relay-common = { workspace = true }
+relay-conventions = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-event-derive = { workspace = true }
 relay-protocol = { workspace = true, features = ["derive"] }
