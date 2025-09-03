@@ -1,6 +1,5 @@
 //! Serializable glob patterns for the API.
 
-use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use std::{fmt, str};
 
@@ -297,12 +296,6 @@ impl<'de> serde::Deserialize<'de> for LazyGlob {
         D: serde::Deserializer<'de>,
     {
         String::deserialize(deserializer).map(LazyGlob::new)
-    }
-}
-
-impl Hash for LazyGlob {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.raw.hash(state);
     }
 }
 
