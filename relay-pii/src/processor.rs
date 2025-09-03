@@ -19,8 +19,21 @@ use crate::redactions::Redaction;
 use crate::regexes::{self, ANYTHING_REGEX, PatternType, ReplaceBehavior};
 use crate::utils;
 
+/// Controls how scrubbing rules are applied to attributes.
+#[derive(Debug, Clone, Copy)]
+pub enum AttributeMode {
+    /// Treat the attribute as an object and allow referring
+    /// to individual fields.
+    Object,
+    /// Identify the attribute with its value and apply all
+    /// rules there directly.
+    ValueOnly,
+}
+
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
+    /// Controls how rules are applied to attributes.
+    attribute_mode: AttributeMode,
     compiled_config: &'a CompiledPiiConfig,
 }
 
@@ -29,7 +42,16 @@ impl<'a> PiiProcessor<'a> {
     pub fn new(compiled_config: &'a CompiledPiiConfig) -> PiiProcessor<'a> {
         // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
-        PiiProcessor { compiled_config }
+        PiiProcessor {
+            compiled_config,
+            attribute_mode: AttributeMode::Object,
+        }
+    }
+
+    /// Sets an `AttributeMode` on this processor.
+    pub fn attribute_mode(mut self, attribute_mode: AttributeMode) -> Self {
+        self.attribute_mode = attribute_mode;
+        self
     }
 
     fn apply_all_rules(
@@ -205,7 +227,7 @@ impl Processor for PiiProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState,
     ) -> ProcessingResult {
-        utils::process_attributes(value, self, state)
+        utils::process_attributes(value, self, state, self.attribute_mode)
     }
 
     fn process_user(
