@@ -1,11 +1,9 @@
-#![allow(clippy::mutable_key_type)]
-
 use std::collections::HashMap;
 use std::hash::Hash;
 
 use relay_base_schema::metrics::MetricUnit;
-use relay_common::glob2::LazyGlob;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
+use relay_pattern::Pattern;
 use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
 
@@ -246,7 +244,7 @@ pub struct ModelCosts {
 
     /// The mappings of model ID => cost as a dictionary
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub models: HashMap<LazyGlob, ModelCostV2>,
+    pub models: HashMap<Pattern, ModelCostV2>,
 }
 
 impl ModelCosts {
@@ -268,15 +266,15 @@ impl ModelCosts {
             return None;
         }
 
-        // First try exact match by creating a LazyGlob from the model_id
-        let exact_key = LazyGlob::new(model_id);
+        // First try exact match by creating a Pattern from the model_id
+        let exact_key = Pattern::new(model_id).ok()?;
         if self.models.contains_key(&exact_key) {
             return self.models.get(&exact_key).copied();
         }
 
-        // if there is not a direct match, try to find the match using a lazy glob
+        // if there is not a direct match, try to find the match using a pattern
         let cost = self.models.iter().find_map(|(key, value)| {
-            if key.compiled().is_match(model_id) {
+            if key.is_match(model_id) {
                 Some(value)
             } else {
                 None
@@ -340,7 +338,17 @@ mod tests {
         ModelCosts {
             version: 2,
             models: {
-                LazyGlob("gpt-4"): ModelCostV2 {
+                Pattern {
+                    pattern: "gpt-4",
+                    options: Options {
+                        case_insensitive: false,
+                    },
+                    strategy: Literal(
+                        Literal(
+                            "gpt-4",
+                        ),
+                    ),
+                }: ModelCostV2 {
                     input_per_token: 0.03,
                     output_per_token: 0.06,
                     output_reasoning_per_token: 0.12,
@@ -366,7 +374,17 @@ mod tests {
         ModelCosts {
             version: 2,
             models: {
-                LazyGlob("gpt-4"): ModelCostV2 {
+                Pattern {
+                    pattern: "gpt-4",
+                    options: Options {
+                        case_insensitive: false,
+                    },
+                    strategy: Literal(
+                        Literal(
+                            "gpt-4",
+                        ),
+                    ),
+                }: ModelCostV2 {
                     input_per_token: 0.03,
                     output_per_token: 0.06,
                     output_reasoning_per_token: 0.12,
@@ -385,7 +403,7 @@ mod tests {
         // Test V2 functionality
         let mut models_map = HashMap::new();
         models_map.insert(
-            LazyGlob::new("gpt-4"),
+            Pattern::new("gpt-4").unwrap(),
             ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
@@ -415,7 +433,7 @@ mod tests {
         // Test glob matching functionality in cost_per_token
         let mut models_map = HashMap::new();
         models_map.insert(
-            LazyGlob::new("gpt-4*"),
+            Pattern::new("gpt-4*").unwrap(),
             ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
@@ -424,7 +442,7 @@ mod tests {
             },
         );
         models_map.insert(
-            LazyGlob::new("gpt-4-2xxx"),
+            Pattern::new("gpt-4-2xxx").unwrap(),
             ModelCostV2 {
                 input_per_token: 0.0007,
                 output_per_token: 0.0008,
@@ -440,7 +458,7 @@ mod tests {
         assert!(v2_config.is_enabled());
 
         // Test glob matching with gpt-4 variants (prefix matching)
-        let cost = v2_config.cost_per_token("gpt-4").unwrap();
+        let cost = v2_config.cost_per_token("gpt-4-v1").unwrap();
         assert_eq!(
             cost,
             ModelCostV2 {
