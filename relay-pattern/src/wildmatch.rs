@@ -9,12 +9,11 @@ use crate::{Literal, Options, Ranges, Token, Tokens};
 /// of the already pre-processed [`Tokens`] structure and its invariants.
 ///
 /// [Kirk J Krauss]: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html
-pub fn is_match(haystack: &str, tokens: &Tokens, options: Options, negated: bool) -> bool {
-    negated
-        ^ match options.case_insensitive {
-            false => is_match_impl::<_, CaseSensitive>(haystack, tokens.as_slice()),
-            true => is_match_impl::<_, CaseInsensitive>(haystack, tokens.as_slice()),
-        }
+pub fn is_match(haystack: &str, tokens: &Tokens, options: Options) -> bool {
+    match options.case_insensitive {
+        false => is_match_impl::<_, CaseSensitive>(haystack, tokens.as_slice()),
+        true => is_match_impl::<_, CaseInsensitive>(haystack, tokens.as_slice()),
+    }
 }
 
 #[inline(always)]

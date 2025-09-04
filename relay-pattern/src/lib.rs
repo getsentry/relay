@@ -401,11 +401,9 @@ impl MatchStrategy {
             MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, options),
             MatchStrategy::Contains(contains) => match_contains(contains, haystack, options),
             MatchStrategy::Static(matches) => *matches,
-            MatchStrategy::Wildmatch(tokens) => {
-                wildmatch::is_match(haystack, tokens, options, false)
-            }
+            MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(haystack, tokens, options),
             MatchStrategy::NegatedWildmatch(tokens) => {
-                wildmatch::is_match(haystack, tokens, options, true)
+                !wildmatch::is_match(haystack, tokens, options)
             }
         }
     }
@@ -1601,7 +1599,7 @@ mod tests {
         assert_pattern!("1.18.[!0-4].*", "1.18.5.");
         assert_pattern!("1.18.[!0-4].*", "1.18.5.aBc");
         assert_pattern!("1.18.[!0-4].*", NOT "1.18.3.abc");
-        assert_pattern!("!*!*.md", "!foo!.md"); // no `!` outside of character classes
+        assert_pattern!("*!*.md", "foo!.md"); // no `!` outside of character classes
         assert_pattern!("foo*foofoo*foobar", "foofoofooxfoofoobar");
         assert_pattern!("foo*fooFOO*fOobar", "fooFoofooXfoofooBAR", i);
         assert_pattern!("[0-9]*a", "0aaaaaaaaa", i);
@@ -1951,5 +1949,20 @@ mod tests {
         let patterns = builder.build();
         assert!(!patterns.is_match("foo"));
         assert!(patterns.is_match("bar"));
+    }
+
+    #[test]
+    fn test_pattern_negation() {
+        let patterns = Patterns::builder().add("!foo@*").unwrap().take();
+
+        assert!(patterns.is_match("bar@1.0"));
+        assert!(patterns.is_match("foobar@1.0"));
+        assert!(patterns.is_match("foo"));
+        assert!(patterns.is_match("barfoo@"));
+
+        // foo@ is never matched.
+        assert!(!patterns.is_match("foo@1.0"));
+        assert!(!patterns.is_match("foo@2.2.3"));
+        assert!(!patterns.is_match("foo@anything"));
     }
 }
