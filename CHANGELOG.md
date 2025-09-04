@@ -21,6 +21,7 @@
 - Produce transactions on `transactions` Kafka topic, even if they have attachments. ([#5081](https://github.com/getsentry/relay/pull/5081))
 - Removes metric stats from the codebase. ([#5097](https://github.com/getsentry/relay/pull/5097))
 - Add option gating Snuba publishing to ingest-replay-events for Replays. ([#5088](https://github.com/getsentry/relay/pull/5088))
+- Use sample-rate rollout for disabled replay-event publishing. ([#5115](https://github.com/getsentry/relay/pull/5115))
 
 ## 25.8.0
 
