@@ -10,7 +10,6 @@ from .consts import (
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
 )
 
-import os
 import pytest
 import requests
 from requests.exceptions import HTTPError
@@ -1341,60 +1340,6 @@ def test_limit_custom_measurements(
     metrics.pop("headers")
 
     assert metrics.keys() == expected_metrics
-
-
-@pytest.mark.parametrize("has_measurements_config", [True, False])
-def test_do_not_drop_custom_measurements_in_static(
-    mini_sentry,
-    relay,
-    metrics_consumer,
-    transactions_consumer,
-    has_measurements_config,
-):
-    project_id = 42
-    config = mini_sentry.add_full_project_config(project_id)
-
-    if has_measurements_config:
-        config["config"]["measurements"] = {
-            "maxCustomMeasurements": 1,
-        }
-
-    metrics_consumer = metrics_consumer()
-    transactions_consumer = transactions_consumer()
-
-    def configure_static_project(dir):
-        os.remove(dir.join("credentials.json"))
-        os.makedirs(dir.join("projects"))
-        dir.join("projects").join(f"{project_id}.json").write(json.dumps(config))
-
-    relay = relay(
-        mini_sentry,
-        options=TEST_CONFIG | {"relay": {"mode": "static"}},
-        prepare=configure_static_project,
-    )
-
-    timestamp = datetime.now(tz=timezone.utc)
-    transaction = generate_transaction_item()
-    transaction["timestamp"] = timestamp.isoformat()
-    transaction["measurements"] = {
-        "foo": {"value": 1.2},
-        "baz": {"value": 1.3},
-        "bar": {"value": 1.4},
-    }
-
-    relay.send_transaction(42, transaction)
-    event = mini_sentry.captured_events.get(timeout=2).items[0].payload.json
-
-    if has_measurements_config:
-        # With maxCustomMeasurements: 1, only 1 measurement should pass through
-        assert event["measurements"] == {"bar": {"value": 1.4, "unit": "none"}}
-    else:
-        # Without measurements config, all measurements should pass through
-        assert event["measurements"] == {
-            "bar": {"value": 1.4, "unit": "none"},
-            "baz": {"value": 1.3, "unit": "none"},
-            "foo": {"value": 1.2, "unit": "none"},
-        }
 
 
 def test_generic_metric_extraction(mini_sentry, relay):

@@ -105,8 +105,7 @@ pub struct ParsedProjectState {
     pub disabled: bool,
     /// Project info.
     ///
-    /// This contains no information when `disabled` is `true`, except for
-    /// public keys in static project configs (see [`crate::services::projects::source::local`]).
+    /// This contains no information when `disabled` is `true`.
     #[serde(flatten)]
     pub info: ProjectInfo,
 }
@@ -119,8 +118,7 @@ pub struct LimitedParsedProjectState {
     pub disabled: bool,
     /// Limited project info for external Relays.
     ///
-    /// This contains no information when `disabled` is `true`, except for
-    /// public keys in static project configs (see [`crate::services::projects::source::local`]).
+    /// This contains no information when `disabled` is `true`.
     #[serde(with = "LimitedProjectInfo")]
     #[serde(flatten)]
     pub info: ProjectInfo,

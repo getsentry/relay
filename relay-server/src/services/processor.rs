@@ -827,7 +827,7 @@ fn event_type(event: &Annotated<Event>) -> Option<EventType> {
 /// If the project config did not come from the upstream, we keep the items.
 fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
     match config.relay_mode() {
-        RelayMode::Proxy | RelayMode::Static => false,
+        RelayMode::Proxy => false,
         RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
