@@ -30,12 +30,12 @@ impl TryFrom<SpanV2> for CompatSpan {
 
         if let Some(start_timestamp) = span.start_timestamp.value() {
             let dt = start_timestamp.0;
-            compat_span.start_timestamp_precise = start_timestamp.clone().into();
+            compat_span.start_timestamp_precise = (*start_timestamp).into();
             compat_span.start_timestamp_ms = (dt.timestamp_millis() as u64).into();
         }
 
         if let Some(end_timestamp) = span.end_timestamp.value() {
-            compat_span.end_timestamp_precise = end_timestamp.clone().into();
+            compat_span.end_timestamp_precise = (*end_timestamp).into();
         }
 
         if let (Some(start_timestamp), Some(end_timestamp)) =
@@ -47,14 +47,14 @@ impl TryFrom<SpanV2> for CompatSpan {
 
         if let Some(attributes) = span.attributes.value() {
             for (key, value) in attributes.iter() {
-                if let Some(attribute) = value.value() {
-                    if let Some(value) = attribute.value.value.value() {
-                        // NOTE: This discards `_meta`
-                        compat_span
-                            .data
-                            .get_or_insert_with(Default::default)
-                            .insert(key.clone(), value.clone().into());
-                    }
+                if let Some(attribute) = value.value()
+                    && let Some(value) = attribute.value.value.value()
+                {
+                    // NOTE: This discards `_meta`
+                    compat_span
+                        .data
+                        .get_or_insert_with(Default::default)
+                        .insert(key.clone(), value.clone().into());
                 }
             }
 
