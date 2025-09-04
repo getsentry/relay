@@ -87,7 +87,7 @@ def test_nonchunked_replay_recordings_processing(
     assert replay_recording["type"] == "replay_recording_not_chunked"
     assert replay_recording["relay_snuba_publish_disabled"] is expected
 
-    if value is True:
+    if expected is True:
         # Nothing produced.
         with pytest.raises(AssertionError):
             replay_events_consumer.get_replay_event()

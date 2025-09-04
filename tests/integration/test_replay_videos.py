@@ -79,7 +79,7 @@ def test_replay_recording_with_video(
     assert replay_event["type"] == "replay_event"
     assert replay_event["replay_id"] == "515539018c9b4260a6f999572f1661ee"
 
-    if value is True:
+    if expected is True:
         with pytest.raises(AssertionError):
             replay_events_consumer.get_replay_event()  # Nothing produced.
     else:
