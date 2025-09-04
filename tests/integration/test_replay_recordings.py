@@ -48,9 +48,9 @@ def test_nonchunked_replay_recordings_processing(
     replay_id = "515539018c9b4260a6f999572f1661ee"
 
     if value is not None:
-        mini_sentry.global_config["options"] = {
-            "replay.relay-snuba-publishing-disabled.sample-rate": value
-        }
+        mini_sentry.global_config["options"][
+            "replay.relay-snuba-publishing-disabled.sample-rate"
+        ] = value
     mini_sentry.add_basic_project_config(
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
     )
