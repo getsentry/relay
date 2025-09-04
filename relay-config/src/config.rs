@@ -352,7 +352,7 @@ impl<'de> Deserialize<'de> for RelayMode {
             "proxy" => Ok(RelayMode::Proxy),
             "managed" => Ok(RelayMode::Managed),
             "static" => Err(serde::de::Error::custom(
-                "Relay mode 'static' has been deprecated. Please use 'managed' or 'proxy' instead.",
+                "Relay mode 'static' has been removed. Please use 'managed' or 'proxy' instead.",
             )),
             other => Err(serde::de::Error::unknown_variant(
                 other,
