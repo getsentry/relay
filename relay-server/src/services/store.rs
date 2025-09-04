@@ -1675,27 +1675,6 @@ struct SpanMeasurement<'a> {
     value: Option<&'a RawValue>,
 }
 
-#[derive(Serialize)]
-struct SpanKafkaMessageV2<'a> {
-    #[serde(flatten)]
-    meta: SpanMeta,
-    #[serde(flatten)]
-    compat_span: &'a RawValue,
-}
-
-#[derive(Serialize)]
-struct SpanMeta {
-    // Required for the buffer to emit outcomes scoped to the DSN.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    key_id: Option<u64>,
-    organization_id: u64,
-    project_id: u64,
-    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
-    received: f64,
-    /// Number of days until these data should be deleted.
-    retention_days: u16,
-}
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing_if = "Option::is_none", borrow)]
