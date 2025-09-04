@@ -174,14 +174,6 @@ pub struct Options {
 
     /// Disables Relay from sending replay-events to Snuba.
     #[serde(
-        rename = "replay.relay-snuba-publishing-disabled",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub replay_relay_snuba_publish_disabled: bool,
-
-    /// Disables Relay from sending replay-events to Snuba.
-    #[serde(
         rename = "replay.relay-snuba-publishing-disabled.sample-rate",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
