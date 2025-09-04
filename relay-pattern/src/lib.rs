@@ -368,6 +368,8 @@ enum MatchStrategy {
     Static(bool),
     /// The pattern is complex and needs to be evaluated using [`wildmatch`].
     Wildmatch(Tokens),
+    /// The pattern is complex and needs to be evaluated using [`wildmatch`].
+    NegatedWildmatch(Tokens),
     // Possible future optimizations for `Any` variations:
     // Examples: `??`. `??suffix`, `prefix??` and `?contains?`.
 }
@@ -384,6 +386,7 @@ impl MatchStrategy {
             [Token::Wildcard, Token::Literal(literal), Token::Wildcard] => {
                 Self::Contains(std::mem::take(literal))
             }
+            [Token::Negated, ..] => Self::NegatedWildmatch(tokens),
             _ => Self::Wildmatch(tokens),
         };
 
@@ -398,7 +401,12 @@ impl MatchStrategy {
             MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, options),
             MatchStrategy::Contains(contains) => match_contains(contains, haystack, options),
             MatchStrategy::Static(matches) => *matches,
-            MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(haystack, tokens, options),
+            MatchStrategy::Wildmatch(tokens) => {
+                wildmatch::is_match(haystack, tokens, options, false)
+            }
+            MatchStrategy::NegatedWildmatch(tokens) => {
+                wildmatch::is_match(haystack, tokens, options, true)
+            }
         }
     }
 }
@@ -500,6 +508,10 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(&mut self) -> Result<(), ErrorKind> {
+        if self.advance_if(|c| c == '!') {
+            self.push_token(Token::Negated);
+        };
+
         while let Some(c) = self.advance() {
             match c {
                 '?' => self.push_token(Token::Any(NonZeroUsize::MIN)),
@@ -671,6 +683,7 @@ impl<'a> Parser<'a> {
 /// - A [`Token::Any`] is never followed by [`Token::Any`].
 /// - A [`Token::Literal`] is never followed by [`Token::Literal`].
 /// - A [`Token::Class`] is never empty.
+/// - A [`Token::Negated`] is always the first character in the string.
 #[derive(Clone, Debug, Default)]
 struct Tokens(Vec<Token>);
 
@@ -761,6 +774,8 @@ enum Token {
     Any(NonZeroUsize),
     /// The wildcard token `*`.
     Wildcard,
+    /// The token `!`.
+    Negated,
     /// A class token `[abc]` or its negated variant `[!abc]`.
     Class { negated: bool, ranges: Ranges },
     /// A list of nested alternate tokens `{a,b}`.
@@ -960,6 +975,7 @@ mod tests {
                 MatchStrategy::Contains(_) => "Contains",
                 MatchStrategy::Static(_) => "Static",
                 MatchStrategy::Wildmatch(_) => "Wildmatch",
+                MatchStrategy::NegatedWildmatch(_) => "NegatedWildmatch",
             };
             assert_eq!(
                 kind,
