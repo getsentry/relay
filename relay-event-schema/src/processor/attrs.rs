@@ -503,6 +503,14 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
+    /// Returns an iterator over the "keys" in this state,
+    /// in order from right to left (or innermost state to outermost).
+    pub fn keys(&self) -> impl Iterator<Item = &str> {
+        self.iter()
+            .filter_map(|state| state.path_item.as_ref())
+            .flat_map(|item| item.key())
+    }
+
     /// Returns the last path item if there is one. Skips over "dummy" path segments that exist
     /// because of newtypes.
     #[inline]

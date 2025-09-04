@@ -174,7 +174,12 @@ mod tests {
     }
 
     #[test]
-    fn test_scrub_log_pii() {
+    fn test_scrub_log_pii_default_rules() {
+        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `user.name`: `true`
+        // * `sentry.release`: `false`
+        // * `url.path`: `maybe`
+        // Therefore, `user.name` is the only one that should be scrubbed by default rules.
         let json = r#"{
             "timestamp": 1544719860.0,
             "trace_id": "5b8efff798038103d269b633813fc60c",
@@ -182,6 +187,18 @@ mod tests {
             "level": "info",
             "body": "Test log message with sensitive data: user@example.com and 4571234567890111",
             "attributes": {
+                "user.name": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "sentry.release": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "url.path": {
+                    "type": "string",
+                    "value": "secret123"
+                },
                 "password": {
                     "type": "string",
                     "value": "secret123"
@@ -354,6 +371,10 @@ mod tests {
             "type": "string",
             "value": "[Filtered]"
           },
+          "sentry.release": {
+            "type": "string",
+            "value": "secret123"
+          },
           "session_id": {
             "type": "string",
             "value": "ceee0822-ed8f-4622-b2a3-789e73e75cd1"
@@ -365,6 +386,14 @@ mod tests {
           "unix_path": {
             "type": "string",
             "value": "/home/alice/private/data.json"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "secret123"
+          },
+          "user.name": {
+            "type": "string",
+            "value": "[Filtered]"
           },
           "user_email": {
             "type": "string",
@@ -589,6 +618,21 @@ mod tests {
                 }
               }
             },
+            "user.name": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "@password:filter",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
             "very_sensitive_data": {
               "value": {
                 "": {
@@ -626,6 +670,11 @@ mod tests {
 
     #[test]
     fn test_scrub_log_pii_custom_object_rules() {
+        // `user.name`, `sentry.release`, and `url.path` are marked as follows in `sentry-conventions`:
+        // * `user.name`: `true`
+        // * `sentry.release`: `false`
+        // * `url.path`: `maybe`
+        // Therefore, `sentry.release` is the only one that should not be scrubbed by custom rules.
         let json = r#"
         {
             "timestamp": 1544719860.0,
@@ -634,6 +683,18 @@ mod tests {
             "level": "info",
             "body": "Test log message with sensitive data: user@example.com and 4571234567890111",
             "attributes": {
+                "user.name": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "sentry.release": {
+                    "type": "string",
+                    "value": "secret123"
+                },
+                "url.path": {
+                    "type": "string",
+                    "value": "secret123"
+                },
                 "password": {
                     "type": "string",
                     "value": "default_scrubbing_rules_are_off"
@@ -699,6 +760,27 @@ mod tests {
                         "method": "replace",
                         "text": "REGEXED"
                     }
+                },
+                "project:4": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[USER NAME]"
+                    }
+                },
+                "project:5": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[RELEASE]"
+                    }
+                },
+                "project:6": {
+                    "type": "anything",
+                    "redaction": {
+                        "method": "replace",
+                        "text": "[URL PATH]"
+                    }
                 }
             },
             "applications": {
@@ -713,6 +795,15 @@ mod tests {
                 ],
                 "test_field_regex_passes.value || test_field_regex_fails.value": [
                     "project:3"
+                ],
+                "'user.name'.value": [
+                    "project:4"
+                ],
+                "'sentry.release'.value": [
+                    "project:5"
+                ],
+                "'url.path'.value": [
+                    "project:6"
                 ]
             }
         }
@@ -727,6 +818,10 @@ mod tests {
           "password": {
             "type": "string",
             "value": "default_scrubbing_rules_are_off"
+          },
+          "sentry.release": {
+            "type": "string",
+            "value": "secret123"
           },
           "test_field_imei": {
             "type": "string",
@@ -747,6 +842,14 @@ mod tests {
           "test_field_uuid": {
             "type": "string",
             "value": "BYE"
+          },
+          "url.path": {
+            "type": "string",
+            "value": "[URL PATH]"
+          },
+          "user.name": {
+            "type": "string",
+            "value": "[USER NAME]"
           },
           "_meta": {
             "test_field_imei": {
@@ -806,6 +909,36 @@ mod tests {
                     ]
                   ],
                   "len": 36
+                }
+              }
+            },
+            "url.path": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:6",
+                      "s",
+                      0,
+                      10
+                    ]
+                  ],
+                  "len": 9
+                }
+              }
+            },
+            "user.name": {
+              "value": {
+                "": {
+                  "rem": [
+                    [
+                      "project:4",
+                      "s",
+                      0,
+                      11
+                    ]
+                  ],
+                  "len": 9
                 }
               }
             }
