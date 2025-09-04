@@ -82,7 +82,7 @@ jobs:
           install-cmd: uv sync --frozen --only-dev --active
 
       - name: Build Wheel
-        run: uv build --wheel ./py -- --plat-name=${{ matrix.py-platform }}
+        run: uv build --wheel ./py
         env:
           # consumed by cargo and setup.py to obtain the target dir
           CARGO_BUILD_TARGET: ${{ matrix.target }}
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: artifact-sdist
-          path: py/dist/*
+          path: dist/*
           if-no-files-found: 'error'
           # since this artifact will be merged, compression is not necessary
           compression-level: '0'
