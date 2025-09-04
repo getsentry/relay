@@ -135,6 +135,41 @@ impl fmt::Display for Pattern {
     }
 }
 
+impl PartialEq for Pattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.pattern == other.pattern
+    }
+}
+
+impl Eq for Pattern {}
+
+impl std::hash::Hash for Pattern {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.pattern.hash(state);
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Pattern {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.pattern)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Pattern {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let pattern = String::deserialize(deserializer)?;
+        Pattern::new(&pattern).map_err(serde::de::Error::custom)
+    }
+}
+
 /// A collection of [`Pattern`]s sharing the same configuration.
 #[derive(Debug, Clone)]
 pub struct Patterns {

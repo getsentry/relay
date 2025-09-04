@@ -3846,6 +3846,7 @@ dependencies = [
  "relay-event-schema",
  "relay-filter",
  "relay-log",
+ "relay-pattern",
  "relay-protocol",
  "relay-statsd",
  "relay-ua",
