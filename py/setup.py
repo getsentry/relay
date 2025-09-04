@@ -114,13 +114,7 @@ setup(
     zip_safe=False,
     platforms="any",
     python_requires=">=3.10",
-    install_requires=["milksnake>=0.1.6"],
-    # Specify transitive dependencies manually that are required for the build because
-    # they are not resolved properly since upgrading to python 3.11 in manylinux.
-    # milksnake -> cffi -> pycparser
-    # milksnake specifies cffi>=1.6.0 as dependency while cffi does not specify a
-    # minimum version for pycparser
-    setup_requires=["milksnake>=0.1.6", "cffi>=1.6.0", "pycparser"],
+    # install_requires and setup_requires are defined in pyproject.toml build-backend
     milksnake_tasks=[build_native],
     cmdclass={"sdist": CustomSDist},  # type: ignore
 )
