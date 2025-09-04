@@ -180,6 +180,14 @@ pub struct Options {
     )]
     pub replay_relay_snuba_publish_disabled: bool,
 
+    /// Disables Relay from sending replay-events to Snuba.
+    #[serde(
+        rename = "replay.relay-snuba-publishing-disabled.sample-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub replay_relay_snuba_publish_disabled_sample_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

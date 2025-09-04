@@ -7,9 +7,7 @@ import json
 import pytest
 
 
-@pytest.mark.parametrize(
-    "value,expected", [(None, False), (False, False), (True, True)]
-)
+@pytest.mark.parametrize("value,expected", [(None, False), (0.0, False), (1.0, True)])
 def test_replay_recording_with_video(
     mini_sentry,
     relay_with_processing,
@@ -24,7 +22,7 @@ def test_replay_recording_with_video(
     replay_id = "515539018c9b4260a6f999572f1661ee"
     if value is not None:
         mini_sentry.global_config["options"][
-            "replay.relay-snuba-publishing-disabled"
+            "replay.relay-snuba-publishing-disabled.sample-rate"
         ] = value
     mini_sentry.add_basic_project_config(
         project_id,

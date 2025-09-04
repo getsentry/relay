@@ -33,9 +33,7 @@ def test_replay_recordings(mini_sentry, relay_chain):
     assert replay_recording.startswith(b"{}\n")  # The body is compressed
 
 
-@pytest.mark.parametrize(
-    "value,expected", [(None, False), (False, False), (True, True)]
-)
+@pytest.mark.parametrize("value,expected", [(1.0, True), (None, False), (0.0, False)])
 def test_nonchunked_replay_recordings_processing(
     mini_sentry,
     relay_with_processing,
@@ -50,9 +48,9 @@ def test_nonchunked_replay_recordings_processing(
     replay_id = "515539018c9b4260a6f999572f1661ee"
 
     if value is not None:
-        mini_sentry.global_config["options"][
-            "replay.relay-snuba-publishing-disabled"
-        ] = value
+        mini_sentry.global_config["options"] = {
+            "replay.relay-snuba-publishing-disabled.sample-rate": value
+        }
     mini_sentry.add_basic_project_config(
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
     )
