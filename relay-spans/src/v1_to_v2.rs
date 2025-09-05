@@ -1,8 +1,6 @@
-use std::os::macos::raw::stat;
-
 use relay_event_schema::protocol::{
-    Attribute, Attributes, Span as SpanV1, SpanData, SpanKind as SpanV1Kind, SpanLink,
-    SpanStatus as SpanV1Status, SpanV2, SpanV2Kind, SpanV2Link, SpanV2Status,
+    Attribute, AttributeValue, Attributes, Span as SpanV1, SpanData, SpanKind as SpanV1Kind,
+    SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Kind, SpanV2Link, SpanV2Status,
 };
 use relay_protocol::{Annotated, FromValue, IntoValue, Value};
 
@@ -10,7 +8,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     let SpanV1 {
         timestamp,
         start_timestamp,
-        exclusive_time,
+        exclusive_time: _exclusive_time, // set by span consumer
         op,
         span_id,
         parent_span_id,
@@ -26,7 +24,7 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         data,
         links,
         sentry_tags,
-        received,
+        received: _, // needs to go into the Kafka span eventually, but makes no sense in Span V2 schema.
         measurements,
         platform,
         was_transaction,
@@ -36,7 +34,50 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
     } = span_v1;
 
     let mut attributes = attributes_from_data(data);
-    // TODO: write other attributes.
+    if let Some(attributes) = attributes.value_mut() {
+        // Top-level fields have higher precedence than `data`:
+        attributes.insert("sentry.op", op);
+        if let Some(segment_id) = segment_id.into_value() {
+            attributes.insert("sentry.segment.id", segment_id.to_string()); // TODO: test
+        }
+        attributes.insert("sentry.is_segment", is_segment);
+        attributes.insert("sentry.description", description);
+        attributes.insert("sentry.origin", origin);
+        if let Some(profile_id) = profile_id.into_value() {
+            attributes.insert("sentry.profile_id", profile_id.0.to_string()); // TODO: test
+        }
+        attributes.insert("sentry.platform", platform);
+        attributes.insert("sentry.was_transaction", was_transaction);
+
+        // Use same precedence as `backfill_data` for data bags:
+        if let Some(measurements) = measurements.into_value() {
+            for (key, measurement) in measurements.0 {
+                if let Some(measurement) = measurement.into_value() {
+                    attributes
+                        .insert_if_missing(&key, || measurement.value.map_value(|a| a.to_f64()));
+                }
+            }
+        }
+        if let Some(tags) = tags.into_value() {
+            for (key, value) in tags {
+                // TODO: exceptions (see backfill_data)
+                if let Some(value) = value.into_value() {
+                    attributes.insert_if_missing(&key, || value.0);
+                }
+            }
+        }
+        if let Some(tags) = sentry_tags.into_value() {
+            if let Value::Object(tags) = tags.into_value() {
+                for (key, value) in tags {
+                    if value.value().is_some() {
+                        if let Some(value) = AttributeValue::from_value(value).into_value() {
+                            attributes.insert_if_missing(&key, || value);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     SpanV2 {
         trace_id,

@@ -180,7 +180,7 @@ impl Attributes {
     }
 
     /// Inserts an attribute with the given value into this collection.
-    pub fn insert<V: Into<AttributeValue>>(&mut self, key: String, value: V) {
+    pub fn insert<K: Into<String>, V: Into<AttributeValue>>(&mut self, key: K, value: V) {
         fn inner(slf: &mut Attributes, key: String, value: AttributeValue) {
             let attribute = Annotated::new(Attribute {
                 value,
@@ -190,7 +190,7 @@ impl Attributes {
         }
         let value = value.into();
         if !value.value.is_empty() {
-            inner(self, key, value);
+            inner(self, key.into(), value);
         }
     }
 
