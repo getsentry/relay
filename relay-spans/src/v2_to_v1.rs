@@ -23,7 +23,7 @@ use url::Url;
 /// * The V1 span's `exclusive_time` field is set based on the V2 span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The V1 span's `platform` field is set based on the V2 span's `sentry.platform` attribute.
-/// * The V1 span's `profile_id` field is set based on the V2 span's `sentry.profile.id` attribute.
+/// * The V1 span's `profile_id` field is set based on the V2 span's `sentry.profile_id` attribute.
 /// * The V1 span's `segment_id` field is set based on the V2 span's `sentry.segment.id` attribute.
 ///
 /// All other attributes are carried over from the V2 span to the V1 span's `data`.
@@ -96,7 +96,7 @@ pub fn span_v2_to_span_v1(span_v2: SpanV2) -> SpanV1 {
             "sentry.segment.id" => {
                 segment_id = SpanId::from_value(value);
             }
-            "sentry.profile.id" => {
+            "sentry.profile_id" => {
                 profile_id = EventId::from_value(value);
             }
             _ => {
@@ -595,7 +595,7 @@ mod tests {
                     "value": "php",
                     "type": "string"
                 },
-                "sentry.profile.id": {
+                "sentry.profile_id": {
                     "value": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
                     "type": "string"
                 },

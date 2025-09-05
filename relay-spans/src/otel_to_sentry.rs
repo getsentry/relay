@@ -19,7 +19,7 @@ use relay_protocol::Error;
 /// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
 ///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 /// * The Sentry span's `platform` field is set based on the OTEL span's `sentry.platform` attribute.
-/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile.id` attribute.
+/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile_id` attribute.
 /// * The Sentry span's `segment_id` field is set based on the OTEL span's `sentry.segment.id` attribute.
 ///
 /// All other attributes are carried over from the OTEL span to the Sentry span's `data`.
@@ -503,7 +503,7 @@ mod tests {
                     }
                 },
                 {
-                    "key" : "sentry.profile.id",
+                    "key" : "sentry.profile_id",
                     "value": {
                         "stringValue": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
                     }

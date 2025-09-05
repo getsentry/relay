@@ -604,7 +604,7 @@ mod tests {
               }
             },
             {
-              "key": "sentry.profile.id",
+              "key": "sentry.profile_id",
               "value": {
                 "stringValue": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
               }
@@ -729,7 +729,7 @@ mod tests {
               "type": "string",
               "value": "php"
             },
-            "sentry.profile.id": {
+            "sentry.profile_id": {
               "type": "string",
               "value": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
             },
