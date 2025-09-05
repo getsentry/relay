@@ -5,7 +5,7 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 use crate::protocol::{EventId, SpanV2, Timestamp};
 
 /// Temporary type that amends a SpansV2 span with fields needed by the sentry span consumer.
-/// This can be removed once the consumer has benn updated to use the new schema.
+/// This can be removed once the consumer has been updated to use the new schema.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue)]
 #[allow(dead_code)]
 pub struct CompatSpan {
@@ -47,16 +47,15 @@ impl TryFrom<SpanV2> for CompatSpan {
         }
 
         if let Some(attributes) = span_v2.attributes.value() {
-            for (key, value) in attributes.iter() {
-                if let Some(attribute) = value.value()
-                    && let Some(value) = attribute.value.value.value()
-                {
-                    // NOTE: This discards `_meta`
-                    compat_span
-                        .data
-                        .get_or_insert_with(Default::default)
-                        .insert(key.clone(), value.clone().into());
-                }
+            for (key, value) in attributes
+                .iter()
+                .filter_map(|(k, a)| Some((k, a.value()?.value.value.value()?)))
+            {
+                // NOTE: This discards `_meta`
+                compat_span
+                    .data
+                    .get_or_insert_with(Default::default)
+                    .insert(key.clone(), value.clone().into());
             }
 
             if let Some(description) = attributes
