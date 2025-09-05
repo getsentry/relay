@@ -1,3 +1,4 @@
+mod compat;
 mod convert;
 
 use std::fmt;
