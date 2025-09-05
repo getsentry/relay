@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use relay_event_schema::protocol::{
     Attribute, AttributeValue, Attributes, Span as SpanV1, SpanData, SpanKind as SpanV1Kind,
     SpanLink, SpanStatus as SpanV1Status, SpanV2, SpanV2Kind, SpanV2Link, SpanV2Status,
@@ -133,11 +135,17 @@ fn span_v1_links_to_span_v2_links(links: Vec<Annotated<SpanLink>>) -> Vec<Annota
                     span_id,
                     sampled,
                     attributes: attributes.map_value(|attrs| {
-                        Attributes::from_iter(
-                            attrs
-                                .into_iter()
-                                .map(|(key, value)| (key, Attribute::from_value(value))),
-                        )
+                        Attributes::from_iter(attrs.into_iter().filter_map(|(key, value)| {
+                            Some((
+                                key,
+                                Attribute {
+                                    value: AttributeValue::from_value(value.into_value()?.into())
+                                        .into_value()?,
+                                    other: BTreeMap::new(),
+                                }
+                                .into(),
+                            ))
+                        }))
                     }),
                     other,
                 },
@@ -154,8 +162,127 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
         return Annotated::empty();
     };
 
-    Annotated::new(Attributes::from_iter(
-        data.into_iter()
-            .map(|(key, value)| (key, Attribute::from_value(value))),
-    ))
+    Annotated::new(Attributes::from_iter(data.into_iter().filter_map(
+        |(key, value)| {
+            Some((
+                key,
+                Attribute {
+                    value: AttributeValue::from_value(value.into_value()?.into()).into_value()?,
+                    other: BTreeMap::new(),
+                }
+                .into(),
+            ))
+        },
+    )))
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_protocol::SerializableAnnotated;
+
+    use crate::span_v2_to_span_v1;
+
+    use super::*;
+
+    #[test]
+    fn roundtrip() {
+        let json = r#"{
+            "data": {
+                "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
+                "sentry.category": "db",
+                "sentry.name": "my 1st OTel span",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
+            },
+            "description": "my 1st OTel span",
+            "downsampled_retention_days": 90,
+            "duration_ms": 500,
+            "exclusive_time_ms": 500.0,
+            "is_segment": true,
+            "is_remote": false,
+            "links": [
+                {
+                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+                    "span_id": "e342abb1214ca183",
+                    "sampled": false,
+                    "attributes": {"link_double_key": 1.23}
+                }
+            ],
+            "measurements": {"score.total": {"value": 0.12121616}},
+            "organization_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "retention_days": 90,
+            "segment_id": "a342abb1214ca181",
+            "sentry_tags": {
+                "browser.name": "Chrome",
+                "category": "db",
+                "op": "default",
+                "status": "unknown"
+            },
+            "tags": {
+                "foo": "bar"
+            },
+            "span_id": "a342abb1214ca181",
+            "start_timestamp_ms": 1234,
+            "start_timestamp_precise": 1.234,
+            "end_timestamp_precise": 1.235,
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23"
+        }"#;
+
+        let span_v1 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v2 = span_v1_to_span_v2(span_v1);
+
+        let annotated_span: Annotated<SpanV2> = Annotated::new(span_v2);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "span_id": "a342abb1214ca181",
+          "is_remote": false,
+          "links": [
+            {
+              "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+              "span_id": "e342abb1214ca183",
+              "sampled": false,
+              "attributes": {}
+            }
+          ],
+          "attributes": {
+            "foo": {
+              "type": "string",
+              "value": "bar"
+            },
+            "score.total": {
+              "type": "double",
+              "value": 0.12121616
+            },
+            "sentry.description": {
+              "type": "string",
+              "value": "my 1st OTel span"
+            },
+            "sentry.is_segment": {
+              "type": "boolean",
+              "value": true
+            },
+            "sentry.segment.id": {
+              "type": "string",
+              "value": "a342abb1214ca181"
+            }
+          },
+          "downsampled_retention_days": 90,
+          "duration_ms": 500,
+          "end_timestamp_precise": 1.235,
+          "exclusive_time_ms": 500.0,
+          "key_id": 123,
+          "organization_id": 1,
+          "project_id": 42,
+          "retention_days": 90,
+          "start_timestamp_ms": 1234,
+          "start_timestamp_precise": 1.234
+        }
+        "###);
+
+        let span_v1 = span_v2_to_span_v1(annotated_span.into_value().unwrap());
+        assert_eq!(Annotated::new(span_v1).to_json_pretty().unwrap(), json);
+    }
 }
