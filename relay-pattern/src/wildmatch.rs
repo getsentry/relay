@@ -53,6 +53,7 @@ where
             t_next += 1;
 
             match token {
+                Token::Negated => true,
                 Token::Literal(literal) => match M::is_prefix(h_current, literal) {
                     Some(n) => advance!(n),
                     // The literal does not match, but it may match after backtracking.
