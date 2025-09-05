@@ -10,7 +10,7 @@ use crate::protocol::{EventId, SpanV2, Timestamp};
 #[allow(dead_code)]
 pub struct CompatSpan {
     #[metastructure(flatten)]
-    pub span: SpanV2,
+    pub span_v2: SpanV2,
 
     pub data: Annotated<Object<Value>>,
     pub description: Annotated<String>,
@@ -25,27 +25,28 @@ pub struct CompatSpan {
 impl TryFrom<SpanV2> for CompatSpan {
     type Error = uuid::Error;
 
-    fn try_from(span: SpanV2) -> Result<Self, uuid::Error> {
+    fn try_from(span_v2: SpanV2) -> Result<Self, uuid::Error> {
         let mut compat_span = Self::default();
 
-        if let Some(start_timestamp) = span.start_timestamp.value() {
+        if let Some(start_timestamp) = span_v2.start_timestamp.value() {
             let dt = start_timestamp.0;
             compat_span.start_timestamp_precise = (*start_timestamp).into();
             compat_span.start_timestamp_ms = (dt.timestamp_millis() as u64).into();
         }
 
-        if let Some(end_timestamp) = span.end_timestamp.value() {
+        if let Some(end_timestamp) = span_v2.end_timestamp.value() {
             compat_span.end_timestamp_precise = (*end_timestamp).into();
         }
 
-        if let (Some(start_timestamp), Some(end_timestamp)) =
-            (span.start_timestamp.value(), span.end_timestamp.value())
-        {
+        if let (Some(start_timestamp), Some(end_timestamp)) = (
+            span_v2.start_timestamp.value(),
+            span_v2.end_timestamp.value(),
+        ) {
             let delta = (*end_timestamp - *start_timestamp).num_milliseconds();
             compat_span.duration_ms = u64::try_from(delta).unwrap_or(0).into();
         }
 
-        if let Some(attributes) = span.attributes.value() {
+        if let Some(attributes) = span_v2.attributes.value() {
             for (key, value) in attributes.iter() {
                 if let Some(attribute) = value.value()
                     && let Some(value) = attribute.value.value.value()
@@ -59,7 +60,7 @@ impl TryFrom<SpanV2> for CompatSpan {
             }
 
             if let Some(description) = attributes
-                .get_value("sentry.raw_description")
+                .get_value("sentry.description") // TODO: EAP expects sentry.raw_description, double write this somewhere.
                 .and_then(Value::as_str)
             {
                 compat_span.description = Annotated::from(description.to_owned());
@@ -73,14 +74,14 @@ impl TryFrom<SpanV2> for CompatSpan {
             }
 
             if let Some(segment_id) = attributes
-                .get_value("sentry.profile_id")
+                .get_value("sentry.segment.id") // TODO: EAP expects `sentry.segment_id`, double write this somewhere.
                 .and_then(Value::as_str)
             {
                 compat_span.segment_id = Annotated::from(segment_id.to_owned());
             }
         }
 
-        compat_span.span = span;
+        compat_span.span_v2 = span_v2;
         Ok(compat_span)
     }
 }
@@ -124,7 +125,7 @@ mod tests {
                     "value": "php",
                     "type": "string"
                 },
-                "sentry.profile.id": {
+                "sentry.profile_id": {
                     "value": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
                     "type": "string"
                 },
@@ -181,7 +182,7 @@ mod tests {
               "type": "string",
               "value": "php"
             },
-            "sentry.profile.id": {
+            "sentry.profile_id": {
               "type": "string",
               "value": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
             },
@@ -208,14 +209,17 @@ mod tests {
             "sentry.environment": "prod",
             "sentry.op": "myop",
             "sentry.platform": "php",
-            "sentry.profile.id": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
+            "sentry.profile_id": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
             "sentry.release": "myapp@1.0.0",
             "sentry.sdk.name": "sentry.php",
             "sentry.segment.id": "FA90FDEAD5F74052",
             "sentry.segment.name": "my 1st transaction"
           },
+          "description": "mydescription",
           "duration_ms": 500,
           "end_timestamp_precise": 123.5,
+          "profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+          "segment_id": "FA90FDEAD5F74052",
           "start_timestamp_ms": 123000,
           "start_timestamp_precise": 123.0
         }
