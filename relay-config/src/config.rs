@@ -415,10 +415,7 @@ pub struct ParseRelayModeError;
 
 impl fmt::Display for ParseRelayModeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Relay mode must be one of: managed, static, proxy, capture"
-        )
+        write!(f, "Relay mode must be one of: managed or proxy")
     }
 }
 
