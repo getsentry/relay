@@ -45,7 +45,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -214,7 +214,7 @@ jobs:
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -749,7 +749,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
