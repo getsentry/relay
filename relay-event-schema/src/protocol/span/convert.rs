@@ -165,6 +165,7 @@ mod tests {
                 gen_ai_response_model: ~,
                 gen_ai_request_model: ~,
                 gen_ai_usage_total_cost: ~,
+                gen_ai_cost_total_tokens: ~,
                 gen_ai_cost_input_tokens: ~,
                 gen_ai_cost_output_tokens: ~,
                 gen_ai_prompt: ~,
