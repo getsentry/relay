@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a>/// * The V1 span's `exclusive_time` field is set based on the V2 span's `exclusive_time_nano`
 <a href=#24 id=24 data-nosnippet>24</a>///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 <a href=#25 id=25 data-nosnippet>25</a>/// * The V1 span's `platform` field is set based on the V2 span's `sentry.platform` attribute.
-<a href=#26 id=26 data-nosnippet>26</a>/// * The V1 span's `profile_id` field is set based on the V2 span's `sentry.profile.id` attribute.
+<a href=#26 id=26 data-nosnippet>26</a>/// * The V1 span's `profile_id` field is set based on the V2 span's `sentry.profile_id` attribute.
 <a href=#27 id=27 data-nosnippet>27</a>/// * The V1 span's `segment_id` field is set based on the V2 span's `sentry.segment.id` attribute.
 <a href=#28 id=28 data-nosnippet>28</a>///
 <a href=#29 id=29 data-nosnippet>29</a>/// All other attributes are carried over from the V2 span to the V1 span's `data`.
@@ -96,7 +96,7 @@
 <a href=#96 id=96 data-nosnippet>96</a>            <span class="string">"sentry.segment.id" </span>=&gt; {
 <a href=#97 id=97 data-nosnippet>97</a>                segment_id = SpanId::from_value(value);
 <a href=#98 id=98 data-nosnippet>98</a>            }
-<a href=#99 id=99 data-nosnippet>99</a>            <span class="string">"sentry.profile.id" </span>=&gt; {
+<a href=#99 id=99 data-nosnippet>99</a>            <span class="string">"sentry.profile_id" </span>=&gt; {
 <a href=#100 id=100 data-nosnippet>100</a>                profile_id = EventId::from_value(value);
 <a href=#101 id=101 data-nosnippet>101</a>            }
 <a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">_ </span>=&gt; {
@@ -595,7 +595,7 @@
 <a href=#595 id=595 data-nosnippet>595</a>                    "value": "php",
 <a href=#596 id=596 data-nosnippet>596</a>                    "type": "string"
 <a href=#597 id=597 data-nosnippet>597</a>                },
-<a href=#598 id=598 data-nosnippet>598</a>                "sentry.profile.id": {
+<a href=#598 id=598 data-nosnippet>598</a>                "sentry.profile_id": {
 <a href=#599 id=599 data-nosnippet>599</a>                    "value": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab",
 <a href=#600 id=600 data-nosnippet>600</a>                    "type": "string"
 <a href=#601 id=601 data-nosnippet>601</a>                },

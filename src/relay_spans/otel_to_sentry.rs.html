@@ -19,7 +19,7 @@
 <a href=#19 id=19 data-nosnippet>19</a>/// * The Sentry span's `exclusive_time` field is set based on the OTEL span's `exclusive_time_nano`
 <a href=#20 id=20 data-nosnippet>20</a>///   attribute, or the difference between the start and end timestamp if that attribute is not set.
 <a href=#21 id=21 data-nosnippet>21</a>/// * The Sentry span's `platform` field is set based on the OTEL span's `sentry.platform` attribute.
-<a href=#22 id=22 data-nosnippet>22</a>/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile.id` attribute.
+<a href=#22 id=22 data-nosnippet>22</a>/// * The Sentry span's `profile_id` field is set based on the OTEL span's `sentry.profile_id` attribute.
 <a href=#23 id=23 data-nosnippet>23</a>/// * The Sentry span's `segment_id` field is set based on the OTEL span's `sentry.segment.id` attribute.
 <a href=#24 id=24 data-nosnippet>24</a>///
 <a href=#25 id=25 data-nosnippet>25</a>/// All other attributes are carried over from the OTEL span to the Sentry span's `data`.
@@ -503,7 +503,7 @@
 <a href=#503 id=503 data-nosnippet>503</a>                    }
 <a href=#504 id=504 data-nosnippet>504</a>                },
 <a href=#505 id=505 data-nosnippet>505</a>                {
-<a href=#506 id=506 data-nosnippet>506</a>                    "key" : "sentry.profile.id",
+<a href=#506 id=506 data-nosnippet>506</a>                    "key" : "sentry.profile_id",
 <a href=#507 id=507 data-nosnippet>507</a>                    "value": {
 <a href=#508 id=508 data-nosnippet>508</a>                        "stringValue": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
 <a href=#509 id=509 data-nosnippet>509</a>                    }
