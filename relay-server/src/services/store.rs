@@ -279,11 +279,13 @@ impl StoreService {
         let mut replay_recording = None;
 
         // Whether Relay will submit the replay-event to snuba or not.
-        let replay_relay_snuba_publish_disabled = self
-            .global_config
-            .current()
-            .options
-            .replay_relay_snuba_publish_disabled;
+        let replay_relay_snuba_publish_disabled = utils::sample(
+            self.global_config
+                .current()
+                .options
+                .replay_relay_snuba_publish_disabled_sample_rate,
+        )
+        .is_keep();
 
         for item in envelope.items() {
             match item.ty() {
@@ -1064,21 +1066,23 @@ impl StoreService {
                 retention_days,
                 span.clone(),
             )?;
-
-            self.outcome_aggregator.send(TrackOutcome {
-                category: DataCategory::SpanIndexed,
-                event_id: None,
-                outcome: Outcome::Accepted,
-                quantity: 1,
-                remote_addr: None,
-                scoping,
-                timestamp: received_at,
-            });
         }
 
         if spans_target.is_json() {
             self.inner_produce_json_span(scoping, span)?;
         }
+
+        // XXX: Temporarily produce span outcomes also for JSON spans. Keep in sync with either EAP
+        // or the segments consumer, depending on which will produce outcomes later.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::SpanIndexed,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: 1,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
 
         Ok(())
     }

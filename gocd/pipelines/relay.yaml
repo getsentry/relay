@@ -49,5 +49,6 @@ pipelines:
                     gocd-trigger-pipeline \
                     --pipeline-name=deploy-relay-processing \
                     --pipeline-name=deploy-relay-pop \
+                    --pipeline-name=deploy-edge-relay \
                     --material-name=relay_repo \
                     --sha="${GO_REVISION_RELAY_REPO}"

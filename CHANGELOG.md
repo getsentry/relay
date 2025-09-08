@@ -10,6 +10,7 @@
 **Features**:
 
 - Add InstallableBuild and SizeAnalysis data categories. ([#5084](https://github.com/getsentry/relay/pull/5084))
+- Add dynamic PII derivation to `metastructure`. ([#5107](https://github.com/getsentry/relay/pull/5107))
 
 **Internal**:
 
@@ -19,7 +20,8 @@
 - Introduces a project scope sampling rule type. ([#5077](https://github.com/getsentry/relay/pull/5077)))
 - Produce transactions on `transactions` Kafka topic, even if they have attachments. ([#5081](https://github.com/getsentry/relay/pull/5081))
 - Removes metric stats from the codebase. ([#5097](https://github.com/getsentry/relay/pull/5097))
-- Add option gating Snuba publishing to ingest-replay-events for Replays. ([#5088](https://github.com/getsentry/relay/pull/5088))
+- Add option gating Snuba publishing to ingest-replay-events for Replays. ([#5088](https://github.com/getsentry/relay/pull/5088), [#5115](https://github.com/getsentry/relay/pull/5115))
+- Add gen_ai_cost_total_tokens attribute and double write total tokens cost. ([#5121](https://github.com/getsentry/relay/pull/5121))
 
 ## 25.8.0
 

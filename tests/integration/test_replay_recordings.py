@@ -33,9 +33,7 @@ def test_replay_recordings(mini_sentry, relay_chain):
     assert replay_recording.startswith(b"{}\n")  # The body is compressed
 
 
-@pytest.mark.parametrize(
-    "value,expected", [(None, False), (False, False), (True, True)]
-)
+@pytest.mark.parametrize("value,expected", [(1.0, True), (None, False), (0.0, False)])
 def test_nonchunked_replay_recordings_processing(
     mini_sentry,
     relay_with_processing,
@@ -51,7 +49,7 @@ def test_nonchunked_replay_recordings_processing(
 
     if value is not None:
         mini_sentry.global_config["options"][
-            "replay.relay-snuba-publishing-disabled"
+            "replay.relay-snuba-publishing-disabled.sample-rate"
         ] = value
     mini_sentry.add_basic_project_config(
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
@@ -89,7 +87,7 @@ def test_nonchunked_replay_recordings_processing(
     assert replay_recording["type"] == "replay_recording_not_chunked"
     assert replay_recording["relay_snuba_publish_disabled"] is expected
 
-    if value is True:
+    if expected is True:
         # Nothing produced.
         with pytest.raises(AssertionError):
             replay_events_consumer.get_replay_event()

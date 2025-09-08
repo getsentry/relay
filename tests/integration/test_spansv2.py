@@ -313,7 +313,20 @@ def test_spansv2_ds_sampled(
         },
     ]
 
-    outcomes_consumer.assert_empty()
+    outcomes = outcomes_consumer.get_outcomes(n=1)
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    assert outcomes == [
+        {
+            "category": DataCategory.SPAN_INDEXED.value,
+            "timestamp": time_within_delta(),
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,
+            "project_id": 42,
+            "quantity": 1,
+        }
+    ]
 
 
 def test_spansv2_ds_root_in_different_org(

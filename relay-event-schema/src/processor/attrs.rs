@@ -106,6 +106,15 @@ pub enum Pii {
     Maybe,
 }
 
+/// A static or dynamic `Pii` value.
+#[derive(Debug, Clone, Copy)]
+pub enum PiiMode {
+    /// A static value.
+    Static(Pii),
+    /// A dynamic value, computed based on a `ProcessingState`.
+    Dynamic(fn(&ProcessingState) -> Pii),
+}
+
 /// Meta information about a field.
 #[derive(Debug, Clone, Copy)]
 pub struct FieldAttrs {
@@ -128,7 +137,7 @@ pub struct FieldAttrs {
     /// The maximum number of bytes of this field.
     pub max_bytes: Option<usize>,
     /// The type of PII on the field.
-    pub pii: Pii,
+    pub pii: PiiMode,
     /// Whether additional properties should be retained during normalization.
     pub retain: bool,
     /// Whether the trimming processor is allowed to shorten or drop this field.
@@ -170,7 +179,7 @@ impl FieldAttrs {
             max_chars_allowance: 0,
             max_depth: None,
             max_bytes: None,
-            pii: Pii::False,
+            pii: PiiMode::Static(Pii::False),
             retain: false,
             trim: true,
         }
@@ -199,7 +208,13 @@ impl FieldAttrs {
 
     /// Sets whether this field contains PII.
     pub const fn pii(mut self, pii: Pii) -> Self {
-        self.pii = pii;
+        self.pii = PiiMode::Static(pii);
+        self
+    }
+
+    /// Sets whether this field contains PII dynamically based on the current state.
+    pub const fn pii_dynamic(mut self, pii: fn(&ProcessingState) -> Pii) -> Self {
+        self.pii = PiiMode::Dynamic(pii);
         self
     }
 
@@ -346,22 +361,6 @@ impl<'a> ProcessingState<'a> {
         }
     }
 
-    /// Derives a processing state by entering a static key.
-    pub fn enter_static(
-        &'a self,
-        key: &'static str,
-        attrs: Option<Cow<'static, FieldAttrs>>,
-        value_type: impl IntoIterator<Item = ValueType>,
-    ) -> Self {
-        ProcessingState {
-            parent: Some(BoxCow::Borrowed(self)),
-            path_item: Some(PathItem::StaticKey(key)),
-            attrs,
-            value_type: value_type.into_iter().collect(),
-            depth: self.depth + 1,
-        }
-    }
-
     /// Derives a processing state by entering a borrowed key.
     pub fn enter_borrowed(
         &'a self,
@@ -442,10 +441,22 @@ impl<'a> ProcessingState<'a> {
 
     /// Derives the attrs for recursion.
     pub fn inner_attrs(&self) -> Option<Cow<'_, FieldAttrs>> {
-        match self.attrs().pii {
+        match self.pii() {
             Pii::True => Some(Cow::Borrowed(&PII_TRUE_FIELD_ATTRS)),
             Pii::False => None,
             Pii::Maybe => Some(Cow::Borrowed(&PII_MAYBE_FIELD_ATTRS)),
+        }
+    }
+
+    /// Returns the PII status for this state.
+    ///
+    /// If the state's `FieldAttrs` contain a fixed PII status,
+    /// it is returned. If they contain a dynamic PII status (a function),
+    /// it is applied to this state and the output returned.
+    pub fn pii(&self) -> Pii {
+        match self.attrs().pii {
+            PiiMode::Static(pii) => pii,
+            PiiMode::Dynamic(pii_fn) => pii_fn(self),
         }
     }
 
@@ -561,6 +572,11 @@ impl Path<'_> {
         self.0.attrs()
     }
 
+    /// Returns the PII status for this path.
+    pub fn pii(&self) -> Pii {
+        self.0.pii()
+    }
+
     /// Iterates through the states in this path.
     pub fn iter(&self) -> ProcessingStateIter<'_> {
         self.0.iter()
@@ -583,5 +599,68 @@ impl fmt::Display for Path<'_> {
             write!(f, "{item}")?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, SerializableAnnotated};
+
+    use crate::processor::attrs::ROOT_STATE;
+    use crate::processor::{Pii, ProcessValue, ProcessingState, Processor, process_value};
+
+    fn pii_from_item_name(state: &ProcessingState) -> Pii {
+        match state.path_item().and_then(|p| p.key()) {
+            Some("true_item") => Pii::True,
+            Some("false_item") => Pii::False,
+            _ => Pii::Maybe,
+        }
+    }
+
+    #[derive(Debug, Clone, Empty, IntoValue, FromValue, ProcessValue)]
+    #[metastructure(pii = "pii_from_item_name")]
+    struct TestValue(String);
+
+    struct TestProcessor;
+
+    impl Processor for TestProcessor {
+        fn process_string(
+            &mut self,
+            value: &mut String,
+            _meta: &mut relay_protocol::Meta,
+            state: &ProcessingState<'_>,
+        ) -> crate::processor::ProcessingResult where {
+            match state.pii() {
+                Pii::True => *value = "true".to_owned(),
+                Pii::False => *value = "false".to_owned(),
+                Pii::Maybe => *value = "maybe".to_owned(),
+            }
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_dynamic_pii() {
+        let mut object: Annotated<Object<TestValue>> = Annotated::from_json(
+            r#"
+        {
+          "false_item": "replace me",
+          "other_item": "replace me",
+          "true_item": "replace me"
+        }
+        "#,
+        )
+        .unwrap();
+
+        process_value(&mut object, &mut TestProcessor, &ROOT_STATE).unwrap();
+
+        insta::assert_json_snapshot!(SerializableAnnotated(&object), @r###"
+        {
+          "false_item": "false",
+          "other_item": "maybe",
+          "true_item": "true"
+        }
+        "###);
     }
 }
