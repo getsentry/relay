@@ -2324,6 +2324,14 @@ mod tests {
                 .first()
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(50.0))
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_cost_input_tokens.value()),
             Some(&Value::F64(10.0))
         );
@@ -2341,6 +2349,14 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(80.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
             Some(&Value::F64(80.0))
         );
         assert_eq!(
@@ -2457,6 +2473,10 @@ mod tests {
             Some(&Value::F64(75.0))
         );
         assert_eq!(
+            first_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(75.0))
+        );
+        assert_eq!(
             first_span_data.and_then(|data| data.gen_ai_cost_input_tokens.value()),
             Some(&Value::F64(25.0))
         );
@@ -2475,6 +2495,10 @@ mod tests {
             .and_then(|span| span.data.value());
         assert_eq!(
             second_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            second_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
             Some(&Value::F64(190.0))
         );
         assert_eq!(
@@ -2501,6 +2525,10 @@ mod tests {
             .and_then(|span| span.data.value());
         assert_eq!(
             third_span_data.and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            third_span_data.and_then(|data| data.gen_ai_cost_total_tokens.value()),
             Some(&Value::F64(190.0))
         );
         assert_eq!(
@@ -2565,6 +2593,14 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            None
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
             None
         );
         // total_tokens shouldn't be set if no tokens are present on span data
@@ -2664,6 +2700,14 @@ mod tests {
                 .first()
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
+            Some(&Value::F64(65.0))
+        );
+        assert_eq!(
+            spans
+                .first()
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_cost_input_tokens.value()),
             Some(&Value::F64(25.0))
         );
@@ -2681,6 +2725,14 @@ mod tests {
                 .and_then(|span| span.value())
                 .and_then(|span| span.data.value())
                 .and_then(|data| data.gen_ai_usage_total_cost.value()),
+            Some(&Value::F64(190.0))
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .and_then(|span| span.value())
+                .and_then(|span| span.data.value())
+                .and_then(|data| data.gen_ai_cost_total_tokens.value()),
             Some(&Value::F64(190.0))
         );
         assert_eq!(
