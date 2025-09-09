@@ -803,7 +803,7 @@ mod tests {
           "op": "default",
           "span_id": "e342abb1214ca181",
           "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "status": "error",
+          "status": "internal_error",
           "data": {
             "sentry.status.message": "2 is the error status code"
           },
