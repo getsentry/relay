@@ -781,4 +781,34 @@ mod tests {
         }
         "###);
     }
+
+    #[test]
+    fn parse_span_error_status() {
+        let json = r#"{
+          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+          "spanId": "e342abb1214ca181",
+          "status": {
+            "code": 2,
+            "message": "2 is the error status code"
+          }
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span = otel_to_sentry_span(otel_span).unwrap();
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 0.0,
+          "start_timestamp": 0.0,
+          "exclusive_time": 0.0,
+          "op": "default",
+          "span_id": "e342abb1214ca181",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "internal_error",
+          "data": {
+            "sentry.status.message": "2 is the error status code"
+          },
+          "links": []
+        }
+        "###);
+    }
 }
