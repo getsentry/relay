@@ -781,4 +781,34 @@
 <a href=#781 id=781 data-nosnippet>781</a>        }
 <a href=#782 id=782 data-nosnippet>782</a>        "###</span>);
 <a href=#783 id=783 data-nosnippet>783</a>    }
-<a href=#784 id=784 data-nosnippet>784</a>}</code></pre></div></section></main></body></html>
+<a href=#784 id=784 data-nosnippet>784</a>
+<a href=#785 id=785 data-nosnippet>785</a>    <span class="attr">#[test]
+<a href=#786 id=786 data-nosnippet>786</a>    </span><span class="kw">fn </span>parse_span_error_status() {
+<a href=#787 id=787 data-nosnippet>787</a>        <span class="kw">let </span>json = <span class="string">r#"{
+<a href=#788 id=788 data-nosnippet>788</a>          "traceId": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#789 id=789 data-nosnippet>789</a>          "spanId": "e342abb1214ca181",
+<a href=#790 id=790 data-nosnippet>790</a>          "status": {
+<a href=#791 id=791 data-nosnippet>791</a>            "code": 2,
+<a href=#792 id=792 data-nosnippet>792</a>            "message": "2 is the error status code"
+<a href=#793 id=793 data-nosnippet>793</a>          }
+<a href=#794 id=794 data-nosnippet>794</a>        }"#</span>;
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+<a href=#796 id=796 data-nosnippet>796</a>        <span class="kw">let </span>event_span = otel_to_sentry_span(otel_span).unwrap();
+<a href=#797 id=797 data-nosnippet>797</a>        <span class="kw">let </span>annotated_span: Annotated&lt;EventSpan&gt; = Annotated::new(event_span);
+<a href=#798 id=798 data-nosnippet>798</a>        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>annotated_span), @<span class="string">r###"
+<a href=#799 id=799 data-nosnippet>799</a>        {
+<a href=#800 id=800 data-nosnippet>800</a>          "timestamp": 0.0,
+<a href=#801 id=801 data-nosnippet>801</a>          "start_timestamp": 0.0,
+<a href=#802 id=802 data-nosnippet>802</a>          "exclusive_time": 0.0,
+<a href=#803 id=803 data-nosnippet>803</a>          "op": "default",
+<a href=#804 id=804 data-nosnippet>804</a>          "span_id": "e342abb1214ca181",
+<a href=#805 id=805 data-nosnippet>805</a>          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+<a href=#806 id=806 data-nosnippet>806</a>          "status": "internal_error",
+<a href=#807 id=807 data-nosnippet>807</a>          "data": {
+<a href=#808 id=808 data-nosnippet>808</a>            "sentry.status.message": "2 is the error status code"
+<a href=#809 id=809 data-nosnippet>809</a>          },
+<a href=#810 id=810 data-nosnippet>810</a>          "links": []
+<a href=#811 id=811 data-nosnippet>811</a>        }
+<a href=#812 id=812 data-nosnippet>812</a>        "###</span>);
+<a href=#813 id=813 data-nosnippet>813</a>    }
+<a href=#814 id=814 data-nosnippet>814</a>}</code></pre></div></section></main></body></html>
