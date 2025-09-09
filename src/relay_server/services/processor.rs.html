@@ -827,7 +827,7 @@
 <a href=#827 id=827 data-nosnippet>827</a>/// If the project config did not come from the upstream, we keep the items.
 <a href=#828 id=828 data-nosnippet>828</a></span><span class="kw">fn </span>should_filter(config: <span class="kw-2">&amp;</span>Config, project_info: <span class="kw-2">&amp;</span>ProjectInfo, feature: Feature) -&gt; bool {
 <a href=#829 id=829 data-nosnippet>829</a>    <span class="kw">match </span>config.relay_mode() {
-<a href=#830 id=830 data-nosnippet>830</a>        RelayMode::Proxy | RelayMode::Static =&gt; <span class="bool-val">false</span>,
+<a href=#830 id=830 data-nosnippet>830</a>        RelayMode::Proxy =&gt; <span class="bool-val">false</span>,
 <a href=#831 id=831 data-nosnippet>831</a>        RelayMode::Managed =&gt; !project_info.has_feature(feature),
 <a href=#832 id=832 data-nosnippet>832</a>    }
 <a href=#833 id=833 data-nosnippet>833</a>}

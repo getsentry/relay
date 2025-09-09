@@ -105,23 +105,21 @@
 <a href=#105 id=105 data-nosnippet>105</a>    </span><span class="kw">pub </span>disabled: bool,
 <a href=#106 id=106 data-nosnippet>106</a>    <span class="doccomment">/// Project info.
 <a href=#107 id=107 data-nosnippet>107</a>    ///
-<a href=#108 id=108 data-nosnippet>108</a>    /// This contains no information when `disabled` is `true`, except for
-<a href=#109 id=109 data-nosnippet>109</a>    /// public keys in static project configs (see [`crate::services::projects::source::local`]).
-<a href=#110 id=110 data-nosnippet>110</a>    </span><span class="attr">#[serde(flatten)]
-<a href=#111 id=111 data-nosnippet>111</a>    </span><span class="kw">pub </span>info: ProjectInfo,
-<a href=#112 id=112 data-nosnippet>112</a>}
-<a href=#113 id=113 data-nosnippet>113</a>
-<a href=#114 id=114 data-nosnippet>114</a><span class="doccomment">/// Limited project state for external Relays.
-<a href=#115 id=115 data-nosnippet>115</a></span><span class="attr">#[derive(Debug, Clone, Serialize)]
-<a href=#116 id=116 data-nosnippet>116</a>#[serde(rename_all = <span class="string">"camelCase"</span>, remote = <span class="string">"ParsedProjectState"</span>)]
-<a href=#117 id=117 data-nosnippet>117</a></span><span class="kw">pub struct </span>LimitedParsedProjectState {
-<a href=#118 id=118 data-nosnippet>118</a>    <span class="doccomment">/// Whether the project state is disabled.
-<a href=#119 id=119 data-nosnippet>119</a>    </span><span class="kw">pub </span>disabled: bool,
-<a href=#120 id=120 data-nosnippet>120</a>    <span class="doccomment">/// Limited project info for external Relays.
-<a href=#121 id=121 data-nosnippet>121</a>    ///
-<a href=#122 id=122 data-nosnippet>122</a>    /// This contains no information when `disabled` is `true`, except for
-<a href=#123 id=123 data-nosnippet>123</a>    /// public keys in static project configs (see [`crate::services::projects::source::local`]).
-<a href=#124 id=124 data-nosnippet>124</a>    </span><span class="attr">#[serde(with = <span class="string">"LimitedProjectInfo"</span>)]
-<a href=#125 id=125 data-nosnippet>125</a>    #[serde(flatten)]
-<a href=#126 id=126 data-nosnippet>126</a>    </span><span class="kw">pub </span>info: ProjectInfo,
-<a href=#127 id=127 data-nosnippet>127</a>}</code></pre></div></section></main></body></html>
+<a href=#108 id=108 data-nosnippet>108</a>    /// This contains no information when `disabled` is `true`.
+<a href=#109 id=109 data-nosnippet>109</a>    </span><span class="attr">#[serde(flatten)]
+<a href=#110 id=110 data-nosnippet>110</a>    </span><span class="kw">pub </span>info: ProjectInfo,
+<a href=#111 id=111 data-nosnippet>111</a>}
+<a href=#112 id=112 data-nosnippet>112</a>
+<a href=#113 id=113 data-nosnippet>113</a><span class="doccomment">/// Limited project state for external Relays.
+<a href=#114 id=114 data-nosnippet>114</a></span><span class="attr">#[derive(Debug, Clone, Serialize)]
+<a href=#115 id=115 data-nosnippet>115</a>#[serde(rename_all = <span class="string">"camelCase"</span>, remote = <span class="string">"ParsedProjectState"</span>)]
+<a href=#116 id=116 data-nosnippet>116</a></span><span class="kw">pub struct </span>LimitedParsedProjectState {
+<a href=#117 id=117 data-nosnippet>117</a>    <span class="doccomment">/// Whether the project state is disabled.
+<a href=#118 id=118 data-nosnippet>118</a>    </span><span class="kw">pub </span>disabled: bool,
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="doccomment">/// Limited project info for external Relays.
+<a href=#120 id=120 data-nosnippet>120</a>    ///
+<a href=#121 id=121 data-nosnippet>121</a>    /// This contains no information when `disabled` is `true`.
+<a href=#122 id=122 data-nosnippet>122</a>    </span><span class="attr">#[serde(with = <span class="string">"LimitedProjectInfo"</span>)]
+<a href=#123 id=123 data-nosnippet>123</a>    #[serde(flatten)]
+<a href=#124 id=124 data-nosnippet>124</a>    </span><span class="kw">pub </span>info: ProjectInfo,
+<a href=#125 id=125 data-nosnippet>125</a>}</code></pre></div></section></main></body></html>
