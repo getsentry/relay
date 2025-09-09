@@ -70,6 +70,20 @@ impl_from!(i64, AttributeType::Integer);
 impl_from!(f64, AttributeType::Double);
 impl_from!(bool, AttributeType::Boolean);
 
+impl From<Value> for AttributeValue {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Bool(_) => todo!(),
+            Value::I64(_) => todo!(),
+            Value::U64(_) => todo!(),
+            Value::F64(_) => todo!(),
+            Value::String(_) => todo!(),
+            Value::Array(items) => stringify(items),
+            Value::Object(map) => stringify(map),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttributeType {
     Boolean,

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use relay_event_schema::protocol::{
@@ -50,13 +51,22 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
         }
         attributes.insert("sentry.platform", platform);
         attributes.insert("sentry.was_transaction", was_transaction);
+        attributes.insert(
+            "sentry._performance_issues_spans",
+            _performance_issues_spans,
+        );
 
         // Use same precedence as `backfill_data` for data bags:
         if let Some(measurements) = measurements.into_value() {
             for (key, measurement) in measurements.0 {
                 if let Some(measurement) = measurement.into_value() {
+                    let key = match key.as_str() {
+                        "client_sample_rate" => "sentry.client_sample_rate",
+                        "server_sample_rate" => "sentry.server_sample_rate",
+                        other => other,
+                    };
                     attributes
-                        .insert_if_missing(&key, || measurement.value.map_value(|a| a.to_f64()));
+                        .insert_if_missing(key, || measurement.value.map_value(|a| a.to_f64()));
                 }
             }
         }
@@ -73,6 +83,10 @@ pub fn span_v1_to_span_v2(span_v1: SpanV1) -> SpanV2 {
                 for (key, value) in tags {
                     if value.value().is_some() {
                         if let Some(value) = AttributeValue::from_value(value).into_value() {
+                            let key = match key.as_str() {
+                                "description" => "sentry.normalized_description".into(),
+                                other => Cow::Owned(format!("sentry.{}", other)),
+                            };
                             attributes.insert_if_missing(&key, || value);
                         }
                     }
@@ -130,24 +144,27 @@ fn span_v1_links_to_span_v2_links(links: Vec<Annotated<SpanLink>>) -> Vec<Annota
                      sampled,
                      attributes,
                      other,
-                 }| SpanV2Link {
-                    trace_id,
-                    span_id,
-                    sampled,
-                    attributes: attributes.map_value(|attrs| {
-                        Attributes::from_iter(attrs.into_iter().filter_map(|(key, value)| {
-                            Some((
-                                key,
-                                Attribute {
-                                    value: AttributeValue::from_value(value.into_value()?.into())
-                                        .into_value()?,
-                                    other: BTreeMap::new(),
-                                }
-                                .into(),
-                            ))
-                        }))
-                    }),
-                    other,
+                 }| {
+                    SpanV2Link {
+                        trace_id,
+                        span_id,
+                        sampled,
+                        attributes: attributes.map_value(|attrs| {
+                            Attributes::from_iter(attrs.into_iter().filter_map(|(key, value)| {
+                                Some((
+                                    key,
+                                    Attribute {
+                                        value: dbg!(
+                                            dbg!(AttributeValue::from_value(value)).into_value()?
+                                        ),
+                                        other: Default::default(),
+                                    }
+                                    .into(),
+                                ))
+                            }))
+                        }),
+                        other,
+                    }
                 },
             )
         })
@@ -162,18 +179,18 @@ fn attributes_from_data(data: Annotated<SpanData>) -> Annotated<Attributes> {
         return Annotated::empty();
     };
 
-    Annotated::new(Attributes::from_iter(data.into_iter().filter_map(
-        |(key, value)| {
-            Some((
-                key,
-                Attribute {
-                    value: AttributeValue::from_value(value.into_value()?.into()).into_value()?,
-                    other: BTreeMap::new(),
-                }
-                .into(),
-            ))
-        },
-    )))
+    // Annotated::new(Attributes::from_iter(data.into_iter().filter_map(
+    //     |(key, value)| {
+    //         Some((
+    //             key,
+    //             Attribute {
+    //                 value: AttributeValue { ty: (), value: () }
+    //                 other: BTreeMap::new(),
+    //             }
+    //             .into(),
+    //         ))
+    //     },
+    // )))
 }
 
 #[cfg(test)]
@@ -187,63 +204,81 @@ mod tests {
     #[test]
     fn roundtrip() {
         let json = r#"{
-            "data": {
-                "browser.name": "Chrome",
-                "client.address": "127.0.0.1",
-                "sentry.category": "db",
-                "sentry.name": "my 1st OTel span",
-                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
-            },
-            "description": "my 1st OTel span",
-            "downsampled_retention_days": 90,
-            "duration_ms": 500,
-            "exclusive_time_ms": 500.0,
-            "is_segment": true,
-            "is_remote": false,
-            "links": [
-                {
-                    "trace_id": "89143b0763095bd9c9955e8175d1fb24",
-                    "span_id": "e342abb1214ca183",
-                    "sampled": false,
-                    "attributes": {"link_double_key": 1.23}
-                }
-            ],
-            "measurements": {"score.total": {"value": 0.12121616}},
-            "organization_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "retention_days": 90,
-            "segment_id": "a342abb1214ca181",
-            "sentry_tags": {
-                "browser.name": "Chrome",
-                "category": "db",
-                "op": "default",
-                "status": "unknown"
-            },
-            "tags": {
-                "foo": "bar"
-            },
-            "span_id": "a342abb1214ca181",
-            "start_timestamp_ms": 1234,
-            "start_timestamp_precise": 1.234,
-            "end_timestamp_precise": 1.235,
-            "trace_id": "89143b0763095bd9c9955e8175d1fb23"
-        }"#;
+  "timestamp": 0.0,
+  "start_timestamp": -63158400.0,
+  "exclusive_time": 1.23,
+  "op": "operation",
+  "span_id": "fa90fdead5f74052",
+  "parent_span_id": "fa90fdead5f74051",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+  "segment_id": "fa90fdead5f74050",
+  "is_segment": true,
+  "is_remote": true,
+  "status": "ok",
+  "description": "raw description",
+  "tags": {
+    "foo": "bar"
+  },
+  "origin": "auto.http",
+  "profile_id": "4c79f60c11214eb38604f4ae0781bfb0",
+  "data": {
+    "my.data.field": "my.data.value"
+  },
+  "links": [
+    {
+    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+    "span_id": "fa90fdead5f74052",
+    "sampled": true,
+      "attributes": {
+        "boolAttr": true,
+        "numAttr": 123,
+        "stringAttr": "foo"
+      }
+    }
+  ],
+  "sentry_tags": {
+    "user": "id:user123",
+    "description": "normalized description"
+  },
+  "received": 0.2,
+  "measurements": {
+    "client_sample_rate": {
+      "value": 0.11
+    },
+    "server_sample_rate": {
+      "value": 0.22
+    },
+    "memory": {
+      "value": 9001.0,
+      "unit": "byte"
+    }
+  },
+  "platform": "javascript",
+  "was_transaction": true,
+  "kind": "server",
+  "_performance_issues_spans": true,
+  "additional_field": "additional field value"
+}"#;
 
         let span_v1 = Annotated::from_json(json).unwrap().into_value().unwrap();
         let span_v2 = span_v1_to_span_v2(span_v1);
 
-        let annotated_span: Annotated<SpanV2> = Annotated::new(span_v2);
-        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        let annotated_span_v2: Annotated<SpanV2> = Annotated::new(span_v2);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span_v2), @r###"
         {
-          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-          "span_id": "a342abb1214ca181",
-          "is_remote": false,
+          "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+          "parent_span_id": "fa90fdead5f74051",
+          "span_id": "fa90fdead5f74052",
+          "status": "ok",
+          "is_remote": true,
+          "kind": "server",
+          "start_timestamp": -63158400.0,
+          "end_timestamp": 0.0,
           "links": [
             {
-              "trace_id": "89143b0763095bd9c9955e8175d1fb24",
-              "span_id": "e342abb1214ca183",
-              "sampled": false,
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74052",
+              "sampled": true,
               "attributes": {}
             }
           ],
@@ -252,37 +287,60 @@ mod tests {
               "type": "string",
               "value": "bar"
             },
-            "score.total": {
+            "memory": {
               "type": "double",
-              "value": 0.12121616
+              "value": 9001.0
+            },
+            "sentry._performance_issues_spans": {
+              "type": "boolean",
+              "value": true
+            },
+            "sentry.client_sample_rate": {
+              "type": "double",
+              "value": 0.11
             },
             "sentry.description": {
               "type": "string",
-              "value": "my 1st OTel span"
+              "value": "raw description"
             },
             "sentry.is_segment": {
               "type": "boolean",
               "value": true
             },
+            "sentry.op": {
+              "type": "string",
+              "value": "operation"
+            },
+            "sentry.origin": {
+              "type": "string",
+              "value": "auto.http"
+            },
+            "sentry.platform": {
+              "type": "string",
+              "value": "javascript"
+            },
+            "sentry.profile_id": {
+              "type": "string",
+              "value": "4c79f60c-1121-4eb3-8604-f4ae0781bfb0"
+            },
             "sentry.segment.id": {
               "type": "string",
-              "value": "a342abb1214ca181"
+              "value": "fa90fdead5f74050"
+            },
+            "sentry.server_sample_rate": {
+              "type": "double",
+              "value": 0.22
+            },
+            "sentry.was_transaction": {
+              "type": "boolean",
+              "value": true
             }
           },
-          "downsampled_retention_days": 90,
-          "duration_ms": 500,
-          "end_timestamp_precise": 1.235,
-          "exclusive_time_ms": 500.0,
-          "key_id": 123,
-          "organization_id": 1,
-          "project_id": 42,
-          "retention_days": 90,
-          "start_timestamp_ms": 1234,
-          "start_timestamp_precise": 1.234
+          "additional_field": "additional field value"
         }
         "###);
 
-        let span_v1 = span_v2_to_span_v1(annotated_span.into_value().unwrap());
-        assert_eq!(Annotated::new(span_v1).to_json_pretty().unwrap(), json);
+        let span_v1 = span_v2_to_span_v1(annotated_span_v2.into_value().unwrap());
+        assert_eq!(json, Annotated::new(span_v1).to_json_pretty().unwrap(),);
     }
 }
