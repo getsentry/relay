@@ -54,7 +54,6 @@ mod tests {
             aliases: [
                 "http.response.body.size",
                 "http.response.header.content-length",
-                "http.response.header['content-length']",
             ],
         }
         "###);
