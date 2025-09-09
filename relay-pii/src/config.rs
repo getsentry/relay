@@ -68,6 +68,7 @@ impl LazyPattern {
         self.pattern
             .get_or_init(|| {
                 let regex_result = RegexBuilder::new(&self.raw)
+                    .unicode(false)
                     .size_limit(COMPILED_PATTERN_MAX_SIZE)
                     .case_insensitive(self.case_insensitive)
                     .build()
