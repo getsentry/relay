@@ -324,7 +324,7 @@ impl RelayInfo {
 }
 
 /// The operation mode of a relay.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RelayMode {
     /// This relay acts as a proxy for all requests and events.
@@ -334,12 +334,6 @@ pub enum RelayMode {
     /// accepted unless overridden on the file system.
     Proxy,
 
-    /// This relay is configured statically in the file system.
-    ///
-    /// Events are only accepted for projects configured statically in the file system. All other
-    /// events are rejected. If configured, PII stripping is also performed on those events.
-    Static,
-
     /// Project configurations are managed by the upstream.
     ///
     /// Project configurations are always fetched from the upstream, unless they are statically
@@ -348,11 +342,30 @@ pub enum RelayMode {
     Managed,
 }
 
+impl<'de> Deserialize<'de> for RelayMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "proxy" => Ok(RelayMode::Proxy),
+            "managed" => Ok(RelayMode::Managed),
+            "static" => Err(serde::de::Error::custom(
+                "Relay mode 'static' has been removed. Please use 'managed' or 'proxy' instead.",
+            )),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["proxy", "managed"],
+            )),
+        }
+    }
+}
+
 impl fmt::Display for RelayMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             RelayMode::Proxy => write!(f, "proxy"),
-            RelayMode::Static => write!(f, "static"),
             RelayMode::Managed => write!(f, "managed"),
         }
     }
@@ -402,10 +415,7 @@ pub struct ParseRelayModeError;
 
 impl fmt::Display for ParseRelayModeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Relay mode must be one of: managed, static, proxy, capture"
-        )
+        write!(f, "Relay mode must be one of: managed or proxy")
     }
 }
 
@@ -417,7 +427,6 @@ impl FromStr for RelayMode {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "proxy" => Ok(RelayMode::Proxy),
-            "static" => Ok(RelayMode::Static),
             "managed" => Ok(RelayMode::Managed),
             _ => Err(ParseRelayModeError),
         }
