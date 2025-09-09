@@ -42,6 +42,7 @@ relay-cardinality = { path = "relay-cardinality" }
 relay-cogs = { path = "relay-cogs" }
 relay-common = { path = "relay-common" }
 relay-config = { path = "relay-config" }
+relay-conventions = { path = "relay-conventions" }
 relay-crash = { path = "relay-crash" }
 relay-dynamic-config = { path = "relay-dynamic-config" }
 relay-event-derive = { path = "relay-event-derive" }
