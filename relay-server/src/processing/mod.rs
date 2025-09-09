@@ -92,7 +92,7 @@ impl Context<'_> {
         use relay_config::RelayMode::*;
 
         match self.config.relay_mode() {
-            Proxy | Static => false,
+            Proxy => false,
             Managed => !self.project_info.has_feature(feature),
         }
     }

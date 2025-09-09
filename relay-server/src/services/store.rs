@@ -279,11 +279,13 @@ impl StoreService {
         let mut replay_recording = None;
 
         // Whether Relay will submit the replay-event to snuba or not.
-        let replay_relay_snuba_publish_disabled = self
-            .global_config
-            .current()
-            .options
-            .replay_relay_snuba_publish_disabled;
+        let replay_relay_snuba_publish_disabled = utils::sample(
+            self.global_config
+                .current()
+                .options
+                .replay_relay_snuba_publish_disabled_sample_rate,
+        )
+        .is_keep();
 
         for item in envelope.items() {
             match item.ty() {

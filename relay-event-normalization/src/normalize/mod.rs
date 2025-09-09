@@ -3,6 +3,7 @@ use std::hash::Hash;
 
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
+use relay_pattern::Pattern;
 use relay_protocol::{FiniteF64, RuleCondition};
 use serde::{Deserialize, Serialize};
 
@@ -243,7 +244,7 @@ pub struct ModelCosts {
 
     /// The mappings of model ID => cost as a dictionary
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub models: HashMap<String, ModelCostV2>,
+    pub models: HashMap<Pattern, ModelCostV2>,
 }
 
 impl ModelCosts {
@@ -261,11 +262,26 @@ impl ModelCosts {
 
     /// Gets the cost per token, if defined for the given model.
     pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
-        if self.is_enabled() {
-            self.models.get(model_id).copied()
-        } else {
-            None
+        if !self.is_enabled() {
+            return None;
         }
+
+        // First try exact match by creating a Pattern from the model_id
+        let exact_key = Pattern::new(model_id).ok()?;
+        if self.models.contains_key(&exact_key) {
+            return self.models.get(&exact_key).copied();
+        }
+
+        // if there is not a direct match, try to find the match using a pattern
+        let cost = self.models.iter().find_map(|(key, value)| {
+            if key.is_match(model_id) {
+                Some(value)
+            } else {
+                None
+            }
+        });
+
+        cost.copied()
     }
 }
 
@@ -318,19 +334,29 @@ mod tests {
         let deserialized_v2: ModelCosts = serde_json::from_str(original_v2).unwrap();
         assert_debug_snapshot!(
             deserialized_v2,
-            @r###"
-            ModelCosts {
-                version: 2,
-                models: {
-                    "gpt-4": ModelCostV2 {
-                        input_per_token: 0.03,
-                        output_per_token: 0.06,
-                        output_reasoning_per_token: 0.12,
-                        input_cached_per_token: 0.015,
+            @r#"
+        ModelCosts {
+            version: 2,
+            models: {
+                Pattern {
+                    pattern: "gpt-4",
+                    options: Options {
+                        case_insensitive: false,
                     },
+                    strategy: Literal(
+                        Literal(
+                            "gpt-4",
+                        ),
+                    ),
+                }: ModelCostV2 {
+                    input_per_token: 0.03,
+                    output_per_token: 0.06,
+                    output_reasoning_per_token: 0.12,
+                    input_cached_per_token: 0.015,
                 },
-            }
-            "###,
+            },
+        }
+        "#,
         );
 
         // Test unknown integer version
@@ -344,11 +370,21 @@ mod tests {
     fn test_model_cost_config_v2() {
         let original = r#"{"version":2,"models":{"gpt-4":{"inputPerToken":0.03,"outputPerToken":0.06,"outputReasoningPerToken":0.12,"inputCachedPerToken":0.015}}}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
-        assert_debug_snapshot!(deserialized, @r###"
+        assert_debug_snapshot!(deserialized, @r#"
         ModelCosts {
             version: 2,
             models: {
-                "gpt-4": ModelCostV2 {
+                Pattern {
+                    pattern: "gpt-4",
+                    options: Options {
+                        case_insensitive: false,
+                    },
+                    strategy: Literal(
+                        Literal(
+                            "gpt-4",
+                        ),
+                    ),
+                }: ModelCostV2 {
                     input_per_token: 0.03,
                     output_per_token: 0.06,
                     output_reasoning_per_token: 0.12,
@@ -356,7 +392,7 @@ mod tests {
                 },
             },
         }
-        "###);
+        "#);
 
         let serialized = serde_json::to_string(&deserialized).unwrap();
         assert_eq!(&serialized, original);
@@ -367,7 +403,7 @@ mod tests {
         // Test V2 functionality
         let mut models_map = HashMap::new();
         models_map.insert(
-            "gpt-4".to_owned(),
+            Pattern::new("gpt-4").unwrap(),
             ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
@@ -390,6 +426,61 @@ mod tests {
                 input_cached_per_token: 0.015,
             }
         );
+    }
+
+    #[test]
+    fn test_model_cost_glob_matching() {
+        // Test glob matching functionality in cost_per_token
+        let mut models_map = HashMap::new();
+        models_map.insert(
+            Pattern::new("gpt-4*").unwrap(),
+            ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            },
+        );
+        models_map.insert(
+            Pattern::new("gpt-4-2xxx").unwrap(),
+            ModelCostV2 {
+                input_per_token: 0.0007,
+                output_per_token: 0.0008,
+                output_reasoning_per_token: 0.0016,
+                input_cached_per_token: 0.00035,
+            },
+        );
+
+        let v2_config = ModelCosts {
+            version: 2,
+            models: models_map,
+        };
+        assert!(v2_config.is_enabled());
+
+        // Test glob matching with gpt-4 variants (prefix matching)
+        let cost = v2_config.cost_per_token("gpt-4-v1").unwrap();
+        assert_eq!(
+            cost,
+            ModelCostV2 {
+                input_per_token: 0.03,
+                output_per_token: 0.06,
+                output_reasoning_per_token: 0.12,
+                input_cached_per_token: 0.015,
+            }
+        );
+
+        let cost = v2_config.cost_per_token("gpt-4-2xxx").unwrap();
+        assert_eq!(
+            cost,
+            ModelCostV2 {
+                input_per_token: 0.0007,
+                output_per_token: 0.0008,
+                output_reasoning_per_token: 0.0016,
+                input_cached_per_token: 0.00035,
+            }
+        );
+
+        assert_eq!(v2_config.cost_per_token("unknown-model"), None);
     }
 
     #[test]

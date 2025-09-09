@@ -249,6 +249,11 @@ impl Attributes {
         self.0.contains_key(key)
     }
 
+    /// Iterates over this collection's attribute keys and values.
+    pub fn iter(&self) -> std::collections::btree_map::Iter<'_, String, Annotated<Attribute>> {
+        self.0.iter()
+    }
+
     /// Iterates mutably over this collection's attribute keys and values.
     pub fn iter_mut(
         &mut self,
