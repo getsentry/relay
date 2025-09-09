@@ -163,6 +163,7 @@ fn span_v2_status_to_span_v1_status(
     grpc_status_code: Annotated<i64>,
 ) -> Annotated<SpanStatus> {
     status
+        .clone()
         .and_then(|status| (status == SpanV2Status::Ok).then_some(SpanStatus::Ok))
         .or_else(|| {
             http_status_code.and_then(|http_status_code| {
@@ -176,6 +177,11 @@ fn span_v2_status_to_span_v1_status(
                 status_codes::GRPC
                     .get(&grpc_status_code)
                     .and_then(|sentry_status| SpanStatus::from_str(sentry_status).ok())
+            })
+        })
+        .or_else(|| {
+            status.and_then(|status| {
+                (status == SpanV2Status::Error).then_some(SpanStatus::InternalError)
             })
         })
         .or_else(|| Annotated::new(SpanStatus::Unknown))
@@ -1362,6 +1368,34 @@ mod tests {
             "sentry.name": "POST /graphql"
           },
           "kind": "server"
+        }
+        "###);
+    }
+
+    #[test]
+    fn parse_error_status() {
+        let json = r#"{
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            "span_id": "e342abb1214ca181",
+            "parent_span_id": "0c7a7dea069bf5a6",
+            "start_timestamp": 123,
+            "end_timestamp": 123.5,
+            "status": "error"
+        }"#;
+        let span_v2 = Annotated::from_json(json).unwrap().into_value().unwrap();
+        let span_v1: SpanV1 = span_v2_to_span_v1(span_v2);
+        let annotated_span: Annotated<SpanV1> = Annotated::new(span_v1);
+        insta::assert_json_snapshot!(SerializableAnnotated(&annotated_span), @r###"
+        {
+          "timestamp": 123.5,
+          "start_timestamp": 123.0,
+          "exclusive_time": 500.0,
+          "op": "default",
+          "span_id": "e342abb1214ca181",
+          "parent_span_id": "0c7a7dea069bf5a6",
+          "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+          "status": "internal_error",
+          "data": {}
         }
         "###);
     }
