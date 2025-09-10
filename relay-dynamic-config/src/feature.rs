@@ -55,7 +55,7 @@ pub enum Feature {
     /// Serialized as `projects:relay-otel-endpoint`.
     #[serde(rename = "projects:relay-otel-endpoint")]
     OtelEndpoint,
-    /// Enable logs integestion via the `/logs/` OTel endpoint.
+    /// Enable logs ingestion via the `/logs/` OTel endpoint.
     ///
     /// Serialized as `organizations:relay-otel-logs-endpoint`.
     #[serde(rename = "organizations:relay-otel-logs-endpoint")]
