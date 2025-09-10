@@ -298,7 +298,54 @@ pub struct ModelCostV2 {
     /// The cost per input cached token
     pub input_cached_per_token: f64,
 }
+/// A mapping of AI operation types from span.op to gen_ai.operation.type.
+///
+/// This struct uses a dictionary-based mapping structure with exact span operation keys
+/// and corresponding AI operation type values.
+///
+/// Example JSON:
+/// ```json
+/// {
+///   "version": 1,
+///   "operation_types": {
+///     "gen_ai.execute_tool": "tool",
+///     "gen_ai.handoff": "handoff",
+///     "gen_ai.invoke_agent": "agent",
+///   }
+/// }
+/// ```
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiOperationTypeMap {
+    /// The version of the operation type mapping struct
+    pub version: u16,
 
+    /// The mappings of span.op => gen_ai.operation.type as a dictionary
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub operation_types: HashMap<String, String>,
+}
+
+impl AiOperationTypeMap {
+    const SUPPORTED_VERSION: u16 = 1;
+
+    /// `true` if the operation type mapping is empty and the version is supported.
+    pub fn is_empty(&self) -> bool {
+        self.operation_types.is_empty() || !self.is_enabled()
+    }
+
+    /// `false` if operation type mapping should be skipped.
+    pub fn is_enabled(&self) -> bool {
+        self.version == Self::SUPPORTED_VERSION
+    }
+
+    /// Gets the AI operation type for the given span operation, if defined.
+    pub fn get_operation_type(&self, span_op: &str) -> Option<&str> {
+        if !self.is_enabled() {
+            return None;
+        }
+        self.operation_types.get(span_op).map(String::as_str)
+    }
+}
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
