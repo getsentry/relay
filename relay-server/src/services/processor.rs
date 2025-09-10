@@ -1519,6 +1519,7 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
+        let ai_operation_type_map = global_config.ai_operation_type_map.clone().ok();
         let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         let retention_days: i64 = project_info
@@ -1591,6 +1592,7 @@ impl EnvelopeProcessorService {
                 span_description_rules: project_info.config.span_description_rules.as_ref(),
                 geoip_lookup: Some(&self.inner.geoip_lookup),
                 ai_model_costs: ai_model_costs.as_ref(),
+                ai_operation_type_map: ai_operation_type_map.as_ref(),
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
                     project_info.config().measurements.as_ref(),

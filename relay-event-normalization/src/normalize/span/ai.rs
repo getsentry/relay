@@ -1,5 +1,6 @@
 //! AI cost calculation.
 
+use crate::normalize::AiOperationTypeMap;
 use crate::{ModelCostV2, ModelCosts};
 use relay_event_schema::protocol::{Event, Span, SpanData};
 use relay_protocol::{Annotated, Getter, Value};
@@ -72,11 +73,7 @@ fn extract_ai_model_cost_data(model_cost: Option<ModelCostV2>, data: &mut SpanDa
 }
 
 /// Maps AI-related measurements (legacy) to span data.
-pub fn map_ai_measurements_to_data(span: &mut Span) {
-    if !is_ai_span(span) {
-        return;
-    };
-
+fn map_ai_measurements_to_data(span: &mut Span) {
     let measurements = span.measurements.value();
     let data = span.data.get_or_insert_with(SpanData::default);
 
@@ -120,11 +117,7 @@ pub fn map_ai_measurements_to_data(span: &mut Span) {
 }
 
 /// Extract the additional data into the span
-pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
-    if !is_ai_span(span) {
-        return;
-    }
-
+fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
     let duration = span
         .get_value("span.duration")
         .and_then(|v| v.as_f64())
@@ -161,22 +154,57 @@ pub fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
     }
 }
 
+/// Enrich the AI span data
+pub fn enrich_ai_span_data(
+    span: &mut Span,
+    model_costs: Option<&ModelCosts>,
+    operation_type_map: Option<&AiOperationTypeMap>,
+) {
+    if !is_ai_span(span) {
+        return;
+    }
+
+    map_ai_measurements_to_data(span);
+    if let Some(model_costs) = model_costs {
+        extract_ai_data(span, model_costs);
+    }
+    if let Some(operation_type_map) = operation_type_map {
+        infer_ai_operation_type(span, operation_type_map);
+    }
+}
+
 /// Extract the ai data from all of an event's spans
-pub fn enrich_ai_span_data(event: &mut Event, model_costs: Option<&ModelCosts>) {
+pub fn enrich_ai_event_data(
+    event: &mut Event,
+    model_costs: Option<&ModelCosts>,
+    operation_type_map: Option<&AiOperationTypeMap>,
+) {
     let spans = event.spans.value_mut().iter_mut().flatten();
     let spans = spans.filter_map(|span| span.value_mut().as_mut());
 
     for span in spans {
-        map_ai_measurements_to_data(span);
-        if let Some(model_costs) = model_costs {
-            extract_ai_data(span, model_costs);
-        }
+        enrich_ai_span_data(span, model_costs, operation_type_map);
+    }
+}
+
+///  Infer AI operation type mapping to a span.
+///
+/// This function maps span.op values to gen_ai.operation.type based on the provided
+/// operation type map configuration.
+fn infer_ai_operation_type(span: &mut Span, operation_type_map: &AiOperationTypeMap) {
+    let Some(data) = span.data.value_mut() else {
+        return;
+    };
+
+    if let Some(operation_type) = operation_type_map.get_operation_type(span.op.value().unwrap()) {
+        data.gen_ai_operation_type
+            .set_value(Some(operation_type.to_owned()));
     }
 }
 
 /// Returns true if the span is an AI span.
 /// AI spans are spans with op starting with "ai." (legacy) or "gen_ai." (new).
-pub fn is_ai_span(span: &Span) -> bool {
+fn is_ai_span(span: &Span) -> bool {
     span.op
         .value()
         .is_some_and(|op| op.starts_with("ai.") || op.starts_with("gen_ai."))

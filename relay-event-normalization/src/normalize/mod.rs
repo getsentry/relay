@@ -300,7 +300,7 @@ pub struct ModelCostV2 {
 }
 /// A mapping of AI operation types from span.op to gen_ai.operation.type.
 ///
-/// This struct uses a dictionary-based mapping structure with exact span operation keys
+/// This struct uses a dictionary-based mapping structure with pattern-based span operation keys
 /// and corresponding AI operation type values.
 ///
 /// Example JSON:
@@ -322,7 +322,7 @@ pub struct AiOperationTypeMap {
 
     /// The mappings of span.op => gen_ai.operation.type as a dictionary
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub operation_types: HashMap<String, String>,
+    pub operation_types: HashMap<Pattern, String>,
 }
 
 impl AiOperationTypeMap {
@@ -343,7 +343,23 @@ impl AiOperationTypeMap {
         if !self.is_enabled() {
             return None;
         }
-        self.operation_types.get(span_op).map(String::as_str)
+
+        // First try exact match by creating a Pattern from the span_op
+        let exact_key = Pattern::new(span_op).ok()?;
+        if self.operation_types.contains_key(&exact_key) {
+            return self.operation_types.get(&exact_key).map(String::as_str);
+        }
+
+        // if there is not a direct match, try to find the match using a pattern
+        let operation_type = self.operation_types.iter().find_map(|(key, value)| {
+            if key.is_match(span_op) {
+                Some(value)
+            } else {
+                None
+            }
+        });
+
+        operation_type.map(String::as_str)
     }
 }
 #[cfg(test)]
@@ -544,6 +560,61 @@ mod tests {
         let deserialized: ModelCosts = serde_json::from_str(version_zero_json).unwrap();
         assert_eq!(deserialized.version, 0);
         assert!(!deserialized.is_enabled());
+    }
+
+    #[test]
+    fn test_ai_operation_type_map_serialization() {
+        // Test serialization and deserialization with patterns
+        let mut operation_types = HashMap::new();
+        operation_types.insert(
+            Pattern::new("gen_ai.chat*").unwrap(),
+            "Inference".to_owned(),
+        );
+        operation_types.insert(
+            Pattern::new("gen_ai.execute_tool").unwrap(),
+            "Tool".to_owned(),
+        );
+
+        let original = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: AiOperationTypeMap = serde_json::from_str(&json).unwrap();
+
+        assert!(deserialized.is_enabled());
+        assert_eq!(
+            deserialized.get_operation_type("gen_ai.chat.completions"),
+            Some("Inference")
+        );
+        assert_eq!(
+            deserialized.get_operation_type("gen_ai.execute_tool"),
+            Some("Tool")
+        );
+        assert_eq!(deserialized.get_operation_type("unknown_op"), None);
+    }
+
+    #[test]
+    fn test_ai_operation_type_map_pattern_matching() {
+        let mut operation_types = HashMap::new();
+        operation_types.insert(Pattern::new("gen_ai.*").unwrap(), "default".to_owned());
+        operation_types.insert(Pattern::new("gen_ai.chat").unwrap(), "chat".to_owned());
+
+        let map = AiOperationTypeMap {
+            version: 1,
+            operation_types,
+        };
+
+        let result = map.get_operation_type("gen_ai.chat");
+        assert!(Some("chat") == result);
+
+        let result = map.get_operation_type("gen_ai.chat.completions");
+        assert!(Some("default") == result);
+
+        assert_eq!(map.get_operation_type("gen_ai.other"), Some("default"));
+
+        assert_eq!(map.get_operation_type("other.operation"), None);
     }
 
     #[test]
