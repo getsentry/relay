@@ -11,16 +11,6 @@ use relay_event_schema::protocol::{Attributes, OurLog, OurLogLevel, SpanId, Time
 use relay_otel::otel_value_to_attribute;
 use relay_protocol::{Annotated, Error, Object};
 
-fn otel_value_to_string(value: Option<opentelemetry_proto::tonic::common::v1::AnyValue>) -> String {
-    value
-        .and_then(|v| v.value)
-        .and_then(|v| match v {
-            OtelValue::StringValue(s) => Some(s),
-            _ => None,
-        })
-        .unwrap_or_default()
-}
-
 /// Maps OpenTelemetry severity number to Sentry log level.
 ///
 /// This function maps OpenTelemetry severity numbers according to the OpenTelemetry specification:
@@ -69,7 +59,10 @@ pub fn otel_to_sentry_log(otel_log: OtelLogRecord) -> Result<OurLog, Error> {
     let trace_id = TraceId::try_from(trace_id.as_slice())?;
     let timestamp = Utc.timestamp_nanos(time_unix_nano as i64);
     let level = map_severity_to_level(severity_number, &severity_text);
-    let body = otel_value_to_string(body);
+    let body = body.and_then(|v| v.value).and_then(|v| match v {
+        OtelValue::StringValue(s) => Some(s),
+        _ => None,
+    });
 
     let mut attribute_data = Attributes::default();
     for attribute in attributes {
@@ -85,7 +78,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLogRecord) -> Result<OurLog, Error> {
         trace_id: Annotated::new(trace_id),
         span_id: Annotated::new(span_id),
         level: Annotated::new(level),
-        body: Annotated::new(body),
+        body: Annotated::from(body),
         attributes: Annotated::new(attribute_data),
         other: Object::default(),
     };
