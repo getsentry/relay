@@ -339,11 +339,11 @@ impl AiOperationTypeMap {
     }
 
     /// Gets the AI operation type for the given span operation, if defined.
-    pub fn get_operation_type(&self, span_op: &str) -> Option<&String> {
+    pub fn get_operation_type(&self, span_op: &str) -> Option<&str> {
         if !self.is_enabled() {
             return None;
         }
-        self.operation_types.get(span_op)
+        self.operation_types.get(span_op).map(String::as_str)
     }
 }
 #[cfg(test)]
