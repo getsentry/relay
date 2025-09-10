@@ -91,6 +91,7 @@ mod dynamic_sampling;
 mod event;
 mod metrics;
 mod nel;
+mod otel_logs;
 mod profile;
 mod profile_chunk;
 mod replay;
@@ -335,7 +336,8 @@ impl ProcessingGroup {
         }
 
         // Extract logs.
-        let logs_items = envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Log));
+        let logs_items = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Log | &ItemType::OtelLogsData));
         if !logs_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Log,
@@ -2379,6 +2381,8 @@ impl EnvelopeProcessorService {
                 if matches!(group, ProcessingGroup::Nel) {
                     nel::convert_to_logs(&mut managed_envelope);
                 }
+                // Convert OTLP logs data to individual log items
+                otel_logs::convert_to_logs(&mut managed_envelope);
                 self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
                     .await
             }

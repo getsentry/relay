@@ -14,6 +14,7 @@ mod health_check;
 mod minidump;
 mod monitor;
 mod nel;
+mod ourlog;
 #[cfg(sentry)]
 mod playstation;
 mod project_configs;
@@ -81,7 +82,8 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // Because we initially released this endpoint with a trailing slash, keeping it for
         // backwards compatibility.
         .route("/api/{project_id}/otlp/v1/traces", traces::route(config))
-        .route("/api/{project_id}/otlp/v1/traces/", traces::route(config));
+        .route("/api/{project_id}/otlp/v1/traces/", traces::route(config))
+        .route("/api/{project_id}/otlp/v1/logs", ourlog::route(config));
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
 
