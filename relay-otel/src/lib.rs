@@ -16,8 +16,7 @@ use relay_protocol::Value;
 /// Converts an OpenTelemetry AnyValue to a Sentry attribute.
 ///
 /// This function handles the conversion of OpenTelemetry attribute values to Sentry attribute types.
-/// Complex types like arrays and key-value lists are serialized to strings for safety and
-/// compatibility.
+/// Complex types like arrays and key-value lists are serialized to strings.
 ///
 /// For array and key-value list values, this function filters out nested complex types
 /// (nested arrays and key-value lists) before serialization to prevent issues with
