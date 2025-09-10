@@ -196,11 +196,11 @@ fn infer_ai_operation_type(span: &mut Span, operation_type_map: &AiOperationType
         return;
     };
 
-    if let Some(op) = span.op.value() {
-        if let Some(operation_type) = operation_type_map.get_operation_type(op) {
-            data.gen_ai_operation_type
-                .set_value(Some(operation_type.to_owned()));
-        }
+    if let Some(op) = span.op.value()
+        && let Some(operation_type) = operation_type_map.get_operation_type(op)
+    {
+        data.gen_ai_operation_type
+            .set_value(Some(operation_type.to_owned()));
     }
 }
 
