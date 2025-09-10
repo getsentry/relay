@@ -16,7 +16,7 @@ use relay_protocol::Value;
 /// Converts an OpenTelemetry AnyValue to a Sentry attribute.
 ///
 /// This function handles the conversion of OpenTelemetry attribute values to Sentry attribute types.
-/// Complex types like arrays and key-value lists are serialized to JSON strings for safety and
+/// Complex types like arrays and key-value lists are serialized to strings for safety and
 /// compatibility.
 ///
 /// For array and key-value list values, this function filters out nested complex types
@@ -56,11 +56,7 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
                 })
                 .collect();
 
-            // Serialize the array values as a JSON string. Even though there is some nominal
-            // support for array values in Sentry, it's not robust and not ready to be used.
-            // Instead, serialize arrays to a JSON string, and have the UI decode the JSON if
-            // possible.
-            let json = serde_json::to_string(&safe_values).unwrap_or_default();
+            let json = serde_json::to_string(&safe_values).ok()?;
             (AttributeType::String, Value::String(json))
         }
         OtelValue::KvlistValue(kvlist) => {
@@ -87,7 +83,7 @@ pub fn otel_value_to_attribute(otel_value: OtelValue) -> Option<Attribute> {
                     json_obj.insert(kv.key, val);
                 }
             }
-            let json = serde_json::to_string(&json_obj).unwrap_or_default();
+            let json = serde_json::to_string(&json_obj).ok()?;
             (AttributeType::String, Value::String(json))
         }
     };
@@ -101,18 +97,15 @@ mod tests {
     use opentelemetry_proto::tonic::common::v1::{
         AnyValue, ArrayValue, KeyValue, KeyValueList, any_value,
     };
+    use relay_protocol::get_value;
 
     #[test]
     fn test_string_value() {
         let otel_value = OtelValue::StringValue("test".to_owned());
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
-        assert_eq!(attr.value.ty.value().unwrap(), &AttributeType::String);
-        if let Value::String(s) = attr.value.value.value().unwrap() {
-            assert_eq!(s, "test");
-        } else {
-            panic!("Expected string value");
-        }
+        let value = &attr.value.value;
+        assert_eq!(get_value!(value!), &Value::String("test".to_owned()));
     }
 
     #[test]
@@ -120,12 +113,8 @@ mod tests {
         let otel_value = OtelValue::BoolValue(true);
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
-        assert_eq!(attr.value.ty.value().unwrap(), &AttributeType::Boolean);
-        if let Value::Bool(b) = attr.value.value.value().unwrap() {
-            assert!(b);
-        } else {
-            panic!("Expected boolean value");
-        }
+        let value = &attr.value.value;
+        assert_eq!(get_value!(value!), &Value::Bool(true));
     }
 
     #[test]
@@ -133,12 +122,8 @@ mod tests {
         let otel_value = OtelValue::IntValue(42);
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
-        assert_eq!(attr.value.ty.value().unwrap(), &AttributeType::Integer);
-        if let Value::I64(i) = attr.value.value.value().unwrap() {
-            assert_eq!(*i, 42);
-        } else {
-            panic!("Expected integer value");
-        }
+        let value = &attr.value.value;
+        assert_eq!(get_value!(value!), &Value::I64(42));
     }
 
     #[test]
@@ -146,12 +131,8 @@ mod tests {
         let otel_value = OtelValue::DoubleValue(3.5);
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
-        assert_eq!(attr.value.ty.value().unwrap(), &AttributeType::Double);
-        if let Value::F64(f) = attr.value.value.value().unwrap() {
-            assert_eq!(*f, 3.5);
-        } else {
-            panic!("Expected double value");
-        }
+        let value = &attr.value.value;
+        assert_eq!(get_value!(value!), &Value::F64(3.5));
     }
 
     #[test]
@@ -159,12 +140,8 @@ mod tests {
         let otel_value = OtelValue::BytesValue(b"hello".to_vec());
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
-        assert_eq!(attr.value.ty.value().unwrap(), &AttributeType::String);
-        if let Value::String(s) = attr.value.value.value().unwrap() {
-            assert_eq!(s, "hello");
-        } else {
-            panic!("Expected string value");
-        }
+        let value = &attr.value.value;
+        assert_eq!(get_value!(value!), &Value::String("hello".to_owned()));
     }
 
     #[test]
@@ -182,14 +159,11 @@ mod tests {
         let otel_value = OtelValue::ArrayValue(array);
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
-        assert_eq!(attr.value.ty.value().unwrap(), &AttributeType::String);
-        if let Value::String(s) = attr.value.value.value().unwrap() {
-            // Should be JSON array string
-            assert!(s.contains("item1"));
-            assert!(s.contains("42"));
-        } else {
-            panic!("Expected string value for array");
-        }
+        let value = &attr.value.value;
+        assert_eq!(
+            get_value!(value!),
+            &Value::String("[\"item1\",42]".to_owned())
+        );
     }
 
     #[test]
@@ -205,36 +179,10 @@ mod tests {
         let otel_value = OtelValue::KvlistValue(kvlist);
         let attr = otel_value_to_attribute(otel_value).unwrap();
 
-        assert_eq!(attr.value.ty.value().unwrap(), &AttributeType::String);
-        if let Value::String(s) = attr.value.value.value().unwrap() {
-            // Should be JSON object string
-            assert!(s.contains("key1"));
-            assert!(s.contains("value1"));
-        } else {
-            panic!("Expected string value for kvlist");
-        }
-    }
-
-    #[test]
-    fn test_span_kvlist_value_works() {
-        let kvlist = KeyValueList {
-            values: vec![KeyValue {
-                key: "key1".to_owned(),
-                value: Some(AnyValue {
-                    value: Some(any_value::Value::StringValue("value1".to_owned())),
-                }),
-            }],
-        };
-        let otel_value = OtelValue::KvlistValue(kvlist);
-        let attr = otel_value_to_attribute(otel_value).unwrap();
-
-        // Should work and return JSON string
-        assert_eq!(attr.value.ty.value().unwrap(), &AttributeType::String);
-        if let Value::String(s) = attr.value.value.value().unwrap() {
-            assert!(s.contains("key1"));
-            assert!(s.contains("value1"));
-        } else {
-            panic!("Expected string value for kvlist");
-        }
+        let value = &attr.value.value;
+        assert_eq!(
+            get_value!(value!),
+            &Value::String("{\"key1\":\"value1\"}".to_owned())
+        );
     }
 }
