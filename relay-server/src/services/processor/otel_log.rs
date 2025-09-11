@@ -63,7 +63,6 @@ pub fn convert_to_logs(envelope: &mut ManagedEnvelope) {
                                     relay_log::debug!(
                                         "Failed to convert OTLP log record to Sentry log"
                                     );
-                                    // Track invalid log
                                     envelope.track_outcome(
                                         Outcome::Invalid(DiscardReason::Internal),
                                         DataCategory::LogItem,
@@ -77,9 +76,7 @@ pub fn convert_to_logs(envelope: &mut ManagedEnvelope) {
             }
             Err(reason) => {
                 relay_log::debug!("Failed to parse OTLP logs data");
-                // Track invalid logs data
                 envelope.track_outcome(Outcome::Invalid(reason), DataCategory::LogItem, 1);
-                envelope.track_outcome(Outcome::Invalid(reason), DataCategory::LogByte, 1);
             }
         }
     }
