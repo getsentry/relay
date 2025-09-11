@@ -481,14 +481,8 @@ impl<'a> NormalizeSpanConfig<'a> {
                 project_config.measurements.as_ref(),
                 global_config.measurements.as_ref(),
             )),
-            ai_model_costs: match &global_config.ai_model_costs {
-                ErrorBoundary::Err(_) => None,
-                ErrorBoundary::Ok(costs) => Some(costs),
-            },
-            ai_operation_type_map: match &global_config.ai_operation_type_map {
-                ErrorBoundary::Err(_) => None,
-                ErrorBoundary::Ok(operation_type_map) => Some(operation_type_map),
-            },
+            ai_model_costs: global_config.ai_model_costs.as_ref().ok(),
+            ai_operation_type_map: global_config.ai_operation_type_map.as_ref().ok(),
             max_name_and_unit_len: aggregator_config
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
