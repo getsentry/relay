@@ -1,6 +1,5 @@
 import json
 from datetime import datetime, timezone
-from unittest import mock
 
 from .asserts import time_within_delta
 
