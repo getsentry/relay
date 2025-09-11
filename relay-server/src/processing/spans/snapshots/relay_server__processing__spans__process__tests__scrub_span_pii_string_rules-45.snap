@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/spans/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@password:replace|my_password_123": {
+    "type": "string",
+    "value": "[password]"
+  },
+  "_meta": {
+    "@password:replace|my_password_123": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@password:replace",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 15
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/spans/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@email:remove|test@example.com": {
+    "type": "string",
+    "value": ""
+  },
+  "_meta": {
+    "@email:remove|test@example.com": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@email:remove",
+              "x",
+              0,
+              0
+            ]
+          ],
+          "len": 16
+        }
+      }
+    }
+  }
+}

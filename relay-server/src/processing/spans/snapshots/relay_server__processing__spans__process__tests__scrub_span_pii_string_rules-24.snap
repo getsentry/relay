@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/spans/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@uuid:mask|ceee0822-ed8f-4622-b2a3-789e73e75cd1": {
+    "type": "string",
+    "value": "************************************"
+  },
+  "_meta": {
+    "@uuid:mask|ceee0822-ed8f-4622-b2a3-789e73e75cd1": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@uuid:mask",
+              "m",
+              0,
+              36
+            ]
+          ],
+          "len": 36
+        }
+      }
+    }
+  }
+}

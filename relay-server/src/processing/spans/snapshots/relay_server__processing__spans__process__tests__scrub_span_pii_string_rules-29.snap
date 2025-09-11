@@ -1,0 +1,27 @@
+---
+source: relay-server/src/processing/spans/process.rs
+expression: SerializableAnnotated(&data.value().unwrap().attributes)
+---
+{
+  "@pemkey:replace|-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----": {
+    "type": "string",
+    "value": "-----BEGIN EC PRIVATE KEY-----\n[pemkey]\n-----END EC PRIVATE KEY-----"
+  },
+  "_meta": {
+    "@pemkey:replace|-----BEGIN EC PRIVATE KEY-----\nMIHbAgEBBEFbLvIaAaez3q0u6BQYMHZ28B7iSdMPPaODUMGkdorl3ShgTbYmzqGL\n-----END EC PRIVATE KEY-----": {
+      "value": {
+        "": {
+          "rem": [
+            [
+              "@pemkey:replace",
+              "s",
+              31,
+              39
+            ]
+          ],
+          "len": 124
+        }
+      }
+    }
+  }
+}
