@@ -14,7 +14,7 @@ mod health_check;
 mod minidump;
 mod monitor;
 mod nel;
-mod ourlog;
+mod otel_log;
 #[cfg(sentry)]
 mod playstation;
 mod project_configs;
@@ -83,7 +83,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // backwards compatibility.
         .route("/api/{project_id}/otlp/v1/traces", traces::route(config))
         .route("/api/{project_id}/otlp/v1/traces/", traces::route(config))
-        .route("/api/{project_id}/otlp/v1/logs", ourlog::route(config));
+        .route("/api/{project_id}/otlp/v1/logs", otel_log::route(config));
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
 
