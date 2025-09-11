@@ -27,8 +27,9 @@ use relay_protocol::{
 use smallvec::SmallVec;
 use uuid::Uuid;
 
+use crate::normalize::AiOperationTypeMap;
 use crate::normalize::request;
-use crate::span::ai::enrich_ai_span_data;
+use crate::span::ai::enrich_ai_event_data;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS, get_event_user_tag};
 use crate::{
@@ -140,6 +141,9 @@ pub struct NormalizationConfig<'a> {
     /// Configuration for calculating the cost of AI model runs
     pub ai_model_costs: Option<&'a ModelCosts>,
 
+    /// Configuration for mapping AI operation types from span.op to gen_ai.operation.type
+    pub ai_operation_type_map: Option<&'a AiOperationTypeMap>,
+
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
 
@@ -194,6 +198,7 @@ impl Default for NormalizationConfig<'_> {
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
             ai_model_costs: Default::default(),
+            ai_operation_type_map: Default::default(),
             enable_trimming: false,
             measurements: None,
             normalize_spans: true,
@@ -323,7 +328,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             .get_or_default::<PerformanceScoreContext>()
             .score_profile_version = Annotated::new(version);
     }
-    enrich_ai_span_data(event, config.ai_model_costs);
+    enrich_ai_event_data(event, config.ai_model_costs, config.ai_operation_type_map);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
     normalize_trace_context_tags(event);
@@ -2845,6 +2850,161 @@ mod tests {
                 .value()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn test_ai_operation_type_mapping() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "transaction": "test-transaction",
+                "spans": [
+                    {
+                        "op": "gen_ai.chat",
+                        "description": "AI chat completion",
+                        "data": {}
+                    },
+                    {
+                        "op": "gen_ai.handoff",
+                        "description": "AI agent handoff",
+                        "data": {}
+                    },
+                    {
+                        "op": "gen_ai.unknown",
+                        "description": "Unknown AI operation",
+                        "data": {}
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types: HashMap::from([
+                (Pattern::new("gen_ai.chat").unwrap(), "chat".to_owned()),
+                (
+                    Pattern::new("gen_ai.execute_tool").unwrap(),
+                    "execute_tool".to_owned(),
+                ),
+                (
+                    Pattern::new("gen_ai.handoff").unwrap(),
+                    "handoff".to_owned(),
+                ),
+                (
+                    Pattern::new("gen_ai.invoke_agent").unwrap(),
+                    "invoke_agent".to_owned(),
+                ),
+                // fallback to agent
+                (Pattern::new("gen_ai.*").unwrap(), "agent".to_owned()),
+            ]),
+        };
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_operation_type_map: Some(&operation_type_map),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data_0 = get_value!(event.spans[0].data!);
+        let span_data_1 = get_value!(event.spans[1].data!);
+        let span_data_2 = get_value!(event.spans[2].data!);
+
+        assert_eq!(
+            span_data_0.gen_ai_operation_type.value(),
+            Some(&"chat".to_owned())
+        );
+
+        assert_eq!(
+            span_data_1.gen_ai_operation_type.value(),
+            Some(&"handoff".to_owned())
+        );
+
+        // Third span should have operation type mapped to "agent" fallback
+        assert_eq!(
+            span_data_2.gen_ai_operation_type.value(),
+            Some(&"agent".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_ai_operation_type_disabled_map() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "transaction": "test-transaction",
+                "spans": [
+                    {
+                        "op": "gen_ai.chat",
+                        "description": "AI chat completion",
+                        "data": {}
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let operation_type_map = AiOperationTypeMap {
+            version: 0, // Disabled version
+            operation_types: HashMap::from([(
+                Pattern::new("gen_ai.chat").unwrap(),
+                "chat".to_owned(),
+            )]),
+        };
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_operation_type_map: Some(&operation_type_map),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data = get_value!(event.spans[0].data!);
+
+        // Should not set operation type when map is disabled
+        assert_eq!(span_data.gen_ai_operation_type.value(), None);
+    }
+
+    #[test]
+    fn test_ai_operation_type_empty_map() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "transaction": "test-transaction",
+                "spans": [
+                    {
+                        "op": "gen_ai.chat",
+                        "description": "AI chat completion",
+                        "data": {}
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let operation_type_map = AiOperationTypeMap {
+            version: 1,
+            operation_types: HashMap::new(),
+        };
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_operation_type_map: Some(&operation_type_map),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let span_data = get_value!(event.spans[0].data!);
+
+        // Should not set operation type when map is empty
+        assert_eq!(span_data.gen_ai_operation_type.value(), None);
     }
 
     #[test]

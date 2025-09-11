@@ -641,6 +641,10 @@ pub struct SpanData {
     #[metastructure(field = "gen_ai.operation.name", pii = "maybe")]
     pub gen_ai_operation_name: Annotated<String>,
 
+    /// The type of the operation being performed.
+    #[metastructure(field = "gen_ai.operation.type", pii = "maybe")]
+    pub gen_ai_operation_type: Annotated<String>,
+
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
     pub browser_name: Annotated<String>,
@@ -1443,6 +1447,7 @@ mod tests {
             gen_ai_system: ~,
             gen_ai_tool_name: ~,
             gen_ai_operation_name: ~,
+            gen_ai_operation_type: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
