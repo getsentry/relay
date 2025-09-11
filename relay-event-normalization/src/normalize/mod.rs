@@ -344,10 +344,9 @@ impl AiOperationTypeMap {
             return None;
         }
 
-        // First try exact match by creating a Pattern from the span_op
-        let exact_key = Pattern::new(span_op).ok()?;
-        if self.operation_types.contains_key(&exact_key) {
-            return self.operation_types.get(&exact_key).map(String::as_str);
+        // try first direct match with span_op
+        if let Some(value) = self.operation_types.get(span_op) {
+            return Some(value.as_str());
         }
 
         // if there is not a direct match, try to find the match using a pattern
