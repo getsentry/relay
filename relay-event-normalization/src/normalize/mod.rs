@@ -261,27 +261,24 @@ impl ModelCosts {
     }
 
     /// Gets the cost per token, if defined for the given model.
-    pub fn cost_per_token(&self, model_id: &str) -> Option<ModelCostV2> {
+    pub fn cost_per_token(&self, model_id: &str) -> Option<&ModelCostV2> {
         if !self.is_enabled() {
             return None;
         }
 
         // First try exact match by creating a Pattern from the model_id
-        let exact_key = Pattern::new(model_id).ok()?;
-        if self.models.contains_key(&exact_key) {
-            return self.models.get(&exact_key).copied();
+        if let Some(value) = self.models.get(model_id) {
+            return Some(value);
         }
 
         // if there is not a direct match, try to find the match using a pattern
-        let cost = self.models.iter().find_map(|(key, value)| {
+        self.models.iter().find_map(|(key, value)| {
             if key.is_match(model_id) {
                 Some(value)
             } else {
                 None
             }
-        });
-
-        cost.copied()
+        })
     }
 }
 
@@ -481,7 +478,7 @@ mod tests {
         let cost = v2_config.cost_per_token("gpt-4").unwrap();
         assert_eq!(
             cost,
-            ModelCostV2 {
+            &ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
@@ -523,7 +520,7 @@ mod tests {
         let cost = v2_config.cost_per_token("gpt-4-v1").unwrap();
         assert_eq!(
             cost,
-            ModelCostV2 {
+            &ModelCostV2 {
                 input_per_token: 0.03,
                 output_per_token: 0.06,
                 output_reasoning_per_token: 0.12,
@@ -534,7 +531,7 @@ mod tests {
         let cost = v2_config.cost_per_token("gpt-4-2xxx").unwrap();
         assert_eq!(
             cost,
-            ModelCostV2 {
+            &ModelCostV2 {
                 input_per_token: 0.0007,
                 output_per_token: 0.0008,
                 output_reasoning_per_token: 0.0016,

@@ -7,7 +7,7 @@ use relay_protocol::{Annotated, Getter, Value};
 
 /// Calculates the cost of an AI model based on the model cost and the tokens used.
 /// Calculated cost is in US dollars.
-fn extract_ai_model_cost_data(model_cost: Option<ModelCostV2>, data: &mut SpanData) {
+fn extract_ai_model_cost_data(model_cost: Option<&ModelCostV2>, data: &mut SpanData) {
     let cost_per_token = match model_cost {
         Some(v) => v,
         None => return,
@@ -123,9 +123,7 @@ fn extract_ai_data(span: &mut Span, ai_model_costs: &ModelCosts) {
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
 
-    let Some(data) = span.data.value_mut() else {
-        return;
-    };
+    let data = span.data.get_or_insert_with(SpanData::default);
 
     // Extracts the response tokens per second
     if data.gen_ai_response_tokens_per_second.value().is_none()
