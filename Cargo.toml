@@ -55,6 +55,7 @@ relay-kafka = { path = "relay-kafka" }
 relay-log = { path = "relay-log" }
 relay-metrics = { path = "relay-metrics" }
 relay-monitors = { path = "relay-monitors" }
+relay-otel = { path = "relay-otel" }
 relay-ourlogs = { path = "relay-ourlogs" }
 relay-pattern = { path = "relay-pattern" }
 relay-pii = { path = "relay-pii" }

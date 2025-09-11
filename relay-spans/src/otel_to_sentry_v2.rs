@@ -1,8 +1,8 @@
 use chrono::{TimeZone, Utc};
-use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::trace::v1::span::Link as OtelLink;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind as OtelSpanKind;
-use relay_event_schema::protocol::{Attribute, AttributeType, Attributes, SpanV2Kind};
+use relay_event_schema::protocol::{Attributes, SpanV2Kind};
+use relay_otel::otel_value_to_attribute;
 use relay_protocol::ErrorKind;
 
 use crate::otel_trace::{
@@ -74,7 +74,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> Result<SentrySpanV2, Error> {
             _ => (),
         }
 
-        if let Some(v) = otel_value_to_attr(value) {
+        if let Some(v) = otel_value_to_attribute(value) {
             sentry_attributes.insert_raw(key, Annotated::new(v));
         }
     }
@@ -136,56 +136,7 @@ fn otel_to_sentry_status(status_code: i32) -> SpanV2Status {
     }
 }
 
-fn otel_value_to_attr(otel_value: OtelValue) -> Option<Attribute> {
-    let (ty, value) = match otel_value {
-        OtelValue::StringValue(s) => (AttributeType::String, Value::String(s)),
-        OtelValue::BoolValue(b) => (AttributeType::Boolean, Value::Bool(b)),
-        OtelValue::IntValue(i) => (AttributeType::Integer, Value::I64(i)),
-        OtelValue::DoubleValue(d) => (AttributeType::Double, Value::F64(d)),
-        OtelValue::BytesValue(bytes) => {
-            let s = String::from_utf8(bytes).ok()?;
-            (AttributeType::String, Value::String(s))
-        }
-        OtelValue::ArrayValue(array) => {
-            // Technically, `ArrayValue` can contain other arrays, or nested key-value lists. This
-            // is not usually allowed by the OTLP protocol, but for safety we filter those values
-            // out before serializing.
-            let safe_values: Vec<serde_json::Value> = array
-                .values
-                .into_iter()
-                .filter_map(|v| match v.value? {
-                    OtelValue::StringValue(s) => Some(serde_json::Value::String(s)),
-                    OtelValue::BoolValue(b) => Some(serde_json::Value::Bool(b)),
-                    OtelValue::IntValue(i) => {
-                        Some(serde_json::Value::Number(serde_json::Number::from(i)))
-                    }
-                    OtelValue::DoubleValue(d) => {
-                        serde_json::Number::from_f64(d).map(serde_json::Value::Number)
-                    }
-                    OtelValue::BytesValue(bytes) => {
-                        String::from_utf8(bytes).ok().map(serde_json::Value::String)
-                    }
-                    OtelValue::ArrayValue(_) | OtelValue::KvlistValue(_) => None,
-                })
-                .collect();
-
-            // Serialize the arrays values as a JSON string. Even though there is some nominal
-            // support for array values in Sentry, it's not robust and not ready to be used.
-            // Instead, serialize arrays to a JSON string, and have the UI decode the JSON if
-            // possible.
-            let json = serde_json::to_string(&safe_values).unwrap_or_default();
-            (AttributeType::String, Value::String(json))
-        }
-        OtelValue::KvlistValue(_) => {
-            // Key-value pairs are supported by the type definition, but the OTLP protocol does
-            // _not_ allow setting this kind of value on a span, so we don't need to handle this
-            // case
-            return None;
-        }
-    };
-
-    Some(Attribute::new(ty, value))
-}
+// This function has been moved to relay-otel crate as otel_value_to_attribute
 
 fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
     // See the W3C trace context specification:
@@ -194,7 +145,7 @@ fn otel_to_sentry_link(otel_link: OtelLink) -> Result<SpanV2Link, Error> {
 
     let attributes = Attributes::from_iter(otel_link.attributes.into_iter().filter_map(|kv| {
         let value = kv.value?.value?;
-        let attr_value = otel_value_to_attr(value)?;
+        let attr_value = otel_value_to_attribute(value)?;
         Some((kv.key, Annotated::new(attr_value)))
     }));
 
