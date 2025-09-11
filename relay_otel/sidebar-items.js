@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["otel_value_to_attribute"]};

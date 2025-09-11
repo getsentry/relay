@@ -1,1 +1,1 @@
-searchState.loadedDescShard("relay_ourlogs", 0, "Structs and functions needed to ingest Sentry logs.\nCalculates a canonical size of a log item.")
+searchState.loadedDescShard("relay_ourlogs", 0, "Structs and functions needed to ingest Sentry logs.\nCalculates a canonical size of a log item.\nTransforms an OpenTelemetry log record to a Sentry log.")
