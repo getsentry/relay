@@ -9,7 +9,7 @@ use crate::envelope::{ContainerItems, ContentType, Item, ItemContainer, ItemType
 use crate::managed::ManagedEnvelope;
 use crate::services::outcome::{DiscardReason, Outcome};
 
-pub fn convert_to_logs(envelope: &mut ManagedEnvelope) {
+pub fn convert_otel_logs(envelope: &mut ManagedEnvelope) {
     let items = envelope
         .envelope_mut()
         .take_items_by(|item| item.ty() == &ItemType::OtelLogsData);

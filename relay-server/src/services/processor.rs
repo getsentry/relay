@@ -91,7 +91,7 @@ mod dynamic_sampling;
 mod event;
 mod metrics;
 mod nel;
-mod otlp_log;
+mod ourlog;
 mod profile;
 mod profile_chunk;
 mod replay;
@@ -2382,7 +2382,7 @@ impl EnvelopeProcessorService {
                     nel::convert_to_logs(&mut managed_envelope);
                 }
                 // Convert OTLP logs data to individual log items
-                otlp_log::convert_to_logs(&mut managed_envelope);
+                ourlog::convert_otel_logs(&mut managed_envelope);
                 self.process_with_processor(&self.inner.processing.logs, managed_envelope, ctx)
                     .await
             }
